@@ -1,11 +1,21 @@
 {
   "name": "service-ops-crm",
   "private": true,
-  "packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
   "scripts": {
-    "dev": "echo \"Root dev command will be added in the next stages\"",
-    "build": "echo \"Root build command will be added in the next stages\"",
-    "lint": "echo \"Root lint command will be added in the next stages\"",
-    "typecheck": "echo \"Root typecheck command will be added in the next stages\""
+    "dev": "echo \"Root dev orchestration will be connected after frontend/backend bootstrap\"",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "format": "pnpm -r format",
+    "clean": "pnpm -r exec rimraf dist .next coverage",
+    "workspace:list": "pnpm m ls --depth -1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2"
   }
 }
