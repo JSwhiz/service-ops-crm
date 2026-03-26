@@ -1,0 +1,11 @@
+{
+  "name": "service-ops-crm",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "dev": "echo \"Root dev command will be added in the next stages\"",
+    "build": "echo \"Root build command will be added in the next stages\"",
+    "lint": "echo \"Root lint command will be added in the next stages\"",
+    "typecheck": "echo \"Root typecheck command will be added in the next stages\""
+  }
+}
