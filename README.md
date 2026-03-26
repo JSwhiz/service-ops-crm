@@ -38,7 +38,8 @@
 - модель ролей и видимости;
 - схема monorepo;
 - package management foundation;
-- стратегия Git и версионирования.
+- стратегия Git и версионирования;
+- env strategy foundation.
 
 ## Структура репозитория
 
@@ -66,6 +67,25 @@
 - `feature/*` — ветки отдельных задач
 - после устойчивых этапов ставятся теги
 
+## Environment strategy
+
+В проекте используется разделенная конфигурация по зонам ответственности:
+
+- backend env
+- frontend public env
+- infrastructure env
+
+Документация:
+
+- `docs/onboarding/environment-setup.md`
+
+Example-файлы:
+
+- `.env.example`
+- `.env.backend.example`
+- `.env.frontend.example`
+- `.env.infra.example`
+
 ## Документация
 
 См. каталог `docs/`:
@@ -81,7 +101,7 @@
 
 - `docs/onboarding/local-setup.md`
 
-По мере прохождения foundation-этапов туда будут добавляться:
+По мере развития foundation-этапов туда будут добавляться:
 
 - env setup
 - infra startup

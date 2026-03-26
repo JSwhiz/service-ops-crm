@@ -11,6 +11,12 @@ coverage
 .env
 .env.local
 .env.*.local
+.env.backend
+.env.backend.local
+.env.frontend
+.env.frontend.local
+.env.infra
+.env.infra.local
 
 # logs
 *.log
