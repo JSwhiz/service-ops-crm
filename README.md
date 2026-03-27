@@ -39,7 +39,8 @@
 - схема monorepo;
 - package management foundation;
 - стратегия Git и версионирования;
-- env strategy foundation.
+- env strategy foundation;
+- dev infrastructure foundation.
 
 ## Структура репозитория
 
@@ -86,6 +87,26 @@ Example-файлы:
 - `.env.frontend.example`
 - `.env.infra.example`
 
+## Local development infrastructure
+
+Локальная инфраструктура поднимается через Docker Compose и включает:
+
+- PostgreSQL
+- Redis
+- MinIO
+
+На раннем этапе:
+
+- infrastructure запускается в Docker;
+- backend и frontend later будут запускаться локально в dev mode.
+
+Основные команды:
+
+- `make infra-up`
+- `make infra-down`
+- `make infra-logs`
+- `make infra-ps`
+
 ## Документация
 
 См. каталог `docs/`:
@@ -97,17 +118,9 @@ Example-файлы:
 
 ## Локальный запуск
 
-Подробная инструкция будет поддерживаться в:
+Подробная инструкция поддерживается в:
 
 - `docs/onboarding/local-setup.md`
-
-По мере развития foundation-этапов туда будут добавляться:
-
-- env setup
-- infra startup
-- database migration flow
-- frontend/backend start
-- development workflow
 
 ## Текущее направление разработки
 
