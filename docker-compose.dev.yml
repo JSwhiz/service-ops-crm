@@ -3,7 +3,7 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16
-    container_name: service_ops_postgres
+    container_name: service_ops_postgres.
     restart: unless-stopped
     environment:
       POSTGRES_DB: service_ops
