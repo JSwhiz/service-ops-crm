@@ -1,11 +1,23 @@
+// {
+//   "extends": "@service-ops/tsconfig/nestjs.json",
+//   "compilerOptions": {
+//     "baseUrl": "./",
+//     "rootDir": "./src",
+//     "outDir": "dist",
+//     "paths": {
+//       "@/*": ["src/*"]
+//     }
+//   },
+//   "include": ["src/**/*.ts"],
+//   "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
+// }
+
 {
   "extends": "@service-ops/tsconfig/nestjs.json",
   "compilerOptions": {
     "baseUrl": "./",
     "rootDir": "./src",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "outDir": "./dist"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]

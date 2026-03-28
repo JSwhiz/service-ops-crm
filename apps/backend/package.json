@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node dist/main.js",
-    "start:dev": "nest start --watch",
-    "build": "nest build",
+    "start:dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
     "lint": "echo \"Backend lint will be connected after ESLint app wiring\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "echo \"Formatting handled at repo level\""
@@ -29,6 +29,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^22.10.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
   }
 }
