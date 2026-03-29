@@ -1,16 +1,14 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16
-    container_name: service_ops_postgres.
+    container_name: service_ops_postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: service_ops
       POSTGRES_USER: service_ops
       POSTGRES_PASSWORD: service_ops_password
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - service_ops_postgres_data:/var/lib/postgresql/data
     healthcheck:

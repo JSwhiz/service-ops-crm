@@ -3,6 +3,6 @@ export interface SystemUser {
   login: string;
   password: string;
   fullName: string;
-  roleCode: string;
   isActive: boolean;
+  roleCodes: string[];
 }

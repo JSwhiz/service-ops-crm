@@ -34,3 +34,12 @@ infra-ps:
 infra-restart:
 	docker compose -f docker-compose.dev.yml down
 	docker compose -f docker-compose.dev.yml up -d
+
+db-generate:
+	pnpm db:generate
+
+db-migrate:
+	pnpm db:migrate
+
+db-seed:
+	pnpm db:seed

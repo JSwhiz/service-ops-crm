@@ -4,18 +4,19 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 import { UsersService } from '../../users-access/users.service';
+
 import { AUTH_JWT_STRATEGY } from '../constants/auth.constants';
 
 interface JwtPayload {
   sub: string;
   login: string;
-  roleCode: string;
+  roleCodes: string[];
 }
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, AUTH_JWT_STRATEGY) {
   constructor(
-    private readonly configService: ConfigService,
+    configService: ConfigService,
     private readonly usersService: UsersService,
   ) {
     super({
@@ -26,12 +27,20 @@ export class JwtStrategy extends PassportStrategy(Strategy, AUTH_JWT_STRATEGY) {
   }
 
   async validate(payload: JwtPayload) {
-    const user = this.usersService.findById(payload.sub);
+    const user = await this.usersService.findById(payload.sub);
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User is not available');
     }
 
-    return this.usersService.sanitizeUser(user);
+    const safeUser = this.usersService.sanitizeUser(user);
+
+    return {
+      id: safeUser.id,
+      login: safeUser.login,
+      fullName: safeUser.fullName,
+      roleCode: safeUser.roleCodes[0] ?? 'unknown',
+      isActive: safeUser.isActive,
+    };
   }
 }

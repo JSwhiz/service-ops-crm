@@ -6,20 +6,9 @@
 
 ## Назначение
 
-Этот документ будет служить единой инструкцией локального запуска проекта.
+Этот документ служит единой инструкцией локального запуска проекта.
 
-По мере развития foundation-этапов сюда будут добавлены:
-
-1. установка pnpm
-2. установка зависимостей
-3. env strategy
-4. запуск docker dev infrastructure
-5. prisma generate / migrate
-6. запуск backend
-7. запуск frontend
-8. базовые проверки health/status
-
-## Текущий минимум
+## Что уже должно быть готово
 
 На текущем этапе уже должны быть готовы:
 
@@ -27,8 +16,32 @@
 - monorepo structure
 - pnpm workspace foundation
 - documentation foundation
+- environment strategy foundation
+- dev infrastructure foundation
+- backend shell foundation
+- frontend shell foundation
+- auth foundation
+- prisma foundation
 
-## Важно
+## Шаг 1. Установить системные зависимости
 
-Не хранить setup-шаги только в чате или в памяти.
-Этот документ должен обновляться вместе с инженерными этапами проекта.
+На локальной машине должны быть доступны:
+
+- Git
+- Node.js LTS
+- pnpm
+- Docker
+- Docker Compose plugin
+
+## Шаг 2. Подготовить локальные env-файлы
+
+Нужны:
+
+- `.env.backend.local`
+- `.env.frontend.local`
+
+## Шаг 3. Поднять локальную инфраструктуру
+
+```bash
+make infra-up
+```

@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  login       String   @unique
+  password    String
+  fullName    String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  roles                UserRole[]
+  permissions          UserPermission[]
+  visibilityGroups     UserVisibilityGroup[]
+  approvalCapabilities UserApprovalCapability[]
+  auditEvents          AuditEvent[] @relation("AuditActor")
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserPermission[]
+
+  @@map("permissions")
+}
+
+model VisibilityGroup {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  scopeType   String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserVisibilityGroup[]
+
+  @@map("visibility_groups")
+}
+
+model ApprovalCapability {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserApprovalCapability[]
+
+  @@map("approval_capabilities")
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model UserPermission {
+  id           String   @id @default(uuid())
+  userId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+  @@index([userId])
+  @@index([permissionId])
+  @@map("user_permissions")
+}
+
+model UserVisibilityGroup {
+  id                String   @id @default(uuid())
+  userId            String
+  visibilityGroupId String
+  createdAt         DateTime @default(now())
+
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visibilityGroup VisibilityGroup @relation(fields: [visibilityGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, visibilityGroupId])
+  @@index([userId])
+  @@index([visibilityGroupId])
+  @@map("user_visibility_groups")
+}
+
+model UserApprovalCapability {
+  id                   String   @id @default(uuid())
+  userId               String
+  approvalCapabilityId String
+  createdAt            DateTime @default(now())
+
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  approvalCapability ApprovalCapability @relation(fields: [approvalCapabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, approvalCapabilityId])
+  @@index([userId])
+  @@index([approvalCapabilityId])
+  @@map("user_approval_capabilities")
+}
+
+model File {
+  id              String   @id @default(uuid())
+  bucket          String
+  objectKey       String   @unique
+  originalName    String
+  mimeType        String
+  sizeBytes       Int
+  uploadedByUserId String?
+  createdAt       DateTime @default(now())
+  deletedAt       DateTime?
+
+  @@index([uploadedByUserId])
+  @@map("files")
+}
+
+model AuditEvent {
+  id            String   @id @default(uuid())
+  actorUserId   String?
+  entityType    String
+  entityId      String
+  action        String
+  oldValues     Json?
+  newValues     Json?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_events")
+}

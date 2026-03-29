@@ -14,7 +14,7 @@ export class AuthService {
   ) {}
 
   async login(payload: LoginDto): Promise<AuthResponseDto> {
-    const user = this.usersService.findByLogin(payload.login);
+    const user = await this.usersService.findByLogin(payload.login);
 
     if (!user || !user.isActive || user.password !== payload.password) {
       throw new UnauthorizedException('Invalid credentials');
@@ -25,7 +25,7 @@ export class AuthService {
     const jwtPayload = {
       sub: safeUser.id,
       login: safeUser.login,
-      roleCode: safeUser.roleCode,
+      roleCodes: safeUser.roleCodes,
     };
 
     return {
@@ -33,7 +33,13 @@ export class AuthService {
       refreshToken: await this.jwtService.signAsync(jwtPayload, {
         expiresIn: '30d',
       }),
-      user: safeUser,
+      user: {
+        id: safeUser.id,
+        login: safeUser.login,
+        fullName: safeUser.fullName,
+        roleCode: safeUser.roleCodes[0] ?? 'unknown',
+        isActive: safeUser.isActive,
+      },
     };
   }
 
@@ -42,10 +48,10 @@ export class AuthService {
       const payload = await this.jwtService.verifyAsync<{
         sub: string;
         login: string;
-        roleCode: string;
+        roleCodes: string[];
       }>(refreshToken);
 
-      const user = this.usersService.findById(payload.sub);
+      const user = await this.usersService.findById(payload.sub);
 
       if (!user || !user.isActive) {
         throw new UnauthorizedException('Invalid refresh token');
@@ -56,7 +62,7 @@ export class AuthService {
       const jwtPayload = {
         sub: safeUser.id,
         login: safeUser.login,
-        roleCode: safeUser.roleCode,
+        roleCodes: safeUser.roleCodes,
       };
 
       return {
@@ -64,7 +70,13 @@ export class AuthService {
         refreshToken: await this.jwtService.signAsync(jwtPayload, {
           expiresIn: '30d',
         }),
-        user: safeUser,
+        user: {
+          id: safeUser.id,
+          login: safeUser.login,
+          fullName: safeUser.fullName,
+          roleCode: safeUser.roleCodes[0] ?? 'unknown',
+          isActive: safeUser.isActive,
+        },
       };
     } catch {
       throw new UnauthorizedException('Invalid refresh token');

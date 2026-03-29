@@ -1,34 +1,69 @@
 import { Injectable } from '@nestjs/common';
 
+import { PrismaService } from '../prisma/prisma.service';
+
 import { SystemUser } from './types/system-user.type';
 
 @Injectable()
 export class UsersService {
-  private readonly users: SystemUser[] = [
-    {
-      id: '1',
-      login: 'founder',
-      password: 'founder123',
-      fullName: 'Учредитель',
-      roleCode: 'founder',
-      isActive: true,
-    },
-    {
-      id: '2',
-      login: 'director',
-      password: 'director123',
-      fullName: 'Директор',
-      roleCode: 'director',
-      isActive: true,
-    },
-  ];
+  constructor(private readonly prisma: PrismaService) {}
 
-  findByLogin(login: string): SystemUser | undefined {
-    return this.users.find((user) => user.login === login);
+  async findByLogin(login: string): Promise<SystemUser | null> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        login,
+        deletedAt: null,
+      },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      login: user.login,
+      password: user.password,
+      fullName: user.fullName,
+      isActive: user.isActive,
+      roleCodes: user.roles.map((item) => item.role.code),
+    };
   }
 
-  findById(id: string): SystemUser | undefined {
-    return this.users.find((user) => user.id === id);
+  async findById(id: string): Promise<SystemUser | null> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      login: user.login,
+      password: user.password,
+      fullName: user.fullName,
+      isActive: user.isActive,
+      roleCodes: user.roles.map((item) => item.role.code),
+    };
   }
 
   sanitizeUser(user: SystemUser): Omit<SystemUser, 'password'> {

@@ -6,22 +6,40 @@ PostgreSQL is the primary source of truth for all business-critical data.
 
 Redis is not a source of truth.
 
+## Prisma status
+
+Prisma is used as:
+
+- ORM
+- migration tool
+- Prisma Client generator
+
+Current Prisma foundation includes:
+
+- users
+- roles
+- permissions
+- visibility groups
+- approval capabilities
+- files
+- audit events
+
 ## Core principles
 
 - UUID primary keys
-- snake_case naming
+- snake_case naming in database
 - soft delete for most business entities
 - audit as a separate system-wide trail
-- files as universal records linked to business entities
-- approvals as a universal table/engine
-- visibility groups stored as data, not only code
+- files as universal records linked to business entities later
+- approvals and visibility stored as data
+- system users and HR employees remain separate models
 
 ## Important entity separations
 
 ### users vs employees
 
-- users: system accounts, access, chats, approvals
-- employees: HR/personnel directory, timesheets, assignments in labor context
+- users: system accounts, auth, access, chats, approvals
+- employees: HR/personnel directory, labor context, timesheets later
 
 ### object comments vs chats
 
@@ -38,29 +56,6 @@ Redis is not a source of truth.
 - approvals: decision queue
 - notifications: user signals/events
 
-## Soft delete policy
+## Foundation note
 
-Soft delete is expected for:
-
-- users
-- employees
-- objects
-- assignments
-- daily reports
-- comments
-- tasks
-- one-time orders
-- consumable records
-- chats
-- notifications
-
-Soft delete is generally not recommended for:
-
-- audit trail tables
-- approval history
-- read markers
-- movement ledgers if they are treated as immutable facts
-
-## MVP note about salary expenses
-
-In MVP salary expense is derived from timesheets, not duplicated into expense_records as a primary mechanism.
+At the current stage auth is already Prisma-backed, but the broader domain schema is still introduced gradually module by module.
