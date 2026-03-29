@@ -1,0 +1,21 @@
+<type>(<scope>): <short summary>
+
+# types:
+# feat, fix, chore, docs, refactor, ci, build
+
+# examples:
+# feat(auth): add prisma-backed auth users
+# fix(frontend): correct login redirect
+# chore(prisma): update seed data
+# docs(workflow): document stable checkpoint rules
+
+# body (optional):
+#
+# Why:
+# -
+#
+# What changed:
+# -
+#
+# Notes:
+# -

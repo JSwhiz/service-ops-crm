@@ -46,7 +46,8 @@
 - frontend shell foundation;
 - auth foundation;
 - prisma foundation;
-- ci basics.
+- ci basics;
+- git workflow and stable checkpoints.
 
 ## Структура репозитория
 
@@ -73,6 +74,10 @@
 - `dev` — рабочая интеграционная ветка
 - `feature/*` — ветки отдельных задач
 - после устойчивых этапов ставятся теги
+
+Подробности:
+
+- `docs/onboarding/git-workflow.md`
 
 ## Environment strategy
 
@@ -184,6 +189,16 @@ Frontend foundation реализуется в:
 Подробности:
 
 - `docs/onboarding/ci-basics.md`
+
+## Stable foundation checkpoint
+
+Первая стабильная инженерная версия проекта:
+
+- `v0.1.0`
+
+Описание checkpoint:
+
+- `docs/product/foundation-checkpoint-v0.1.0.md`
 
 ## Документация
 
