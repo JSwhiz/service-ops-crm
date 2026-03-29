@@ -12,7 +12,8 @@
     "workspace:list": "pnpm m ls --depth -1",
     "db:generate": "pnpm --filter backend prisma:generate",
     "db:migrate": "pnpm --filter backend prisma:migrate",
-    "db:seed": "pnpm --filter backend prisma:seed"
+    "db:seed": "pnpm --filter backend prisma:seed",
+    "ci:check": "pnpm db:generate && pnpm typecheck && pnpm --filter backend build && pnpm --filter frontend build"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -26,6 +26,7 @@
 - Infrastructure: Docker Compose
 - ORM / migrations: Prisma
 - Workspace: pnpm workspace
+- CI: GitHub Actions
 
 ## Статус проекта
 
@@ -44,7 +45,8 @@
 - backend shell foundation;
 - frontend shell foundation;
 - auth foundation;
-- prisma foundation.
+- prisma foundation;
+- ci basics.
 
 ## Структура репозитория
 
@@ -169,6 +171,20 @@ Frontend foundation реализуется в:
 - files foundation
 - audit foundation
 
+## CI basics
+
+На текущем этапе уже реализован базовый GitHub Actions pipeline, который проверяет:
+
+- install
+- Prisma generate
+- workspace typecheck
+- backend build
+- frontend build
+
+Подробности:
+
+- `docs/onboarding/ci-basics.md`
+
 ## Документация
 
 См. каталог `docs/`:
@@ -188,10 +204,10 @@ Frontend foundation реализуется в:
 
 Текущий фокус:
 
-- CI и инженерная дисциплина проекта;
 - переход от foundation persistence layer к доменным модулям;
 - users/access hardening;
-- object and task persistence.
+- object and task persistence;
+- UI evolution с учетом desktop-first и обязательной адаптивности.
 
 ## Важно
 
