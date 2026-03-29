@@ -1,0 +1,19 @@
+{
+  "name": "@service-ops/shared-types",
+  "version": "0.0.1",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "echo \"No lint configured yet for shared-types\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "format": "echo \"Formatting handled at repo level\""
+  },
+  "devDependencies": {
+    "@service-ops/tsconfig": "workspace:*"
+  }
+}
