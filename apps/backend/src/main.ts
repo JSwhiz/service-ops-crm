@@ -32,7 +32,6 @@ async function bootstrap(): Promise<void> {
   const port = process.env.BACKEND_PORT ?? '4000';
   await app.listen(Number(port));
 
-  // eslint-disable-next-line no-console
   console.log(`Backend is running on http://localhost:${port}/api/v1/health`);
 }
 
