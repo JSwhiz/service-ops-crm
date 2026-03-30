@@ -2,6 +2,11 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 async function main(): Promise<void> {
   const founderRole = await prisma.role.upsert({
     where: { code: 'founder' },
@@ -26,7 +31,8 @@ async function main(): Promise<void> {
   const permissions = [
     { code: 'auth.login', name: 'Вход в систему' },
     { code: 'objects.read', name: 'Чтение объектов' },
-    { code: 'tasks.read', name: 'Чтение задач' },
+    { code: 'objects.create', name: 'Создание объектов' },
+    { code: 'objects.update', name: 'Изменение объектов' },
   ];
 
   for (const permission of permissions) {
@@ -120,6 +126,164 @@ async function main(): Promise<void> {
     create: {
       userId: director.id,
       roleId: directorRole.id,
+    },
+  });
+
+  const objectOne = await prisma.object.upsert({
+    where: { id: '11111111-1111-1111-1111-111111111111' },
+    update: {
+      name: 'Белый дом',
+      internalName: 'BH-001',
+      address: 'Москва, ул. Центральная, 1',
+      status: 'active',
+      seasonMode: 'summer',
+      notes: 'Тестовый объект foundation-модуля',
+      createdByUserId: founder.id,
+      deletedAt: null,
+    },
+    create: {
+      id: '11111111-1111-1111-1111-111111111111',
+      name: 'Белый дом',
+      internalName: 'BH-001',
+      address: 'Москва, ул. Центральная, 1',
+      status: 'active',
+      seasonMode: 'summer',
+      notes: 'Тестовый объект foundation-модуля',
+      createdByUserId: founder.id,
+    },
+  });
+
+  const objectTwo = await prisma.object.upsert({
+    where: { id: '22222222-2222-2222-2222-222222222222' },
+    update: {
+      name: 'Север',
+      internalName: 'SV-002',
+      address: 'Москва, пр-т Северный, 15',
+      status: 'frozen',
+      seasonMode: 'winter',
+      notes: 'Замороженный тестовый объект',
+      createdByUserId: director.id,
+      deletedAt: null,
+    },
+    create: {
+      id: '22222222-2222-2222-2222-222222222222',
+      name: 'Север',
+      internalName: 'SV-002',
+      address: 'Москва, пр-т Северный, 15',
+      status: 'frozen',
+      seasonMode: 'winter',
+      notes: 'Замороженный тестовый объект',
+      createdByUserId: director.id,
+    },
+  });
+
+  await prisma.objectAssignment.upsert({
+    where: {
+      objectId_userId_assignmentRoleCode: {
+        objectId: objectOne.id,
+        userId: founder.id,
+        assignmentRoleCode: 'manager',
+      },
+    },
+    update: {
+      isActive: true,
+    },
+    create: {
+      objectId: objectOne.id,
+      userId: founder.id,
+      assignmentRoleCode: 'manager',
+      isActive: true,
+    },
+  });
+
+  await prisma.objectAssignment.upsert({
+    where: {
+      objectId_userId_assignmentRoleCode: {
+        objectId: objectOne.id,
+        userId: director.id,
+        assignmentRoleCode: 'responsible',
+      },
+    },
+    update: {
+      isActive: true,
+    },
+    create: {
+      objectId: objectOne.id,
+      userId: director.id,
+      assignmentRoleCode: 'responsible',
+      isActive: true,
+    },
+  });
+
+  await prisma.objectAssignment.upsert({
+    where: {
+      objectId_userId_assignmentRoleCode: {
+        objectId: objectTwo.id,
+        userId: director.id,
+        assignmentRoleCode: 'manager',
+      },
+    },
+    update: {
+      isActive: true,
+    },
+    create: {
+      objectId: objectTwo.id,
+      userId: director.id,
+      assignmentRoleCode: 'manager',
+      isActive: true,
+    },
+  });
+
+  const today = startOfToday();
+
+  await prisma.objectArrivalPhoto.upsert({
+    where: {
+      objectId_operationDate: {
+        objectId: objectOne.id,
+        operationDate: today,
+      },
+    },
+    update: {
+      photoUrl: 'https://example.com/arrival/bh-001-today.jpg',
+      photoType: 'arrival',
+      comment: 'Фото прибытия foundation-этапа',
+      createdByUserId: founder.id,
+    },
+    create: {
+      objectId: objectOne.id,
+      operationDate: today,
+      photoUrl: 'https://example.com/arrival/bh-001-today.jpg',
+      photoType: 'arrival',
+      comment: 'Фото прибытия foundation-этапа',
+      createdByUserId: founder.id,
+    },
+  });
+
+  await prisma.objectDailyReport.upsert({
+    where: {
+      objectId_reportDate: {
+        objectId: objectOne.id,
+        reportDate: today,
+      },
+    },
+    update: {
+      content: 'На объекте выполнены базовые работы. Замечаний по текущему дню нет.',
+      updatedByUserId: founder.id,
+    },
+    create: {
+      objectId: objectOne.id,
+      reportDate: today,
+      content: 'На объекте выполнены базовые работы. Замечаний по текущему дню нет.',
+      updatedByUserId: founder.id,
+    },
+  });
+
+  await prisma.objectComment.create({
+    data: {
+      objectId: objectOne.id,
+      content: 'Стартовый комментарий по объекту для проверки feed и ленты.',
+      commentType: 'manual',
+      createdByUserId: director.id,
     },
   });
 }

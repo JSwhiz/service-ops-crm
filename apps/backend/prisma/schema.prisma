@@ -22,6 +22,11 @@ model User {
   visibilityGroups     UserVisibilityGroup[]
   approvalCapabilities UserApprovalCapability[]
   auditEvents          AuditEvent[] @relation("AuditActor")
+  createdObjects       Object[] @relation("ObjectCreatedBy")
+  objectAssignments    ObjectAssignment[]
+  createdComments      ObjectComment[] @relation("ObjectCommentCreatedBy")
+  createdArrivalPhotos ObjectArrivalPhoto[] @relation("ObjectArrivalPhotoCreatedBy")
+  updatedDailyReports  ObjectDailyReport[] @relation("ObjectDailyReportUpdatedBy")
 
   @@map("users")
 }
@@ -139,31 +144,126 @@ model UserApprovalCapability {
   @@map("user_approval_capabilities")
 }
 
-model File {
+model Object {
   id              String   @id @default(uuid())
-  bucket          String
-  objectKey       String   @unique
-  originalName    String
-  mimeType        String
-  sizeBytes       Int
-  uploadedByUserId String?
+  name            String
+  internalName    String?
+  address         String
+  status          String
+  seasonMode      String   @default("summer")
+  notes           String?
+  createdByUserId String
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   deletedAt       DateTime?
+
+  createdBy     User                 @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  assignments   ObjectAssignment[]
+  arrivalPhotos ObjectArrivalPhoto[]
+  dailyReports  ObjectDailyReport[]
+  comments      ObjectComment[]
+
+  @@index([status])
+  @@index([createdByUserId])
+  @@map("objects")
+}
+
+model ObjectAssignment {
+  id                 String   @id @default(uuid())
+  objectId           String
+  userId             String
+  assignmentRoleCode String
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  object Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([objectId])
+  @@index([userId])
+  @@index([assignmentRoleCode])
+  @@unique([objectId, userId, assignmentRoleCode])
+  @@map("object_assignments")
+}
+
+model ObjectArrivalPhoto {
+  id              String   @id @default(uuid())
+  objectId        String
+  operationDate   DateTime
+  photoUrl        String
+  photoType       String?
+  comment         String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  object    Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("ObjectArrivalPhotoCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([objectId, operationDate])
+  @@index([objectId, operationDate])
+  @@map("object_arrival_photos")
+}
+
+model ObjectDailyReport {
+  id              String   @id @default(uuid())
+  objectId        String
+  reportDate      DateTime
+  content         String
+  updatedByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  object    Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  updatedBy User   @relation("ObjectDailyReportUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([objectId, reportDate])
+  @@index([objectId, reportDate])
+  @@map("object_daily_reports")
+}
+
+model ObjectComment {
+  id              String   @id @default(uuid())
+  objectId        String
+  content         String
+  commentType     String   @default("manual")
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  object    Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("ObjectCommentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([objectId, createdAt])
+  @@map("object_comments")
+}
+
+model File {
+  id               String   @id @default(uuid())
+  bucket           String
+  objectKey        String   @unique
+  originalName     String
+  mimeType         String
+  sizeBytes        Int
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+  deletedAt        DateTime?
 
   @@index([uploadedByUserId])
   @@map("files")
 }
 
 model AuditEvent {
-  id            String   @id @default(uuid())
-  actorUserId   String?
-  entityType    String
-  entityId      String
-  action        String
-  oldValues     Json?
-  newValues     Json?
-  metadata      Json?
-  createdAt     DateTime @default(now())
+  id          String   @id @default(uuid())
+  actorUserId String?
+  entityType  String
+  entityId    String
+  action      String
+  oldValues   Json?
+  newValues   Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
 
   actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 

@@ -21,6 +21,11 @@ Current Prisma foundation includes:
 - permissions
 - visibility groups
 - approval capabilities
+- objects
+- object assignments
+- object arrival photos
+- object daily reports
+- object comments
 - files
 - audit events
 
@@ -41,10 +46,25 @@ Current Prisma foundation includes:
 - users: system accounts, auth, access, chats, approvals
 - employees: HR/personnel directory, labor context, timesheets later
 
+### objects vs object operations
+
+- objects: core object card, status, assignments, foundation fields
+- object operations: arrival photos, daily reports, comments, daily flow
+
 ### object comments vs chats
 
 - object comments: structured object-specific operational feed
 - chats: communication layer
+
+### daily report vs comment
+
+- daily report: one summary record per object per day
+- comment: free operational feed entries
+
+### arrival photo vs daily report
+
+- arrival photo: fact of arrival / visual фиксация
+- daily report: textual day summary
 
 ### timesheets vs expenses
 
@@ -58,4 +78,9 @@ Current Prisma foundation includes:
 
 ## Foundation note
 
-At the current stage auth is already Prisma-backed, but the broader domain schema is still introduced gradually module by module.
+At the current stage:
+
+- auth is Prisma-backed;
+- objects foundation is persistent;
+- object operations foundation is persistent;
+- full object card tabs and broader daily workflows are added gradually in later waves.

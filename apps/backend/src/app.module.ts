@@ -31,6 +31,8 @@ import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
 import { HealthModule } from './modules/health/health.module';
+import { ObjectOperationsModule } from './modules/object-operations/object-operations.module';
+//import { ObjectsModule } from './modules/objects/objects.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { UsersAccessModule } from './modules/users-access/users-access.module';
 
@@ -47,7 +49,8 @@ import { UsersAccessModule } from './modules/users-access/users-access.module';
     UsersAccessModule,
     AuthModule,
     HealthModule,
+    //ObjectsModule,
+    ObjectOperationsModule,
   ],
 })
 export class AppModule {}
-

@@ -30,7 +30,7 @@
 
 ## Статус проекта
 
-Проект находится на стадии foundation-разработки.
+Проект находится на стадии controlled product build after foundation.
 
 На текущий момент уже зафиксированы:
 
@@ -47,7 +47,9 @@
 - auth foundation;
 - prisma foundation;
 - ci basics;
-- git workflow and stable checkpoints.
+- git workflow and stable checkpoints;
+- objects foundation module;
+- object operations foundation module.
 
 ## Структура репозитория
 
@@ -123,58 +125,30 @@ Example-файлы:
 - `make infra-logs`
 - `make infra-ps`
 
-## Backend shell
+## Implemented product waves
 
-Backend foundation реализуется в:
+### Foundation
 
-- `apps/backend`
+- backend shell
+- frontend shell
+- auth foundation
+- prisma foundation
+- CI basics
+- stable workflow and checkpoints
 
-На текущем этапе backend уже:
+### Objects
 
-- запускается локально;
-- читает env;
-- валидирует env;
-- имеет health endpoint;
-- использует модульную структуру NestJS foundation.
+- objects foundation module
+- objects list page
+- object create foundation page
+- object detail foundation page
 
-## Frontend shell
+### Object operations
 
-Frontend foundation реализуется в:
-
-- `apps/frontend`
-
-На текущем этапе frontend уже:
-
-- запускается локально;
-- использует App Router;
-- имеет app shell;
-- имеет базовые foundation routes;
-- готов к later подключению auth, dashboard и модулей системы.
-
-## Auth foundation
-
-На текущем этапе уже реализован foundation auth flow:
-
-- login
-- refresh
-- logout foundation
-- `/auth/me`
-- protected app layout
-- frontend auth provider
-- login page
-
-## Prisma foundation
-
-На текущем этапе уже реализован foundation persistence layer:
-
-- Prisma setup
-- schema.prisma
-- migrations flow
-- Prisma Client
-- Prisma-backed users
-- roles / permissions / visibility / approval reference tables
-- files foundation
-- audit foundation
+- arrival photo foundation
+- daily report foundation
+- object comments foundation
+- object feed foundation
 
 ## CI basics
 
@@ -219,9 +193,9 @@ Frontend foundation реализуется в:
 
 Текущий фокус:
 
-- переход от foundation persistence layer к доменным модулям;
-- users/access hardening;
-- object and task persistence;
+- tasks persistence;
+- object card expansion;
+- timesheet foundations;
 - UI evolution с учетом desktop-first и обязательной адаптивности.
 
 ## Важно

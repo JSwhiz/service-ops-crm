@@ -8,6 +8,7 @@
 - users-access
 - files
 - audit
+- prisma
 
 ### Domain modules
 
@@ -35,6 +36,10 @@ Authentication, session lifecycle, token flow.
 
 Users, roles, permissions, visibility groups, approval capabilities.
 
+### prisma
+
+Centralized database access and Prisma integration.
+
 ### files
 
 Universal file upload, metadata and secure access.
@@ -45,11 +50,11 @@ System-wide audit trail.
 
 ### objects
 
-Core object data, assignments, budgets, contract info.
+Core object data, status, assignments, basic object card.
 
 ### object-operations
 
-Arrival photo, daily report, object comments.
+Arrival photos, daily reports, object comments, operational object feed.
 
 ### tasks
 
@@ -98,19 +103,20 @@ Read-only aggregation and exports.
 ## Important boundaries that must not be mixed
 
 - users != employees
+- object core data != object operations
 - object comments != chat messages
 - approvals != notifications
 - files != business entities
 - timesheet entries != timesheet adjustments
 - accountability operations != expense records
-- objects != object-operations
 
 ## Current implementation strategy
 
-The system will be developed in waves:
+The system is developed in waves:
 
 1. foundation
-2. objects + daily object workflow
-3. tasks + approvals
-4. timesheets / one-time orders / inventory / equipment / expenses
-5. chats / notifications / reports / polish
+2. auth + persistence foundation
+3. objects foundation
+4. object operations foundation
+5. next domain waves: tasks / one-time orders / timesheets
+6. broader operational modules and cross-cutting polish
