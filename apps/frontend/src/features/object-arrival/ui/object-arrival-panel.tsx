@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import type { ObjectArrivalPhoto } from '@/entities/object/model/object-operations.types';
 
@@ -24,6 +24,14 @@ export function ObjectArrivalPanel({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setForm({
+      photoUrl: item?.photoUrl ?? '',
+      photoType: item?.photoType ?? 'arrival',
+      comment: item?.comment ?? '',
+    });
+  }, [item]);
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>,

@@ -1,0 +1,132 @@
+'use client';
+
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+import { createObject } from '@/entities/object/api/object-client';
+import { PageTitle } from '@/shared/ui/page-title/page-title';
+
+export default function NewObjectPage(): React.JSX.Element {
+  const router = useRouter();
+
+  const [form, setForm] = useState({
+    name: '',
+    internalName: '',
+    address: '',
+    seasonMode: 'summer',
+    notes: '',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
+    event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const created = await createObject({
+        name: form.name,
+        internalName: form.internalName || undefined,
+        address: form.address,
+        seasonMode: form.seasonMode as 'summer' | 'winter',
+        notes: form.notes || undefined,
+      });
+
+      router.push(`/objects/${created.id}`);
+    } catch {
+      setError('Не удалось создать объект.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <PageTitle title="Создать объект" />
+
+      <form className="page-card" onSubmit={handleSubmit}>
+        <div
+          style={{
+            display: 'grid',
+            gap: 12,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          }}
+        >
+          <label>
+            <div style={{ marginBottom: 6 }}>Название</div>
+            <input
+              value={form.name}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, name: event.target.value }))
+              }
+              style={{ width: '100%', padding: 10 }}
+              required
+            />
+          </label>
+
+          <label>
+            <div style={{ marginBottom: 6 }}>Внутреннее имя</div>
+            <input
+              value={form.internalName}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, internalName: event.target.value }))
+              }
+              style={{ width: '100%', padding: 10 }}
+            />
+          </label>
+
+          <label>
+            <div style={{ marginBottom: 6 }}>Адрес</div>
+            <input
+              value={form.address}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, address: event.target.value }))
+              }
+              style={{ width: '100%', padding: 10 }}
+              required
+            />
+          </label>
+
+          <label>
+            <div style={{ marginBottom: 6 }}>Сезон</div>
+            <select
+              value={form.seasonMode}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, seasonMode: event.target.value }))
+              }
+              style={{ width: '100%', padding: 10 }}
+            >
+              <option value="summer">Летний</option>
+              <option value="winter">Зимний</option>
+            </select>
+          </label>
+
+          <label style={{ gridColumn: '1 / -1' }}>
+            <div style={{ marginBottom: 6 }}>Заметки</div>
+            <textarea
+              value={form.notes}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, notes: event.target.value }))
+              }
+              rows={5}
+              style={{ width: '100%', padding: 10, resize: 'vertical' }}
+            />
+          </label>
+        </div>
+
+        {error ? (
+          <div style={{ color: '#b91c1c', marginTop: 12 }}>{error}</div>
+        ) : null}
+
+        <div style={{ marginTop: 16 }}>
+          <button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Создаем...' : 'Создать'}
+          </button>
+        </div>
+      </form>
+    </>
+  );
+}

@@ -278,14 +278,24 @@ async function main(): Promise<void> {
     },
   });
 
-  await prisma.objectComment.create({
-    data: {
+  const existingComment = await prisma.objectComment.findFirst({
+    where: {
       objectId: objectOne.id,
       content: 'Стартовый комментарий по объекту для проверки feed и ленты.',
-      commentType: 'manual',
       createdByUserId: director.id,
     },
   });
+
+  if (!existingComment) {
+    await prisma.objectComment.create({
+      data: {
+        objectId: objectOne.id,
+        content: 'Стартовый комментарий по объекту для проверки feed и ленты.',
+        commentType: 'manual',
+        createdByUserId: director.id,
+      },
+    });
+  }
 }
 
 main()
