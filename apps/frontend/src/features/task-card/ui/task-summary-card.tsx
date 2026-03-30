@@ -1,6 +1,10 @@
 import React from 'react';
 
 import type { TaskItem } from '@/entities/task/model/task.types';
+import {
+  getTaskPriorityLabel,
+  getTaskStatusLabel,
+} from '@/shared/lib/task-presentation';
 
 export function TaskSummaryCard({
   item,
@@ -18,8 +22,8 @@ export function TaskSummaryCard({
     >
       <Field label="Название" value={item.title} />
       <Field label="Объект" value={item.objectName} />
-      <Field label="Приоритет" value={item.priority} />
-      <Field label="Статус" value={item.status} />
+      <Field label="Приоритет" value={getTaskPriorityLabel(item.priority)} />
+      <Field label="Статус" value={getTaskStatusLabel(item.status)} />
       <Field
         label="Исполнители"
         value={item.assignees.map((assignee) => assignee.fullName).join(', ') || '—'}

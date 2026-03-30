@@ -10,6 +10,10 @@ import {
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { TaskSummaryCard } from '@/features/task-card/ui/task-summary-card';
 import { TaskResultPanel } from '@/features/task-result/ui/task-result-panel';
+import {
+  TASK_STATUS_OPTIONS,
+  getTaskStatusLabel,
+} from '@/shared/lib/task-presentation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 export default function TaskDetailPage({
@@ -63,25 +67,22 @@ export default function TaskDetailPage({
           <div className="page-card">
             <div style={{ fontWeight: 600, marginBottom: 12 }}>Статус задачи</div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[
-                'assigned',
-                'in_progress',
-                'partially_completed',
-                'awaiting_confirmation',
-                'returned_to_work',
-                'closed',
-              ].map((status) => (
+              {TASK_STATUS_OPTIONS.map((status) => (
                 <button
-                  key={status}
+                  key={status.value}
                   type="button"
                   onClick={async () => {
-                    await updateTaskStatus(taskId, status);
+                    await updateTaskStatus(taskId, status.value);
                     await loadTask(taskId);
                   }}
                 >
-                  {status}
+                  {status.label}
                 </button>
               ))}
+            </div>
+
+            <div className="page-muted" style={{ marginTop: 12 }}>
+              Текущий статус: {getTaskStatusLabel(item.status)}
             </div>
           </div>
 

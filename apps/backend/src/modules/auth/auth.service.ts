@@ -26,6 +26,7 @@ export class AuthService {
       sub: safeUser.id,
       login: safeUser.login,
       roleCodes: safeUser.roleCodes,
+      roleCode: safeUser.roleCodes[0] ?? 'unknown',
     };
 
     return {
@@ -34,11 +35,8 @@ export class AuthService {
         expiresIn: '30d',
       }),
       user: {
-        id: safeUser.id,
-        login: safeUser.login,
-        fullName: safeUser.fullName,
+        ...safeUser,
         roleCode: safeUser.roleCodes[0] ?? 'unknown',
-        isActive: safeUser.isActive,
       },
     };
   }
@@ -48,7 +46,8 @@ export class AuthService {
       const payload = await this.jwtService.verifyAsync<{
         sub: string;
         login: string;
-        roleCodes: string[];
+        roleCodes?: string[];
+        roleCode?: string;
       }>(refreshToken);
 
       const user = await this.usersService.findById(payload.sub);
@@ -63,6 +62,7 @@ export class AuthService {
         sub: safeUser.id,
         login: safeUser.login,
         roleCodes: safeUser.roleCodes,
+        roleCode: safeUser.roleCodes[0] ?? 'unknown',
       };
 
       return {
@@ -71,11 +71,8 @@ export class AuthService {
           expiresIn: '30d',
         }),
         user: {
-          id: safeUser.id,
-          login: safeUser.login,
-          fullName: safeUser.fullName,
+          ...safeUser,
           roleCode: safeUser.roleCodes[0] ?? 'unknown',
-          isActive: safeUser.isActive,
         },
       };
     } catch {

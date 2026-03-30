@@ -10,7 +10,8 @@ import { AUTH_JWT_STRATEGY } from '../constants/auth.constants';
 interface JwtPayload {
   sub: string;
   login: string;
-  roleCodes: string[];
+  roleCode?: string;
+  roleCodes?: string[];
 }
 
 @Injectable()
@@ -36,11 +37,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, AUTH_JWT_STRATEGY) {
     const safeUser = this.usersService.sanitizeUser(user);
 
     return {
-      id: safeUser.id,
-      login: safeUser.login,
-      fullName: safeUser.fullName,
+      ...safeUser,
       roleCode: safeUser.roleCodes[0] ?? 'unknown',
-      isActive: safeUser.isActive,
     };
   }
 }

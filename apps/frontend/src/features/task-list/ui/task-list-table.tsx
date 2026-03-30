@@ -2,6 +2,10 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { TaskItem } from '@/entities/task/model/task.types';
+import {
+  getTaskPriorityLabel,
+  getTaskStatusLabel,
+} from '@/shared/lib/task-presentation';
 
 export function TaskListTable({
   items,
@@ -41,8 +45,8 @@ export function TaskListTable({
                 <Link href={`/tasks/${item.id}`}>{item.title}</Link>
               </td>
               <td style={tdStyle}>{item.objectName}</td>
-              <td style={tdStyle}>{renderPriority(item.priority)}</td>
-              <td style={tdStyle}>{renderStatus(item.status)}</td>
+              <td style={tdStyle}>{getTaskPriorityLabel(item.priority)}</td>
+              <td style={tdStyle}>{getTaskStatusLabel(item.status)}</td>
               <td style={tdStyle}>
                 {item.assignees.map((assignee) => assignee.fullName).join(', ') || '—'}
               </td>
@@ -52,40 +56,6 @@ export function TaskListTable({
       </table>
     </div>
   );
-}
-
-function renderPriority(priority: string): string {
-  switch (priority) {
-    case 'urgent_important':
-      return 'Срочно / важно';
-    case 'urgent_not_important':
-      return 'Срочно / неважно';
-    case 'important_not_urgent':
-      return 'Несрочно / важно';
-    case 'not_important_not_urgent':
-      return 'Несрочно / неважно';
-    default:
-      return priority;
-  }
-}
-
-function renderStatus(status: string): string {
-  switch (status) {
-    case 'assigned':
-      return 'Назначена';
-    case 'in_progress':
-      return 'В работе';
-    case 'partially_completed':
-      return 'Частично выполнена';
-    case 'awaiting_confirmation':
-      return 'Ожидает подтверждения';
-    case 'returned_to_work':
-      return 'Возвращена в работу';
-    case 'closed':
-      return 'Закрыта';
-    default:
-      return status;
-  }
 }
 
 const thStyle: React.CSSProperties = {

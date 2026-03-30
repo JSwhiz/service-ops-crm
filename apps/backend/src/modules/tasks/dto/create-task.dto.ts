@@ -1,4 +1,5 @@
 import {
+  ArrayMinSize,
   IsArray,
   IsIn,
   IsOptional,
@@ -24,6 +25,7 @@ export class CreateTaskDto {
   objectId!: string;
 
   @IsArray()
+  @ArrayMinSize(1)
   @IsString({ each: true })
   assigneeUserIds!: string[];
 }

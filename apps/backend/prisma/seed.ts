@@ -28,6 +28,73 @@ async function main(): Promise<void> {
     },
   });
 
+  const permissions = [
+    { code: 'auth.login', name: 'Вход в систему' },
+    { code: 'objects.read', name: 'Чтение объектов' },
+    { code: 'objects.create', name: 'Создание объектов' },
+    { code: 'objects.update', name: 'Изменение объектов' },
+    { code: 'tasks.read', name: 'Чтение задач' },
+    { code: 'tasks.create', name: 'Создание задач' },
+    { code: 'tasks.update', name: 'Изменение задач' },
+    { code: 'timesheet.read', name: 'Чтение табеля' },
+    { code: 'timesheet.amount.edit', name: 'Изменение денежных ячеек табеля' },
+  ];
+
+  for (const permission of permissions) {
+    await prisma.permission.upsert({
+      where: { code: permission.code },
+      update: {
+        name: permission.name,
+      },
+      create: {
+        code: permission.code,
+        name: permission.name,
+      },
+    });
+  }
+
+  const visibilityGroups = [
+    { code: 'object_basic', name: 'Базовый блок объекта', scopeType: 'object' },
+    { code: 'object_contact', name: 'Контактный блок объекта', scopeType: 'object' },
+    { code: 'object_financial', name: 'Финансовый блок объекта', scopeType: 'object' },
+    { code: 'object_salary', name: 'Зарплатный блок объекта', scopeType: 'object' },
+    { code: 'object_consumables', name: 'Расходники и плановые работы', scopeType: 'object' },
+    { code: 'object_equipment', name: 'Оборудование объекта', scopeType: 'object' },
+    { code: 'one_time_basic', name: 'Базовый блок разового', scopeType: 'one_time_order' },
+    { code: 'one_time_contact', name: 'Контактный блок разового', scopeType: 'one_time_order' },
+    { code: 'one_time_financial', name: 'Финансовый блок разового', scopeType: 'one_time_order' },
+    { code: 'one_time_consumables', name: 'Расходный блок разового', scopeType: 'one_time_order' },
+  ];
+
+  for (const group of visibilityGroups) {
+    await prisma.visibilityGroup.upsert({
+      where: { code: group.code },
+      update: {
+        name: group.name,
+        scopeType: group.scopeType,
+      },
+      create: group,
+    });
+  }
+
+  const approvalCapabilities = [
+    { code: 'approve_task_result', name: 'Подтверждение результата задачи' },
+    { code: 'approve_consumables_without_photo', name: 'Подтверждение расходников без фото' },
+    { code: 'approve_return', name: 'Подтверждение возврата' },
+    { code: 'approve_expense', name: 'Подтверждение расхода' },
+    { code: 'approve_key_status_change', name: 'Подтверждение ключевого изменения статуса' },
+  ];
+
+  for (const capability of approvalCapabilities) {
+    await prisma.approvalCapability.upsert({
+      where: { code: capability.code },
+      update: {
+        name: capability.name,
+      },
+      create: capability,
+    });
+  }
+
   const founder = await prisma.user.upsert({
     where: { login: 'founder' },
     update: {
@@ -81,6 +148,75 @@ async function main(): Promise<void> {
     create: {
       userId: director.id,
       roleId: directorRole.id,
+    },
+  });
+
+  const founderTaskRead = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'tasks.read' },
+  });
+  const founderTaskCreate = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'tasks.create' },
+  });
+  const objectBasic = await prisma.visibilityGroup.findUniqueOrThrow({
+    where: { code: 'object_basic' },
+  });
+  const approveTaskResult = await prisma.approvalCapability.findUniqueOrThrow({
+    where: { code: 'approve_task_result' },
+  });
+
+  await prisma.userPermission.upsert({
+    where: {
+      userId_permissionId: {
+        userId: founder.id,
+        permissionId: founderTaskRead.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: founder.id,
+      permissionId: founderTaskRead.id,
+    },
+  });
+
+  await prisma.userPermission.upsert({
+    where: {
+      userId_permissionId: {
+        userId: founder.id,
+        permissionId: founderTaskCreate.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: founder.id,
+      permissionId: founderTaskCreate.id,
+    },
+  });
+
+  await prisma.userVisibilityGroup.upsert({
+    where: {
+      userId_visibilityGroupId: {
+        userId: founder.id,
+        visibilityGroupId: objectBasic.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: founder.id,
+      visibilityGroupId: objectBasic.id,
+    },
+  });
+
+  await prisma.userApprovalCapability.upsert({
+    where: {
+      userId_approvalCapabilityId: {
+        userId: founder.id,
+        approvalCapabilityId: approveTaskResult.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: founder.id,
+      approvalCapabilityId: approveTaskResult.id,
     },
   });
 
@@ -237,41 +373,6 @@ async function main(): Promise<void> {
     create: {
       taskId: taskOne.id,
       userId: founder.id,
-    },
-  });
-
-  const taskTwo = await prisma.task.upsert({
-    where: { id: '44444444-4444-4444-4444-444444444444' },
-    update: {
-      title: 'Проверить расходники по объекту',
-      description: 'Сверить наличие базовых расходников на объекте.',
-      priority: 'urgent_important',
-      status: 'in_progress',
-      objectId: objectOne.id,
-      createdByUserId: founder.id,
-    },
-    create: {
-      id: '44444444-4444-4444-4444-444444444444',
-      title: 'Проверить расходники по объекту',
-      description: 'Сверить наличие базовых расходников на объекте.',
-      priority: 'urgent_important',
-      status: 'in_progress',
-      objectId: objectOne.id,
-      createdByUserId: founder.id,
-    },
-  });
-
-  await prisma.taskAssignee.upsert({
-    where: {
-      taskId_userId: {
-        taskId: taskTwo.id,
-        userId: director.id,
-      },
-    },
-    update: {},
-    create: {
-      taskId: taskTwo.id,
-      userId: director.id,
     },
   });
 }

@@ -124,6 +124,34 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     payload: CreateTaskDto,
   ): Promise<TaskResponseDto> {
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: payload.objectId,
+        deletedAt: null,
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Object for task not found');
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: {
+          in: payload.assigneeUserIds,
+        },
+        deletedAt: null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (users.length !== payload.assigneeUserIds.length) {
+      throw new NotFoundException('One or more task assignees not found');
+    }
+
     const task = await this.prisma.task.create({
       data: {
         title: payload.title,

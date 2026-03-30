@@ -1,14 +1,6 @@
 # Database Notes
 
-## Source of truth
-
-PostgreSQL is the primary source of truth for all business-critical data.
-
-Redis is not a source of truth.
-
-## Prisma status
-
-Current Prisma foundation includes:
+## Current important layers
 
 - users
 - roles
@@ -16,32 +8,25 @@ Current Prisma foundation includes:
 - visibility groups
 - approval capabilities
 - objects
-- object assignments
-- object arrival photos
-- object daily reports
-- object comments
+- object operations
 - tasks
 - task assignees
-- files
-- audit events
 
-## Important entity separations
+## Important clarification
 
-### objects vs object operations
+The extensible access model includes:
 
-- objects: core object card, status, assignments, foundation fields
-- object operations: arrival photos, daily reports, comments, daily flow
+- roles
+- permissions
+- visibility groups
+- approval capabilities
 
-### tasks vs object comments
+Even before dedicated admin screens exist, these entities must stay present in schema, seed and architecture strategy.
 
-- task: управленческое поручение с lifecycle
-- comment: оперативная запись по объекту
+## Task UX clarification
 
-### task assignees
+Task create UI must work with:
 
-- отдельная таблица, потому что задача поддерживает multi-assignee foundation
-
-### season mode
-
-- на текущем этапе informational field only
-- later должен быть связан с бюджетным/ставочным/табельным контуром
+- object selectors
+- user selectors
+  and must not expose raw ids as the primary user interaction model.

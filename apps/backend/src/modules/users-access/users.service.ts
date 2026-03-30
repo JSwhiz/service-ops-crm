@@ -2,18 +2,35 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 
-import { SystemUser } from './types/system-user.type';
+interface UserWithRoles {
+  id: string;
+  login: string;
+  password: string;
+  fullName: string;
+  isActive: boolean;
+  roles: Array<{
+    role: {
+      code: string;
+      name: string;
+    };
+  }>;
+}
+
+export interface SanitizedAuthUser {
+  id: string;
+  login: string;
+  fullName: string;
+  isActive: boolean;
+  roleCodes: string[];
+}
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByLogin(login: string): Promise<SystemUser | null> {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        login,
-        deletedAt: null,
-      },
+  async findByLogin(login: string): Promise<UserWithRoles | null> {
+    return this.prisma.user.findUnique({
+      where: { login },
       include: {
         roles: {
           include: {
@@ -22,27 +39,11 @@ export class UsersService {
         },
       },
     });
-
-    if (!user) {
-      return null;
-    }
-
-    return {
-      id: user.id,
-      login: user.login,
-      password: user.password,
-      fullName: user.fullName,
-      isActive: user.isActive,
-      roleCodes: user.roles.map((item) => item.role.code),
-    };
   }
 
-  async findById(id: string): Promise<SystemUser | null> {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        id,
-        deletedAt: null,
-      },
+  async findById(id: string): Promise<UserWithRoles | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
       include: {
         roles: {
           include: {
@@ -51,23 +52,39 @@ export class UsersService {
         },
       },
     });
+  }
 
-    if (!user) {
-      return null;
-    }
+  async listUsers(): Promise<
+    Array<{
+      id: string;
+      login: string;
+      fullName: string;
+      isActive: boolean;
+    }>
+  > {
+    return this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        login: true,
+        fullName: true,
+        isActive: true,
+      },
+      orderBy: {
+        fullName: 'asc',
+      },
+    });
+  }
 
+  sanitizeUser(user: UserWithRoles): SanitizedAuthUser {
     return {
       id: user.id,
       login: user.login,
-      password: user.password,
       fullName: user.fullName,
       isActive: user.isActive,
       roleCodes: user.roles.map((item) => item.role.code),
     };
-  }
-
-  sanitizeUser(user: SystemUser): Omit<SystemUser, 'password'> {
-    const { password: _password, ...safeUser } = user;
-    return safeUser;
   }
 }
