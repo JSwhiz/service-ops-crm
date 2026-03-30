@@ -28,51 +28,6 @@ async function main(): Promise<void> {
     },
   });
 
-  const permissions = [
-    { code: 'auth.login', name: 'Вход в систему' },
-    { code: 'objects.read', name: 'Чтение объектов' },
-    { code: 'objects.create', name: 'Создание объектов' },
-    { code: 'objects.update', name: 'Изменение объектов' },
-  ];
-
-  for (const permission of permissions) {
-    await prisma.permission.upsert({
-      where: { code: permission.code },
-      update: {},
-      create: {
-        code: permission.code,
-        name: permission.name,
-      },
-    });
-  }
-
-  const visibilityGroups = [
-    { code: 'object_basic', name: 'Базовый блок объекта', scopeType: 'object' },
-    { code: 'object_financial', name: 'Финансовый блок объекта', scopeType: 'object' },
-    { code: 'object_salary', name: 'Зарплатный блок объекта', scopeType: 'object' },
-  ];
-
-  for (const group of visibilityGroups) {
-    await prisma.visibilityGroup.upsert({
-      where: { code: group.code },
-      update: {},
-      create: group,
-    });
-  }
-
-  const approvalCapabilities = [
-    { code: 'approve_task_result', name: 'Подтверждение результата задачи' },
-    { code: 'approve_consumables_without_photo', name: 'Подтверждение расходников без фото' },
-  ];
-
-  for (const capability of approvalCapabilities) {
-    await prisma.approvalCapability.upsert({
-      where: { code: capability.code },
-      update: {},
-      create: capability,
-    });
-  }
-
   const founder = await prisma.user.upsert({
     where: { login: 'founder' },
     update: {
@@ -153,30 +108,6 @@ async function main(): Promise<void> {
     },
   });
 
-  const objectTwo = await prisma.object.upsert({
-    where: { id: '22222222-2222-2222-2222-222222222222' },
-    update: {
-      name: 'Север',
-      internalName: 'SV-002',
-      address: 'Москва, пр-т Северный, 15',
-      status: 'frozen',
-      seasonMode: 'winter',
-      notes: 'Замороженный тестовый объект',
-      createdByUserId: director.id,
-      deletedAt: null,
-    },
-    create: {
-      id: '22222222-2222-2222-2222-222222222222',
-      name: 'Север',
-      internalName: 'SV-002',
-      address: 'Москва, пр-т Северный, 15',
-      status: 'frozen',
-      seasonMode: 'winter',
-      notes: 'Замороженный тестовый объект',
-      createdByUserId: director.id,
-    },
-  });
-
   await prisma.objectAssignment.upsert({
     where: {
       objectId_userId_assignmentRoleCode: {
@@ -185,9 +116,7 @@ async function main(): Promise<void> {
         assignmentRoleCode: 'manager',
       },
     },
-    update: {
-      isActive: true,
-    },
+    update: { isActive: true },
     create: {
       objectId: objectOne.id,
       userId: founder.id,
@@ -204,32 +133,11 @@ async function main(): Promise<void> {
         assignmentRoleCode: 'responsible',
       },
     },
-    update: {
-      isActive: true,
-    },
+    update: { isActive: true },
     create: {
       objectId: objectOne.id,
       userId: director.id,
       assignmentRoleCode: 'responsible',
-      isActive: true,
-    },
-  });
-
-  await prisma.objectAssignment.upsert({
-    where: {
-      objectId_userId_assignmentRoleCode: {
-        objectId: objectTwo.id,
-        userId: director.id,
-        assignmentRoleCode: 'manager',
-      },
-    },
-    update: {
-      isActive: true,
-    },
-    create: {
-      objectId: objectTwo.id,
-      userId: director.id,
-      assignmentRoleCode: 'manager',
       isActive: true,
     },
   });
@@ -296,6 +204,76 @@ async function main(): Promise<void> {
       },
     });
   }
+
+  const taskOne = await prisma.task.upsert({
+    where: { id: '33333333-3333-3333-3333-333333333333' },
+    update: {
+      title: 'Проверить состояние входной зоны',
+      description: 'Осмотреть входную зону и сообщить о замечаниях.',
+      priority: 'important_not_urgent',
+      status: 'assigned',
+      objectId: objectOne.id,
+      createdByUserId: director.id,
+    },
+    create: {
+      id: '33333333-3333-3333-3333-333333333333',
+      title: 'Проверить состояние входной зоны',
+      description: 'Осмотреть входную зону и сообщить о замечаниях.',
+      priority: 'important_not_urgent',
+      status: 'assigned',
+      objectId: objectOne.id,
+      createdByUserId: director.id,
+    },
+  });
+
+  await prisma.taskAssignee.upsert({
+    where: {
+      taskId_userId: {
+        taskId: taskOne.id,
+        userId: founder.id,
+      },
+    },
+    update: {},
+    create: {
+      taskId: taskOne.id,
+      userId: founder.id,
+    },
+  });
+
+  const taskTwo = await prisma.task.upsert({
+    where: { id: '44444444-4444-4444-4444-444444444444' },
+    update: {
+      title: 'Проверить расходники по объекту',
+      description: 'Сверить наличие базовых расходников на объекте.',
+      priority: 'urgent_important',
+      status: 'in_progress',
+      objectId: objectOne.id,
+      createdByUserId: founder.id,
+    },
+    create: {
+      id: '44444444-4444-4444-4444-444444444444',
+      title: 'Проверить расходники по объекту',
+      description: 'Сверить наличие базовых расходников на объекте.',
+      priority: 'urgent_important',
+      status: 'in_progress',
+      objectId: objectOne.id,
+      createdByUserId: founder.id,
+    },
+  });
+
+  await prisma.taskAssignee.upsert({
+    where: {
+      taskId_userId: {
+        taskId: taskTwo.id,
+        userId: director.id,
+      },
+    },
+    update: {},
+    create: {
+      taskId: taskTwo.id,
+      userId: director.id,
+    },
+  });
 }
 
 main()

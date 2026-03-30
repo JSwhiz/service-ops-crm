@@ -58,7 +58,7 @@ Arrival photos, daily reports, object comments, operational object feed.
 
 ### tasks
 
-Tasks, assignees, task result flow.
+Tasks, assignees, task result flow, object-linked task control.
 
 ### one-time-orders
 
@@ -99,24 +99,3 @@ User-facing notifications and delivery.
 ### reports
 
 Read-only aggregation and exports.
-
-## Important boundaries that must not be mixed
-
-- users != employees
-- object core data != object operations
-- object comments != chat messages
-- approvals != notifications
-- files != business entities
-- timesheet entries != timesheet adjustments
-- accountability operations != expense records
-
-## Current implementation strategy
-
-The system is developed in waves:
-
-1. foundation
-2. auth + persistence foundation
-3. objects foundation
-4. object operations foundation
-5. next domain waves: tasks / one-time orders / timesheets
-6. broader operational modules and cross-cutting polish

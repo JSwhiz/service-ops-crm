@@ -1,0 +1,101 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+
+import {
+  getTaskById,
+  submitTaskResult,
+  updateTaskStatus,
+} from '@/entities/task/api/task-client';
+import type { TaskItem } from '@/entities/task/model/task.types';
+import { TaskSummaryCard } from '@/features/task-card/ui/task-summary-card';
+import { TaskResultPanel } from '@/features/task-result/ui/task-result-panel';
+import { PageTitle } from '@/shared/ui/page-title/page-title';
+
+export default function TaskDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): React.JSX.Element {
+  const [item, setItem] = useState<TaskItem | null>(null);
+  const [taskId, setTaskId] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTask = async (id: string): Promise<void> => {
+    const response = await getTaskById(id);
+    setItem(response);
+  };
+
+  useEffect(() => {
+    const resolveAndLoad = async (): Promise<void> => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const resolved = await params;
+        setTaskId(resolved.id);
+        await loadTask(resolved.id);
+      } catch {
+        setError('Не удалось загрузить карточку задачи.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void resolveAndLoad();
+  }, [params]);
+
+  return (
+    <>
+      <PageTitle title={item ? item.title : 'Карточка задачи'} />
+
+      {isLoading ? (
+        <div className="page-card">Загрузка...</div>
+      ) : error ? (
+        <div className="page-card" style={{ color: '#b91c1c' }}>
+          {error}
+        </div>
+      ) : item ? (
+        <div style={{ display: 'grid', gap: 16 }}>
+          <TaskSummaryCard item={item} />
+
+          <div className="page-card">
+            <div style={{ fontWeight: 600, marginBottom: 12 }}>Статус задачи</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                'assigned',
+                'in_progress',
+                'partially_completed',
+                'awaiting_confirmation',
+                'returned_to_work',
+                'closed',
+              ].map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={async () => {
+                    await updateTaskStatus(taskId, status);
+                    await loadTask(taskId);
+                  }}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <TaskResultPanel
+            initialValue={item.resultText ?? ''}
+            onSubmit={async (value) => {
+              await submitTaskResult(taskId, value);
+              await loadTask(taskId);
+            }}
+          />
+        </div>
+      ) : (
+        <div className="page-card">Задача не найдена.</div>
+      )}
+    </>
+  );
+}

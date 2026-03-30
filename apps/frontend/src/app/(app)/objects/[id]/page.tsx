@@ -19,6 +19,8 @@ import type {
   ObjectDailyReport,
   ObjectFeedItem,
 } from '@/entities/object/model/object-operations.types';
+import { listTasksByObject } from '@/entities/task/api/task-client';
+import type { TaskItem } from '@/entities/task/model/task.types';
 import { ObjectArrivalPanel } from '@/features/object-arrival/ui/object-arrival-panel';
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
@@ -28,6 +30,7 @@ import {
   ObjectPanelError,
   ObjectPanelLoading,
 } from '@/features/object-state/ui/object-state-panels';
+import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 export default function ObjectDetailPage({
@@ -56,6 +59,10 @@ export default function ObjectDetailPage({
   const [feed, setFeed] = useState<ObjectFeedItem[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState<string | null>(null);
+
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [tasksError, setTasksError] = useState<string | null>(null);
 
   useEffect(() => {
     const resolveAndLoad = async (): Promise<void> => {
@@ -124,6 +131,17 @@ export default function ObjectDetailPage({
     } finally {
       setFeedLoading(false);
     }
+
+    setTasksLoading(true);
+    setTasksError(null);
+    try {
+      const tasksResponse = await listTasksByObject(resolvedId);
+      setTasks(tasksResponse);
+    } catch {
+      setTasksError('Не удалось загрузить задачи объекта.');
+    } finally {
+      setTasksLoading(false);
+    }
   };
 
   const refreshOperations = async (): Promise<void> => {
@@ -189,6 +207,14 @@ export default function ObjectDetailPage({
               />
             )}
           </div>
+
+          {tasksLoading ? (
+            <ObjectPanelLoading title="Задачи объекта" />
+          ) : tasksError ? (
+            <ObjectPanelError title="Задачи объекта" message={tasksError} />
+          ) : (
+            <TaskListTable items={tasks} />
+          )}
 
           <div
             style={{
