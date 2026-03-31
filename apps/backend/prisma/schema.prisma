@@ -365,19 +365,20 @@ model TimesheetEmployeeRow {
 }
 
 model TimesheetDayEntry {
-  id              String   @id @default(uuid())
-  rowId           String
-  dayOfMonth      Int
-  attendanceStatus String
-  note            String?
-  createdByUserId String?
-  updatedByUserId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  rowId              String
+  dayOfMonth         Int
+  dayValue           Int      @default(0)
+  comment            String?
+  isChangedManually  Boolean  @default(false)
+  createdByUserId    String?
+  updatedByUserId    String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  row             TimesheetEmployeeRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
-  createdBy       User?                @relation("TimesheetEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedBy       User?                @relation("TimesheetEntryUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  row                TimesheetEmployeeRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  createdBy          User?                @relation("TimesheetEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy          User?                @relation("TimesheetEntryUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([rowId, dayOfMonth])
   @@index([rowId])

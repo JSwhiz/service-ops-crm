@@ -31,12 +31,11 @@
 
 ### Timesheets
 
-- attendance-first timesheet foundation
-- monthly timesheet container
-- employee rows and day entries
-- object-linked timesheet screen
+- numeric day cell timesheet foundation
+- employee rows and month totals
+- improved timesheet grid
 
 ## Important architecture note
 
-Timesheet money logic is intentionally deferred.
-This stage introduces only the attendance foundation required for stable further expansion.
+The project timesheet foundation is numeric-first.
+The daily source from object card will be connected in the next microstage.

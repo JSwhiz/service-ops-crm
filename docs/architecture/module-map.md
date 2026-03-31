@@ -46,9 +46,9 @@ Tasks, assignees, task result flow, object-linked task control.
 
 ### timesheets
 
-Monthly timesheet container, object attendance rows, daily attendance entries.
+Monthly timesheet container, object-linked employee rows, numeric day cells, row totals and month totals.
 
 ## Important note
 
-Timesheets foundation at this stage covers attendance only.
-Money cells, amount overrides, recalculation logic, budget signals and seasonal financial coupling are intentionally deferred to the next stage.
+Timesheets foundation is now numeric-day-cell based.
+Daily attendance source in object card will be added in the next microstage.

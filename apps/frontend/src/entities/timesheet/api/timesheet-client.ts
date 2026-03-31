@@ -26,8 +26,8 @@ export async function upsertTimesheetEntry(payload: {
   month: number;
   employeeId: string;
   dayOfMonth: number;
-  attendanceStatus: 'present' | 'absent' | 'sick' | 'vacation' | 'day_off';
-  note?: string;
+  dayValue: number;
+  comment?: string;
 }): Promise<TimesheetMonth> {
   return fetcher<TimesheetMonth>('/timesheets/entries', {
     method: 'POST',

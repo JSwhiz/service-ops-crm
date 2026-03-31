@@ -12,12 +12,10 @@ import { TimesheetLegend } from '@/features/timesheet-legend/ui/timesheet-legend
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 export default function TimesheetPage(): React.JSX.Element {
-  const now = new Date();
-
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [selectedObjectId, setSelectedObjectId] = useState('');
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedMonth, setSelectedMonth] = useState(2);
 
   const [timesheet, setTimesheet] = useState<TimesheetMonth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,9 +26,7 @@ export default function TimesheetPage(): React.JSX.Element {
       try {
         const response = await listObjects();
         setObjects(response);
-        if (response.length > 0) {
-          setSelectedObjectId((prev) => prev || response[0].id);
-        }
+        setSelectedObjectId((prev) => prev || (response[0]?.id ?? ''));
       } catch {
         setLoadError('Не удалось загрузить список объектов.');
       }
@@ -97,7 +93,7 @@ export default function TimesheetPage(): React.JSX.Element {
               month: selectedMonth,
               employeeId: payload.employeeId,
               dayOfMonth: payload.dayOfMonth,
-              attendanceStatus: payload.attendanceStatus,
+              dayValue: payload.dayValue,
             });
 
             setTimesheet(updated);

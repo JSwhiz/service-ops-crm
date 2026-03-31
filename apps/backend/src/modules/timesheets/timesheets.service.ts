@@ -67,22 +67,38 @@ export class TimesheetsService {
       throw new NotFoundException('Object not found');
     }
 
+    const daysInSelectedMonth = this.getDaysInMonth(query.year, query.month);
+
+    const mappedRows = rows.map((row) => {
+      const fullEntries = Array.from({ length: daysInSelectedMonth }, (_, index) => {
+        const dayOfMonth = index + 1;
+        const existing = row.entries.find((entry) => entry.dayOfMonth === dayOfMonth);
+
+        return {
+          dayOfMonth,
+          dayValue: existing?.dayValue ?? 0,
+          comment: existing?.comment ?? null,
+          isChangedManually: existing?.isChangedManually ?? false,
+        };
+      });
+
+      return {
+        employeeId: row.employeeId,
+        employeeName: row.employeeNameSnapshot,
+        rowTotal: fullEntries.reduce((sum, item) => sum + item.dayValue, 0),
+        entries: fullEntries,
+      };
+    });
+
     return {
       objectId: object.id,
       objectName: object.name,
       year: query.year,
       month: query.month,
       status: monthContainer.status,
-      daysInMonth: this.getDaysInMonth(query.year, query.month),
-      rows: rows.map((row) => ({
-        employeeId: row.employeeId,
-        employeeName: row.employeeNameSnapshot,
-        entries: row.entries.map((entry) => ({
-          dayOfMonth: entry.dayOfMonth,
-          attendanceStatus: entry.attendanceStatus,
-          note: entry.note,
-        })),
-      })),
+      daysInMonth: daysInSelectedMonth,
+      monthTotal: mappedRows.reduce((sum, row) => sum + row.rowTotal, 0),
+      rows: mappedRows,
     };
   }
 
@@ -123,15 +139,17 @@ export class TimesheetsService {
         },
       },
       update: {
-        attendanceStatus: payload.attendanceStatus,
-        note: payload.note ?? null,
+        dayValue: payload.dayValue,
+        comment: payload.comment ?? null,
+        isChangedManually: true,
         updatedByUserId: currentUser.id,
       },
       create: {
         rowId: row.id,
         dayOfMonth: payload.dayOfMonth,
-        attendanceStatus: payload.attendanceStatus,
-        note: payload.note ?? null,
+        dayValue: payload.dayValue,
+        comment: payload.comment ?? null,
+        isChangedManually: false,
         createdByUserId: currentUser.id,
         updatedByUserId: currentUser.id,
       },

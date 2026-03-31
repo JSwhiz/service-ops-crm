@@ -1,12 +1,14 @@
 export interface TimesheetEntry {
   dayOfMonth: number;
-  attendanceStatus: string;
-  note: string | null;
+  dayValue: number;
+  comment: string | null;
+  isChangedManually: boolean;
 }
 
 export interface TimesheetRow {
   employeeId: string;
   employeeName: string;
+  rowTotal: number;
   entries: TimesheetEntry[];
 }
 
@@ -17,5 +19,6 @@ export interface TimesheetMonth {
   month: number;
   status: string;
   daysInMonth: number;
+  monthTotal: number;
   rows: TimesheetRow[];
 }

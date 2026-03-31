@@ -1,17 +1,8 @@
-export const ATTENDANCE_OPTIONS = [
-  { value: 'present', shortLabel: 'Я', label: 'Явка' },
-  { value: 'absent', shortLabel: 'Н', label: 'Отсутствие' },
-  { value: 'sick', shortLabel: 'Б', label: 'Больничный' },
-  { value: 'vacation', shortLabel: 'О', label: 'Отпуск' },
-  { value: 'day_off', shortLabel: 'В', label: 'Выходной' },
-] as const;
-
-export function getAttendanceLabel(status: string): string {
-  const item = ATTENDANCE_OPTIONS.find((option) => option.value === status);
-  return item?.label ?? status;
+export function formatYearMonthLabel(year: number, month: number): string {
+  const normalized = String(month).padStart(2, '0');
+  return `${normalized}.${year}`;
 }
 
-export function getAttendanceShortLabel(status: string): string {
-  const item = ATTENDANCE_OPTIONS.find((option) => option.value === status);
-  return item?.shortLabel ?? status;
+export function getCellDisplayValue(value: number): string {
+  return value === 0 ? '' : String(value);
 }

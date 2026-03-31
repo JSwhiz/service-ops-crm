@@ -5,13 +5,16 @@ export class TimesheetResponseDto {
   month!: number;
   status!: string;
   daysInMonth!: number;
+  monthTotal!: number;
   rows!: Array<{
     employeeId: string;
     employeeName: string;
+    rowTotal: number;
     entries: Array<{
       dayOfMonth: number;
-      attendanceStatus: string;
-      note: string | null;
+      dayValue: number;
+      comment: string | null;
+      isChangedManually: boolean;
     }>;
   }>;
 }

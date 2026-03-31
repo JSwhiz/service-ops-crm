@@ -1,6 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-
-import { ATTENDANCE_STATUSES } from '../types/timesheet-status.type';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class UpsertTimesheetEntryDto {
   @IsString()
@@ -24,10 +22,10 @@ export class UpsertTimesheetEntryDto {
   @Max(31)
   dayOfMonth!: number;
 
-  @IsIn(ATTENDANCE_STATUSES)
-  attendanceStatus!: (typeof ATTENDANCE_STATUSES)[number];
+  @IsInt()
+  dayValue!: number;
 
   @IsOptional()
   @IsString()
-  note?: string;
+  comment?: string;
 }

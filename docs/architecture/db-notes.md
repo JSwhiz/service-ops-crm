@@ -31,20 +31,14 @@
 
 ### timesheet month model
 
-The timesheet is modeled as:
+Timesheet is modeled as:
 
 - month container
 - employee row snapshot
-- day entries
-
-This is intentional to support later:
-
-- money layer
-- manual overrides
-- month locking
-- historical stability
+- numeric day entries
 
 ## Important clarification
 
-Current timesheet stage is attendance-first.
-Financial amounts are intentionally not implemented in this stage.
+Attendance reason codes are not the core model of the project timesheet.
+The approved foundation is numeric day cells.
+The daily source "who was on the object today" will be connected from object card in the next microstage.
