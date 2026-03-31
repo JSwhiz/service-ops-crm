@@ -120,6 +120,7 @@ async function main(): Promise<void> {
       address: 'Москва, ул. Центральная, 1',
       status: 'active',
       seasonMode: 'summer',
+      dailyRate: 2500,
       notes: 'Тестовый объект foundation-модуля',
       createdByUserId: founder.id,
       deletedAt: null,
@@ -131,6 +132,7 @@ async function main(): Promise<void> {
       address: 'Москва, ул. Центральная, 1',
       status: 'active',
       seasonMode: 'summer',
+      dailyRate: 2500,
       notes: 'Тестовый объект foundation-модуля',
       createdByUserId: founder.id,
     },
@@ -313,15 +315,15 @@ async function main(): Promise<void> {
     },
   });
 
-  const februaryYear = 2026;
-  const februaryMonth = 2;
+  const timesheetYear = 2026;
+  const timesheetMonth = 2;
 
-  const februaryContainer = await prisma.timesheetMonth.upsert({
+  const monthContainer = await prisma.timesheetMonth.upsert({
     where: {
       objectId_year_month: {
         objectId: objectOne.id,
-        year: februaryYear,
-        month: februaryMonth,
+        year: timesheetYear,
+        month: timesheetMonth,
       },
     },
     update: {
@@ -330,8 +332,8 @@ async function main(): Promise<void> {
     },
     create: {
       objectId: objectOne.id,
-      year: februaryYear,
-      month: februaryMonth,
+      year: timesheetYear,
+      month: timesheetMonth,
       status: 'open',
       createdByUserId: founder.id,
     },
@@ -342,7 +344,7 @@ async function main(): Promise<void> {
     const row = await prisma.timesheetEmployeeRow.upsert({
       where: {
         timesheetMonthId_employeeId: {
-          timesheetMonthId: februaryContainer.id,
+          timesheetMonthId: monthContainer.id,
           employeeId: employee.id,
         },
       },
@@ -350,7 +352,7 @@ async function main(): Promise<void> {
         employeeNameSnapshot: employee.fullName,
       },
       create: {
-        timesheetMonthId: februaryContainer.id,
+        timesheetMonthId: monthContainer.id,
         employeeId: employee.id,
         employeeNameSnapshot: employee.fullName,
       },
@@ -358,69 +360,48 @@ async function main(): Promise<void> {
     rows.push(row);
   }
 
-  const totalDays = daysInMonth(februaryYear, februaryMonth);
+  const totalDays = daysInMonth(timesheetYear, timesheetMonth);
 
   for (let day = 1; day <= totalDays; day += 1) {
-    await prisma.timesheetDayEntry.upsert({
-      where: {
-        rowId_dayOfMonth: {
-          rowId: rows[0].id,
-          dayOfMonth: day,
+    for (const row of rows) {
+      await prisma.timesheetDayEntry.upsert({
+        where: {
+          rowId_dayOfMonth: {
+            rowId: row.id,
+            dayOfMonth: day,
+          },
         },
-      },
-      update: {
-        dayValue: day % 7 === 0 ? 0 : 2500,
-        updatedByUserId: founder.id,
-      },
-      create: {
-        rowId: rows[0].id,
-        dayOfMonth: day,
-        dayValue: day % 7 === 0 ? 0 : 2500,
-        createdByUserId: founder.id,
-        updatedByUserId: founder.id,
-      },
-    });
-
-    await prisma.timesheetDayEntry.upsert({
-      where: {
-        rowId_dayOfMonth: {
-          rowId: rows[1].id,
-          dayOfMonth: day,
+        update: {
+          dayValue: day % 6 === 0 ? 0 : objectOne.dailyRate,
+          isChangedManually: false,
+          updatedByUserId: founder.id,
         },
-      },
-      update: {
-        dayValue: day % 6 === 0 ? 0 : 2300,
-        updatedByUserId: founder.id,
-      },
-      create: {
-        rowId: rows[1].id,
-        dayOfMonth: day,
-        dayValue: day % 6 === 0 ? 0 : 2300,
-        createdByUserId: founder.id,
-        updatedByUserId: founder.id,
-      },
-    });
-
-    await prisma.timesheetDayEntry.upsert({
-      where: {
-        rowId_dayOfMonth: {
-          rowId: rows[2].id,
+        create: {
+          rowId: row.id,
           dayOfMonth: day,
+          dayValue: day % 6 === 0 ? 0 : objectOne.dailyRate,
+          isChangedManually: false,
+          createdByUserId: founder.id,
+          updatedByUserId: founder.id,
         },
-      },
-      update: {
-        dayValue: day % 5 === 0 ? 0 : 2100,
-        updatedByUserId: founder.id,
-      },
-      create: {
-        rowId: rows[2].id,
-        dayOfMonth: day,
-        dayValue: day % 5 === 0 ? 0 : 2100,
-        createdByUserId: founder.id,
-        updatedByUserId: founder.id,
-      },
-    });
+      });
+    }
   }
+
+  await prisma.timesheetDayEntry.update({
+    where: {
+      rowId_dayOfMonth: {
+        rowId: rows[1].id,
+        dayOfMonth: 11,
+      },
+    },
+    data: {
+      dayValue: 3100,
+      isChangedManually: true,
+      comment: 'Ручная корректировка тестового значения',
+      updatedByUserId: founder.id,
+    },
+  });
 }
 
 main()

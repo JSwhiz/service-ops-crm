@@ -11,16 +11,20 @@
 - tasks foundation
 - task UX hardening
 - timesheet numeric foundation
+- object daily rate foundation
 
-## Основной локальный цикл
+## Что проверить после запуска
 
-```bash
-make infra-up
-pnpm install
-make db-generate
-make db-migrate
-make db-seed
-pnpm --filter backend start:dev
-pnpm --filter frontend dev
-pnpm ci:check
-```
+- `/objects`
+- `/objects/[id]`
+- `/tasks`
+- `/timesheet`
+
+## Особое внимание
+
+На `/timesheet`:
+
+- стрелки в number inputs отсутствуют
+- sticky ФИО и sticky итог не ломаются при скролле
+- в объекте есть ставка за день
+- табель использует ставку объекта как базовое значение

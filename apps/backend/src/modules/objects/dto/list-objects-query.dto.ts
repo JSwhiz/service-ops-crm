@@ -1,6 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
-
-import { OBJECT_STATUSES } from '../types/object-status.type';
+import { IsOptional, IsString } from 'class-validator';
 
 export class ListObjectsQueryDto {
   @IsOptional()
@@ -8,6 +6,6 @@ export class ListObjectsQueryDto {
   search?: string;
 
   @IsOptional()
-  @IsIn(OBJECT_STATUSES)
-  status?: 'active' | 'archived' | 'frozen';
+  @IsString()
+  status?: string;
 }

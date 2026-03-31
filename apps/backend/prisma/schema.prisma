@@ -157,6 +157,7 @@ model Object {
   address             String
   status              String
   seasonMode          String   @default("summer")
+  dailyRate           Int      @default(0)
   notes               String?
   createdByUserId     String
   createdAt           DateTime @default(now())

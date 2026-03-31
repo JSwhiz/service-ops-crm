@@ -1,34 +1,17 @@
-export interface ObjectPersonRef {
-  id: string;
-  fullName: string;
-  login: string;
-}
-
 export interface ServiceObject {
   id: string;
   name: string;
   internalName: string | null;
   address: string;
-  status: 'active' | 'archived' | 'frozen' | string;
-  seasonMode: 'summer' | 'winter' | string;
+  status: string;
+  seasonMode: string;
+  dailyRate: number;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
-  managers: ObjectPersonRef[];
-  responsibles: ObjectPersonRef[];
-}
-
-export interface ListObjectsQuery {
-  search?: string;
-  status?: 'active' | 'archived' | 'frozen';
-}
-
-export interface CreateObjectPayload {
-  name: string;
-  internalName?: string;
-  address: string;
-  seasonMode?: 'summer' | 'winter';
-  notes?: string;
-  managerUserIds?: string[];
-  responsibleUserIds?: string[];
+  managers: Array<{
+    userId: string;
+    fullName: string;
+    roleCode: string;
+  }>;
 }

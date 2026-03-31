@@ -129,3 +129,135 @@ select {
     border-bottom: 1px solid #e5e7eb;
   }
 }
+
+.timesheet-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.timesheet-card__meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #334155;
+}
+
+.timesheet-scroll {
+  overflow-x: auto;
+}
+
+.timesheet-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1500px;
+  font-size: 13px;
+}
+
+.timesheet-table th,
+.timesheet-table td {
+  border-bottom: 1px solid #eef2f7;
+  padding: 8px 6px;
+  text-align: center;
+  background: #ffffff;
+  white-space: nowrap;
+}
+
+.timesheet-table thead th {
+  position: relative;
+  background: #f8fafc;
+  font-weight: 600;
+  color: #334155;
+  z-index: 1;
+}
+
+.timesheet-table tbody tr:hover td {
+  background: #fafcff;
+}
+
+.timesheet-table__name {
+  text-align: left !important;
+  font-weight: 500;
+}
+
+.timesheet-table__total,
+.timesheet-table__grand-total,
+.timesheet-table__footer-label {
+  font-weight: 700;
+  background: #f8fafc !important;
+}
+
+.timesheet-table__sticky-left {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  background: #ffffff !important;
+  box-shadow: 8px 0 12px -12px rgba(15, 23, 42, 0.18);
+}
+
+.timesheet-table thead .timesheet-table__sticky-left,
+.timesheet-table tfoot .timesheet-table__sticky-left {
+  background: #f8fafc !important;
+  z-index: 6;
+}
+
+.timesheet-table__sticky-right {
+  position: sticky;
+  right: 0;
+  z-index: 4;
+  background: #ffffff !important;
+  box-shadow: -8px 0 12px -12px rgba(15, 23, 42, 0.18);
+}
+
+.timesheet-table thead .timesheet-table__sticky-right,
+.timesheet-table tfoot .timesheet-table__sticky-right {
+  background: #f8fafc !important;
+  z-index: 6;
+}
+
+.timesheet-table__changed-cell {
+  background: #eff6ff !important;
+}
+
+.timesheet-table__input {
+  width: 56px;
+  padding: 6px 8px;
+  text-align: center;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  font-size: 12px;
+  background: #ffffff;
+  outline: none;
+}
+
+.timesheet-table__input:focus {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.15);
+}
+
+/* убрать стрелки у number input */
+.timesheet-table__input::-webkit-outer-spin-button,
+.timesheet-table__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timesheet-table__input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+@media (max-width: 900px) {
+  .timesheet-card {
+    padding: 12px;
+  }
+
+  .timesheet-table {
+    min-width: 1200px;
+  }
+}

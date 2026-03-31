@@ -15,6 +15,7 @@ export interface TimesheetRow {
 export interface TimesheetMonth {
   objectId: string;
   objectName: string;
+  objectDailyRate: number;
   year: number;
   month: number;
   status: string;

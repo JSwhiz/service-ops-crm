@@ -24,6 +24,7 @@ interface CurrentAuthUser {
   login: string;
   fullName: string;
   roleCode: string;
+  roleCodes?: string[];
   isActive: boolean;
 }
 
@@ -41,7 +42,7 @@ export class ObjectsController {
   }
 
   @Get(':id')
-  getObject(
+  getObjectById(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
   ): Promise<ObjectResponseDto> {

@@ -6,19 +6,47 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 
-import { CreateObjectDto } from './dto/create-object.dto';
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
+import { CreateObjectDto } from './dto/create-object.dto';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
 import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
-import { hasWideObjectAccess } from './utils/object-visibility.util';
+import {
+  canEditObject,
+  canEditObjectDailyRate,
+  canOverrideFrozenObject,
+  hasWideObjectAccess,
+} from './utils/object-access.util';
 
 interface CurrentAuthUser {
   id: string;
   login: string;
   fullName: string;
   roleCode: string;
+  roleCodes?: string[];
   isActive: boolean;
+}
+
+interface ObjectAssignmentView {
+  assignmentRoleCode: string;
+  user: {
+    id: string;
+    fullName: string;
+  };
+}
+
+interface ObjectView {
+  id: string;
+  name: string;
+  internalName: string | null;
+  address: string;
+  status: string;
+  seasonMode: string;
+  dailyRate: number;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  assignments: ObjectAssignmentView[];
 }
 
 @Injectable()
@@ -27,40 +55,32 @@ export class ObjectsService {
 
   async listObjects(
     currentUser: CurrentAuthUser,
-    query: ListObjectsQueryDto,
+    query?: ListObjectsQueryDto,
   ): Promise<ObjectResponseDto[]> {
-    const roleCodes = [currentUser.roleCode];
-    const wideAccess = hasWideObjectAccess(roleCodes);
+    const roleCodes = this.getRoleCodes(currentUser);
 
-    const objects = await this.prisma.object.findMany({
+    const objects = (await this.prisma.object.findMany({
       where: {
-        deletedAt: null,
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.search
+        ...(await this.buildVisibilityWhere(currentUser)),
+        ...(query?.status ? { status: query.status } : {}),
+        ...(query?.search
           ? {
               OR: [
                 { name: { contains: query.search, mode: 'insensitive' } },
-                { internalName: { contains: query.search, mode: 'insensitive' } },
+                {
+                  internalName: {
+                    contains: query.search,
+                    mode: 'insensitive',
+                  },
+                },
                 { address: { contains: query.search, mode: 'insensitive' } },
               ],
             }
           : {}),
-        ...(wideAccess
-          ? {}
-          : {
-              assignments: {
-                some: {
-                  userId: currentUser.id,
-                  isActive: true,
-                },
-              },
-            }),
       },
       include: {
         assignments: {
-          where: {
-            isActive: true,
-          },
+          where: { isActive: true },
           include: {
             user: true,
           },
@@ -69,94 +89,67 @@ export class ObjectsService {
       orderBy: {
         createdAt: 'desc',
       },
-    });
+    })) as ObjectView[];
 
-    return objects.map((item) => this.mapObject(item));
+    return objects.map((item: ObjectView) => this.mapObject(item, roleCodes));
   }
 
   async getObjectById(
     currentUser: CurrentAuthUser,
     id: string,
   ): Promise<ObjectResponseDto> {
-    const object = await this.prisma.object.findFirst({
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    const object = (await this.prisma.object.findFirst({
       where: {
         id,
-        deletedAt: null,
+        ...(await this.buildVisibilityWhere(currentUser)),
       },
       include: {
         assignments: {
-          where: {
-            isActive: true,
-          },
+          where: { isActive: true },
           include: {
             user: true,
           },
         },
       },
-    });
+    })) as ObjectView | null;
 
     if (!object) {
       throw new NotFoundException('Object not found');
     }
 
-    const roleCodes = [currentUser.roleCode];
-    const wideAccess = hasWideObjectAccess(roleCodes);
-    const isAssigned = object.assignments.some(
-      (assignment) => assignment.userId === currentUser.id,
-    );
-
-    if (!wideAccess && !isAssigned) {
-      throw new ForbiddenException('Access to object denied');
-    }
-
-    return this.mapObject(object);
+    return this.mapObject(object, roleCodes);
   }
 
   async createObject(
     currentUser: CurrentAuthUser,
     payload: CreateObjectDto,
   ): Promise<ObjectResponseDto> {
-    if (!hasWideObjectAccess([currentUser.roleCode])) {
-      throw new ForbiddenException('Only wide-access roles can create objects');
-    }
+    const roleCodes = this.getRoleCodes(currentUser);
 
-    const object = await this.prisma.object.create({
+    const created = (await this.prisma.object.create({
       data: {
         name: payload.name,
         internalName: payload.internalName ?? null,
         address: payload.address,
-        status: 'active',
+        status: payload.status ?? 'active',
         seasonMode: payload.seasonMode ?? 'summer',
+        dailyRate: payload.dailyRate ?? 0,
         notes: payload.notes ?? null,
         createdByUserId: currentUser.id,
-        assignments: {
-          create: [
-            ...((payload.managerUserIds ?? []).map((userId) => ({
-              userId,
-              assignmentRoleCode: 'manager',
-              isActive: true,
-            }))),
-            ...((payload.responsibleUserIds ?? []).map((userId) => ({
-              userId,
-              assignmentRoleCode: 'responsible',
-              isActive: true,
-            }))),
-          ],
-        },
       },
       include: {
         assignments: {
-          where: {
-            isActive: true,
-          },
+          where: { isActive: true },
           include: {
             user: true,
           },
         },
       },
-    });
+    })) as ObjectView;
 
-    return this.mapObject(object);
+    return this.mapObject(created, roleCodes);
   }
 
   async updateObject(
@@ -164,88 +157,84 @@ export class ObjectsService {
     id: string,
     payload: UpdateObjectDto,
   ): Promise<ObjectResponseDto> {
-    if (!hasWideObjectAccess([currentUser.roleCode])) {
-      throw new ForbiddenException('Only wide-access roles can update objects');
-    }
+    const roleCodes = this.getRoleCodes(currentUser);
 
-    const existing = await this.prisma.object.findFirst({
+    const existing = (await this.prisma.object.findFirst({
       where: {
         id,
-        deletedAt: null,
+        ...(await this.buildVisibilityWhere(currentUser)),
       },
-    });
+      include: {
+        assignments: {
+          where: { isActive: true },
+          include: {
+            user: true,
+          },
+        },
+      },
+    })) as ObjectView | null;
 
     if (!existing) {
       throw new NotFoundException('Object not found');
     }
 
-    const object = await this.prisma.$transaction(async (tx) => {
-      await tx.object.update({
-        where: { id },
-        data: {
-          ...(payload.name !== undefined ? { name: payload.name } : {}),
-          ...(payload.internalName !== undefined
-            ? { internalName: payload.internalName || null }
-            : {}),
-          ...(payload.address !== undefined ? { address: payload.address } : {}),
-          ...(payload.seasonMode !== undefined
-            ? { seasonMode: payload.seasonMode }
-            : {}),
-          ...(payload.notes !== undefined ? { notes: payload.notes || null } : {}),
-        },
-      });
+    const isAssignedManager = existing.assignments.some(
+      (assignment: ObjectAssignmentView) =>
+        assignment.user.id === currentUser.id,
+    );
 
-      if (
-        payload.managerUserIds !== undefined ||
-        payload.responsibleUserIds !== undefined
-      ) {
-        await tx.objectAssignment.deleteMany({
-          where: {
-            objectId: id,
-            assignmentRoleCode: {
-              in: ['manager', 'responsible'],
-            },
-          },
-        });
+    const allowedToEdit =
+      canEditObject(roleCodes) ||
+      (isAssignedManager && existing.status !== 'frozen') ||
+      (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes));
 
-        const assignmentsToCreate = [
-          ...((payload.managerUserIds ?? []).map((userId) => ({
-            objectId: id,
-            userId,
-            assignmentRoleCode: 'manager',
-            isActive: true,
-          }))),
-          ...((payload.responsibleUserIds ?? []).map((userId) => ({
-            objectId: id,
-            userId,
-            assignmentRoleCode: 'responsible',
-            isActive: true,
-          }))),
-        ];
+    if (!allowedToEdit) {
+      throw new ForbiddenException('Object editing denied');
+    }
 
-        if (assignmentsToCreate.length > 0) {
-          await tx.objectAssignment.createMany({
-            data: assignmentsToCreate,
-          });
-        }
-      }
+    const oldDailyRate = existing.dailyRate;
+    const newDailyRate =
+      typeof payload.dailyRate === 'number' ? payload.dailyRate : oldDailyRate;
 
-      return tx.object.findFirstOrThrow({
-        where: { id },
-        include: {
-          assignments: {
-            where: {
-              isActive: true,
-            },
-            include: {
-              user: true,
-            },
+    if (
+      typeof payload.dailyRate === 'number' &&
+      !canEditObjectDailyRate(roleCodes)
+    ) {
+      throw new ForbiddenException('Daily rate editing denied');
+    }
+
+    const updated = (await this.prisma.object.update({
+      where: { id },
+      data: {
+        ...(payload.name !== undefined ? { name: payload.name } : {}),
+        ...(payload.internalName !== undefined
+          ? { internalName: payload.internalName }
+          : {}),
+        ...(payload.address !== undefined ? { address: payload.address } : {}),
+        ...(payload.status !== undefined ? { status: payload.status } : {}),
+        ...(payload.seasonMode !== undefined
+          ? { seasonMode: payload.seasonMode }
+          : {}),
+        ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+        ...(payload.dailyRate !== undefined
+          ? { dailyRate: payload.dailyRate }
+          : {}),
+      },
+      include: {
+        assignments: {
+          where: { isActive: true },
+          include: {
+            user: true,
           },
         },
-      });
-    });
+      },
+    })) as ObjectView;
 
-    return this.mapObject(object);
+    if (newDailyRate !== oldDailyRate) {
+      await this.syncDailyRateToTimesheets(id, newDailyRate);
+    }
+
+    return this.mapObject(updated, roleCodes);
   }
 
   async changeStatus(
@@ -253,84 +242,94 @@ export class ObjectsService {
     id: string,
     payload: ChangeObjectStatusDto,
   ): Promise<ObjectResponseDto> {
-    if (!hasWideObjectAccess([currentUser.roleCode])) {
-      throw new ForbiddenException('Only wide-access roles can change status');
-    }
-
-    const existing = await this.prisma.object.findFirst({
-      where: {
-        id,
-        deletedAt: null,
-      },
+    return this.updateObject(currentUser, id, {
+      status: payload.status,
     });
-
-    if (!existing) {
-      throw new NotFoundException('Object not found');
-    }
-
-    const object = await this.prisma.object.update({
-      where: { id },
-      data: {
-        status: payload.status,
-      },
-      include: {
-        assignments: {
-          where: {
-            isActive: true,
-          },
-          include: {
-            user: true,
-          },
-        },
-      },
-    });
-
-    return this.mapObject(object);
   }
 
-  private mapObject(object: {
-    id: string;
-    name: string;
-    internalName: string | null;
-    address: string;
-    status: string;
-    seasonMode: string;
-    notes: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-    assignments: Array<{
-      assignmentRoleCode: string;
-      user: {
-        id: string;
-        fullName: string;
-        login: string;
+  private async syncDailyRateToTimesheets(
+    objectId: string,
+    dailyRate: number,
+  ): Promise<void> {
+    const months = await this.prisma.timesheetMonth.findMany({
+      where: {
+        objectId,
+      },
+      include: {
+        rows: true,
+      },
+    });
+
+    for (const month of months) {
+      for (const row of month.rows) {
+        await this.prisma.timesheetDayEntry.updateMany({
+          where: {
+            rowId: row.id,
+            isChangedManually: false,
+          },
+          data: {
+            dayValue: dailyRate,
+          },
+        });
+      }
+    }
+  }
+
+  private async buildVisibilityWhere(currentUser: CurrentAuthUser) {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (hasWideObjectAccess(roleCodes)) {
+      return {
+        deletedAt: null,
       };
-    }>;
-  }): ObjectResponseDto {
+    }
+
     return {
-      id: object.id,
-      name: object.name,
-      internalName: object.internalName,
-      address: object.address,
-      status: object.status,
-      seasonMode: object.seasonMode,
-      notes: object.notes,
-      createdAt: object.createdAt.toISOString(),
-      updatedAt: object.updatedAt.toISOString(),
-      managers: object.assignments
-        .filter((assignment) => assignment.assignmentRoleCode === 'manager')
-        .map((assignment) => ({
-          id: assignment.user.id,
-          fullName: assignment.user.fullName,
-          login: assignment.user.login,
-        })),
-      responsibles: object.assignments
-        .filter((assignment) => assignment.assignmentRoleCode === 'responsible')
-        .map((assignment) => ({
-          id: assignment.user.id,
-          fullName: assignment.user.fullName,
-          login: assignment.user.login,
-        })),
+      deletedAt: null,
+      OR: [
+        {
+          createdByUserId: currentUser.id,
+        },
+        {
+          assignments: {
+            some: {
+              userId: currentUser.id,
+              isActive: true,
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private getRoleCodes(currentUser: CurrentAuthUser): string[] {
+    if (currentUser.roleCodes && currentUser.roleCodes.length > 0) {
+      return currentUser.roleCodes;
+    }
+
+    return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private mapObject(
+    item: ObjectView,
+    _roleCodes: string[],
+  ): ObjectResponseDto {
+    return {
+      id: item.id,
+      name: item.name,
+      internalName: item.internalName,
+      address: item.address,
+      status: item.status,
+      seasonMode: item.seasonMode,
+      dailyRate: item.dailyRate,
+      notes: item.notes,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      managers: item.assignments.map((assignment: ObjectAssignmentView) => ({
+        userId: assignment.user.id,
+        fullName: assignment.user.fullName,
+        roleCode: assignment.assignmentRoleCode,
+      })),
     };
   }
 }

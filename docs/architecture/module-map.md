@@ -28,21 +28,9 @@
 
 ## Responsibility boundaries
 
-### users-access
-
-Users, roles, permissions, visibility groups, approval capabilities, selector sources for internal forms.
-
 ### objects
 
-Core object data, status, assignments, basic object card.
-
-### object-operations
-
-Arrival photos, daily reports, object comments, operational object feed.
-
-### tasks
-
-Tasks, assignees, task result flow, object-linked task control.
+Core object data, status, assignments, daily base rate.
 
 ### timesheets
 
@@ -50,5 +38,5 @@ Monthly timesheet container, object-linked employee rows, numeric day cells, row
 
 ## Important note
 
-Timesheets foundation is now numeric-day-cell based.
-Daily attendance source in object card will be added in the next microstage.
+At this stage, object daily rate is the base source for timesheet day values.
+Manual day cell changes override the base and must not be auto-rewritten by rate sync.

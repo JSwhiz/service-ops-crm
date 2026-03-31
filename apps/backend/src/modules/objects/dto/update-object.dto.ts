@@ -1,11 +1,8 @@
-import { IsArray, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
-
-import { OBJECT_SEASON_MODES } from '../types/object-status.type';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateObjectDto {
   @IsOptional()
   @IsString()
-  @MinLength(2)
   name?: string;
 
   @IsOptional()
@@ -14,24 +11,22 @@ export class UpdateObjectDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(3)
   address?: string;
 
   @IsOptional()
-  @IsIn(OBJECT_SEASON_MODES)
-  seasonMode?: 'summer' | 'winter';
+  @IsIn(['active', 'archived', 'frozen'])
+  status?: string;
+
+  @IsOptional()
+  @IsIn(['summer', 'winter'])
+  seasonMode?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  dailyRate?: number;
 
   @IsOptional()
   @IsString()
   notes?: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  managerUserIds?: string[];
-
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  responsibleUserIds?: string[];
 }

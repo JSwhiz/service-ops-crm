@@ -60,6 +60,7 @@ export class TimesheetsService {
       select: {
         id: true,
         name: true,
+        dailyRate: true,
       },
     });
 
@@ -93,6 +94,7 @@ export class TimesheetsService {
     return {
       objectId: object.id,
       objectName: object.name,
+      objectDailyRate: object.dailyRate,
       year: query.year,
       month: query.month,
       status: monthContainer.status,
@@ -199,6 +201,10 @@ export class TimesheetsService {
         id: objectId,
         deletedAt: null,
       },
+      select: {
+        id: true,
+        dailyRate: true,
+      },
     });
 
     if (!object) {
@@ -234,7 +240,7 @@ export class TimesheetsService {
     });
 
     for (const assignment of activeAssignments) {
-      await this.prisma.timesheetEmployeeRow.upsert({
+      const row = await this.prisma.timesheetEmployeeRow.upsert({
         where: {
           timesheetMonthId_employeeId: {
             timesheetMonthId: monthContainer.id,
@@ -250,6 +256,28 @@ export class TimesheetsService {
           employeeNameSnapshot: assignment.employee.fullName,
         },
       });
+
+      const totalDays = this.getDaysInMonth(year, month);
+
+      for (let day = 1; day <= totalDays; day += 1) {
+        await this.prisma.timesheetDayEntry.upsert({
+          where: {
+            rowId_dayOfMonth: {
+              rowId: row.id,
+              dayOfMonth: day,
+            },
+          },
+          update: {},
+          create: {
+            rowId: row.id,
+            dayOfMonth: day,
+            dayValue: object.dailyRate,
+            isChangedManually: false,
+            createdByUserId: currentUserId,
+            updatedByUserId: currentUserId,
+          },
+        });
+      }
     }
 
     return monthContainer;

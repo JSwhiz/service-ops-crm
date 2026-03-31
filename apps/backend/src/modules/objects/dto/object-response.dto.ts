@@ -5,17 +5,13 @@ export class ObjectResponseDto {
   address!: string;
   status!: string;
   seasonMode!: string;
+  dailyRate!: number;
   notes!: string | null;
   createdAt!: string;
   updatedAt!: string;
   managers!: Array<{
-    id: string;
+    userId: string;
     fullName: string;
-    login: string;
-  }>;
-  responsibles!: Array<{
-    id: string;
-    fullName: string;
-    login: string;
+    roleCode: string;
   }>;
 }

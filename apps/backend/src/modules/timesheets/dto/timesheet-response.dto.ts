@@ -1,6 +1,7 @@
 export class TimesheetResponseDto {
   objectId!: string;
   objectName!: string;
+  objectDailyRate!: number;
   year!: number;
   month!: number;
   status!: string;
