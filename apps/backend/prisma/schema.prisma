@@ -8,28 +8,31 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(uuid())
-  login       String   @unique
-  password    String
-  fullName    String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  id                          String   @id @default(uuid())
+  login                       String   @unique
+  password                    String
+  fullName                    String
+  isActive                    Boolean  @default(true)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  deletedAt                   DateTime?
 
-  roles                UserRole[]
-  permissions          UserPermission[]
-  visibilityGroups     UserVisibilityGroup[]
-  approvalCapabilities UserApprovalCapability[]
-  auditEvents          AuditEvent[] @relation("AuditActor")
-  createdObjects       Object[] @relation("ObjectCreatedBy")
-  objectAssignments    ObjectAssignment[]
-  createdComments      ObjectComment[] @relation("ObjectCommentCreatedBy")
-  createdArrivalPhotos ObjectArrivalPhoto[] @relation("ObjectArrivalPhotoCreatedBy")
-  updatedDailyReports  ObjectDailyReport[] @relation("ObjectDailyReportUpdatedBy")
-  createdTasks         Task[] @relation("TaskCreatedBy")
-  taskAssignments      TaskAssignee[]
-  submittedTaskResults Task[] @relation("TaskSubmittedBy")
+  roles                       UserRole[]
+  permissions                 UserPermission[]
+  visibilityGroups            UserVisibilityGroup[]
+  approvalCapabilities        UserApprovalCapability[]
+  auditEvents                 AuditEvent[] @relation("AuditActor")
+  createdObjects              Object[] @relation("ObjectCreatedBy")
+  objectAssignments           ObjectAssignment[]
+  createdComments             ObjectComment[] @relation("ObjectCommentCreatedBy")
+  createdArrivalPhotos        ObjectArrivalPhoto[] @relation("ObjectArrivalPhotoCreatedBy")
+  updatedDailyReports         ObjectDailyReport[] @relation("ObjectDailyReportUpdatedBy")
+  createdTasks                Task[] @relation("TaskCreatedBy")
+  taskAssignments             TaskAssignee[]
+  submittedTaskResults        Task[] @relation("TaskSubmittedBy")
+  createdTimesheetMonths      TimesheetMonth[] @relation("TimesheetMonthCreatedBy")
+  createdTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryCreatedBy")
+  updatedTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryUpdatedBy")
 
   @@map("users")
 }
@@ -148,24 +151,26 @@ model UserApprovalCapability {
 }
 
 model Object {
-  id              String   @id @default(uuid())
-  name            String
-  internalName    String?
-  address         String
-  status          String
-  seasonMode      String   @default("summer")
-  notes           String?
-  createdByUserId String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  deletedAt       DateTime?
+  id                  String   @id @default(uuid())
+  name                String
+  internalName        String?
+  address             String
+  status              String
+  seasonMode          String   @default("summer")
+  notes               String?
+  createdByUserId     String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  deletedAt           DateTime?
 
-  createdBy     User                 @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  assignments   ObjectAssignment[]
-  arrivalPhotos ObjectArrivalPhoto[]
-  dailyReports  ObjectDailyReport[]
-  comments      ObjectComment[]
-  tasks         Task[]
+  createdBy           User                    @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  assignments         ObjectAssignment[]
+  arrivalPhotos       ObjectArrivalPhoto[]
+  dailyReports        ObjectDailyReport[]
+  comments            ObjectComment[]
+  tasks               Task[]
+  employeeAssignments ObjectEmployeeAssignment[]
+  timesheetMonths     TimesheetMonth[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -189,6 +194,41 @@ model ObjectAssignment {
   @@index([assignmentRoleCode])
   @@unique([objectId, userId, assignmentRoleCode])
   @@map("object_assignments")
+}
+
+model Employee {
+  id                 String   @id @default(uuid())
+  fullName           String
+  phone              String?
+  employmentStatus   String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  deletedAt          DateTime?
+
+  objectAssignments  ObjectEmployeeAssignment[]
+  timesheetRows      TimesheetEmployeeRow[]
+
+  @@index([employmentStatus])
+  @@map("employees")
+}
+
+model ObjectEmployeeAssignment {
+  id          String   @id @default(uuid())
+  objectId    String
+  employeeId  String
+  isActive    Boolean  @default(true)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  object      Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([objectId, employeeId])
+  @@index([objectId])
+  @@index([employeeId])
+  @@map("object_employee_assignments")
 }
 
 model ObjectArrivalPhoto {
@@ -269,7 +309,7 @@ model Task {
 }
 
 model TaskAssignee {
-  id         String   @id @default(uuid())
+  id          String   @id @default(uuid())
   taskId      String
   userId      String
   isCompleted Boolean  @default(false)
@@ -284,6 +324,65 @@ model TaskAssignee {
   @@index([taskId])
   @@index([userId])
   @@map("task_assignees")
+}
+
+model TimesheetMonth {
+  id              String   @id @default(uuid())
+  objectId        String
+  year            Int
+  month           Int
+  status          String   @default("open")
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  object          Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdBy       User?                @relation("TimesheetMonthCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  rows            TimesheetEmployeeRow[]
+
+  @@unique([objectId, year, month])
+  @@index([objectId])
+  @@index([year, month])
+  @@map("timesheet_months")
+}
+
+model TimesheetEmployeeRow {
+  id                   String   @id @default(uuid())
+  timesheetMonthId     String
+  employeeId           String
+  employeeNameSnapshot String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  timesheetMonth       TimesheetMonth     @relation(fields: [timesheetMonthId], references: [id], onDelete: Cascade)
+  employee             Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  entries              TimesheetDayEntry[]
+
+  @@unique([timesheetMonthId, employeeId])
+  @@index([timesheetMonthId])
+  @@index([employeeId])
+  @@map("timesheet_employee_rows")
+}
+
+model TimesheetDayEntry {
+  id              String   @id @default(uuid())
+  rowId           String
+  dayOfMonth      Int
+  attendanceStatus String
+  note            String?
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  row             TimesheetEmployeeRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  createdBy       User?                @relation("TimesheetEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy       User?                @relation("TimesheetEntryUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([rowId, dayOfMonth])
+  @@index([rowId])
+  @@index([dayOfMonth])
+  @@map("timesheet_day_entries")
 }
 
 model File {

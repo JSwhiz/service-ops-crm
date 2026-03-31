@@ -35,6 +35,7 @@ import { ObjectOperationsModule } from './modules/object-operations/object-opera
 import { ObjectsModule } from './modules/objects/objects.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { TimesheetsModule } from './modules/timesheets/timesheets.module';
 import { UsersAccessModule } from './modules/users-access/users-access.module';
 
 @Module({
@@ -53,6 +54,7 @@ import { UsersAccessModule } from './modules/users-access/users-access.module';
     ObjectsModule,
     ObjectOperationsModule,
     TasksModule,
+    TimesheetsModule,
   ],
 })
 export class AppModule {}

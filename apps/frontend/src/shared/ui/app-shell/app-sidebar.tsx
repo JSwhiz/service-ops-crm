@@ -11,6 +11,7 @@ export function AppSidebar(): React.JSX.Element {
         <NavLink href="/dashboard" label="Рабочий стол" />
         <NavLink href="/objects" label="Объекты" />
         <NavLink href="/tasks" label="Задачи" />
+        <NavLink href="/timesheet" label="Табель" />
         <NavLink href="/settings" label="Настройки" />
       </nav>
     </aside>

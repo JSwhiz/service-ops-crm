@@ -7,6 +7,14 @@ function startOfToday(): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
+function currentYearMonth(): { year: number; month: number } {
+  const now = new Date();
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+  };
+}
+
 async function main(): Promise<void> {
   const founderRole = await prisma.role.upsert({
     where: { code: 'founder' },
@@ -37,15 +45,14 @@ async function main(): Promise<void> {
     { code: 'tasks.create', name: 'Создание задач' },
     { code: 'tasks.update', name: 'Изменение задач' },
     { code: 'timesheet.read', name: 'Чтение табеля' },
+    { code: 'timesheet.attendance.edit', name: 'Изменение attendance части табеля' },
     { code: 'timesheet.amount.edit', name: 'Изменение денежных ячеек табеля' },
   ];
 
   for (const permission of permissions) {
     await prisma.permission.upsert({
       where: { code: permission.code },
-      update: {
-        name: permission.name,
-      },
+      update: { name: permission.name },
       create: {
         code: permission.code,
         name: permission.name,
@@ -60,10 +67,6 @@ async function main(): Promise<void> {
     { code: 'object_salary', name: 'Зарплатный блок объекта', scopeType: 'object' },
     { code: 'object_consumables', name: 'Расходники и плановые работы', scopeType: 'object' },
     { code: 'object_equipment', name: 'Оборудование объекта', scopeType: 'object' },
-    { code: 'one_time_basic', name: 'Базовый блок разового', scopeType: 'one_time_order' },
-    { code: 'one_time_contact', name: 'Контактный блок разового', scopeType: 'one_time_order' },
-    { code: 'one_time_financial', name: 'Финансовый блок разового', scopeType: 'one_time_order' },
-    { code: 'one_time_consumables', name: 'Расходный блок разового', scopeType: 'one_time_order' },
   ];
 
   for (const group of visibilityGroups) {
@@ -88,9 +91,7 @@ async function main(): Promise<void> {
   for (const capability of approvalCapabilities) {
     await prisma.approvalCapability.upsert({
       where: { code: capability.code },
-      update: {
-        name: capability.name,
-      },
+      update: { name: capability.name },
       create: capability,
     });
   }
@@ -151,72 +152,21 @@ async function main(): Promise<void> {
     },
   });
 
-  const founderTaskRead = await prisma.permission.findUniqueOrThrow({
-    where: { code: 'tasks.read' },
-  });
-  const founderTaskCreate = await prisma.permission.findUniqueOrThrow({
-    where: { code: 'tasks.create' },
-  });
-  const objectBasic = await prisma.visibilityGroup.findUniqueOrThrow({
-    where: { code: 'object_basic' },
-  });
-  const approveTaskResult = await prisma.approvalCapability.findUniqueOrThrow({
-    where: { code: 'approve_task_result' },
+  const timesheetReadPermission = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'timesheet.read' },
   });
 
   await prisma.userPermission.upsert({
     where: {
       userId_permissionId: {
         userId: founder.id,
-        permissionId: founderTaskRead.id,
+        permissionId: timesheetReadPermission.id,
       },
     },
     update: {},
     create: {
       userId: founder.id,
-      permissionId: founderTaskRead.id,
-    },
-  });
-
-  await prisma.userPermission.upsert({
-    where: {
-      userId_permissionId: {
-        userId: founder.id,
-        permissionId: founderTaskCreate.id,
-      },
-    },
-    update: {},
-    create: {
-      userId: founder.id,
-      permissionId: founderTaskCreate.id,
-    },
-  });
-
-  await prisma.userVisibilityGroup.upsert({
-    where: {
-      userId_visibilityGroupId: {
-        userId: founder.id,
-        visibilityGroupId: objectBasic.id,
-      },
-    },
-    update: {},
-    create: {
-      userId: founder.id,
-      visibilityGroupId: objectBasic.id,
-    },
-  });
-
-  await prisma.userApprovalCapability.upsert({
-    where: {
-      userId_approvalCapabilityId: {
-        userId: founder.id,
-        approvalCapabilityId: approveTaskResult.id,
-      },
-    },
-    update: {},
-    create: {
-      userId: founder.id,
-      approvalCapabilityId: approveTaskResult.id,
+      permissionId: timesheetReadPermission.id,
     },
   });
 
@@ -274,6 +224,102 @@ async function main(): Promise<void> {
       objectId: objectOne.id,
       userId: director.id,
       assignmentRoleCode: 'responsible',
+      isActive: true,
+    },
+  });
+
+  const employeeIvan = await prisma.employee.upsert({
+    where: { id: '55555555-5555-5555-5555-555555555555' },
+    update: {
+      fullName: 'Иван Петров',
+      employmentStatus: 'active',
+      deletedAt: null,
+    },
+    create: {
+      id: '55555555-5555-5555-5555-555555555555',
+      fullName: 'Иван Петров',
+      employmentStatus: 'active',
+      phone: '+79990000001',
+    },
+  });
+
+  const employeeSergey = await prisma.employee.upsert({
+    where: { id: '66666666-6666-6666-6666-666666666666' },
+    update: {
+      fullName: 'Сергей Иванов',
+      employmentStatus: 'active',
+      deletedAt: null,
+    },
+    create: {
+      id: '66666666-6666-6666-6666-666666666666',
+      fullName: 'Сергей Иванов',
+      employmentStatus: 'active',
+      phone: '+79990000002',
+    },
+  });
+
+  const employeeAlexey = await prisma.employee.upsert({
+    where: { id: '77777777-7777-7777-7777-777777777777' },
+    update: {
+      fullName: 'Алексей Смирнов',
+      employmentStatus: 'active',
+      deletedAt: null,
+    },
+    create: {
+      id: '77777777-7777-7777-7777-777777777777',
+      fullName: 'Алексей Смирнов',
+      employmentStatus: 'active',
+      phone: '+79990000003',
+    },
+  });
+
+  await prisma.objectEmployeeAssignment.upsert({
+    where: {
+      objectId_employeeId: {
+        objectId: objectOne.id,
+        employeeId: employeeIvan.id,
+      },
+    },
+    update: {
+      isActive: true,
+    },
+    create: {
+      objectId: objectOne.id,
+      employeeId: employeeIvan.id,
+      isActive: true,
+    },
+  });
+
+  await prisma.objectEmployeeAssignment.upsert({
+    where: {
+      objectId_employeeId: {
+        objectId: objectOne.id,
+        employeeId: employeeSergey.id,
+      },
+    },
+    update: {
+      isActive: true,
+    },
+    create: {
+      objectId: objectOne.id,
+      employeeId: employeeSergey.id,
+      isActive: true,
+    },
+  });
+
+  await prisma.objectEmployeeAssignment.upsert({
+    where: {
+      objectId_employeeId: {
+        objectId: objectOne.id,
+        employeeId: employeeAlexey.id,
+      },
+    },
+    update: {
+      isActive: true,
+    },
+    create: {
+      objectId: objectOne.id,
+      employeeId: employeeAlexey.id,
       isActive: true,
     },
   });
@@ -375,6 +421,111 @@ async function main(): Promise<void> {
       userId: founder.id,
     },
   });
+
+  const { year, month } = currentYearMonth();
+
+  const monthContainer = await prisma.timesheetMonth.upsert({
+    where: {
+      objectId_year_month: {
+        objectId: objectOne.id,
+        year,
+        month,
+      },
+    },
+    update: {
+      status: 'open',
+      createdByUserId: founder.id,
+    },
+    create: {
+      objectId: objectOne.id,
+      year,
+      month,
+      status: 'open',
+      createdByUserId: founder.id,
+    },
+  });
+
+  const rowIvan = await prisma.timesheetEmployeeRow.upsert({
+    where: {
+      timesheetMonthId_employeeId: {
+        timesheetMonthId: monthContainer.id,
+        employeeId: employeeIvan.id,
+      },
+    },
+    update: {
+      employeeNameSnapshot: employeeIvan.fullName,
+    },
+    create: {
+      timesheetMonthId: monthContainer.id,
+      employeeId: employeeIvan.id,
+      employeeNameSnapshot: employeeIvan.fullName,
+    },
+  });
+
+  const rowSergey = await prisma.timesheetEmployeeRow.upsert({
+    where: {
+      timesheetMonthId_employeeId: {
+        timesheetMonthId: monthContainer.id,
+        employeeId: employeeSergey.id,
+      },
+    },
+    update: {
+      employeeNameSnapshot: employeeSergey.fullName,
+    },
+    create: {
+      timesheetMonthId: monthContainer.id,
+      employeeId: employeeSergey.id,
+      employeeNameSnapshot: employeeSergey.fullName,
+    },
+  });
+
+  const rowAlexey = await prisma.timesheetEmployeeRow.upsert({
+    where: {
+      timesheetMonthId_employeeId: {
+        timesheetMonthId: monthContainer.id,
+        employeeId: employeeAlexey.id,
+      },
+    },
+    update: {
+      employeeNameSnapshot: employeeAlexey.fullName,
+    },
+    create: {
+      timesheetMonthId: monthContainer.id,
+      employeeId: employeeAlexey.id,
+      employeeNameSnapshot: employeeAlexey.fullName,
+    },
+  });
+
+  const entriesToUpsert = [
+    { rowId: rowIvan.id, dayOfMonth: 1, attendanceStatus: 'present' },
+    { rowId: rowIvan.id, dayOfMonth: 2, attendanceStatus: 'present' },
+    { rowId: rowSergey.id, dayOfMonth: 1, attendanceStatus: 'present' },
+    { rowId: rowSergey.id, dayOfMonth: 2, attendanceStatus: 'sick' },
+    { rowId: rowAlexey.id, dayOfMonth: 1, attendanceStatus: 'day_off' },
+    { rowId: rowAlexey.id, dayOfMonth: 2, attendanceStatus: 'present' },
+  ];
+
+  for (const entry of entriesToUpsert) {
+    await prisma.timesheetDayEntry.upsert({
+      where: {
+        rowId_dayOfMonth: {
+          rowId: entry.rowId,
+          dayOfMonth: entry.dayOfMonth,
+        },
+      },
+      update: {
+        attendanceStatus: entry.attendanceStatus,
+        updatedByUserId: founder.id,
+      },
+      create: {
+        rowId: entry.rowId,
+        dayOfMonth: entry.dayOfMonth,
+        attendanceStatus: entry.attendanceStatus,
+        createdByUserId: founder.id,
+        updatedByUserId: founder.id,
+      },
+    });
+  }
 }
 
 main()

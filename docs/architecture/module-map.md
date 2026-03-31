@@ -15,8 +15,8 @@
 - objects
 - object-operations
 - tasks
-- one-time-orders
 - timesheets
+- one-time-orders
 - inventory
 - equipment
 - employees-hr
@@ -32,11 +32,23 @@
 
 Users, roles, permissions, visibility groups, approval capabilities, selector sources for internal forms.
 
+### objects
+
+Core object data, status, assignments, basic object card.
+
+### object-operations
+
+Arrival photos, daily reports, object comments, operational object feed.
+
 ### tasks
 
 Tasks, assignees, task result flow, object-linked task control.
 
+### timesheets
+
+Monthly timesheet container, object attendance rows, daily attendance entries.
+
 ## Important note
 
-Permissions, visibility groups and approval capabilities are not optional metadata.
-They are part of the extensible access architecture and must remain in seed/data strategy even before full admin UI is implemented.
+Timesheets foundation at this stage covers attendance only.
+Money cells, amount overrides, recalculation logic, budget signals and seasonal financial coupling are intentionally deferred to the next stage.
