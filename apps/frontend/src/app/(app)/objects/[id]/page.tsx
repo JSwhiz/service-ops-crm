@@ -2,7 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 
-import { getObjectById } from '@/entities/object/api/object-client';
+import {
+  getObjectById,
+  upsertObjectAttendance,
+} from '@/entities/object/api/object-client';
 import {
   createObjectComment,
   getObjectFeed,
@@ -22,6 +25,7 @@ import type {
 import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { ObjectArrivalPanel } from '@/features/object-arrival/ui/object-arrival-panel';
+import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-attendance-panel';
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
@@ -206,6 +210,27 @@ export default function ObjectDetailPage({
                 }}
               />
             )}
+
+            <ObjectAttendancePanel
+              employees={[
+                {
+                  id: '55555555-5555-5555-5555-555555555555',
+                  fullName: 'Иван Петров',
+                },
+                {
+                  id: '66666666-6666-6666-6666-666666666666',
+                  fullName: 'Сергей Иванов',
+                },
+                {
+                  id: '77777777-7777-7777-7777-777777777777',
+                  fullName: 'Алексей Смирнов',
+                },
+              ]}
+              onSave={async (payload) => {
+                await upsertObjectAttendance(objectId, payload);
+                await refreshOperations();
+              }}
+            />
           </div>
 
           {tasksLoading ? (

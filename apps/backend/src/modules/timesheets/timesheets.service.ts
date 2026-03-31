@@ -68,6 +68,27 @@ export class TimesheetsService {
       throw new NotFoundException('Object not found');
     }
 
+    const monthFacts = await this.prisma.objectAttendanceFact.findMany({
+      where: {
+        objectId: query.objectId,
+        operationDate: {
+          gte: new Date(query.year, query.month - 1, 1),
+          lt: new Date(query.year, query.month, 1),
+        },
+      },
+      select: {
+        employeeId: true,
+        operationDate: true,
+      },
+    });
+
+    const factSet = new Set(
+      monthFacts.map((fact) => {
+        const day = new Date(fact.operationDate).getDate();
+        return `${fact.employeeId}:${day}`;
+      }),
+    );
+
     const daysInSelectedMonth = this.getDaysInMonth(query.year, query.month);
 
     const mappedRows = rows.map((row) => {
@@ -80,6 +101,7 @@ export class TimesheetsService {
           dayValue: existing?.dayValue ?? 0,
           comment: existing?.comment ?? null,
           isChangedManually: existing?.isChangedManually ?? false,
+          hasFact: factSet.has(`${row.employeeId}:${dayOfMonth}`),
         };
       });
 
@@ -203,7 +225,6 @@ export class TimesheetsService {
       },
       select: {
         id: true,
-        dailyRate: true,
       },
     });
 
@@ -240,7 +261,7 @@ export class TimesheetsService {
     });
 
     for (const assignment of activeAssignments) {
-      const row = await this.prisma.timesheetEmployeeRow.upsert({
+      await this.prisma.timesheetEmployeeRow.upsert({
         where: {
           timesheetMonthId_employeeId: {
             timesheetMonthId: monthContainer.id,
@@ -256,28 +277,6 @@ export class TimesheetsService {
           employeeNameSnapshot: assignment.employee.fullName,
         },
       });
-
-      const totalDays = this.getDaysInMonth(year, month);
-
-      for (let day = 1; day <= totalDays; day += 1) {
-        await this.prisma.timesheetDayEntry.upsert({
-          where: {
-            rowId_dayOfMonth: {
-              rowId: row.id,
-              dayOfMonth: day,
-            },
-          },
-          update: {},
-          create: {
-            rowId: row.id,
-            dayOfMonth: day,
-            dayValue: object.dailyRate,
-            isChangedManually: false,
-            createdByUserId: currentUserId,
-            updatedByUserId: currentUserId,
-          },
-        });
-      }
     }
 
     return monthContainer;

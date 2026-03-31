@@ -21,6 +21,7 @@ import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { ObjectOperationsService } from './object-operations.service';
+import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 
 interface CurrentAuthUser {
   id: string;
@@ -103,5 +104,18 @@ export class ObjectOperationsController {
     @Query() query: ListObjectFeedQueryDto,
   ): Promise<ObjectFeedItemDto[]> {
     return this.objectOperationsService.getFeed(user, objectId, query);
+  }
+
+  @Post(':id/attendance')
+  upsertObjectAttendance(
+    @CurrentUser() user: {
+      id: string;
+      roleCode: string;
+      roleCodes?: string[];
+    },
+    @Param('id') id: string,
+    @Body() payload: UpsertObjectAttendanceDto,
+  ): Promise<{ success: true }> {
+    return this.objectOperationsService.upsertObjectAttendance(user, id, payload);
   }
 }

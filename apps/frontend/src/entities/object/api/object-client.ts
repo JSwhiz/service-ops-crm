@@ -51,3 +51,18 @@ export async function createObject(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export async function upsertObjectAttendance(
+  objectId: string,
+  payload: {
+    operationDate: string;
+    employeeIds: string[];
+    comment?: string;
+  },
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/object-operations/${objectId}/attendance`, {
+    method: 'POST',
+    token: getAccessToken(),
+    body: JSON.stringify(payload),
+  });
+}

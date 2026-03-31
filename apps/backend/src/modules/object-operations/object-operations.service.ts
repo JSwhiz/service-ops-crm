@@ -173,6 +173,156 @@ export class ObjectOperationsService {
     return items.map((item) => this.mapComment(item));
   }
 
+
+  async upsertObjectAttendance(
+    currentUser: { id: string; roleCode: string; roleCodes?: string[] },
+    objectId: string,
+    payload: { operationDate: string; employeeIds: string[] },
+  ): Promise<{ success: true }> {
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: objectId,
+        deletedAt: null,
+      },
+      include: {
+        employeeAssignments: {
+          where: { isActive: true },
+          include: { employee: true },
+        },
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Object not found');
+    }
+
+    const allowedEmployeeIds = new Set(
+      object.employeeAssignments.map((assignment) => assignment.employeeId),
+    );
+
+    for (const employeeId of payload.employeeIds) {
+      if (!allowedEmployeeIds.has(employeeId)) {
+        throw new ForbiddenException('Employee is not assigned to object');
+      }
+    }
+
+    const operationDate = new Date(payload.operationDate);
+    const normalizedDate = new Date(
+      operationDate.getFullYear(),
+      operationDate.getMonth(),
+      operationDate.getDate(),
+    );
+
+    await this.prisma.objectAttendanceFact.deleteMany({
+      where: {
+        objectId,
+        operationDate: normalizedDate,
+      },
+    });
+
+    for (const employeeId of payload.employeeIds) {
+      await this.prisma.objectAttendanceFact.create({
+        data: {
+          objectId,
+          employeeId,
+          operationDate: normalizedDate,
+          createdByUserId: currentUser.id,
+        },
+      });
+    }
+
+    const year = normalizedDate.getFullYear();
+    const month = normalizedDate.getMonth() + 1;
+    const dayOfMonth = normalizedDate.getDate();
+
+    const monthContainer = await this.prisma.timesheetMonth.upsert({
+      where: {
+        objectId_year_month: {
+          objectId,
+          year,
+          month,
+        },
+      },
+      update: {},
+      create: {
+        objectId,
+        year,
+        month,
+        status: 'open',
+        createdByUserId: currentUser.id,
+      },
+    });
+
+    for (const assignment of object.employeeAssignments) {
+      const row = await this.prisma.timesheetEmployeeRow.upsert({
+        where: {
+          timesheetMonthId_employeeId: {
+            timesheetMonthId: monthContainer.id,
+            employeeId: assignment.employeeId,
+          },
+        },
+        update: {
+          employeeNameSnapshot: assignment.employee.fullName,
+        },
+        create: {
+          timesheetMonthId: monthContainer.id,
+          employeeId: assignment.employeeId,
+          employeeNameSnapshot: assignment.employee.fullName,
+        },
+      });
+
+      const isSelected = payload.employeeIds.includes(assignment.employeeId);
+
+      const existingEntry = await this.prisma.timesheetDayEntry.findUnique({
+        where: {
+          rowId_dayOfMonth: {
+            rowId: row.id,
+            dayOfMonth,
+          },
+        },
+      });
+
+      if (isSelected) {
+        await this.prisma.timesheetDayEntry.upsert({
+          where: {
+            rowId_dayOfMonth: {
+              rowId: row.id,
+              dayOfMonth,
+            },
+          },
+          update: {
+            dayValue: existingEntry?.isChangedManually ? existingEntry.dayValue : object.dailyRate,
+            updatedByUserId: currentUser.id,
+          },
+          create: {
+            rowId: row.id,
+            dayOfMonth,
+            dayValue: object.dailyRate,
+            isChangedManually: false,
+            createdByUserId: currentUser.id,
+            updatedByUserId: currentUser.id,
+          },
+        });
+      } else if (existingEntry && !existingEntry.isChangedManually) {
+        await this.prisma.timesheetDayEntry.update({
+          where: {
+            rowId_dayOfMonth: {
+              rowId: row.id,
+              dayOfMonth,
+            },
+          },
+          data: {
+            dayValue: 0,
+            updatedByUserId: currentUser.id,
+          },
+        });
+      }
+    }
+
+    return { success: true };
+  }
+
+
   async createComment(
     currentUser: CurrentAuthUser,
     objectId: string,

@@ -360,9 +360,34 @@ async function main(): Promise<void> {
     rows.push(row);
   }
 
-  const totalDays = daysInMonth(timesheetYear, timesheetMonth);
+  const factDays = [1, 2, 3, 4, 7, 8, 9, 10, 11, 14, 15, 16];
 
-  for (let day = 1; day <= totalDays; day += 1) {
+  for (const day of factDays) {
+    const operationDate = new Date(timesheetYear, timesheetMonth - 1, day);
+
+    for (const employee of [employeeIvan, employeeSergey, employeeAlexey]) {
+      await prisma.objectAttendanceFact.upsert({
+        where: {
+          objectId_employeeId_operationDate: {
+            objectId: objectOne.id,
+            employeeId: employee.id,
+            operationDate,
+          },
+        },
+        update: {
+          createdByUserId: founder.id,
+        },
+        create: {
+          objectId: objectOne.id,
+          employeeId: employee.id,
+          operationDate,
+          createdByUserId: founder.id,
+        },
+      });
+    }
+  }
+
+  for (const day of factDays) {
     for (const row of rows) {
       await prisma.timesheetDayEntry.upsert({
         where: {
@@ -372,14 +397,14 @@ async function main(): Promise<void> {
           },
         },
         update: {
-          dayValue: day % 6 === 0 ? 0 : objectOne.dailyRate,
+          dayValue: objectOne.dailyRate,
           isChangedManually: false,
           updatedByUserId: founder.id,
         },
         create: {
           rowId: row.id,
           dayOfMonth: day,
-          dayValue: day % 6 === 0 ? 0 : objectOne.dailyRate,
+          dayValue: objectOne.dailyRate,
           isChangedManually: false,
           createdByUserId: founder.id,
           updatedByUserId: founder.id,
@@ -391,7 +416,7 @@ async function main(): Promise<void> {
   await prisma.timesheetDayEntry.update({
     where: {
       rowId_dayOfMonth: {
-        rowId: rows[1].id,
+        rowId: rows[2].id,
         dayOfMonth: 11,
       },
     },

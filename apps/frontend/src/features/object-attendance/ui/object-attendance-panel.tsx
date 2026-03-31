@@ -1,0 +1,103 @@
+'use client';
+
+import React, { useMemo, useState } from 'react';
+
+export function ObjectAttendancePanel({
+  employees,
+  onSave,
+}: {
+  employees: Array<{
+    id: string;
+    fullName: string;
+  }>;
+  onSave: (payload: {
+    operationDate: string;
+    employeeIds: string[];
+  }) => Promise<void>;
+}): React.JSX.Element {
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const toggleEmployee = (employeeId: string): void => {
+    setSelectedIds((prev) =>
+      prev.includes(employeeId)
+        ? prev.filter((id) => id !== employeeId)
+        : [...prev, employeeId],
+    );
+  };
+
+  return (
+    <div className="page-card">
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>
+        Кто был сегодня на объекте
+      </div>
+
+      <div style={{ color: '#6b7280', marginBottom: 12 }}>{today}</div>
+
+      {employees.length === 0 ? (
+        <div style={{ color: '#6b7280' }}>
+          Для объекта пока не задан состав сотрудников.
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gap: 8,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          }}
+        >
+          {employees.map((employee) => (
+            <label
+              key={employee.id}
+              style={{
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                padding: 10,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(employee.id)}
+                onChange={() => toggleEmployee(employee.id)}
+              />
+              <span>{employee.fullName}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {error ? (
+        <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>
+      ) : null}
+
+      <div style={{ marginTop: 16 }}>
+        <button
+          type="button"
+          disabled={isSaving || employees.length === 0}
+          onClick={async () => {
+            setIsSaving(true);
+            setError(null);
+
+            try {
+              await onSave({
+                operationDate: today,
+                employeeIds: selectedIds,
+              });
+            } catch {
+              setError('Не удалось сохранить присутствие сотрудников.');
+            } finally {
+              setIsSaving(false);
+            }
+          }}
+        >
+          {isSaving ? 'Сохраняем...' : 'Сохранить'}
+        </button>
+      </div>
+    </div>
+  );
+}

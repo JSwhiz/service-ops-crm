@@ -16,6 +16,7 @@ export class TimesheetResponseDto {
       dayValue: number;
       comment: string | null;
       isChangedManually: boolean;
+      hasFact: boolean;
     }>;
   }>;
 }
