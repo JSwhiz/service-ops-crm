@@ -1,15 +1,13 @@
 import Link from 'next/link';
 import React from 'react';
 
-import type { ServiceObject } from '@/entities/object/model/object.types';
-
-interface ObjectListTableProps {
-  items: ServiceObject[];
-}
+import type { ServiceObject, ObjectAssignmentPerson } from '@/entities/object/model/object.types';
 
 export function ObjectListTable({
   items,
-}: ObjectListTableProps): React.JSX.Element {
+}: {
+  items: ServiceObject[];
+}): React.JSX.Element {
   if (items.length === 0) {
     return (
       <div className="page-card">
@@ -24,57 +22,53 @@ export function ObjectListTable({
         style={{
           width: '100%',
           borderCollapse: 'collapse',
-          minWidth: 720,
+          minWidth: 900,
         }}
       >
         <thead>
           <tr>
             <th style={thStyle}>Название</th>
-            <th style={thStyle}>Внутреннее имя</th>
             <th style={thStyle}>Адрес</th>
             <th style={thStyle}>Статус</th>
+            <th style={thStyle}>Ставка</th>
             <th style={thStyle}>Менеджеры</th>
             <th style={thStyle}>Ответственные</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <tr key={item.id}>
-              <td style={tdStyle}>
-                <Link href={`/objects/${item.id}`}>{item.name}</Link>
-              </td>
-              <td style={tdStyle}>{item.internalName ?? '—'}</td>
-              <td style={tdStyle}>{item.address}</td>
-              <td style={tdStyle}>{renderStatus(item.status)}</td>
-              <td style={tdStyle}>
-                {item.managers.length > 0
-                  ? item.managers.map((person) => person.fullName).join(', ')
-                  : '—'}
-              </td>
-              <td style={tdStyle}>
-                {item.responsibles.length > 0
-                  ? item.responsibles.map((person) => person.fullName).join(', ')
-                  : '—'}
-              </td>
-            </tr>
-          ))}
+          {items.map((item: ServiceObject) => {
+            const managers = item.managers ?? [];
+            const responsibles = item.responsibles ?? [];
+
+            return (
+              <tr key={item.id}>
+                <td style={tdStyle}>
+                  <Link href={`/objects/${item.id}`}>{item.name}</Link>
+                </td>
+                <td style={tdStyle}>{item.address}</td>
+                <td style={tdStyle}>{item.status}</td>
+                <td style={tdStyle}>{item.dailyRate}</td>
+                <td style={tdStyle}>
+                  {managers.length > 0
+                    ? managers
+                        .map((person: ObjectAssignmentPerson) => person.fullName)
+                        .join(', ')
+                    : '—'}
+                </td>
+                <td style={tdStyle}>
+                  {responsibles.length > 0
+                    ? responsibles
+                        .map((person: ObjectAssignmentPerson) => person.fullName)
+                        .join(', ')
+                    : '—'}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
-}
-
-function renderStatus(status: string): string {
-  switch (status) {
-    case 'active':
-      return 'Активный';
-    case 'frozen':
-      return 'Заморожен';
-    case 'archived':
-      return 'Архив';
-    default:
-      return status;
-  }
 }
 
 const thStyle: React.CSSProperties = {

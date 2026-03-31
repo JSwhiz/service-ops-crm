@@ -42,6 +42,14 @@ export function TimesheetGrid({
 
       <div className="timesheet-scroll">
         <table className="timesheet-table">
+          <colgroup>
+            <col style={{ width: 240 }} />
+            {days.map((day) => (
+              <col key={day} style={{ width: 76 }} />
+            ))}
+            <col style={{ width: 120 }} />
+          </colgroup>
+
           <thead>
             <tr>
               <th className="timesheet-table__sticky-left">Сотрудник</th>

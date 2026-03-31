@@ -310,10 +310,18 @@ export class ObjectsService {
     return currentUser.roleCode ? [currentUser.roleCode] : [];
   }
 
-  private mapObject(
+    private mapObject(
     item: ObjectView,
     _roleCodes: string[],
   ): ObjectResponseDto {
+    const mappedAssignments = item.assignments.map(
+      (assignment: ObjectAssignmentView) => ({
+        userId: assignment.user.id,
+        fullName: assignment.user.fullName,
+        roleCode: assignment.assignmentRoleCode,
+      }),
+    );
+
     return {
       id: item.id,
       name: item.name,
@@ -325,11 +333,14 @@ export class ObjectsService {
       notes: item.notes,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
-      managers: item.assignments.map((assignment: ObjectAssignmentView) => ({
-        userId: assignment.user.id,
-        fullName: assignment.user.fullName,
-        roleCode: assignment.assignmentRoleCode,
-      })),
+      managers: mappedAssignments.filter((assignment) =>
+        ['manager', 'responsible'].includes(assignment.roleCode),
+      ),
+      responsibles: mappedAssignments.filter(
+        (assignment) => assignment.roleCode === 'responsible',
+      ),
     };
   }
 }
+
+

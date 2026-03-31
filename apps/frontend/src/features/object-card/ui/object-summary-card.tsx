@@ -7,6 +7,9 @@ export function ObjectSummaryCard({
 }: {
   item: ServiceObject;
 }): React.JSX.Element {
+  const managers = item.managers ?? [];
+  const responsibles = item.responsibles ?? [];
+
   return (
     <div
       className="page-card"
@@ -23,12 +26,18 @@ export function ObjectSummaryCard({
       <Field label="Сезон" value={item.seasonMode} />
       <Field label="Ставка за день" value={`${item.dailyRate}`} />
       <Field
+        label="Менеджеры"
+        value={
+          managers.length > 0
+            ? managers.map((manager) => `${manager.fullName} (${manager.roleCode})`).join(', ')
+            : '—'
+        }
+      />
+      <Field
         label="Ответственные"
         value={
-          item.managers.length > 0
-            ? item.managers
-                .map((manager) => `${manager.fullName} (${manager.roleCode})`)
-                .join(', ')
+          responsibles.length > 0
+            ? responsibles.map((person) => `${person.fullName} (${person.roleCode})`).join(', ')
             : '—'
         }
       />

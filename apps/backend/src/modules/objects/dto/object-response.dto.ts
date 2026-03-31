@@ -14,4 +14,9 @@ export class ObjectResponseDto {
     fullName: string;
     roleCode: string;
   }>;
+  responsibles!: Array<{
+    userId: string;
+    fullName: string;
+    roleCode: string;
+  }>;
 }

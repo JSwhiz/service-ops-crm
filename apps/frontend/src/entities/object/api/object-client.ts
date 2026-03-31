@@ -3,8 +3,27 @@ import { getAccessToken } from '@/shared/auth/auth-storage';
 
 import type { ServiceObject } from '../model/object.types';
 
-export async function listObjects(): Promise<ServiceObject[]> {
-  return fetcher<ServiceObject[]>('/objects', {
+export interface ListObjectsQuery {
+  search?: string;
+  status?: string;
+}
+
+export async function listObjects(
+  query?: ListObjectsQuery,
+): Promise<ServiceObject[]> {
+  const params = new URLSearchParams();
+
+  if (query?.search) {
+    params.set('search', query.search);
+  }
+
+  if (query?.status) {
+    params.set('status', query.status);
+  }
+
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+
+  return fetcher<ServiceObject[]>(`/objects${suffix}`, {
     method: 'GET',
     token: getAccessToken(),
   });
