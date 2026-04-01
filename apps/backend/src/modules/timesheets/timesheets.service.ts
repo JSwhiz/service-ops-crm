@@ -16,6 +16,7 @@ interface CurrentAuthUser {
   login: string;
   fullName: string;
   roleCode: string;
+  roleCodes?: string[];
   isActive: boolean;
 }
 
@@ -92,18 +93,23 @@ export class TimesheetsService {
     const daysInSelectedMonth = this.getDaysInMonth(query.year, query.month);
 
     const mappedRows = rows.map((row) => {
-      const fullEntries = Array.from({ length: daysInSelectedMonth }, (_, index) => {
-        const dayOfMonth = index + 1;
-        const existing = row.entries.find((entry) => entry.dayOfMonth === dayOfMonth);
+      const fullEntries = Array.from(
+        { length: daysInSelectedMonth },
+        (_, index) => {
+          const dayOfMonth = index + 1;
+          const existing = row.entries.find(
+            (entry) => entry.dayOfMonth === dayOfMonth,
+          );
 
-        return {
-          dayOfMonth,
-          dayValue: existing?.dayValue ?? 0,
-          comment: existing?.comment ?? null,
-          isChangedManually: existing?.isChangedManually ?? false,
-          hasFact: factSet.has(`${row.employeeId}:${dayOfMonth}`),
-        };
-      });
+          return {
+            dayOfMonth,
+            dayValue: existing?.dayValue ?? 0,
+            comment: existing?.comment ?? null,
+            isChangedManually: existing?.isChangedManually ?? false,
+            hasFact: factSet.has(`${row.employeeId}:${dayOfMonth}`),
+          };
+        },
+      );
 
       return {
         employeeId: row.employeeId,
@@ -173,7 +179,7 @@ export class TimesheetsService {
         dayOfMonth: payload.dayOfMonth,
         dayValue: payload.dayValue,
         comment: payload.comment ?? null,
-        isChangedManually: false,
+        isChangedManually: true,
         createdByUserId: currentUser.id,
         updatedByUserId: currentUser.id,
       },
@@ -190,9 +196,9 @@ export class TimesheetsService {
     currentUser: CurrentAuthUser,
     objectId: string,
   ): Promise<void> {
-    const wideAccess = hasWideTimesheetAccess([currentUser.roleCode]);
+    const roleCodes = this.getRoleCodes(currentUser);
 
-    if (wideAccess) {
+    if (hasWideTimesheetAccess(roleCodes)) {
       return;
     }
 
@@ -250,15 +256,16 @@ export class TimesheetsService {
       },
     });
 
-    const activeAssignments = await this.prisma.objectEmployeeAssignment.findMany({
-      where: {
-        objectId,
-        isActive: true,
-      },
-      include: {
-        employee: true,
-      },
-    });
+    const activeAssignments =
+      await this.prisma.objectEmployeeAssignment.findMany({
+        where: {
+          objectId,
+          isActive: true,
+        },
+        include: {
+          employee: true,
+        },
+      });
 
     for (const assignment of activeAssignments) {
       await this.prisma.timesheetEmployeeRow.upsert({
@@ -280,6 +287,14 @@ export class TimesheetsService {
     }
 
     return monthContainer;
+  }
+
+  private getRoleCodes(currentUser: CurrentAuthUser): string[] {
+    if (currentUser.roleCodes && currentUser.roleCodes.length > 0) {
+      return currentUser.roleCodes;
+    }
+
+    return currentUser.roleCode ? [currentUser.roleCode] : [];
   }
 
   private getDaysInMonth(year: number, month: number): number {

@@ -2,6 +2,23 @@
 
 import React, { useMemo, useState } from 'react';
 
+function getLocalDateIso(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return 'Не удалось сохранить присутствие сотрудников.';
+}
+
 export function ObjectAttendancePanel({
   employees,
   onSave,
@@ -15,10 +32,11 @@ export function ObjectAttendancePanel({
     employeeIds: string[];
   }) => Promise<void>;
 }): React.JSX.Element {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => getLocalDateIso(), []);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const toggleEmployee = (employeeId: string): void => {
     setSelectedIds((prev) =>
@@ -72,7 +90,13 @@ export function ObjectAttendancePanel({
       )}
 
       {error ? (
-        <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>
+        <div style={{ marginTop: 12, color: '#b91c1c', whiteSpace: 'pre-wrap' }}>
+          {error}
+        </div>
+      ) : null}
+
+      {successMessage ? (
+        <div style={{ marginTop: 12, color: '#15803d' }}>{successMessage}</div>
       ) : null}
 
       <div style={{ marginTop: 16 }}>
@@ -82,14 +106,16 @@ export function ObjectAttendancePanel({
           onClick={async () => {
             setIsSaving(true);
             setError(null);
+            setSuccessMessage(null);
 
             try {
               await onSave({
                 operationDate: today,
                 employeeIds: selectedIds,
               });
-            } catch {
-              setError('Не удалось сохранить присутствие сотрудников.');
+              setSuccessMessage('Присутствие сотрудников сохранено.');
+            } catch (error: unknown) {
+              setError(getErrorMessage(error));
             } finally {
               setIsSaving(false);
             }

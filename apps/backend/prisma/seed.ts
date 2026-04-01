@@ -318,6 +318,51 @@ async function main(): Promise<void> {
   const timesheetYear = 2026;
   const timesheetMonth = 2;
 
+  await prisma.objectAttendanceFact.deleteMany({
+    where: {
+      objectId: objectOne.id,
+    },
+  });
+
+  const existingMonths = await prisma.timesheetMonth.findMany({
+    where: {
+      objectId: objectOne.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  const existingMonthIds = existingMonths.map((item) => item.id);
+
+  if (existingMonthIds.length > 0) {
+    await prisma.timesheetDayEntry.deleteMany({
+      where: {
+        row: {
+          timesheetMonthId: {
+            in: existingMonthIds,
+          },
+        },
+      },
+    });
+
+    await prisma.timesheetEmployeeRow.deleteMany({
+      where: {
+        timesheetMonthId: {
+          in: existingMonthIds,
+        },
+      },
+    });
+
+    await prisma.timesheetMonth.deleteMany({
+      where: {
+        id: {
+          in: existingMonthIds,
+        },
+      },
+    });
+  }
+
   const monthContainer = await prisma.timesheetMonth.upsert({
     where: {
       objectId_year_month: {

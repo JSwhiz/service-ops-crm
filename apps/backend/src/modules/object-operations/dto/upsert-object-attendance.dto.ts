@@ -1,4 +1,10 @@
-import { ArrayUnique, IsArray, IsDateString, IsOptional, IsString } from 'class-validator';
+import {
+  ArrayUnique,
+  IsArray,
+  IsDateString,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class UpsertObjectAttendanceDto {
   @IsDateString()

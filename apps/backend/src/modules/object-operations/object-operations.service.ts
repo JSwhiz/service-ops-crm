@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -206,12 +207,7 @@ export class ObjectOperationsService {
       }
     }
 
-    const operationDate = new Date(payload.operationDate);
-    const normalizedDate = new Date(
-      operationDate.getFullYear(),
-      operationDate.getMonth(),
-      operationDate.getDate(),
-    );
+    const normalizedDate = this.parseBusinessDate(payload.operationDate);
 
     await this.prisma.objectAttendanceFact.deleteMany({
       where: {
@@ -231,23 +227,23 @@ export class ObjectOperationsService {
       });
     }
 
-    const year = normalizedDate.getFullYear();
-    const month = normalizedDate.getMonth() + 1;
+    const targetYear = normalizedDate.getFullYear();
+    const targetMonth = normalizedDate.getMonth() + 1;
     const dayOfMonth = normalizedDate.getDate();
 
     const monthContainer = await this.prisma.timesheetMonth.upsert({
       where: {
         objectId_year_month: {
           objectId,
-          year,
-          month,
+          year: targetYear,
+          month: targetMonth,
         },
       },
       update: {},
       create: {
         objectId,
-        year,
-        month,
+        year: targetYear,
+        month: targetMonth,
         status: 'open',
         createdByUserId: currentUser.id,
       },
@@ -291,7 +287,9 @@ export class ObjectOperationsService {
             },
           },
           update: {
-            dayValue: existingEntry?.isChangedManually ? existingEntry.dayValue : object.dailyRate,
+            dayValue: existingEntry?.isChangedManually
+              ? existingEntry.dayValue
+              : object.dailyRate,
             updatedByUserId: currentUser.id,
           },
           create: {
@@ -544,5 +542,47 @@ export class ObjectOperationsService {
         fullName: item.createdBy.fullName,
       },
     };
+  }
+
+    private parseBusinessDate(rawDate: string): Date {
+    const parts = rawDate.split('-');
+
+    if (parts.length !== 3) {
+      throw new BadRequestException('Invalid operationDate format');
+    }
+
+    const [yearRaw, monthRaw, dayRaw] = parts;
+
+    const year = Number(yearRaw);
+    const month = Number(monthRaw);
+    const day = Number(dayRaw);
+
+    if (
+      !Number.isInteger(year) ||
+      !Number.isInteger(month) ||
+      !Number.isInteger(day)
+    ) {
+      throw new BadRequestException('Invalid operationDate numeric values');
+    }
+
+    if (month < 1 || month > 12) {
+      throw new BadRequestException('Invalid operationDate month');
+    }
+
+    if (day < 1 || day > 31) {
+      throw new BadRequestException('Invalid operationDate day');
+    }
+
+    const parsed = new Date(year, month - 1, day);
+
+    if (
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
+    ) {
+      throw new BadRequestException('Invalid operationDate calendar value');
+    }
+
+    return parsed;
   }
 }

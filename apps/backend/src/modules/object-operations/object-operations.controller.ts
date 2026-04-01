@@ -36,7 +36,7 @@ interface CurrentAuthUser {
 export class ObjectOperationsController {
   constructor(
     private readonly objectOperationsService: ObjectOperationsService,
-  ) {}
+  ) {console.log('[ObjectOperationsController] initialized');}
 
   @Get('arrival-photo/today')
   getTodayArrivalPhoto(
@@ -106,16 +106,20 @@ export class ObjectOperationsController {
     return this.objectOperationsService.getFeed(user, objectId, query);
   }
 
-  @Post(':id/attendance')
+  @Post('attendance')
   upsertObjectAttendance(
-    @CurrentUser() user: {
-      id: string;
-      roleCode: string;
-      roleCodes?: string[];
-    },
+    @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: UpsertObjectAttendanceDto,
   ): Promise<{ success: true }> {
     return this.objectOperationsService.upsertObjectAttendance(user, id, payload);
+  }
+
+  @Get('ping')
+  ping(): { ok: true; scope: string } {
+    return {
+      ok: true,
+      scope: 'object-operations',
+    };
   }
 }

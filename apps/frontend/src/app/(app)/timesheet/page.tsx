@@ -15,7 +15,7 @@ export default function TimesheetPage(): React.JSX.Element {
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [selectedObjectId, setSelectedObjectId] = useState('');
   const [selectedYear, setSelectedYear] = useState(2026);
-  const [selectedMonth, setSelectedMonth] = useState(2);
+  const [selectedMonth, setSelectedMonth] = useState(4);
 
   const [timesheet, setTimesheet] = useState<TimesheetMonth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -85,6 +85,7 @@ export default function TimesheetPage(): React.JSX.Element {
         </div>
       ) : timesheet ? (
         <TimesheetGrid
+          key={`${selectedObjectId}-${selectedYear}-${selectedMonth}`}
           timesheet={timesheet}
           onChangeEntry={async (payload) => {
             const updated = await upsertTimesheetEntry({

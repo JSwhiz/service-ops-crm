@@ -60,7 +60,7 @@ export async function upsertObjectAttendance(
     comment?: string;
   },
 ): Promise<{ success: true }> {
-  return fetcher<{ success: true }>(`/object-operations/${objectId}/attendance`, {
+  return fetcher<{ success: true }>(`/objects/${objectId}/attendance`, {
     method: 'POST',
     token: getAccessToken(),
     body: JSON.stringify(payload),

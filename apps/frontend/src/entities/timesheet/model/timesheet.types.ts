@@ -3,6 +3,7 @@ export interface TimesheetEntry {
   dayValue: number;
   comment: string | null;
   isChangedManually: boolean;
+  hasFact: boolean;
 }
 
 export interface TimesheetRow {

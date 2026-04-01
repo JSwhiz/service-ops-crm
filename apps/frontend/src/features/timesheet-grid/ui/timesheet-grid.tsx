@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TimesheetMonth } from '@/entities/timesheet/model/timesheet.types';
 import { getCellDisplayValue } from '@/shared/lib/timesheet-presentation';
@@ -21,10 +21,18 @@ export function TimesheetGrid({
   }) => Promise<void>;
 }): React.JSX.Element {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
   const days = useMemo(
     () => Array.from({ length: timesheet.daysInMonth }, (_, index) => index + 1),
     [timesheet.daysInMonth],
   );
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = 0;
+    }
+  }, [timesheet.objectId, timesheet.year, timesheet.month]);
 
   return (
     <div className="timesheet-card">
@@ -41,7 +49,7 @@ export function TimesheetGrid({
       </div>
 
       <div className="timesheet-shell">
-        <div className="timesheet-scroll">
+        <div className="timesheet-scroll" ref={scrollRef}>
           <table className="timesheet-table">
             <colgroup>
               <col style={{ width: 240 }} />
