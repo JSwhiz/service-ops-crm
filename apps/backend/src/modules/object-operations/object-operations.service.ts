@@ -16,6 +16,7 @@ import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { hasWideObjectAccess } from './utils/object-operation-access.util';
+import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 
 interface CurrentAuthUser {
   id: string;
@@ -584,5 +585,51 @@ export class ObjectOperationsService {
     }
 
     return parsed;
+  }
+
+    async listObjectEmployees(
+      currentUser: {
+        id: string;
+        roleCode: string;
+        roleCodes?: string[];
+      },
+      objectId: string,
+    ): Promise<ObjectEmployeeOptionDto[]> {
+      const object = await this.prisma.object.findFirst({
+        where: {
+          id: objectId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!object) {
+        throw new NotFoundException('Object not found');
+      }
+
+    const assignments = await this.prisma.objectEmployeeAssignment.findMany({
+      where: {
+        objectId,
+        isActive: true,
+        employee: {
+          deletedAt: null,
+        },
+      },
+      include: {
+        employee: true,
+      },
+      orderBy: {
+        employee: {
+          fullName: 'asc',
+        },
+      },
+    });
+
+    return assignments.map((assignment) => ({
+      id: assignment.employee.id,
+      fullName: assignment.employee.fullName,
+    }));
   }
 }

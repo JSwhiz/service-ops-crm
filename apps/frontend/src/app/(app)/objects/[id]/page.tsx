@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 
 import {
   getObjectById,
+  listObjectEmployees,
+  type ObjectEmployeeOption,
   upsertObjectAttendance,
 } from '@/entities/object/api/object-client';
 import {
@@ -37,6 +39,17 @@ import {
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
+function getErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export default function ObjectDetailPage({
   params,
 }: {
@@ -47,6 +60,10 @@ export default function ObjectDetailPage({
   const [item, setItem] = useState<ServiceObject | null>(null);
   const [coreLoading, setCoreLoading] = useState(true);
   const [coreError, setCoreError] = useState<string | null>(null);
+
+  const [employees, setEmployees] = useState<ObjectEmployeeOption[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
+  const [employeesError, setEmployeesError] = useState<string | null>(null);
 
   const [arrival, setArrival] = useState<ObjectArrivalPhoto | null>(null);
   const [arrivalLoading, setArrivalLoading] = useState(true);
@@ -69,8 +86,15 @@ export default function ObjectDetailPage({
   const [tasksError, setTasksError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isCancelled = false;
+
     const resolveAndLoad = async (): Promise<void> => {
       const resolved = await params;
+
+      if (isCancelled) {
+        return;
+      }
+
       setObjectId(resolved.id);
 
       setCoreLoading(true);
@@ -78,74 +102,172 @@ export default function ObjectDetailPage({
 
       try {
         const objectResponse = await getObjectById(resolved.id);
-        setItem(objectResponse);
-      } catch {
-        setCoreError('Не удалось загрузить карточку объекта.');
+        if (!isCancelled) {
+          setItem(objectResponse);
+        }
+      } catch (error: unknown) {
+        if (!isCancelled) {
+          setCoreError(
+            getErrorMessage(error, 'Не удалось загрузить карточку объекта.'),
+          );
+        }
       } finally {
-        setCoreLoading(false);
+        if (!isCancelled) {
+          setCoreLoading(false);
+        }
       }
 
-      void loadOperations(resolved.id);
+      if (!isCancelled) {
+        await Promise.all([
+          loadEmployees(resolved.id, isCancelled),
+          loadOperations(resolved.id, isCancelled),
+        ]);
+      }
     };
 
     void resolveAndLoad();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [params]);
 
-  const loadOperations = async (resolvedId: string): Promise<void> => {
+  const loadEmployees = async (
+    resolvedId: string,
+    isCancelled = false,
+  ): Promise<void> => {
+    setEmployeesLoading(true);
+    setEmployeesError(null);
+
+    try {
+      const response = await listObjectEmployees(resolvedId);
+      if (!isCancelled) {
+        setEmployees(response);
+      }
+    } catch (error: unknown) {
+      if (!isCancelled) {
+        setEmployeesError(
+          getErrorMessage(error, 'Не удалось загрузить сотрудников объекта.'),
+        );
+      }
+    } finally {
+      if (!isCancelled) {
+        setEmployeesLoading(false);
+      }
+    }
+  };
+
+  const loadOperations = async (
+    resolvedId: string,
+    isCancelled = false,
+  ): Promise<void> => {
     setArrivalLoading(true);
     setArrivalError(null);
-    try {
-      const arrivalResponse = await getTodayArrivalPhoto(resolvedId);
-      setArrival(arrivalResponse);
-    } catch {
-      setArrivalError('Не удалось загрузить фото прибытия.');
-    } finally {
-      setArrivalLoading(false);
-    }
 
     setReportLoading(true);
     setReportError(null);
-    try {
-      const reportResponse = await getTodayDailyReport(resolvedId);
-      setReport(reportResponse);
-    } catch {
-      setReportError('Не удалось загрузить отчет дня.');
-    } finally {
-      setReportLoading(false);
-    }
 
     setCommentsLoading(true);
     setCommentsError(null);
-    try {
-      const commentsResponse = await listObjectComments(resolvedId);
-      setComments(commentsResponse);
-    } catch {
-      setCommentsError('Не удалось загрузить комментарии объекта.');
-    } finally {
-      setCommentsLoading(false);
-    }
 
     setFeedLoading(true);
     setFeedError(null);
-    try {
-      const feedResponse = await getObjectFeed(resolvedId);
-      setFeed(feedResponse);
-    } catch {
-      setFeedError('Не удалось загрузить ленту объекта.');
-    } finally {
-      setFeedLoading(false);
-    }
 
     setTasksLoading(true);
     setTasksError(null);
-    try {
-      const tasksResponse = await listTasksByObject(resolvedId);
-      setTasks(tasksResponse);
-    } catch {
-      setTasksError('Не удалось загрузить задачи объекта.');
-    } finally {
-      setTasksLoading(false);
-    }
+
+    await Promise.all([
+      (async () => {
+        try {
+          const arrivalResponse = await getTodayArrivalPhoto(resolvedId);
+          if (!isCancelled) {
+            setArrival(arrivalResponse);
+          }
+        } catch (error: unknown) {
+          if (!isCancelled) {
+            setArrivalError(
+              getErrorMessage(error, 'Не удалось загрузить фото прибытия.'),
+            );
+          }
+        } finally {
+          if (!isCancelled) {
+            setArrivalLoading(false);
+          }
+        }
+      })(),
+      (async () => {
+        try {
+          const reportResponse = await getTodayDailyReport(resolvedId);
+          if (!isCancelled) {
+            setReport(reportResponse);
+          }
+        } catch (error: unknown) {
+          if (!isCancelled) {
+            setReportError(
+              getErrorMessage(error, 'Не удалось загрузить отчет дня.'),
+            );
+          }
+        } finally {
+          if (!isCancelled) {
+            setReportLoading(false);
+          }
+        }
+      })(),
+      (async () => {
+        try {
+          const commentsResponse = await listObjectComments(resolvedId);
+          if (!isCancelled) {
+            setComments(commentsResponse);
+          }
+        } catch (error: unknown) {
+          if (!isCancelled) {
+            setCommentsError(
+              getErrorMessage(error, 'Не удалось загрузить комментарии объекта.'),
+            );
+          }
+        } finally {
+          if (!isCancelled) {
+            setCommentsLoading(false);
+          }
+        }
+      })(),
+      (async () => {
+        try {
+          const feedResponse = await getObjectFeed(resolvedId);
+          if (!isCancelled) {
+            setFeed(feedResponse);
+          }
+        } catch (error: unknown) {
+          if (!isCancelled) {
+            setFeedError(
+              getErrorMessage(error, 'Не удалось загрузить ленту объекта.'),
+            );
+          }
+        } finally {
+          if (!isCancelled) {
+            setFeedLoading(false);
+          }
+        }
+      })(),
+      (async () => {
+        try {
+          const tasksResponse = await listTasksByObject(resolvedId);
+          if (!isCancelled) {
+            setTasks(tasksResponse);
+          }
+        } catch (error: unknown) {
+          if (!isCancelled) {
+            setTasksError(
+              getErrorMessage(error, 'Не удалось загрузить задачи объекта.'),
+            );
+          }
+        } finally {
+          if (!isCancelled) {
+            setTasksLoading(false);
+          }
+        }
+      })(),
+    ]);
   };
 
   const refreshOperations = async (): Promise<void> => {
@@ -153,7 +275,7 @@ export default function ObjectDetailPage({
       return;
     }
 
-    await loadOperations(objectId);
+    await Promise.all([loadEmployees(objectId), loadOperations(objectId)]);
   };
 
   return (
@@ -188,7 +310,11 @@ export default function ObjectDetailPage({
               <ObjectArrivalPanel
                 item={arrival}
                 onSave={async (payload) => {
-                  await upsertTodayArrivalPhoto(objectId, payload);
+                  await upsertTodayArrivalPhoto(objectId, {
+                    photoUrl: payload.photoUrl,
+                    photoType: payload.photoType ?? 'arrival',
+                    comment: payload.comment,
+                  });
                   await refreshOperations();
                 }}
               />
@@ -211,26 +337,22 @@ export default function ObjectDetailPage({
               />
             )}
 
-            <ObjectAttendancePanel
-              employees={[
-                {
-                  id: '55555555-5555-5555-5555-555555555555',
-                  fullName: 'Иван Петров',
-                },
-                {
-                  id: '66666666-6666-6666-6666-666666666666',
-                  fullName: 'Сергей Иванов',
-                },
-                {
-                  id: '77777777-7777-7777-7777-777777777777',
-                  fullName: 'Алексей Смирнов',
-                },
-              ]}
-              onSave={async (payload) => {
-                await upsertObjectAttendance(objectId, payload);
-                await refreshOperations();
-              }}
-            />
+            {employeesLoading ? (
+              <ObjectPanelLoading title="Кто был сегодня на объекте" />
+            ) : employeesError ? (
+              <ObjectPanelError
+                title="Кто был сегодня на объекте"
+                message={employeesError}
+              />
+            ) : (
+              <ObjectAttendancePanel
+                employees={employees}
+                onSave={async (payload) => {
+                  await upsertObjectAttendance(objectId, payload);
+                  await refreshOperations();
+                }}
+              />
+            )}
           </div>
 
           {tasksLoading ? (
@@ -259,7 +381,10 @@ export default function ObjectDetailPage({
               <ObjectCommentsPanel
                 items={comments}
                 onCreate={async (payload) => {
-                  await createObjectComment(objectId, payload);
+                  await createObjectComment(objectId, {
+                    content: payload.content,
+                    commentType: payload.commentType,
+                  });
                   await refreshOperations();
                 }}
               />

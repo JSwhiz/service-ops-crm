@@ -5,6 +5,7 @@ import React, { createContext, useEffect, useMemo, useState } from 'react';
 import {
   getMe,
   login as loginRequest,
+  refresh as refreshRequest,
   type AuthUser,
   type LoginPayload,
 } from './auth-client';
@@ -36,21 +37,43 @@ export function AuthProvider({
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
       const accessToken = getAccessToken();
+      const refreshToken = getRefreshToken();
 
-      if (!accessToken) {
+      if (!accessToken && !refreshToken) {
+        setUser(null);
         setIsLoading(false);
         return;
       }
 
-      try {
-        const me = await getMe(accessToken);
-        setUser(me);
-      } catch {
-        clearTokens();
-        setUser(null);
-      } finally {
-        setIsLoading(false);
+      if (accessToken) {
+        try {
+          const me = await getMe(accessToken);
+          setUser(me);
+          setIsLoading(false);
+          return;
+        } catch {
+          // continue to refresh flow
+        }
       }
+
+      if (refreshToken) {
+        try {
+          const refreshed = await refreshRequest(refreshToken);
+          setTokens(refreshed.accessToken, refreshed.refreshToken);
+          setUser(refreshed.user);
+          setIsLoading(false);
+          return;
+        } catch {
+          clearTokens();
+          setUser(null);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      clearTokens();
+      setUser(null);
+      setIsLoading(false);
     };
 
     void bootstrap();

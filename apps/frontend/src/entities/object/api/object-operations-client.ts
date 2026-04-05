@@ -8,6 +8,21 @@ import type {
   ObjectFeedItem,
 } from '../model/object-operations.types';
 
+export interface CreateObjectCommentPayload {
+  content: string;
+  commentType?: string;
+}
+
+export interface UpsertArrivalPhotoPayload {
+  photoUrl: string;
+  photoType: string;
+  comment?: string;
+}
+
+export interface UpsertDailyReportPayload {
+  content: string;
+}
+
 export async function getTodayArrivalPhoto(
   objectId: string,
 ): Promise<ObjectArrivalPhoto | null> {
@@ -22,11 +37,7 @@ export async function getTodayArrivalPhoto(
 
 export async function upsertTodayArrivalPhoto(
   objectId: string,
-  payload: {
-    photoUrl: string;
-    photoType?: string;
-    comment?: string;
-  },
+  payload: UpsertArrivalPhotoPayload,
 ): Promise<ObjectArrivalPhoto> {
   return fetcher<ObjectArrivalPhoto>(`/objects/${objectId}/arrival-photo`, {
     method: 'POST',
@@ -49,9 +60,7 @@ export async function getTodayDailyReport(
 
 export async function upsertTodayDailyReport(
   objectId: string,
-  payload: {
-    content: string;
-  },
+  payload: UpsertDailyReportPayload,
 ): Promise<ObjectDailyReport> {
   return fetcher<ObjectDailyReport>(`/objects/${objectId}/daily-report/today`, {
     method: 'PUT',
@@ -71,10 +80,7 @@ export async function listObjectComments(
 
 export async function createObjectComment(
   objectId: string,
-  payload: {
-    content: string;
-    commentType?: string;
-  },
+  payload: CreateObjectCommentPayload,
 ): Promise<ObjectComment> {
   return fetcher<ObjectComment>(`/objects/${objectId}/comments`, {
     method: 'POST',

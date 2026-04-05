@@ -96,7 +96,9 @@ export function ObjectAttendancePanel({
       ) : null}
 
       {successMessage ? (
-        <div style={{ marginTop: 12, color: '#15803d' }}>{successMessage}</div>
+        <div style={{ marginTop: 12, color: '#15803d' }}>
+          {successMessage}
+        </div>
       ) : null}
 
       <div style={{ marginTop: 16 }}>

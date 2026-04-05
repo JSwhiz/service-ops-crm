@@ -28,15 +28,14 @@
 
 ## Responsibility boundaries
 
-### objects
+### object-operations
 
-Core object data, status, assignments, daily base rate.
+Arrival photos, daily reports, object comments, operational object feed, daily attendance fact, object employee options for attendance.
 
 ### timesheets
 
-Monthly timesheet container, object-linked employee rows, numeric day cells, row totals and month totals.
+Monthly timesheet container, employee rows, numeric day cells, row totals and month totals derived from operational facts.
 
 ## Important note
 
-At this stage, object daily rate is the base source for timesheet day values.
-Manual day cell changes override the base and must not be auto-rewritten by rate sync.
+Attendance panel must use real object employee assignments instead of hardcoded employee stubs.

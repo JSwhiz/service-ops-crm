@@ -25,8 +25,8 @@ export class AuthService {
     const jwtPayload = {
       sub: safeUser.id,
       login: safeUser.login,
-      roleCodes: safeUser.roleCodes,
       roleCode: safeUser.roleCodes[0] ?? 'unknown',
+      roleCodes: safeUser.roleCodes,
     };
 
     return {
@@ -61,8 +61,8 @@ export class AuthService {
       const jwtPayload = {
         sub: safeUser.id,
         login: safeUser.login,
-        roleCodes: safeUser.roleCodes,
         roleCode: safeUser.roleCodes[0] ?? 'unknown',
+        roleCodes: safeUser.roleCodes,
       };
 
       return {

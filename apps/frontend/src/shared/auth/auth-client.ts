@@ -5,6 +5,7 @@ export interface AuthUser {
   login: string;
   fullName: string;
   roleCode: string;
+  roleCodes: string[];
   isActive: boolean;
 }
 

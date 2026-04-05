@@ -13,11 +13,14 @@ export default function NewObjectPage(): React.JSX.Element {
     name: '',
     internalName: '',
     address: '',
+    status: 'active',
     seasonMode: 'summer',
+    dailyRate: '0',
     notes: '',
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
@@ -27,15 +30,17 @@ export default function NewObjectPage(): React.JSX.Element {
     setIsSubmitting(true);
 
     try {
-      const created = await createObject({
-        name: form.name,
-        internalName: form.internalName || undefined,
-        address: form.address,
-        seasonMode: form.seasonMode as 'summer' | 'winter',
-        notes: form.notes || undefined,
+      await createObject({
+        name: form.name.trim(),
+        internalName: form.internalName.trim(),
+        address: form.address.trim(),
+        status: form.status,
+        seasonMode: form.seasonMode,
+        dailyRate: Number(form.dailyRate) || 0,
+        notes: form.notes.trim() || undefined,
       });
 
-      router.push(`/objects/${created.id}`);
+      router.push('/objects');
     } catch {
       setError('Не удалось создать объект.');
     } finally {
@@ -47,7 +52,13 @@ export default function NewObjectPage(): React.JSX.Element {
     <>
       <PageTitle title="Создать объект" />
 
-      <form className="page-card" onSubmit={handleSubmit}>
+      <form
+        className="page-card"
+        onSubmit={handleSubmit}
+        style={{ display: 'grid', gap: 16, maxWidth: 720 }}
+      >
+        <div style={{ fontWeight: 600, fontSize: 18 }}>Новый объект</div>
+
         <div
           style={{
             display: 'grid',
@@ -72,13 +83,17 @@ export default function NewObjectPage(): React.JSX.Element {
             <input
               value={form.internalName}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, internalName: event.target.value }))
+                setForm((prev) => ({
+                  ...prev,
+                  internalName: event.target.value,
+                }))
               }
               style={{ width: '100%', padding: 10 }}
+              required
             />
           </label>
 
-          <label>
+          <label style={{ gridColumn: '1 / -1' }}>
             <div style={{ marginBottom: 6 }}>Адрес</div>
             <input
               value={form.address}
@@ -91,39 +106,80 @@ export default function NewObjectPage(): React.JSX.Element {
           </label>
 
           <label>
+            <div style={{ marginBottom: 6 }}>Статус</div>
+            <select
+              value={form.status}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, status: event.target.value }))
+              }
+              style={{ width: '100%', padding: 10 }}
+            >
+              <option value="active">Активный</option>
+              <option value="frozen">Заморожен</option>
+              <option value="archived">Архив</option>
+            </select>
+          </label>
+
+          <label>
             <div style={{ marginBottom: 6 }}>Сезон</div>
             <select
               value={form.seasonMode}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, seasonMode: event.target.value }))
+                setForm((prev) => ({
+                  ...prev,
+                  seasonMode: event.target.value,
+                }))
               }
               style={{ width: '100%', padding: 10 }}
             >
               <option value="summer">Летний</option>
               <option value="winter">Зимний</option>
+              <option value="all_year">Круглый год</option>
             </select>
           </label>
 
+          <label>
+            <div style={{ marginBottom: 6 }}>Ставка за день</div>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.dailyRate}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  dailyRate: event.target.value,
+                }))
+              }
+              style={{ width: '100%', padding: 10 }}
+            />
+          </label>
+
           <label style={{ gridColumn: '1 / -1' }}>
-            <div style={{ marginBottom: 6 }}>Заметки</div>
+            <div style={{ marginBottom: 6 }}>Комментарий</div>
             <textarea
               value={form.notes}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, notes: event.target.value }))
               }
-              rows={5}
-              style={{ width: '100%', padding: 10, resize: 'vertical' }}
+              style={{ width: '100%', minHeight: 120, padding: 10 }}
             />
           </label>
         </div>
 
-        {error ? (
-          <div style={{ color: '#b91c1c', marginTop: 12 }}>{error}</div>
-        ) : null}
+        {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
 
-        <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', gap: 12 }}>
           <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Создаем...' : 'Создать'}
+            {isSubmitting ? 'Создаем...' : 'Создать объект'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => router.push('/objects')}
+            disabled={isSubmitting}
+          >
+            Отмена
           </button>
         </div>
       </form>
