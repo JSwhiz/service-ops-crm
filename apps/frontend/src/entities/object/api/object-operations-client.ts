@@ -5,6 +5,7 @@ import type {
   ObjectArrivalPhoto,
   ObjectComment,
   ObjectDailyReport,
+  ObjectEmployeeOption,
   ObjectFeedItem,
 } from '../model/object-operations.types';
 
@@ -96,4 +97,49 @@ export async function getObjectFeed(
     method: 'GET',
     token: getAccessToken(),
   });
+}
+
+export async function searchEmployeesForObject(
+  objectId: string,
+  search?: string,
+): Promise<ObjectEmployeeOption[]> {
+  const searchParams = new URLSearchParams();
+
+  if (search?.trim()) {
+    searchParams.set('search', search.trim());
+  }
+
+  const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+
+  return fetcher<ObjectEmployeeOption[]>(
+    `/objects/${objectId}/employee-directory${suffix}`,
+    {
+      method: 'GET',
+      token: getAccessToken(),
+    },
+  );
+}
+
+export async function addEmployeeToObject(
+  objectId: string,
+  employeeId: string,
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/objects/${objectId}/employees`, {
+    method: 'POST',
+    token: getAccessToken(),
+    body: JSON.stringify({ employeeId }),
+  });
+}
+
+export async function removeEmployeeFromObject(
+  objectId: string,
+  employeeId: string,
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(
+    `/objects/${objectId}/employees/${employeeId}`,
+    {
+      method: 'DELETE',
+      token: getAccessToken(),
+    },
+  );
 }

@@ -39,10 +39,7 @@ import {
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
-function getErrorMessage(
-  error: unknown,
-  fallback: string,
-): string {
+function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
   }
@@ -119,8 +116,12 @@ export default function ObjectDetailPage({
 
       if (!isCancelled) {
         await Promise.all([
-          loadEmployees(resolved.id, isCancelled),
-          loadOperations(resolved.id, isCancelled),
+          refreshEmployees(resolved.id, isCancelled),
+          refreshArrival(resolved.id, isCancelled),
+          refreshReport(resolved.id, isCancelled),
+          refreshComments(resolved.id, isCancelled),
+          refreshFeed(resolved.id, isCancelled),
+          refreshTasks(resolved.id, isCancelled),
         ]);
       }
     };
@@ -132,7 +133,7 @@ export default function ObjectDetailPage({
     };
   }, [params]);
 
-  const loadEmployees = async (
+  const refreshEmployees = async (
     resolvedId: string,
     isCancelled = false,
   ): Promise<void> => {
@@ -157,125 +158,129 @@ export default function ObjectDetailPage({
     }
   };
 
-  const loadOperations = async (
+  const refreshArrival = async (
     resolvedId: string,
     isCancelled = false,
   ): Promise<void> => {
     setArrivalLoading(true);
     setArrivalError(null);
 
+    try {
+      const response = await getTodayArrivalPhoto(resolvedId);
+      if (!isCancelled) {
+        setArrival(response);
+      }
+    } catch (error: unknown) {
+      if (!isCancelled) {
+        setArrivalError(
+          getErrorMessage(error, 'Не удалось загрузить фото прибытия.'),
+        );
+      }
+    } finally {
+      if (!isCancelled) {
+        setArrivalLoading(false);
+      }
+    }
+  };
+
+  const refreshReport = async (
+    resolvedId: string,
+    isCancelled = false,
+  ): Promise<void> => {
     setReportLoading(true);
     setReportError(null);
 
+    try {
+      const response = await getTodayDailyReport(resolvedId);
+      if (!isCancelled) {
+        setReport(response);
+      }
+    } catch (error: unknown) {
+      if (!isCancelled) {
+        setReportError(
+          getErrorMessage(error, 'Не удалось загрузить отчет дня.'),
+        );
+      }
+    } finally {
+      if (!isCancelled) {
+        setReportLoading(false);
+      }
+    }
+  };
+
+  const refreshComments = async (
+    resolvedId: string,
+    isCancelled = false,
+  ): Promise<void> => {
     setCommentsLoading(true);
     setCommentsError(null);
 
+    try {
+      const response = await listObjectComments(resolvedId);
+      if (!isCancelled) {
+        setComments(response);
+      }
+    } catch (error: unknown) {
+      if (!isCancelled) {
+        setCommentsError(
+          getErrorMessage(error, 'Не удалось загрузить комментарии объекта.'),
+        );
+      }
+    } finally {
+      if (!isCancelled) {
+        setCommentsLoading(false);
+      }
+    }
+  };
+
+  const refreshFeed = async (
+    resolvedId: string,
+    isCancelled = false,
+  ): Promise<void> => {
     setFeedLoading(true);
     setFeedError(null);
 
+    try {
+      const response = await getObjectFeed(resolvedId);
+      if (!isCancelled) {
+        setFeed(response);
+      }
+    } catch (error: unknown) {
+      if (!isCancelled) {
+        setFeedError(
+          getErrorMessage(error, 'Не удалось загрузить ленту объекта.'),
+        );
+      }
+    } finally {
+      if (!isCancelled) {
+        setFeedLoading(false);
+      }
+    }
+  };
+
+  const refreshTasks = async (
+    resolvedId: string,
+    isCancelled = false,
+  ): Promise<void> => {
     setTasksLoading(true);
     setTasksError(null);
 
-    await Promise.all([
-      (async () => {
-        try {
-          const arrivalResponse = await getTodayArrivalPhoto(resolvedId);
-          if (!isCancelled) {
-            setArrival(arrivalResponse);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setArrivalError(
-              getErrorMessage(error, 'Не удалось загрузить фото прибытия.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setArrivalLoading(false);
-          }
-        }
-      })(),
-      (async () => {
-        try {
-          const reportResponse = await getTodayDailyReport(resolvedId);
-          if (!isCancelled) {
-            setReport(reportResponse);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setReportError(
-              getErrorMessage(error, 'Не удалось загрузить отчет дня.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setReportLoading(false);
-          }
-        }
-      })(),
-      (async () => {
-        try {
-          const commentsResponse = await listObjectComments(resolvedId);
-          if (!isCancelled) {
-            setComments(commentsResponse);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setCommentsError(
-              getErrorMessage(error, 'Не удалось загрузить комментарии объекта.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setCommentsLoading(false);
-          }
-        }
-      })(),
-      (async () => {
-        try {
-          const feedResponse = await getObjectFeed(resolvedId);
-          if (!isCancelled) {
-            setFeed(feedResponse);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setFeedError(
-              getErrorMessage(error, 'Не удалось загрузить ленту объекта.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setFeedLoading(false);
-          }
-        }
-      })(),
-      (async () => {
-        try {
-          const tasksResponse = await listTasksByObject(resolvedId);
-          if (!isCancelled) {
-            setTasks(tasksResponse);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setTasksError(
-              getErrorMessage(error, 'Не удалось загрузить задачи объекта.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setTasksLoading(false);
-          }
-        }
-      })(),
-    ]);
-  };
-
-  const refreshOperations = async (): Promise<void> => {
-    if (!objectId) {
-      return;
+    try {
+      const response = await listTasksByObject(resolvedId);
+      if (!isCancelled) {
+        setTasks(response);
+      }
+    } catch (error: unknown) {
+      if (!isCancelled) {
+        setTasksError(
+          getErrorMessage(error, 'Не удалось загрузить задачи объекта.'),
+        );
+      }
+    } finally {
+      if (!isCancelled) {
+        setTasksLoading(false);
+      }
     }
-
-    await Promise.all([loadEmployees(objectId), loadOperations(objectId)]);
   };
 
   return (
@@ -315,7 +320,10 @@ export default function ObjectDetailPage({
                     photoType: payload.photoType ?? 'arrival',
                     comment: payload.comment,
                   });
-                  await refreshOperations();
+                  await Promise.all([
+                    refreshArrival(objectId),
+                    refreshFeed(objectId),
+                  ]);
                 }}
               />
             )}
@@ -332,7 +340,10 @@ export default function ObjectDetailPage({
                 item={report}
                 onSave={async (payload) => {
                   await upsertTodayDailyReport(objectId, payload);
-                  await refreshOperations();
+                  await Promise.all([
+                    refreshReport(objectId),
+                    refreshFeed(objectId),
+                  ]);
                 }}
               />
             )}
@@ -349,7 +360,7 @@ export default function ObjectDetailPage({
                 employees={employees}
                 onSave={async (payload) => {
                   await upsertObjectAttendance(objectId, payload);
-                  await refreshOperations();
+                  await refreshEmployees(objectId);
                 }}
               />
             )}
@@ -385,7 +396,10 @@ export default function ObjectDetailPage({
                     content: payload.content,
                     commentType: payload.commentType,
                   });
-                  await refreshOperations();
+                  await Promise.all([
+                    refreshComments(objectId),
+                    refreshFeed(objectId),
+                  ]);
                 }}
               />
             )}

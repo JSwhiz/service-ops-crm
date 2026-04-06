@@ -8,7 +8,8 @@
     "start": "next start -p 3000",
     "lint": "echo \"Frontend lint will be connected after ESLint app wiring\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "format": "echo \"Formatting handled at repo level\""
+    "format": "echo \"Formatting handled at repo level\"",
+    "clean": "rimraf .next"
   },
   "dependencies": {
     "@service-ops/shared-types": "workspace:*",

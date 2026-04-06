@@ -38,6 +38,7 @@ export default function NewObjectPage(): React.JSX.Element {
         seasonMode: form.seasonMode,
         dailyRate: Number(form.dailyRate) || 0,
         notes: form.notes.trim() || undefined,
+        managerUserIds: [],
       });
 
       router.push('/objects');
@@ -134,7 +135,6 @@ export default function NewObjectPage(): React.JSX.Element {
             >
               <option value="summer">Летний</option>
               <option value="winter">Зимний</option>
-              <option value="all_year">Круглый год</option>
             </select>
           </label>
 
@@ -165,6 +165,11 @@ export default function NewObjectPage(): React.JSX.Element {
               style={{ width: '100%', minHeight: 120, padding: 10 }}
             />
           </label>
+        </div>
+
+        <div className="page-muted">
+          Создатель объекта автоматически станет ответственным. Сотрудники на объект
+          назначаются позже менеджером объекта.
         </div>
 
         {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}

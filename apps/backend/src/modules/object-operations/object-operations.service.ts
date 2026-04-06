@@ -632,4 +632,87 @@ export class ObjectOperationsService {
       fullName: assignment.employee.fullName,
     }));
   }
+
+  async searchEmployeesForObject(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    query: { search?: string },
+  ): Promise<ObjectEmployeeOptionDto[]> {
+    await this.assertObjectWritable(currentUser, objectId);
+
+    const items = await this.prisma.employee.findMany({
+      where: {
+        deletedAt: null,
+        employmentStatus: 'active',
+        ...(query.search
+          ? {
+              fullName: {
+                contains: query.search,
+                mode: 'insensitive',
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        fullName: true,
+      },
+      orderBy: {
+        fullName: 'asc',
+      },
+      take: 20,
+    });
+
+    return items.map((item) => ({
+      id: item.id,
+      fullName: item.fullName,
+    }));
+  }
+
+  async addEmployeeToObject(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    payload: { employeeId: string },
+  ): Promise<{ success: true }> {
+    await this.assertObjectWritable(currentUser, objectId);
+
+    await this.prisma.objectEmployeeAssignment.upsert({
+      where: {
+        objectId_employeeId: {
+          objectId,
+          employeeId: payload.employeeId,
+        },
+      },
+      update: {
+        isActive: true,
+      },
+      create: {
+        objectId,
+        employeeId: payload.employeeId,
+        isActive: true,
+      },
+    });
+
+    return { success: true };
+  }
+
+  async removeEmployeeFromObject(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    employeeId: string,
+  ): Promise<{ success: true }> {
+    await this.assertObjectWritable(currentUser, objectId);
+
+    await this.prisma.objectEmployeeAssignment.updateMany({
+      where: {
+        objectId,
+        employeeId,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return { success: true };
+  }
 }

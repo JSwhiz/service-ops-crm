@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -25,6 +26,8 @@ import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 import { ObjectOperationsService } from './object-operations.service';
+import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
+import { SearchEmployeeQueryDto } from './dto/search-employee-query.dto';
 
 interface CurrentAuthUser {
   id: string;
@@ -148,5 +151,44 @@ export class ObjectOperationsController {
       ok: true,
       scope: 'object-operations',
     };
+  }
+
+  @Get('employee-directory')
+  searchEmployeesForObject(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Query() query: SearchEmployeeQueryDto,
+  ): Promise<ObjectEmployeeOptionDto[]> {
+    return this.objectOperationsService.searchEmployeesForObject(
+      user,
+      objectId,
+      query,
+    );
+  }
+
+  @Post('employees')
+  addEmployeeToObject(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Body() payload: AddObjectEmployeeDto,
+  ): Promise<{ success: true }> {
+    return this.objectOperationsService.addEmployeeToObject(
+      user,
+      objectId,
+      payload,
+    );
+  }
+
+  @Delete('employees/:employeeId')
+  removeEmployeeFromObject(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Param('employeeId') employeeId: string,
+  ): Promise<{ success: true }> {
+    return this.objectOperationsService.removeEmployeeFromObject(
+      user,
+      objectId,
+      employeeId,
+    );
   }
 }

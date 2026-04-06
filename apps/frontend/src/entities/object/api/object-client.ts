@@ -16,6 +16,7 @@ export interface CreateObjectPayload {
   seasonMode: string;
   dailyRate: number;
   notes?: string;
+  managerUserIds?: string[];
 }
 
 export interface UpdateObjectPayload {
@@ -50,12 +51,12 @@ function buildObjectsQuery(params?: ListObjectsParams): string {
 
   const searchParams = new URLSearchParams();
 
-  if (params.search) {
-    searchParams.set('search', params.search);
+  if (params.search?.trim()) {
+    searchParams.set('search', params.search.trim());
   }
 
-  if (params.status) {
-    searchParams.set('status', params.status);
+  if (params.status?.trim()) {
+    searchParams.set('status', params.status.trim());
   }
 
   const query = searchParams.toString();

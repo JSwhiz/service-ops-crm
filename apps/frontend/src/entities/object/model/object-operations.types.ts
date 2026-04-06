@@ -1,3 +1,8 @@
+export interface ObjectEmployeeOption {
+  id: string;
+  fullName: string;
+}
+
 export interface ObjectArrivalPhoto {
   id: string;
   objectId: string;
