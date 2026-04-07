@@ -1,11 +1,11 @@
 import { fetcher } from '@/shared/api/fetcher';
 import { getAccessToken } from '@/shared/auth/auth-storage';
 
+import type { ObjectEmployeeOption } from './object-client';
 import type {
   ObjectArrivalPhoto,
   ObjectComment,
   ObjectDailyReport,
-  ObjectEmployeeOption,
   ObjectFeedItem,
 } from '../model/object-operations.types';
 
@@ -22,6 +22,11 @@ export interface UpsertArrivalPhotoPayload {
 
 export interface UpsertDailyReportPayload {
   content: string;
+}
+
+export interface ObjectAttendanceToday {
+  operationDate: string;
+  employeeIds: string[];
 }
 
 export async function getTodayArrivalPhoto(
@@ -99,20 +104,25 @@ export async function getObjectFeed(
   });
 }
 
-export async function searchEmployeesForObject(
+export async function listObjectEmployees(
   objectId: string,
-  search?: string,
 ): Promise<ObjectEmployeeOption[]> {
-  const searchParams = new URLSearchParams();
+  return fetcher<ObjectEmployeeOption[]>(`/objects/${objectId}/employees`, {
+    method: 'GET',
+    token: getAccessToken(),
+  });
+}
 
-  if (search?.trim()) {
-    searchParams.set('search', search.trim());
-  }
-
-  const suffix = searchParams.toString() ? `?${searchParams.toString()}` : '';
+export async function searchEmployeeDirectory(
+  objectId: string,
+  search: string,
+): Promise<ObjectEmployeeOption[]> {
+  const query = search.trim()
+    ? `?search=${encodeURIComponent(search.trim())}`
+    : '';
 
   return fetcher<ObjectEmployeeOption[]>(
-    `/objects/${objectId}/employee-directory${suffix}`,
+    `/objects/${objectId}/employee-directory${query}`,
     {
       method: 'GET',
       token: getAccessToken(),
@@ -142,4 +152,24 @@ export async function removeEmployeeFromObject(
       token: getAccessToken(),
     },
   );
+}
+
+export async function getTodayObjectAttendance(
+  objectId: string,
+): Promise<ObjectAttendanceToday> {
+  return fetcher<ObjectAttendanceToday>(`/objects/${objectId}/attendance/today`, {
+    method: 'GET',
+    token: getAccessToken(),
+  });
+}
+
+export async function upsertObjectAttendance(
+  objectId: string,
+  payload: ObjectAttendanceToday,
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/objects/${objectId}/attendance`, {
+    method: 'POST',
+    token: getAccessToken(),
+    body: JSON.stringify(payload),
+  });
 }

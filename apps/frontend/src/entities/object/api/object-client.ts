@@ -38,12 +38,6 @@ export interface ObjectEmployeeOption {
   fullName: string;
 }
 
-export interface UpsertObjectAttendancePayload {
-  operationDate: string;
-  employeeIds: string[];
-  comment?: string;
-}
-
 function buildObjectsQuery(params?: ListObjectsParams): string {
   if (!params) {
     return '';
@@ -51,12 +45,12 @@ function buildObjectsQuery(params?: ListObjectsParams): string {
 
   const searchParams = new URLSearchParams();
 
-  if (params.search?.trim()) {
-    searchParams.set('search', params.search.trim());
+  if (params.search) {
+    searchParams.set('search', params.search);
   }
 
-  if (params.status?.trim()) {
-    searchParams.set('status', params.status.trim());
+  if (params.status) {
+    searchParams.set('status', params.status);
   }
 
   const query = searchParams.toString();
@@ -106,26 +100,6 @@ export async function changeObjectStatus(
 ): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${objectId}/status`, {
     method: 'PATCH',
-    token: getAccessToken(),
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function listObjectEmployees(
-  objectId: string,
-): Promise<ObjectEmployeeOption[]> {
-  return fetcher<ObjectEmployeeOption[]>(`/objects/${objectId}/employees`, {
-    method: 'GET',
-    token: getAccessToken(),
-  });
-}
-
-export async function upsertObjectAttendance(
-  objectId: string,
-  payload: UpsertObjectAttendancePayload,
-): Promise<{ success: true }> {
-  return fetcher<{ success: true }>(`/objects/${objectId}/attendance`, {
-    method: 'POST',
     token: getAccessToken(),
     body: JSON.stringify(payload),
   });

@@ -1,13 +1,56 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { createObject } from '@/entities/object/api/object-client';
+import {
+  listSystemUsers,
+  type SystemUserOption,
+} from '@/entities/user/api/user-client';
+import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+
+const OBJECT_CREATOR_ROLE_CODES = [
+  'founder',
+  'deputy_founder',
+  'director',
+  'deputy_director',
+  'corporate_director',
+] as const;
+
+const OBJECT_MANAGER_ROLE_CODES = [
+  'founder',
+  'deputy_founder',
+  'director',
+  'deputy_director',
+  'corporate_director',
+  'manager',
+  'senior_manager',
+  'operation_manager',
+] as const;
+
+function canCreateObjects(roleCodes: string[]): boolean {
+  return roleCodes.some((roleCode) =>
+    OBJECT_CREATOR_ROLE_CODES.includes(
+      roleCode as (typeof OBJECT_CREATOR_ROLE_CODES)[number],
+    ),
+  );
+}
+
+function canBeObjectManager(user: SystemUserOption): boolean {
+  const roleCodes = user.roleCodes?.length ? user.roleCodes : [user.roleCode];
+
+  return roleCodes.some((roleCode) =>
+    OBJECT_MANAGER_ROLE_CODES.includes(
+      roleCode as (typeof OBJECT_MANAGER_ROLE_CODES)[number],
+    ),
+  );
+}
 
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
+  const { user } = useAuth();
 
   const [form, setForm] = useState({
     name: '',
@@ -19,14 +62,83 @@ export default function NewObjectPage(): React.JSX.Element {
     notes: '',
   });
 
+  const [users, setUsers] = useState<SystemUserOption[]>([]);
+  const [managerUserIds, setManagerUserIds] = useState<string[]>([]);
+  const [isUsersLoading, setIsUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const currentUserRoleCodes = useMemo(() => {
+    if (!user) {
+      return [];
+    }
+
+    if (user.roleCodes && user.roleCodes.length > 0) {
+      return user.roleCodes;
+    }
+
+    return user.roleCode ? [user.roleCode] : [];
+  }, [user]);
+
+  const allowCreateObject = canCreateObjects(currentUserRoleCodes);
+
+  useEffect(() => {
+    const loadUsers = async (): Promise<void> => {
+      setIsUsersLoading(true);
+      setUsersError(null);
+
+      try {
+        const response = await listSystemUsers();
+        setUsers(response);
+      } catch (caughtError) {
+        if (caughtError instanceof Error && caughtError.message) {
+          setUsersError(caughtError.message);
+        } else {
+          setUsersError('Не удалось загрузить пользователей системы.');
+        }
+      } finally {
+        setIsUsersLoading(false);
+      }
+    };
+
+    void loadUsers();
+  }, []);
+
+  const managerCandidates = useMemo(() => {
+    return users.filter((candidate) => {
+      if (!candidate.isActive) {
+        return false;
+      }
+
+      if (candidate.id === user?.id) {
+        return false;
+      }
+
+      return canBeObjectManager(candidate);
+    });
+  }, [users, user?.id]);
+
+  const toggleManager = (userId: string): void => {
+    setManagerUserIds((prev) =>
+      prev.includes(userId)
+        ? prev.filter((item) => item !== userId)
+        : [...prev, userId],
+    );
+  };
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> => {
     event.preventDefault();
     setError(null);
+
+    if (!allowCreateObject) {
+      setError('У вашей роли нет прав на создание объектов.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -38,12 +150,16 @@ export default function NewObjectPage(): React.JSX.Element {
         seasonMode: form.seasonMode,
         dailyRate: Number(form.dailyRate) || 0,
         notes: form.notes.trim() || undefined,
-        managerUserIds: [],
+        managerUserIds,
       });
 
       router.push('/objects');
-    } catch {
-      setError('Не удалось создать объект.');
+    } catch (caughtError) {
+      if (caughtError instanceof Error && caughtError.message) {
+        setError(caughtError.message);
+      } else {
+        setError('Не удалось создать объект.');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -56,9 +172,14 @@ export default function NewObjectPage(): React.JSX.Element {
       <form
         className="page-card"
         onSubmit={handleSubmit}
-        style={{ display: 'grid', gap: 16, maxWidth: 720 }}
+        style={{ display: 'grid', gap: 16, maxWidth: 900 }}
       >
         <div style={{ fontWeight: 600, fontSize: 18 }}>Новый объект</div>
+
+        <div className="page-muted">
+          Создатель объекта автоматически становится ответственным.
+          Сотрудники объекта здесь не назначаются — их потом добавляет менеджер в карточке объекта.
+        </div>
 
         <div
           style={{
@@ -135,6 +256,7 @@ export default function NewObjectPage(): React.JSX.Element {
             >
               <option value="summer">Летний</option>
               <option value="winter">Зимний</option>
+              <option value="all_year">Круглый год</option>
             </select>
           </label>
 
@@ -167,15 +289,47 @@ export default function NewObjectPage(): React.JSX.Element {
           </label>
         </div>
 
-        <div className="page-muted">
-          Создатель объекта автоматически станет ответственным. Сотрудники на объект
-          назначаются позже менеджером объекта.
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>Менеджеры объекта</div>
+
+          {isUsersLoading ? (
+            <div className="page-muted">Загрузка пользователей...</div>
+          ) : usersError ? (
+            <div style={{ color: '#b91c1c' }}>{usersError}</div>
+          ) : managerCandidates.length === 0 ? (
+            <div className="page-muted">Подходящие пользователи не найдены.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {managerCandidates.map((candidate) => (
+                <label
+                  key={candidate.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: 10,
+                    border: '1px solid #d1d5db',
+                    borderRadius: 10,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={managerUserIds.includes(candidate.id)}
+                    onChange={() => toggleManager(candidate.id)}
+                  />
+                  <span>
+                    {candidate.fullName} ({candidate.login})
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
 
         {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <button type="submit" disabled={isSubmitting}>
+          <button type="submit" disabled={isSubmitting || !allowCreateObject}>
             {isSubmitting ? 'Создаем...' : 'Создать объект'}
           </button>
 

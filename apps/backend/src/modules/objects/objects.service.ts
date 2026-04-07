@@ -12,6 +12,7 @@ import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
 import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
 import {
+  canCreateObject,
   canEditObject,
   canEditObjectDailyRate,
   canOverrideFrozenObject,
@@ -57,8 +58,6 @@ export class ObjectsService {
     currentUser: CurrentAuthUser,
     query?: ListObjectsQueryDto,
   ): Promise<ObjectResponseDto[]> {
-    const roleCodes = this.getRoleCodes(currentUser);
-
     const objects = (await this.prisma.object.findMany({
       where: {
         ...(await this.buildVisibilityWhere(currentUser)),
@@ -91,15 +90,13 @@ export class ObjectsService {
       },
     })) as ObjectView[];
 
-    return objects.map((item: ObjectView) => this.mapObject(item, roleCodes));
+    return objects.map((item) => this.mapObject(item));
   }
 
   async getObjectById(
     currentUser: CurrentAuthUser,
     id: string,
   ): Promise<ObjectResponseDto> {
-    const roleCodes = this.getRoleCodes(currentUser);
-
     const object = (await this.prisma.object.findFirst({
       where: {
         id,
@@ -119,7 +116,7 @@ export class ObjectsService {
       throw new NotFoundException('Object not found');
     }
 
-    return this.mapObject(object, roleCodes);
+    return this.mapObject(object);
   }
 
   async createObject(
@@ -128,49 +125,62 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    const created = await this.prisma.object.create({
-      data: {
-        name: payload.name,
-        internalName: payload.internalName ?? null,
-        address: payload.address,
-        status: payload.status ?? 'active',
-        seasonMode: payload.seasonMode ?? 'summer',
-        dailyRate: payload.dailyRate ?? 0,
-        notes: payload.notes ?? null,
-        createdByUserId: currentUser.id,
-      },
-    });
+    if (!canCreateObject(roleCodes)) {
+      throw new ForbiddenException('Object creation denied');
+    }
 
-    await this.prisma.objectAssignment.upsert({
-      where: {
-        objectId_userId_assignmentRoleCode: {
-          objectId: created.id,
+    const managerUserIds = Array.from(
+      new Set((payload.managerUserIds ?? []).filter(Boolean)),
+    ).filter((userId) => userId !== currentUser.id);
+
+    const managerUsers =
+      managerUserIds.length > 0
+        ? await this.prisma.user.findMany({
+            where: {
+              id: { in: managerUserIds },
+              isActive: true,
+            },
+            select: {
+              id: true,
+            },
+          })
+        : [];
+
+    if (managerUsers.length !== managerUserIds.length) {
+      throw new NotFoundException(
+        'One or more selected managers were not found',
+      );
+    }
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const object = await tx.object.create({
+        data: {
+          name: payload.name,
+          internalName: payload.internalName ?? null,
+          address: payload.address,
+          status: payload.status ?? 'active',
+          seasonMode: payload.seasonMode ?? 'summer',
+          dailyRate: payload.dailyRate ?? 0,
+          notes: payload.notes ?? null,
+          createdByUserId: currentUser.id,
+        },
+      });
+
+      await tx.objectAssignment.create({
+        data: {
+          objectId: object.id,
           userId: currentUser.id,
           assignmentRoleCode: 'responsible',
+          isActive: true,
         },
-      },
-      update: {
-        isActive: true,
-      },
-      create: {
-        objectId: created.id,
-        userId: currentUser.id,
-        assignmentRoleCode: 'responsible',
-        isActive: true,
-      },
-    });
+      });
 
-    if (payload.managerUserIds?.length) {
-      for (const managerUserId of payload.managerUserIds) {
-        if (managerUserId === currentUser.id) {
-          continue;
-        }
-
-        await this.prisma.objectAssignment.upsert({
+      for (const manager of managerUsers) {
+        await tx.objectAssignment.upsert({
           where: {
             objectId_userId_assignmentRoleCode: {
-              objectId: created.id,
-              userId: managerUserId,
+              objectId: object.id,
+              userId: manager.id,
               assignmentRoleCode: 'manager',
             },
           },
@@ -178,34 +188,28 @@ export class ObjectsService {
             isActive: true,
           },
           create: {
-            objectId: created.id,
-            userId: managerUserId,
+            objectId: object.id,
+            userId: manager.id,
             assignmentRoleCode: 'manager',
             isActive: true,
           },
         });
       }
-    }
 
-    const objectWithAssignments = (await this.prisma.object.findFirst({
-      where: {
-        id: created.id,
-      },
-      include: {
-        assignments: {
-          where: { isActive: true },
-          include: {
-            user: true,
+      return tx.object.findUniqueOrThrow({
+        where: { id: object.id },
+        include: {
+          assignments: {
+            where: { isActive: true },
+            include: {
+              user: true,
+            },
           },
         },
-      },
-    })) as ObjectView | null;
+      });
+    });
 
-    if (!objectWithAssignments) {
-      throw new NotFoundException('Created object not found');
-    }
-
-    return this.mapObject(objectWithAssignments, roleCodes);
+    return this.mapObject(created as ObjectView);
   }
 
   async updateObject(
@@ -235,7 +239,7 @@ export class ObjectsService {
     }
 
     const isAssignedManager = existing.assignments.some(
-      (assignment: ObjectAssignmentView) => assignment.user.id === currentUser.id,
+      (assignment) => assignment.user.id === currentUser.id,
     );
 
     const allowedToEdit =
@@ -289,7 +293,7 @@ export class ObjectsService {
       await this.syncDailyRateToTimesheets(id, newDailyRate);
     }
 
-    return this.mapObject(updated, roleCodes);
+    return this.mapObject(updated);
   }
 
   async changeStatus(
@@ -365,17 +369,12 @@ export class ObjectsService {
     return currentUser.roleCode ? [currentUser.roleCode] : [];
   }
 
-  private mapObject(
-    item: ObjectView,
-    _roleCodes: string[],
-  ): ObjectResponseDto {
-    const mappedAssignments = item.assignments.map(
-      (assignment: ObjectAssignmentView) => ({
-        userId: assignment.user.id,
-        fullName: assignment.user.fullName,
-        roleCode: assignment.assignmentRoleCode,
-      }),
-    );
+  private mapObject(item: ObjectView): ObjectResponseDto {
+    const mappedAssignments = item.assignments.map((assignment) => ({
+      userId: assignment.user.id,
+      fullName: assignment.user.fullName,
+      roleCode: assignment.assignmentRoleCode,
+    }));
 
     return {
       id: item.id,
@@ -388,8 +387,8 @@ export class ObjectsService {
       notes: item.notes,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
-      managers: mappedAssignments.filter((assignment) =>
-        ['manager', 'responsible'].includes(assignment.roleCode),
+      managers: mappedAssignments.filter(
+        (assignment) => assignment.roleCode === 'manager',
       ),
       responsibles: mappedAssignments.filter(
         (assignment) => assignment.roleCode === 'responsible',

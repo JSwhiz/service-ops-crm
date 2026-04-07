@@ -6,6 +6,14 @@ export const WIDE_OBJECT_ACCESS_ROLES = [
   'corporate_director',
 ] as const;
 
+export const OBJECT_CREATE_ROLES = [
+  'founder',
+  'deputy_founder',
+  'director',
+  'deputy_director',
+  'corporate_director',
+] as const;
+
 export const OBJECT_EDIT_ROLES = [
   'founder',
   'deputy_founder',
@@ -29,6 +37,14 @@ export function hasWideObjectAccess(roleCodes: string[]): boolean {
   return roleCodes.some((role) =>
     WIDE_OBJECT_ACCESS_ROLES.includes(
       role as (typeof WIDE_OBJECT_ACCESS_ROLES)[number],
+    ),
+  );
+}
+
+export function canCreateObject(roleCodes: string[]): boolean {
+  return roleCodes.some((role) =>
+    OBJECT_CREATE_ROLES.includes(
+      role as (typeof OBJECT_CREATE_ROLES)[number],
     ),
   );
 }

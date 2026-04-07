@@ -7,18 +7,19 @@ import {
   Post,
   Put,
   Query,
-  Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
 import { CreateArrivalPhotoDto } from './dto/create-arrival-photo.dto';
 import { CreateObjectCommentDto } from './dto/create-object-comment.dto';
+import { ListEmployeeDirectoryQueryDto } from './dto/list-employee-directory-query.dto';
 import { ListObjectFeedQueryDto } from './dto/list-object-feed-query.dto';
 import { ObjectArrivalPhotoResponseDto } from './dto/object-arrival-photo-response.dto';
+import { ObjectAttendanceResponseDto } from './dto/object-attendance-response.dto';
 import { ObjectCommentResponseDto } from './dto/object-comment-response.dto';
 import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response.dto';
 import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
@@ -26,14 +27,13 @@ import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 import { ObjectOperationsService } from './object-operations.service';
-import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
-import { SearchEmployeeQueryDto } from './dto/search-employee-query.dto';
 
 interface CurrentAuthUser {
   id: string;
   login: string;
   fullName: string;
   roleCode: string;
+  roleCodes?: string[];
   isActive: boolean;
 }
 
@@ -45,17 +45,11 @@ export class ObjectOperationsController {
   ) {}
 
   @Get('arrival-photo/today')
-  async getTodayArrivalPhoto(
+  getTodayArrivalPhoto(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
-    @Res() response: Response,
-  ): Promise<void> {
-    const result = await this.objectOperationsService.getTodayArrivalPhoto(
-      user,
-      objectId,
-    );
-
-    response.json(result ?? null);
+  ): Promise<ObjectArrivalPhotoResponseDto | null> {
+    return this.objectOperationsService.getTodayArrivalPhoto(user, objectId);
   }
 
   @Post('arrival-photo')
@@ -72,17 +66,11 @@ export class ObjectOperationsController {
   }
 
   @Get('daily-report/today')
-  async getTodayDailyReport(
+  getTodayDailyReport(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
-    @Res() response: Response,
-  ): Promise<void> {
-    const result = await this.objectOperationsService.getTodayDailyReport(
-      user,
-      objectId,
-    );
-
-    response.json(result ?? null);
+  ): Promise<ObjectDailyReportResponseDto | null> {
+    return this.objectOperationsService.getTodayDailyReport(user, objectId);
   }
 
   @Put('daily-report/today')
@@ -124,19 +112,6 @@ export class ObjectOperationsController {
     return this.objectOperationsService.getFeed(user, objectId, query);
   }
 
-  @Post('attendance')
-  upsertObjectAttendance(
-    @CurrentUser() user: CurrentAuthUser,
-    @Param('id') objectId: string,
-    @Body() payload: UpsertObjectAttendanceDto,
-  ): Promise<{ success: true }> {
-    return this.objectOperationsService.upsertObjectAttendance(
-      user,
-      objectId,
-      payload,
-    );
-  }
-
   @Get('employees')
   listObjectEmployees(
     @CurrentUser() user: CurrentAuthUser,
@@ -145,21 +120,13 @@ export class ObjectOperationsController {
     return this.objectOperationsService.listObjectEmployees(user, objectId);
   }
 
-  @Get('ping')
-  ping(): { ok: true; scope: string } {
-    return {
-      ok: true,
-      scope: 'object-operations',
-    };
-  }
-
   @Get('employee-directory')
-  searchEmployeesForObject(
+  searchEmployeeDirectory(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
-    @Query() query: SearchEmployeeQueryDto,
+    @Query() query: ListEmployeeDirectoryQueryDto,
   ): Promise<ObjectEmployeeOptionDto[]> {
-    return this.objectOperationsService.searchEmployeesForObject(
+    return this.objectOperationsService.searchEmployeeDirectory(
       user,
       objectId,
       query,
@@ -189,6 +156,27 @@ export class ObjectOperationsController {
       user,
       objectId,
       employeeId,
+    );
+  }
+
+  @Get('attendance/today')
+  getTodayAttendance(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+  ): Promise<ObjectAttendanceResponseDto> {
+    return this.objectOperationsService.getTodayAttendance(user, objectId);
+  }
+
+  @Post('attendance')
+  upsertObjectAttendance(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Body() payload: UpsertObjectAttendanceDto,
+  ): Promise<{ success: true }> {
+    return this.objectOperationsService.upsertObjectAttendance(
+      user,
+      objectId,
+      payload,
     );
   }
 }

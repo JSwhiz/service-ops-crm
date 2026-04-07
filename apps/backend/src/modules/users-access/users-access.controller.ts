@@ -2,22 +2,16 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-import { UsersService } from './users.service';
+import { UsersAccessService } from './users-access.service';
+import { SystemUserOptionDto } from './dto/system-user-option.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('users-access')
 export class UsersAccessController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersAccessService: UsersAccessService) {}
 
   @Get('users')
-  async listUsers(): Promise<
-    Array<{
-      id: string;
-      login: string;
-      fullName: string;
-      isActive: boolean;
-    }>
-  > {
-    return this.usersService.listUsers();
+  async listUsers(): Promise<SystemUserOptionDto[]> {
+    return this.usersAccessService.listUsers();
   }
 }

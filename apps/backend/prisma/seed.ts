@@ -32,6 +32,16 @@ async function main(): Promise<void> {
     },
   });
 
+  const managerRole = await prisma.role.upsert({
+    where: { code: 'manager' },
+    update: {},
+    create: {
+      code: 'manager',
+      name: 'Менеджер',
+      description: 'Системная роль менеджера объекта',
+    },
+  });
+
   const permissions = [
     { code: 'auth.login', name: 'Вход в систему' },
     { code: 'objects.read', name: 'Чтение объектов' },
@@ -84,6 +94,34 @@ async function main(): Promise<void> {
     },
   });
 
+  const managerOne = await prisma.user.upsert({
+    where: { login: 'manager1' },
+    update: {
+      fullName: 'Менеджер Первый',
+      isActive: true,
+    },
+    create: {
+      login: 'manager1',
+      password: 'manager123',
+      fullName: 'Менеджер Первый',
+      isActive: true,
+    },
+  });
+
+  const managerTwo = await prisma.user.upsert({
+    where: { login: 'manager2' },
+    update: {
+      fullName: 'Менеджер Второй',
+      isActive: true,
+    },
+    create: {
+      login: 'manager2',
+      password: 'manager123',
+      fullName: 'Менеджер Второй',
+      isActive: true,
+    },
+  });
+
   await prisma.userRole.upsert({
     where: {
       userId_roleId: {
@@ -109,6 +147,34 @@ async function main(): Promise<void> {
     create: {
       userId: director.id,
       roleId: directorRole.id,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: managerOne.id,
+        roleId: managerRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: managerOne.id,
+      roleId: managerRole.id,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: managerTwo.id,
+        roleId: managerRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: managerTwo.id,
+      roleId: managerRole.id,
     },
   });
 
@@ -143,14 +209,14 @@ async function main(): Promise<void> {
       objectId_userId_assignmentRoleCode: {
         objectId: objectOne.id,
         userId: founder.id,
-        assignmentRoleCode: 'manager',
+        assignmentRoleCode: 'responsible',
       },
     },
     update: { isActive: true },
     create: {
       objectId: objectOne.id,
       userId: founder.id,
-      assignmentRoleCode: 'manager',
+      assignmentRoleCode: 'responsible',
       isActive: true,
     },
   });
@@ -160,27 +226,44 @@ async function main(): Promise<void> {
       objectId_userId_assignmentRoleCode: {
         objectId: objectOne.id,
         userId: director.id,
-        assignmentRoleCode: 'responsible',
+        assignmentRoleCode: 'manager',
       },
     },
     update: { isActive: true },
     create: {
       objectId: objectOne.id,
       userId: director.id,
-      assignmentRoleCode: 'responsible',
+      assignmentRoleCode: 'manager',
+      isActive: true,
+    },
+  });
+
+  await prisma.objectAssignment.upsert({
+    where: {
+      objectId_userId_assignmentRoleCode: {
+        objectId: objectOne.id,
+        userId: managerOne.id,
+        assignmentRoleCode: 'manager',
+      },
+    },
+    update: { isActive: true },
+    create: {
+      objectId: objectOne.id,
+      userId: managerOne.id,
+      assignmentRoleCode: 'manager',
       isActive: true,
     },
   });
 
   const employeeIvan = await prisma.employee.upsert({
-    where: { id: '55555555-5555-5555-5555-555555555555' },
+    where: { id: '4f1a8d0a-4c0d-4b66-8e2d-111111111111' },
     update: {
       fullName: 'Иван Петров',
       employmentStatus: 'active',
       deletedAt: null,
     },
     create: {
-      id: '55555555-5555-5555-5555-555555555555',
+      id: '4f1a8d0a-4c0d-4b66-8e2d-111111111111',
       fullName: 'Иван Петров',
       employmentStatus: 'active',
       phone: '+79990000001',
@@ -188,14 +271,14 @@ async function main(): Promise<void> {
   });
 
   const employeeSergey = await prisma.employee.upsert({
-    where: { id: '66666666-6666-6666-6666-666666666666' },
+    where: { id: '6b9b0e4c-2d5f-4e3f-9c1a-222222222222' },
     update: {
       fullName: 'Сергей Иванов',
       employmentStatus: 'active',
       deletedAt: null,
     },
     create: {
-      id: '66666666-6666-6666-6666-666666666666',
+      id: '6b9b0e4c-2d5f-4e3f-9c1a-222222222222',
       fullName: 'Сергей Иванов',
       employmentStatus: 'active',
       phone: '+79990000002',
@@ -203,14 +286,14 @@ async function main(): Promise<void> {
   });
 
   const employeeAlexey = await prisma.employee.upsert({
-    where: { id: '77777777-7777-7777-7777-777777777777' },
+    where: { id: '8c2f4d1b-7a61-4d73-a7de-333333333333' },
     update: {
       fullName: 'Алексей Смирнов',
       employmentStatus: 'active',
       deletedAt: null,
     },
     create: {
-      id: '77777777-7777-7777-7777-777777777777',
+      id: '8c2f4d1b-7a61-4d73-a7de-333333333333',
       fullName: 'Алексей Смирнов',
       employmentStatus: 'active',
       phone: '+79990000003',
@@ -269,13 +352,15 @@ async function main(): Promise<void> {
       },
     },
     update: {
-      content: 'На объекте выполнены базовые работы. Замечаний по текущему дню нет.',
+      content:
+        'На объекте выполнены базовые работы. Замечаний по текущему дню нет.',
       updatedByUserId: founder.id,
     },
     create: {
       objectId: objectOne.id,
       reportDate: today,
-      content: 'На объекте выполнены базовые работы. Замечаний по текущему дню нет.',
+      content:
+        'На объекте выполнены базовые работы. Замечаний по текущему дню нет.',
       updatedByUserId: founder.id,
     },
   });

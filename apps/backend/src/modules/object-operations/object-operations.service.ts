@@ -7,28 +7,41 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
 import { CreateArrivalPhotoDto } from './dto/create-arrival-photo.dto';
 import { CreateObjectCommentDto } from './dto/create-object-comment.dto';
+import { ListEmployeeDirectoryQueryDto } from './dto/list-employee-directory-query.dto';
 import { ListObjectFeedQueryDto } from './dto/list-object-feed-query.dto';
 import { ObjectArrivalPhotoResponseDto } from './dto/object-arrival-photo-response.dto';
+import { ObjectAttendanceResponseDto } from './dto/object-attendance-response.dto';
 import { ObjectCommentResponseDto } from './dto/object-comment-response.dto';
 import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response.dto';
+import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
+import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 import { hasWideObjectAccess } from './utils/object-operation-access.util';
-import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 
 interface CurrentAuthUser {
   id: string;
   login: string;
   fullName: string;
   roleCode: string;
+  roleCodes?: string[];
   isActive: boolean;
 }
 
 function startOfToday(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function todayAsBusinessDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 @Injectable()
@@ -160,27 +173,279 @@ export class ObjectOperationsService {
     await this.assertObjectVisible(currentUser, objectId);
 
     const items = await this.prisma.objectComment.findMany({
-      where: {
-        objectId,
-      },
-      include: {
-        createdBy: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      where: { objectId },
+      include: { createdBy: true },
+      orderBy: { createdAt: 'desc' },
       take: 30,
     });
 
     return items.map((item) => this.mapComment(item));
   }
 
+  async createComment(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    payload: CreateObjectCommentDto,
+  ): Promise<ObjectCommentResponseDto> {
+    await this.assertObjectWritable(currentUser, objectId);
+
+    const item = await this.prisma.objectComment.create({
+      data: {
+        objectId,
+        content: payload.content,
+        commentType: payload.commentType ?? 'manual',
+        createdByUserId: currentUser.id,
+      },
+      include: {
+        createdBy: true,
+      },
+    });
+
+    return this.mapComment(item);
+  }
+
+  async getFeed(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    query: ListObjectFeedQueryDto,
+  ): Promise<ObjectFeedItemDto[]> {
+    await this.assertObjectVisible(currentUser, objectId);
+
+    const limit = Math.max(1, Math.min(Number(query.limit || 20), 100));
+
+    const [arrivals, reports, comments] = await Promise.all([
+      this.prisma.objectArrivalPhoto.findMany({
+        where: { objectId },
+        include: { createdBy: true },
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+      }),
+      this.prisma.objectDailyReport.findMany({
+        where: { objectId },
+        include: { updatedBy: true },
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+      }),
+      this.prisma.objectComment.findMany({
+        where: { objectId },
+        include: { createdBy: true },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+    ]);
+
+    const feed: ObjectFeedItemDto[] = [
+      ...arrivals.map((item) => ({
+        type: 'arrival_photo' as const,
+        id: item.id,
+        occurredAt: item.updatedAt.toISOString(),
+        title: 'Фото прибытия',
+        description: item.comment ?? item.photoUrl,
+        author: {
+          id: item.createdBy.id,
+          login: item.createdBy.login,
+          fullName: item.createdBy.fullName,
+        },
+      })),
+      ...reports.map((item) => ({
+        type: 'daily_report' as const,
+        id: item.id,
+        occurredAt: item.updatedAt.toISOString(),
+        title: 'Ежедневный отчет',
+        description: item.content,
+        author: {
+          id: item.updatedBy.id,
+          login: item.updatedBy.login,
+          fullName: item.updatedBy.fullName,
+        },
+      })),
+      ...comments.map((item) => ({
+        type: 'comment' as const,
+        id: item.id,
+        occurredAt: item.createdAt.toISOString(),
+        title:
+          item.commentType === 'system' ? 'Служебная запись' : 'Комментарий',
+        description: item.content,
+        author: {
+          id: item.createdBy.id,
+          login: item.createdBy.login,
+          fullName: item.createdBy.fullName,
+        },
+      })),
+    ];
+
+    return feed
+      .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1))
+      .slice(0, limit);
+  }
+
+  async listObjectEmployees(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<ObjectEmployeeOptionDto[]> {
+    await this.assertObjectVisible(currentUser, objectId);
+
+    const items = await this.prisma.objectEmployeeAssignment.findMany({
+      where: {
+        objectId,
+        isActive: true,
+        employee: {
+          deletedAt: null,
+        },
+      },
+      include: {
+        employee: true,
+      },
+      orderBy: {
+        employee: {
+          fullName: 'asc',
+        },
+      },
+    });
+
+    return items.map((item) => ({
+      id: item.employee.id,
+      fullName: item.employee.fullName,
+    }));
+  }
+
+  async searchEmployeeDirectory(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    query: ListEmployeeDirectoryQueryDto,
+  ): Promise<ObjectEmployeeOptionDto[]> {
+    await this.assertObjectWritable(currentUser, objectId);
+
+    const items = await this.prisma.employee.findMany({
+      where: {
+        deletedAt: null,
+        employmentStatus: 'active',
+        ...(query.search?.trim()
+          ? {
+              fullName: {
+                contains: query.search.trim(),
+                mode: 'insensitive',
+              },
+            }
+          : {}),
+      },
+      orderBy: {
+        fullName: 'asc',
+      },
+      take: 20,
+    });
+
+    return items.map((item) => ({
+      id: item.id,
+      fullName: item.fullName,
+    }));
+  }
+
+  async addEmployeeToObject(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    payload: AddObjectEmployeeDto,
+  ): Promise<{ success: true }> {
+    await this.assertObjectWritable(currentUser, objectId);
+
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: objectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Object not found');
+    }
+
+    const employee = await this.prisma.employee.findFirst({
+      where: {
+        id: payload.employeeId,
+        deletedAt: null,
+        employmentStatus: 'active',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    await this.prisma.objectEmployeeAssignment.upsert({
+      where: {
+        objectId_employeeId: {
+          objectId,
+          employeeId: payload.employeeId,
+        },
+      },
+      update: {
+        isActive: true,
+      },
+      create: {
+        objectId,
+        employeeId: payload.employeeId,
+        isActive: true,
+      },
+    });
+
+    return { success: true };
+  }
+
+  async removeEmployeeFromObject(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    employeeId: string,
+  ): Promise<{ success: true }> {
+    await this.assertObjectWritable(currentUser, objectId);
+
+    await this.prisma.objectEmployeeAssignment.updateMany({
+      where: {
+        objectId,
+        employeeId,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return { success: true };
+  }
+
+  async getTodayAttendance(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<ObjectAttendanceResponseDto> {
+    await this.assertObjectVisible(currentUser, objectId);
+
+    const facts = await this.prisma.objectAttendanceFact.findMany({
+      where: {
+        objectId,
+        operationDate: startOfToday(),
+      },
+      select: {
+        employeeId: true,
+      },
+    });
+
+    return {
+      operationDate: todayAsBusinessDate(),
+      employeeIds: facts.map((item) => item.employeeId),
+    };
+  }
 
   async upsertObjectAttendance(
-    currentUser: { id: string; roleCode: string; roleCodes?: string[] },
+    currentUser: CurrentAuthUser,
     objectId: string,
-    payload: { operationDate: string; employeeIds: string[] },
+    payload: UpsertObjectAttendanceDto,
   ): Promise<{ success: true }> {
+    await this.assertObjectWritable(currentUser, objectId);
+
     const object = await this.prisma.object.findFirst({
       where: {
         id: objectId,
@@ -321,103 +586,6 @@ export class ObjectOperationsService {
     return { success: true };
   }
 
-
-  async createComment(
-    currentUser: CurrentAuthUser,
-    objectId: string,
-    payload: CreateObjectCommentDto,
-  ): Promise<ObjectCommentResponseDto> {
-    await this.assertObjectWritable(currentUser, objectId);
-
-    const item = await this.prisma.objectComment.create({
-      data: {
-        objectId,
-        content: payload.content,
-        commentType: payload.commentType ?? 'manual',
-        createdByUserId: currentUser.id,
-      },
-      include: {
-        createdBy: true,
-      },
-    });
-
-    return this.mapComment(item);
-  }
-
-  async getFeed(
-    currentUser: CurrentAuthUser,
-    objectId: string,
-    query: ListObjectFeedQueryDto,
-  ): Promise<ObjectFeedItemDto[]> {
-    await this.assertObjectVisible(currentUser, objectId);
-
-    const limit = Math.max(1, Math.min(Number(query.limit || 20), 100));
-
-    const [arrivals, reports, comments] = await Promise.all([
-      this.prisma.objectArrivalPhoto.findMany({
-        where: { objectId },
-        include: { createdBy: true },
-        orderBy: { updatedAt: 'desc' },
-        take: limit,
-      }),
-      this.prisma.objectDailyReport.findMany({
-        where: { objectId },
-        include: { updatedBy: true },
-        orderBy: { updatedAt: 'desc' },
-        take: limit,
-      }),
-      this.prisma.objectComment.findMany({
-        where: { objectId },
-        include: { createdBy: true },
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-      }),
-    ]);
-
-    const feed: ObjectFeedItemDto[] = [
-      ...arrivals.map((item) => ({
-        type: 'arrival_photo' as const,
-        id: item.id,
-        occurredAt: item.updatedAt.toISOString(),
-        title: 'Фото прибытия',
-        description: item.comment ?? item.photoUrl,
-        author: {
-          id: item.createdBy.id,
-          login: item.createdBy.login,
-          fullName: item.createdBy.fullName,
-        },
-      })),
-      ...reports.map((item) => ({
-        type: 'daily_report' as const,
-        id: item.id,
-        occurredAt: item.updatedAt.toISOString(),
-        title: 'Ежедневный отчет',
-        description: item.content,
-        author: {
-          id: item.updatedBy.id,
-          login: item.updatedBy.login,
-          fullName: item.updatedBy.fullName,
-        },
-      })),
-      ...comments.map((item) => ({
-        type: 'comment' as const,
-        id: item.id,
-        occurredAt: item.createdAt.toISOString(),
-        title: item.commentType === 'system' ? 'Служебная запись' : 'Комментарий',
-        description: item.content,
-        author: {
-          id: item.createdBy.id,
-          login: item.createdBy.login,
-          fullName: item.createdBy.fullName,
-        },
-      })),
-    ];
-
-    return feed
-      .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1))
-      .slice(0, limit);
-  }
-
   private async assertObjectVisible(
     currentUser: CurrentAuthUser,
     objectId: string,
@@ -440,7 +608,8 @@ export class ObjectOperationsService {
       throw new NotFoundException('Object not found');
     }
 
-    const wideAccess = hasWideObjectAccess([currentUser.roleCode]);
+    const roleCodes = this.getRoleCodes(currentUser);
+    const wideAccess = hasWideObjectAccess(roleCodes);
     const isAssigned = object.assignments.some(
       (assignment) => assignment.userId === currentUser.id,
     );
@@ -455,6 +624,14 @@ export class ObjectOperationsService {
     objectId: string,
   ): Promise<void> {
     await this.assertObjectVisible(currentUser, objectId);
+  }
+
+  private getRoleCodes(currentUser: CurrentAuthUser): string[] {
+    if (currentUser.roleCodes && currentUser.roleCodes.length > 0) {
+      return currentUser.roleCodes;
+    }
+
+    return currentUser.roleCode ? [currentUser.roleCode] : [];
   }
 
   private mapArrivalPhoto(item: {
@@ -545,7 +722,7 @@ export class ObjectOperationsService {
     };
   }
 
-    private parseBusinessDate(rawDate: string): Date {
+  private parseBusinessDate(rawDate: string): Date {
     const parts = rawDate.split('-');
 
     if (parts.length !== 3) {
@@ -553,7 +730,6 @@ export class ObjectOperationsService {
     }
 
     const [yearRaw, monthRaw, dayRaw] = parts;
-
     const year = Number(yearRaw);
     const month = Number(monthRaw);
     const day = Number(dayRaw);
@@ -585,134 +761,5 @@ export class ObjectOperationsService {
     }
 
     return parsed;
-  }
-
-    async listObjectEmployees(
-      currentUser: {
-        id: string;
-        roleCode: string;
-        roleCodes?: string[];
-      },
-      objectId: string,
-    ): Promise<ObjectEmployeeOptionDto[]> {
-      const object = await this.prisma.object.findFirst({
-        where: {
-          id: objectId,
-          deletedAt: null,
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (!object) {
-        throw new NotFoundException('Object not found');
-      }
-
-    const assignments = await this.prisma.objectEmployeeAssignment.findMany({
-      where: {
-        objectId,
-        isActive: true,
-        employee: {
-          deletedAt: null,
-        },
-      },
-      include: {
-        employee: true,
-      },
-      orderBy: {
-        employee: {
-          fullName: 'asc',
-        },
-      },
-    });
-
-    return assignments.map((assignment) => ({
-      id: assignment.employee.id,
-      fullName: assignment.employee.fullName,
-    }));
-  }
-
-  async searchEmployeesForObject(
-    currentUser: CurrentAuthUser,
-    objectId: string,
-    query: { search?: string },
-  ): Promise<ObjectEmployeeOptionDto[]> {
-    await this.assertObjectWritable(currentUser, objectId);
-
-    const items = await this.prisma.employee.findMany({
-      where: {
-        deletedAt: null,
-        employmentStatus: 'active',
-        ...(query.search
-          ? {
-              fullName: {
-                contains: query.search,
-                mode: 'insensitive',
-              },
-            }
-          : {}),
-      },
-      select: {
-        id: true,
-        fullName: true,
-      },
-      orderBy: {
-        fullName: 'asc',
-      },
-      take: 20,
-    });
-
-    return items.map((item) => ({
-      id: item.id,
-      fullName: item.fullName,
-    }));
-  }
-
-  async addEmployeeToObject(
-    currentUser: CurrentAuthUser,
-    objectId: string,
-    payload: { employeeId: string },
-  ): Promise<{ success: true }> {
-    await this.assertObjectWritable(currentUser, objectId);
-
-    await this.prisma.objectEmployeeAssignment.upsert({
-      where: {
-        objectId_employeeId: {
-          objectId,
-          employeeId: payload.employeeId,
-        },
-      },
-      update: {
-        isActive: true,
-      },
-      create: {
-        objectId,
-        employeeId: payload.employeeId,
-        isActive: true,
-      },
-    });
-
-    return { success: true };
-  }
-
-  async removeEmployeeFromObject(
-    currentUser: CurrentAuthUser,
-    objectId: string,
-    employeeId: string,
-  ): Promise<{ success: true }> {
-    await this.assertObjectWritable(currentUser, objectId);
-
-    await this.prisma.objectEmployeeAssignment.updateMany({
-      where: {
-        objectId,
-        employeeId,
-      },
-      data: {
-        isActive: false,
-      },
-    });
-
-    return { success: true };
   }
 }
