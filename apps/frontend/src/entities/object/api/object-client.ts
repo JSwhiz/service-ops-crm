@@ -33,21 +33,6 @@ export interface ChangeObjectStatusPayload {
   status: string;
 }
 
-export interface AssignObjectUserPayload {
-  userId: string;
-}
-
-export interface ObjectEmployeeOption {
-  id: string;
-  fullName: string;
-}
-
-export interface UpsertObjectAttendancePayload {
-  operationDate: string;
-  employeeIds: string[];
-  comment?: string;
-}
-
 function buildObjectsQuery(params?: ListObjectsParams): string {
   if (!params) {
     return '';
@@ -115,64 +100,47 @@ export async function changeObjectStatus(
   });
 }
 
-export async function assignObjectResponsible(
-  objectId: string,
-  payload: AssignObjectUserPayload,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${objectId}/responsibles`, {
-    method: 'POST',
-    token: getAccessToken(),
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function removeObjectResponsible(
+export async function addResponsibleToObject(
   objectId: string,
   userId: string,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${objectId}/responsibles/${userId}`, {
-    method: 'DELETE',
-    token: getAccessToken(),
-  });
-}
-
-export async function assignObjectManager(
-  objectId: string,
-  payload: AssignObjectUserPayload,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${objectId}/managers`, {
-    method: 'POST',
-    token: getAccessToken(),
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function removeObjectManager(
-  objectId: string,
-  userId: string,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${objectId}/managers/${userId}`, {
-    method: 'DELETE',
-    token: getAccessToken(),
-  });
-}
-
-export async function listObjectEmployees(
-  objectId: string,
-): Promise<ObjectEmployeeOption[]> {
-  return fetcher<ObjectEmployeeOption[]>(`/objects/${objectId}/employees`, {
-    method: 'GET',
-    token: getAccessToken(),
-  });
-}
-
-export async function upsertObjectAttendance(
-  objectId: string,
-  payload: UpsertObjectAttendancePayload,
 ): Promise<{ success: true }> {
-  return fetcher<{ success: true }>(`/objects/${objectId}/attendance`, {
+  return fetcher<{ success: true }>(`/objects/${objectId}/responsibles`, {
     method: 'POST',
     token: getAccessToken(),
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export async function removeResponsibleFromObject(
+  objectId: string,
+  userId: string,
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(
+    `/objects/${objectId}/responsibles/${userId}`,
+    {
+      method: 'DELETE',
+      token: getAccessToken(),
+    },
+  );
+}
+
+export async function addManagerToObject(
+  objectId: string,
+  userId: string,
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/objects/${objectId}/managers`, {
+    method: 'POST',
+    token: getAccessToken(),
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export async function removeManagerFromObject(
+  objectId: string,
+  userId: string,
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/objects/${objectId}/managers/${userId}`, {
+    method: 'DELETE',
+    token: getAccessToken(),
   });
 }

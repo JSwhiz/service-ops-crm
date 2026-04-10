@@ -3,21 +3,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
-  assignObjectManager,
-  assignObjectResponsible,
+  addManagerToObject,
+  addResponsibleToObject,
   getObjectById,
-  listObjectEmployees,
-  removeObjectManager,
-  removeObjectResponsible,
-  type ObjectEmployeeOption,
-  upsertObjectAttendance,
+  removeManagerFromObject,
+  removeResponsibleFromObject,
 } from '@/entities/object/api/object-client';
+import type { ObjectEmployeeOption } from '@/entities/object/api/object-client';
 import {
+  addEmployeeToObject,
   createObjectComment,
   getObjectFeed,
   getTodayArrivalPhoto,
   getTodayDailyReport,
+  getTodayObjectAttendance,
   listObjectComments,
+  listObjectEmployees,
+  removeEmployeeFromObject,
+  searchEmployeeDirectory,
+  upsertObjectAttendance,
   upsertTodayArrivalPhoto,
   upsertTodayDailyReport,
 } from '@/entities/object/api/object-operations-client';
@@ -39,13 +43,15 @@ import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-at
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
-import { ObjectManagersPanel } from '@/features/object-managers/ui/object-managers-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
+import { ObjectStaffingPanel } from '@/features/object-staffing/ui/object-staffing-panel';
+import { ObjectTeamPanel } from '@/features/object-team/ui/object-team-panel';
 import {
   ObjectPanelError,
   ObjectPanelLoading,
 } from '@/features/object-state/ui/object-state-panels';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
+import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 const LEADERSHIP_ROLE_CODES = [
@@ -57,14 +63,14 @@ const LEADERSHIP_ROLE_CODES = [
 ] as const;
 
 const MANAGER_ROLE_CODES = [
-  'founder',
-  'deputy_founder',
-  'director',
-  'deputy_director',
-  'corporate_director',
   'manager',
   'senior_manager',
   'operation_manager',
+  'director',
+  'deputy_director',
+  'corporate_director',
+  'founder',
+  'deputy_founder',
 ] as const;
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -75,12 +81,16 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function hasAnyRole(user: SystemUserOption, allowed: readonly string[]): boolean {
-  const roleCodes = user.roleCodes?.length ? user.roleCodes : [user.roleCode];
+function todayAsBusinessDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
-  return roleCodes.some((roleCode) =>
-    allowed.includes(roleCode as (typeof allowed)[number]),
-  );
+function hasAnyRole(roleCodes: string[], allowed: readonly string[]): boolean {
+  return roleCodes.some((roleCode) => allowed.includes(roleCode));
 }
 
 export default function ObjectDetailPage({
@@ -88,19 +98,39 @@ export default function ObjectDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const { user } = useAuth();
+
   const [objectId, setObjectId] = useState<string>('');
 
   const [item, setItem] = useState<ServiceObject | null>(null);
   const [coreLoading, setCoreLoading] = useState(true);
   const [coreError, setCoreError] = useState<string | null>(null);
 
-  const [users, setUsers] = useState<SystemUserOption[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
-  const [usersError, setUsersError] = useState<string | null>(null);
+  const [systemUsers, setSystemUsers] = useState<SystemUserOption[]>([]);
+  const [systemUsersLoading, setSystemUsersLoading] = useState(true);
+  const [systemUsersError, setSystemUsersError] = useState<string | null>(null);
 
-  const [employees, setEmployees] = useState<ObjectEmployeeOption[]>([]);
-  const [employeesLoading, setEmployeesLoading] = useState(true);
-  const [employeesError, setEmployeesError] = useState<string | null>(null);
+  const [assignedEmployees, setAssignedEmployees] = useState<
+    ObjectEmployeeOption[]
+  >([]);
+  const [assignedEmployeesLoading, setAssignedEmployeesLoading] =
+    useState(true);
+  const [assignedEmployeesError, setAssignedEmployeesError] = useState<
+    string | null
+  >(null);
+
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [directoryEmployees, setDirectoryEmployees] = useState<
+    ObjectEmployeeOption[]
+  >([]);
+  const [directoryLoading, setDirectoryLoading] = useState(true);
+  const [directoryError, setDirectoryError] = useState<string | null>(null);
+
+  const [attendanceEmployeeIds, setAttendanceEmployeeIds] = useState<string[]>(
+    [],
+  );
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
+  const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
   const [arrival, setArrival] = useState<ObjectArrivalPhoto | null>(null);
   const [arrivalLoading, setArrivalLoading] = useState(true);
@@ -122,236 +152,337 @@ export default function ObjectDetailPage({
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isCancelled = false;
+  const currentUserRoleCodes = useMemo(() => {
+    if (!user) {
+      return [];
+    }
 
-    const resolveAndLoad = async (): Promise<void> => {
+    if (user.roleCodes && user.roleCodes.length > 0) {
+      return user.roleCodes;
+    }
+
+    return user.roleCode ? [user.roleCode] : [];
+  }, [user]);
+
+  const canManageResponsibles = hasAnyRole(
+    currentUserRoleCodes,
+    LEADERSHIP_ROLE_CODES,
+  );
+
+  const canManageManagers =
+    canManageResponsibles ||
+    Boolean(item?.responsibles.some((responsible) => responsible.userId === user?.id));
+
+  const responsibleCandidates = useMemo(() => {
+    return systemUsers.filter((candidate) =>
+      hasAnyRole(candidate.roleCodes ?? [candidate.roleCode], LEADERSHIP_ROLE_CODES),
+    );
+  }, [systemUsers]);
+
+  const managerCandidates = useMemo(() => {
+    return systemUsers.filter((candidate) =>
+      hasAnyRole(candidate.roleCodes ?? [candidate.roleCode], MANAGER_ROLE_CODES),
+    );
+  }, [systemUsers]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const boot = async (): Promise<void> => {
       const resolved = await params;
 
-      if (isCancelled) {
+      if (cancelled) {
         return;
       }
 
       setObjectId(resolved.id);
 
       await Promise.all([
-        loadCore(resolved.id, isCancelled),
-        loadUsers(isCancelled),
-        loadEmployees(resolved.id, isCancelled),
-        loadOperations(resolved.id, isCancelled),
+        loadCore(resolved.id, cancelled),
+        loadSystemUsers(cancelled),
+        loadArrival(resolved.id, cancelled),
+        loadReport(resolved.id, cancelled),
+        loadComments(resolved.id, cancelled),
+        loadFeed(resolved.id, cancelled),
+        loadTasks(resolved.id, cancelled),
+        loadAssignedEmployees(resolved.id, cancelled),
+        loadAttendance(resolved.id, cancelled),
+        loadDirectory(resolved.id, '', cancelled),
       ]);
     };
 
-    void resolveAndLoad();
+    void boot();
 
     return () => {
-      isCancelled = true;
+      cancelled = true;
     };
   }, [params]);
 
-  const loadCore = async (
-    resolvedId: string,
-    isCancelled = false,
-  ): Promise<void> => {
+  useEffect(() => {
+    if (!objectId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const timeout = window.setTimeout(() => {
+      void loadDirectory(objectId, employeeSearch, cancelled);
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [objectId, employeeSearch]);
+
+  const loadCore = async (id: string, cancelled = false): Promise<void> => {
     setCoreLoading(true);
     setCoreError(null);
 
     try {
-      const response = await getObjectById(resolvedId);
-      if (!isCancelled) {
+      const response = await getObjectById(id);
+
+      if (!cancelled) {
         setItem(response);
       }
-    } catch (error: unknown) {
-      if (!isCancelled) {
+    } catch (error) {
+      if (!cancelled) {
         setCoreError(
           getErrorMessage(error, 'Не удалось загрузить карточку объекта.'),
         );
       }
     } finally {
-      if (!isCancelled) {
+      if (!cancelled) {
         setCoreLoading(false);
       }
     }
   };
 
-  const loadUsers = async (isCancelled = false): Promise<void> => {
-    setUsersLoading(true);
-    setUsersError(null);
+  const loadSystemUsers = async (cancelled = false): Promise<void> => {
+    setSystemUsersLoading(true);
+    setSystemUsersError(null);
 
     try {
       const response = await listSystemUsers();
-      if (!isCancelled) {
-        setUsers(response);
+
+      if (!cancelled) {
+        setSystemUsers(response);
       }
-    } catch (error: unknown) {
-      if (!isCancelled) {
-        setUsersError(
+    } catch (error) {
+      if (!cancelled) {
+        setSystemUsersError(
+          getErrorMessage(error, 'Не удалось загрузить пользователей системы.'),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setSystemUsersLoading(false);
+      }
+    }
+  };
+
+  const loadArrival = async (id: string, cancelled = false): Promise<void> => {
+    setArrivalLoading(true);
+    setArrivalError(null);
+
+    try {
+      const response = await getTodayArrivalPhoto(id);
+
+      if (!cancelled) {
+        setArrival(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setArrivalError(
+          getErrorMessage(error, 'Не удалось загрузить фото прибытия.'),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setArrivalLoading(false);
+      }
+    }
+  };
+
+  const loadReport = async (id: string, cancelled = false): Promise<void> => {
+    setReportLoading(true);
+    setReportError(null);
+
+    try {
+      const response = await getTodayDailyReport(id);
+
+      if (!cancelled) {
+        setReport(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setReportError(
+          getErrorMessage(error, 'Не удалось загрузить отчет дня.'),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setReportLoading(false);
+      }
+    }
+  };
+
+  const loadComments = async (
+    id: string,
+    cancelled = false,
+  ): Promise<void> => {
+    setCommentsLoading(true);
+    setCommentsError(null);
+
+    try {
+      const response = await listObjectComments(id);
+
+      if (!cancelled) {
+        setComments(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setCommentsError(
+          getErrorMessage(error, 'Не удалось загрузить комментарии объекта.'),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setCommentsLoading(false);
+      }
+    }
+  };
+
+  const loadFeed = async (id: string, cancelled = false): Promise<void> => {
+    setFeedLoading(true);
+    setFeedError(null);
+
+    try {
+      const response = await getObjectFeed(id);
+
+      if (!cancelled) {
+        setFeed(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setFeedError(
+          getErrorMessage(error, 'Не удалось загрузить ленту объекта.'),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setFeedLoading(false);
+      }
+    }
+  };
+
+  const loadTasks = async (id: string, cancelled = false): Promise<void> => {
+    setTasksLoading(true);
+    setTasksError(null);
+
+    try {
+      const response = await listTasksByObject(id);
+
+      if (!cancelled) {
+        setTasks(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setTasksError(
+          getErrorMessage(error, 'Не удалось загрузить задачи объекта.'),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setTasksLoading(false);
+      }
+    }
+  };
+
+  const loadAssignedEmployees = async (
+    id: string,
+    cancelled = false,
+  ): Promise<void> => {
+    setAssignedEmployeesLoading(true);
+    setAssignedEmployeesError(null);
+
+    try {
+      const response = await listObjectEmployees(id);
+
+      if (!cancelled) {
+        setAssignedEmployees(Array.isArray(response) ? response : []);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setAssignedEmployeesError(
           getErrorMessage(
             error,
-            'Не удалось загрузить пользователей системы.',
+            'Не удалось загрузить текущий состав сотрудников.',
           ),
         );
       }
     } finally {
-      if (!isCancelled) {
-        setUsersLoading(false);
+      if (!cancelled) {
+        setAssignedEmployeesLoading(false);
       }
     }
   };
 
-  const loadEmployees = async (
-    resolvedId: string,
-    isCancelled = false,
+  const loadDirectory = async (
+    id: string,
+    search: string,
+    cancelled = false,
   ): Promise<void> => {
-    setEmployeesLoading(true);
-    setEmployeesError(null);
+    setDirectoryLoading(true);
+    setDirectoryError(null);
 
     try {
-      const response = await listObjectEmployees(resolvedId);
-      if (!isCancelled) {
-        setEmployees(response);
+      const response = await searchEmployeeDirectory(id, search);
+
+      if (!cancelled) {
+        setDirectoryEmployees(Array.isArray(response) ? response : []);
       }
-    } catch (error: unknown) {
-      if (!isCancelled) {
-        setEmployeesError(
-          getErrorMessage(error, 'Не удалось загрузить сотрудников объекта.'),
+    } catch (error) {
+      if (!cancelled) {
+        setDirectoryError(
+          getErrorMessage(error, 'Не удалось загрузить справочник сотрудников.'),
         );
       }
     } finally {
-      if (!isCancelled) {
-        setEmployeesLoading(false);
+      if (!cancelled) {
+        setDirectoryLoading(false);
       }
     }
   };
 
-  const loadOperations = async (
-    resolvedId: string,
-    isCancelled = false,
+  const loadAttendance = async (
+    id: string,
+    cancelled = false,
   ): Promise<void> => {
-    setArrivalLoading(true);
-    setArrivalError(null);
+    setAttendanceLoading(true);
+    setAttendanceError(null);
 
-    setReportLoading(true);
-    setReportError(null);
+    try {
+      const response = await getTodayObjectAttendance(id);
 
-    setCommentsLoading(true);
-    setCommentsError(null);
-
-    setFeedLoading(true);
-    setFeedError(null);
-
-    setTasksLoading(true);
-    setTasksError(null);
-
-    await Promise.all([
-      (async () => {
-        try {
-          const response = await getTodayArrivalPhoto(resolvedId);
-          if (!isCancelled) {
-            setArrival(response);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setArrivalError(
-              getErrorMessage(error, 'Не удалось загрузить фото прибытия.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setArrivalLoading(false);
-          }
-        }
-      })(),
-      (async () => {
-        try {
-          const response = await getTodayDailyReport(resolvedId);
-          if (!isCancelled) {
-            setReport(response);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setReportError(
-              getErrorMessage(error, 'Не удалось загрузить отчет дня.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setReportLoading(false);
-          }
-        }
-      })(),
-      (async () => {
-        try {
-          const response = await listObjectComments(resolvedId);
-          if (!isCancelled) {
-            setComments(response);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setCommentsError(
-              getErrorMessage(error, 'Не удалось загрузить комментарии объекта.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setCommentsLoading(false);
-          }
-        }
-      })(),
-      (async () => {
-        try {
-          const response = await getObjectFeed(resolvedId);
-          if (!isCancelled) {
-            setFeed(response);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setFeedError(
-              getErrorMessage(error, 'Не удалось загрузить ленту объекта.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setFeedLoading(false);
-          }
-        }
-      })(),
-      (async () => {
-        try {
-          const response = await listTasksByObject(resolvedId);
-          if (!isCancelled) {
-            setTasks(response);
-          }
-        } catch (error: unknown) {
-          if (!isCancelled) {
-            setTasksError(
-              getErrorMessage(error, 'Не удалось загрузить задачи объекта.'),
-            );
-          }
-        } finally {
-          if (!isCancelled) {
-            setTasksLoading(false);
-          }
-        }
-      })(),
-    ]);
-  };
-
-  const refreshCore = async (): Promise<void> => {
-    if (!objectId) {
-      return;
+      if (!cancelled) {
+        setAttendanceEmployeeIds(response.employeeIds ?? []);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setAttendanceError(
+          getErrorMessage(
+            error,
+            'Не удалось загрузить отметку присутствия за сегодня.',
+          ),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setAttendanceLoading(false);
+      }
     }
-
-    await loadCore(objectId);
   };
-
-  const responsibleCandidates = useMemo(() => {
-    return users.filter((user) => hasAnyRole(user, LEADERSHIP_ROLE_CODES));
-  }, [users]);
-
-  const managerCandidates = useMemo(() => {
-    return users.filter((user) => hasAnyRole(user, MANAGER_ROLE_CODES));
-  }, [users]);
 
   return (
     <>
@@ -367,36 +498,65 @@ export default function ObjectDetailPage({
         <div style={{ display: 'grid', gap: 16 }}>
           <ObjectSummaryCard item={item} />
 
-          {usersLoading ? (
-            <ObjectPanelLoading title="Управление составом объекта" />
-          ) : usersError ? (
-            <ObjectPanelError
-              title="Управление составом объекта"
-              message={usersError}
-            />
-          ) : (
-            <ObjectManagersPanel
-              responsibles={item.responsibles}
-              managers={item.managers}
-              responsibleCandidates={responsibleCandidates}
-              managerCandidates={managerCandidates}
-              onAddResponsible={async (userId) => {
-                const updated = await assignObjectResponsible(objectId, { userId });
-                setItem(updated);
+          {(canManageResponsibles || canManageManagers) && (
+            <div
+              style={{
+                display: 'grid',
+                gap: 16,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
               }}
-              onRemoveResponsible={async (userId) => {
-                const updated = await removeObjectResponsible(objectId, userId);
-                setItem(updated);
-              }}
-              onAddManager={async (userId) => {
-                const updated = await assignObjectManager(objectId, { userId });
-                setItem(updated);
-              }}
-              onRemoveManager={async (userId) => {
-                const updated = await removeObjectManager(objectId, userId);
-                setItem(updated);
-              }}
-            />
+            >
+              {systemUsersLoading ? (
+                <ObjectPanelLoading title="Ответственные и менеджеры объекта" />
+              ) : systemUsersError ? (
+                <ObjectPanelError
+                  title="Ответственные и менеджеры объекта"
+                  message={systemUsersError}
+                />
+              ) : (
+                <>
+                  {canManageResponsibles ? (
+                    <ObjectTeamPanel
+                      title="Ответственные объекта"
+                      currentItems={item.responsibles}
+                      availableUsers={responsibleCandidates}
+                      emptyCurrentText="Ответственные пока не назначены."
+                      emptyAvailableText="Подходящие пользователи не найдены."
+                      addButtonText="Добавить ответственного"
+                      removeButtonText="Снять"
+                      onAdd={async (userId) => {
+                        await addResponsibleToObject(objectId, userId);
+                        await loadCore(objectId);
+                      }}
+                      onRemove={async (userId) => {
+                        await removeResponsibleFromObject(objectId, userId);
+                        await loadCore(objectId);
+                      }}
+                    />
+                  ) : null}
+
+                  {canManageManagers ? (
+                    <ObjectTeamPanel
+                      title="Менеджеры объекта"
+                      currentItems={item.managers}
+                      availableUsers={managerCandidates}
+                      emptyCurrentText="Менеджеры пока не назначены."
+                      emptyAvailableText="Подходящие пользователи не найдены."
+                      addButtonText="Добавить менеджера"
+                      removeButtonText="Снять"
+                      onAdd={async (userId) => {
+                        await addManagerToObject(objectId, userId);
+                        await loadCore(objectId);
+                      }}
+                      onRemove={async (userId) => {
+                        await removeManagerFromObject(objectId, userId);
+                        await loadCore(objectId);
+                      }}
+                    />
+                  ) : null}
+                </>
+              )}
+            </div>
           )}
 
           <div
@@ -417,13 +577,14 @@ export default function ObjectDetailPage({
               <ObjectArrivalPanel
                 item={arrival}
                 onSave={async (payload) => {
-                  const updated = await upsertTodayArrivalPhoto(objectId, {
+                  const saved = await upsertTodayArrivalPhoto(objectId, {
                     photoUrl: payload.photoUrl,
                     photoType: payload.photoType ?? 'arrival',
                     comment: payload.comment,
                   });
-                  setArrival(updated);
-                  await loadOperations(objectId);
+
+                  setArrival(saved);
+                  await loadFeed(objectId);
                 }}
               />
             )}
@@ -439,30 +600,65 @@ export default function ObjectDetailPage({
               <ObjectDailyReportPanel
                 item={report}
                 onSave={async (payload) => {
-                  const updated = await upsertTodayDailyReport(objectId, payload);
-                  setReport(updated);
-                  await loadOperations(objectId);
+                  const saved = await upsertTodayDailyReport(objectId, payload);
+                  setReport(saved);
+                  await loadFeed(objectId);
                 }}
               />
             )}
 
-            {employeesLoading ? (
+            {attendanceLoading ? (
               <ObjectPanelLoading title="Кто был сегодня на объекте" />
-            ) : employeesError ? (
+            ) : attendanceError ? (
               <ObjectPanelError
                 title="Кто был сегодня на объекте"
-                message={employeesError}
+                message={attendanceError}
               />
             ) : (
               <ObjectAttendancePanel
-                employees={employees}
+                employees={assignedEmployees}
+                initialEmployeeIds={attendanceEmployeeIds}
+                operationDate={todayAsBusinessDate()}
                 onSave={async (payload) => {
                   await upsertObjectAttendance(objectId, payload);
-                  await loadEmployees(objectId);
+                  setAttendanceEmployeeIds(payload.employeeIds);
                 }}
               />
             )}
           </div>
+
+          {assignedEmployeesLoading ? (
+            <ObjectPanelLoading title="Состав сотрудников объекта" />
+          ) : assignedEmployeesError ? (
+            <ObjectPanelError
+              title="Состав сотрудников объекта"
+              message={assignedEmployeesError}
+            />
+          ) : (
+            <ObjectStaffingPanel
+              assignedEmployees={assignedEmployees}
+              directoryEmployees={directoryEmployees}
+              search={employeeSearch}
+              isSearching={directoryLoading}
+              searchError={directoryError}
+              onSearchChange={setEmployeeSearch}
+              onAdd={async (employeeId) => {
+                await addEmployeeToObject(objectId, employeeId);
+                await Promise.all([
+                  loadAssignedEmployees(objectId),
+                  loadDirectory(objectId, employeeSearch),
+                ]);
+              }}
+              onRemove={async (employeeId) => {
+                await removeEmployeeFromObject(objectId, employeeId);
+                await Promise.all([
+                  loadAssignedEmployees(objectId),
+                  loadDirectory(objectId, employeeSearch),
+                  loadAttendance(objectId),
+                ]);
+              }}
+            />
+          )}
 
           {tasksLoading ? (
             <ObjectPanelLoading title="Задачи объекта" />
@@ -494,8 +690,9 @@ export default function ObjectDetailPage({
                     content: payload.content,
                     commentType: payload.commentType,
                   });
+
                   setComments((prev) => [created, ...prev]);
-                  await loadOperations(objectId);
+                  await loadFeed(objectId);
                 }}
               />
             )}
