@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -12,6 +13,7 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+import { AssignObjectUserDto } from './dto/assign-object-user.dto';
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
@@ -73,5 +75,41 @@ export class ObjectsController {
     @Body() payload: ChangeObjectStatusDto,
   ): Promise<ObjectResponseDto> {
     return this.objectsService.changeStatus(user, id, payload);
+  }
+
+  @Post(':id/responsibles')
+  assignResponsible(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: AssignObjectUserDto,
+  ): Promise<ObjectResponseDto> {
+    return this.objectsService.assignResponsible(user, id, payload.userId);
+  }
+
+  @Delete(':id/responsibles/:userId')
+  removeResponsible(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ): Promise<ObjectResponseDto> {
+    return this.objectsService.removeResponsible(user, id, userId);
+  }
+
+  @Post(':id/managers')
+  assignManager(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: AssignObjectUserDto,
+  ): Promise<ObjectResponseDto> {
+    return this.objectsService.assignManager(user, id, payload.userId);
+  }
+
+  @Delete(':id/managers/:userId')
+  removeManager(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ): Promise<ObjectResponseDto> {
+    return this.objectsService.removeManager(user, id, userId);
   }
 }

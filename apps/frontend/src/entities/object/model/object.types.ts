@@ -1,4 +1,4 @@
-export interface ObjectAssignmentPerson {
+export interface ObjectAssignedUser {
   userId: string;
   fullName: string;
   roleCode: string;
@@ -15,6 +15,6 @@ export interface ServiceObject {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
-  managers: ObjectAssignmentPerson[];
-  responsibles: ObjectAssignmentPerson[];
+  managers: ObjectAssignedUser[];
+  responsibles: ObjectAssignedUser[];
 }

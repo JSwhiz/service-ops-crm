@@ -12,9 +12,13 @@ import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
 import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
 import {
+  canAssignObjectResponsible,
+  canBeObjectManager,
+  canBeObjectResponsible,
   canCreateObject,
   canEditObject,
   canEditObjectDailyRate,
+  canManageObjectManagers,
   canOverrideFrozenObject,
   hasWideObjectAccess,
 } from './utils/object-access.util';
@@ -139,9 +143,14 @@ export class ObjectsService {
             where: {
               id: { in: managerUserIds },
               isActive: true,
+              deletedAt: null,
             },
-            select: {
-              id: true,
+            include: {
+              roles: {
+                include: {
+                  role: true,
+                },
+              },
             },
           })
         : [];
@@ -150,6 +159,16 @@ export class ObjectsService {
       throw new NotFoundException(
         'One or more selected managers were not found',
       );
+    }
+
+    for (const user of managerUsers) {
+      const candidateRoleCodes = user.roles.map((item) => item.role.code);
+
+      if (!canBeObjectManager(candidateRoleCodes)) {
+        throw new ForbiddenException(
+          `User ${user.fullName} cannot be assigned as object manager`,
+        );
+      }
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
@@ -304,6 +323,253 @@ export class ObjectsService {
     return this.updateObject(currentUser, id, {
       status: payload.status,
     });
+  }
+
+  async assignResponsible(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    userId: string,
+  ): Promise<ObjectResponseDto> {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (!canAssignObjectResponsible(roleCodes)) {
+      throw new ForbiddenException(
+        'Only leadership circle can assign responsibles',
+      );
+    }
+
+    const object = await this.getObjectEntityForAssignment(objectId);
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const candidateRoleCodes = user.roles.map((item) => item.role.code);
+
+    if (!canBeObjectResponsible(candidateRoleCodes)) {
+      throw new ForbiddenException(
+        'Selected user cannot be assigned as object responsible',
+      );
+    }
+
+    await this.prisma.objectAssignment.upsert({
+      where: {
+        objectId_userId_assignmentRoleCode: {
+          objectId: object.id,
+          userId,
+          assignmentRoleCode: 'responsible',
+        },
+      },
+      update: {
+        isActive: true,
+      },
+      create: {
+        objectId: object.id,
+        userId,
+        assignmentRoleCode: 'responsible',
+        isActive: true,
+      },
+    });
+
+    return this.getObjectById(currentUser, object.id);
+  }
+
+  async removeResponsible(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    userId: string,
+  ): Promise<ObjectResponseDto> {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (!canAssignObjectResponsible(roleCodes)) {
+      throw new ForbiddenException(
+        'Only leadership circle can remove responsibles',
+      );
+    }
+
+    const object = await this.getObjectEntityForAssignment(objectId);
+
+    const activeResponsibles = await this.prisma.objectAssignment.findMany({
+      where: {
+        objectId: object.id,
+        assignmentRoleCode: 'responsible',
+        isActive: true,
+      },
+    });
+
+    const target = activeResponsibles.find((item) => item.userId === userId);
+
+    if (!target) {
+      throw new NotFoundException('Responsible assignment not found');
+    }
+
+    if (activeResponsibles.length <= 1) {
+      throw new ForbiddenException(
+        'Object must have at least one active responsible',
+      );
+    }
+
+    await this.prisma.objectAssignment.update({
+      where: {
+        id: target.id,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return this.getObjectById(currentUser, object.id);
+  }
+
+  async assignManager(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    userId: string,
+  ): Promise<ObjectResponseDto> {
+    const object = await this.getObjectEntityForAssignment(objectId);
+
+    await this.assertCanManageManagers(currentUser, object.id);
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const candidateRoleCodes = user.roles.map((item) => item.role.code);
+
+    if (!canBeObjectManager(candidateRoleCodes)) {
+      throw new ForbiddenException(
+        'Selected user cannot be assigned as object manager',
+      );
+    }
+
+    await this.prisma.objectAssignment.upsert({
+      where: {
+        objectId_userId_assignmentRoleCode: {
+          objectId: object.id,
+          userId,
+          assignmentRoleCode: 'manager',
+        },
+      },
+      update: {
+        isActive: true,
+      },
+      create: {
+        objectId: object.id,
+        userId,
+        assignmentRoleCode: 'manager',
+        isActive: true,
+      },
+    });
+
+    return this.getObjectById(currentUser, object.id);
+  }
+
+  async removeManager(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    userId: string,
+  ): Promise<ObjectResponseDto> {
+    const object = await this.getObjectEntityForAssignment(objectId);
+
+    await this.assertCanManageManagers(currentUser, object.id);
+
+    const managerAssignment = await this.prisma.objectAssignment.findFirst({
+      where: {
+        objectId: object.id,
+        userId,
+        assignmentRoleCode: 'manager',
+        isActive: true,
+      },
+    });
+
+    if (!managerAssignment) {
+      throw new NotFoundException('Manager assignment not found');
+    }
+
+    await this.prisma.objectAssignment.update({
+      where: {
+        id: managerAssignment.id,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return this.getObjectById(currentUser, object.id);
+  }
+
+  private async assertCanManageManagers(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<void> {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (canManageObjectManagers(roleCodes)) {
+      return;
+    }
+
+    const responsibleAssignment = await this.prisma.objectAssignment.findFirst({
+      where: {
+        objectId,
+        userId: currentUser.id,
+        assignmentRoleCode: 'responsible',
+        isActive: true,
+      },
+    });
+
+    if (!responsibleAssignment) {
+      throw new ForbiddenException(
+        'Only object responsible or leadership circle can manage managers',
+      );
+    }
+  }
+
+  private async getObjectEntityForAssignment(objectId: string): Promise<{ id: string }> {
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: objectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Object not found');
+    }
+
+    return object;
   }
 
   private async syncDailyRateToTimesheets(
