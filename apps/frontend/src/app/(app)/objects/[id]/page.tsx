@@ -9,7 +9,7 @@ import {
   removeManagerFromObject,
   removeResponsibleFromObject,
 } from '@/entities/object/api/object-client';
-import type { ObjectEmployeeOption } from '@/entities/object/api/object-client';
+import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 import {
   addEmployeeToObject,
   createObjectComment,
@@ -31,7 +31,7 @@ import type {
   ObjectComment,
   ObjectDailyReport,
   ObjectFeedItem,
-} from '@/entities/object/model/object-operations.types';
+} from '@/entities/object/model/objec t-operations.types';
 import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import {
@@ -43,9 +43,9 @@ import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-at
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
+import { ObjectManagersPanel } from '@/features/object-managers/ui/object-managers-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
 import { ObjectStaffingPanel } from '@/features/object-staffing/ui/object-staffing-panel';
-import { ObjectTeamPanel } from '@/features/object-team/ui/object-team-panel';
 import {
   ObjectPanelError,
   ObjectPanelLoading,
@@ -171,11 +171,16 @@ export default function ObjectDetailPage({
 
   const canManageManagers =
     canManageResponsibles ||
-    Boolean(item?.responsibles.some((responsible) => responsible.userId === user?.id));
+    Boolean(
+      item?.responsibles.some((responsible) => responsible.userId === user?.id),
+    );
 
   const responsibleCandidates = useMemo(() => {
     return systemUsers.filter((candidate) =>
-      hasAnyRole(candidate.roleCodes ?? [candidate.roleCode], LEADERSHIP_ROLE_CODES),
+      hasAnyRole(
+        candidate.roleCodes ?? [candidate.roleCode],
+        LEADERSHIP_ROLE_CODES,
+      ),
     );
   }, [systemUsers]);
 
@@ -499,64 +504,28 @@ export default function ObjectDetailPage({
           <ObjectSummaryCard item={item} />
 
           {(canManageResponsibles || canManageManagers) && (
-            <div
-              style={{
-                display: 'grid',
-                gap: 16,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            <ObjectManagersPanel
+              responsibles={item.responsibles}
+              managers={item.managers}
+              responsibleCandidates={responsibleCandidates}
+              managerCandidates={managerCandidates}
+              onAddResponsible={async (userId) => {
+                await addResponsibleToObject(objectId, userId);
+                await loadCore(objectId);
               }}
-            >
-              {systemUsersLoading ? (
-                <ObjectPanelLoading title="Ответственные и менеджеры объекта" />
-              ) : systemUsersError ? (
-                <ObjectPanelError
-                  title="Ответственные и менеджеры объекта"
-                  message={systemUsersError}
-                />
-              ) : (
-                <>
-                  {canManageResponsibles ? (
-                    <ObjectTeamPanel
-                      title="Ответственные объекта"
-                      currentItems={item.responsibles}
-                      availableUsers={responsibleCandidates}
-                      emptyCurrentText="Ответственные пока не назначены."
-                      emptyAvailableText="Подходящие пользователи не найдены."
-                      addButtonText="Добавить ответственного"
-                      removeButtonText="Снять"
-                      onAdd={async (userId) => {
-                        await addResponsibleToObject(objectId, userId);
-                        await loadCore(objectId);
-                      }}
-                      onRemove={async (userId) => {
-                        await removeResponsibleFromObject(objectId, userId);
-                        await loadCore(objectId);
-                      }}
-                    />
-                  ) : null}
-
-                  {canManageManagers ? (
-                    <ObjectTeamPanel
-                      title="Менеджеры объекта"
-                      currentItems={item.managers}
-                      availableUsers={managerCandidates}
-                      emptyCurrentText="Менеджеры пока не назначены."
-                      emptyAvailableText="Подходящие пользователи не найдены."
-                      addButtonText="Добавить менеджера"
-                      removeButtonText="Снять"
-                      onAdd={async (userId) => {
-                        await addManagerToObject(objectId, userId);
-                        await loadCore(objectId);
-                      }}
-                      onRemove={async (userId) => {
-                        await removeManagerFromObject(objectId, userId);
-                        await loadCore(objectId);
-                      }}
-                    />
-                  ) : null}
-                </>
-              )}
-            </div>
+              onRemoveResponsible={async (userId) => {
+                await removeResponsibleFromObject(objectId, userId);
+                await loadCore(objectId);
+              }}
+              onAddManager={async (userId) => {
+                await addManagerToObject(objectId, userId);
+                await loadCore(objectId);
+              }}
+              onRemoveManager={async (userId) => {
+                await removeManagerFromObject(objectId, userId);
+                await loadCore(objectId);
+              }}
+            />
           )}
 
           <div

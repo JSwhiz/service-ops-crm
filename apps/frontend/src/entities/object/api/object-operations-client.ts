@@ -1,7 +1,7 @@
 import { fetcher } from '@/shared/api/fetcher';
 import { getAccessToken } from '@/shared/auth/auth-storage';
 
-import type { ObjectEmployeeOption } from './object-client';
+import type { ObjectEmployeeOption } from '../model/object.types';
 import type {
   ObjectArrivalPhoto,
   ObjectComment,

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 
-import type { ObjectEmployeeOption } from '@/entities/object/api/object-client';
+import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 
 interface ObjectAttendancePanelProps {
   employees: ObjectEmployeeOption[];
@@ -72,7 +72,9 @@ export function ObjectAttendancePanel({
       </div>
 
       {safeEmployees.length === 0 ? (
-        <div className="page-muted">Для объекта пока не задан состав сотрудников.</div>
+        <div className="page-muted">
+          Для объекта пока не задан состав сотрудников.
+        </div>
       ) : (
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gap: 10 }}>

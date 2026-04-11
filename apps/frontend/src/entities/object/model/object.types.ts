@@ -4,6 +4,11 @@ export interface ObjectAssignmentPerson {
   roleCode: string;
 }
 
+export interface ObjectEmployeeOption {
+  id: string;
+  fullName: string;
+}
+
 export interface ServiceObject {
   id: string;
   name: string;

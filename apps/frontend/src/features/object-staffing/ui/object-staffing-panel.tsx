@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import type { ObjectEmployeeOption } from '@/entities/object/api/object-client';
+import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 
 interface ObjectStaffingPanelProps {
   assignedEmployees: ObjectEmployeeOption[];
