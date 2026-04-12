@@ -30,12 +30,11 @@ model User {
   createdTasks                Task[] @relation("TaskCreatedBy")
   taskAssignments             TaskAssignee[]
   submittedTaskResults        Task[] @relation("TaskSubmittedBy")
-
   createdAttendanceFacts      ObjectAttendanceFact[] @relation("ObjectAttendanceFactCreatedBy")
-
   createdTimesheetMonths      TimesheetMonth[] @relation("TimesheetMonthCreatedBy")
   createdTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryCreatedBy")
   updatedTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryUpdatedBy")
+  objectAuditLogs             ObjectAuditLog[] @relation("ObjectAuditLogActor")
 
   @@map("users")
 }
@@ -168,15 +167,15 @@ model Object {
   deletedAt           DateTime?
 
   attendanceFacts      ObjectAttendanceFact[]
-
-  createdBy           User                    @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  assignments         ObjectAssignment[]
-  arrivalPhotos       ObjectArrivalPhoto[]
-  dailyReports        ObjectDailyReport[]
-  comments            ObjectComment[]
-  tasks               Task[]
-  employeeAssignments ObjectEmployeeAssignment[]
-  timesheetMonths     TimesheetMonth[]
+  createdBy            User                     @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  assignments          ObjectAssignment[]
+  arrivalPhotos        ObjectArrivalPhoto[]
+  dailyReports         ObjectDailyReport[]
+  comments             ObjectComment[]
+  tasks                Task[]
+  employeeAssignments  ObjectEmployeeAssignment[]
+  timesheetMonths      TimesheetMonth[]
+  auditLogs            ObjectAuditLog[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -211,13 +210,30 @@ model Employee {
   updatedAt          DateTime @updatedAt
   deletedAt          DateTime?
 
-  attendanceFacts      ObjectAttendanceFact[]
-
+  attendanceFacts    ObjectAttendanceFact[]
   objectAssignments  ObjectEmployeeAssignment[]
   timesheetRows      TimesheetEmployeeRow[]
 
   @@index([employmentStatus])
   @@map("employees")
+}
+
+model ObjectAuditLog {
+  id          String   @id @default(uuid())
+  objectId    String
+  actorUserId String
+  actionCode  String
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  object Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  actor  User   @relation("ObjectAuditLogActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([objectId])
+  @@index([actorUserId])
+  @@index([actionCode])
+  @@index([createdAt])
+  @@map("object_audit_logs")
 }
 
 model ObjectEmployeeAssignment {

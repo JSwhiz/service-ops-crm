@@ -3,22 +3,24 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
+import { ObjectAuditLogResponseDto } from './dto/object-audit-log-response.dto';
 import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
 import {
-  canAssignObjectResponsible,
   canBeObjectManager,
   canBeObjectResponsible,
   canCreateObject,
   canEditObject,
   canEditObjectDailyRate,
-  canManageObjectManagers,
+  canManageObjectResponsibles,
   canOverrideFrozenObject,
   hasWideObjectAccess,
 } from './utils/object-access.util';
@@ -36,7 +38,13 @@ interface ObjectAssignmentView {
   assignmentRoleCode: string;
   user: {
     id: string;
+    login: string;
     fullName: string;
+    roles?: Array<{
+      role: {
+        code: string;
+      };
+    }>;
   };
 }
 
@@ -51,12 +59,26 @@ interface ObjectView {
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
+  createdByUserId: string;
   assignments: ObjectAssignmentView[];
 }
 
+type AuditPrimitive = string | number | boolean | null;
+
+type ObjectUpdateChangeSet = Record<
+  string,
+  {
+    oldValue: AuditPrimitive;
+    newValue: AuditPrimitive;
+  }
+>;
+
 @Injectable()
 export class ObjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listObjects(
     currentUser: CurrentAuthUser,
@@ -123,6 +145,31 @@ export class ObjectsService {
     return this.mapObject(object);
   }
 
+  async listObjectAuditLogs(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<ObjectAuditLogResponseDto[]> {
+    await this.getObjectById(currentUser, id);
+
+    const items = await this.auditService.listObjectAuditLogs(id);
+
+    return items.map((item) => ({
+      id: item.id,
+      objectId: item.objectId,
+      actionCode: item.actionCode,
+      createdAt: item.createdAt.toISOString(),
+      actor: {
+        id: item.actor.id,
+        login: item.actor.login,
+        fullName: item.actor.fullName,
+      },
+      payload:
+        item.payload && typeof item.payload === 'object'
+          ? (item.payload as Record<string, unknown>)
+          : null,
+    }));
+  }
+
   async createObject(
     currentUser: CurrentAuthUser,
     payload: CreateObjectDto,
@@ -143,7 +190,6 @@ export class ObjectsService {
             where: {
               id: { in: managerUserIds },
               isActive: true,
-              deletedAt: null,
             },
             include: {
               roles: {
@@ -161,13 +207,11 @@ export class ObjectsService {
       );
     }
 
-    for (const user of managerUsers) {
-      const candidateRoleCodes = user.roles.map((item) => item.role.code);
+    for (const manager of managerUsers) {
+      const roleCodesOfManager = manager.roles.map((item) => item.role.code);
 
-      if (!canBeObjectManager(candidateRoleCodes)) {
-        throw new ForbiddenException(
-          `User ${user.fullName} cannot be assigned as object manager`,
-        );
+      if (!canBeObjectManager(roleCodesOfManager)) {
+        throw new ForbiddenException('Selected user cannot be object manager');
       }
     }
 
@@ -228,6 +272,22 @@ export class ObjectsService {
       });
     });
 
+    await this.auditService.writeObjectAuditLog({
+      objectId: created.id,
+      actorUserId: currentUser.id,
+      actionCode: 'object.created',
+      payload: {
+        name: created.name,
+        internalName: created.internalName,
+        address: created.address,
+        status: created.status,
+        seasonMode: created.seasonMode,
+        dailyRate: created.dailyRate,
+        managerUserIds,
+        responsibleUserId: currentUser.id,
+      } as Prisma.InputJsonObject,
+    });
+
     return this.mapObject(created as ObjectView);
   }
 
@@ -238,37 +298,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    const existing = (await this.prisma.object.findFirst({
-      where: {
-        id,
-        ...(await this.buildVisibilityWhere(currentUser)),
-      },
-      include: {
-        assignments: {
-          where: { isActive: true },
-          include: {
-            user: true,
-          },
-        },
-      },
-    })) as ObjectView | null;
-
-    if (!existing) {
-      throw new NotFoundException('Object not found');
-    }
-
-    const isAssignedManager = existing.assignments.some(
-      (assignment) => assignment.user.id === currentUser.id,
-    );
-
-    const allowedToEdit =
-      canEditObject(roleCodes) ||
-      (isAssignedManager && existing.status !== 'frozen') ||
-      (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes));
-
-    if (!allowedToEdit) {
-      throw new ForbiddenException('Object editing denied');
-    }
+    const existing = await this.getEditableObject(currentUser, id);
 
     const oldDailyRate = existing.dailyRate;
     const newDailyRate =
@@ -279,6 +309,59 @@ export class ObjectsService {
       !canEditObjectDailyRate(roleCodes)
     ) {
       throw new ForbiddenException('Daily rate editing denied');
+    }
+
+    const changes: ObjectUpdateChangeSet = {};
+
+    if (payload.name !== undefined && payload.name !== existing.name) {
+      changes.name = {
+        oldValue: existing.name,
+        newValue: payload.name,
+      };
+    }
+
+    if (
+      payload.internalName !== undefined &&
+      payload.internalName !== existing.internalName
+    ) {
+      changes.internalName = {
+        oldValue: existing.internalName,
+        newValue: payload.internalName,
+      };
+    }
+
+    if (payload.address !== undefined && payload.address !== existing.address) {
+      changes.address = {
+        oldValue: existing.address,
+        newValue: payload.address,
+      };
+    }
+
+    if (
+      payload.seasonMode !== undefined &&
+      payload.seasonMode !== existing.seasonMode
+    ) {
+      changes.seasonMode = {
+        oldValue: existing.seasonMode,
+        newValue: payload.seasonMode,
+      };
+    }
+
+    if (payload.notes !== undefined && payload.notes !== existing.notes) {
+      changes.notes = {
+        oldValue: existing.notes,
+        newValue: payload.notes,
+      };
+    }
+
+    if (
+      payload.dailyRate !== undefined &&
+      payload.dailyRate !== existing.dailyRate
+    ) {
+      changes.dailyRate = {
+        oldValue: existing.dailyRate,
+        newValue: payload.dailyRate,
+      };
     }
 
     const updated = (await this.prisma.object.update({
@@ -312,6 +395,15 @@ export class ObjectsService {
       await this.syncDailyRateToTimesheets(id, newDailyRate);
     }
 
+    if (Object.keys(changes).length > 0) {
+      await this.auditService.writeObjectAuditLog({
+        objectId: id,
+        actorUserId: currentUser.id,
+        actionCode: 'object.updated',
+        payload: this.buildObjectUpdateAuditPayload(changes),
+      });
+    }
+
     return this.mapObject(updated);
   }
 
@@ -320,25 +412,43 @@ export class ObjectsService {
     id: string,
     payload: ChangeObjectStatusDto,
   ): Promise<ObjectResponseDto> {
-    return this.updateObject(currentUser, id, {
+    const existing = await this.getObjectById(currentUser, id);
+
+    if (!canManageObjectResponsibles(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('Object status changing denied');
+    }
+
+    const updated = await this.updateObject(currentUser, id, {
       status: payload.status,
     });
+
+    if (existing.status !== payload.status) {
+      await this.auditService.writeObjectAuditLog({
+        objectId: id,
+        actorUserId: currentUser.id,
+        actionCode: 'object.status_changed',
+        payload: {
+          oldStatus: existing.status,
+          newStatus: payload.status,
+        } as Prisma.InputJsonObject,
+      });
+    }
+
+    return updated;
   }
 
-  async assignResponsible(
+  async addResponsibleToObject(
     currentUser: CurrentAuthUser,
     objectId: string,
     userId: string,
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canAssignObjectResponsible(roleCodes)) {
-      throw new ForbiddenException(
-        'Only leadership circle can assign responsibles',
-      );
+    if (!canManageObjectResponsibles(roleCodes)) {
+      throw new ForbiddenException('Responsible management denied');
     }
 
-    const object = await this.getObjectEntityForAssignment(objectId);
+    await this.getObjectById(currentUser, objectId);
 
     const user = await this.prisma.user.findFirst({
       where: {
@@ -356,21 +466,19 @@ export class ObjectsService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Selected user not found');
     }
 
-    const candidateRoleCodes = user.roles.map((item) => item.role.code);
+    const targetRoleCodes = user.roles.map((item) => item.role.code);
 
-    if (!canBeObjectResponsible(candidateRoleCodes)) {
-      throw new ForbiddenException(
-        'Selected user cannot be assigned as object responsible',
-      );
+    if (!canBeObjectResponsible(targetRoleCodes)) {
+      throw new ForbiddenException('Selected user cannot be object responsible');
     }
 
     await this.prisma.objectAssignment.upsert({
       where: {
         objectId_userId_assignmentRoleCode: {
-          objectId: object.id,
+          objectId,
           userId,
           assignmentRoleCode: 'responsible',
         },
@@ -379,71 +487,86 @@ export class ObjectsService {
         isActive: true,
       },
       create: {
-        objectId: object.id,
+        objectId,
         userId,
         assignmentRoleCode: 'responsible',
         isActive: true,
       },
     });
 
-    return this.getObjectById(currentUser, object.id);
+    await this.auditService.writeObjectAuditLog({
+      objectId,
+      actorUserId: currentUser.id,
+      actionCode: 'object.responsible_added',
+      payload: {
+        userId: user.id,
+        login: user.login,
+        fullName: user.fullName,
+      } as Prisma.InputJsonObject,
+    });
+
+    return this.getObjectById(currentUser, objectId);
   }
 
-  async removeResponsible(
+  async removeResponsibleFromObject(
     currentUser: CurrentAuthUser,
     objectId: string,
     userId: string,
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canAssignObjectResponsible(roleCodes)) {
-      throw new ForbiddenException(
-        'Only leadership circle can remove responsibles',
-      );
+    if (!canManageObjectResponsibles(roleCodes)) {
+      throw new ForbiddenException('Responsible management denied');
     }
 
-    const object = await this.getObjectEntityForAssignment(objectId);
-
-    const activeResponsibles = await this.prisma.objectAssignment.findMany({
-      where: {
-        objectId: object.id,
-        assignmentRoleCode: 'responsible',
-        isActive: true,
-      },
-    });
-
-    const target = activeResponsibles.find((item) => item.userId === userId);
-
-    if (!target) {
-      throw new NotFoundException('Responsible assignment not found');
-    }
+    const object = await this.getObjectById(currentUser, objectId);
+    const activeResponsibles = object.responsibles;
 
     if (activeResponsibles.length <= 1) {
       throw new ForbiddenException(
-        'Object must have at least one active responsible',
+        'At least one responsible must remain assigned to object',
       );
     }
 
-    await this.prisma.objectAssignment.update({
+    await this.prisma.objectAssignment.updateMany({
       where: {
-        id: target.id,
+        objectId,
+        userId,
+        assignmentRoleCode: 'responsible',
+        isActive: true,
       },
       data: {
         isActive: false,
       },
     });
 
-    return this.getObjectById(currentUser, object.id);
+    await this.auditService.writeObjectAuditLog({
+      objectId,
+      actorUserId: currentUser.id,
+      actionCode: 'object.responsible_removed',
+      payload: {
+        userId,
+      } as Prisma.InputJsonObject,
+    });
+
+    return this.getObjectById(currentUser, objectId);
   }
 
-  async assignManager(
+  async addManagerToObject(
     currentUser: CurrentAuthUser,
     objectId: string,
     userId: string,
   ): Promise<ObjectResponseDto> {
-    const object = await this.getObjectEntityForAssignment(objectId);
+    const object = await this.getObjectById(currentUser, objectId);
+    const roleCodes = this.getRoleCodes(currentUser);
 
-    await this.assertCanManageManagers(currentUser, object.id);
+    const isResponsible = object.responsibles.some(
+      (responsible) => responsible.userId === currentUser.id,
+    );
+
+    if (!canManageObjectResponsibles(roleCodes) && !isResponsible) {
+      throw new ForbiddenException('Manager management denied');
+    }
 
     const user = await this.prisma.user.findFirst({
       where: {
@@ -461,21 +584,19 @@ export class ObjectsService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Selected user not found');
     }
 
-    const candidateRoleCodes = user.roles.map((item) => item.role.code);
+    const targetRoleCodes = user.roles.map((item) => item.role.code);
 
-    if (!canBeObjectManager(candidateRoleCodes)) {
-      throw new ForbiddenException(
-        'Selected user cannot be assigned as object manager',
-      );
+    if (!canBeObjectManager(targetRoleCodes)) {
+      throw new ForbiddenException('Selected user cannot be object manager');
     }
 
     await this.prisma.objectAssignment.upsert({
       where: {
         objectId_userId_assignmentRoleCode: {
-          objectId: object.id,
+          objectId,
           userId,
           assignmentRoleCode: 'manager',
         },
@@ -484,92 +605,126 @@ export class ObjectsService {
         isActive: true,
       },
       create: {
-        objectId: object.id,
+        objectId,
         userId,
         assignmentRoleCode: 'manager',
         isActive: true,
       },
     });
 
-    return this.getObjectById(currentUser, object.id);
+    await this.auditService.writeObjectAuditLog({
+      objectId,
+      actorUserId: currentUser.id,
+      actionCode: 'object.manager_added',
+      payload: {
+        userId: user.id,
+        login: user.login,
+        fullName: user.fullName,
+      } as Prisma.InputJsonObject,
+    });
+
+    return this.getObjectById(currentUser, objectId);
   }
 
-  async removeManager(
+  async removeManagerFromObject(
     currentUser: CurrentAuthUser,
     objectId: string,
     userId: string,
   ): Promise<ObjectResponseDto> {
-    const object = await this.getObjectEntityForAssignment(objectId);
+    const object = await this.getObjectById(currentUser, objectId);
+    const roleCodes = this.getRoleCodes(currentUser);
 
-    await this.assertCanManageManagers(currentUser, object.id);
+    const isResponsible = object.responsibles.some(
+      (responsible) => responsible.userId === currentUser.id,
+    );
 
-    const managerAssignment = await this.prisma.objectAssignment.findFirst({
+    if (!canManageObjectResponsibles(roleCodes) && !isResponsible) {
+      throw new ForbiddenException('Manager management denied');
+    }
+
+    await this.prisma.objectAssignment.updateMany({
       where: {
-        objectId: object.id,
+        objectId,
         userId,
         assignmentRoleCode: 'manager',
         isActive: true,
-      },
-    });
-
-    if (!managerAssignment) {
-      throw new NotFoundException('Manager assignment not found');
-    }
-
-    await this.prisma.objectAssignment.update({
-      where: {
-        id: managerAssignment.id,
       },
       data: {
         isActive: false,
       },
     });
 
-    return this.getObjectById(currentUser, object.id);
+    await this.auditService.writeObjectAuditLog({
+      objectId,
+      actorUserId: currentUser.id,
+      actionCode: 'object.manager_removed',
+      payload: {
+        userId,
+      } as Prisma.InputJsonObject,
+    });
+
+    return this.getObjectById(currentUser, objectId);
   }
 
-  private async assertCanManageManagers(
+  private buildObjectUpdateAuditPayload(
+    changes: ObjectUpdateChangeSet,
+  ): Prisma.InputJsonObject {
+    const normalizedChanges = Object.fromEntries(
+      Object.entries(changes).map(([field, value]) => [
+        field,
+        {
+          oldValue: value.oldValue,
+          newValue: value.newValue,
+        },
+      ]),
+    );
+
+    return {
+      changes: normalizedChanges,
+    } as Prisma.InputJsonObject;
+  }
+
+  private async getEditableObject(
     currentUser: CurrentAuthUser,
-    objectId: string,
-  ): Promise<void> {
+    id: string,
+  ): Promise<ObjectView> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (canManageObjectManagers(roleCodes)) {
-      return;
-    }
-
-    const responsibleAssignment = await this.prisma.objectAssignment.findFirst({
+    const existing = (await this.prisma.object.findFirst({
       where: {
-        objectId,
-        userId: currentUser.id,
-        assignmentRoleCode: 'responsible',
-        isActive: true,
+        id,
+        ...(await this.buildVisibilityWhere(currentUser)),
       },
-    });
-
-    if (!responsibleAssignment) {
-      throw new ForbiddenException(
-        'Only object responsible or leadership circle can manage managers',
-      );
-    }
-  }
-
-  private async getObjectEntityForAssignment(objectId: string): Promise<{ id: string }> {
-    const object = await this.prisma.object.findFirst({
-      where: {
-        id: objectId,
-        deletedAt: null,
+      include: {
+        assignments: {
+          where: { isActive: true },
+          include: {
+            user: true,
+          },
+        },
       },
-      select: {
-        id: true,
-      },
-    });
+    })) as ObjectView | null;
 
-    if (!object) {
+    if (!existing) {
       throw new NotFoundException('Object not found');
     }
 
-    return object;
+    const isAssignedResponsible = existing.assignments.some(
+      (assignment) =>
+        assignment.user.id === currentUser.id &&
+        assignment.assignmentRoleCode === 'responsible',
+    );
+
+    const allowedToEdit =
+      canEditObject(roleCodes) ||
+      (isAssignedResponsible && existing.status !== 'frozen') ||
+      (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes));
+
+    if (!allowedToEdit) {
+      throw new ForbiddenException('Object editing denied');
+    }
+
+    return existing;
   }
 
   private async syncDailyRateToTimesheets(

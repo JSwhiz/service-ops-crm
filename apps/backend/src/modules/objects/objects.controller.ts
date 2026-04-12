@@ -13,10 +13,10 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-import { AssignObjectUserDto } from './dto/assign-object-user.dto';
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
+import { ObjectAuditLogResponseDto } from './dto/object-audit-log-response.dto';
 import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
 import { ObjectsService } from './objects.service';
@@ -28,6 +28,10 @@ interface CurrentAuthUser {
   roleCode: string;
   roleCodes?: string[];
   isActive: boolean;
+}
+
+class UpsertObjectTeamMemberDto {
+  userId!: string;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -49,6 +53,14 @@ export class ObjectsController {
     @Param('id') id: string,
   ): Promise<ObjectResponseDto> {
     return this.objectsService.getObjectById(user, id);
+  }
+
+  @Get(':id/audit')
+  listObjectAuditLogs(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<ObjectAuditLogResponseDto[]> {
+    return this.objectsService.listObjectAuditLogs(user, id);
   }
 
   @Post()
@@ -78,38 +90,38 @@ export class ObjectsController {
   }
 
   @Post(':id/responsibles')
-  assignResponsible(
+  addResponsibleToObject(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-    @Body() payload: AssignObjectUserDto,
+    @Body() payload: UpsertObjectTeamMemberDto,
   ): Promise<ObjectResponseDto> {
-    return this.objectsService.assignResponsible(user, id, payload.userId);
+    return this.objectsService.addResponsibleToObject(user, id, payload.userId);
   }
 
   @Delete(':id/responsibles/:userId')
-  removeResponsible(
+  removeResponsibleFromObject(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Param('userId') userId: string,
   ): Promise<ObjectResponseDto> {
-    return this.objectsService.removeResponsible(user, id, userId);
+    return this.objectsService.removeResponsibleFromObject(user, id, userId);
   }
 
   @Post(':id/managers')
-  assignManager(
+  addManagerToObject(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-    @Body() payload: AssignObjectUserDto,
+    @Body() payload: UpsertObjectTeamMemberDto,
   ): Promise<ObjectResponseDto> {
-    return this.objectsService.assignManager(user, id, payload.userId);
+    return this.objectsService.addManagerToObject(user, id, payload.userId);
   }
 
   @Delete(':id/managers/:userId')
-  removeManager(
+  removeManagerFromObject(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Param('userId') userId: string,
   ): Promise<ObjectResponseDto> {
-    return this.objectsService.removeManager(user, id, userId);
+    return this.objectsService.removeManagerFromObject(user, id, userId);
   }
 }

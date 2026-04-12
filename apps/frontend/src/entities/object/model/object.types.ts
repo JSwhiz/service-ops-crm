@@ -4,8 +4,6 @@ export interface ObjectAssignedUser {
   roleCode: string;
 }
 
-export type ObjectAssignmentPerson = ObjectAssignedUser;
-
 export interface ObjectEmployeeOption {
   id: string;
   fullName: string;
@@ -24,4 +22,19 @@ export interface ServiceObject {
   updatedAt: string;
   managers: ObjectAssignedUser[];
   responsibles: ObjectAssignedUser[];
+}
+
+export interface ObjectAuditActor {
+  id: string;
+  login: string;
+  fullName: string;
+}
+
+export interface ObjectAuditLogItem {
+  id: string;
+  objectId: string;
+  actionCode: string;
+  createdAt: string;
+  actor: ObjectAuditActor;
+  payload: Record<string, unknown> | null;
 }

@@ -1,7 +1,10 @@
 import { fetcher } from '@/shared/api/fetcher';
 import { getAccessToken } from '@/shared/auth/auth-storage';
 
-import type { ServiceObject } from '../model/object.types';
+import type {
+  ObjectAuditLogItem,
+  ServiceObject,
+} from '../model/object.types';
 
 export interface ListObjectsParams {
   search?: string;
@@ -62,8 +65,17 @@ export async function listObjects(
   });
 }
 
-export async function getObjectById(objectId: string): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${objectId}`, {
+export async function getObjectById(id: string): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}`, {
+    method: 'GET',
+    token: getAccessToken(),
+  });
+}
+
+export async function listObjectAuditLogs(
+  id: string,
+): Promise<ObjectAuditLogItem[]> {
+  return fetcher<ObjectAuditLogItem[]>(`/objects/${id}/audit`, {
     method: 'GET',
     token: getAccessToken(),
   });
@@ -80,10 +92,10 @@ export async function createObject(
 }
 
 export async function updateObject(
-  objectId: string,
+  id: string,
   payload: UpdateObjectPayload,
 ): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${objectId}`, {
+  return fetcher<ServiceObject>(`/objects/${id}`, {
     method: 'PATCH',
     token: getAccessToken(),
     body: JSON.stringify(payload),
@@ -91,10 +103,10 @@ export async function updateObject(
 }
 
 export async function changeObjectStatus(
-  objectId: string,
+  id: string,
   payload: ChangeObjectStatusPayload,
 ): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${objectId}/status`, {
+  return fetcher<ServiceObject>(`/objects/${id}/status`, {
     method: 'PATCH',
     token: getAccessToken(),
     body: JSON.stringify(payload),
@@ -102,10 +114,10 @@ export async function changeObjectStatus(
 }
 
 export async function addResponsibleToObject(
-  objectId: string,
+  id: string,
   userId: string,
-): Promise<{ success: true }> {
-  return fetcher<{ success: true }>(`/objects/${objectId}/responsibles`, {
+): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}/responsibles`, {
     method: 'POST',
     token: getAccessToken(),
     body: JSON.stringify({ userId }),
@@ -113,23 +125,20 @@ export async function addResponsibleToObject(
 }
 
 export async function removeResponsibleFromObject(
-  objectId: string,
+  id: string,
   userId: string,
-): Promise<{ success: true }> {
-  return fetcher<{ success: true }>(
-    `/objects/${objectId}/responsibles/${userId}`,
-    {
-      method: 'DELETE',
-      token: getAccessToken(),
-    },
-  );
+): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}/responsibles/${userId}`, {
+    method: 'DELETE',
+    token: getAccessToken(),
+  });
 }
 
 export async function addManagerToObject(
-  objectId: string,
+  id: string,
   userId: string,
-): Promise<{ success: true }> {
-  return fetcher<{ success: true }>(`/objects/${objectId}/managers`, {
+): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}/managers`, {
     method: 'POST',
     token: getAccessToken(),
     body: JSON.stringify({ userId }),
@@ -137,10 +146,10 @@ export async function addManagerToObject(
 }
 
 export async function removeManagerFromObject(
-  objectId: string,
+  id: string,
   userId: string,
-): Promise<{ success: true }> {
-  return fetcher<{ success: true }>(`/objects/${objectId}/managers/${userId}`, {
+): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}/managers/${userId}`, {
     method: 'DELETE',
     token: getAccessToken(),
   });
