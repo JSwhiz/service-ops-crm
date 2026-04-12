@@ -5,14 +5,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   addManagerToObject,
   addResponsibleToObject,
+  changeObjectStatus,
   getObjectById,
   removeManagerFromObject,
   removeResponsibleFromObject,
-  updateObject,
 } from '@/entities/object/api/object-client';
-import type {
-  ObjectEmployeeOption,
-  ServiceObject,
+import {
+  type ObjectEmployeeOption,
+  type ServiceObject,
 } from '@/entities/object/model/object.types';
 import {
   addEmployeeToObject,
@@ -45,22 +45,17 @@ import { ObjectArrivalPanel } from '@/features/object-arrival/ui/object-arrival-
 import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-attendance-panel';
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
-import { ObjectEditPanel } from '@/features/object-edit/ui/object-edit-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
-import { ObjectManagersPanel } from '@/features/object-managers/ui/object-managers-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
 import { ObjectStaffingPanel } from '@/features/object-staffing/ui/object-staffing-panel';
+import { ObjectStatusControlPanel } from '@/features/object-status-control/ui/object-status-control-panel';
+import { ObjectTeamPanel } from '@/features/object-team/ui/object-team-panel';
 import {
   ObjectPanelError,
   ObjectPanelLoading,
 } from '@/features/object-state/ui/object-state-panels';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
-import {
-  canEditObjectCard,
-  canEditObjectDailyRate,
-  canOverrideFrozenObject,
-} from '@/shared/lib/access';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 const LEADERSHIP_ROLE_CODES = [
@@ -99,7 +94,7 @@ function todayAsBusinessDate(): string {
 }
 
 function hasAnyRole(roleCodes: string[], allowed: readonly string[]): boolean {
-  return roleCodes.some((roleCode) => allowed.includes(roleCode));
+  return roleCodes.some((roleCode) => allowed.includes(roleCode as never));
 }
 
 export default function ObjectDetailPage({
@@ -184,36 +179,10 @@ export default function ObjectDetailPage({
       item?.responsibles.some((responsible) => responsible.userId === user?.id),
     );
 
-  const allowObjectEdit = useMemo(() => {
-    if (!item) {
-      return false;
-    }
-
-    if (item.status === 'frozen') {
-      return canOverrideFrozenObject(currentUserRoleCodes);
-    }
-
-    return canEditObjectCard(currentUserRoleCodes);
-  }, [item, currentUserRoleCodes]);
-
-  const allowDailyRateEdit = useMemo(() => {
-    if (!item) {
-      return false;
-    }
-
-    if (item.status === 'frozen') {
-      return (
-        canEditObjectDailyRate(currentUserRoleCodes) &&
-        canOverrideFrozenObject(currentUserRoleCodes)
-      );
-    }
-
-    return canEditObjectDailyRate(currentUserRoleCodes);
-  }, [item, currentUserRoleCodes]);
-
-  const allowFrozenOverride = useMemo(() => {
-    return canOverrideFrozenObject(currentUserRoleCodes);
-  }, [currentUserRoleCodes]);
+  const canManageObjectStatus = hasAnyRole(
+    currentUserRoleCodes,
+    LEADERSHIP_ROLE_CODES,
+  );
 
   const responsibleCandidates = useMemo(() => {
     return systemUsers.filter((candidate) =>
@@ -226,7 +195,10 @@ export default function ObjectDetailPage({
 
   const managerCandidates = useMemo(() => {
     return systemUsers.filter((candidate) =>
-      hasAnyRole(candidate.roleCodes ?? [candidate.roleCode], MANAGER_ROLE_CODES),
+      hasAnyRole(
+        candidate.roleCodes ?? [candidate.roleCode],
+        MANAGER_ROLE_CODES,
+      ),
     );
   }, [systemUsers]);
 
@@ -543,40 +515,75 @@ export default function ObjectDetailPage({
         <div style={{ display: 'grid', gap: 16 }}>
           <ObjectSummaryCard item={item} />
 
-          <ObjectEditPanel
-            item={item}
-            canEditCard={allowObjectEdit}
-            canEditDailyRate={allowDailyRateEdit}
-            canOverrideFrozen={allowFrozenOverride}
-            onSave={async (payload) => {
-              const updated = await updateObject(objectId, payload);
-              setItem(updated);
-            }}
-          />
-
-          {(canManageResponsibles || canManageManagers) && (
-            <ObjectManagersPanel
-              responsibles={item.responsibles}
-              managers={item.managers}
-              responsibleCandidates={responsibleCandidates}
-              managerCandidates={managerCandidates}
-              onAddResponsible={async (userId) => {
-                await addResponsibleToObject(objectId, userId);
-                await loadCore(objectId);
-              }}
-              onRemoveResponsible={async (userId) => {
-                await removeResponsibleFromObject(objectId, userId);
-                await loadCore(objectId);
-              }}
-              onAddManager={async (userId) => {
-                await addManagerToObject(objectId, userId);
-                await loadCore(objectId);
-              }}
-              onRemoveManager={async (userId) => {
-                await removeManagerFromObject(objectId, userId);
-                await loadCore(objectId);
+          {canManageObjectStatus ? (
+            <ObjectStatusControlPanel
+              currentStatus={item.status}
+              onChangeStatus={async (status) => {
+                const updated = await changeObjectStatus(objectId, { status });
+                setItem(updated);
               }}
             />
+          ) : null}
+
+          {(canManageResponsibles || canManageManagers) && (
+            <div
+              style={{
+                display: 'grid',
+                gap: 16,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              }}
+            >
+              {systemUsersLoading ? (
+                <ObjectPanelLoading title="Ответственные и менеджеры объекта" />
+              ) : systemUsersError ? (
+                <ObjectPanelError
+                  title="Ответственные и менеджеры объекта"
+                  message={systemUsersError}
+                />
+              ) : (
+                <>
+                  {canManageResponsibles ? (
+                    <ObjectTeamPanel
+                      title="Ответственные объекта"
+                      currentItems={item.responsibles}
+                      availableUsers={responsibleCandidates}
+                      emptyCurrentText="Ответственные пока не назначены."
+                      emptyAvailableText="Подходящие пользователи не найдены."
+                      addButtonText="Добавить ответственного"
+                      removeButtonText="Снять"
+                      onAdd={async (userId) => {
+                        await addResponsibleToObject(objectId, userId);
+                        await loadCore(objectId);
+                      }}
+                      onRemove={async (userId) => {
+                        await removeResponsibleFromObject(objectId, userId);
+                        await loadCore(objectId);
+                      }}
+                    />
+                  ) : null}
+
+                  {canManageManagers ? (
+                    <ObjectTeamPanel
+                      title="Менеджеры объекта"
+                      currentItems={item.managers}
+                      availableUsers={managerCandidates}
+                      emptyCurrentText="Менеджеры пока не назначены."
+                      emptyAvailableText="Подходящие пользователи не найдены."
+                      addButtonText="Добавить менеджера"
+                      removeButtonText="Снять"
+                      onAdd={async (userId) => {
+                        await addManagerToObject(objectId, userId);
+                        await loadCore(objectId);
+                      }}
+                      onRemove={async (userId) => {
+                        await removeManagerFromObject(objectId, userId);
+                        await loadCore(objectId);
+                      }}
+                    />
+                  ) : null}
+                </>
+              )}
+            </div>
           )}
 
           <div

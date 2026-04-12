@@ -49,6 +49,7 @@ function buildObjectsQuery(params?: ListObjectsParams): string {
   }
 
   const query = searchParams.toString();
+
   return query ? `?${query}` : '';
 }
 

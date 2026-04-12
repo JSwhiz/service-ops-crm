@@ -4,6 +4,8 @@ export interface ObjectAssignedUser {
   roleCode: string;
 }
 
+export type ObjectAssignmentPerson = ObjectAssignedUser;
+
 export interface ObjectEmployeeOption {
   id: string;
   fullName: string;
