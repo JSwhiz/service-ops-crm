@@ -1,11 +1,11 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
   Post,
+  Delete,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -13,6 +13,7 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+import { AssignObjectUserDto } from './dto/assign-object-user.dto';
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
@@ -28,10 +29,6 @@ interface CurrentAuthUser {
   roleCode: string;
   roleCodes?: string[];
   isActive: boolean;
-}
-
-class UpsertObjectTeamMemberDto {
-  userId!: string;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -93,7 +90,7 @@ export class ObjectsController {
   addResponsibleToObject(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-    @Body() payload: UpsertObjectTeamMemberDto,
+    @Body() payload: AssignObjectUserDto,
   ): Promise<ObjectResponseDto> {
     return this.objectsService.addResponsibleToObject(user, id, payload.userId);
   }
@@ -111,7 +108,7 @@ export class ObjectsController {
   addManagerToObject(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-    @Body() payload: UpsertObjectTeamMemberDto,
+    @Body() payload: AssignObjectUserDto,
   ): Promise<ObjectResponseDto> {
     return this.objectsService.addManagerToObject(user, id, payload.userId);
   }

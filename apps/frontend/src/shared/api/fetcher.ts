@@ -8,6 +8,48 @@ interface FetcherOptions extends RequestInit {
   skipAuthRetry?: boolean;
 }
 
+type ParsedErrorBody = {
+  message?: string | string[];
+  error?: string | { message?: string | string[]; error?: string };
+  statusCode?: number;
+  path?: string;
+  method?: string;
+  timestamp?: string;
+};
+
+function extractMessageFromParsedBody(parsed: ParsedErrorBody): string | null {
+  if (Array.isArray(parsed.message)) {
+    return parsed.message.join(', ');
+  }
+
+  if (typeof parsed.message === 'string' && parsed.message.trim()) {
+    return parsed.message;
+  }
+
+  if (parsed.error && typeof parsed.error === 'object') {
+    if (Array.isArray(parsed.error.message)) {
+      return parsed.error.message.join(', ');
+    }
+
+    if (
+      typeof parsed.error.message === 'string' &&
+      parsed.error.message.trim()
+    ) {
+      return parsed.error.message;
+    }
+
+    if (typeof parsed.error.error === 'string' && parsed.error.error.trim()) {
+      return parsed.error.error;
+    }
+  }
+
+  if (typeof parsed.error === 'string' && parsed.error.trim()) {
+    return parsed.error;
+  }
+
+  return null;
+}
+
 function buildErrorMessage(
   method: string,
   url: string,
@@ -19,21 +61,11 @@ function buildErrorMessage(
   }
 
   try {
-    const parsed = JSON.parse(rawBody) as {
-      message?: string | string[];
-      error?: string;
-    };
+    const parsed = JSON.parse(rawBody) as ParsedErrorBody;
+    const extractedMessage = extractMessageFromParsedBody(parsed);
 
-    const message = Array.isArray(parsed.message)
-      ? parsed.message.join(', ')
-      : parsed.message;
-
-    if (message) {
-      return `${method} ${url} failed with status ${status}: ${message}`;
-    }
-
-    if (parsed.error) {
-      return `${method} ${url} failed with status ${status}: ${parsed.error}`;
+    if (extractedMessage) {
+      return `${method} ${url} failed with status ${status}: ${extractedMessage}`;
     }
   } catch {
     // ignore JSON parse failure
