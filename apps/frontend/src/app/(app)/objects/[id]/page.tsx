@@ -8,8 +8,12 @@ import {
   getObjectById,
   removeManagerFromObject,
   removeResponsibleFromObject,
+  updateObject,
 } from '@/entities/object/api/object-client';
-import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
+import type {
+  ObjectEmployeeOption,
+  ServiceObject,
+} from '@/entities/object/model/object.types';
 import {
   addEmployeeToObject,
   createObjectComment,
@@ -25,13 +29,12 @@ import {
   upsertTodayArrivalPhoto,
   upsertTodayDailyReport,
 } from '@/entities/object/api/object-operations-client';
-import type { ServiceObject } from '@/entities/object/model/object.types';
 import type {
   ObjectArrivalPhoto,
   ObjectComment,
   ObjectDailyReport,
   ObjectFeedItem,
-} from '@/entities/object/model/objec t-operations.types';
+} from '@/entities/object/model/object-operations.types';
 import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import {
@@ -42,6 +45,7 @@ import { ObjectArrivalPanel } from '@/features/object-arrival/ui/object-arrival-
 import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-attendance-panel';
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
+import { ObjectEditPanel } from '@/features/object-edit/ui/object-edit-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
 import { ObjectManagersPanel } from '@/features/object-managers/ui/object-managers-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
@@ -52,6 +56,11 @@ import {
 } from '@/features/object-state/ui/object-state-panels';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
+import {
+  canEditObjectCard,
+  canEditObjectDailyRate,
+  canOverrideFrozenObject,
+} from '@/shared/lib/access';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 const LEADERSHIP_ROLE_CODES = [
@@ -174,6 +183,37 @@ export default function ObjectDetailPage({
     Boolean(
       item?.responsibles.some((responsible) => responsible.userId === user?.id),
     );
+
+  const allowObjectEdit = useMemo(() => {
+    if (!item) {
+      return false;
+    }
+
+    if (item.status === 'frozen') {
+      return canOverrideFrozenObject(currentUserRoleCodes);
+    }
+
+    return canEditObjectCard(currentUserRoleCodes);
+  }, [item, currentUserRoleCodes]);
+
+  const allowDailyRateEdit = useMemo(() => {
+    if (!item) {
+      return false;
+    }
+
+    if (item.status === 'frozen') {
+      return (
+        canEditObjectDailyRate(currentUserRoleCodes) &&
+        canOverrideFrozenObject(currentUserRoleCodes)
+      );
+    }
+
+    return canEditObjectDailyRate(currentUserRoleCodes);
+  }, [item, currentUserRoleCodes]);
+
+  const allowFrozenOverride = useMemo(() => {
+    return canOverrideFrozenObject(currentUserRoleCodes);
+  }, [currentUserRoleCodes]);
 
   const responsibleCandidates = useMemo(() => {
     return systemUsers.filter((candidate) =>
@@ -502,6 +542,17 @@ export default function ObjectDetailPage({
       ) : item ? (
         <div style={{ display: 'grid', gap: 16 }}>
           <ObjectSummaryCard item={item} />
+
+          <ObjectEditPanel
+            item={item}
+            canEditCard={allowObjectEdit}
+            canEditDailyRate={allowDailyRateEdit}
+            canOverrideFrozen={allowFrozenOverride}
+            onSave={async (payload) => {
+              const updated = await updateObject(objectId, payload);
+              setItem(updated);
+            }}
+          />
 
           {(canManageResponsibles || canManageManagers) && (
             <ObjectManagersPanel

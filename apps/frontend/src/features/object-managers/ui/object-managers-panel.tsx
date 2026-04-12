@@ -2,12 +2,12 @@
 
 import React from 'react';
 
-import type { ObjectAssignmentPerson } from '@/entities/object/model/object.types';
+import type { ObjectAssignedUser } from '@/entities/object/model/object.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 
 interface ObjectManagersPanelProps {
-  responsibles: ObjectAssignmentPerson[];
-  managers: ObjectAssignmentPerson[];
+  responsibles: ObjectAssignedUser[];
+  managers: ObjectAssignedUser[];
   responsibleCandidates: SystemUserOption[];
   managerCandidates: SystemUserOption[];
   onAddResponsible: (userId: string) => Promise<void>;
@@ -26,15 +26,8 @@ export function ObjectManagersPanel({
   onAddManager,
   onRemoveManager,
 }: ObjectManagersPanelProps): React.JSX.Element {
-  const safeResponsibles = responsibles ?? [];
-  const safeManagers = managers ?? [];
-  const safeResponsibleCandidates = responsibleCandidates ?? [];
-  const safeManagerCandidates = managerCandidates ?? [];
-
-  const responsibleIds = new Set(
-    safeResponsibles.map((item) => item.userId),
-  );
-  const managerIds = new Set(safeManagers.map((item) => item.userId));
+  const responsibleIds = new Set(responsibles.map((item) => item.userId));
+  const managerIds = new Set(managers.map((item) => item.userId));
 
   return (
     <div
@@ -60,13 +53,13 @@ export function ObjectManagersPanel({
             Ответственные объекта
           </div>
 
-          {safeResponsibles.length === 0 ? (
+          {responsibles.length === 0 ? (
             <div className="page-muted" style={{ marginBottom: 12 }}>
               Ответственные пока не назначены.
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
-              {safeResponsibles.map((item) => (
+              {responsibles.map((item) => (
                 <div
                   key={item.userId}
                   style={{
@@ -96,11 +89,11 @@ export function ObjectManagersPanel({
             Добавить ответственного
           </div>
 
-          {safeResponsibleCandidates.length === 0 ? (
+          {responsibleCandidates.length === 0 ? (
             <div className="page-muted">Подходящих кандидатов нет.</div>
           ) : (
             <div style={{ display: 'grid', gap: 8 }}>
-              {safeResponsibleCandidates.map((user) => (
+              {responsibleCandidates.map((user) => (
                 <div
                   key={user.id}
                   style={{
@@ -138,13 +131,13 @@ export function ObjectManagersPanel({
             Менеджеры объекта
           </div>
 
-          {safeManagers.length === 0 ? (
+          {managers.length === 0 ? (
             <div className="page-muted" style={{ marginBottom: 12 }}>
               Менеджеры пока не назначены.
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
-              {safeManagers.map((item) => (
+              {managers.map((item) => (
                 <div
                   key={item.userId}
                   style={{
@@ -174,11 +167,11 @@ export function ObjectManagersPanel({
             Добавить менеджера
           </div>
 
-          {safeManagerCandidates.length === 0 ? (
+          {managerCandidates.length === 0 ? (
             <div className="page-muted">Подходящих кандидатов нет.</div>
           ) : (
             <div style={{ display: 'grid', gap: 8 }}>
-              {safeManagerCandidates.map((user) => (
+              {managerCandidates.map((user) => (
                 <div
                   key={user.id}
                   style={{

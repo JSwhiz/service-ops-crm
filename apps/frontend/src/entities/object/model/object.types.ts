@@ -1,8 +1,15 @@
-export interface ObjectAssignmentPerson {
+export interface ObjectAssignedUser {
   userId: string;
   fullName: string;
   roleCode: string;
 }
+
+/**
+ * Временный alias совместимости.
+ * Базовый и долгоживущий тип в проекте — ObjectAssignedUser.
+ * ObjectAssignmentPerson оставляем только для мягкого перехода старых компонентов.
+ */
+export type ObjectAssignmentPerson = ObjectAssignedUser;
 
 export interface ObjectEmployeeOption {
   id: string;
@@ -20,6 +27,6 @@ export interface ServiceObject {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
-  responsibles: ObjectAssignmentPerson[];
-  managers: ObjectAssignmentPerson[];
+  managers: ObjectAssignedUser[];
+  responsibles: ObjectAssignedUser[];
 }
