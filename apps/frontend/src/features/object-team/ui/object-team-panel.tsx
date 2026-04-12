@@ -31,79 +31,81 @@ export function ObjectTeamPanel({
   const currentIds = new Set(currentItems.map((item) => item.userId));
 
   return (
-    <div className="page-card">
-      <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 16 }}>
-        {title}
-      </div>
+    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
+      <div style={{ fontWeight: 600, fontSize: 18 }}>{title}</div>
 
-      <div style={{ fontWeight: 600, marginBottom: 10 }}>Текущий состав</div>
+      <section>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>Текущий состав</div>
 
-      {currentItems.length === 0 ? (
-        <div className="page-muted" style={{ marginBottom: 16 }}>
-          {emptyCurrentText}
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
-          {currentItems.map((item) => (
-            <div
-              key={item.userId}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-                padding: 10,
-                border: '1px solid #d1d5db',
-                borderRadius: 10,
-              }}
-            >
-              <span>{item.fullName}</span>
-
-              <button
-                type="button"
-                onClick={() => void onRemove(item.userId)}
+        {currentItems.length === 0 ? (
+          <div className="page-muted">{emptyCurrentText}</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {currentItems.map((item) => (
+              <div
+                key={item.userId}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: 10,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 10,
+                }}
               >
-                {removeButtonText}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+                <span>{item.fullName}</span>
 
-      <div style={{ fontWeight: 600, marginBottom: 10 }}>Доступные кандидаты</div>
-
-      {availableUsers.length === 0 ? (
-        <div className="page-muted">{emptyAvailableText}</div>
-      ) : (
-        <div style={{ display: 'grid', gap: 8 }}>
-          {availableUsers.map((user) => (
-            <div
-              key={user.id}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-                padding: 10,
-                border: '1px solid #d1d5db',
-                borderRadius: 10,
-              }}
-            >
-              <span>
-                {user.fullName} ({user.login})
-              </span>
-
-              {currentIds.has(user.id) ? (
-                <span className="page-muted">Уже назначен</span>
-              ) : (
-                <button type="button" onClick={() => void onAdd(user.id)}>
-                  {addButtonText}
+                <button
+                  type="button"
+                  onClick={() => void onRemove(item.userId)}
+                >
+                  {removeButtonText}
                 </button>
-              )}
-            </div>
-          ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>
+          Доступные пользователи
         </div>
-      )}
+
+        {availableUsers.length === 0 ? (
+          <div className="page-muted">{emptyAvailableText}</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {availableUsers.map((user) => (
+              <div
+                key={user.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: 10,
+                  border: '1px solid #d1d5db',
+                  borderRadius: 10,
+                }}
+              >
+                <span>
+                  {user.fullName} ({user.login})
+                </span>
+
+                {currentIds.has(user.id) ? (
+                  <span className="page-muted">Уже назначен</span>
+                ) : (
+                  <button type="button" onClick={() => void onAdd(user.id)}>
+                    {addButtonText}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

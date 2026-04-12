@@ -4,13 +4,6 @@ export interface ObjectAssignedUser {
   roleCode: string;
 }
 
-/**
- * Временный alias совместимости.
- * Базовый и долгоживущий тип в проекте — ObjectAssignedUser.
- * ObjectAssignmentPerson оставляем только для мягкого перехода старых компонентов.
- */
-export type ObjectAssignmentPerson = ObjectAssignedUser;
-
 export interface ObjectEmployeeOption {
   id: string;
   fullName: string;
