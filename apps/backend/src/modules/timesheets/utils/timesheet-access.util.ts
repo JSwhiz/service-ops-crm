@@ -3,6 +3,7 @@ export const WIDE_TIMESHEET_ACCESS_ROLES = [
   'deputy_founder',
   'director',
   'deputy_director',
+  'corporate_director',
 ] as const;
 
 export function hasWideTimesheetAccess(roleCodes: string[]): boolean {

@@ -1,8 +1,8 @@
-import { IsInt, IsString, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsInt, IsUUID, Max, Min } from 'class-validator';
 
 export class GetTimesheetQueryDto {
-  @IsString()
+  @IsUUID('4')
   objectId!: string;
 
   @Type(() => Number)

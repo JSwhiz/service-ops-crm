@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { Prisma } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 import { GetTimesheetQueryDto } from './dto/get-timesheet-query.dto';
@@ -30,12 +32,36 @@ export class TimesheetsService {
   ): Promise<TimesheetResponseDto> {
     await this.assertAccess(currentUser, query.objectId);
 
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: query.objectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        dailyRate: true,
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Object not found');
+    }
+
     const monthContainer = await this.ensureMonthContainer(
       query.objectId,
       query.year,
       query.month,
       currentUser.id,
     );
+
+    await this.syncAutomaticEntries({
+      objectId: query.objectId,
+      timesheetMonthId: monthContainer.id,
+      year: query.year,
+      month: query.month,
+      objectDailyRate: object.dailyRate,
+    });
 
     const rows = await this.prisma.timesheetEmployeeRow.findMany({
       where: {
@@ -53,29 +79,10 @@ export class TimesheetsService {
       },
     });
 
-    const object = await this.prisma.object.findFirst({
-      where: {
-        id: query.objectId,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-        name: true,
-        dailyRate: true,
-      },
-    });
-
-    if (!object) {
-      throw new NotFoundException('Object not found');
-    }
-
     const monthFacts = await this.prisma.objectAttendanceFact.findMany({
       where: {
         objectId: query.objectId,
-        operationDate: {
-          gte: new Date(query.year, query.month - 1, 1),
-          lt: new Date(query.year, query.month, 1),
-        },
+        operationDate: this.getMonthRange(query.year, query.month),
       },
       select: {
         employeeId: true,
@@ -93,13 +100,15 @@ export class TimesheetsService {
     const daysInSelectedMonth = this.getDaysInMonth(query.year, query.month);
 
     const mappedRows = rows.map((row) => {
+      const entriesByDay = new Map(
+        row.entries.map((entry) => [entry.dayOfMonth, entry]),
+      );
+
       const fullEntries = Array.from(
         { length: daysInSelectedMonth },
         (_, index) => {
           const dayOfMonth = index + 1;
-          const existing = row.entries.find(
-            (entry) => entry.dayOfMonth === dayOfMonth,
-          );
+          const existing = entriesByDay.get(dayOfMonth);
 
           return {
             dayOfMonth,
@@ -256,8 +265,8 @@ export class TimesheetsService {
       },
     });
 
-    const activeAssignments =
-      await this.prisma.objectEmployeeAssignment.findMany({
+    const [activeAssignments, monthAttendanceFacts] = await Promise.all([
+      this.prisma.objectEmployeeAssignment.findMany({
         where: {
           objectId,
           isActive: true,
@@ -265,28 +274,169 @@ export class TimesheetsService {
         include: {
           employee: true,
         },
-      });
+      }),
+      this.prisma.objectAttendanceFact.findMany({
+        where: {
+          objectId,
+          operationDate: this.getMonthRange(year, month),
+        },
+        select: {
+          employeeId: true,
+        },
+      }),
+    ]);
 
-    for (const assignment of activeAssignments) {
+    const employeeIds = Array.from(
+      new Set([
+        ...activeAssignments.map((assignment) => assignment.employeeId),
+        ...monthAttendanceFacts.map((fact) => fact.employeeId),
+      ]),
+    );
+
+    if (employeeIds.length === 0) {
+      return monthContainer;
+    }
+
+    const employees = await this.prisma.employee.findMany({
+      where: {
+        id: {
+          in: employeeIds,
+        },
+      },
+      select: {
+        id: true,
+        fullName: true,
+      },
+    });
+
+    const employeeNameById = new Map(
+      employees.map((employee) => [employee.id, employee.fullName]),
+    );
+
+    for (const employeeId of employeeIds) {
       await this.prisma.timesheetEmployeeRow.upsert({
         where: {
           timesheetMonthId_employeeId: {
             timesheetMonthId: monthContainer.id,
-            employeeId: assignment.employeeId,
+            employeeId,
           },
         },
         update: {
-          employeeNameSnapshot: assignment.employee.fullName,
+          employeeNameSnapshot:
+            employeeNameById.get(employeeId) ?? 'Сотрудник',
         },
         create: {
           timesheetMonthId: monthContainer.id,
-          employeeId: assignment.employeeId,
-          employeeNameSnapshot: assignment.employee.fullName,
+          employeeId,
+          employeeNameSnapshot:
+            employeeNameById.get(employeeId) ?? 'Сотрудник',
         },
       });
     }
 
     return monthContainer;
+  }
+
+  private async syncAutomaticEntries(params: {
+    objectId: string;
+    timesheetMonthId: string;
+    year: number;
+    month: number;
+    objectDailyRate: number;
+  }): Promise<void> {
+    const rows = await this.prisma.timesheetEmployeeRow.findMany({
+      where: {
+        timesheetMonthId: params.timesheetMonthId,
+      },
+      include: {
+        entries: true,
+      },
+    });
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    const monthFacts = await this.prisma.objectAttendanceFact.findMany({
+      where: {
+        objectId: params.objectId,
+        operationDate: this.getMonthRange(params.year, params.month),
+      },
+      select: {
+        employeeId: true,
+        operationDate: true,
+      },
+    });
+
+    const factSet = new Set(
+      monthFacts.map((fact) => {
+        const day = new Date(fact.operationDate).getDate();
+        return `${fact.employeeId}:${day}`;
+      }),
+    );
+
+    const daysInMonth = this.getDaysInMonth(params.year, params.month);
+    const operations: Prisma.PrismaPromise<unknown>[] = [];
+
+    for (const row of rows) {
+      const entriesByDay = new Map(
+        row.entries.map((entry) => [entry.dayOfMonth, entry]),
+      );
+
+      for (let dayOfMonth = 1; dayOfMonth <= daysInMonth; dayOfMonth += 1) {
+        const factKey = `${row.employeeId}:${dayOfMonth}`;
+        const hasFact = factSet.has(factKey);
+        const existing = entriesByDay.get(dayOfMonth);
+
+        if (hasFact) {
+          if (!existing) {
+            operations.push(
+              this.prisma.timesheetDayEntry.create({
+                data: {
+                  rowId: row.id,
+                  dayOfMonth,
+                  dayValue: params.objectDailyRate,
+                  comment: null,
+                  isChangedManually: false,
+                },
+              }),
+            );
+            continue;
+          }
+
+          if (!existing.isChangedManually && existing.dayValue !== params.objectDailyRate) {
+            operations.push(
+              this.prisma.timesheetDayEntry.update({
+                where: {
+                  id: existing.id,
+                },
+                data: {
+                  dayValue: params.objectDailyRate,
+                  comment: null,
+                  isChangedManually: false,
+                },
+              }),
+            );
+          }
+
+          continue;
+        }
+
+        if (existing && !existing.isChangedManually) {
+          operations.push(
+            this.prisma.timesheetDayEntry.delete({
+              where: {
+                id: existing.id,
+              },
+            }),
+          );
+        }
+      }
+    }
+
+    if (operations.length > 0) {
+      await this.prisma.$transaction(operations);
+    }
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
@@ -299,5 +449,12 @@ export class TimesheetsService {
 
   private getDaysInMonth(year: number, month: number): number {
     return new Date(year, month, 0).getDate();
+  }
+
+  private getMonthRange(year: number, month: number) {
+    return {
+      gte: new Date(year, month - 1, 1),
+      lt: new Date(year, month, 1),
+    };
   }
 }

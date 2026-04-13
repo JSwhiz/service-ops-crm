@@ -1,7 +1,7 @@
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class UpsertTimesheetEntryDto {
-  @IsString()
+  @IsUUID('4')
   objectId!: string;
 
   @IsInt()
@@ -14,7 +14,7 @@ export class UpsertTimesheetEntryDto {
   @Max(12)
   month!: number;
 
-  @IsString()
+  @IsUUID('4')
   employeeId!: string;
 
   @IsInt()

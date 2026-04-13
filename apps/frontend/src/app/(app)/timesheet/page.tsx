@@ -1,21 +1,35 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
-import { getTimesheet, upsertTimesheetEntry } from '@/entities/timesheet/api/timesheet-client';
+import {
+  getTimesheet,
+  upsertTimesheetEntry,
+} from '@/entities/timesheet/api/timesheet-client';
 import type { TimesheetMonth } from '@/entities/timesheet/model/timesheet.types';
 import { TimesheetFilters } from '@/features/timesheet-filters/ui/timesheet-filters';
 import { TimesheetGrid } from '@/features/timesheet-grid/ui/timesheet-grid';
 import { TimesheetLegend } from '@/features/timesheet-legend/ui/timesheet-legend';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
+function getCurrentYearMonth(): { year: number; month: number } {
+  const now = new Date();
+
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+  };
+}
+
 export default function TimesheetPage(): React.JSX.Element {
+  const currentPeriod = useMemo(() => getCurrentYearMonth(), []);
+
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [selectedObjectId, setSelectedObjectId] = useState('');
-  const [selectedYear, setSelectedYear] = useState(2026);
-  const [selectedMonth, setSelectedMonth] = useState(4);
+  const [selectedYear, setSelectedYear] = useState(currentPeriod.year);
+  const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
 
   const [timesheet, setTimesheet] = useState<TimesheetMonth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,6 +43,7 @@ export default function TimesheetPage(): React.JSX.Element {
         setSelectedObjectId((prev) => prev || (response[0]?.id ?? ''));
       } catch {
         setLoadError('Не удалось загрузить список объектов.');
+        setIsLoading(false);
       }
     };
 
