@@ -56,8 +56,7 @@ export function canEditObject(roleCodes: string[]): boolean {
 /**
  * Recovery bridge:
  * часть экранов уже использует имя canEditObjectCard.
- * На текущем этапе не размазываем rename по всему frontend,
- * а сохраняем совместимость на уровне shared access layer.
+ * Оставляем совместимость, чтобы не плодить расхождения по импортам.
  */
 export function canEditObjectCard(roleCodes: string[]): boolean {
   return canEditObject(roleCodes);

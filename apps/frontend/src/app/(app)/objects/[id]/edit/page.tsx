@@ -14,9 +14,8 @@ import { ObjectStatusPanel } from '@/features/object-status/ui/object-status-pan
 import { useAuth } from '@/shared/auth/use-auth';
 import {
   canChangeObjectStatus,
-  canEditObject,
+  canEditObjectCard,
   canEditObjectDailyRate,
-  canOverrideFrozenObject,
 } from '@/shared/lib/access';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
@@ -53,6 +52,10 @@ export default function EditObjectPage({
     return user.roleCode ? [user.roleCode] : [];
   }, [user]);
 
+  const allowEditObject = canEditObjectCard(currentUserRoleCodes);
+  const allowEditDailyRate = canEditObjectDailyRate(currentUserRoleCodes);
+  const allowChangeStatus = canChangeObjectStatus(currentUserRoleCodes);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -64,6 +67,13 @@ export default function EditObjectPage({
       }
 
       setObjectId(resolved.id);
+
+      if (!allowEditObject) {
+        setIsLoading(false);
+        setLoadError('У вас нет прав на редактирование карточки объекта.');
+        return;
+      }
+
       setIsLoading(true);
       setLoadError(null);
 
@@ -76,7 +86,10 @@ export default function EditObjectPage({
       } catch (error) {
         if (!cancelled) {
           setLoadError(
-            getErrorMessage(error, 'Не удалось загрузить объект для редактирования.'),
+            getErrorMessage(
+              error,
+              'Не удалось загрузить объект для редактирования.',
+            ),
           );
         }
       } finally {
@@ -91,37 +104,7 @@ export default function EditObjectPage({
     return () => {
       cancelled = true;
     };
-  }, [params]);
-
-  const isAssignedToObject = useMemo(() => {
-    if (!item || !user?.id) {
-      return false;
-    }
-
-    return (
-      item.managers.some((person) => person.userId === user.id) ||
-      item.responsibles.some((person) => person.userId === user.id)
-    );
-  }, [item, user?.id]);
-
-  const allowEditObject = useMemo(() => {
-    if (!item) {
-      return false;
-    }
-
-    if (canEditObject(currentUserRoleCodes)) {
-      return true;
-    }
-
-    if (item.status === 'frozen') {
-      return canOverrideFrozenObject(currentUserRoleCodes);
-    }
-
-    return isAssignedToObject;
-  }, [item, currentUserRoleCodes, isAssignedToObject]);
-
-  const allowEditDailyRate = canEditObjectDailyRate(currentUserRoleCodes);
-  const allowChangeStatus = canChangeObjectStatus(currentUserRoleCodes);
+  }, [params, allowEditObject]);
 
   if (isLoading) {
     return (
@@ -136,8 +119,19 @@ export default function EditObjectPage({
     return (
       <>
         <PageTitle title="Редактирование объекта" />
-        <div className="page-card" style={{ color: '#b91c1c' }}>
-          {loadError}
+        <div className="page-card" style={{ display: 'grid', gap: 16 }}>
+          <div style={{ color: '#b91c1c' }}>{loadError}</div>
+
+          <div>
+            <button
+              type="button"
+              onClick={() =>
+                router.push(objectId ? `/objects/${objectId}` : '/objects')
+              }
+            >
+              Вернуться назад
+            </button>
+          </div>
         </div>
       </>
     );
@@ -148,25 +142,6 @@ export default function EditObjectPage({
       <>
         <PageTitle title="Редактирование объекта" />
         <div className="page-card">Объект не найден.</div>
-      </>
-    );
-  }
-
-  if (!allowEditObject) {
-    return (
-      <>
-        <PageTitle title={`Редактирование: ${item.name}`} />
-        <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-          <div style={{ fontWeight: 600 }}>Редактирование недоступно</div>
-          <div className="page-muted">
-            У вас нет прав на редактирование карточки этого объекта.
-          </div>
-          <div>
-            <button type="button" onClick={() => router.push(`/objects/${item.id}`)}>
-              Вернуться в карточку объекта
-            </button>
-          </div>
-        </div>
       </>
     );
   }
@@ -195,7 +170,10 @@ export default function EditObjectPage({
         />
 
         <div className="page-card" style={{ display: 'flex', gap: 12 }}>
-          <button type="button" onClick={() => router.push(`/objects/${objectId}`)}>
+          <button
+            type="button"
+            onClick={() => router.push(`/objects/${objectId}`)}
+          >
             Вернуться в карточку
           </button>
 

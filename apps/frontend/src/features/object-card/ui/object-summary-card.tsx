@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import React from 'react';
+import React, { useMemo } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { useAuth } from '@/shared/auth/use-auth';
+import { canEditObjectCard } from '@/shared/lib/access';
 
 interface ObjectSummaryCardProps {
   item: ServiceObject;
@@ -22,20 +24,70 @@ function getStatusLabel(status: string): string {
   }
 }
 
+function getSeasonLabel(seasonMode: string): string {
+  switch (seasonMode) {
+    case 'summer':
+      return 'Летний';
+    case 'winter':
+      return 'Зимний';
+    case 'all_year':
+      return 'Круглый год';
+    default:
+      return seasonMode;
+  }
+}
+
 export function ObjectSummaryCard({
   item,
 }: ObjectSummaryCardProps): React.JSX.Element {
+  const { user } = useAuth();
+
+  const currentUserRoleCodes = useMemo(() => {
+    if (!user) {
+      return [];
+    }
+
+    if (Array.isArray(user.roleCodes) && user.roleCodes.length > 0) {
+      return user.roleCodes;
+    }
+
+    if (user.roleCode) {
+      return [user.roleCode];
+    }
+
+    return [];
+  }, [user]);
+
+  const allowEdit = canEditObjectCard(currentUserRoleCodes);
+
   return (
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          gap: 16,
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+        }}
+      >
         <div>
           <div style={{ fontSize: 24, fontWeight: 700 }}>{item.name}</div>
-          <div className="page-muted">{item.internalName ?? 'Без внутреннего имени'}</div>
+          <div className="page-muted">
+            {item.internalName ?? 'Без внутреннего имени'}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <Link href={`/objects/${item.id}/edit`}>Редактировать</Link>
-          <Link href={`/objects/${item.id}/history`}>История</Link>
+          {allowEdit ? (
+            <Link href={`/objects/${item.id}/edit`}>
+              <button type="button">Редактировать</button>
+            </Link>
+          ) : null}
+
+          <Link href={`/objects/${item.id}/history`}>
+            <button type="button">История</button>
+          </Link>
         </div>
       </div>
 
@@ -58,7 +110,7 @@ export function ObjectSummaryCard({
 
         <div>
           <div className="page-muted">Сезон</div>
-          <div>{item.seasonMode}</div>
+          <div>{getSeasonLabel(item.seasonMode)}</div>
         </div>
 
         <div>
