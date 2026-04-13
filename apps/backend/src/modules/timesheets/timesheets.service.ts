@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -152,6 +153,21 @@ export class TimesheetsService {
       throw new NotFoundException('Day exceeds month length');
     }
 
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: payload.objectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        dailyRate: true,
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Object not found');
+    }
+
     const monthContainer = await this.ensureMonthContainer(
       payload.objectId,
       payload.year,
@@ -164,10 +180,89 @@ export class TimesheetsService {
         timesheetMonthId: monthContainer.id,
         employeeId: payload.employeeId,
       },
+      include: {
+        entries: true,
+      },
     });
 
     if (!row) {
       throw new NotFoundException('Employee row for timesheet not found');
+    }
+
+    const existingEntry = row.entries.find(
+      (entry) => entry.dayOfMonth === payload.dayOfMonth,
+    );
+
+    const attendanceFact = await this.prisma.objectAttendanceFact.findFirst({
+      where: {
+        objectId: payload.objectId,
+        employeeId: payload.employeeId,
+        operationDate: this.getDayRange(
+          payload.year,
+          payload.month,
+          payload.dayOfMonth,
+        ),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const expectedAutoValue = attendanceFact ? object.dailyRate : 0;
+    const normalizedComment = payload.comment?.trim();
+
+    if (payload.dayValue !== expectedAutoValue && !normalizedComment) {
+      throw new BadRequestException(
+        'Manual timesheet correction requires a comment',
+      );
+    }
+
+    if (payload.dayValue === expectedAutoValue) {
+      if (!attendanceFact) {
+        if (existingEntry) {
+          await this.prisma.timesheetDayEntry.delete({
+            where: {
+              id: existingEntry.id,
+            },
+          });
+        }
+
+        return this.getTimesheet(currentUser, {
+          objectId: payload.objectId,
+          year: payload.year,
+          month: payload.month,
+        });
+      }
+
+      await this.prisma.timesheetDayEntry.upsert({
+        where: {
+          rowId_dayOfMonth: {
+            rowId: row.id,
+            dayOfMonth: payload.dayOfMonth,
+          },
+        },
+        update: {
+          dayValue: expectedAutoValue,
+          comment: normalizedComment ?? null,
+          isChangedManually: false,
+          updatedByUserId: currentUser.id,
+        },
+        create: {
+          rowId: row.id,
+          dayOfMonth: payload.dayOfMonth,
+          dayValue: expectedAutoValue,
+          comment: normalizedComment ?? null,
+          isChangedManually: false,
+          createdByUserId: currentUser.id,
+          updatedByUserId: currentUser.id,
+        },
+      });
+
+      return this.getTimesheet(currentUser, {
+        objectId: payload.objectId,
+        year: payload.year,
+        month: payload.month,
+      });
     }
 
     await this.prisma.timesheetDayEntry.upsert({
@@ -179,7 +274,7 @@ export class TimesheetsService {
       },
       update: {
         dayValue: payload.dayValue,
-        comment: payload.comment ?? null,
+        comment: normalizedComment ?? null,
         isChangedManually: true,
         updatedByUserId: currentUser.id,
       },
@@ -187,7 +282,7 @@ export class TimesheetsService {
         rowId: row.id,
         dayOfMonth: payload.dayOfMonth,
         dayValue: payload.dayValue,
-        comment: payload.comment ?? null,
+        comment: normalizedComment ?? null,
         isChangedManually: true,
         createdByUserId: currentUser.id,
         updatedByUserId: currentUser.id,
@@ -322,14 +417,12 @@ export class TimesheetsService {
           },
         },
         update: {
-          employeeNameSnapshot:
-            employeeNameById.get(employeeId) ?? 'Сотрудник',
+          employeeNameSnapshot: employeeNameById.get(employeeId) ?? 'Сотрудник',
         },
         create: {
           timesheetMonthId: monthContainer.id,
           employeeId,
-          employeeNameSnapshot:
-            employeeNameById.get(employeeId) ?? 'Сотрудник',
+          employeeNameSnapshot: employeeNameById.get(employeeId) ?? 'Сотрудник',
         },
       });
     }
@@ -404,7 +497,10 @@ export class TimesheetsService {
             continue;
           }
 
-          if (!existing.isChangedManually && existing.dayValue !== params.objectDailyRate) {
+          if (
+            !existing.isChangedManually &&
+            existing.dayValue !== params.objectDailyRate
+          ) {
             operations.push(
               this.prisma.timesheetDayEntry.update({
                 where: {
@@ -455,6 +551,13 @@ export class TimesheetsService {
     return {
       gte: new Date(year, month - 1, 1),
       lt: new Date(year, month, 1),
+    };
+  }
+
+  private getDayRange(year: number, month: number, dayOfMonth: number) {
+    return {
+      gte: new Date(year, month - 1, dayOfMonth),
+      lt: new Date(year, month - 1, dayOfMonth + 1),
     };
   }
 }

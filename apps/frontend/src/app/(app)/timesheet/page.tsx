@@ -110,6 +110,7 @@ export default function TimesheetPage(): React.JSX.Element {
               employeeId: payload.employeeId,
               dayOfMonth: payload.dayOfMonth,
               dayValue: payload.dayValue,
+              comment: payload.comment,
             });
 
             setTimesheet(updated);

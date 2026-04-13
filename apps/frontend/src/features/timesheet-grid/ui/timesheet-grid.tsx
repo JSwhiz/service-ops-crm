@@ -18,9 +18,12 @@ export function TimesheetGrid({
     employeeId: string;
     dayOfMonth: number;
     dayValue: number;
+    comment?: string;
   }) => Promise<void>;
 }): React.JSX.Element {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const days = useMemo(
@@ -32,6 +35,10 @@ export function TimesheetGrid({
     if (scrollRef.current) {
       scrollRef.current.scrollLeft = 0;
     }
+
+    setDrafts({});
+    setError(null);
+    setSavingKey(null);
   }, [timesheet.objectId, timesheet.year, timesheet.month]);
 
   return (
@@ -47,6 +54,15 @@ export function TimesheetGrid({
           <strong>Итого за месяц:</strong> {timesheet.monthTotal}
         </div>
       </div>
+
+      {error ? (
+        <div
+          className="page-card"
+          style={{ color: '#b91c1c', marginBottom: 12 }}
+        >
+          {error}
+        </div>
+      ) : null}
 
       <div className="timesheet-shell">
         <div className="timesheet-scroll" ref={scrollRef}>
@@ -78,13 +94,16 @@ export function TimesheetGrid({
 
                   {row.entries.map((entry) => {
                     const key = buildKey(row.employeeId, entry.dayOfMonth);
-                    const currentValue = drafts[key] ?? getCellDisplayValue(entry.dayValue);
+                    const currentValue =
+                      drafts[key] ?? getCellDisplayValue(entry.dayValue);
 
                     return (
                       <td
                         key={entry.dayOfMonth}
                         className={[
-                          entry.isChangedManually ? 'timesheet-table__changed-cell' : '',
+                          entry.isChangedManually
+                            ? 'timesheet-table__changed-cell'
+                            : '',
                           entry.hasFact ? 'timesheet-table__fact-cell' : '',
                         ]
                           .filter(Boolean)
@@ -94,6 +113,7 @@ export function TimesheetGrid({
                           type="number"
                           inputMode="numeric"
                           value={currentValue}
+                          disabled={savingKey === key}
                           onChange={(event) => {
                             setDrafts((prev) => ({
                               ...prev,
@@ -108,20 +128,79 @@ export function TimesheetGrid({
 
                             const parsed = raw.trim() === '' ? 0 : Number(raw);
                             if (Number.isNaN(parsed)) {
+                              setError('Введите корректное числовое значение.');
                               return;
                             }
 
-                            await onChangeEntry({
-                              employeeId: row.employeeId,
-                              dayOfMonth: entry.dayOfMonth,
-                              dayValue: parsed,
-                            });
+                            if (parsed === entry.dayValue) {
+                              setDrafts((prev) => {
+                                const next = { ...prev };
+                                delete next[key];
+                                return next;
+                              });
+                              setError(null);
+                              return;
+                            }
 
-                            setDrafts((prev) => {
-                              const next = { ...prev };
-                              delete next[key];
-                              return next;
-                            });
+                            const expectedAutoValue = entry.hasFact
+                              ? timesheet.objectDailyRate
+                              : 0;
+
+                            let comment: string | undefined;
+
+                            if (parsed !== expectedAutoValue) {
+                              const promptResult = window.prompt(
+                                'Укажите причину ручной корректировки табеля',
+                                entry.comment ?? '',
+                              );
+
+                              if (promptResult === null) {
+                                setError(
+                                  'Корректировка отменена: причина изменения не указана.',
+                                );
+                                return;
+                              }
+
+                              const normalizedComment = promptResult.trim();
+
+                              if (!normalizedComment) {
+                                setError(
+                                  'Для ручной корректировки табеля комментарий обязателен.',
+                                );
+                                return;
+                              }
+
+                              comment = normalizedComment;
+                            }
+
+                            setSavingKey(key);
+                            setError(null);
+
+                            try {
+                              await onChangeEntry({
+                                employeeId: row.employeeId,
+                                dayOfMonth: entry.dayOfMonth,
+                                dayValue: parsed,
+                                comment,
+                              });
+
+                              setDrafts((prev) => {
+                                const next = { ...prev };
+                                delete next[key];
+                                return next;
+                              });
+                            } catch (caughtError) {
+                              if (
+                                caughtError instanceof Error &&
+                                caughtError.message.trim()
+                              ) {
+                                setError(caughtError.message);
+                              } else {
+                                setError('Не удалось сохранить изменение табеля.');
+                              }
+                            } finally {
+                              setSavingKey(null);
+                            }
                           }}
                           className="timesheet-table__input"
                         />
@@ -143,7 +222,9 @@ export function TimesheetGrid({
                 </td>
                 {days.map((day) => {
                   const dayTotal = timesheet.rows.reduce((sum, row) => {
-                    const entry = row.entries.find((item) => item.dayOfMonth === day);
+                    const entry = row.entries.find(
+                      (item) => item.dayOfMonth === day,
+                    );
                     return sum + (entry?.dayValue ?? 0);
                   }, 0);
 
