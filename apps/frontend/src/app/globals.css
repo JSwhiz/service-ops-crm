@@ -96,6 +96,8 @@ select {
 
 .app-content {
   padding: 24px;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .page-title {
@@ -136,6 +138,7 @@ select {
   border-radius: 16px;
   padding: 16px;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  min-width: 0;
 }
 
 .timesheet-card__meta {
@@ -149,17 +152,20 @@ select {
 
 .timesheet-shell {
   position: relative;
-  overflow: hidden;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
   background: #fff;
+  -webkit-overflow-scrolling: touch;
 }
 
 .timesheet-scroll {
-  overflow-x: auto;
-  overflow-y: visible;
   position: relative;
   width: 100%;
+  min-width: 0;
 }
 
 .timesheet-table {
