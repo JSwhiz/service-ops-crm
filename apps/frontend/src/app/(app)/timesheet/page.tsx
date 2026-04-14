@@ -1,37 +1,32 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import {
   getTimesheet,
+  getTimesheetCorrections,
   upsertTimesheetEntry,
 } from '@/entities/timesheet/api/timesheet-client';
-import type { TimesheetMonth } from '@/entities/timesheet/model/timesheet.types';
+import type {
+  TimesheetCorrectionItem,
+  TimesheetMonth,
+} from '@/entities/timesheet/model/timesheet.types';
+import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/timesheet-corrections-panel';
 import { TimesheetFilters } from '@/features/timesheet-filters/ui/timesheet-filters';
 import { TimesheetGrid } from '@/features/timesheet-grid/ui/timesheet-grid';
 import { TimesheetLegend } from '@/features/timesheet-legend/ui/timesheet-legend';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
-function getCurrentYearMonth(): { year: number; month: number } {
-  const now = new Date();
-
-  return {
-    year: now.getFullYear(),
-    month: now.getMonth() + 1,
-  };
-}
-
 export default function TimesheetPage(): React.JSX.Element {
-  const currentPeriod = useMemo(() => getCurrentYearMonth(), []);
-
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [selectedObjectId, setSelectedObjectId] = useState('');
-  const [selectedYear, setSelectedYear] = useState(currentPeriod.year);
-  const [selectedMonth, setSelectedMonth] = useState(currentPeriod.month);
+  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedMonth, setSelectedMonth] = useState(4);
 
   const [timesheet, setTimesheet] = useState<TimesheetMonth | null>(null);
+  const [corrections, setCorrections] = useState<TimesheetCorrectionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -40,10 +35,9 @@ export default function TimesheetPage(): React.JSX.Element {
       try {
         const response = await listObjects();
         setObjects(response);
-        setSelectedObjectId((prev) => prev || (response[0]?.id ?? ''));
+        setSelectedObjectId((prev) => prev || response[0]?.id || '');
       } catch {
         setLoadError('Не удалось загрузить список объектов.');
-        setIsLoading(false);
       }
     };
 
@@ -55,17 +49,26 @@ export default function TimesheetPage(): React.JSX.Element {
       return;
     }
 
-    const loadTimesheet = async (): Promise<void> => {
+    const loadTimesheetData = async (): Promise<void> => {
       setIsLoading(true);
       setLoadError(null);
 
       try {
-        const response = await getTimesheet({
-          objectId: selectedObjectId,
-          year: selectedYear,
-          month: selectedMonth,
-        });
-        setTimesheet(response);
+        const [timesheetResponse, correctionsResponse] = await Promise.all([
+          getTimesheet({
+            objectId: selectedObjectId,
+            year: selectedYear,
+            month: selectedMonth,
+          }),
+          getTimesheetCorrections({
+            objectId: selectedObjectId,
+            year: selectedYear,
+            month: selectedMonth,
+          }),
+        ]);
+
+        setTimesheet(timesheetResponse);
+        setCorrections(correctionsResponse);
       } catch {
         setLoadError('Не удалось загрузить табель.');
       } finally {
@@ -73,7 +76,7 @@ export default function TimesheetPage(): React.JSX.Element {
       }
     };
 
-    void loadTimesheet();
+    void loadTimesheetData();
   }, [selectedObjectId, selectedYear, selectedMonth]);
 
   return (
@@ -99,23 +102,34 @@ export default function TimesheetPage(): React.JSX.Element {
           {loadError}
         </div>
       ) : timesheet ? (
-        <TimesheetGrid
-          key={`${selectedObjectId}-${selectedYear}-${selectedMonth}`}
-          timesheet={timesheet}
-          onChangeEntry={async (payload) => {
-            const updated = await upsertTimesheetEntry({
-              objectId: selectedObjectId,
-              year: selectedYear,
-              month: selectedMonth,
-              employeeId: payload.employeeId,
-              dayOfMonth: payload.dayOfMonth,
-              dayValue: payload.dayValue,
-              comment: payload.comment,
-            });
+        <div style={{ display: 'grid', gap: 16 }}>
+          <TimesheetGrid
+            key={`${selectedObjectId}-${selectedYear}-${selectedMonth}`}
+            timesheet={timesheet}
+            onChangeEntry={async (payload) => {
+              const updatedTimesheet = await upsertTimesheetEntry({
+                objectId: selectedObjectId,
+                year: selectedYear,
+                month: selectedMonth,
+                employeeId: payload.employeeId,
+                dayOfMonth: payload.dayOfMonth,
+                dayValue: payload.dayValue,
+                comment: payload.comment,
+              });
 
-            setTimesheet(updated);
-          }}
-        />
+              const updatedCorrections = await getTimesheetCorrections({
+                objectId: selectedObjectId,
+                year: selectedYear,
+                month: selectedMonth,
+              });
+
+              setTimesheet(updatedTimesheet);
+              setCorrections(updatedCorrections);
+            }}
+          />
+
+          <TimesheetCorrectionsPanel items={corrections} />
+        </div>
       ) : (
         <div className="page-card">Нет данных табеля.</div>
       )}

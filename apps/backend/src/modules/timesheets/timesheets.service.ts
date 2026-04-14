@@ -10,6 +10,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { GetTimesheetQueryDto } from './dto/get-timesheet-query.dto';
+import { ListTimesheetCorrectionsQueryDto } from './dto/list-timesheet-corrections-query.dto';
+import { TimesheetCorrectionItemDto } from './dto/timesheet-correction-item.dto';
 import { TimesheetResponseDto } from './dto/timesheet-response.dto';
 import { UpsertTimesheetEntryDto } from './dto/upsert-timesheet-entry.dto';
 import { hasWideTimesheetAccess } from './utils/timesheet-access.util';
@@ -140,6 +142,85 @@ export class TimesheetsService {
       monthTotal: mappedRows.reduce((sum, row) => sum + row.rowTotal, 0),
       rows: mappedRows,
     };
+  }
+
+  async listCorrections(
+    currentUser: CurrentAuthUser,
+    query: ListTimesheetCorrectionsQueryDto,
+  ): Promise<TimesheetCorrectionItemDto[]> {
+    await this.assertAccess(currentUser, query.objectId);
+
+    const monthContainer = await this.ensureMonthContainer(
+      query.objectId,
+      query.year,
+      query.month,
+      currentUser.id,
+    );
+
+    const correctionEntries = await this.prisma.timesheetDayEntry.findMany({
+      where: {
+        row: {
+          timesheetMonthId: monthContainer.id,
+        },
+        isChangedManually: true,
+      },
+      include: {
+        row: {
+          select: {
+            employeeId: true,
+            employeeNameSnapshot: true,
+          },
+        },
+        updatedBy: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
+      },
+      orderBy: [
+        {
+          dayOfMonth: 'asc',
+        },
+        {
+          updatedAt: 'desc',
+        },
+      ],
+    });
+
+    if (correctionEntries.length === 0) {
+      return [];
+    }
+
+    const monthFacts = await this.prisma.objectAttendanceFact.findMany({
+      where: {
+        objectId: query.objectId,
+        operationDate: this.getMonthRange(query.year, query.month),
+      },
+      select: {
+        employeeId: true,
+        operationDate: true,
+      },
+    });
+
+    const factSet = new Set(
+      monthFacts.map((fact) => {
+        const day = new Date(fact.operationDate).getDate();
+        return `${fact.employeeId}:${day}`;
+      }),
+    );
+
+    return correctionEntries.map((entry) => ({
+      employeeId: entry.row.employeeId,
+      employeeName: entry.row.employeeNameSnapshot,
+      dayOfMonth: entry.dayOfMonth,
+      dayValue: entry.dayValue,
+      comment: entry.comment ?? null,
+      hasFact: factSet.has(`${entry.row.employeeId}:${entry.dayOfMonth}`),
+      updatedAt: entry.updatedAt.toISOString(),
+      updatedByUserId: entry.updatedBy?.id ?? null,
+      updatedByUserName: entry.updatedBy?.fullName ?? null,
+    }));
   }
 
   async upsertEntry(

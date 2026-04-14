@@ -68,10 +68,6 @@ export function TimesheetGrid({
   );
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = 0;
-    }
-
     setDrafts({});
     setError(null);
     setSavingKey(null);

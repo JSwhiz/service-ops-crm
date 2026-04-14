@@ -1,7 +1,10 @@
 import { fetcher } from '@/shared/api/fetcher';
 import { getAccessToken } from '@/shared/auth/auth-storage';
 
-import type { TimesheetMonth } from '../model/timesheet.types';
+import type {
+  TimesheetCorrectionItem,
+  TimesheetMonth,
+} from '../model/timesheet.types';
 
 export async function getTimesheet(params: {
   objectId: string;
@@ -18,6 +21,26 @@ export async function getTimesheet(params: {
     method: 'GET',
     token: getAccessToken(),
   });
+}
+
+export async function getTimesheetCorrections(params: {
+  objectId: string;
+  year: number;
+  month: number;
+}): Promise<TimesheetCorrectionItem[]> {
+  const query = new URLSearchParams({
+    objectId: params.objectId,
+    year: String(params.year),
+    month: String(params.month),
+  });
+
+  return fetcher<TimesheetCorrectionItem[]>(
+    `/timesheets/corrections?${query.toString()}`,
+    {
+      method: 'GET',
+      token: getAccessToken(),
+    },
+  );
 }
 
 export async function upsertTimesheetEntry(payload: {

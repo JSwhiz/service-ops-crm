@@ -4,6 +4,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { GetTimesheetQueryDto } from './dto/get-timesheet-query.dto';
+import { ListTimesheetCorrectionsQueryDto } from './dto/list-timesheet-corrections-query.dto';
+import { TimesheetCorrectionItemDto } from './dto/timesheet-correction-item.dto';
 import { TimesheetResponseDto } from './dto/timesheet-response.dto';
 import { UpsertTimesheetEntryDto } from './dto/upsert-timesheet-entry.dto';
 import { TimesheetsService } from './timesheets.service';
@@ -28,6 +30,14 @@ export class TimesheetsController {
     @Query() query: GetTimesheetQueryDto,
   ): Promise<TimesheetResponseDto> {
     return this.timesheetsService.getTimesheet(user, query);
+  }
+
+  @Get('corrections')
+  listCorrections(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListTimesheetCorrectionsQueryDto,
+  ): Promise<TimesheetCorrectionItemDto[]> {
+    return this.timesheetsService.listCorrections(user, query);
   }
 
   @Post('entries')

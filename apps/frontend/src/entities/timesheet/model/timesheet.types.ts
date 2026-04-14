@@ -24,3 +24,15 @@ export interface TimesheetMonth {
   monthTotal: number;
   rows: TimesheetRow[];
 }
+
+export interface TimesheetCorrectionItem {
+  employeeId: string;
+  employeeName: string;
+  dayOfMonth: number;
+  dayValue: number;
+  comment: string | null;
+  hasFact: boolean;
+  updatedAt: string;
+  updatedByUserId: string | null;
+  updatedByUserName: string | null;
+}
