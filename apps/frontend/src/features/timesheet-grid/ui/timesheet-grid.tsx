@@ -9,6 +9,42 @@ function buildKey(employeeId: string, dayOfMonth: number): string {
   return `${employeeId}:${dayOfMonth}`;
 }
 
+function getCellClassNames(params: {
+  isChangedManually: boolean;
+  hasFact: boolean;
+}): string {
+  return [
+    params.isChangedManually ? 'timesheet-table__changed-cell' : '',
+    params.hasFact ? 'timesheet-table__fact-cell' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function getCellTitle(params: {
+  isChangedManually: boolean;
+  hasFact: boolean;
+  comment: string | null;
+}): string | undefined {
+  if (params.isChangedManually && params.hasFact && params.comment) {
+    return `Ручная корректировка поверх attendance. Комментарий: ${params.comment}`;
+  }
+
+  if (params.isChangedManually && params.comment) {
+    return `Ручная корректировка. Комментарий: ${params.comment}`;
+  }
+
+  if (params.isChangedManually) {
+    return 'Ручная корректировка';
+  }
+
+  if (params.hasFact) {
+    return 'Есть факт присутствия';
+  }
+
+  return undefined;
+}
+
 export function TimesheetGrid({
   timesheet,
   onChangeEntry,
@@ -97,18 +133,44 @@ export function TimesheetGrid({
                     const currentValue =
                       drafts[key] ?? getCellDisplayValue(entry.dayValue);
 
+                    const cellTitle = getCellTitle({
+                      isChangedManually: entry.isChangedManually,
+                      hasFact: entry.hasFact,
+                      comment: entry.comment,
+                    });
+
                     return (
                       <td
                         key={entry.dayOfMonth}
-                        className={[
-                          entry.isChangedManually
-                            ? 'timesheet-table__changed-cell'
-                            : '',
-                          entry.hasFact ? 'timesheet-table__fact-cell' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
+                        className={getCellClassNames({
+                          isChangedManually: entry.isChangedManually,
+                          hasFact: entry.hasFact,
+                        })}
+                        title={cellTitle}
+                        style={{ position: 'relative' }}
                       >
+                        {entry.isChangedManually ? (
+                          <span
+                            title={
+                              entry.comment
+                                ? `Ручная корректировка: ${entry.comment}`
+                                : 'Ручная корректировка'
+                            }
+                            style={{
+                              position: 'absolute',
+                              top: 4,
+                              right: 6,
+                              fontSize: 10,
+                              lineHeight: 1,
+                              color: '#1d4ed8',
+                              fontWeight: 700,
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            M
+                          </span>
+                        ) : null}
+
                         <input
                           type="number"
                           inputMode="numeric"

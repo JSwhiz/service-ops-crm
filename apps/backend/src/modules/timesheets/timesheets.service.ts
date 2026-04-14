@@ -243,7 +243,7 @@ export class TimesheetsService {
         },
         update: {
           dayValue: expectedAutoValue,
-          comment: normalizedComment ?? null,
+          comment: null,
           isChangedManually: false,
           updatedByUserId: currentUser.id,
         },
@@ -251,7 +251,7 @@ export class TimesheetsService {
           rowId: row.id,
           dayOfMonth: payload.dayOfMonth,
           dayValue: expectedAutoValue,
-          comment: normalizedComment ?? null,
+          comment: null,
           isChangedManually: false,
           createdByUserId: currentUser.id,
           updatedByUserId: currentUser.id,
@@ -497,10 +497,30 @@ export class TimesheetsService {
             continue;
           }
 
-          if (
-            !existing.isChangedManually &&
-            existing.dayValue !== params.objectDailyRate
-          ) {
+          if (!existing.isChangedManually) {
+            if (existing.dayValue !== params.objectDailyRate) {
+              operations.push(
+                this.prisma.timesheetDayEntry.update({
+                  where: {
+                    id: existing.id,
+                  },
+                  data: {
+                    dayValue: params.objectDailyRate,
+                    comment: null,
+                    isChangedManually: false,
+                  },
+                }),
+              );
+            }
+
+            continue;
+          }
+
+          const hasMeaningfulManualComment =
+            typeof existing.comment === 'string' &&
+            existing.comment.trim().length > 0;
+
+          if (!hasMeaningfulManualComment) {
             operations.push(
               this.prisma.timesheetDayEntry.update({
                 where: {

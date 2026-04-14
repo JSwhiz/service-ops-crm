@@ -237,12 +237,30 @@ select {
   z-index: 30;
 }
 
+.timesheet-table__fact-cell {
+  background: #f8fafc !important;
+}
+
 .timesheet-table__changed-cell {
   background: #eff6ff !important;
 }
 
-.timesheet-table__fact-cell {
-  background: #f8fafc !important;
+.timesheet-table__fact-cell.timesheet-table__changed-cell {
+  background: #dbeafe !important;
+}
+
+.timesheet-table__changed-cell .timesheet-table__input {
+  border-color: #60a5fa;
+  background: #f8fbff;
+}
+
+.timesheet-table__fact-cell .timesheet-table__input {
+  background: #fcfdff;
+}
+
+.timesheet-table__fact-cell.timesheet-table__changed-cell .timesheet-table__input {
+  border-color: #2563eb;
+  background: #eff6ff;
 }
 
 .timesheet-table__input {
