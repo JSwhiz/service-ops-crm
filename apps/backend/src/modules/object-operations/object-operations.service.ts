@@ -474,114 +474,112 @@ export class ObjectOperationsService {
     }
 
     const normalizedDate = this.parseBusinessDate(payload.operationDate);
-
-    await this.prisma.objectAttendanceFact.deleteMany({
-      where: {
-        objectId,
-        operationDate: normalizedDate,
-      },
-    });
-
-    for (const employeeId of payload.employeeIds) {
-      await this.prisma.objectAttendanceFact.create({
-        data: {
-          objectId,
-          employeeId,
-          operationDate: normalizedDate,
-          createdByUserId: currentUser.id,
-        },
-      });
-    }
-
+    const selectedEmployeeIds = new Set(payload.employeeIds);
     const targetYear = normalizedDate.getFullYear();
     const targetMonth = normalizedDate.getMonth() + 1;
     const dayOfMonth = normalizedDate.getDate();
 
-    const monthContainer = await this.prisma.timesheetMonth.upsert({
-      where: {
-        objectId_year_month: {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.objectAttendanceFact.deleteMany({
+        where: {
+          objectId,
+          operationDate: normalizedDate,
+        },
+      });
+
+      if (payload.employeeIds.length > 0) {
+        await tx.objectAttendanceFact.createMany({
+          data: payload.employeeIds.map((employeeId) => ({
+            objectId,
+            employeeId,
+            operationDate: normalizedDate,
+            dailyRateSnapshot: object.dailyRate,
+            createdByUserId: currentUser.id,
+          })),
+        });
+      }
+
+      const monthContainer = await tx.timesheetMonth.upsert({
+        where: {
+          objectId_year_month: {
+            objectId,
+            year: targetYear,
+            month: targetMonth,
+          },
+        },
+        update: {},
+        create: {
           objectId,
           year: targetYear,
           month: targetMonth,
-        },
-      },
-      update: {},
-      create: {
-        objectId,
-        year: targetYear,
-        month: targetMonth,
-        status: 'open',
-        createdByUserId: currentUser.id,
-      },
-    });
-
-    for (const assignment of object.employeeAssignments) {
-      const row = await this.prisma.timesheetEmployeeRow.upsert({
-        where: {
-          timesheetMonthId_employeeId: {
-            timesheetMonthId: monthContainer.id,
-            employeeId: assignment.employeeId,
-          },
-        },
-        update: {
-          employeeNameSnapshot: assignment.employee.fullName,
-        },
-        create: {
-          timesheetMonthId: monthContainer.id,
-          employeeId: assignment.employeeId,
-          employeeNameSnapshot: assignment.employee.fullName,
+          status: 'open',
+          createdByUserId: currentUser.id,
         },
       });
 
-      const isSelected = payload.employeeIds.includes(assignment.employeeId);
-
-      const existingEntry = await this.prisma.timesheetDayEntry.findUnique({
-        where: {
-          rowId_dayOfMonth: {
-            rowId: row.id,
-            dayOfMonth,
-          },
-        },
-      });
-
-      if (isSelected) {
-        await this.prisma.timesheetDayEntry.upsert({
+      for (const assignment of object.employeeAssignments) {
+        const row = await tx.timesheetEmployeeRow.upsert({
           where: {
-            rowId_dayOfMonth: {
-              rowId: row.id,
-              dayOfMonth,
+            timesheetMonthId_employeeId: {
+              timesheetMonthId: monthContainer.id,
+              employeeId: assignment.employeeId,
             },
           },
           update: {
-            dayValue: existingEntry?.isChangedManually
-              ? existingEntry.dayValue
-              : object.dailyRate,
-            updatedByUserId: currentUser.id,
+            employeeNameSnapshot: assignment.employee.fullName,
           },
           create: {
-            rowId: row.id,
-            dayOfMonth,
-            dayValue: object.dailyRate,
-            isChangedManually: false,
-            createdByUserId: currentUser.id,
-            updatedByUserId: currentUser.id,
+            timesheetMonthId: monthContainer.id,
+            employeeId: assignment.employeeId,
+            employeeNameSnapshot: assignment.employee.fullName,
           },
         });
-      } else if (existingEntry && !existingEntry.isChangedManually) {
-        await this.prisma.timesheetDayEntry.update({
+
+        const existingEntry = await tx.timesheetDayEntry.findUnique({
           where: {
             rowId_dayOfMonth: {
               rowId: row.id,
               dayOfMonth,
             },
           },
-          data: {
-            dayValue: 0,
-            updatedByUserId: currentUser.id,
-          },
         });
+
+        if (selectedEmployeeIds.has(assignment.employeeId)) {
+          await tx.timesheetDayEntry.upsert({
+            where: {
+              rowId_dayOfMonth: {
+                rowId: row.id,
+                dayOfMonth,
+              },
+            },
+            update: {
+              dayValue: existingEntry?.isChangedManually
+                ? existingEntry.dayValue
+                : object.dailyRate,
+              updatedByUserId: currentUser.id,
+            },
+            create: {
+              rowId: row.id,
+              dayOfMonth,
+              dayValue: object.dailyRate,
+              isChangedManually: false,
+              createdByUserId: currentUser.id,
+              updatedByUserId: currentUser.id,
+            },
+          });
+
+          continue;
+        }
+
+        if (existingEntry && !existingEntry.isChangedManually) {
+          await tx.timesheetDayEntry.delete({
+            where: {
+              id: existingEntry.id,
+            },
+          });
+        }
       }
-    }
+    });
 
     return { success: true };
   }

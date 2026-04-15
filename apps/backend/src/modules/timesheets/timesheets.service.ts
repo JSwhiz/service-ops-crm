@@ -63,7 +63,6 @@ export class TimesheetsService {
       timesheetMonthId: monthContainer.id,
       year: query.year,
       month: query.month,
-      objectDailyRate: object.dailyRate,
     });
 
     const rows = await this.prisma.timesheetEmployeeRow.findMany({
@@ -241,7 +240,6 @@ export class TimesheetsService {
       },
       select: {
         id: true,
-        dailyRate: true,
       },
     });
 
@@ -286,10 +284,13 @@ export class TimesheetsService {
       },
       select: {
         id: true,
+        dailyRateSnapshot: true,
       },
     });
 
-    const expectedAutoValue = attendanceFact ? object.dailyRate : 0;
+    const expectedAutoValue = attendanceFact
+      ? attendanceFact.dailyRateSnapshot
+      : 0;
     const normalizedComment = payload.comment?.trim();
 
     if (payload.dayValue !== expectedAutoValue && !normalizedComment) {
@@ -516,7 +517,6 @@ export class TimesheetsService {
     timesheetMonthId: string;
     year: number;
     month: number;
-    objectDailyRate: number;
   }): Promise<void> {
     const rows = await this.prisma.timesheetEmployeeRow.findMany({
       where: {
@@ -539,13 +539,14 @@ export class TimesheetsService {
       select: {
         employeeId: true,
         operationDate: true,
+        dailyRateSnapshot: true,
       },
     });
 
-    const factSet = new Set(
+    const factSnapshotByKey = new Map<string, number>(
       monthFacts.map((fact) => {
         const day = new Date(fact.operationDate).getDate();
-        return `${fact.employeeId}:${day}`;
+        return [`${fact.employeeId}:${day}`, fact.dailyRateSnapshot];
       }),
     );
 
@@ -559,7 +560,8 @@ export class TimesheetsService {
 
       for (let dayOfMonth = 1; dayOfMonth <= daysInMonth; dayOfMonth += 1) {
         const factKey = `${row.employeeId}:${dayOfMonth}`;
-        const hasFact = factSet.has(factKey);
+        const autoValue = factSnapshotByKey.get(factKey);
+        const hasFact = typeof autoValue === 'number';
         const existing = entriesByDay.get(dayOfMonth);
 
         if (hasFact) {
@@ -569,7 +571,7 @@ export class TimesheetsService {
                 data: {
                   rowId: row.id,
                   dayOfMonth,
-                  dayValue: params.objectDailyRate,
+                  dayValue: autoValue,
                   comment: null,
                   isChangedManually: false,
                 },
@@ -579,14 +581,14 @@ export class TimesheetsService {
           }
 
           if (!existing.isChangedManually) {
-            if (existing.dayValue !== params.objectDailyRate) {
+            if (existing.dayValue !== autoValue || existing.comment !== null) {
               operations.push(
                 this.prisma.timesheetDayEntry.update({
                   where: {
                     id: existing.id,
                   },
                   data: {
-                    dayValue: params.objectDailyRate,
+                    dayValue: autoValue,
                     comment: null,
                     isChangedManually: false,
                   },
@@ -608,7 +610,7 @@ export class TimesheetsService {
                   id: existing.id,
                 },
                 data: {
-                  dayValue: params.objectDailyRate,
+                  dayValue: autoValue,
                   comment: null,
                   isChangedManually: false,
                 },

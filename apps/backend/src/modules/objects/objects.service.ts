@@ -301,10 +301,6 @@ export class ObjectsService {
 
     const existing = await this.getEditableObject(currentUser, id);
 
-    const oldDailyRate = existing.dailyRate;
-    const newDailyRate =
-      typeof payload.dailyRate === 'number' ? payload.dailyRate : oldDailyRate;
-
     if (
       typeof payload.dailyRate === 'number' &&
       !canEditObjectDailyRate(roleCodes)
@@ -391,10 +387,6 @@ export class ObjectsService {
         },
       },
     })) as ObjectView;
-
-    if (newDailyRate !== oldDailyRate) {
-      await this.syncDailyRateToTimesheets(id, newDailyRate);
-    }
 
     if (Object.keys(changes).length > 0) {
       await this.auditService.writeObjectAuditLog({
@@ -726,34 +718,6 @@ export class ObjectsService {
     }
 
     return existing;
-  }
-
-  private async syncDailyRateToTimesheets(
-    objectId: string,
-    dailyRate: number,
-  ): Promise<void> {
-    const months = await this.prisma.timesheetMonth.findMany({
-      where: {
-        objectId,
-      },
-      include: {
-        rows: true,
-      },
-    });
-
-    for (const month of months) {
-      for (const row of month.rows) {
-        await this.prisma.timesheetDayEntry.updateMany({
-          where: {
-            rowId: row.id,
-            isChangedManually: false,
-          },
-          data: {
-            dayValue: dailyRate,
-          },
-        });
-      }
-    }
   }
 
   private async buildVisibilityWhere(currentUser: CurrentAuthUser) {

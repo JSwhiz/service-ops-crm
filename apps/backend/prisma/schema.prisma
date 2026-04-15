@@ -451,6 +451,7 @@ model ObjectAttendanceFact {
   objectId        String
   employeeId      String
   operationDate   DateTime
+  dailyRateSnapshot Int
   createdByUserId String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
