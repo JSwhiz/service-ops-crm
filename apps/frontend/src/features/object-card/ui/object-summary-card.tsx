@@ -1,11 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useMemo } from 'react';
+import React from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
-import { useAuth } from '@/shared/auth/use-auth';
-import { canEditObjectCard } from '@/shared/lib/access';
 
 interface ObjectSummaryCardProps {
   item: ServiceObject;
@@ -40,25 +38,7 @@ function getSeasonLabel(seasonMode: string): string {
 export function ObjectSummaryCard({
   item,
 }: ObjectSummaryCardProps): React.JSX.Element {
-  const { user } = useAuth();
-
-  const currentUserRoleCodes = useMemo(() => {
-    if (!user) {
-      return [];
-    }
-
-    if (Array.isArray(user.roleCodes) && user.roleCodes.length > 0) {
-      return user.roleCodes;
-    }
-
-    if (user.roleCode) {
-      return [user.roleCode];
-    }
-
-    return [];
-  }, [user]);
-
-  const allowEdit = canEditObjectCard(currentUserRoleCodes);
+  const allowEdit = item.capabilities.canEdit;
 
   return (
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>

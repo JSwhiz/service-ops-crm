@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -11,12 +11,6 @@ import {
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectEditForm } from '@/features/object-edit/ui/object-edit-form';
 import { ObjectStatusPanel } from '@/features/object-status/ui/object-status-panel';
-import { useAuth } from '@/shared/auth/use-auth';
-import {
-  canChangeObjectStatus,
-  canEditObjectCard,
-  canEditObjectDailyRate,
-} from '@/shared/lib/access';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -33,28 +27,11 @@ export default function EditObjectPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const router = useRouter();
-  const { user } = useAuth();
 
   const [objectId, setObjectId] = useState('');
   const [item, setItem] = useState<ServiceObject | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const currentUserRoleCodes = useMemo(() => {
-    if (!user) {
-      return [];
-    }
-
-    if (user.roleCodes && user.roleCodes.length > 0) {
-      return user.roleCodes;
-    }
-
-    return user.roleCode ? [user.roleCode] : [];
-  }, [user]);
-
-  const allowEditObject = canEditObjectCard(currentUserRoleCodes);
-  const allowEditDailyRate = canEditObjectDailyRate(currentUserRoleCodes);
-  const allowChangeStatus = canChangeObjectStatus(currentUserRoleCodes);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,12 +44,6 @@ export default function EditObjectPage({
       }
 
       setObjectId(resolved.id);
-
-      if (!allowEditObject) {
-        setIsLoading(false);
-        setLoadError('У вас нет прав на редактирование карточки объекта.');
-        return;
-      }
 
       setIsLoading(true);
       setLoadError(null);
@@ -104,7 +75,7 @@ export default function EditObjectPage({
     return () => {
       cancelled = true;
     };
-  }, [params, allowEditObject]);
+  }, [params]);
 
   if (isLoading) {
     return (
@@ -142,6 +113,34 @@ export default function EditObjectPage({
       <>
         <PageTitle title="Редактирование объекта" />
         <div className="page-card">Объект не найден.</div>
+      </>
+    );
+  }
+
+  const allowEditObject = item.capabilities.canEdit;
+  const allowEditDailyRate = item.capabilities.canEditDailyRate;
+  const allowChangeStatus = item.capabilities.canChangeStatus;
+
+  if (!allowEditObject) {
+    return (
+      <>
+        <PageTitle title="Редактирование объекта" />
+        <div className="page-card" style={{ display: 'grid', gap: 16 }}>
+          <div style={{ color: '#b91c1c' }}>
+            У вас нет прав на редактирование карточки объекта.
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={() =>
+                router.push(objectId ? `/objects/${objectId}` : '/objects')
+              }
+            >
+              Вернуться назад
+            </button>
+          </div>
+        </div>
       </>
     );
   }

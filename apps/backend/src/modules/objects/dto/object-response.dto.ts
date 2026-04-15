@@ -19,4 +19,12 @@ export class ObjectResponseDto {
     fullName: string;
     roleCode: string;
   }>;
+  capabilities!: {
+    canEdit: boolean;
+    canEditDailyRate: boolean;
+    canChangeStatus: boolean;
+    canManageResponsibles: boolean;
+    canManageManagers: boolean;
+    canCreateTask: boolean;
+  };
 }

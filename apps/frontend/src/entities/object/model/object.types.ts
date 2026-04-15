@@ -22,6 +22,14 @@ export interface ServiceObject {
   updatedAt: string;
   managers: ObjectAssignedUser[];
   responsibles: ObjectAssignedUser[];
+  capabilities: {
+    canEdit: boolean;
+    canEditDailyRate: boolean;
+    canChangeStatus: boolean;
+    canManageResponsibles: boolean;
+    canManageManagers: boolean;
+    canCreateTask: boolean;
+  };
 }
 
 export interface ObjectAuditActor {

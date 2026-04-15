@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import {
   addManagerToObject,
@@ -55,27 +55,7 @@ import {
   ObjectPanelLoading,
 } from '@/features/object-state/ui/object-state-panels';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
-import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-
-const LEADERSHIP_ROLE_CODES = [
-  'founder',
-  'deputy_founder',
-  'director',
-  'deputy_director',
-  'corporate_director',
-] as const;
-
-const MANAGER_ROLE_CODES = [
-  'manager',
-  'senior_manager',
-  'operation_manager',
-  'director',
-  'deputy_director',
-  'corporate_director',
-  'founder',
-  'deputy_founder',
-] as const;
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -93,26 +73,25 @@ function todayAsBusinessDate(): string {
   return `${year}-${month}-${day}`;
 }
 
-function hasAnyRole(roleCodes: string[], allowed: readonly string[]): boolean {
-  return roleCodes.some((roleCode) => allowed.includes(roleCode as never));
-}
-
 export default function ObjectDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
-  const { user } = useAuth();
-
   const [objectId, setObjectId] = useState<string>('');
 
   const [item, setItem] = useState<ServiceObject | null>(null);
   const [coreLoading, setCoreLoading] = useState(true);
   const [coreError, setCoreError] = useState<string | null>(null);
 
-  const [systemUsers, setSystemUsers] = useState<SystemUserOption[]>([]);
-  const [systemUsersLoading, setSystemUsersLoading] = useState(true);
-  const [systemUsersError, setSystemUsersError] = useState<string | null>(null);
+  const [responsibleCandidates, setResponsibleCandidates] = useState<
+    SystemUserOption[]
+  >([]);
+  const [managerCandidates, setManagerCandidates] = useState<SystemUserOption[]>(
+    [],
+  );
+  const [teamUsersLoading, setTeamUsersLoading] = useState(false);
+  const [teamUsersError, setTeamUsersError] = useState<string | null>(null);
 
   const [assignedEmployees, setAssignedEmployees] = useState<
     ObjectEmployeeOption[]
@@ -156,51 +135,9 @@ export default function ObjectDetailPage({
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
 
-  const currentUserRoleCodes = useMemo(() => {
-    if (!user) {
-      return [];
-    }
-
-    if (user.roleCodes && user.roleCodes.length > 0) {
-      return user.roleCodes;
-    }
-
-    return user.roleCode ? [user.roleCode] : [];
-  }, [user]);
-
-  const canManageResponsibles = hasAnyRole(
-    currentUserRoleCodes,
-    LEADERSHIP_ROLE_CODES,
-  );
-
-  const canManageManagers =
-    canManageResponsibles ||
-    Boolean(
-      item?.responsibles.some((responsible) => responsible.userId === user?.id),
-    );
-
-  const canManageObjectStatus = hasAnyRole(
-    currentUserRoleCodes,
-    LEADERSHIP_ROLE_CODES,
-  );
-
-  const responsibleCandidates = useMemo(() => {
-    return systemUsers.filter((candidate) =>
-      hasAnyRole(
-        candidate.roleCodes ?? [candidate.roleCode],
-        LEADERSHIP_ROLE_CODES,
-      ),
-    );
-  }, [systemUsers]);
-
-  const managerCandidates = useMemo(() => {
-    return systemUsers.filter((candidate) =>
-      hasAnyRole(
-        candidate.roleCodes ?? [candidate.roleCode],
-        MANAGER_ROLE_CODES,
-      ),
-    );
-  }, [systemUsers]);
+  const canManageResponsibles = item?.capabilities.canManageResponsibles ?? false;
+  const canManageManagers = item?.capabilities.canManageManagers ?? false;
+  const canManageObjectStatus = item?.capabilities.canChangeStatus ?? false;
 
   useEffect(() => {
     let cancelled = false;
@@ -216,7 +153,6 @@ export default function ObjectDetailPage({
 
       await Promise.all([
         loadCore(resolved.id, cancelled),
-        loadSystemUsers(cancelled),
         loadArrival(resolved.id, cancelled),
         loadReport(resolved.id, cancelled),
         loadComments(resolved.id, cancelled),
@@ -234,6 +170,68 @@ export default function ObjectDetailPage({
       cancelled = true;
     };
   }, [params]);
+
+  useEffect(() => {
+    if (!objectId || !item) {
+      return;
+    }
+
+    if (!canManageResponsibles && !canManageManagers) {
+      setResponsibleCandidates([]);
+      setManagerCandidates([]);
+      setTeamUsersError(null);
+      setTeamUsersLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTeamCandidates = async (): Promise<void> => {
+      setTeamUsersLoading(true);
+      setTeamUsersError(null);
+
+      try {
+        const [responsibles, managers] = await Promise.all([
+          canManageResponsibles
+            ? listSystemUsers({
+                purpose: 'object_responsible',
+                objectId,
+              })
+            : Promise.resolve([]),
+          canManageManagers
+            ? listSystemUsers({
+                purpose: 'object_manager',
+                objectId,
+              })
+            : Promise.resolve([]),
+        ]);
+
+        if (!cancelled) {
+          setResponsibleCandidates(responsibles);
+          setManagerCandidates(managers);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setTeamUsersError(
+            getErrorMessage(
+              error,
+              'Не удалось загрузить кандидатов для команды объекта.',
+            ),
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setTeamUsersLoading(false);
+        }
+      }
+    };
+
+    void loadTeamCandidates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [objectId, item, canManageResponsibles, canManageManagers]);
 
   useEffect(() => {
     if (!objectId) {
@@ -271,29 +269,6 @@ export default function ObjectDetailPage({
     } finally {
       if (!cancelled) {
         setCoreLoading(false);
-      }
-    }
-  };
-
-  const loadSystemUsers = async (cancelled = false): Promise<void> => {
-    setSystemUsersLoading(true);
-    setSystemUsersError(null);
-
-    try {
-      const response = await listSystemUsers();
-
-      if (!cancelled) {
-        setSystemUsers(response);
-      }
-    } catch (error) {
-      if (!cancelled) {
-        setSystemUsersError(
-          getErrorMessage(error, 'Не удалось загрузить пользователей системы.'),
-        );
-      }
-    } finally {
-      if (!cancelled) {
-        setSystemUsersLoading(false);
       }
     }
   };
@@ -533,12 +508,12 @@ export default function ObjectDetailPage({
                 gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
               }}
             >
-              {systemUsersLoading ? (
+              {teamUsersLoading ? (
                 <ObjectPanelLoading title="Ответственные и менеджеры объекта" />
-              ) : systemUsersError ? (
+              ) : teamUsersError ? (
                 <ObjectPanelError
                   title="Ответственные и менеджеры объекта"
-                  message={systemUsersError}
+                  message={teamUsersError}
                 />
               ) : (
                 <>

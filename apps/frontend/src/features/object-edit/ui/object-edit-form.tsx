@@ -144,7 +144,6 @@ export function ObjectEditForm({
           >
             <option value="summer">Летний</option>
             <option value="winter">Зимний</option>
-            <option value="all_year">Круглый год</option>
           </select>
         </label>
 

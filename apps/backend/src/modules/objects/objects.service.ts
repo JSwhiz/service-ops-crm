@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { canCreateTaskOnObject } from '../tasks/utils/task-access.util';
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
@@ -116,7 +117,7 @@ export class ObjectsService {
       },
     })) as ObjectView[];
 
-    return objects.map((item) => this.mapObject(item));
+    return objects.map((item) => this.mapObject(item, currentUser));
   }
 
   async getObjectById(
@@ -142,7 +143,7 @@ export class ObjectsService {
       throw new NotFoundException('Object not found');
     }
 
-    return this.mapObject(object);
+    return this.mapObject(object, currentUser);
   }
 
   async listObjectAuditLogs(
@@ -288,7 +289,7 @@ export class ObjectsService {
       } as Prisma.InputJsonObject,
     });
 
-    return this.mapObject(created as ObjectView);
+    return this.mapObject(created as ObjectView, currentUser);
   }
 
   async updateObject(
@@ -404,7 +405,7 @@ export class ObjectsService {
       });
     }
 
-    return this.mapObject(updated);
+    return this.mapObject(updated, currentUser);
   }
 
   async changeStatus(
@@ -790,12 +791,30 @@ export class ObjectsService {
     return currentUser.roleCode ? [currentUser.roleCode] : [];
   }
 
-  private mapObject(item: ObjectView): ObjectResponseDto {
+  private mapObject(
+    item: ObjectView,
+    currentUser: CurrentAuthUser,
+  ): ObjectResponseDto {
     const mappedAssignments = item.assignments.map((assignment) => ({
       userId: assignment.user.id,
       fullName: assignment.user.fullName,
       roleCode: assignment.assignmentRoleCode,
     }));
+    const roleCodes = this.getRoleCodes(currentUser);
+    const isAssignedResponsible = mappedAssignments.some(
+      (assignment) =>
+        assignment.userId === currentUser.id &&
+        assignment.roleCode === 'responsible',
+    );
+    const isAssignedManager = mappedAssignments.some(
+      (assignment) =>
+        assignment.userId === currentUser.id && assignment.roleCode === 'manager',
+    );
+    const canManageResponsibles = canManageObjectResponsibles(roleCodes);
+    const canEdit =
+      canEditObject(roleCodes) ||
+      (isAssignedResponsible && item.status !== 'frozen') ||
+      (item.status === 'frozen' && canOverrideFrozenObject(roleCodes));
 
     return {
       id: item.id,
@@ -814,6 +833,24 @@ export class ObjectsService {
       responsibles: mappedAssignments.filter(
         (assignment) => assignment.roleCode === 'responsible',
       ),
+      capabilities: {
+        canEdit,
+        canEditDailyRate: canEdit && canEditObjectDailyRate(roleCodes),
+        canChangeStatus: canManageResponsibles,
+        canManageResponsibles,
+        canManageManagers: canManageResponsibles || isAssignedResponsible,
+        canCreateTask: canCreateTaskOnObject({
+          currentUserId: currentUser.id,
+          roleCodes,
+          object: {
+            createdByUserId: item.createdByUserId,
+            assignments: mappedAssignments.map((assignment) => ({
+              userId: assignment.userId,
+              assignmentRoleCode: assignment.roleCode,
+            })),
+          },
+        }) || isAssignedManager,
+      },
     };
   }
 }

@@ -11,13 +11,18 @@ import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { SubmitTaskResultDto } from './dto/submit-task-result.dto';
 import { TaskResponseDto } from './dto/task-response.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
-import { hasWideTaskAccess } from './utils/task-access.util';
+import {
+  canAssignTaskToUserOnObject,
+  canCreateTaskOnObject,
+  hasWideTaskAccess,
+} from './utils/task-access.util';
 
 interface CurrentAuthUser {
   id: string;
   login: string;
   fullName: string;
   roleCode: string;
+  roleCodes?: string[];
   isActive: boolean;
 }
 
@@ -29,7 +34,7 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     query: ListTasksQueryDto,
   ): Promise<TaskResponseDto[]> {
-    const wideAccess = hasWideTaskAccess([currentUser.roleCode]);
+    const wideAccess = hasWideTaskAccess(this.getRoleCodes(currentUser));
 
     const tasks = await this.prisma.task.findMany({
       where: {
@@ -107,7 +112,7 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    const wideAccess = hasWideTaskAccess([currentUser.roleCode]);
+    const wideAccess = hasWideTaskAccess(this.getRoleCodes(currentUser));
     const isCreator = task.createdByUserId === currentUser.id;
     const isAssignee = task.assignees.some(
       (assignee) => assignee.userId === currentUser.id,
@@ -124,10 +129,25 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     payload: CreateTaskDto,
   ): Promise<TaskResponseDto> {
+    const roleCodes = this.getRoleCodes(currentUser);
+    const assigneeUserIds = Array.from(
+      new Set(payload.assigneeUserIds.filter(Boolean)),
+    );
     const object = await this.prisma.object.findFirst({
       where: {
         id: payload.objectId,
         deletedAt: null,
+      },
+      include: {
+        assignments: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            userId: true,
+            assignmentRoleCode: true,
+          },
+        },
       },
     });
 
@@ -135,21 +155,51 @@ export class TasksService {
       throw new NotFoundException('Object for task not found');
     }
 
+    if (
+      !canCreateTaskOnObject({
+        currentUserId: currentUser.id,
+        roleCodes,
+        object,
+      })
+    ) {
+      throw new ForbiddenException('Task creation denied for selected object');
+    }
+
     const users = await this.prisma.user.findMany({
       where: {
         id: {
-          in: payload.assigneeUserIds,
+          in: assigneeUserIds,
         },
         deletedAt: null,
         isActive: true,
       },
-      select: {
-        id: true,
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
       },
     });
 
-    if (users.length !== payload.assigneeUserIds.length) {
+    if (users.length !== assigneeUserIds.length) {
       throw new NotFoundException('One or more task assignees not found');
+    }
+
+    for (const user of users) {
+      const assigneeRoleCodes = user.roles.map((item) => item.role.code);
+
+      if (
+        !canAssignTaskToUserOnObject({
+          userId: user.id,
+          roleCodes: assigneeRoleCodes,
+          object,
+        })
+      ) {
+        throw new ForbiddenException(
+          'One or more selected assignees are not allowed for this object',
+        );
+      }
     }
 
     const task = await this.prisma.task.create({
@@ -161,7 +211,7 @@ export class TasksService {
         objectId: payload.objectId,
         createdByUserId: currentUser.id,
         assignees: {
-          create: payload.assigneeUserIds.map((userId) => ({
+          create: assigneeUserIds.map((userId) => ({
             userId,
           })),
         },
@@ -197,7 +247,7 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    const wideAccess = hasWideTaskAccess([currentUser.roleCode]);
+    const wideAccess = hasWideTaskAccess(this.getRoleCodes(currentUser));
     const isCreator = existing.createdByUserId === currentUser.id;
     const isAssignee = existing.assignees.some(
       (assignee) => assignee.userId === currentUser.id,
@@ -243,7 +293,7 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    const wideAccess = hasWideTaskAccess([currentUser.roleCode]);
+    const wideAccess = hasWideTaskAccess(this.getRoleCodes(currentUser));
     const isAssignee = existing.assignees.some(
       (assignee) => assignee.userId === currentUser.id,
     );
@@ -337,5 +387,13 @@ export class TasksService {
           : null,
       })),
     };
+  }
+
+  private getRoleCodes(currentUser: CurrentAuthUser): string[] {
+    if (Array.isArray(currentUser.roleCodes) && currentUser.roleCodes.length > 0) {
+      return currentUser.roleCodes;
+    }
+
+    return currentUser.roleCode ? [currentUser.roleCode] : [];
   }
 }

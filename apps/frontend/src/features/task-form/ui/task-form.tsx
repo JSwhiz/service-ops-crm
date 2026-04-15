@@ -9,10 +9,14 @@ import { TASK_PRIORITY_OPTIONS } from '@/shared/lib/task-presentation';
 export function TaskForm({
   objects,
   users,
+  selectedObjectId,
+  onObjectChange,
   onSubmit,
 }: {
   objects: ServiceObject[];
   users: SystemUserOption[];
+  selectedObjectId: string;
+  onObjectChange: (objectId: string) => void;
   onSubmit: (payload: {
     title: string;
     description?: string;
@@ -25,12 +29,11 @@ export function TaskForm({
     assigneeUserIds: string[];
   }) => Promise<void>;
 }): React.JSX.Element {
-  const defaultObjectId = objects[0]?.id ?? '';
   const [form, setForm] = useState({
     title: '',
     description: '',
     priority: 'important_not_urgent',
-    objectId: defaultObjectId,
+    objectId: selectedObjectId,
     assigneeUserIds: [] as string[],
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,6 +43,14 @@ export function TaskForm({
     () => users.filter((user) => user.isActive),
     [users],
   );
+
+  React.useEffect(() => {
+    setForm((prev) => ({
+      ...prev,
+      objectId: selectedObjectId,
+      assigneeUserIds: [],
+    }));
+  }, [selectedObjectId]);
 
   const handleToggleUser = (userId: string): void => {
     setForm((prev) => ({
@@ -101,9 +112,16 @@ export function TaskForm({
           <div style={{ marginBottom: 6 }}>Объект</div>
           <select
             value={form.objectId}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, objectId: event.target.value }))
-            }
+            onChange={(event) => {
+              const nextObjectId = event.target.value;
+
+              setForm((prev) => ({
+                ...prev,
+                objectId: nextObjectId,
+                assigneeUserIds: [],
+              }));
+              onObjectChange(nextObjectId);
+            }}
             style={{ width: '100%', padding: 10 }}
             required
           >
@@ -146,36 +164,42 @@ export function TaskForm({
 
         <div style={{ gridColumn: '1 / -1' }}>
           <div style={{ marginBottom: 8 }}>Исполнители</div>
-          <div
-            style={{
-              display: 'grid',
-              gap: 8,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            }}
-          >
-            {activeUsers.map((user) => (
-              <label
-                key={user.id}
-                style={{
-                  display: 'flex',
-                  gap: 8,
-                  alignItems: 'center',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 10,
-                  padding: 10,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={form.assigneeUserIds.includes(user.id)}
-                  onChange={() => handleToggleUser(user.id)}
-                />
-                <span>
-                  {user.fullName} ({user.login})
-                </span>
-              </label>
-            ))}
-          </div>
+          {activeUsers.length === 0 ? (
+            <div className="page-muted">
+              Для выбранного объекта нет доступных исполнителей.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gap: 8,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              }}
+            >
+              {activeUsers.map((user) => (
+                <label
+                  key={user.id}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'center',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 10,
+                    padding: 10,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={form.assigneeUserIds.includes(user.id)}
+                    onChange={() => handleToggleUser(user.id)}
+                  />
+                  <span>
+                    {user.fullName} ({user.login})
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

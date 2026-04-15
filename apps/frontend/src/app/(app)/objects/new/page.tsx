@@ -9,44 +9,8 @@ import {
   type SystemUserOption,
 } from '@/entities/user/api/user-client';
 import { useAuth } from '@/shared/auth/use-auth';
+import { canCreateObject } from '@/shared/lib/access';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-
-const OBJECT_CREATOR_ROLE_CODES = [
-  'founder',
-  'deputy_founder',
-  'director',
-  'deputy_director',
-  'corporate_director',
-] as const;
-
-const OBJECT_MANAGER_ROLE_CODES = [
-  'founder',
-  'deputy_founder',
-  'director',
-  'deputy_director',
-  'corporate_director',
-  'manager',
-  'senior_manager',
-  'operation_manager',
-] as const;
-
-function canCreateObjects(roleCodes: string[]): boolean {
-  return roleCodes.some((roleCode) =>
-    OBJECT_CREATOR_ROLE_CODES.includes(
-      roleCode as (typeof OBJECT_CREATOR_ROLE_CODES)[number],
-    ),
-  );
-}
-
-function canBeObjectManager(user: SystemUserOption): boolean {
-  const roleCodes = user.roleCodes?.length ? user.roleCodes : [user.roleCode];
-
-  return roleCodes.some((roleCode) =>
-    OBJECT_MANAGER_ROLE_CODES.includes(
-      roleCode as (typeof OBJECT_MANAGER_ROLE_CODES)[number],
-    ),
-  );
-}
 
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
@@ -82,15 +46,24 @@ export default function NewObjectPage(): React.JSX.Element {
     return user.roleCode ? [user.roleCode] : [];
   }, [user]);
 
-  const allowCreateObject = canCreateObjects(currentUserRoleCodes);
+  const allowCreateObject = canCreateObject(currentUserRoleCodes);
 
   useEffect(() => {
     const loadUsers = async (): Promise<void> => {
+      if (!allowCreateObject) {
+        setUsers([]);
+        setUsersError(null);
+        setIsUsersLoading(false);
+        return;
+      }
+
       setIsUsersLoading(true);
       setUsersError(null);
 
       try {
-        const response = await listSystemUsers();
+        const response = await listSystemUsers({
+          purpose: 'object_manager',
+        });
         setUsers(response);
       } catch (caughtError) {
         if (caughtError instanceof Error && caughtError.message) {
@@ -104,20 +77,10 @@ export default function NewObjectPage(): React.JSX.Element {
     };
 
     void loadUsers();
-  }, []);
+  }, [allowCreateObject]);
 
   const managerCandidates = useMemo(() => {
-    return users.filter((candidate) => {
-      if (!candidate.isActive) {
-        return false;
-      }
-
-      if (candidate.id === user?.id) {
-        return false;
-      }
-
-      return canBeObjectManager(candidate);
-    });
+    return users.filter((candidate) => candidate.id !== user?.id);
   }, [users, user?.id]);
 
   const toggleManager = (userId: string): void => {
@@ -256,7 +219,6 @@ export default function NewObjectPage(): React.JSX.Element {
             >
               <option value="summer">Летний</option>
               <option value="winter">Зимний</option>
-              <option value="all_year">Круглый год</option>
             </select>
           </label>
 
