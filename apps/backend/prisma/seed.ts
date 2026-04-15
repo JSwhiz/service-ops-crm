@@ -1,6 +1,16 @@
 import { PrismaClient } from '@prisma/client';
+import { randomBytes, scrypt as nodeScrypt } from 'node:crypto';
+import { promisify } from 'node:util';
 
 const prisma = new PrismaClient();
+const scrypt = promisify(nodeScrypt);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString('hex');
+  const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
+
+  return `scrypt$${salt}$${derivedKey.toString('hex')}`;
+}
 
 function startOfToday(): Date {
   const now = new Date();
@@ -12,6 +22,10 @@ function daysInMonth(year: number, month: number): number {
 }
 
 async function main(): Promise<void> {
+  const founderPasswordHash = await hashPassword('founder123');
+  const directorPasswordHash = await hashPassword('director123');
+  const managerPasswordHash = await hashPassword('manager123');
+
   const founderRole = await prisma.role.upsert({
     where: { code: 'founder' },
     update: {},
@@ -71,10 +85,12 @@ async function main(): Promise<void> {
     update: {
       fullName: 'Учредитель',
       isActive: true,
+      passwordHash: founderPasswordHash,
+      password: null,
     },
     create: {
       login: 'founder',
-      password: 'founder123',
+      passwordHash: founderPasswordHash,
       fullName: 'Учредитель',
       isActive: true,
     },
@@ -85,10 +101,12 @@ async function main(): Promise<void> {
     update: {
       fullName: 'Директор',
       isActive: true,
+      passwordHash: directorPasswordHash,
+      password: null,
     },
     create: {
       login: 'director',
-      password: 'director123',
+      passwordHash: directorPasswordHash,
       fullName: 'Директор',
       isActive: true,
     },
@@ -99,10 +117,12 @@ async function main(): Promise<void> {
     update: {
       fullName: 'Менеджер Первый',
       isActive: true,
+      passwordHash: managerPasswordHash,
+      password: null,
     },
     create: {
       login: 'manager1',
-      password: 'manager123',
+      passwordHash: managerPasswordHash,
       fullName: 'Менеджер Первый',
       isActive: true,
     },
@@ -113,10 +133,12 @@ async function main(): Promise<void> {
     update: {
       fullName: 'Менеджер Второй',
       isActive: true,
+      passwordHash: managerPasswordHash,
+      password: null,
     },
     create: {
       login: 'manager2',
-      password: 'manager123',
+      passwordHash: managerPasswordHash,
       fullName: 'Менеджер Второй',
       isActive: true,
     },

@@ -15,8 +15,6 @@ export interface LoginPayload {
 }
 
 export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
   user: AuthUser;
 }
 
@@ -27,16 +25,20 @@ export async function login(payload: LoginPayload): Promise<AuthResponse> {
   });
 }
 
-export async function refresh(refreshToken: string): Promise<AuthResponse> {
+export async function refreshSessionRequest(): Promise<AuthResponse> {
   return fetcher<AuthResponse>('/auth/refresh', {
     method: 'POST',
-    refreshToken,
   });
 }
 
-export async function getMe(accessToken: string): Promise<AuthUser> {
+export async function getMe(): Promise<AuthUser> {
   return fetcher<AuthUser>('/auth/me', {
     method: 'GET',
-    token: accessToken,
+  });
+}
+
+export async function logout(): Promise<{ success: true }> {
+  return fetcher<{ success: true }>('/auth/logout', {
+    method: 'POST',
   });
 }

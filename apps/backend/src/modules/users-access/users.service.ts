@@ -5,7 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 interface UserWithRoles {
   id: string;
   login: string;
-  password: string;
+  password: string | null;
+  passwordHash: string | null;
   fullName: string;
   isActive: boolean;
   roles: Array<{
@@ -15,6 +16,25 @@ interface UserWithRoles {
     };
   }>;
 }
+
+const authUserSelect = {
+  id: true,
+  login: true,
+  password: true,
+  passwordHash: true,
+  fullName: true,
+  isActive: true,
+  roles: {
+    select: {
+      role: {
+        select: {
+          code: true,
+          name: true,
+        },
+      },
+    },
+  },
+} as const;
 
 export interface SanitizedAuthUser {
   id: string;
@@ -29,28 +49,22 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByLogin(login: string): Promise<UserWithRoles | null> {
-    return this.prisma.user.findUnique({
-      where: { login },
-      include: {
-        roles: {
-          include: {
-            role: true,
-          },
-        },
+    return this.prisma.user.findFirst({
+      where: {
+        login,
+        deletedAt: null,
       },
+      select: authUserSelect,
     });
   }
 
   async findById(id: string): Promise<UserWithRoles | null> {
-    return this.prisma.user.findUnique({
-      where: { id },
-      include: {
-        roles: {
-          include: {
-            role: true,
-          },
-        },
+    return this.prisma.user.findFirst({
+      where: {
+        id,
+        deletedAt: null,
       },
+      select: authUserSelect,
     });
   }
 
@@ -86,5 +100,15 @@ export class UsersService {
       isActive: user.isActive,
       roleCodes: user.roles.map((item) => item.role.code),
     };
+  }
+
+  async setPasswordHash(userId: string, passwordHash: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        password: null,
+      } as never,
+    });
   }
 }

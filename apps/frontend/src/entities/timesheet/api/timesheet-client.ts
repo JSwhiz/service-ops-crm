@@ -1,5 +1,4 @@
 import { fetcher } from '@/shared/api/fetcher';
-import { getAccessToken } from '@/shared/auth/auth-storage';
 
 import type {
   TimesheetCorrectionItem,
@@ -19,7 +18,6 @@ export async function getTimesheet(params: {
 
   return fetcher<TimesheetMonth>(`/timesheets?${query.toString()}`, {
     method: 'GET',
-    token: getAccessToken(),
   });
 }
 
@@ -38,7 +36,6 @@ export async function getTimesheetCorrections(params: {
     `/timesheets/corrections?${query.toString()}`,
     {
       method: 'GET',
-      token: getAccessToken(),
     },
   );
 }
@@ -54,7 +51,6 @@ export async function upsertTimesheetEntry(payload: {
 }): Promise<TimesheetMonth> {
   return fetcher<TimesheetMonth>('/timesheets/entries', {
     method: 'POST',
-    token: getAccessToken(),
     body: JSON.stringify(payload),
   });
 }

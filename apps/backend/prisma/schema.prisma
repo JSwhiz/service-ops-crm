@@ -10,7 +10,8 @@ datasource db {
 model User {
   id                          String   @id @default(uuid())
   login                       String   @unique
-  password                    String
+  password                    String?
+  passwordHash                String?
   fullName                    String
   isActive                    Boolean  @default(true)
   createdAt                   DateTime @default(now())
@@ -35,6 +36,7 @@ model User {
   createdTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryCreatedBy")
   updatedTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryUpdatedBy")
   objectAuditLogs             ObjectAuditLog[] @relation("ObjectAuditLogActor")
+  authSessions                AuthSession[]
 
   @@map("users")
 }
@@ -461,4 +463,26 @@ model ObjectAttendanceFact {
   @@index([objectId, operationDate])
   @@index([employeeId, operationDate])
   @@map("object_attendance_facts")
+}
+
+model AuthSession {
+  id                  String       @id @default(uuid())
+  userId              String
+  tokenHash           String       @unique
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  replacedBySessionId String?
+  userAgent           String?
+  ipAddress           String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBySession   AuthSession? @relation("AuthSessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
+  rotatedSessions     AuthSession[] @relation("AuthSessionRotation")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([userId, revokedAt])
+  @@map("auth_sessions")
 }

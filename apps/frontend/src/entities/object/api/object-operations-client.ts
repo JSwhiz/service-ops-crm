@@ -1,5 +1,4 @@
 import { fetcher } from '@/shared/api/fetcher';
-import { getAccessToken } from '@/shared/auth/auth-storage';
 
 import type { ObjectEmployeeOption } from '../model/object.types';
 import type {
@@ -36,7 +35,6 @@ export async function getTodayArrivalPhoto(
     `/objects/${objectId}/arrival-photo/today`,
     {
       method: 'GET',
-      token: getAccessToken(),
     },
   );
 }
@@ -47,7 +45,6 @@ export async function upsertTodayArrivalPhoto(
 ): Promise<ObjectArrivalPhoto> {
   return fetcher<ObjectArrivalPhoto>(`/objects/${objectId}/arrival-photo`, {
     method: 'POST',
-    token: getAccessToken(),
     body: JSON.stringify(payload),
   });
 }
@@ -59,7 +56,6 @@ export async function getTodayDailyReport(
     `/objects/${objectId}/daily-report/today`,
     {
       method: 'GET',
-      token: getAccessToken(),
     },
   );
 }
@@ -70,7 +66,6 @@ export async function upsertTodayDailyReport(
 ): Promise<ObjectDailyReport> {
   return fetcher<ObjectDailyReport>(`/objects/${objectId}/daily-report/today`, {
     method: 'PUT',
-    token: getAccessToken(),
     body: JSON.stringify(payload),
   });
 }
@@ -80,7 +75,6 @@ export async function listObjectComments(
 ): Promise<ObjectComment[]> {
   return fetcher<ObjectComment[]>(`/objects/${objectId}/comments`, {
     method: 'GET',
-    token: getAccessToken(),
   });
 }
 
@@ -90,7 +84,6 @@ export async function createObjectComment(
 ): Promise<ObjectComment> {
   return fetcher<ObjectComment>(`/objects/${objectId}/comments`, {
     method: 'POST',
-    token: getAccessToken(),
     body: JSON.stringify(payload),
   });
 }
@@ -100,7 +93,6 @@ export async function getObjectFeed(
 ): Promise<ObjectFeedItem[]> {
   return fetcher<ObjectFeedItem[]>(`/objects/${objectId}/feed`, {
     method: 'GET',
-    token: getAccessToken(),
   });
 }
 
@@ -109,7 +101,6 @@ export async function listObjectEmployees(
 ): Promise<ObjectEmployeeOption[]> {
   return fetcher<ObjectEmployeeOption[]>(`/objects/${objectId}/employees`, {
     method: 'GET',
-    token: getAccessToken(),
   });
 }
 
@@ -125,7 +116,6 @@ export async function searchEmployeeDirectory(
     `/objects/${objectId}/employee-directory${query}`,
     {
       method: 'GET',
-      token: getAccessToken(),
     },
   );
 }
@@ -136,7 +126,6 @@ export async function addEmployeeToObject(
 ): Promise<{ success: true }> {
   return fetcher<{ success: true }>(`/objects/${objectId}/employees`, {
     method: 'POST',
-    token: getAccessToken(),
     body: JSON.stringify({ employeeId }),
   });
 }
@@ -149,7 +138,6 @@ export async function removeEmployeeFromObject(
     `/objects/${objectId}/employees/${employeeId}`,
     {
       method: 'DELETE',
-      token: getAccessToken(),
     },
   );
 }
@@ -159,7 +147,6 @@ export async function getTodayObjectAttendance(
 ): Promise<ObjectAttendanceToday> {
   return fetcher<ObjectAttendanceToday>(`/objects/${objectId}/attendance/today`, {
     method: 'GET',
-    token: getAccessToken(),
   });
 }
 
@@ -169,7 +156,6 @@ export async function upsertObjectAttendance(
 ): Promise<{ success: true }> {
   return fetcher<{ success: true }>(`/objects/${objectId}/attendance`, {
     method: 'POST',
-    token: getAccessToken(),
     body: JSON.stringify(payload),
   });
 }

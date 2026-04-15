@@ -1,10 +1,7 @@
 import { appConfig } from '@/shared/config/app-config';
-import { getAccessToken } from '@/shared/auth/auth-storage';
-import { refreshAccessToken } from '@/shared/auth/auth-session';
+import { refreshSession } from '@/shared/auth/auth-session';
 
 interface FetcherOptions extends RequestInit {
-  token?: string | null;
-  refreshToken?: string | null;
   skipAuthRetry?: boolean;
 }
 
@@ -87,6 +84,7 @@ async function executeRequest(
     body,
     headers,
     cache: 'no-store',
+    credentials: rest.credentials ?? 'include',
   });
 }
 
@@ -95,8 +93,6 @@ export async function fetcher<T>(
   options: FetcherOptions = {},
 ): Promise<T> {
   const {
-    token,
-    refreshToken,
     headers,
     method,
     body,
@@ -107,14 +103,8 @@ export async function fetcher<T>(
   const resolvedMethod = method ?? 'GET';
   const url = `${appConfig.apiUrl}${path}`;
 
-  const explicitToken = token ?? undefined;
-  const authToken =
-    explicitToken !== undefined ? explicitToken : getAccessToken();
-
   const resolvedHeaders: Record<string, string> = {
     Accept: 'application/json',
-    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-    ...(refreshToken ? { 'x-refresh-token': refreshToken } : {}),
     ...((headers as Record<string, string> | undefined) ?? {}),
   };
 
@@ -132,19 +122,14 @@ export async function fetcher<T>(
     );
 
     if (response.status === 401 && !skipAuthRetry) {
-      const refreshedAccessToken = await refreshAccessToken();
+      const refreshed = await refreshSession();
 
-      if (refreshedAccessToken) {
-        const retryHeaders: Record<string, string> = {
-          ...resolvedHeaders,
-          Authorization: `Bearer ${refreshedAccessToken}`,
-        };
-
+      if (refreshed) {
         response = await executeRequest(
           url,
           resolvedMethod,
           body,
-          retryHeaders,
+          resolvedHeaders,
           rest,
         );
       }

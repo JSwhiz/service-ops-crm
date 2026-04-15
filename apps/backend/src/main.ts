@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -9,13 +10,18 @@ import { ResponseTimeInterceptor } from './common/interceptors/response-time.int
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
-    cors: true,
+    cors: false,
   });
+  const configService = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
+  });
+  app.enableCors({
+    origin: configService.get<string>('app.baseUrl'),
+    credentials: true,
   });
 
   app.useGlobalPipes(

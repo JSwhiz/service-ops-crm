@@ -18,6 +18,11 @@ export default () => ({
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '30d',
   },
+  auth: {
+    cookieDomain: process.env.AUTH_COOKIE_DOMAIN ?? '',
+    cookieSecure: process.env.AUTH_COOKIE_SECURE === 'true',
+    cookieSameSite: process.env.AUTH_COOKIE_SAME_SITE ?? 'lax',
+  },
   storage: {
     endpoint: process.env.MINIO_ENDPOINT ?? 'localhost',
     port: Number(process.env.MINIO_PORT ?? '9000'),

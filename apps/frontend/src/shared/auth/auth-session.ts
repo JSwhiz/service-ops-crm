@@ -1,10 +1,6 @@
 import { fetcher } from '@/shared/api/fetcher';
 
-import { clearTokens, getRefreshToken, setTokens } from './auth-storage';
-
 interface RefreshResponse {
-  accessToken: string;
-  refreshToken: string;
   user: {
     id: string;
     login: string;
@@ -15,33 +11,44 @@ interface RefreshResponse {
   };
 }
 
-let refreshPromise: Promise<string | null> | null = null;
+const AUTH_CLEARED_EVENT = 'service-ops-auth-cleared';
+let refreshPromise: Promise<boolean> | null = null;
 
-export async function refreshAccessToken(): Promise<string | null> {
+function emitAuthCleared(): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new Event(AUTH_CLEARED_EVENT));
+}
+
+export function subscribeToAuthCleared(handler: () => void): () => void {
+  if (typeof window === 'undefined') {
+    return () => undefined;
+  }
+
+  window.addEventListener(AUTH_CLEARED_EVENT, handler);
+
+  return () => {
+    window.removeEventListener(AUTH_CLEARED_EVENT, handler);
+  };
+}
+
+export async function refreshSession(): Promise<boolean> {
   if (refreshPromise) {
     return refreshPromise;
   }
 
   refreshPromise = (async () => {
-    const refreshToken = getRefreshToken();
-
-    if (!refreshToken) {
-      clearTokens();
-      return null;
-    }
-
     try {
-      const response = await fetcher<RefreshResponse>('/auth/refresh', {
+      await fetcher<RefreshResponse>('/auth/refresh', {
         method: 'POST',
-        refreshToken,
         skipAuthRetry: true,
       });
-
-      setTokens(response.accessToken, response.refreshToken);
-      return response.accessToken;
+      return true;
     } catch {
-      clearTokens();
-      return null;
+      emitAuthCleared();
+      return false;
     } finally {
       refreshPromise = null;
     }

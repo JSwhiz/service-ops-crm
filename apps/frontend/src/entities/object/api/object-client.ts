@@ -1,5 +1,4 @@
 import { fetcher } from '@/shared/api/fetcher';
-import { getAccessToken } from '@/shared/auth/auth-storage';
 
 import type {
   ObjectAuditLogItem,
@@ -61,14 +60,12 @@ export async function listObjects(
 ): Promise<ServiceObject[]> {
   return fetcher<ServiceObject[]>(`/objects${buildObjectsQuery(params)}`, {
     method: 'GET',
-    token: getAccessToken(),
   });
 }
 
 export async function getObjectById(id: string): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${id}`, {
     method: 'GET',
-    token: getAccessToken(),
   });
 }
 
@@ -77,7 +74,6 @@ export async function listObjectAuditLogs(
 ): Promise<ObjectAuditLogItem[]> {
   return fetcher<ObjectAuditLogItem[]>(`/objects/${id}/audit`, {
     method: 'GET',
-    token: getAccessToken(),
   });
 }
 
@@ -86,7 +82,6 @@ export async function createObject(
 ): Promise<ServiceObject> {
   return fetcher<ServiceObject>('/objects', {
     method: 'POST',
-    token: getAccessToken(),
     body: JSON.stringify(payload),
   });
 }
@@ -97,7 +92,6 @@ export async function updateObject(
 ): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${id}`, {
     method: 'PATCH',
-    token: getAccessToken(),
     body: JSON.stringify(payload),
   });
 }
@@ -108,7 +102,6 @@ export async function changeObjectStatus(
 ): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${id}/status`, {
     method: 'PATCH',
-    token: getAccessToken(),
     body: JSON.stringify(payload),
   });
 }
@@ -119,7 +112,6 @@ export async function addResponsibleToObject(
 ): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${id}/responsibles`, {
     method: 'POST',
-    token: getAccessToken(),
     body: JSON.stringify({ userId }),
   });
 }
@@ -130,7 +122,6 @@ export async function removeResponsibleFromObject(
 ): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${id}/responsibles/${userId}`, {
     method: 'DELETE',
-    token: getAccessToken(),
   });
 }
 
@@ -140,7 +131,6 @@ export async function addManagerToObject(
 ): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${id}/managers`, {
     method: 'POST',
-    token: getAccessToken(),
     body: JSON.stringify({ userId }),
   });
 }
@@ -151,6 +141,5 @@ export async function removeManagerFromObject(
 ): Promise<ServiceObject> {
   return fetcher<ServiceObject>(`/objects/${id}/managers/${userId}`, {
     method: 'DELETE',
-    token: getAccessToken(),
   });
 }
