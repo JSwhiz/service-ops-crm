@@ -1,0 +1,200 @@
+# Access Matrix
+
+## Назначение документа
+
+Этот документ фиксирует каноническую матрицу доступа на текущем этапе.
+Если в runtime есть иное поведение, оно считается drift до отдельного исправления.
+
+---
+
+## 1. Канонический leadership circle
+
+В leadership circle входят:
+
+- `founder`
+- `deputy_founder`
+- `director`
+- `corporate_director`
+
+Не входит по умолчанию:
+
+- `deputy_director`
+
+---
+
+## 2. Канонические слои доступа
+
+### 2.1. System role
+
+Глобальная системная роль пользователя.
+
+### 2.2. Object assignment
+
+Назначение на конкретный объект:
+
+- `responsible`
+- `manager`
+
+### 2.3. Order assignment
+
+Назначение на конкретный разовый заказ:
+
+- `one_time_manager`
+
+### 2.4. Capability
+
+Дополнительное адресное право на чувствительное действие.
+
+---
+
+## 3. Objects access matrix
+
+| Action                 | founder | deputy_founder | director | corporate_director | deputy_director        | responsible                                                    | manager |
+| ---------------------- | ------- | -------------- | -------- | ------------------ | ---------------------- | -------------------------------------------------------------- | ------- |
+| View object core       | yes     | yes            | yes      | yes                | optional operationally | yes                                                            | yes     |
+| Create object          | yes     | yes            | yes      | yes                | no                     | no                                                             | no      |
+| Edit object core       | yes     | yes            | yes      | yes                | no                     | no                                                             | no      |
+| Freeze object          | yes     | yes            | yes      | yes                | no                     | no                                                             | no      |
+| Change object status   | yes     | yes            | yes      | yes                | no                     | no                                                             | no      |
+| Manage responsibles    | yes     | yes            | yes      | yes                | no                     | no                                                             | no      |
+| Manage object managers | yes     | yes            | yes      | yes                | no                     | limited by object workflow only if explicitly introduced later | no      |
+
+Каноническое правило:
+
+- `Responsible` не получает object core edit по умолчанию.
+
+Если backend сейчас это разрешает, это runtime drift.
+
+---
+
+## 4. Object operational access matrix
+
+| Action              | leadership circle | responsible | manager |
+| ------------------- | ----------------- | ----------- | ------- |
+| Arrival photo       | yes               | yes         | yes     |
+| Daily report        | yes               | yes         | yes     |
+| Object comments     | yes               | yes         | yes     |
+| Staffing management | yes               | yes         | yes     |
+| Attendance marking  | yes               | yes         | yes     |
+
+---
+
+## 5. Budget / daily rate / finance
+
+| Action                 | founder | deputy_founder                    | director | corporate_director                | deputy_director      |
+| ---------------------- | ------- | --------------------------------- | -------- | --------------------------------- | -------------------- |
+| View financial block   | yes     | optional by visibility/capability | yes      | optional by visibility/capability | view only if granted |
+| Edit object budget     | yes     | no by default                     | yes      | no by default                     | no                   |
+| Edit object daily rate | yes     | no                                | yes      | no                                | no                   |
+
+Дополнительные финансовые действия могут выдаваться capability-моделью.
+
+---
+
+## 6. Timesheet access matrix
+
+### 6.1. Base timesheet access
+
+| Action                                       | leadership circle | deputy_director              | responsible | manager |
+| -------------------------------------------- | ----------------- | ---------------------------- | ----------- | ------- |
+| View timesheet                               | yes               | yes if allowed operationally | yes         | yes     |
+| Operate attendance-linked timesheet workflow | yes               | yes if allowed operationally | yes         | yes     |
+
+### 6.2. Manual correction
+
+| Action                                                                   | founder | director | deputy_founder | corporate_director | deputy_director | responsible    | manager        |
+| ------------------------------------------------------------------------ | ------- | -------- | -------------- | ------------------ | --------------- | -------------- | -------------- |
+| Manual timesheet correction by default                                   | yes     | yes      | no             | no                 | no              | no             | no             |
+| Manual timesheet correction via capability `timesheet.manual_correction` | yes     | yes      | yes if granted | yes if granted     | yes if granted  | yes if granted | yes if granted |
+
+Каноническое правило:
+
+- общий доступ к табелю не равен праву на manual correction.
+
+Если runtime сейчас разрешает manager/responsible менять ячейки табеля вручную только на основании общего доступа, это runtime drift.
+
+---
+
+## 7. Tasks access matrix
+
+| Action      | leadership circle                           | responsible                                 | manager                                     | one_time_manager                            |
+| ----------- | ------------------------------------------- | ------------------------------------------- | ------------------------------------------- | ------------------------------------------- |
+| View task   | yes                                         | yes by scope                                | yes by scope                                | yes by scope                                |
+| Create task | yes                                         | yes by scope                                | yes by scope if allowed                     | yes by order scope                          |
+| Close task  | routed through approval / confirmation flow | routed through approval / confirmation flow | routed through approval / confirmation flow | routed through approval / confirmation flow |
+
+Каноническое правило:
+
+- закрытие задачи требует подтверждения.
+
+---
+
+## 8. Inventory exception rule
+
+Для расходников без фото подтверждает:
+
+- `deputy_director`
+
+Это отдельное каноническое правило MVP.
+
+---
+
+## 9. Accountability / expenses
+
+| Action                                    | founder | director | other leadership          | others |
+| ----------------------------------------- | ------- | -------- | ------------------------- | ------ |
+| Issue accountability by default           | yes     | yes      | no by default             | no     |
+| Issue accountability via capability       | yes     | yes      | yes if explicitly granted | no     |
+| Transfer accountability to another person | no      | no       | no                        | no     |
+
+---
+
+## 10. Chats
+
+| Action               | Rule                                                                |
+| -------------------- | ------------------------------------------------------------------- |
+| Object chat          | не вводится как отдельный чат, внутри объекта используются comments |
+| General chat         | yes                                                                 |
+| Regular objects chat | yes                                                                 |
+| One-time orders chat | yes                                                                 |
+| Substitution chat    | yes                                                                 |
+
+---
+
+## 11. Capability catalog
+
+Канонические capability codes на текущем этапе:
+
+- `timesheet.manual_correction`
+- `object.budget_edit`
+- `object.daily_rate_edit`
+- `accountability.issue_cash`
+- `expense.approve`
+- `approval.resolve_task_result`
+- `approval.resolve_object_change`
+- `approval.resolve_inventory_exception`
+
+---
+
+## 12. Approval mapping
+
+| Approval type                           | Source module           | Source entity               | Resolver                              | Capability                           |
+| --------------------------------------- | ----------------------- | --------------------------- | ------------------------------------- | ------------------------------------ |
+| task_result_confirmation                | tasks                   | task result                 | leadership / designated approver      | approval.resolve_task_result         |
+| object_change_confirmation              | objects                 | object                      | leadership                            | approval.resolve_object_change       |
+| object_assignment_change_confirmation   | objects                 | object assignment           | leadership                            | approval.resolve_object_change       |
+| inventory_without_photo_confirmation    | inventory               | inventory movement          | deputy_director / designated approver | approval.resolve_inventory_exception |
+| expense_confirmation                    | expenses-accountability | expense                     | leadership / designated approver      | expense.approve                      |
+| manual_timesheet_exception_confirmation | timesheets              | manual correction exception | leadership / designated approver      | timesheet.manual_correction          |
+
+---
+
+## 13. Sprint 1 closeout note
+
+Sprint 1 closeout считается завершенным только если:
+
+- leadership circle одинаков во всех docs и в runtime;
+- object core edit соответствует этой матрице;
+- timesheet manual correction соответствует этой матрице.
+
+До этого момента расхождения считаются drift.

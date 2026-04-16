@@ -14,7 +14,10 @@ import { ListTimesheetCorrectionsQueryDto } from './dto/list-timesheet-correctio
 import { TimesheetCorrectionItemDto } from './dto/timesheet-correction-item.dto';
 import { TimesheetResponseDto } from './dto/timesheet-response.dto';
 import { UpsertTimesheetEntryDto } from './dto/upsert-timesheet-entry.dto';
-import { hasWideTimesheetAccess } from './utils/timesheet-access.util';
+import {
+  canManuallyCorrectTimesheet,
+  hasWideTimesheetAccess,
+} from './utils/timesheet-access.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -227,6 +230,7 @@ export class TimesheetsService {
     payload: UpsertTimesheetEntryDto,
   ): Promise<TimesheetResponseDto> {
     await this.assertAccess(currentUser, payload.objectId);
+    this.assertManualCorrectionAccess(currentUser);
 
     const daysInMonth = this.getDaysInMonth(payload.year, payload.month);
     if (payload.dayOfMonth > daysInMonth) {
@@ -401,6 +405,16 @@ export class TimesheetsService {
 
     if (!assignment) {
       throw new ForbiddenException('Access to timesheet denied');
+    }
+  }
+
+  private assertManualCorrectionAccess(currentUser: CurrentAuthUser): void {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    // TODO: extend this bridge with timesheet.manual_correction capability
+    // when runtime capability enforcement is introduced.
+    if (!canManuallyCorrectTimesheet(roleCodes)) {
+      throw new ForbiddenException('Manual timesheet correction denied');
     }
   }
 

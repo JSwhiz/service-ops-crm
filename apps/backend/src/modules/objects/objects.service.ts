@@ -702,15 +702,8 @@ export class ObjectsService {
       throw new NotFoundException('Object not found');
     }
 
-    const isAssignedResponsible = existing.assignments.some(
-      (assignment) =>
-        assignment.user.id === currentUser.id &&
-        assignment.assignmentRoleCode === 'responsible',
-    );
-
     const allowedToEdit =
       canEditObject(roleCodes) ||
-      (isAssignedResponsible && existing.status !== 'frozen') ||
       (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes));
 
     if (!allowedToEdit) {
@@ -765,11 +758,6 @@ export class ObjectsService {
       roleCode: assignment.assignmentRoleCode,
     }));
     const roleCodes = this.getRoleCodes(currentUser);
-    const isAssignedResponsible = mappedAssignments.some(
-      (assignment) =>
-        assignment.userId === currentUser.id &&
-        assignment.roleCode === 'responsible',
-    );
     const isAssignedManager = mappedAssignments.some(
       (assignment) =>
         assignment.userId === currentUser.id && assignment.roleCode === 'manager',
@@ -777,7 +765,6 @@ export class ObjectsService {
     const canManageResponsibles = canManageObjectResponsibles(roleCodes);
     const canEdit =
       canEditObject(roleCodes) ||
-      (isAssignedResponsible && item.status !== 'frozen') ||
       (item.status === 'frozen' && canOverrideFrozenObject(roleCodes));
 
     return {
@@ -802,7 +789,13 @@ export class ObjectsService {
         canEditDailyRate: canEdit && canEditObjectDailyRate(roleCodes),
         canChangeStatus: canManageResponsibles,
         canManageResponsibles,
-        canManageManagers: canManageResponsibles || isAssignedResponsible,
+        canManageManagers:
+          canManageResponsibles ||
+          mappedAssignments.some(
+            (assignment) =>
+              assignment.userId === currentUser.id &&
+              assignment.roleCode === 'responsible',
+          ),
         canCreateTask: canCreateTaskOnObject({
           currentUserId: currentUser.id,
           roleCodes,

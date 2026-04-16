@@ -2,7 +2,6 @@ export const LEADERSHIP_OBJECT_ROLE_CODES = [
   'founder',
   'deputy_founder',
   'director',
-  'deputy_director',
   'corporate_director',
 ] as const;
 
