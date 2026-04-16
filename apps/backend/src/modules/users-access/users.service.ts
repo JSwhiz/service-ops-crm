@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service';
 interface UserWithRoles {
   id: string;
   login: string;
-  password: string | null;
   passwordHash: string | null;
   fullName: string;
   isActive: boolean;
@@ -20,7 +19,6 @@ interface UserWithRoles {
 const authUserSelect = {
   id: true,
   login: true,
-  password: true,
   passwordHash: true,
   fullName: true,
   isActive: true,
@@ -100,15 +98,5 @@ export class UsersService {
       isActive: user.isActive,
       roleCodes: user.roles.map((item) => item.role.code),
     };
-  }
-
-  async setPasswordHash(userId: string, passwordHash: string): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        passwordHash,
-        password: null,
-      } as never,
-    });
   }
 }

@@ -8,7 +8,7 @@ import { LoginDto } from './dto/login.dto';
 import { MeResponseDto } from './dto/me-response.dto';
 import { AuthRequestMeta } from './types/auth-request-meta.type';
 import { parseDurationToMs } from './utils/duration.util';
-import { hashPassword, verifyPassword } from './utils/password-hash.util';
+import { verifyPassword } from './utils/password-hash.util';
 
 import { AuthSessionsService } from './auth-sessions.service';
 
@@ -22,7 +22,6 @@ interface IssuedAuthSession {
 
 interface PasswordCheckUserRecord {
   id: string;
-  password: string | null;
   passwordHash: string | null;
 }
 
@@ -117,17 +116,11 @@ export class AuthService {
     user: PasswordCheckUserRecord,
     rawPassword: string,
   ): Promise<boolean> {
-    if (user.passwordHash) {
-      return verifyPassword(rawPassword, user.passwordHash);
-    }
-
-    if (!user.password || user.password !== rawPassword) {
+    if (!user.passwordHash) {
       return false;
     }
 
-    const passwordHash = await hashPassword(rawPassword);
-    await this.usersService.setPasswordHash(user.id, passwordHash);
-    return true;
+    return verifyPassword(rawPassword, user.passwordHash);
   }
 
   private async issueAuthSession(

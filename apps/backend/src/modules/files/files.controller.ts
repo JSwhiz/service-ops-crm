@@ -5,11 +5,13 @@ import {
   Get,
   Param,
   Post,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -41,18 +43,41 @@ export class FilesController {
 
   @Get('entity/:entityType/:entityId')
   listByEntity(
+    @CurrentUser() user: CurrentAuthUser,
     @Param('entityType') entityType: string,
     @Param('entityId') entityId: string,
   ): Promise<FileResponseDto[]> {
     return this.filesService.listByEntity({
+      currentUser: user,
       entityType,
       entityId,
     });
   }
 
+  @Get(':id/content')
+  async getContent(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    const file = await this.filesService.getContentById(user, id);
+    const safeFileName = file.originalName.replace(/["\r\n]/g, '_');
+
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.sizeBytes));
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${safeFileName}"`,
+    );
+    response.send(file.body);
+  }
+
   @Get(':id')
-  getById(@Param('id') id: string): Promise<FileResponseDto> {
-    return this.filesService.getById(id);
+  getById(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<FileResponseDto> {
+    return this.filesService.getById(user, id);
   }
 
   @Post('upload')

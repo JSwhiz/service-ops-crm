@@ -86,7 +86,6 @@ async function main(): Promise<void> {
       fullName: 'Учредитель',
       isActive: true,
       passwordHash: founderPasswordHash,
-      password: null,
     },
     create: {
       login: 'founder',
@@ -102,7 +101,6 @@ async function main(): Promise<void> {
       fullName: 'Директор',
       isActive: true,
       passwordHash: directorPasswordHash,
-      password: null,
     },
     create: {
       login: 'director',
@@ -118,7 +116,6 @@ async function main(): Promise<void> {
       fullName: 'Менеджер Первый',
       isActive: true,
       passwordHash: managerPasswordHash,
-      password: null,
     },
     create: {
       login: 'manager1',
@@ -134,7 +131,6 @@ async function main(): Promise<void> {
       fullName: 'Менеджер Второй',
       isActive: true,
       passwordHash: managerPasswordHash,
-      password: null,
     },
     create: {
       login: 'manager2',

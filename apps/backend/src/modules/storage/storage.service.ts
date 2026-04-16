@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   CreateBucketCommand,
+  GetObjectCommand,
   HeadBucketCommand,
   PutObjectCommand,
   S3Client,
@@ -56,7 +57,7 @@ export class StorageService implements OnModuleInit {
     body: Buffer;
     contentType: string;
     contentLength: number;
-  }): Promise<{ bucket: string; objectKey: string; url: string }> {
+  }): Promise<{ bucket: string; objectKey: string }> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -70,12 +71,48 @@ export class StorageService implements OnModuleInit {
     return {
       bucket: this.bucket,
       objectKey: params.objectKey,
-      url: this.buildObjectUrl(params.objectKey),
     };
   }
 
   getBucketName(): string {
     return this.bucket;
+  }
+
+  async downloadObject(objectKey: string): Promise<{
+    body: Buffer;
+    contentType: string;
+    contentLength: number;
+  }> {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+      }),
+    );
+
+    if (!response.Body) {
+      throw new Error(`Object body is empty for key ${objectKey}`);
+    }
+
+    const body = Buffer.from(await response.Body.transformToByteArray());
+
+    return {
+      body,
+      contentType: response.ContentType ?? 'application/octet-stream',
+      contentLength: response.ContentLength ?? body.length,
+    };
+  }
+
+  async ping(): Promise<{ bucket: string }> {
+    await this.client.send(
+      new HeadBucketCommand({
+        Bucket: this.bucket,
+      }),
+    );
+
+    return {
+      bucket: this.bucket,
+    };
   }
 
   buildObjectUrl(objectKey: string): string {

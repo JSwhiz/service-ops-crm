@@ -399,3 +399,20 @@ Sprint 1 считается полностью закрытым только е�
 3. runtime не дает manual timesheet correction через обычный timesheet access.
 
 До этого момента любые расхождения считаются runtime drift, а не новой нормой.
+
+---
+
+## 17. Platform files baseline
+
+До появления domain-specific attachment contracts действует минимальный platform-safe baseline:
+
+- `FileAttachment.entityType` допускает только:
+  - `object`
+  - `object_arrival_photo`
+  - `object_daily_report`
+  - `object_comment`
+  - `task`
+- свободные `entityType` не допускаются;
+- `fieldCode` на этом этапе не вводит отдельные domain-поля и должен оставаться `null`, пока конкретный модуль не добавит свой явный contract;
+- доступ к файлу отдается через backend-authenticated download proxy, а не через прямой публичный storage URL;
+- расширение списка `entityType` и появление канонических `fieldCode` выполняется только вместе с контрактом соответствующего модуля.

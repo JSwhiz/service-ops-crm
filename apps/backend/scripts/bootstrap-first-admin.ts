@@ -38,14 +38,12 @@ async function main(): Promise<void> {
       fullName,
       isActive: true,
       passwordHash,
-      password: null,
     },
     create: {
       login,
       fullName,
       isActive: true,
       passwordHash,
-      password: null,
     },
   });
 

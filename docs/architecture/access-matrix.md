@@ -198,3 +198,13 @@ Sprint 1 closeout считается завершенным только есл�
 - timesheet manual correction соответствует этой матрице.
 
 До этого момента расхождения считаются drift.
+
+---
+
+## 14. Files / media platform baseline
+
+- чтение файла наследует visibility родительской сущности;
+- upload в `object` наследует правило object core edit;
+- upload в `object_arrival_photo`, `object_daily_report`, `object_comment` наследует текущий writable bridge object-operations;
+- upload в `task` наследует task-scoped access;
+- прямой публичный storage URL не считается каноническим access path, базовый runtime path — backend download proxy.
