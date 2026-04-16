@@ -30,10 +30,13 @@ import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
+import { FilesModule } from './modules/files/files.module';
 import { HealthModule } from './modules/health/health.module';
 import { ObjectOperationsModule } from './modules/object-operations/object-operations.module';
 import { ObjectsModule } from './modules/objects/objects.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TimesheetsModule } from './modules/timesheets/timesheets.module';
 import { UsersAccessModule } from './modules/users-access/users-access.module';
@@ -48,9 +51,12 @@ import { UsersAccessModule } from './modules/users-access/users-access.module';
       validate: validateEnv,
     }),
     PrismaModule,
+    RedisModule,
+    StorageModule,
     UsersAccessModule,
     AuthModule,
     HealthModule,
+    FilesModule,
     ObjectsModule,
     ObjectOperationsModule,
     TasksModule,

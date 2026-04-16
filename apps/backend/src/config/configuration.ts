@@ -30,5 +30,12 @@ export default () => ({
     accessKey: process.env.MINIO_ACCESS_KEY ?? '',
     secretKey: process.env.MINIO_SECRET_KEY ?? '',
     bucket: process.env.MINIO_BUCKET ?? 'service-ops-files',
+    publicBaseUrl:
+      process.env.MINIO_PUBLIC_BASE_URL ?? 'http://localhost:9000',
+  },
+  bootstrap: {
+    firstAdminLogin: process.env.FIRST_ADMIN_LOGIN ?? 'founder',
+    firstAdminPassword: process.env.FIRST_ADMIN_PASSWORD ?? 'founder123',
+    firstAdminFullName: process.env.FIRST_ADMIN_FULL_NAME ?? 'System Founder',
   },
 });

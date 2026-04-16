@@ -37,6 +37,8 @@ model User {
   updatedTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryUpdatedBy")
   objectAuditLogs             ObjectAuditLog[] @relation("ObjectAuditLogActor")
   authSessions                AuthSession[]
+  uploadedFiles               File[]          @relation("FileUploadedBy")
+  fileAttachments             FileAttachment[] @relation("FileAttachmentCreatedBy")
 
   @@map("users")
 }
@@ -423,8 +425,29 @@ model File {
   createdAt        DateTime @default(now())
   deletedAt        DateTime?
 
+  uploadedBy       User?             @relation("FileUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  attachments      FileAttachment[]
+
   @@index([uploadedByUserId])
   @@map("files")
+}
+
+model FileAttachment {
+  id               String   @id @default(uuid())
+  fileId           String
+  entityType       String
+  entityId         String
+  fieldCode        String?
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+
+  file             File   @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  uploadedBy       User?  @relation("FileAttachmentCreatedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([fileId])
+  @@index([entityType, entityId])
+  @@index([uploadedByUserId])
+  @@map("file_attachments")
 }
 
 model AuditEvent {

@@ -73,6 +73,21 @@
 - server-side env на staging/production
 - CI secrets later
 
+## Практический local bootstrap
+
+Рабочий локальный сценарий теперь такой:
+
+1. `pnpm bootstrap:local`
+2. `pnpm --filter backend start:dev`
+3. `pnpm --filter frontend dev`
+
+Bootstrap script:
+
+- создает недостающие `.env.*.local` из example-файлов;
+- поднимает PostgreSQL, Redis и MinIO;
+- применяет миграции и seed;
+- создает first admin bootstrap user.
+
 ## Принцип будущих окружений
 
 Стратегия проектируется сразу под:

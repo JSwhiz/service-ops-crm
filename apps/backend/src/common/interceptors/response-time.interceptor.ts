@@ -17,7 +17,6 @@ export class ResponseTimeInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap(() => {
         const responseTimeMs = Date.now() - startedAt;
-        // eslint-disable-next-line no-console
         console.log(`Response time: ${responseTimeMs}ms`);
       }),
     );

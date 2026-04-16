@@ -528,12 +528,14 @@ async function main(): Promise<void> {
         },
         update: {
           createdByUserId: founder.id,
+          dailyRateSnapshot: objectOne.dailyRate,
         },
         create: {
           objectId: objectOne.id,
           employeeId: employee.id,
           operationDate,
           createdByUserId: founder.id,
+          dailyRateSnapshot: objectOne.dailyRate,
         },
       });
     }

@@ -32,6 +32,11 @@ export function validateEnv(env: EnvRecord): EnvRecord {
   requireValue(env, 'MINIO_ACCESS_KEY');
   requireValue(env, 'MINIO_SECRET_KEY');
   requireValue(env, 'MINIO_BUCKET');
+  requireValue(env, 'MINIO_PUBLIC_BASE_URL');
+
+  requireValue(env, 'FIRST_ADMIN_LOGIN');
+  requireValue(env, 'FIRST_ADMIN_PASSWORD');
+  requireValue(env, 'FIRST_ADMIN_FULL_NAME');
 
   return env;
 }

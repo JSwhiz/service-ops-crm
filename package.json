@@ -3,23 +3,32 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "echo \"Root dev orchestration will be connected after app runtime stabilization\"",
+    "dev": "echo \"Use pnpm --filter frontend dev and pnpm --filter backend start:dev after bootstrap\"",
     "build": "pnpm -r build",
-    "lint": "pnpm -r lint",
+    "lint": "pnpm --filter backend lint && pnpm --filter frontend lint && pnpm --filter @service-ops/shared-types lint",
     "typecheck": "pnpm -r typecheck",
     "format": "pnpm -r format",
     "clean": "pnpm -r exec rimraf dist .next coverage",
     "workspace:list": "pnpm m ls --depth -1",
+    "infra:up": "docker compose --env-file .env.infra.local -f docker-compose.dev.yml up -d",
+    "infra:down": "docker compose --env-file .env.infra.local -f docker-compose.dev.yml down",
+    "infra:ps": "docker compose --env-file .env.infra.local -f docker-compose.dev.yml ps",
+    "bootstrap:local": "node ./scripts/bootstrap-local.mjs",
+    "backend:first-admin": "pnpm --filter backend bootstrap:first-admin",
+    "test:backend:integration": "pnpm --filter backend test:integration",
     "db:generate": "pnpm --filter backend prisma:generate",
     "db:migrate": "pnpm --filter backend prisma:migrate",
     "db:seed": "pnpm --filter backend prisma:seed",
-    "ci:check": "pnpm db:generate && pnpm typecheck && pnpm --filter backend build && pnpm --filter frontend build"
+    "ci:check": "pnpm db:generate && pnpm lint && pnpm typecheck && pnpm --filter backend build && pnpm --filter frontend build"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/node": "^22.10.0",
     "eslint": "^9.17.0",
+    "globals": "^17.5.0",
     "prettier": "^3.4.2",
     "rimraf": "^6.0.1",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.58.2"
   }
 }

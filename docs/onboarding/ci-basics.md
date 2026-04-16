@@ -13,9 +13,10 @@
 3. setup pnpm
 4. install зависимостей
 5. генерацию Prisma Client
-6. workspace typecheck
-7. backend build
-8. frontend build
+6. workspace lint
+7. workspace typecheck
+8. backend build
+9. frontend build
 
 ## Что CI пока не делает
 
@@ -59,3 +60,18 @@ pnpm ci:check
 • integration test
 • ephemeral database migrations
 • preview/staging deployment checks
+
+## Backend integration harness
+
+В репозитории добавлен baseline backend integration harness.
+
+Локальный запуск:
+
+```bash
+pnpm test:backend:integration
+```
+
+Важно:
+
+- integration harness ожидает, что local infra уже поднята;
+- shared CI по-прежнему не поднимает PostgreSQL / Redis / MinIO автоматически.

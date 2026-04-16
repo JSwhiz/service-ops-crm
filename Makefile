@@ -20,20 +20,23 @@ workspace-list:
 	pnpm workspace:list
 
 infra-up:
-	docker compose -f docker-compose.dev.yml up -d
+	docker compose --env-file .env.infra.local -f docker-compose.dev.yml up -d
 
 infra-down:
-	docker compose -f docker-compose.dev.yml down
+	docker compose --env-file .env.infra.local -f docker-compose.dev.yml down
 
 infra-logs:
-	docker compose -f docker-compose.dev.yml logs -f
+	docker compose --env-file .env.infra.local -f docker-compose.dev.yml logs -f
 
 infra-ps:
-	docker compose -f docker-compose.dev.yml ps
+	docker compose --env-file .env.infra.local -f docker-compose.dev.yml ps
 
 infra-restart:
-	docker compose -f docker-compose.dev.yml down
-	docker compose -f docker-compose.dev.yml up -d
+	docker compose --env-file .env.infra.local -f docker-compose.dev.yml down
+	docker compose --env-file .env.infra.local -f docker-compose.dev.yml up -d
+
+bootstrap-local:
+	pnpm bootstrap:local
 
 db-generate:
 	pnpm db:generate

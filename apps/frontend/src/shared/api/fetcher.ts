@@ -151,9 +151,13 @@ export async function fetcher<T>(
     return JSON.parse(rawBody) as T;
   } catch (error: unknown) {
     if (error instanceof Error) {
-      throw new Error(`${resolvedMethod} ${url} failed: ${error.message}`);
+      throw new Error(`${resolvedMethod} ${url} failed: ${error.message}`, {
+        cause: error,
+      });
     }
 
-    throw new Error(`${resolvedMethod} ${url} failed`);
+    throw new Error(`${resolvedMethod} ${url} failed`, {
+      cause: error,
+    });
   }
 }

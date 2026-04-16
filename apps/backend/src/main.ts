@@ -1,39 +1,15 @@
 import 'reflect-metadata';
 
-import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { ConfigService } from '@nestjs/config';
 
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { ResponseTimeInterceptor } from './common/interceptors/response-time.interceptor';
+import { configureApp } from './bootstrap';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, {
     cors: false,
   });
-  const configService = app.get(ConfigService);
-
-  app.setGlobalPrefix('api');
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
-  app.enableCors({
-    origin: configService.get<string>('app.baseUrl'),
-    credentials: true,
-  });
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
-
-  app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(new ResponseTimeInterceptor());
+  await configureApp(app);
 
   const port = process.env.BACKEND_PORT ?? '4000';
   await app.listen(Number(port));
