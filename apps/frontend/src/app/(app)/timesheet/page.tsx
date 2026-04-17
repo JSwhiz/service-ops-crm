@@ -103,9 +103,16 @@ export default function TimesheetPage(): React.JSX.Element {
         </div>
       ) : timesheet ? (
         <div style={{ display: 'grid', gap: 16 }}>
+          {!timesheet.capabilities.canManualCorrection ? (
+            <div className="page-card page-muted">
+              Ручная корректировка табеля сейчас недоступна для вашей роли.
+            </div>
+          ) : null}
+
           <TimesheetGrid
             key={`${selectedObjectId}-${selectedYear}-${selectedMonth}`}
             timesheet={timesheet}
+            canEditEntries={timesheet.capabilities.canManualCorrection}
             onChangeEntry={async (payload) => {
               const updatedTimesheet = await upsertTimesheetEntry({
                 objectId: selectedObjectId,

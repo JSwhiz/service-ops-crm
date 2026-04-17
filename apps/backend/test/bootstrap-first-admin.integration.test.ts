@@ -16,18 +16,29 @@ test('bootstrap first admin creates founder user with password hash', async (t) 
   });
 
   const login = `bootstrap_founder_${Date.now()}`;
-  const repoRoot = path.resolve(process.cwd(), '../..');
-  const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+  const backendRoot = process.cwd();
+  const nodeCommand = process.execPath;
 
-  await execFileAsync(pnpmCommand, ['backend:first-admin'], {
-    cwd: repoRoot,
+  await execFileAsync(
+    nodeCommand,
+    [
+      '-r',
+      'dotenv/config',
+      '-r',
+      'ts-node/register',
+      'scripts/bootstrap-first-admin.ts',
+    ],
+    {
+      cwd: backendRoot,
     env: {
       ...process.env,
       FIRST_ADMIN_LOGIN: login,
       FIRST_ADMIN_PASSWORD: 'bootstrap123',
       FIRST_ADMIN_FULL_NAME: 'Bootstrap Founder',
+      DOTENV_CONFIG_PATH: path.resolve(backendRoot, '../../.env.backend.local'),
     },
-  });
+    },
+  );
 
   const user = await prisma.user.findUnique({
     where: {

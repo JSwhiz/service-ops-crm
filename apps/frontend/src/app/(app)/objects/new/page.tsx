@@ -9,7 +9,6 @@ import {
   type SystemUserOption,
 } from '@/entities/user/api/user-client';
 import { useAuth } from '@/shared/auth/use-auth';
-import { canCreateObject } from '@/shared/lib/access';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 export default function NewObjectPage(): React.JSX.Element {
@@ -34,19 +33,7 @@ export default function NewObjectPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const currentUserRoleCodes = useMemo(() => {
-    if (!user) {
-      return [];
-    }
-
-    if (user.roleCodes && user.roleCodes.length > 0) {
-      return user.roleCodes;
-    }
-
-    return user.roleCode ? [user.roleCode] : [];
-  }, [user]);
-
-  const allowCreateObject = canCreateObject(currentUserRoleCodes);
+  const allowCreateObject = user?.capabilities?.canCreateObject ?? false;
 
   useEffect(() => {
     const loadUsers = async (): Promise<void> => {

@@ -29,6 +29,10 @@ export interface TaskItem {
     fullName: string;
   } | null;
   assignees: TaskAssignee[];
+  capabilities: {
+    canSubmitResult: boolean;
+    allowedStatusTransitions: string[];
+  };
 }
 
 export interface CreateTaskPayload {

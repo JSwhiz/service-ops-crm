@@ -142,6 +142,11 @@ export class TimesheetsService {
       status: monthContainer.status,
       daysInMonth: daysInSelectedMonth,
       monthTotal: mappedRows.reduce((sum, row) => sum + row.rowTotal, 0),
+      capabilities: {
+        canManualCorrection: canManuallyCorrectTimesheet(
+          this.getRoleCodes(currentUser),
+        ),
+      },
       rows: mappedRows,
     };
   }

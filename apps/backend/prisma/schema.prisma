@@ -38,6 +38,10 @@ model User {
   authSessions                AuthSession[]
   uploadedFiles               File[]          @relation("FileUploadedBy")
   fileAttachments             FileAttachment[] @relation("FileAttachmentCreatedBy")
+  createdEmployeeAvailabilityWindows EmployeeAvailabilityWindow[] @relation("EmployeeAvailabilityCreatedBy")
+  createdEmployeeSubstitutions EmployeeSubstitution[] @relation("EmployeeSubstitutionCreatedBy")
+  createdEmployeeAssignmentHistory EmployeeObjectAssignmentHistory[] @relation("EmployeeAssignmentHistoryCreatedBy")
+  closedEmployeeAssignmentHistory  EmployeeObjectAssignmentHistory[] @relation("EmployeeAssignmentHistoryClosedBy")
 
   @@map("users")
 }
@@ -177,6 +181,8 @@ model Object {
   comments             ObjectComment[]
   tasks                Task[]
   employeeAssignments  ObjectEmployeeAssignment[]
+  employeeAssignmentHistory EmployeeObjectAssignmentHistory[]
+  employeeSubstitutions EmployeeSubstitution[]
   timesheetMonths      TimesheetMonth[]
   auditLogs            ObjectAuditLog[]
 
@@ -208,6 +214,10 @@ model Employee {
   id                 String   @id @default(uuid())
   fullName           String
   phone              String?
+  residenceAddress   String?
+  shiftPreferences   String?
+  baseDailyRate      Int?
+  notes              String?
   employmentStatus   String
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -215,10 +225,81 @@ model Employee {
 
   attendanceFacts    ObjectAttendanceFact[]
   objectAssignments  ObjectEmployeeAssignment[]
+  objectAssignmentHistory EmployeeObjectAssignmentHistory[]
+  availabilityWindows EmployeeAvailabilityWindow[]
+  substitutionsAsPrimary EmployeeSubstitution[] @relation("EmployeeSubstitutionPrimary")
+  substitutionsAsReplacement EmployeeSubstitution[] @relation("EmployeeSubstitutionReplacement")
   timesheetRows      TimesheetEmployeeRow[]
 
   @@index([employmentStatus])
   @@map("employees")
+}
+
+model EmployeeObjectAssignmentHistory {
+  id              String   @id @default(uuid())
+  employeeId      String
+  objectId        String
+  startedAt       DateTime
+  endedAt         DateTime?
+  createdByUserId String
+  closedByUserId  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  object    Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("EmployeeAssignmentHistoryCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  closedBy  User?    @relation("EmployeeAssignmentHistoryClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId])
+  @@index([objectId])
+  @@index([endedAt])
+  @@map("employee_object_assignment_history")
+}
+
+model EmployeeAvailabilityWindow {
+  id                 String   @id @default(uuid())
+  employeeId         String
+  startDate          DateTime
+  endDate            DateTime?
+  availabilityStatus String
+  comment            String?
+  createdByUserId    String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("EmployeeAvailabilityCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, startDate])
+  @@index([availabilityStatus])
+  @@map("employee_availability_windows")
+}
+
+model EmployeeSubstitution {
+  id                   String   @id @default(uuid())
+  employeeId           String
+  substituteEmployeeId String
+  objectId             String?
+  startDate            DateTime
+  endDate              DateTime?
+  status               String
+  reason               String
+  comment              String?
+  createdByUserId      String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  employee           Employee @relation("EmployeeSubstitutionPrimary", fields: [employeeId], references: [id], onDelete: Cascade)
+  substituteEmployee Employee @relation("EmployeeSubstitutionReplacement", fields: [substituteEmployeeId], references: [id], onDelete: Cascade)
+  object             Object?   @relation(fields: [objectId], references: [id], onDelete: SetNull)
+  createdBy          User      @relation("EmployeeSubstitutionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, startDate])
+  @@index([substituteEmployeeId, startDate])
+  @@index([objectId])
+  @@index([status])
+  @@map("employee_substitutions")
 }
 
 model ObjectAuditLog {

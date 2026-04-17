@@ -30,6 +30,7 @@ import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { AuthModule } from './modules/auth/auth.module';
+import { EmployeesModule } from './modules/employees/employees.module';
 import { FilesModule } from './modules/files/files.module';
 import { HealthModule } from './modules/health/health.module';
 import { ObjectOperationsModule } from './modules/object-operations/object-operations.module';
@@ -55,6 +56,7 @@ import { UsersAccessModule } from './modules/users-access/users-access.module';
     StorageModule,
     UsersAccessModule,
     AuthModule,
+    EmployeesModule,
     HealthModule,
     FilesModule,
     ObjectsModule,

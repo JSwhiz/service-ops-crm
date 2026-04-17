@@ -25,6 +25,7 @@ async function main(): Promise<void> {
   const founderPasswordHash = await hashPassword('founder123');
   const directorPasswordHash = await hashPassword('director123');
   const managerPasswordHash = await hashPassword('manager123');
+  const hrPasswordHash = await hashPassword('hr123');
 
   const founderRole = await prisma.role.upsert({
     where: { code: 'founder' },
@@ -53,6 +54,16 @@ async function main(): Promise<void> {
       code: 'manager',
       name: 'Менеджер',
       description: 'Системная роль менеджера объекта',
+    },
+  });
+
+  const hrRole = await prisma.role.upsert({
+    where: { code: 'hr' },
+    update: {},
+    create: {
+      code: 'hr',
+      name: 'HR',
+      description: 'Системная роль HR-контура',
     },
   });
 
@@ -140,6 +151,21 @@ async function main(): Promise<void> {
     },
   });
 
+  const hrUser = await prisma.user.upsert({
+    where: { login: 'hr1' },
+    update: {
+      fullName: 'HR Специалист',
+      isActive: true,
+      passwordHash: hrPasswordHash,
+    },
+    create: {
+      login: 'hr1',
+      passwordHash: hrPasswordHash,
+      fullName: 'HR Специалист',
+      isActive: true,
+    },
+  });
+
   await prisma.userRole.upsert({
     where: {
       userId_roleId: {
@@ -151,6 +177,20 @@ async function main(): Promise<void> {
     create: {
       userId: founder.id,
       roleId: founderRole.id,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: hrUser.id,
+        roleId: hrRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: hrUser.id,
+      roleId: hrRole.id,
     },
   });
 
@@ -278,6 +318,11 @@ async function main(): Promise<void> {
     update: {
       fullName: 'Иван Петров',
       employmentStatus: 'active',
+      phone: '+79990000001',
+      residenceAddress: 'Москва, Химкинский бульвар, 10',
+      shiftPreferences: 'Предпочитает дневные смены по будням',
+      baseDailyRate: 2200,
+      notes: 'Может выходить на срочные замены при согласовании',
       deletedAt: null,
     },
     create: {
@@ -285,6 +330,10 @@ async function main(): Promise<void> {
       fullName: 'Иван Петров',
       employmentStatus: 'active',
       phone: '+79990000001',
+      residenceAddress: 'Москва, Химкинский бульвар, 10',
+      shiftPreferences: 'Предпочитает дневные смены по будням',
+      baseDailyRate: 2200,
+      notes: 'Может выходить на срочные замены при согласовании',
     },
   });
 
@@ -293,6 +342,11 @@ async function main(): Promise<void> {
     update: {
       fullName: 'Сергей Иванов',
       employmentStatus: 'active',
+      phone: '+79990000002',
+      residenceAddress: 'Москва, Рязанский проспект, 22',
+      shiftPreferences: 'Готов к вечерним сменам и подменам',
+      baseDailyRate: 2100,
+      notes: 'Опытный сотрудник для объектов с высокой нагрузкой',
       deletedAt: null,
     },
     create: {
@@ -300,6 +354,10 @@ async function main(): Promise<void> {
       fullName: 'Сергей Иванов',
       employmentStatus: 'active',
       phone: '+79990000002',
+      residenceAddress: 'Москва, Рязанский проспект, 22',
+      shiftPreferences: 'Готов к вечерним сменам и подменам',
+      baseDailyRate: 2100,
+      notes: 'Опытный сотрудник для объектов с высокой нагрузкой',
     },
   });
 
@@ -308,6 +366,11 @@ async function main(): Promise<void> {
     update: {
       fullName: 'Алексей Смирнов',
       employmentStatus: 'active',
+      phone: '+79990000003',
+      residenceAddress: 'Москва, Каширское шоссе, 5',
+      shiftPreferences: 'Предпочитает плотный график без дробных смен',
+      baseDailyRate: 2300,
+      notes: 'Универсальный сотрудник для выездных задач',
       deletedAt: null,
     },
     create: {
@@ -315,8 +378,14 @@ async function main(): Promise<void> {
       fullName: 'Алексей Смирнов',
       employmentStatus: 'active',
       phone: '+79990000003',
+      residenceAddress: 'Москва, Каширское шоссе, 5',
+      shiftPreferences: 'Предпочитает плотный график без дробных смен',
+      baseDailyRate: 2300,
+      notes: 'Универсальный сотрудник для выездных задач',
     },
   });
+
+  const objectStaffingStartDate = new Date(2026, 0, 1);
 
   for (const employee of [employeeIvan, employeeSergey, employeeAlexey]) {
     await prisma.objectEmployeeAssignment.upsert({
@@ -328,14 +397,35 @@ async function main(): Promise<void> {
       },
       update: {
         isActive: true,
+        startDate: objectStaffingStartDate,
+        endDate: null,
       },
       create: {
         objectId: objectOne.id,
         employeeId: employee.id,
         isActive: true,
+        startDate: objectStaffingStartDate,
       },
     });
   }
+
+  await prisma.employeeObjectAssignmentHistory.deleteMany({
+    where: {
+      objectId: objectOne.id,
+      employeeId: {
+        in: [employeeIvan.id, employeeSergey.id, employeeAlexey.id],
+      },
+    },
+  });
+
+  await prisma.employeeObjectAssignmentHistory.createMany({
+    data: [employeeIvan, employeeSergey, employeeAlexey].map((employee) => ({
+      employeeId: employee.id,
+      objectId: objectOne.id,
+      startedAt: objectStaffingStartDate,
+      createdByUserId: founder.id,
+    })),
+  });
 
   const today = startOfToday();
 

@@ -2,7 +2,6 @@ export const LEADERSHIP_ROLE_CODES = [
   'founder',
   'deputy_founder',
   'director',
-  'deputy_director',
   'corporate_director',
 ] as const;
 
@@ -10,7 +9,6 @@ export const OBJECT_CREATE_ROLE_CODES = [
   'founder',
   'deputy_founder',
   'director',
-  'deputy_director',
   'corporate_director',
 ] as const;
 
@@ -18,7 +16,6 @@ export const OBJECT_EDIT_ROLE_CODES = [
   'founder',
   'deputy_founder',
   'director',
-  'deputy_director',
   'corporate_director',
 ] as const;
 

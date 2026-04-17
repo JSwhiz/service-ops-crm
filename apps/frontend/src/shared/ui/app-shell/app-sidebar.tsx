@@ -1,8 +1,14 @@
+'use client';
+
 import React from 'react';
 
+import { useAuth } from '@/shared/auth/use-auth';
 import { NavLink } from '@/shared/ui/nav-link/nav-link';
 
 export function AppSidebar(): React.JSX.Element {
+  const { user } = useAuth();
+  const canAccessEmployeesHr = user?.capabilities?.canAccessEmployeesHr ?? false;
+
   return (
     <aside className="app-sidebar">
       <div className="app-sidebar__title">Service Ops CRM</div>
@@ -12,6 +18,9 @@ export function AppSidebar(): React.JSX.Element {
         <NavLink href="/objects" label="Объекты" />
         <NavLink href="/tasks" label="Задачи" />
         <NavLink href="/timesheet" label="Табель" />
+        {canAccessEmployeesHr ? (
+          <NavLink href="/employees" label="Сотрудники" />
+        ) : null}
         <NavLink href="/settings" label="Настройки" />
       </nav>
     </aside>

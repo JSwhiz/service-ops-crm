@@ -7,7 +7,6 @@ import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { canCreateTaskOnObject } from '../tasks/utils/task-access.util';
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
@@ -25,6 +24,7 @@ import {
   canOverrideFrozenObject,
   hasWideObjectAccess,
 } from './utils/object-access.util';
+import { buildObjectCapabilities } from './utils/object-capabilities.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -550,16 +550,13 @@ export class ObjectsService {
     objectId: string,
     userId: string,
   ): Promise<ObjectResponseDto> {
-    const object = await this.getObjectById(currentUser, objectId);
     const roleCodes = this.getRoleCodes(currentUser);
 
-    const isResponsible = object.responsibles.some(
-      (responsible) => responsible.userId === currentUser.id,
-    );
-
-    if (!canManageObjectResponsibles(roleCodes) && !isResponsible) {
+    if (!canManageObjectResponsibles(roleCodes)) {
       throw new ForbiddenException('Manager management denied');
     }
+
+    await this.getObjectById(currentUser, objectId);
 
     const user = await this.prisma.user.findFirst({
       where: {
@@ -624,16 +621,13 @@ export class ObjectsService {
     objectId: string,
     userId: string,
   ): Promise<ObjectResponseDto> {
-    const object = await this.getObjectById(currentUser, objectId);
     const roleCodes = this.getRoleCodes(currentUser);
 
-    const isResponsible = object.responsibles.some(
-      (responsible) => responsible.userId === currentUser.id,
-    );
-
-    if (!canManageObjectResponsibles(roleCodes) && !isResponsible) {
+    if (!canManageObjectResponsibles(roleCodes)) {
       throw new ForbiddenException('Manager management denied');
     }
+
+    await this.getObjectById(currentUser, objectId);
 
     await this.prisma.objectAssignment.updateMany({
       where: {
@@ -758,14 +752,6 @@ export class ObjectsService {
       roleCode: assignment.assignmentRoleCode,
     }));
     const roleCodes = this.getRoleCodes(currentUser);
-    const isAssignedManager = mappedAssignments.some(
-      (assignment) =>
-        assignment.userId === currentUser.id && assignment.roleCode === 'manager',
-    );
-    const canManageResponsibles = canManageObjectResponsibles(roleCodes);
-    const canEdit =
-      canEditObject(roleCodes) ||
-      (item.status === 'frozen' && canOverrideFrozenObject(roleCodes));
 
     return {
       id: item.id,
@@ -784,30 +770,13 @@ export class ObjectsService {
       responsibles: mappedAssignments.filter(
         (assignment) => assignment.roleCode === 'responsible',
       ),
-      capabilities: {
-        canEdit,
-        canEditDailyRate: canEdit && canEditObjectDailyRate(roleCodes),
-        canChangeStatus: canManageResponsibles,
-        canManageResponsibles,
-        canManageManagers:
-          canManageResponsibles ||
-          mappedAssignments.some(
-            (assignment) =>
-              assignment.userId === currentUser.id &&
-              assignment.roleCode === 'responsible',
-          ),
-        canCreateTask: canCreateTaskOnObject({
-          currentUserId: currentUser.id,
-          roleCodes,
-          object: {
-            createdByUserId: item.createdByUserId,
-            assignments: mappedAssignments.map((assignment) => ({
-              userId: assignment.userId,
-              assignmentRoleCode: assignment.roleCode,
-            })),
-          },
-        }) || isAssignedManager,
-      },
+      capabilities: buildObjectCapabilities({
+        currentUserId: currentUser.id,
+        roleCodes,
+        objectStatus: item.status,
+        createdByUserId: item.createdByUserId,
+        assignments: mappedAssignments,
+      }),
     };
   }
 }

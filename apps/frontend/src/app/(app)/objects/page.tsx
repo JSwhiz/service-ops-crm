@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectListTable } from '@/features/object-list/ui/object-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
-import { canCreateObject } from '@/shared/lib/access';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 export default function ObjectsPage(): React.JSX.Element {
@@ -19,12 +18,7 @@ export default function ObjectsPage(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const roleCodes = useMemo(
-    () => user?.roleCodes ?? (user?.roleCode ? [user.roleCode] : []),
-    [user],
-  );
-
-  const allowCreateObject = canCreateObject(roleCodes);
+  const allowCreateObject = user?.capabilities?.canCreateObject ?? false;
 
   useEffect(() => {
     const load = async (): Promise<void> => {

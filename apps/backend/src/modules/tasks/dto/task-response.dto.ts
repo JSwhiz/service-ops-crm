@@ -27,4 +27,8 @@ export class TaskResponseDto {
     isCompleted: boolean;
     completedAt: string | null;
   }>;
+  capabilities!: {
+    canSubmitResult: boolean;
+    allowedStatusTransitions: string[];
+  };
 }

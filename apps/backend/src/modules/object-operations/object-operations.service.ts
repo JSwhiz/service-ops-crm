@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { EmployeeAssignmentHistoryService } from '../employees/employee-assignment-history.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
@@ -46,7 +47,10 @@ function todayAsBusinessDate(): string {
 
 @Injectable()
 export class ObjectOperationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly assignmentHistoryService: EmployeeAssignmentHistoryService,
+  ) {}
 
   async getTodayArrivalPhoto(
     currentUser: CurrentAuthUser,
@@ -377,6 +381,8 @@ export class ObjectOperationsService {
       throw new NotFoundException('Employee not found');
     }
 
+    const startedAt = new Date();
+
     await this.prisma.objectEmployeeAssignment.upsert({
       where: {
         objectId_employeeId: {
@@ -386,12 +392,22 @@ export class ObjectOperationsService {
       },
       update: {
         isActive: true,
+        startDate: startedAt,
+        endDate: null,
       },
       create: {
         objectId,
         employeeId: payload.employeeId,
         isActive: true,
+        startDate: startedAt,
       },
+    });
+
+    await this.assignmentHistoryService.openObjectAssignmentHistory({
+      employeeId: payload.employeeId,
+      objectId,
+      startedAt,
+      actorUserId: currentUser.id,
     });
 
     return { success: true };
@@ -404,6 +420,8 @@ export class ObjectOperationsService {
   ): Promise<{ success: true }> {
     await this.assertObjectWritable(currentUser, objectId);
 
+    const endedAt = new Date();
+
     await this.prisma.objectEmployeeAssignment.updateMany({
       where: {
         objectId,
@@ -411,7 +429,15 @@ export class ObjectOperationsService {
       },
       data: {
         isActive: false,
+        endDate: endedAt,
       },
+    });
+
+    await this.assignmentHistoryService.closeObjectAssignmentHistory({
+      employeeId,
+      objectId,
+      endedAt,
+      actorUserId: currentUser.id,
     });
 
     return { success: true };

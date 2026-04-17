@@ -7,6 +7,11 @@ export interface AuthUser {
   roleCode: string;
   roleCodes: string[];
   isActive: boolean;
+  capabilities?: {
+    canCreateObject: boolean;
+    canAccessEmployeesHr?: boolean;
+    canManageEmployeesHr?: boolean;
+  };
 }
 
 export interface LoginPayload {

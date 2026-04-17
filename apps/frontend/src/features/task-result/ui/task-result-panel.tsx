@@ -4,9 +4,11 @@ import React, { useState } from 'react';
 
 export function TaskResultPanel({
   initialValue,
+  canSubmit,
   onSubmit,
 }: {
   initialValue: string;
+  canSubmit: boolean;
   onSubmit: (value: string) => Promise<void>;
 }): React.JSX.Element {
   const [value, setValue] = useState(initialValue);
@@ -38,15 +40,22 @@ export function TaskResultPanel({
           value={value}
           onChange={(event) => setValue(event.target.value)}
           rows={6}
+          disabled={!canSubmit || isSubmitting}
           style={{ width: '100%', padding: 10, resize: 'vertical' }}
         />
+
+        {!canSubmit ? (
+          <div className="page-muted" style={{ marginTop: 12 }}>
+            Отправка результата сейчас недоступна для вашего сценария.
+          </div>
+        ) : null}
 
         {error ? (
           <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>
         ) : null}
 
         <div style={{ marginTop: 12 }}>
-          <button type="submit" disabled={isSubmitting}>
+          <button type="submit" disabled={!canSubmit || isSubmitting}>
             {isSubmitting ? 'Отправляем...' : 'Отправить результат'}
           </button>
         </div>

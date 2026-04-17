@@ -22,6 +22,9 @@ export interface TimesheetMonth {
   status: string;
   daysInMonth: number;
   monthTotal: number;
+  capabilities: {
+    canManualCorrection: boolean;
+  };
   rows: TimesheetRow[];
 }
 

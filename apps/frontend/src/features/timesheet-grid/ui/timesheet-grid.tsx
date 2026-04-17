@@ -47,9 +47,11 @@ function getCellTitle(params: {
 
 export function TimesheetGrid({
   timesheet,
+  canEditEntries,
   onChangeEntry,
 }: {
   timesheet: TimesheetMonth;
+  canEditEntries: boolean;
   onChangeEntry: (payload: {
     employeeId: string;
     dayOfMonth: number;
@@ -171,7 +173,7 @@ export function TimesheetGrid({
                           type="number"
                           inputMode="numeric"
                           value={currentValue}
-                          disabled={savingKey === key}
+                          disabled={!canEditEntries || savingKey === key}
                           onChange={(event) => {
                             setDrafts((prev) => ({
                               ...prev,
@@ -179,6 +181,10 @@ export function TimesheetGrid({
                             }));
                           }}
                           onBlur={async () => {
+                            if (!canEditEntries) {
+                              return;
+                            }
+
                             const raw = drafts[key];
                             if (raw === undefined) {
                               return;

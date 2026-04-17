@@ -66,8 +66,13 @@ export default function TaskDetailPage({
 
           <div className="page-card">
             <div style={{ fontWeight: 600, marginBottom: 12 }}>Статус задачи</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {TASK_STATUS_OPTIONS.map((status) => (
+            {item.capabilities.allowedStatusTransitions.length > 0 ? (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {TASK_STATUS_OPTIONS.filter((status) =>
+                  item.capabilities.allowedStatusTransitions.includes(
+                    status.value,
+                  ),
+                ).map((status) => (
                 <button
                   key={status.value}
                   type="button"
@@ -78,8 +83,13 @@ export default function TaskDetailPage({
                 >
                   {status.label}
                 </button>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="page-muted">
+                Для этой задачи сейчас нет доступных ручных смен статуса.
+              </div>
+            )}
 
             <div className="page-muted" style={{ marginTop: 12 }}>
               Текущий статус: {getTaskStatusLabel(item.status)}
@@ -88,6 +98,7 @@ export default function TaskDetailPage({
 
           <TaskResultPanel
             initialValue={item.resultText ?? ''}
+            canSubmit={item.capabilities.canSubmitResult}
             onSubmit={async (value) => {
               await submitTaskResult(taskId, value);
               await loadTask(taskId);

@@ -454,6 +454,18 @@ Approval:
 
 ---
 
+### OQ-063. Кто видит и ведет HR-реестр сотрудников в Sprint 4
+
+**Статус:** resolved
+
+До появления более детализированной HR visibility model в runtime действует безопасный bridge-вариант:
+
+- employee registry и employee card доступны `leadership circle` и системной роли `hr`;
+- это не расширяет object visibility автоматически;
+- назначение employee на объект может выполняться из HR-контура без превращения HR-актора в object actor.
+
+---
+
 ## 8. Подотчет и расходы
 
 ### OQ-070. Кто может выдавать подотчет

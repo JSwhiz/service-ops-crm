@@ -38,6 +38,7 @@
 ### HR и expenses
 
 - employee fields зафиксированы;
+- до появления более детализированной HR visibility model employee registry и employee card доступны leadership circle и `hr`, без автоматического расширения object visibility;
 - подотчет по умолчанию выдают founder/director;
 - передавать подотчет другому нельзя.
 

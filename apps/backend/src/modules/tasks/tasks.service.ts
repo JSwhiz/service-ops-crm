@@ -11,11 +11,16 @@ import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { SubmitTaskResultDto } from './dto/submit-task-result.dto';
 import { TaskResponseDto } from './dto/task-response.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { TaskStatus } from './types/task-status.type';
 import {
   canAssignTaskToUserOnObject,
   canCreateTaskOnObject,
   hasWideTaskAccess,
 } from './utils/task-access.util';
+import {
+  canSubmitTaskResult,
+  getAllowedTaskStatusTransitions,
+} from './utils/task-transition-policy.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -87,7 +92,7 @@ export class TasksService {
       },
     });
 
-    return tasks.map((task) => this.mapTask(task));
+    return tasks.map((task) => this.mapTask(task, currentUser));
   }
 
   async getTaskById(
@@ -122,7 +127,7 @@ export class TasksService {
       throw new ForbiddenException('Access to task denied');
     }
 
-    return this.mapTask(task);
+    return this.mapTask(task, currentUser);
   }
 
   async createTask(
@@ -228,7 +233,7 @@ export class TasksService {
       },
     });
 
-    return this.mapTask(task);
+    return this.mapTask(task, currentUser);
   }
 
   async updateStatus(
@@ -257,6 +262,17 @@ export class TasksService {
       throw new ForbiddenException('Access to task status change denied');
     }
 
+    const allowedStatusTransitions = getAllowedTaskStatusTransitions({
+      currentStatus: existing.status as TaskStatus,
+      isWideAccess: wideAccess,
+      isCreator,
+      isAssignee,
+    });
+
+    if (!allowedStatusTransitions.includes(payload.status as TaskStatus)) {
+      throw new ForbiddenException('Task status transition denied');
+    }
+
     const task = await this.prisma.task.update({
       where: { id },
       data: {
@@ -274,7 +290,7 @@ export class TasksService {
       },
     });
 
-    return this.mapTask(task);
+    return this.mapTask(task, currentUser);
   }
 
   async submitResult(
@@ -298,7 +314,14 @@ export class TasksService {
       (assignee) => assignee.userId === currentUser.id,
     );
 
-    if (!wideAccess && !isAssignee) {
+    if (
+      !canSubmitTaskResult({
+        currentStatus: existing.status as TaskStatus,
+        isWideAccess: wideAccess,
+        isCreator: existing.createdByUserId === currentUser.id,
+        isAssignee,
+      })
+    ) {
       throw new ForbiddenException('Only assignee or wide role can submit result');
     }
 
@@ -322,7 +345,7 @@ export class TasksService {
       },
     });
 
-    return this.mapTask(task);
+    return this.mapTask(task, currentUser);
   }
 
   async listTasksByObject(
@@ -352,7 +375,20 @@ export class TasksService {
       completedAt: Date | null;
       user: { id: string; login: string; fullName: string };
     }>;
-  }): TaskResponseDto {
+  }, currentUser: CurrentAuthUser): TaskResponseDto {
+    const roleCodes = this.getRoleCodes(currentUser);
+    const isWideAccess = hasWideTaskAccess(roleCodes);
+    const isCreator = task.createdBy.id === currentUser.id;
+    const isAssignee = task.assignees.some(
+      (assignee) => assignee.user.id === currentUser.id,
+    );
+    const allowedStatusTransitions = getAllowedTaskStatusTransitions({
+      currentStatus: task.status as TaskStatus,
+      isWideAccess,
+      isCreator,
+      isAssignee,
+    });
+
     return {
       id: task.id,
       title: task.title,
@@ -386,6 +422,15 @@ export class TasksService {
           ? assignee.completedAt.toISOString()
           : null,
       })),
+      capabilities: {
+        canSubmitResult: canSubmitTaskResult({
+          currentStatus: task.status as TaskStatus,
+          isWideAccess,
+          isCreator,
+          isAssignee,
+        }),
+        allowedStatusTransitions,
+      },
     };
   }
 

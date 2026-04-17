@@ -2,6 +2,11 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
+import {
+  canManageEmployeesHr,
+  canViewEmployeesHr,
+} from '../employees/utils/employee-hr-access.util';
+import { canCreateObject } from '../objects/utils/object-access.util';
 import { UsersService } from '../users-access/users.service';
 
 import { LoginDto } from './dto/login.dto';
@@ -165,6 +170,11 @@ export class AuthService {
       isActive: user.isActive,
       roleCode: user.roleCodes[0] ?? 'unknown',
       roleCodes: user.roleCodes,
+      capabilities: {
+        canCreateObject: canCreateObject(user.roleCodes),
+        canAccessEmployeesHr: canViewEmployeesHr(user.roleCodes),
+        canManageEmployeesHr: canManageEmployeesHr(user.roleCodes),
+      },
     };
   }
 

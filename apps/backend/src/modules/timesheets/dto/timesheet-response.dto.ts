@@ -7,6 +7,9 @@ export class TimesheetResponseDto {
   status!: string;
   daysInMonth!: number;
   monthTotal!: number;
+  capabilities!: {
+    canManualCorrection: boolean;
+  };
   rows!: Array<{
     employeeId: string;
     employeeName: string;
