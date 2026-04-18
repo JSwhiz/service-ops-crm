@@ -249,4 +249,15 @@ test('manager cannot access employees registry', async (t) => {
   });
 
   assert.equal(response.status, 403);
+
+  const objectCandidatesResponse = await fetch(
+    `${baseUrl}/api/v1/employees/object-candidates`,
+    {
+      headers: {
+        Cookie: managerCookie,
+      },
+    },
+  );
+
+  assert.equal(objectCandidatesResponse.status, 403);
 });

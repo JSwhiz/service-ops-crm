@@ -96,7 +96,7 @@ export class EmployeesService {
   async listObjectCandidates(
     currentUser: CurrentAuthUser,
   ): Promise<EmployeeObjectOptionDto[]> {
-    this.assertViewAccess(currentUser);
+    this.assertManageAccess(currentUser);
 
     const objects = await this.prisma.object.findMany({
       where: {

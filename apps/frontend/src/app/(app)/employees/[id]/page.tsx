@@ -134,12 +134,21 @@ export default function EmployeeDetailPage({
   });
 
   const load = async (id: string): Promise<void> => {
-    const [employee, objects, employees] = await Promise.all([
-      getEmployeeById(id),
-      listEmployeeObjectCandidates(),
-      listEmployees({
-        employmentStatus: 'active',
-      }),
+    const employee = await getEmployeeById(id);
+    const needsObjectCandidates =
+      employee.capabilities.canManageAssignments ||
+      employee.capabilities.canManageSubstitutions;
+    const needsEmployeeCandidates = employee.capabilities.canManageSubstitutions;
+
+    const [objects, employees] = await Promise.all([
+      needsObjectCandidates
+        ? listEmployeeObjectCandidates()
+        : Promise.resolve<EmployeeObjectOption[]>([]),
+      needsEmployeeCandidates
+        ? listEmployees({
+            employmentStatus: 'active',
+          })
+        : Promise.resolve<EmployeeListItem[]>([]),
     ]);
 
     setItem(employee);
