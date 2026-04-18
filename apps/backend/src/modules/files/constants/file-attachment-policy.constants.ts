@@ -14,6 +14,9 @@ export const FILE_ATTACHMENT_POLICY = {
   task: {
     fieldCodes: [],
   },
+  one_time_order: {
+    fieldCodes: [],
+  },
 } as const;
 
 export type FileAttachmentEntityType = keyof typeof FILE_ATTACHMENT_POLICY;

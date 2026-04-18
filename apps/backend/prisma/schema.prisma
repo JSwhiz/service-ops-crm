@@ -23,8 +23,11 @@ model User {
   approvalCapabilities        UserApprovalCapability[]
   auditEvents                 AuditEvent[] @relation("AuditActor")
   createdObjects              Object[] @relation("ObjectCreatedBy")
+  createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
   objectAssignments           ObjectAssignment[]
+  oneTimeOrderAssignments     OneTimeOrderAssignment[]
   createdComments             ObjectComment[] @relation("ObjectCommentCreatedBy")
+  createdOneTimeOrderComments OneTimeOrderComment[] @relation("OneTimeOrderCommentCreatedBy")
   createdArrivalPhotos        ObjectArrivalPhoto[] @relation("ObjectArrivalPhotoCreatedBy")
   updatedDailyReports         ObjectDailyReport[] @relation("ObjectDailyReportUpdatedBy")
   createdTasks                Task[] @relation("TaskCreatedBy")
@@ -183,6 +186,7 @@ model Object {
   employeeAssignments  ObjectEmployeeAssignment[]
   employeeAssignmentHistory EmployeeObjectAssignmentHistory[]
   employeeSubstitutions EmployeeSubstitution[]
+  linkedOneTimeOrders   OneTimeOrder[]
   timesheetMonths      TimesheetMonth[]
   auditLogs            ObjectAuditLog[]
 
@@ -392,13 +396,78 @@ model ObjectComment {
   @@map("object_comments")
 }
 
+model OneTimeOrder {
+  id                String   @id @default(uuid())
+  title             String
+  executionAddress  String
+  linkedObjectId    String?
+  status            String
+  description       String?
+  executionDate     DateTime?
+  contactName       String
+  contactPhone      String?
+  agreedSum         Int?
+  financialNotes    String?
+  expenseNotes      String?
+  createdByUserId   String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  linkedObject      Object?                @relation(fields: [linkedObjectId], references: [id], onDelete: SetNull)
+  createdBy         User                   @relation("OneTimeOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  assignments       OneTimeOrderAssignment[]
+  comments          OneTimeOrderComment[]
+  tasks             Task[]
+
+  @@index([linkedObjectId])
+  @@index([status])
+  @@index([createdByUserId])
+  @@map("one_time_orders")
+}
+
+model OneTimeOrderAssignment {
+  id                 String   @id @default(uuid())
+  oneTimeOrderId     String
+  userId             String
+  assignmentRoleCode String
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([oneTimeOrderId])
+  @@index([userId])
+  @@index([assignmentRoleCode])
+  @@unique([oneTimeOrderId, userId, assignmentRoleCode])
+  @@map("one_time_order_assignments")
+}
+
+model OneTimeOrderComment {
+  id                String   @id @default(uuid())
+  oneTimeOrderId    String
+  content           String
+  commentType       String   @default("manual")
+  createdByUserId   String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("OneTimeOrderCommentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([oneTimeOrderId, createdAt])
+  @@map("one_time_order_comments")
+}
+
 model Task {
   id                String   @id @default(uuid())
   title             String
   description       String?
   priority          String
   status            String
-  objectId          String
+  objectId          String?
+  oneTimeOrderId    String?
   createdByUserId   String
   resultText        String?
   submittedByUserId String?
@@ -406,12 +475,14 @@ model Task {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  object      Object         @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  object      Object?        @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  oneTimeOrder OneTimeOrder? @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
   createdBy   User           @relation("TaskCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   submittedBy User?          @relation("TaskSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
   assignees   TaskAssignee[]
 
   @@index([objectId])
+  @@index([oneTimeOrderId])
   @@index([status])
   @@index([createdByUserId])
   @@map("tasks")

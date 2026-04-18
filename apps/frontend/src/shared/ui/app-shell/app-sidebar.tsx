@@ -8,6 +8,8 @@ import { NavLink } from '@/shared/ui/nav-link/nav-link';
 export function AppSidebar(): React.JSX.Element {
   const { user } = useAuth();
   const canAccessEmployeesHr = user?.capabilities?.canAccessEmployeesHr ?? false;
+  const canAccessOneTimeOrders =
+    user?.capabilities?.canAccessOneTimeOrders ?? false;
 
   return (
     <aside className="app-sidebar">
@@ -16,6 +18,9 @@ export function AppSidebar(): React.JSX.Element {
       <nav className="app-sidebar__nav">
         <NavLink href="/dashboard" label="Рабочий стол" />
         <NavLink href="/objects" label="Объекты" />
+        {canAccessOneTimeOrders ? (
+          <NavLink href="/one-time-orders" label="Разовые заказы" />
+        ) : null}
         <NavLink href="/tasks" label="Задачи" />
         <NavLink href="/timesheet" label="Табель" />
         {canAccessEmployeesHr ? (

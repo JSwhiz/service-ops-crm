@@ -1,0 +1,186 @@
+'use client';
+
+import React, { useState } from 'react';
+
+import type { TaskItem } from '@/entities/task/model/task.types';
+import type { SystemUserOption } from '@/entities/user/model/user.types';
+import { TASK_PRIORITY_OPTIONS } from '@/shared/lib/task-presentation';
+import { TaskListTable } from '@/features/task-list/ui/task-list-table';
+
+export function OneTimeOrderTasksPanel({
+  items,
+  assigneeOptions,
+  canCreateTask,
+  onCreate,
+}: {
+  items: TaskItem[];
+  assigneeOptions: SystemUserOption[];
+  canCreateTask: boolean;
+  onCreate: (payload: {
+    title: string;
+    description?: string;
+    priority:
+      | 'urgent_important'
+      | 'urgent_not_important'
+      | 'important_not_urgent'
+      | 'not_important_not_urgent';
+    assigneeUserIds: string[];
+  }) => Promise<void>;
+}): React.JSX.Element {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<
+    | 'urgent_important'
+    | 'urgent_not_important'
+    | 'important_not_urgent'
+    | 'not_important_not_urgent'
+  >('important_not_urgent');
+  const [assigneeUserIds, setAssigneeUserIds] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const toggleAssignee = (userId: string): void => {
+    setAssigneeUserIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId],
+    );
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div className="page-card">
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>Связанные задачи</div>
+        <TaskListTable items={items} />
+      </div>
+
+      {canCreateTask ? (
+        <form
+          className="page-card"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            setIsSubmitting(true);
+
+            try {
+              await onCreate({
+                title,
+                description: description || undefined,
+                priority,
+                assigneeUserIds,
+              });
+              setTitle('');
+              setDescription('');
+              setPriority('important_not_urgent');
+              setAssigneeUserIds([]);
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 12 }}>
+            Завести задачу по заказу
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gap: 12,
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            }}
+          >
+            <label>
+              <div style={{ marginBottom: 6 }}>Название</div>
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                style={{ width: '100%', padding: 10 }}
+                required
+              />
+            </label>
+
+            <label>
+              <div style={{ marginBottom: 6 }}>Приоритет</div>
+              <select
+                value={priority}
+                onChange={(event) =>
+                  setPriority(
+                    event.target.value as
+                      | 'urgent_important'
+                      | 'urgent_not_important'
+                      | 'important_not_urgent'
+                      | 'not_important_not_urgent',
+                  )
+                }
+                style={{ width: '100%', padding: 10 }}
+              >
+                {TASK_PRIORITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={{ gridColumn: '1 / -1' }}>
+              <div style={{ marginBottom: 6 }}>Описание</div>
+              <textarea
+                rows={4}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                style={{ width: '100%', padding: 10, resize: 'vertical' }}
+              />
+            </label>
+
+            <div style={{ gridColumn: '1 / -1' }}>
+              <div style={{ marginBottom: 8 }}>Исполнители</div>
+              {assigneeOptions.length === 0 ? (
+                <div className="page-muted">
+                  Для этого заказа нет доступных исполнителей.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: 'grid',
+                    gap: 8,
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  }}
+                >
+                  {assigneeOptions.map((user) => (
+                    <label
+                      key={user.id}
+                      style={{
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'center',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 10,
+                        padding: 10,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={assigneeUserIds.includes(user.id)}
+                        onChange={() => toggleAssignee(user.id)}
+                      />
+                      <span>
+                        {user.fullName} ({user.login})
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <button
+              type="submit"
+              disabled={isSubmitting || !title.trim() || assigneeUserIds.length === 0}
+            >
+              {isSubmitting ? 'Создаем...' : 'Создать задачу'}
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </div>
+  );
+}

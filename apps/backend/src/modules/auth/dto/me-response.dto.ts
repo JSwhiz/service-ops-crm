@@ -7,6 +7,8 @@ export class MeResponseDto {
   isActive!: boolean;
   capabilities!: {
     canCreateObject: boolean;
+    canAccessOneTimeOrders: boolean;
+    canCreateOneTimeOrder: boolean;
     canAccessEmployeesHr: boolean;
     canManageEmployeesHr: boolean;
   };

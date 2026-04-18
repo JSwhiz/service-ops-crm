@@ -21,8 +21,13 @@ export class CreateTaskDto {
   @IsIn(TASK_PRIORITIES)
   priority!: (typeof TASK_PRIORITIES)[number];
 
+  @IsOptional()
   @IsString()
-  objectId!: string;
+  objectId?: string;
+
+  @IsOptional()
+  @IsString()
+  oneTimeOrderId?: string;
 
   @IsArray()
   @ArrayMinSize(1)

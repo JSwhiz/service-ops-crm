@@ -4,8 +4,13 @@ export class TaskResponseDto {
   description!: string | null;
   priority!: string;
   status!: string;
-  objectId!: string;
-  objectName!: string;
+  targetType!: 'object' | 'one_time_order';
+  targetId!: string;
+  targetName!: string;
+  objectId!: string | null;
+  objectName!: string | null;
+  oneTimeOrderId!: string | null;
+  oneTimeOrderTitle!: string | null;
   resultText!: string | null;
   submittedAt!: string | null;
   createdAt!: string;

@@ -12,6 +12,11 @@ import {
   canManageObjectResponsibles,
 } from '../objects/utils/object-access.util';
 import {
+  canBeOneTimeOrderManager,
+  canCreateTaskOnOneTimeOrder,
+  canManageOneTimeOrderManagers,
+} from '../one-time-orders/utils/one-time-order-access.util';
+import {
   canAssignTaskToUserOnObject,
   canCreateTaskOnObject,
   hasWideTaskAccess,
@@ -56,6 +61,16 @@ export class UsersAccessService {
         return this.listObjectResponsibleCandidates(currentUser, query.objectId);
       case 'task_assignee':
         return this.listTaskAssigneeCandidates(currentUser, query.objectId);
+      case 'one_time_order_manager':
+        return this.listOneTimeOrderManagerCandidates(
+          currentUser,
+          query.oneTimeOrderId,
+        );
+      case 'one_time_order_task_assignee':
+        return this.listOneTimeOrderTaskAssigneeCandidates(
+          currentUser,
+          query.oneTimeOrderId,
+        );
       default:
         throw new ForbiddenException('Scoped user listing purpose is required');
     }
@@ -162,6 +177,78 @@ export class UsersAccessService {
       .map((user) => this.mapUser(user));
   }
 
+  private async listOneTimeOrderManagerCandidates(
+    currentUser: CurrentAuthUser,
+    oneTimeOrderId?: string,
+  ): Promise<SystemUserOptionDto[]> {
+    if (oneTimeOrderId) {
+      await this.getOneTimeOrderWithAssignments(oneTimeOrderId);
+    }
+
+    if (!canManageOneTimeOrderManagers(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('One-time order manager candidate access denied');
+    }
+
+    const users = await this.getActiveUsersWithRoles();
+
+    return users
+      .filter((user) =>
+        canBeOneTimeOrderManager(user.roles.map((item) => item.role.code)),
+      )
+      .map((user) => this.mapUser(user));
+  }
+
+  private async listOneTimeOrderTaskAssigneeCandidates(
+    currentUser: CurrentAuthUser,
+    oneTimeOrderId?: string,
+  ): Promise<SystemUserOptionDto[]> {
+    if (!oneTimeOrderId) {
+      throw new ForbiddenException(
+        'One-time order task assignee candidates require order id',
+      );
+    }
+
+    const order = await this.getOneTimeOrderWithAssignments(oneTimeOrderId);
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (
+      !canCreateTaskOnOneTimeOrder({
+        currentUserId: currentUser.id,
+        roleCodes,
+        order,
+      })
+    ) {
+      throw new ForbiddenException(
+        'One-time order task assignee candidate access denied',
+      );
+    }
+
+    const candidateMap = new Map<string, UserOptionSource>();
+
+    for (const assignment of order.assignments) {
+      const userRoleCodes = assignment.user.roles.map((item) => item.role.code);
+
+      if (
+        assignment.assignmentRoleCode === 'one_time_manager' &&
+        canBeOneTimeOrderManager(userRoleCodes)
+      ) {
+        candidateMap.set(assignment.user.id, assignment.user);
+      }
+    }
+
+    const wideUsers = await this.getActiveUsersWithRoles();
+
+    for (const user of wideUsers) {
+      if (hasWideTaskAccess(user.roles.map((item) => item.role.code))) {
+        candidateMap.set(user.id, user);
+      }
+    }
+
+    return Array.from(candidateMap.values())
+      .sort((left, right) => left.fullName.localeCompare(right.fullName))
+      .map((user) => this.mapUser(user));
+  }
+
   private async getActiveUsersWithRoles(): Promise<UserOptionSource[]> {
     return this.prisma.user.findMany({
       where: {
@@ -223,6 +310,50 @@ export class UsersAccessService {
     }
 
     return object;
+  }
+
+  private async getOneTimeOrderWithAssignments(oneTimeOrderId: string) {
+    const order = await this.prisma.oneTimeOrder.findFirst({
+      where: {
+        id: oneTimeOrderId,
+      },
+      select: {
+        createdByUserId: true,
+        assignments: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            userId: true,
+            assignmentRoleCode: true,
+            isActive: true,
+            user: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+                isActive: true,
+                roles: {
+                  select: {
+                    role: {
+                      select: {
+                        code: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('One-time order not found');
+    }
+
+    return order;
   }
 
   private mapUser(user: UserOptionSource): SystemUserOptionDto {

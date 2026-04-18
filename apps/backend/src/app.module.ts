@@ -35,6 +35,7 @@ import { FilesModule } from './modules/files/files.module';
 import { HealthModule } from './modules/health/health.module';
 import { ObjectOperationsModule } from './modules/object-operations/object-operations.module';
 import { ObjectsModule } from './modules/objects/objects.module';
+import { OneTimeOrdersModule } from './modules/one-time-orders/one-time-orders.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -60,6 +61,7 @@ import { UsersAccessModule } from './modules/users-access/users-access.module';
     HealthModule,
     FilesModule,
     ObjectsModule,
+    OneTimeOrdersModule,
     ObjectOperationsModule,
     TasksModule,
     TimesheetsModule,

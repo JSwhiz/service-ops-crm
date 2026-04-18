@@ -11,6 +11,10 @@ import {
   canOverrideFrozenObject,
   hasWideObjectAccess,
 } from '../objects/utils/object-access.util';
+import {
+  canEditOneTimeOrderByScope,
+  canViewOneTimeOrderByScope,
+} from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { hasWideTaskAccess } from '../tasks/utils/task-access.util';
@@ -298,6 +302,8 @@ export class FilesService {
         return this.canAccessObjectScopedEntity(currentUser, 'objectComment', entityId);
       case 'task':
         return this.canAccessTask(currentUser, entityId);
+      case 'one_time_order':
+        return this.canAccessOneTimeOrder(currentUser, entityId, 'read');
     }
   }
 
@@ -323,6 +329,8 @@ export class FilesService {
         );
       case 'task':
         return this.canAccessTask(currentUser, entityId);
+      case 'one_time_order':
+        return this.canAccessOneTimeOrder(currentUser, entityId, 'write');
     }
   }
 
@@ -432,6 +440,35 @@ export class FilesService {
       },
       select: {
         createdByUserId: true,
+        object: {
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: {
+                isActive: true,
+              },
+              select: {
+                userId: true,
+                assignmentRoleCode: true,
+              },
+            },
+          },
+        },
+        oneTimeOrder: {
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: {
+                isActive: true,
+              },
+              select: {
+                userId: true,
+                assignmentRoleCode: true,
+                isActive: true,
+              },
+            },
+          },
+        },
         assignees: {
           select: {
             userId: true,
@@ -449,8 +486,64 @@ export class FilesService {
     return (
       hasWideTaskAccess(roleCodes) ||
       task.createdByUserId === currentUser.id ||
-      task.assignees.some((assignee) => assignee.userId === currentUser.id)
+      task.assignees.some((assignee) => assignee.userId === currentUser.id) ||
+      (!!task.object &&
+        (task.object.createdByUserId === currentUser.id ||
+          task.object.assignments.some(
+            (assignment) => assignment.userId === currentUser.id,
+          ))) ||
+      (!!task.oneTimeOrder &&
+        canViewOneTimeOrderByScope({
+          currentUserId: currentUser.id,
+          roleCodes,
+          order: task.oneTimeOrder,
+        }))
     );
+  }
+
+  private async canAccessOneTimeOrder(
+    currentUser: CurrentAuthUser,
+    oneTimeOrderId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const order = await this.prisma.oneTimeOrder.findFirst({
+      where: {
+        id: oneTimeOrderId,
+      },
+      select: {
+        createdByUserId: true,
+        assignments: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            userId: true,
+            assignmentRoleCode: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Attachment target one-time order not found');
+    }
+
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (mode === 'read') {
+      return canViewOneTimeOrderByScope({
+        currentUserId: currentUser.id,
+        roleCodes,
+        order,
+      });
+    }
+
+    return canEditOneTimeOrderByScope({
+      currentUserId: currentUser.id,
+      roleCodes,
+      order,
+    });
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

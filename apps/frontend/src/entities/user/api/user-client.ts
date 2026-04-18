@@ -7,11 +7,14 @@ export type { SystemUserOption } from '../model/user.types';
 export type SystemUserListPurpose =
   | 'object_manager'
   | 'object_responsible'
-  | 'task_assignee';
+  | 'task_assignee'
+  | 'one_time_order_manager'
+  | 'one_time_order_task_assignee';
 
 interface ListSystemUsersParams {
   purpose: SystemUserListPurpose;
   objectId?: string;
+  oneTimeOrderId?: string;
 }
 
 function buildUsersAccessQuery(params: ListSystemUsersParams): string {
@@ -20,6 +23,10 @@ function buildUsersAccessQuery(params: ListSystemUsersParams): string {
 
   if (params.objectId) {
     searchParams.set('objectId', params.objectId);
+  }
+
+  if (params.oneTimeOrderId) {
+    searchParams.set('oneTimeOrderId', params.oneTimeOrderId);
   }
 
   return `?${searchParams.toString()}`;
@@ -60,5 +67,23 @@ export async function listTaskAssigneeCandidates(
   return listSystemUsers({
     purpose: 'task_assignee',
     objectId,
+  });
+}
+
+export async function listOneTimeOrderManagerCandidates(
+  oneTimeOrderId?: string,
+): Promise<SystemUserOption[]> {
+  return listSystemUsers({
+    purpose: 'one_time_order_manager',
+    ...(oneTimeOrderId ? { oneTimeOrderId } : {}),
+  });
+}
+
+export async function listOneTimeOrderTaskAssigneeCandidates(
+  oneTimeOrderId: string,
+): Promise<SystemUserOption[]> {
+  return listSystemUsers({
+    purpose: 'one_time_order_task_assignee',
+    oneTimeOrderId,
   });
 }

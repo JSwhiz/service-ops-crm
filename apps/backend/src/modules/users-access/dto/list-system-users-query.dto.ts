@@ -1,9 +1,11 @@
-import { IsIn, IsOptional, IsUUID } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export const SYSTEM_USER_PURPOSES = [
   'object_manager',
   'object_responsible',
   'task_assignee',
+  'one_time_order_manager',
+  'one_time_order_task_assignee',
 ] as const;
 
 export class ListSystemUsersQueryDto {
@@ -11,6 +13,10 @@ export class ListSystemUsersQueryDto {
   purpose!: (typeof SYSTEM_USER_PURPOSES)[number];
 
   @IsOptional()
-  @IsUUID('4')
+  @IsString()
   objectId?: string;
+
+  @IsOptional()
+  @IsString()
+  oneTimeOrderId?: string;
 }

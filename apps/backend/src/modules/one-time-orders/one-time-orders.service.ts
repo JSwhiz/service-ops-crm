@@ -1,0 +1,850 @@
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+
+import { AuditService } from '../audit/audit.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { TaskResponseDto } from '../tasks/dto/task-response.dto';
+import { TasksService } from '../tasks/tasks.service';
+
+import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
+import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
+import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
+import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
+import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
+import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
+import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
+import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
+import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
+import { buildOneTimeOrderCapabilities, canOpenLinkedObjectCard } from './utils/one-time-order-capabilities.util';
+import {
+  canBeOneTimeOrderManager,
+  canCreateOneTimeOrder,
+  canManageOneTimeOrderManagers,
+  hasWideOneTimeOrderAccess,
+} from './utils/one-time-order-access.util';
+
+interface CurrentAuthUser {
+  id: string;
+  login: string;
+  fullName: string;
+  roleCode: string;
+  roleCodes?: string[];
+  isActive: boolean;
+}
+
+interface OneTimeOrderAssignmentView {
+  userId: string;
+  assignmentRoleCode: string;
+  isActive: boolean;
+  user: {
+    id: string;
+    login: string;
+    fullName: string;
+    roles: Array<{
+      role: {
+        code: string;
+      };
+    }>;
+  };
+}
+
+interface OneTimeOrderView {
+  id: string;
+  title: string;
+  executionAddress: string;
+  linkedObjectId: string | null;
+  status: string;
+  description: string | null;
+  executionDate: Date | null;
+  contactName: string;
+  contactPhone: string | null;
+  agreedSum: number | null;
+  financialNotes: string | null;
+  expenseNotes: string | null;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+  linkedObject:
+    | {
+        id: string;
+        name: string;
+        createdByUserId: string;
+        assignments: Array<{
+          userId: string;
+          isActive: boolean;
+        }>;
+      }
+    | null;
+  assignments: OneTimeOrderAssignmentView[];
+}
+
+type AuditPrimitive = string | number | boolean | null;
+
+@Injectable()
+export class OneTimeOrdersService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+    private readonly tasksService: TasksService,
+  ) {}
+
+  async listOrders(
+    currentUser: CurrentAuthUser,
+    query: ListOneTimeOrdersQueryDto,
+  ): Promise<OneTimeOrderResponseDto[]> {
+    const orders = (await this.prisma.oneTimeOrder.findMany({
+      where: {
+        ...(await this.buildVisibilityWhere(currentUser)),
+        ...(query.status ? { status: query.status } : {}),
+        ...(query.search?.trim()
+          ? {
+              OR: [
+                { title: { contains: query.search.trim(), mode: 'insensitive' } },
+                {
+                  executionAddress: {
+                    contains: query.search.trim(),
+                    mode: 'insensitive',
+                  },
+                },
+                {
+                  contactName: {
+                    contains: query.search.trim(),
+                    mode: 'insensitive',
+                  },
+                },
+              ],
+            }
+          : {}),
+      },
+      include: this.getOrderInclude(),
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })) as OneTimeOrderView[];
+
+    return orders.map((order) => this.mapOrder(order, currentUser));
+  }
+
+  async getOrderById(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderResponseDto> {
+    const order = (await this.prisma.oneTimeOrder.findFirst({
+      where: {
+        id,
+        ...(await this.buildVisibilityWhere(currentUser)),
+      },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView | null;
+
+    if (!order) {
+      throw new NotFoundException('One-time order not found');
+    }
+
+    return this.mapOrder(order, currentUser);
+  }
+
+  async createOrder(
+    currentUser: CurrentAuthUser,
+    payload: CreateOneTimeOrderDto,
+  ): Promise<OneTimeOrderResponseDto> {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (!canCreateOneTimeOrder(roleCodes)) {
+      throw new ForbiddenException('One-time order creation denied');
+    }
+
+    await this.ensureLinkedObjectExists(payload.linkedObjectId ?? null);
+    const managerUserIds = Array.from(
+      new Set((payload.managerUserIds ?? []).filter(Boolean)),
+    );
+    const managerUsers = await this.loadManagerUsers(managerUserIds);
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.oneTimeOrder.create({
+        data: {
+          title: payload.title.trim(),
+          executionAddress: payload.executionAddress.trim(),
+          linkedObjectId: payload.linkedObjectId ?? null,
+          status: payload.status ?? 'new',
+          description: payload.description?.trim() || null,
+          executionDate: payload.executionDate ? new Date(payload.executionDate) : null,
+          contactName: payload.contactName.trim(),
+          contactPhone: payload.contactPhone?.trim() || null,
+          agreedSum: payload.agreedSum ?? null,
+          financialNotes: payload.financialNotes?.trim() || null,
+          expenseNotes: payload.expenseNotes?.trim() || null,
+          createdByUserId: currentUser.id,
+          assignments: managerUsers.length
+            ? {
+                create: managerUsers.map((user) => ({
+                  userId: user.id,
+                  assignmentRoleCode: 'one_time_manager',
+                  isActive: true,
+                })),
+              }
+            : undefined,
+        },
+        include: this.getOrderInclude(),
+      });
+
+      return order as OneTimeOrderView;
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: created.id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.created',
+      newValues: {
+        title: created.title,
+        status: created.status,
+        linkedObjectId: created.linkedObjectId,
+      },
+    });
+
+    return this.mapOrder(created, currentUser);
+  }
+
+  async updateOrder(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: UpdateOneTimeOrderDto,
+  ): Promise<OneTimeOrderResponseDto> {
+    const existing = await this.getOrderForWrite(currentUser, id);
+
+    await this.ensureLinkedObjectExists(payload.linkedObjectId ?? undefined);
+
+    const nextValues = {
+      title: payload.title?.trim(),
+      executionAddress: payload.executionAddress?.trim(),
+      linkedObjectId:
+        payload.linkedObjectId === undefined ? undefined : payload.linkedObjectId,
+      description:
+        payload.description === undefined ? undefined : payload.description?.trim() || null,
+      executionDate:
+        payload.executionDate === undefined
+          ? undefined
+          : payload.executionDate
+            ? new Date(payload.executionDate)
+            : null,
+      contactName: payload.contactName?.trim(),
+      contactPhone:
+        payload.contactPhone === undefined ? undefined : payload.contactPhone?.trim() || null,
+      agreedSum: payload.agreedSum,
+      financialNotes:
+        payload.financialNotes === undefined
+          ? undefined
+          : payload.financialNotes?.trim() || null,
+      expenseNotes:
+        payload.expenseNotes === undefined
+          ? undefined
+          : payload.expenseNotes?.trim() || null,
+    };
+
+    const updated = (await this.prisma.oneTimeOrder.update({
+      where: { id },
+      data: {
+        ...(nextValues.title !== undefined ? { title: nextValues.title } : {}),
+        ...(nextValues.executionAddress !== undefined
+          ? { executionAddress: nextValues.executionAddress }
+          : {}),
+        ...(nextValues.linkedObjectId !== undefined
+          ? { linkedObjectId: nextValues.linkedObjectId }
+          : {}),
+        ...(nextValues.description !== undefined
+          ? { description: nextValues.description }
+          : {}),
+        ...(nextValues.executionDate !== undefined
+          ? { executionDate: nextValues.executionDate }
+          : {}),
+        ...(nextValues.contactName !== undefined
+          ? { contactName: nextValues.contactName }
+          : {}),
+        ...(nextValues.contactPhone !== undefined
+          ? { contactPhone: nextValues.contactPhone }
+          : {}),
+        ...(nextValues.agreedSum !== undefined
+          ? { agreedSum: nextValues.agreedSum }
+          : {}),
+        ...(nextValues.financialNotes !== undefined
+          ? { financialNotes: nextValues.financialNotes }
+          : {}),
+        ...(nextValues.expenseNotes !== undefined
+          ? { expenseNotes: nextValues.expenseNotes }
+          : {}),
+      },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView;
+
+    const changes = this.buildOrderChanges(existing, updated);
+
+    if (Object.keys(changes).length > 0) {
+      await this.auditService.writeAuditEvent({
+        entityType: 'one_time_order',
+        entityId: updated.id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.updated',
+        metadata: {
+          changes,
+        },
+      });
+    }
+
+    return this.mapOrder(updated, currentUser);
+  }
+
+  async changeStatus(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: ChangeOneTimeOrderStatusDto,
+  ): Promise<OneTimeOrderResponseDto> {
+    const existing = await this.getOrderForWrite(currentUser, id);
+
+    if (existing.status === payload.status) {
+      return this.mapOrder(existing, currentUser);
+    }
+
+    const updated = (await this.prisma.oneTimeOrder.update({
+      where: { id },
+      data: {
+        status: payload.status,
+      },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView;
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: updated.id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.status_changed',
+      oldValues: {
+        status: existing.status,
+      },
+      newValues: {
+        status: updated.status,
+      },
+    });
+
+    return this.mapOrder(updated, currentUser);
+  }
+
+  async assignManager(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: AssignOneTimeOrderManagerDto,
+  ): Promise<OneTimeOrderResponseDto> {
+    await this.getOrderForManagerChange(currentUser, id);
+    const [manager] = await this.loadManagerUsers([payload.userId]);
+
+    if (!manager) {
+      throw new NotFoundException('Selected one-time order manager not found');
+    }
+
+    await this.prisma.oneTimeOrderAssignment.upsert({
+      where: {
+        oneTimeOrderId_userId_assignmentRoleCode: {
+          oneTimeOrderId: id,
+          userId: manager.id,
+          assignmentRoleCode: 'one_time_manager',
+        },
+      },
+      update: {
+        isActive: true,
+      },
+      create: {
+        oneTimeOrderId: id,
+        userId: manager.id,
+        assignmentRoleCode: 'one_time_manager',
+        isActive: true,
+      },
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.manager_added',
+      metadata: {
+        managerUserId: manager.id,
+        managerFullName: manager.fullName,
+      },
+    });
+
+    return this.getOrderById(currentUser, id);
+  }
+
+  async removeManager(
+    currentUser: CurrentAuthUser,
+    id: string,
+    userId: string,
+  ): Promise<OneTimeOrderResponseDto> {
+    await this.getOrderForManagerChange(currentUser, id);
+
+    const result = await this.prisma.oneTimeOrderAssignment.updateMany({
+      where: {
+        oneTimeOrderId: id,
+        userId,
+        assignmentRoleCode: 'one_time_manager',
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+      },
+    });
+
+    if (result.count === 0) {
+      throw new NotFoundException('One-time order manager assignment not found');
+    }
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.manager_removed',
+      metadata: {
+        managerUserId: userId,
+      },
+    });
+
+    return this.getOrderById(currentUser, id);
+  }
+
+  async listComments(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderCommentResponseDto[]> {
+    await this.getOrderById(currentUser, id);
+
+    const items = await this.prisma.oneTimeOrderComment.findMany({
+      where: {
+        oneTimeOrderId: id,
+      },
+      include: {
+        createdBy: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 50,
+    });
+
+    return items.map((item) => this.mapComment(item));
+  }
+
+  async createComment(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: CreateOneTimeOrderCommentDto,
+  ): Promise<OneTimeOrderCommentResponseDto> {
+    const order = await this.getOrderForWrite(currentUser, id);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      order,
+    });
+
+    if (!capabilities.canComment) {
+      throw new ForbiddenException('One-time order comment creation denied');
+    }
+
+    const created = await this.prisma.oneTimeOrderComment.create({
+      data: {
+        oneTimeOrderId: id,
+        content: payload.content.trim(),
+        commentType: payload.commentType?.trim() || 'manual',
+        createdByUserId: currentUser.id,
+      },
+      include: {
+        createdBy: true,
+      },
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.comment_created',
+      metadata: {
+        commentId: created.id,
+        commentType: created.commentType,
+      },
+    });
+
+    return this.mapComment(created);
+  }
+
+  async listHistory(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderAuditLogResponseDto[]> {
+    await this.getOrderById(currentUser, id);
+    const items = await this.auditService.listAuditEvents('one_time_order', id);
+
+    return items.map((item) => ({
+      id: item.id,
+      entityType: item.entityType,
+      entityId: item.entityId,
+      action: item.action,
+      createdAt: item.createdAt.toISOString(),
+      actor: item.actor
+        ? {
+            id: item.actor.id,
+            login: item.actor.login,
+            fullName: item.actor.fullName,
+          }
+        : null,
+      oldValues:
+        item.oldValues && typeof item.oldValues === 'object'
+          ? (item.oldValues as Record<string, unknown>)
+          : null,
+      newValues:
+        item.newValues && typeof item.newValues === 'object'
+          ? (item.newValues as Record<string, unknown>)
+          : null,
+      metadata:
+        item.metadata && typeof item.metadata === 'object'
+          ? (item.metadata as Record<string, unknown>)
+          : null,
+    }));
+  }
+
+  async listTasks(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<TaskResponseDto[]> {
+    await this.getOrderById(currentUser, id);
+    return this.tasksService.listTasksByOneTimeOrder(currentUser, id);
+  }
+
+  private async getOrderForWrite(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderView> {
+    const order = (await this.prisma.oneTimeOrder.findFirst({
+      where: { id },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView | null;
+
+    if (!order) {
+      throw new NotFoundException('One-time order not found');
+    }
+
+    const roleCodes = this.getRoleCodes(currentUser);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes,
+      order,
+    });
+
+    if (!capabilities.canEdit) {
+      throw new ForbiddenException('One-time order edit denied');
+    }
+
+    return order;
+  }
+
+  private async getOrderForManagerChange(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderView> {
+    const order = (await this.prisma.oneTimeOrder.findFirst({
+      where: { id },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView | null;
+
+    if (!order) {
+      throw new NotFoundException('One-time order not found');
+    }
+
+    if (!canManageOneTimeOrderManagers(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('One-time order manager management denied');
+    }
+
+    return order;
+  }
+
+  private async buildVisibilityWhere(currentUser: CurrentAuthUser) {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (hasWideOneTimeOrderAccess(roleCodes)) {
+      return {};
+    }
+
+    return {
+      OR: [
+        { createdByUserId: currentUser.id },
+        {
+          assignments: {
+            some: {
+              userId: currentUser.id,
+              isActive: true,
+              assignmentRoleCode: 'one_time_manager',
+            },
+          },
+        },
+      ],
+    };
+  }
+
+  private async ensureLinkedObjectExists(
+    linkedObjectId: string | null | undefined,
+  ): Promise<void> {
+    if (!linkedObjectId) {
+      return;
+    }
+
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: linkedObjectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Linked object not found');
+    }
+  }
+
+  private async loadManagerUsers(userIds: string[]) {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { in: userIds },
+        deletedAt: null,
+        isActive: true,
+      },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (users.length !== userIds.length) {
+      throw new NotFoundException('One or more selected one-time managers were not found');
+    }
+
+    for (const user of users) {
+      const roleCodes = user.roles.map((item) => item.role.code);
+
+      if (!canBeOneTimeOrderManager(roleCodes)) {
+        throw new ForbiddenException('Selected user cannot be one-time order manager');
+      }
+    }
+
+    return users;
+  }
+
+  private getOrderInclude() {
+    return {
+      createdBy: {
+        select: {
+          id: true,
+          login: true,
+          fullName: true,
+        },
+      },
+      linkedObject: {
+        select: {
+          id: true,
+          name: true,
+          createdByUserId: true,
+          assignments: {
+            where: {
+              isActive: true,
+            },
+            select: {
+              userId: true,
+              isActive: true,
+            },
+          },
+        },
+      },
+      assignments: {
+        where: {
+          isActive: true,
+        },
+        include: {
+          user: {
+            include: {
+              roles: {
+                include: {
+                  role: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  private mapOrder(
+    order: OneTimeOrderView,
+    currentUser: CurrentAuthUser,
+  ): OneTimeOrderResponseDto {
+    const roleCodes = this.getRoleCodes(currentUser);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes,
+      order,
+    });
+
+    return {
+      id: order.id,
+      title: order.title,
+      executionAddress: order.executionAddress,
+      status: order.status,
+      description: order.description,
+      executionDate: order.executionDate?.toISOString() ?? null,
+      contactName: order.contactName,
+      contactPhone: order.contactPhone,
+      agreedSum: order.agreedSum,
+      financialNotes: order.financialNotes,
+      expenseNotes: order.expenseNotes,
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+      createdBy: {
+        id: order.createdBy.id,
+        login: order.createdBy.login,
+        fullName: order.createdBy.fullName,
+      },
+      linkedObject: order.linkedObject
+        ? {
+            id: order.linkedObject.id,
+            name: order.linkedObject.name,
+            canOpenObjectCard: canOpenLinkedObjectCard({
+              currentUserId: currentUser.id,
+              roleCodes,
+              linkedObject: order.linkedObject,
+            }),
+          }
+        : null,
+      managers: order.assignments
+        .filter((assignment) => assignment.assignmentRoleCode === 'one_time_manager')
+        .map((assignment) => ({
+          userId: assignment.user.id,
+          fullName: assignment.user.fullName,
+          roleCode: assignment.user.roles[0]?.role.code ?? 'unknown',
+        })),
+      capabilities,
+    };
+  }
+
+  private mapComment(item: {
+    id: string;
+    oneTimeOrderId: string;
+    content: string;
+    commentType: string;
+    createdAt: Date;
+    updatedAt: Date;
+    createdBy: {
+      id: string;
+      login: string;
+      fullName: string;
+    };
+  }): OneTimeOrderCommentResponseDto {
+    return {
+      id: item.id,
+      oneTimeOrderId: item.oneTimeOrderId,
+      content: item.content,
+      commentType: item.commentType,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      createdBy: {
+        id: item.createdBy.id,
+        login: item.createdBy.login,
+        fullName: item.createdBy.fullName,
+      },
+    };
+  }
+
+  private buildOrderChanges(
+    previous: OneTimeOrderView,
+    next: OneTimeOrderView,
+  ): Record<
+    string,
+    {
+      oldValue: AuditPrimitive;
+      newValue: AuditPrimitive;
+    }
+  > {
+    const fields: Array<keyof Pick<
+      OneTimeOrderView,
+      | 'title'
+      | 'executionAddress'
+      | 'status'
+      | 'description'
+      | 'contactName'
+      | 'contactPhone'
+      | 'agreedSum'
+      | 'financialNotes'
+      | 'expenseNotes'
+      | 'linkedObjectId'
+    >> = [
+      'title',
+      'executionAddress',
+      'status',
+      'description',
+      'contactName',
+      'contactPhone',
+      'agreedSum',
+      'financialNotes',
+      'expenseNotes',
+      'linkedObjectId',
+    ];
+    const changes: Record<
+      string,
+      {
+        oldValue: AuditPrimitive;
+        newValue: AuditPrimitive;
+      }
+    > = {};
+
+    for (const field of fields) {
+      if (previous[field] !== next[field]) {
+        changes[field] = {
+          oldValue: (previous[field] as AuditPrimitive) ?? null,
+          newValue: (next[field] as AuditPrimitive) ?? null,
+        };
+      }
+    }
+
+    const previousExecutionDate = previous.executionDate?.toISOString() ?? null;
+    const nextExecutionDate = next.executionDate?.toISOString() ?? null;
+
+    if (previousExecutionDate !== nextExecutionDate) {
+      changes.executionDate = {
+        oldValue: previousExecutionDate,
+        newValue: nextExecutionDate,
+      };
+    }
+
+    return changes;
+  }
+
+  private getRoleCodes(currentUser: CurrentAuthUser): string[] {
+    if (Array.isArray(currentUser.roleCodes) && currentUser.roleCodes.length > 0) {
+      return currentUser.roleCodes;
+    }
+
+    return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+}

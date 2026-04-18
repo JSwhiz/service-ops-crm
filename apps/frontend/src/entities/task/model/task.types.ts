@@ -12,8 +12,13 @@ export interface TaskItem {
   description: string | null;
   priority: string;
   status: string;
-  objectId: string;
-  objectName: string;
+  targetType: 'object' | 'one_time_order';
+  targetId: string;
+  targetName: string;
+  objectId: string | null;
+  objectName: string | null;
+  oneTimeOrderId: string | null;
+  oneTimeOrderTitle: string | null;
   resultText: string | null;
   submittedAt: string | null;
   createdAt: string;
@@ -43,6 +48,7 @@ export interface CreateTaskPayload {
     | 'urgent_not_important'
     | 'important_not_urgent'
     | 'not_important_not_urgent';
-  objectId: string;
+  objectId?: string;
+  oneTimeOrderId?: string;
   assigneeUserIds: string[];
 }

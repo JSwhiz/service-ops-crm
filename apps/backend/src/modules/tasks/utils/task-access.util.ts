@@ -1,6 +1,9 @@
 const WIDE_TASK_ACCESS_ROLE_CODES = ['founder', 'director'] as const;
 
-const OBJECT_TASK_ASSIGNMENT_ROLE_CODES = ['responsible', 'manager'] as const;
+export const OBJECT_TASK_ASSIGNMENT_ROLE_CODES = [
+  'responsible',
+  'manager',
+] as const;
 
 interface TaskScopedObjectView {
   createdByUserId: string;

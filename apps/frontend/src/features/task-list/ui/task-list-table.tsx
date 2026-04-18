@@ -32,7 +32,7 @@ export function TaskListTable({
         <thead>
           <tr>
             <th style={thStyle}>Название</th>
-            <th style={thStyle}>Объект</th>
+            <th style={thStyle}>Контур</th>
             <th style={thStyle}>Приоритет</th>
             <th style={thStyle}>Статус</th>
             <th style={thStyle}>Исполнители</th>
@@ -44,7 +44,11 @@ export function TaskListTable({
               <td style={tdStyle}>
                 <Link href={`/tasks/${item.id}`}>{item.title}</Link>
               </td>
-              <td style={tdStyle}>{item.objectName}</td>
+              <td style={tdStyle}>
+                {item.targetType === 'one_time_order'
+                  ? `Разовый заказ: ${item.targetName}`
+                  : item.targetName}
+              </td>
               <td style={tdStyle}>{getTaskPriorityLabel(item.priority)}</td>
               <td style={tdStyle}>{getTaskStatusLabel(item.status)}</td>
               <td style={tdStyle}>

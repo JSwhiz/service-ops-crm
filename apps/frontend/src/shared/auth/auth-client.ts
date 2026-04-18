@@ -9,6 +9,8 @@ export interface AuthUser {
   isActive: boolean;
   capabilities?: {
     canCreateObject: boolean;
+    canAccessOneTimeOrders?: boolean;
+    canCreateOneTimeOrder?: boolean;
     canAccessEmployeesHr?: boolean;
     canManageEmployeesHr?: boolean;
   };

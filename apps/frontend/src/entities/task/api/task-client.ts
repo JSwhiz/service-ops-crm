@@ -5,6 +5,7 @@ import type { CreateTaskPayload, TaskItem } from '../model/task.types';
 export async function listTasks(query?: {
   status?: string;
   objectId?: string;
+  oneTimeOrderId?: string;
   assignedToMe?: boolean;
   search?: string;
 }): Promise<TaskItem[]> {
@@ -15,6 +16,9 @@ export async function listTasks(query?: {
   }
   if (query?.objectId) {
     params.set('objectId', query.objectId);
+  }
+  if (query?.oneTimeOrderId) {
+    params.set('oneTimeOrderId', query.oneTimeOrderId);
   }
   if (query?.assignedToMe) {
     params.set('assignedToMe', 'true');
@@ -65,6 +69,14 @@ export async function submitTaskResult(
 
 export async function listTasksByObject(objectId: string): Promise<TaskItem[]> {
   return fetcher<TaskItem[]>(`/objects/${objectId}/tasks`, {
+    method: 'GET',
+  });
+}
+
+export async function listTasksByOneTimeOrder(
+  oneTimeOrderId: string,
+): Promise<TaskItem[]> {
+  return fetcher<TaskItem[]>(`/one-time-orders/${oneTimeOrderId}/tasks`, {
     method: 'GET',
   });
 }

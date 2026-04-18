@@ -6,6 +6,10 @@ import {
   canManageEmployeesHr,
   canViewEmployeesHr,
 } from '../employees/utils/employee-hr-access.util';
+import {
+  canAccessOneTimeOrders,
+  canCreateOneTimeOrder,
+} from '../one-time-orders/utils/one-time-order-access.util';
 import { canCreateObject } from '../objects/utils/object-access.util';
 import { UsersService } from '../users-access/users.service';
 
@@ -172,6 +176,8 @@ export class AuthService {
       roleCodes: user.roleCodes,
       capabilities: {
         canCreateObject: canCreateObject(user.roleCodes),
+        canAccessOneTimeOrders: canAccessOneTimeOrders(user.roleCodes),
+        canCreateOneTimeOrder: canCreateOneTimeOrder(user.roleCodes),
         canAccessEmployeesHr: canViewEmployeesHr(user.roleCodes),
         canManageEmployeesHr: canManageEmployeesHr(user.roleCodes),
       },

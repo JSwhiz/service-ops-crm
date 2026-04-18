@@ -17,5 +17,9 @@ export class ListTasksQueryDto {
 
   @IsOptional()
   @IsString()
+  oneTimeOrderId?: string;
+
+  @IsOptional()
+  @IsString()
   assignedToMe?: string;
 }

@@ -108,7 +108,11 @@ export async function fetcher<T>(
     ...((headers as Record<string, string> | undefined) ?? {}),
   };
 
-  if (body !== undefined && !resolvedHeaders['Content-Type']) {
+  if (
+    body !== undefined &&
+    !(body instanceof FormData) &&
+    !resolvedHeaders['Content-Type']
+  ) {
     resolvedHeaders['Content-Type'] = 'application/json';
   }
 

@@ -21,7 +21,14 @@ export function TaskSummaryCard({
       }}
     >
       <Field label="Название" value={item.title} />
-      <Field label="Объект" value={item.objectName} />
+      <Field
+        label="Контур"
+        value={
+          item.targetType === 'one_time_order'
+            ? `Разовый заказ: ${item.targetName}`
+            : item.targetName
+        }
+      />
       <Field label="Приоритет" value={getTaskPriorityLabel(item.priority)} />
       <Field label="Статус" value={getTaskStatusLabel(item.status)} />
       <Field
