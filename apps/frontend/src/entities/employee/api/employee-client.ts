@@ -86,6 +86,7 @@ export async function addEmployeeAvailability(
   payload: {
     startDate: string;
     endDate?: string;
+    availabilityMode: string;
     availabilityStatus: string;
     comment?: string;
   },

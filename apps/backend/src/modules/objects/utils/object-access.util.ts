@@ -68,3 +68,29 @@ export function canBeObjectResponsible(roleCodes: string[]): boolean {
 export function canBeObjectManager(roleCodes: string[]): boolean {
   return hasAnyRole(roleCodes, OBJECT_MANAGER_ROLE_CODES);
 }
+
+export function canViewObjectByScope(params: {
+  currentUserId: string;
+  roleCodes: string[];
+  object: {
+    createdByUserId: string;
+    assignments: Array<{
+      userId: string;
+      isActive?: boolean;
+    }>;
+  };
+}): boolean {
+  if (hasWideObjectAccess(params.roleCodes)) {
+    return true;
+  }
+
+  if (params.object.createdByUserId === params.currentUserId) {
+    return true;
+  }
+
+  return params.object.assignments.some(
+    (assignment) =>
+      assignment.userId === params.currentUserId &&
+      assignment.isActive !== false,
+  );
+}

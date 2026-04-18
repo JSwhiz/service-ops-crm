@@ -1,6 +1,9 @@
 import { IsDateString, IsIn, IsOptional, IsString } from 'class-validator';
 
-import { EMPLOYEE_AVAILABILITY_STATUSES } from '../constants/employee-hr.constants';
+import {
+  EMPLOYEE_AVAILABILITY_MODES,
+  EMPLOYEE_AVAILABILITY_STATUSES,
+} from '../constants/employee-hr.constants';
 
 export class CreateEmployeeAvailabilityDto {
   @IsDateString()
@@ -12,6 +15,9 @@ export class CreateEmployeeAvailabilityDto {
 
   @IsIn(EMPLOYEE_AVAILABILITY_STATUSES)
   availabilityStatus!: (typeof EMPLOYEE_AVAILABILITY_STATUSES)[number];
+
+  @IsIn(EMPLOYEE_AVAILABILITY_MODES)
+  availabilityMode!: (typeof EMPLOYEE_AVAILABILITY_MODES)[number];
 
   @IsOptional()
   @IsString()

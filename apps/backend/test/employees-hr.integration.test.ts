@@ -143,6 +143,7 @@ test('hr can create employee card and manage shared employee domain actions', as
       body: JSON.stringify({
         startDate: '2026-04-20',
         endDate: '2026-04-22',
+        availabilityMode: 'full_day',
         availabilityStatus: 'unavailable',
         comment: 'Тестовый отпуск',
       }),
@@ -198,13 +199,28 @@ test('hr can create employee card and manage shared employee domain actions', as
   assert.equal(employeeDetailResponse.status, 200);
 
   const employeeDetail = (await employeeDetailResponse.json()) as {
-    availabilityWindows: Array<{ comment: string | null }>;
+    currentObjectAssignments: Array<{ canOpenObjectCard: boolean }>;
+    objectAssignmentHistory: Array<{ canOpenObjectCard: boolean }>;
+    availabilityWindows: Array<{ comment: string | null; availabilityMode: string }>;
     substitutions: Array<{ reason: string }>;
   };
 
   assert.ok(
+    employeeDetail.currentObjectAssignments.every(
+      (assignment) => assignment.canOpenObjectCard === false,
+    ),
+  );
+  assert.ok(
+    employeeDetail.objectAssignmentHistory.every(
+      (assignment) => assignment.canOpenObjectCard === false,
+    ),
+  );
+
+  assert.ok(
     employeeDetail.availabilityWindows.some(
-      (windowItem) => windowItem.comment === 'Тестовый отпуск',
+      (windowItem) =>
+        windowItem.comment === 'Тестовый отпуск' &&
+        windowItem.availabilityMode === 'full_day',
     ),
   );
   assert.ok(

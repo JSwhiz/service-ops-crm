@@ -29,6 +29,7 @@ export interface EmployeeDetail {
     objectName: string;
     startDate: string | null;
     endDate: string | null;
+    canOpenObjectCard: boolean;
   }>;
   objectAssignmentHistory: Array<{
     id: string;
@@ -36,11 +37,13 @@ export interface EmployeeDetail {
     objectName: string;
     startedAt: string;
     endedAt: string | null;
+    canOpenObjectCard: boolean;
   }>;
   availabilityWindows: Array<{
     id: string;
     startDate: string;
     endDate: string | null;
+    availabilityMode: string;
     availabilityStatus: string;
     comment: string | null;
   }>;

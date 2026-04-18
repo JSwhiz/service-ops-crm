@@ -26,6 +26,12 @@ export interface UpsertDailyReportPayload {
 export interface ObjectAttendanceToday {
   operationDate: string;
   employeeIds: string[];
+  employees: ObjectEmployeeOption[];
+}
+
+export interface UpsertObjectAttendancePayload {
+  operationDate: string;
+  employeeIds: string[];
 }
 
 export async function getTodayArrivalPhoto(
@@ -152,7 +158,7 @@ export async function getTodayObjectAttendance(
 
 export async function upsertObjectAttendance(
   objectId: string,
-  payload: ObjectAttendanceToday,
+  payload: UpsertObjectAttendancePayload,
 ): Promise<{ success: true }> {
   return fetcher<{ success: true }>(`/objects/${objectId}/attendance`, {
     method: 'POST',

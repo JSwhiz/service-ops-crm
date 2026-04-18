@@ -30,6 +30,27 @@ export function ObjectAttendancePanel({
 
   const safeEmployees = useMemo(() => employees ?? [], [employees]);
 
+  const getAvailabilityExplanation = (employee: ObjectEmployeeOption): string | null => {
+    if (!employee.availability.isUnavailable) {
+      return null;
+    }
+
+    const modeLabel =
+      employee.availability.availabilityMode === 'full_day'
+        ? 'Недоступен весь день'
+        : 'Недоступен по времени';
+    const periodLabel =
+      employee.availability.startDate && employee.availability.endDate
+        ? `${new Date(employee.availability.startDate).toLocaleString('ru-RU')} — ${new Date(employee.availability.endDate).toLocaleString('ru-RU')}`
+        : employee.availability.startDate
+          ? `с ${new Date(employee.availability.startDate).toLocaleString('ru-RU')}`
+          : 'период не указан';
+
+    return employee.availability.comment
+      ? `${modeLabel}. ${periodLabel}. Причина: ${employee.availability.comment}`
+      : `${modeLabel}. ${periodLabel}.`;
+  };
+
   const toggleEmployee = (employeeId: string): void => {
     setSelectedIds((prev) =>
       prev.includes(employeeId)
@@ -86,16 +107,54 @@ export function ObjectAttendancePanel({
                   alignItems: 'center',
                   gap: 10,
                   padding: 10,
-                  border: '1px solid #d1d5db',
+                  border: employee.availability.isUnavailable
+                    ? '1px solid #f59e0b'
+                    : '1px solid #d1d5db',
                   borderRadius: 10,
+                  opacity:
+                    employee.availability.isUnavailable &&
+                    !selectedIds.includes(employee.id)
+                      ? 0.75
+                      : 1,
                 }}
+                title={getAvailabilityExplanation(employee) ?? undefined}
               >
                 <input
                   type="checkbox"
                   checked={selectedIds.includes(employee.id)}
                   onChange={() => toggleEmployee(employee.id)}
+                  disabled={
+                    employee.availability.isUnavailable &&
+                    !selectedIds.includes(employee.id)
+                  }
                 />
-                <span>{employee.fullName}</span>
+                <div style={{ display: 'grid', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <span>{employee.fullName}</span>
+                    {!employee.isAssignedToObject ? (
+                      <span className="page-muted">Подмена</span>
+                    ) : null}
+                    {employee.activeSubstitutions
+                      .filter((item) => item.role === 'replacement')
+                      .map((item) => (
+                        <span key={item.id} className="page-muted">
+                          Замещает: {item.counterpartEmployeeName}
+                        </span>
+                      ))}
+                    {employee.activeSubstitutions
+                      .filter((item) => item.role === 'primary')
+                      .map((item) => (
+                        <span key={item.id} className="page-muted">
+                          Замещается: {item.counterpartEmployeeName}
+                        </span>
+                      ))}
+                  </div>
+                  {employee.availability.isUnavailable ? (
+                    <div style={{ color: '#b45309', fontSize: 13 }}>
+                      {getAvailabilityExplanation(employee)}
+                    </div>
+                  ) : null}
+                </div>
               </label>
             ))}
           </div>

@@ -39,6 +39,8 @@
 
 - employee fields зафиксированы;
 - до появления более детализированной HR visibility model employee registry и employee card доступны leadership circle и `hr`, без автоматического расширения object visibility;
+- availability в runtime bridge моделируется явным режимом `full_day` или `timed`;
+- substitution в object/runtime слое отображается поверх staffing и не переписывает основной состав объекта;
 - подотчет по умолчанию выдают founder/director;
 - передавать подотчет другому нельзя.
 

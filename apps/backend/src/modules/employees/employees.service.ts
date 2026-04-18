@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { canViewObjectByScope } from '../objects/utils/object-access.util';
 
 import { EmployeeAssignmentHistoryService } from './employee-assignment-history.service';
 import { CreateEmployeeAvailabilityDto } from './dto/create-employee-availability.dto';
@@ -19,6 +20,7 @@ import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import {
+  EMPLOYEE_AVAILABILITY_MODES,
   EMPLOYEE_SUBSTITUTION_STATUSES,
 } from './constants/employee-hr.constants';
 import {
@@ -124,82 +126,7 @@ export class EmployeesService {
         id: employeeId,
         deletedAt: null,
       },
-      include: {
-        objectAssignments: {
-          where: {
-            object: {
-              deletedAt: null,
-            },
-          },
-          include: {
-            object: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            updatedAt: 'desc',
-          },
-        },
-        objectAssignmentHistory: {
-          include: {
-            object: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            startedAt: 'desc',
-          },
-        },
-        availabilityWindows: {
-          orderBy: {
-            startDate: 'desc',
-          },
-        },
-        substitutionsAsPrimary: {
-          include: {
-            substituteEmployee: {
-              select: {
-                id: true,
-                fullName: true,
-              },
-            },
-            object: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            startDate: 'desc',
-          },
-        },
-        substitutionsAsReplacement: {
-          include: {
-            employee: {
-              select: {
-                id: true,
-                fullName: true,
-              },
-            },
-            object: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            startDate: 'desc',
-          },
-        },
-      },
+      include: this.getEmployeeDetailInclude(),
     });
 
     if (!employee) {
@@ -225,64 +152,12 @@ export class EmployeesService {
         notes: payload.notes?.trim() || null,
         employmentStatus: payload.employmentStatus ?? 'active',
       },
-      include: {
-        objectAssignments: {
-          include: {
-            object: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-        objectAssignmentHistory: {
-          include: {
-            object: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-        availabilityWindows: true,
-        substitutionsAsPrimary: {
-          include: {
-            substituteEmployee: {
-              select: {
-                id: true,
-                fullName: true,
-              },
-            },
-            object: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
-        substitutionsAsReplacement: {
-          include: {
-            employee: {
-              select: {
-                id: true,
-                fullName: true,
-              },
-            },
-            object: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-          },
-        },
+      select: {
+        id: true,
       },
     });
 
-    return this.mapEmployee(employee, currentUser);
+    return this.getEmployeeById(currentUser, employee.id);
   }
 
   async updateEmployee(
@@ -350,8 +225,18 @@ export class EmployeesService {
     this.assertManageAccess(currentUser);
     await this.ensureEmployeeExists(employeeId);
 
-    const startDate = new Date(payload.startDate);
-    const endDate = payload.endDate ? new Date(payload.endDate) : null;
+    const startDate = this.parseAvailabilityBoundary(
+      payload.startDate,
+      payload.availabilityMode,
+      'start',
+    );
+    const endDate = payload.endDate
+      ? this.parseAvailabilityBoundary(
+          payload.endDate,
+          payload.availabilityMode,
+          'end',
+        )
+      : null;
 
     if (endDate && endDate < startDate) {
       throw new BadRequestException('Availability endDate must be after startDate');
@@ -362,6 +247,7 @@ export class EmployeesService {
         employeeId,
         startDate,
         endDate,
+        availabilityMode: payload.availabilityMode,
         availabilityStatus: payload.availabilityStatus,
         comment: payload.comment?.trim() || null,
         createdByUserId: currentUser.id,
@@ -561,6 +447,135 @@ export class EmployeesService {
     return currentUser.roleCode ? [currentUser.roleCode] : [];
   }
 
+  private getEmployeeDetailInclude() {
+    return {
+      objectAssignments: {
+        where: {
+          object: {
+            deletedAt: null,
+          },
+        },
+        include: {
+          object: {
+            select: this.getObjectVisibilitySelect(),
+          },
+        },
+        orderBy: {
+          updatedAt: 'desc' as const,
+        },
+      },
+      objectAssignmentHistory: {
+        include: {
+          object: {
+            select: this.getObjectVisibilitySelect(),
+          },
+        },
+        orderBy: {
+          startedAt: 'desc' as const,
+        },
+      },
+      availabilityWindows: {
+        orderBy: {
+          startDate: 'desc' as const,
+        },
+      },
+      substitutionsAsPrimary: {
+        include: {
+          substituteEmployee: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+          object: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          startDate: 'desc' as const,
+        },
+      },
+      substitutionsAsReplacement: {
+        include: {
+          employee: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+          object: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          startDate: 'desc' as const,
+        },
+      },
+    };
+  }
+
+  private getObjectVisibilitySelect() {
+    return {
+      id: true,
+      name: true,
+      createdByUserId: true,
+      assignments: {
+        where: {
+          isActive: true,
+        },
+        select: {
+          userId: true,
+          isActive: true,
+        },
+      },
+    };
+  }
+
+  private canOpenObjectCard(
+    currentUser: CurrentAuthUser,
+    object: {
+      createdByUserId: string;
+      assignments: Array<{
+        userId: string;
+        isActive?: boolean;
+      }>;
+    },
+  ): boolean {
+    return canViewObjectByScope({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      object,
+    });
+  }
+
+  private parseAvailabilityBoundary(
+    rawValue: string,
+    mode: (typeof EMPLOYEE_AVAILABILITY_MODES)[number],
+    boundary: 'start' | 'end',
+  ): Date {
+    if (mode === 'timed') {
+      return new Date(rawValue);
+    }
+
+    const [year, month, day] = rawValue.split('-').map((part) => Number(part));
+
+    if (!year || !month || !day) {
+      throw new BadRequestException('Invalid full-day availability date');
+    }
+
+    if (boundary === 'start') {
+      return new Date(year, month - 1, day, 0, 0, 0, 0);
+    }
+
+    return new Date(year, month - 1, day, 23, 59, 59, 999);
+  }
+
   private mapEmployee(
     employee: {
       id: string;
@@ -577,18 +592,35 @@ export class EmployeesService {
         isActive: boolean;
         startDate: Date | null;
         endDate: Date | null;
-        object: { id: string; name: string };
+        object: {
+          id: string;
+          name: string;
+          createdByUserId: string;
+          assignments: Array<{
+            userId: string;
+            isActive: boolean;
+          }>;
+        };
       }>;
       objectAssignmentHistory: Array<{
         id: string;
         startedAt: Date;
         endedAt: Date | null;
-        object: { id: string; name: string };
+        object: {
+          id: string;
+          name: string;
+          createdByUserId: string;
+          assignments: Array<{
+            userId: string;
+            isActive: boolean;
+          }>;
+        };
       }>;
       availabilityWindows: Array<{
         id: string;
         startDate: Date;
         endDate: Date | null;
+        availabilityMode: string;
         availabilityStatus: string;
         comment: string | null;
       }>;
@@ -635,6 +667,7 @@ export class EmployeesService {
           objectName: assignment.object.name,
           startDate: assignment.startDate?.toISOString() ?? null,
           endDate: assignment.endDate?.toISOString() ?? null,
+          canOpenObjectCard: this.canOpenObjectCard(currentUser, assignment.object),
         })),
       objectAssignmentHistory: employee.objectAssignmentHistory.map((item) => ({
         id: item.id,
@@ -642,11 +675,13 @@ export class EmployeesService {
         objectName: item.object.name,
         startedAt: item.startedAt.toISOString(),
         endedAt: item.endedAt?.toISOString() ?? null,
+        canOpenObjectCard: this.canOpenObjectCard(currentUser, item.object),
       })),
       availabilityWindows: employee.availabilityWindows.map((item) => ({
         id: item.id,
         startDate: item.startDate.toISOString(),
         endDate: item.endDate?.toISOString() ?? null,
+        availabilityMode: item.availabilityMode,
         availabilityStatus: item.availabilityStatus,
         comment: item.comment,
       })),

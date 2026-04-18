@@ -28,6 +28,48 @@ export function ObjectStaffingPanel({
   const assigned = assignedEmployees ?? [];
   const directory = directoryEmployees ?? [];
   const assignedIds = new Set(assigned.map((employee) => employee.id));
+  const visibleSubstitutions = Array.from(
+    assigned.reduce<
+      Map<
+        string,
+        ObjectEmployeeOption['activeSubstitutions'][number] & {
+          primaryEmployeeName: string;
+        }
+      >
+    >((accumulator, employee) => {
+      for (const substitution of employee.activeSubstitutions.filter(
+        (item) => item.role === 'primary',
+      )) {
+        accumulator.set(substitution.id, {
+          ...substitution,
+          primaryEmployeeName: employee.fullName,
+        });
+      }
+
+      return accumulator;
+    }, new Map()).values(),
+  );
+
+  const getAvailabilityExplanation = (employee: ObjectEmployeeOption): string | null => {
+    if (!employee.availability.isUnavailable) {
+      return null;
+    }
+
+    const modeLabel =
+      employee.availability.availabilityMode === 'full_day'
+        ? 'Недоступен весь день'
+        : 'Недоступен по времени';
+    const periodLabel =
+      employee.availability.startDate && employee.availability.endDate
+        ? `${new Date(employee.availability.startDate).toLocaleString('ru-RU')} — ${new Date(employee.availability.endDate).toLocaleString('ru-RU')}`
+        : employee.availability.startDate
+          ? `с ${new Date(employee.availability.startDate).toLocaleString('ru-RU')}`
+          : 'период не указан';
+
+    return employee.availability.comment
+      ? `${modeLabel}. ${periodLabel}. Причина: ${employee.availability.comment}`
+      : `${modeLabel}. ${periodLabel}.`;
+  };
 
   return (
     <div className="page-card">
@@ -62,15 +104,82 @@ export function ObjectStaffingPanel({
                 justifyContent: 'space-between',
                 gap: 12,
                 padding: 10,
-                border: '1px solid #d1d5db',
+                border: employee.availability.isUnavailable
+                  ? '1px solid #f59e0b'
+                  : '1px solid #d1d5db',
                 borderRadius: 10,
               }}
+              title={getAvailabilityExplanation(employee) ?? undefined}
             >
-              <span>{employee.fullName}</span>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <span>{employee.fullName}</span>
+                  {employee.availability.isUnavailable ? (
+                    <span style={{ color: '#b45309' }}>Недоступен</span>
+                  ) : null}
+                  {employee.activeSubstitutions
+                    .filter((item) => item.role === 'primary')
+                    .map((item) => (
+                      <span key={item.id} className="page-muted">
+                        Замещается: {item.counterpartEmployeeName}
+                      </span>
+                    ))}
+                  {employee.activeSubstitutions
+                    .filter((item) => item.role === 'replacement')
+                    .map((item) => (
+                      <span key={item.id} className="page-muted">
+                        Замещает: {item.counterpartEmployeeName}
+                      </span>
+                    ))}
+                </div>
+                {employee.availability.isUnavailable ? (
+                  <div style={{ color: '#b45309', fontSize: 13 }}>
+                    {getAvailabilityExplanation(employee)}
+                  </div>
+                ) : null}
+              </div>
 
               <button type="button" onClick={() => void onRemove(employee.id)}>
                 Убрать
               </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>Подмены на сегодня</div>
+
+      {visibleSubstitutions.length === 0 ? (
+        <div className="page-muted" style={{ marginBottom: 16 }}>
+          Активных подмен на сегодня нет.
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+          {visibleSubstitutions.map((substitution) => (
+            <div
+              key={substitution.id}
+              style={{
+                padding: 10,
+                border: '1px solid #d1d5db',
+                borderRadius: 10,
+              }}
+            >
+              <div>
+                <strong>{substitution.primaryEmployeeName}</strong> замещается{' '}
+                <strong>{substitution.counterpartEmployeeName}</strong>
+              </div>
+              <div className="page-muted">
+                {new Date(substitution.startDate).toLocaleString('ru-RU')} —{' '}
+                {substitution.endDate
+                  ? new Date(substitution.endDate).toLocaleString('ru-RU')
+                  : 'без даты окончания'}
+              </div>
+              <div className="page-muted">
+                Статус: {substitution.status}. Причина: {substitution.reason}
+              </div>
+              {substitution.comment ? (
+                <div className="page-muted">{substitution.comment}</div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -97,11 +206,26 @@ export function ObjectStaffingPanel({
                 justifyContent: 'space-between',
                 gap: 12,
                 padding: 10,
-                border: '1px solid #d1d5db',
+                border: employee.availability.isUnavailable
+                  ? '1px solid #f59e0b'
+                  : '1px solid #d1d5db',
                 borderRadius: 10,
               }}
+              title={getAvailabilityExplanation(employee) ?? undefined}
             >
-              <span>{employee.fullName}</span>
+              <div style={{ display: 'grid', gap: 4 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <span>{employee.fullName}</span>
+                  {employee.availability.isUnavailable ? (
+                    <span style={{ color: '#b45309' }}>Недоступен</span>
+                  ) : null}
+                </div>
+                {employee.availability.isUnavailable ? (
+                  <div style={{ color: '#b45309', fontSize: 13 }}>
+                    {getAvailabilityExplanation(employee)}
+                  </div>
+                ) : null}
+              </div>
 
               {assignedIds.has(employee.id) ? (
                 <span className="page-muted">Уже в составе</span>

@@ -112,6 +112,9 @@ export default function ObjectDetailPage({
   const [attendanceEmployeeIds, setAttendanceEmployeeIds] = useState<string[]>(
     [],
   );
+  const [attendanceEmployees, setAttendanceEmployees] = useState<
+    ObjectEmployeeOption[]
+  >([]);
   const [attendanceLoading, setAttendanceLoading] = useState(true);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
 
@@ -459,6 +462,7 @@ export default function ObjectDetailPage({
 
       if (!cancelled) {
         setAttendanceEmployeeIds(response.employeeIds ?? []);
+        setAttendanceEmployees(Array.isArray(response.employees) ? response.employees : []);
       }
     } catch (error) {
       if (!cancelled) {
@@ -618,12 +622,16 @@ export default function ObjectDetailPage({
               />
             ) : (
               <ObjectAttendancePanel
-                employees={assignedEmployees}
+                employees={attendanceEmployees}
                 initialEmployeeIds={attendanceEmployeeIds}
                 operationDate={todayAsBusinessDate()}
                 onSave={async (payload) => {
                   await upsertObjectAttendance(objectId, payload);
-                  setAttendanceEmployeeIds(payload.employeeIds);
+                  await Promise.all([
+                    loadAttendance(objectId),
+                    loadAssignedEmployees(objectId),
+                    loadDirectory(objectId, employeeSearch),
+                  ]);
                 }}
               />
             )}
@@ -649,6 +657,7 @@ export default function ObjectDetailPage({
                 await Promise.all([
                   loadAssignedEmployees(objectId),
                   loadDirectory(objectId, employeeSearch),
+                  loadAttendance(objectId),
                 ]);
               }}
               onRemove={async (employeeId) => {

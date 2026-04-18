@@ -262,6 +262,7 @@ model EmployeeAvailabilityWindow {
   employeeId         String
   startDate          DateTime
   endDate            DateTime?
+  availabilityMode   String   @default("full_day")
   availabilityStatus String
   comment            String?
   createdByUserId    String

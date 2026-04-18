@@ -59,6 +59,26 @@ function getSubstitutionStatusLabel(status: string): string {
   }
 }
 
+function formatAvailabilityPeriod(windowItem: {
+  startDate: string;
+  endDate: string | null;
+  availabilityMode: string;
+}): string {
+  if (windowItem.availabilityMode === 'full_day') {
+    return `${new Date(windowItem.startDate).toLocaleDateString('ru-RU')} — ${
+      windowItem.endDate
+        ? new Date(windowItem.endDate).toLocaleDateString('ru-RU')
+        : 'без даты окончания'
+    }`;
+  }
+
+  return `${new Date(windowItem.startDate).toLocaleString('ru-RU')} — ${
+    windowItem.endDate
+      ? new Date(windowItem.endDate).toLocaleString('ru-RU')
+      : 'без даты окончания'
+  }`;
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -97,6 +117,7 @@ export default function EmployeeDetailPage({
   });
   const [assignmentObjectId, setAssignmentObjectId] = useState('');
   const [availabilityForm, setAvailabilityForm] = useState({
+    availabilityMode: 'full_day',
     startDate: '',
     endDate: '',
     availabilityStatus: 'unavailable',
@@ -189,6 +210,30 @@ export default function EmployeeDetailPage({
   const substitutionCandidates = useMemo(() => {
     return employeeCandidates.filter((candidate) => candidate.id !== employeeId);
   }, [employeeCandidates, employeeId]);
+
+  const renderObjectReference = (params: {
+    objectId: string;
+    objectName: string;
+    canOpenObjectCard: boolean;
+  }): React.JSX.Element => {
+    if (params.canOpenObjectCard) {
+      return <Link href={`/objects/${params.objectId}`}>{params.objectName}</Link>;
+    }
+
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          padding: '2px 8px',
+          borderRadius: 999,
+          background: '#f3f4f6',
+        }}
+        title="Карточка объекта недоступна в рамках текущей object visibility"
+      >
+        {params.objectName}
+      </span>
+    );
+  };
 
   return (
     <>
@@ -395,9 +440,11 @@ export default function EmployeeDetailPage({
                   }}
                 >
                   <div>
-                    <Link href={`/objects/${assignment.objectId}`}>
-                      {assignment.objectName}
-                    </Link>
+                    {renderObjectReference({
+                      objectId: assignment.objectId,
+                      objectName: assignment.objectName,
+                      canOpenObjectCard: assignment.canOpenObjectCard,
+                    })}
                     <div className="page-muted">
                       С: {assignment.startDate ? new Date(assignment.startDate).toLocaleDateString('ru-RU') : '—'}
                     </div>
@@ -478,9 +525,11 @@ export default function EmployeeDetailPage({
             ) : (
               item.objectAssignmentHistory.map((historyItem) => (
                 <div key={historyItem.id}>
-                  <Link href={`/objects/${historyItem.objectId}`}>
-                    {historyItem.objectName}
-                  </Link>
+                  {renderObjectReference({
+                    objectId: historyItem.objectId,
+                    objectName: historyItem.objectName,
+                    canOpenObjectCard: historyItem.canOpenObjectCard,
+                  })}
                   <div className="page-muted">
                     {new Date(historyItem.startedAt).toLocaleDateString('ru-RU')} —{' '}
                     {historyItem.endedAt
@@ -499,12 +548,14 @@ export default function EmployeeDetailPage({
             ) : (
               item.availabilityWindows.map((windowItem) => (
                 <div key={windowItem.id}>
-                  <div>{getAvailabilityStatusLabel(windowItem.availabilityStatus)}</div>
+                  <div>
+                    {getAvailabilityStatusLabel(windowItem.availabilityStatus)}{' '}
+                    {windowItem.availabilityMode === 'full_day'
+                      ? '(весь день)'
+                      : '(по времени)'}
+                  </div>
                   <div className="page-muted">
-                    {new Date(windowItem.startDate).toLocaleDateString('ru-RU')} —{' '}
-                    {windowItem.endDate
-                      ? new Date(windowItem.endDate).toLocaleDateString('ru-RU')
-                      : 'без даты окончания'}
+                    {formatAvailabilityPeriod(windowItem)}
                   </div>
                   {windowItem.comment ? (
                     <div className="page-muted">{windowItem.comment}</div>
@@ -522,11 +573,13 @@ export default function EmployeeDetailPage({
                     const updated = await addEmployeeAvailability(item.id, {
                       startDate: availabilityForm.startDate,
                       endDate: availabilityForm.endDate || undefined,
+                      availabilityMode: availabilityForm.availabilityMode,
                       availabilityStatus: availabilityForm.availabilityStatus,
                       comment: availabilityForm.comment || undefined,
                     });
                     setItem(updated);
                     setAvailabilityForm({
+                      availabilityMode: 'full_day',
                       startDate: '',
                       endDate: '',
                       availabilityStatus: 'unavailable',
@@ -540,8 +593,26 @@ export default function EmployeeDetailPage({
                 }}
               >
                 <div className="page-muted">Добавить окно доступности</div>
+                <select
+                  value={availabilityForm.availabilityMode}
+                  onChange={(event) =>
+                    setAvailabilityForm((prev) => ({
+                      ...prev,
+                      availabilityMode: event.target.value,
+                      startDate: '',
+                      endDate: '',
+                    }))
+                  }
+                >
+                  <option value="full_day">Недоступен весь день</option>
+                  <option value="timed">Недоступен по времени</option>
+                </select>
                 <input
-                  type="datetime-local"
+                  type={
+                    availabilityForm.availabilityMode === 'full_day'
+                      ? 'date'
+                      : 'datetime-local'
+                  }
                   value={availabilityForm.startDate}
                   onChange={(event) =>
                     setAvailabilityForm((prev) => ({
@@ -552,7 +623,11 @@ export default function EmployeeDetailPage({
                   required
                 />
                 <input
-                  type="datetime-local"
+                  type={
+                    availabilityForm.availabilityMode === 'full_day'
+                      ? 'date'
+                      : 'datetime-local'
+                  }
                   value={availabilityForm.endDate}
                   onChange={(event) =>
                     setAvailabilityForm((prev) => ({

@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 
 import { EmployeeAssignmentHistoryService } from '../employees/employee-assignment-history.service';
+import { EMPLOYEE_SUBSTITUTION_STATUSES } from '../employees/constants/employee-hr.constants';
+import { canViewObjectByScope } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
@@ -21,7 +23,6 @@ import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
-import { hasWideObjectAccess } from './utils/object-operation-access.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -43,6 +44,26 @@ function todayAsBusinessDate(): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+interface ObjectEmployeeAvailabilityView {
+  isUnavailable: boolean;
+  availabilityMode: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  comment: string | null;
+}
+
+interface ObjectEmployeeSubstitutionView {
+  id: string;
+  role: 'primary' | 'replacement';
+  counterpartEmployeeId: string;
+  counterpartEmployeeName: string;
+  startDate: string;
+  endDate: string | null;
+  status: string;
+  reason: string;
+  comment: string | null;
 }
 
 @Injectable()
@@ -289,6 +310,7 @@ export class ObjectOperationsService {
   ): Promise<ObjectEmployeeOptionDto[]> {
     await this.assertObjectVisible(currentUser, objectId);
 
+    const dayRange = this.getBusinessDayRange(startOfToday());
     const items = await this.prisma.objectEmployeeAssignment.findMany({
       where: {
         objectId,
@@ -298,7 +320,38 @@ export class ObjectOperationsService {
         },
       },
       include: {
-        employee: true,
+        employee: {
+          include: {
+            availabilityWindows: {
+              where: this.buildAvailabilityOverlapWhere(dayRange),
+              orderBy: {
+                startDate: 'asc',
+              },
+            },
+            substitutionsAsPrimary: {
+              where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+              include: {
+                substituteEmployee: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                  },
+                },
+              },
+            },
+            substitutionsAsReplacement: {
+              where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+              include: {
+                employee: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: {
         employee: {
@@ -307,10 +360,16 @@ export class ObjectOperationsService {
       },
     });
 
-    return items.map((item) => ({
-      id: item.employee.id,
-      fullName: item.employee.fullName,
-    }));
+    return items.map((item) =>
+      this.mapObjectEmployeeOption({
+        employeeId: item.employee.id,
+        fullName: item.employee.fullName,
+        isAssignedToObject: true,
+        availabilityWindows: item.employee.availabilityWindows,
+        substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
+        substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
+      }),
+    );
   }
 
   async searchEmployeeDirectory(
@@ -320,6 +379,7 @@ export class ObjectOperationsService {
   ): Promise<ObjectEmployeeOptionDto[]> {
     await this.assertObjectWritable(currentUser, objectId);
 
+    const dayRange = this.getBusinessDayRange(startOfToday());
     const items = await this.prisma.employee.findMany({
       where: {
         deletedAt: null,
@@ -333,16 +393,52 @@ export class ObjectOperationsService {
             }
           : {}),
       },
+      include: {
+        availabilityWindows: {
+          where: this.buildAvailabilityOverlapWhere(dayRange),
+          orderBy: {
+            startDate: 'asc',
+          },
+        },
+        substitutionsAsPrimary: {
+          where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+          include: {
+            substituteEmployee: {
+              select: {
+                id: true,
+                fullName: true,
+              },
+            },
+          },
+        },
+        substitutionsAsReplacement: {
+          where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+          include: {
+            employee: {
+              select: {
+                id: true,
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: {
         fullName: 'asc',
       },
       take: 20,
     });
 
-    return items.map((item) => ({
-      id: item.id,
-      fullName: item.fullName,
-    }));
+    return items.map((item) =>
+      this.mapObjectEmployeeOption({
+        employeeId: item.id,
+        fullName: item.fullName,
+        isAssignedToObject: false,
+        availabilityWindows: item.availabilityWindows,
+        substitutionsAsPrimary: item.substitutionsAsPrimary,
+        substitutionsAsReplacement: item.substitutionsAsReplacement,
+      }),
+    );
   }
 
   async addEmployeeToObject(
@@ -449,19 +545,24 @@ export class ObjectOperationsService {
   ): Promise<ObjectAttendanceResponseDto> {
     await this.assertObjectVisible(currentUser, objectId);
 
-    const facts = await this.prisma.objectAttendanceFact.findMany({
-      where: {
-        objectId,
-        operationDate: startOfToday(),
-      },
-      select: {
-        employeeId: true,
-      },
-    });
+    const operationDate = startOfToday();
+    const [facts, employees] = await Promise.all([
+      this.prisma.objectAttendanceFact.findMany({
+        where: {
+          objectId,
+          operationDate,
+        },
+        select: {
+          employeeId: true,
+        },
+      }),
+      this.listAttendanceEmployees(objectId, operationDate),
+    ]);
 
     return {
       operationDate: todayAsBusinessDate(),
       employeeIds: facts.map((item) => item.employeeId),
+      employees,
     };
   }
 
@@ -489,21 +590,133 @@ export class ObjectOperationsService {
       throw new NotFoundException('Object not found');
     }
 
-    const allowedEmployeeIds = new Set(
-      object.employeeAssignments.map((assignment) => assignment.employeeId),
-    );
-
-    for (const employeeId of payload.employeeIds) {
-      if (!allowedEmployeeIds.has(employeeId)) {
-        throw new ForbiddenException('Employee is not assigned to object');
-      }
-    }
-
     const normalizedDate = this.parseBusinessDate(payload.operationDate);
     const selectedEmployeeIds = new Set(payload.employeeIds);
     const targetYear = normalizedDate.getFullYear();
     const targetMonth = normalizedDate.getMonth() + 1;
     const dayOfMonth = normalizedDate.getDate();
+    const dayRange = this.getBusinessDayRange(normalizedDate);
+
+    const [existingFacts, activeSubstitutions, unavailableEmployees] =
+      await Promise.all([
+        this.prisma.objectAttendanceFact.findMany({
+          where: {
+            objectId,
+            operationDate: normalizedDate,
+          },
+          select: {
+            employeeId: true,
+          },
+        }),
+        this.prisma.employeeSubstitution.findMany({
+          where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+          include: {
+            substituteEmployee: {
+              select: {
+                id: true,
+                fullName: true,
+              },
+            },
+          },
+        }),
+        this.prisma.employee.findMany({
+          where: {
+            id: {
+              in: payload.employeeIds,
+            },
+            deletedAt: null,
+            availabilityWindows: {
+              some: {
+                availabilityStatus: 'unavailable',
+                ...this.buildAvailabilityOverlapWhere(dayRange),
+              },
+            },
+          },
+          include: {
+            availabilityWindows: {
+              where: {
+                availabilityStatus: 'unavailable',
+                ...this.buildAvailabilityOverlapWhere(dayRange),
+              },
+              orderBy: {
+                startDate: 'asc',
+              },
+            },
+          },
+        }),
+      ]);
+
+    const allowedEmployeeIds = new Set([
+      ...object.employeeAssignments.map((assignment) => assignment.employeeId),
+      ...activeSubstitutions.map((item) => item.substituteEmployee.id),
+    ]);
+
+    const existingFactEmployeeIds = new Set(
+      existingFacts.map((item) => item.employeeId),
+    );
+    const unavailableEmployeeIds = new Set(
+      unavailableEmployees
+        .filter(
+          (employee) =>
+            this.resolveActiveUnavailableAvailability(employee.availabilityWindows) !==
+            null,
+        )
+        .map((employee) => employee.id),
+    );
+
+    const timesheetEmployees = new Map(
+      object.employeeAssignments.map((assignment) => [
+        assignment.employeeId,
+        assignment.employee.fullName,
+      ]),
+    );
+
+    for (const substitution of activeSubstitutions) {
+      timesheetEmployees.set(
+        substitution.substituteEmployee.id,
+        substitution.substituteEmployee.fullName,
+      );
+    }
+
+    if (existingFactEmployeeIds.size > 0) {
+      const missingEmployeeIds = [...existingFactEmployeeIds].filter(
+        (employeeId) => !timesheetEmployees.has(employeeId),
+      );
+
+      if (missingEmployeeIds.length > 0) {
+        const additionalEmployees = await this.prisma.employee.findMany({
+          where: {
+            id: {
+              in: missingEmployeeIds,
+            },
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            fullName: true,
+          },
+        });
+
+        for (const employee of additionalEmployees) {
+          timesheetEmployees.set(employee.id, employee.fullName);
+        }
+      }
+    }
+
+    for (const employeeId of payload.employeeIds) {
+      if (!allowedEmployeeIds.has(employeeId)) {
+        throw new ForbiddenException('Employee is not assigned to object');
+      }
+
+      if (
+        unavailableEmployeeIds.has(employeeId) &&
+        !existingFactEmployeeIds.has(employeeId)
+      ) {
+        throw new ForbiddenException(
+          'Unavailable employee cannot be added to attendance without override',
+        );
+      }
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.objectAttendanceFact.deleteMany({
@@ -543,21 +756,21 @@ export class ObjectOperationsService {
         },
       });
 
-      for (const assignment of object.employeeAssignments) {
+      for (const [employeeId, employeeFullName] of timesheetEmployees.entries()) {
         const row = await tx.timesheetEmployeeRow.upsert({
           where: {
             timesheetMonthId_employeeId: {
               timesheetMonthId: monthContainer.id,
-              employeeId: assignment.employeeId,
+              employeeId,
             },
           },
           update: {
-            employeeNameSnapshot: assignment.employee.fullName,
+            employeeNameSnapshot: employeeFullName,
           },
           create: {
             timesheetMonthId: monthContainer.id,
-            employeeId: assignment.employeeId,
-            employeeNameSnapshot: assignment.employee.fullName,
+            employeeId,
+            employeeNameSnapshot: employeeFullName,
           },
         });
 
@@ -570,7 +783,7 @@ export class ObjectOperationsService {
           },
         });
 
-        if (selectedEmployeeIds.has(assignment.employeeId)) {
+        if (selectedEmployeeIds.has(employeeId)) {
           await tx.timesheetDayEntry.upsert({
             where: {
               rowId_dayOfMonth: {
@@ -610,6 +823,315 @@ export class ObjectOperationsService {
     return { success: true };
   }
 
+  private async listAttendanceEmployees(
+    objectId: string,
+    operationDate: Date,
+  ): Promise<ObjectEmployeeOptionDto[]> {
+    const dayRange = this.getBusinessDayRange(operationDate);
+    const [assignedEmployees, activeSubstitutions] = await Promise.all([
+      this.prisma.objectEmployeeAssignment.findMany({
+        where: {
+          objectId,
+          isActive: true,
+          employee: {
+            deletedAt: null,
+          },
+        },
+        include: {
+          employee: {
+            include: {
+              availabilityWindows: {
+                where: this.buildAvailabilityOverlapWhere(dayRange),
+                orderBy: {
+                  startDate: 'asc',
+                },
+              },
+              substitutionsAsPrimary: {
+                where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+                include: {
+                  substituteEmployee: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                    },
+                  },
+                },
+              },
+              substitutionsAsReplacement: {
+                where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+                include: {
+                  employee: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.employeeSubstitution.findMany({
+        where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+        include: {
+          employee: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
+          substituteEmployee: {
+            include: {
+              availabilityWindows: {
+                where: this.buildAvailabilityOverlapWhere(dayRange),
+                orderBy: {
+                  startDate: 'asc',
+                },
+              },
+              substitutionsAsPrimary: {
+                where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+                include: {
+                  substituteEmployee: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                    },
+                  },
+                },
+              },
+              substitutionsAsReplacement: {
+                where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+                include: {
+                  employee: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const mapped = new Map<string, ObjectEmployeeOptionDto>();
+
+    for (const item of assignedEmployees) {
+      mapped.set(
+        item.employee.id,
+        this.mapObjectEmployeeOption({
+          employeeId: item.employee.id,
+          fullName: item.employee.fullName,
+          isAssignedToObject: true,
+          availabilityWindows: item.employee.availabilityWindows,
+          substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
+          substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
+        }),
+      );
+    }
+
+    for (const item of activeSubstitutions) {
+      if (mapped.has(item.substituteEmployee.id)) {
+        continue;
+      }
+
+      mapped.set(
+        item.substituteEmployee.id,
+        this.mapObjectEmployeeOption({
+          employeeId: item.substituteEmployee.id,
+          fullName: item.substituteEmployee.fullName,
+          isAssignedToObject: false,
+          availabilityWindows: item.substituteEmployee.availabilityWindows,
+          substitutionsAsPrimary: item.substituteEmployee.substitutionsAsPrimary,
+          substitutionsAsReplacement: item.substituteEmployee.substitutionsAsReplacement,
+        }),
+      );
+    }
+
+    return [...mapped.values()].sort((left, right) =>
+      left.fullName.localeCompare(right.fullName, 'ru'),
+    );
+  }
+
+  private buildActiveObjectSubstitutionWhere(
+    objectId: string,
+    dayRange: { start: Date; end: Date },
+  ) {
+    return {
+      objectId,
+      status: {
+        in: EMPLOYEE_SUBSTITUTION_STATUSES.filter(
+          (status) => status === 'planned' || status === 'active',
+        ),
+      },
+      startDate: {
+        lte: dayRange.end,
+      },
+      OR: [
+        {
+          endDate: null,
+        },
+        {
+          endDate: {
+            gte: dayRange.start,
+          },
+        },
+      ],
+    };
+  }
+
+  private buildAvailabilityOverlapWhere(dayRange: { start: Date; end: Date }) {
+    return {
+      startDate: {
+        lte: dayRange.end,
+      },
+      OR: [
+        {
+          endDate: null,
+        },
+        {
+          endDate: {
+            gte: dayRange.start,
+          },
+        },
+      ],
+    };
+  }
+
+  private getBusinessDayRange(operationDate: Date): { start: Date; end: Date } {
+    const start = new Date(
+      operationDate.getFullYear(),
+      operationDate.getMonth(),
+      operationDate.getDate(),
+      0,
+      0,
+      0,
+      0,
+    );
+    const end = new Date(
+      operationDate.getFullYear(),
+      operationDate.getMonth(),
+      operationDate.getDate(),
+      23,
+      59,
+      59,
+      999,
+    );
+
+    return { start, end };
+  }
+
+  private resolveActiveUnavailableAvailability(
+    windows: Array<{
+      id: string;
+      startDate: Date;
+      endDate: Date | null;
+      availabilityMode: string;
+      availabilityStatus: string;
+      comment: string | null;
+    }>,
+  ): ObjectEmployeeAvailabilityView | null {
+    const unavailableWindow = windows.find(
+      (windowItem) => windowItem.availabilityStatus === 'unavailable',
+    );
+
+    if (!unavailableWindow) {
+      return null;
+    }
+
+    return {
+      isUnavailable: true,
+      availabilityMode: unavailableWindow.availabilityMode,
+      startDate: unavailableWindow.startDate.toISOString(),
+      endDate: unavailableWindow.endDate?.toISOString() ?? null,
+      comment: unavailableWindow.comment,
+    };
+  }
+
+  private mapObjectEmployeeOption(params: {
+    employeeId: string;
+    fullName: string;
+    isAssignedToObject: boolean;
+    availabilityWindows: Array<{
+      id: string;
+      startDate: Date;
+      endDate: Date | null;
+      availabilityMode: string;
+      availabilityStatus: string;
+      comment: string | null;
+    }>;
+    substitutionsAsPrimary: Array<{
+      id: string;
+      startDate: Date;
+      endDate: Date | null;
+      status: string;
+      reason: string;
+      comment: string | null;
+      substituteEmployee: {
+        id: string;
+        fullName: string;
+      };
+    }>;
+    substitutionsAsReplacement: Array<{
+      id: string;
+      startDate: Date;
+      endDate: Date | null;
+      status: string;
+      reason: string;
+      comment: string | null;
+      employee: {
+        id: string;
+        fullName: string;
+      };
+    }>;
+  }): ObjectEmployeeOptionDto {
+    const activeAvailability =
+      this.resolveActiveUnavailableAvailability(params.availabilityWindows);
+
+    const activeSubstitutions: ObjectEmployeeSubstitutionView[] = [
+      ...params.substitutionsAsPrimary.map((item) => ({
+        id: item.id,
+        role: 'primary' as const,
+        counterpartEmployeeId: item.substituteEmployee.id,
+        counterpartEmployeeName: item.substituteEmployee.fullName,
+        startDate: item.startDate.toISOString(),
+        endDate: item.endDate?.toISOString() ?? null,
+        status: item.status,
+        reason: item.reason,
+        comment: item.comment,
+      })),
+      ...params.substitutionsAsReplacement.map((item) => ({
+        id: item.id,
+        role: 'replacement' as const,
+        counterpartEmployeeId: item.employee.id,
+        counterpartEmployeeName: item.employee.fullName,
+        startDate: item.startDate.toISOString(),
+        endDate: item.endDate?.toISOString() ?? null,
+        status: item.status,
+        reason: item.reason,
+        comment: item.comment,
+      })),
+    ].sort((left, right) => (left.startDate < right.startDate ? 1 : -1));
+
+    return {
+      id: params.employeeId,
+      fullName: params.fullName,
+      isAssignedToObject: params.isAssignedToObject,
+      availability:
+        activeAvailability ?? {
+          isUnavailable: false,
+          availabilityMode: null,
+          startDate: null,
+          endDate: null,
+          comment: null,
+        },
+      activeSubstitutions,
+    };
+  }
+
   private async assertObjectVisible(
     currentUser: CurrentAuthUser,
     objectId: string,
@@ -619,9 +1141,15 @@ export class ObjectOperationsService {
         id: objectId,
         deletedAt: null,
       },
-      include: {
+      select: {
+        id: true,
+        createdByUserId: true,
         assignments: {
           where: {
+            isActive: true,
+          },
+          select: {
+            userId: true,
             isActive: true,
           },
         },
@@ -632,13 +1160,13 @@ export class ObjectOperationsService {
       throw new NotFoundException('Object not found');
     }
 
-    const roleCodes = this.getRoleCodes(currentUser);
-    const wideAccess = hasWideObjectAccess(roleCodes);
-    const isAssigned = object.assignments.some(
-      (assignment) => assignment.userId === currentUser.id,
-    );
-
-    if (!wideAccess && !isAssigned) {
+    if (
+      !canViewObjectByScope({
+        currentUserId: currentUser.id,
+        roleCodes: this.getRoleCodes(currentUser),
+        object,
+      })
+    ) {
       throw new ForbiddenException('Access to object operations denied');
     }
   }
