@@ -30,6 +30,8 @@ model User {
   createdOneTimeOrderComments OneTimeOrderComment[] @relation("OneTimeOrderCommentCreatedBy")
   createdArrivalPhotos        ObjectArrivalPhoto[] @relation("ObjectArrivalPhotoCreatedBy")
   updatedDailyReports         ObjectDailyReport[] @relation("ObjectDailyReportUpdatedBy")
+  updatedOneTimeOrderDailyReports OneTimeOrderDailyReport[] @relation("OneTimeOrderDailyReportUpdatedBy")
+  createdOneTimeOrderPhotos   OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoCreatedBy")
   createdTasks                Task[] @relation("TaskCreatedBy")
   taskAssignments             TaskAssignee[]
   submittedTaskResults        Task[] @relation("TaskSubmittedBy")
@@ -348,7 +350,7 @@ model ObjectArrivalPhoto {
   id              String   @id @default(uuid())
   objectId        String
   operationDate   DateTime
-  photoUrl        String
+  photoUrl        String?
   photoType       String?
   comment         String?
   createdByUserId String
@@ -417,6 +419,8 @@ model OneTimeOrder {
   createdBy         User                   @relation("OneTimeOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   assignments       OneTimeOrderAssignment[]
   comments          OneTimeOrderComment[]
+  dailyReports      OneTimeOrderDailyReport[]
+  photos            OneTimeOrderPhoto[]
   tasks             Task[]
 
   @@index([linkedObjectId])
@@ -458,6 +462,40 @@ model OneTimeOrderComment {
 
   @@index([oneTimeOrderId, createdAt])
   @@map("one_time_order_comments")
+}
+
+model OneTimeOrderDailyReport {
+  id                String   @id @default(uuid())
+  oneTimeOrderId    String
+  reportDate        DateTime
+  content           String
+  updatedByUserId   String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  updatedBy    User         @relation("OneTimeOrderDailyReportUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([oneTimeOrderId, reportDate])
+  @@index([oneTimeOrderId, reportDate])
+  @@map("one_time_order_daily_reports")
+}
+
+model OneTimeOrderPhoto {
+  id                String   @id @default(uuid())
+  oneTimeOrderId    String
+  photoCategory     String
+  comment           String?
+  createdByUserId   String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("OneTimeOrderPhotoCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([oneTimeOrderId, createdAt])
+  @@index([photoCategory])
+  @@map("one_time_order_photos")
 }
 
 model Task {

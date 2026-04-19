@@ -6,6 +6,7 @@ import type {
   ObjectComment,
   ObjectDailyReport,
   ObjectFeedItem,
+  LinkedOneTimeOrderProjection,
 } from '../model/object-operations.types';
 
 export interface CreateObjectCommentPayload {
@@ -14,8 +15,8 @@ export interface CreateObjectCommentPayload {
 }
 
 export interface UpsertArrivalPhotoPayload {
-  photoUrl: string;
-  photoType: string;
+  photoUrl?: string;
+  photoType?: string;
   comment?: string;
 }
 
@@ -100,6 +101,17 @@ export async function getObjectFeed(
   return fetcher<ObjectFeedItem[]>(`/objects/${objectId}/feed`, {
     method: 'GET',
   });
+}
+
+export async function listLinkedOneTimeOrders(
+  objectId: string,
+): Promise<LinkedOneTimeOrderProjection[]> {
+  return fetcher<LinkedOneTimeOrderProjection[]>(
+    `/objects/${objectId}/linked-one-time-orders`,
+    {
+      method: 'GET',
+    },
+  );
 }
 
 export async function listObjectEmployees(

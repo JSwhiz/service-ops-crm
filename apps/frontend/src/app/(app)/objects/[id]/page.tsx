@@ -21,6 +21,7 @@ import {
   getTodayArrivalPhoto,
   getTodayDailyReport,
   getTodayObjectAttendance,
+  listLinkedOneTimeOrders,
   listObjectComments,
   listObjectEmployees,
   removeEmployeeFromObject,
@@ -34,7 +35,13 @@ import type {
   ObjectComment,
   ObjectDailyReport,
   ObjectFeedItem,
+  LinkedOneTimeOrderProjection,
 } from '@/entities/object/model/object-operations.types';
+import {
+  listFilesByEntity,
+  uploadFileToEntity,
+} from '@/entities/file/api/file-client';
+import type { AttachedFile } from '@/entities/file/model/file.types';
 import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import {
@@ -46,6 +53,7 @@ import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-at
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
+import { LinkedOneTimeOrdersPanel } from '@/features/linked-one-time-orders/ui/linked-one-time-orders-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
 import { ObjectStaffingPanel } from '@/features/object-staffing/ui/object-staffing-panel';
 import { ObjectStatusControlPanel } from '@/features/object-status-control/ui/object-status-control-panel';
@@ -55,6 +63,7 @@ import {
   ObjectPanelLoading,
 } from '@/features/object-state/ui/object-state-panels';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
+import { EntityFilesPanel } from '@/shared/ui/entity-files/entity-files-panel';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -134,6 +143,14 @@ export default function ObjectDetailPage({
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState<string | null>(null);
 
+  const [linkedOrders, setLinkedOrders] = useState<LinkedOneTimeOrderProjection[]>([]);
+  const [linkedOrdersLoading, setLinkedOrdersLoading] = useState(true);
+  const [linkedOrdersError, setLinkedOrdersError] = useState<string | null>(null);
+
+  const [objectFiles, setObjectFiles] = useState<AttachedFile[]>([]);
+  const [objectFilesLoading, setObjectFilesLoading] = useState(true);
+  const [objectFilesError, setObjectFilesError] = useState<string | null>(null);
+
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -160,6 +177,8 @@ export default function ObjectDetailPage({
         loadReport(resolved.id, cancelled),
         loadComments(resolved.id, cancelled),
         loadFeed(resolved.id, cancelled),
+        loadLinkedOrders(resolved.id, cancelled),
+        loadObjectFiles(resolved.id, cancelled),
         loadTasks(resolved.id, cancelled),
         loadAssignedEmployees(resolved.id, cancelled),
         loadAttendance(resolved.id, cancelled),
@@ -394,6 +413,61 @@ export default function ObjectDetailPage({
     }
   };
 
+  const loadLinkedOrders = async (
+    id: string,
+    cancelled = false,
+  ): Promise<void> => {
+    setLinkedOrdersLoading(true);
+    setLinkedOrdersError(null);
+
+    try {
+      const response = await listLinkedOneTimeOrders(id);
+
+      if (!cancelled) {
+        setLinkedOrders(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setLinkedOrdersError(
+          getErrorMessage(
+            error,
+            'Не удалось загрузить проекцию связанных разовых заказов.',
+          ),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setLinkedOrdersLoading(false);
+      }
+    }
+  };
+
+  const loadObjectFiles = async (
+    id: string,
+    cancelled = false,
+  ): Promise<void> => {
+    setObjectFilesLoading(true);
+    setObjectFilesError(null);
+
+    try {
+      const response = await listFilesByEntity('object', id);
+
+      if (!cancelled) {
+        setObjectFiles(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setObjectFilesError(
+          getErrorMessage(error, 'Не удалось загрузить файлы объекта.'),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setObjectFilesLoading(false);
+      }
+    }
+  };
+
   const loadAssignedEmployees = async (
     id: string,
     cancelled = false,
@@ -585,12 +659,21 @@ export default function ObjectDetailPage({
                 onSave={async (payload) => {
                   const saved = await upsertTodayArrivalPhoto(objectId, {
                     photoUrl: payload.photoUrl,
-                    photoType: payload.photoType ?? 'arrival',
+                    photoType: payload.photoType ?? 'other',
                     comment: payload.comment,
                   });
 
-                  setArrival(saved);
-                  await loadFeed(objectId);
+                  await Promise.all(
+                    payload.files.map((file) =>
+                      uploadFileToEntity({
+                        entityType: 'object_arrival_photo',
+                        entityId: saved.id,
+                        file,
+                      }),
+                    ),
+                  );
+
+                  await Promise.all([loadArrival(objectId), loadFeed(objectId)]);
                 }}
               />
             )}
@@ -606,9 +689,21 @@ export default function ObjectDetailPage({
               <ObjectDailyReportPanel
                 item={report}
                 onSave={async (payload) => {
-                  const saved = await upsertTodayDailyReport(objectId, payload);
-                  setReport(saved);
-                  await loadFeed(objectId);
+                  const saved = await upsertTodayDailyReport(objectId, {
+                    content: payload.content,
+                  });
+
+                  await Promise.all(
+                    payload.files.map((file) =>
+                      uploadFileToEntity({
+                        entityType: 'object_daily_report',
+                        entityId: saved.id,
+                        file,
+                      }),
+                    ),
+                  );
+
+                  await Promise.all([loadReport(objectId), loadFeed(objectId)]);
                 }}
               />
             )}
@@ -671,6 +766,38 @@ export default function ObjectDetailPage({
             />
           )}
 
+          {linkedOrdersLoading ? (
+            <ObjectPanelLoading title="Из разового заказа" />
+          ) : linkedOrdersError ? (
+            <ObjectPanelError
+              title="Из разового заказа"
+              message={linkedOrdersError}
+            />
+          ) : (
+            <LinkedOneTimeOrdersPanel items={linkedOrders} />
+          )}
+
+          {objectFilesLoading ? (
+            <ObjectPanelLoading title="Файлы объекта" />
+          ) : objectFilesError ? (
+            <ObjectPanelError title="Файлы объекта" message={objectFilesError} />
+          ) : (
+            <EntityFilesPanel
+              title="Файлы объекта"
+              files={objectFiles}
+              canUpload={item.capabilities.canEdit}
+              onUpload={async (file) => {
+                await uploadFileToEntity({
+                  entityType: 'object',
+                  entityId: objectId,
+                  file,
+                });
+                await loadObjectFiles(objectId);
+              }}
+              emptyText="Файлы объекта пока не загружены."
+            />
+          )}
+
           {tasksLoading ? (
             <ObjectPanelLoading title="Задачи объекта" />
           ) : tasksError ? (
@@ -702,8 +829,17 @@ export default function ObjectDetailPage({
                     commentType: payload.commentType,
                   });
 
-                  setComments((prev) => [created, ...prev]);
-                  await loadFeed(objectId);
+                  await Promise.all(
+                    payload.files.map((file) =>
+                      uploadFileToEntity({
+                        entityType: 'object_comment',
+                        entityId: created.id,
+                        file,
+                      }),
+                    ),
+                  );
+
+                  await Promise.all([loadComments(objectId), loadFeed(objectId)]);
                 }}
               />
             )}

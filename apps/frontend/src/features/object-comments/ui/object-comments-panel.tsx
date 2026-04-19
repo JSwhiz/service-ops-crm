@@ -3,10 +3,17 @@
 import React, { useState } from 'react';
 
 import type { ObjectComment } from '@/entities/object/model/object-operations.types';
+import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
+import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 
 interface ObjectCommentsPanelProps {
   items: ObjectComment[];
-  onCreate: (payload: { content: string; commentType?: string }) => Promise<void>;
+  onCreate: (payload: {
+    content: string;
+    commentType?: string;
+    files: File[];
+  }) => Promise<void>;
 }
 
 export function ObjectCommentsPanel({
@@ -14,6 +21,7 @@ export function ObjectCommentsPanel({
   onCreate,
 }: ObjectCommentsPanelProps): React.JSX.Element {
   const [content, setContent] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,8 +33,12 @@ export function ObjectCommentsPanel({
     setError(null);
 
     try {
-      await onCreate({ content });
+      await onCreate({
+        content,
+        files: pendingFiles,
+      });
       setContent('');
+      setPendingFiles([]);
     } catch {
       setError('Не удалось добавить комментарий.');
     } finally {
@@ -46,16 +58,35 @@ export function ObjectCommentsPanel({
             onChange={(event) => setContent(event.target.value)}
             rows={4}
             style={{ width: '100%', padding: 10, resize: 'vertical' }}
-            required
           />
         </label>
+
+        <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+          <div className="page-muted">Медиа и файлы комментария</div>
+          <MediaActionPicker
+            disabled={isSubmitting}
+            onPick={async (file) => {
+              setPendingFiles((prev) => [...prev, file]);
+            }}
+          />
+          <PendingMediaList
+            files={pendingFiles}
+            onRemove={(index) =>
+              setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
+            }
+            emptyText="Новых вложений к комментарию пока нет."
+          />
+        </div>
 
         {error ? (
           <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>
         ) : null}
 
         <div style={{ marginTop: 12 }}>
-          <button type="submit" disabled={isSubmitting}>
+          <button
+            type="submit"
+            disabled={isSubmitting || (!content.trim() && pendingFiles.length === 0)}
+          >
             {isSubmitting ? 'Сохраняем...' : 'Добавить комментарий'}
           </button>
         </div>
@@ -77,7 +108,13 @@ export function ObjectCommentsPanel({
               <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>
                 {item.createdBy.fullName}
               </div>
-              <div>{item.content}</div>
+              {item.content ? <div>{item.content}</div> : null}
+              <div style={{ marginTop: 10 }}>
+                <AttachmentPreviewList
+                  files={item.attachments}
+                  emptyText="Вложений у комментария нет."
+                />
+              </div>
             </div>
           ))
         )}

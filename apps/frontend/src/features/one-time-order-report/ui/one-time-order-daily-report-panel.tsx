@@ -2,20 +2,18 @@
 
 import React, { useEffect, useState } from 'react';
 
-import type { ObjectDailyReport } from '@/entities/object/model/object-operations.types';
+import type { OneTimeOrderDailyReportItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 
-interface ObjectDailyReportPanelProps {
-  item: ObjectDailyReport | null;
-  onSave: (payload: { content: string; files: File[] }) => Promise<void>;
-}
-
-export function ObjectDailyReportPanel({
+export function OneTimeOrderDailyReportPanel({
   item,
   onSave,
-}: ObjectDailyReportPanelProps): React.JSX.Element {
+}: {
+  item: OneTimeOrderDailyReportItem | null;
+  onSave: (payload: { content: string; files: File[] }) => Promise<void>;
+}): React.JSX.Element {
   const [content, setContent] = useState(item?.content ?? '');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,29 +24,11 @@ export function ObjectDailyReportPanel({
     setPendingFiles([]);
   }, [item]);
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> => {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      await onSave({
-        content,
-        files: pendingFiles,
-      });
-      setPendingFiles([]);
-    } catch {
-      setError('Не удалось сохранить ежедневный отчет.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <div className="page-card">
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>Ежедневный отчет</div>
+      <div style={{ fontWeight: 600, marginBottom: 12 }}>
+        Ежедневный отчет заказа
+      </div>
 
       {item ? (
         <div className="page-muted" style={{ marginBottom: 12 }}>
@@ -60,15 +40,33 @@ export function ObjectDailyReportPanel({
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setError(null);
+          setIsSubmitting(true);
+
+          try {
+            await onSave({
+              content,
+              files: pendingFiles,
+            });
+            setPendingFiles([]);
+          } catch {
+            setError('Не удалось сохранить ежедневный отчет заказа.');
+          } finally {
+            setIsSubmitting(false);
+          }
+        }}
+      >
         <label>
           <div style={{ marginBottom: 6 }}>Текст отчета</div>
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            rows={8}
+            rows={6}
             style={{ width: '100%', padding: 10, resize: 'vertical' }}
-            placeholder="Что было сделано за день..."
+            placeholder="Что произошло по разовому заказу за день..."
           />
         </label>
 
@@ -105,7 +103,11 @@ export function ObjectDailyReportPanel({
             type="submit"
             disabled={isSubmitting || (!content.trim() && pendingFiles.length === 0)}
           >
-            {isSubmitting ? 'Сохраняем...' : item ? 'Обновить отчет дня' : 'Сохранить отчет дня'}
+            {isSubmitting
+              ? 'Сохраняем...'
+              : item
+                ? 'Обновить отчет заказа'
+                : 'Сохранить отчет заказа'}
           </button>
         </div>
       </form>

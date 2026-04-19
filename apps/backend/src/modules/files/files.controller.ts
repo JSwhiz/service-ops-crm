@@ -67,7 +67,7 @@ export class FilesController {
     response.setHeader('Content-Length', String(file.sizeBytes));
     response.setHeader(
       'Content-Disposition',
-      `attachment; filename="${safeFileName}"`,
+      `${file.mimeType.startsWith('image/') ? 'inline' : 'attachment'}; filename="${safeFileName}"`,
     );
     response.send(file.body);
   }

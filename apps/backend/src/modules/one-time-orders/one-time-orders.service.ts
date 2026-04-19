@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { AuditService } from '../audit/audit.service';
+import { FileResponseDto } from '../files/dto/file-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { TasksService } from '../tasks/tasks.service';
@@ -12,11 +13,15 @@ import { TasksService } from '../tasks/tasks.service';
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
+import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
+import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
+import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
+import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
 import { buildOneTimeOrderCapabilities, canOpenLinkedObjectCard } from './utils/one-time-order-capabilities.util';
 import {
@@ -84,6 +89,53 @@ interface OneTimeOrderView {
       }
     | null;
   assignments: OneTimeOrderAssignmentView[];
+}
+
+interface OneTimeOrderDailyReportView {
+  id: string;
+  oneTimeOrderId: string;
+  reportDate: Date;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  updatedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+}
+
+interface OneTimeOrderPhotoView {
+  id: string;
+  oneTimeOrderId: string;
+  photoCategory: string;
+  comment: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+}
+
+interface StoredFileView {
+  id: string;
+  bucket: string;
+  objectKey: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedByUserId: string | null;
+  createdAt: Date;
+  attachments: Array<{
+    id: string;
+    entityType: string;
+    entityId: string;
+    fieldCode: string | null;
+    uploadedByUserId: string | null;
+    createdAt: Date;
+  }>;
 }
 
 type AuditPrimitive = string | number | boolean | null;
@@ -450,7 +502,14 @@ export class OneTimeOrdersService {
       take: 50,
     });
 
-    return items.map((item) => this.mapComment(item));
+    const attachmentsMap = await this.listAttachmentsByEntityIds(
+      'one_time_order_comment',
+      items.map((item) => item.id),
+    );
+
+    return items.map((item) =>
+      this.mapComment(item, attachmentsMap.get(item.id) ?? []),
+    );
   }
 
   async createComment(
@@ -492,7 +551,142 @@ export class OneTimeOrdersService {
       },
     });
 
-    return this.mapComment(created);
+    return this.mapComment(created, []);
+  }
+
+  async getTodayDailyReport(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderDailyReportResponseDto | null> {
+    await this.getOrderById(currentUser, id);
+
+    const item = (await this.prisma.oneTimeOrderDailyReport.findUnique({
+      where: {
+        oneTimeOrderId_reportDate: {
+          oneTimeOrderId: id,
+          reportDate: this.startOfToday(),
+        },
+      },
+      include: {
+        updatedBy: true,
+      },
+    })) as OneTimeOrderDailyReportView | null;
+
+    if (!item) {
+      return null;
+    }
+
+    const attachmentsMap = await this.listAttachmentsByEntityIds(
+      'one_time_order_daily_report',
+      [item.id],
+    );
+
+    return this.mapDailyReport(item, attachmentsMap.get(item.id) ?? []);
+  }
+
+  async upsertTodayDailyReport(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: UpsertOneTimeOrderDailyReportDto,
+  ): Promise<OneTimeOrderDailyReportResponseDto> {
+    await this.getOrderForWrite(currentUser, id);
+
+    const item = (await this.prisma.oneTimeOrderDailyReport.upsert({
+      where: {
+        oneTimeOrderId_reportDate: {
+          oneTimeOrderId: id,
+          reportDate: this.startOfToday(),
+        },
+      },
+      update: {
+        content: payload.content,
+        updatedByUserId: currentUser.id,
+      },
+      create: {
+        oneTimeOrderId: id,
+        reportDate: this.startOfToday(),
+        content: payload.content,
+        updatedByUserId: currentUser.id,
+      },
+      include: {
+        updatedBy: true,
+      },
+    })) as OneTimeOrderDailyReportView;
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.daily_report_upserted',
+      metadata: {
+        reportId: item.id,
+        reportDate: item.reportDate.toISOString(),
+      },
+    });
+
+    return this.mapDailyReport(item, []);
+  }
+
+  async listPhotos(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderPhotoResponseDto[]> {
+    await this.getOrderById(currentUser, id);
+
+    const items = (await this.prisma.oneTimeOrderPhoto.findMany({
+      where: {
+        oneTimeOrderId: id,
+      },
+      include: {
+        createdBy: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 100,
+    })) as OneTimeOrderPhotoView[];
+
+    const attachmentsMap = await this.listAttachmentsByEntityIds(
+      'one_time_order_photo',
+      items.map((item) => item.id),
+    );
+
+    return items.map((item) =>
+      this.mapPhoto(item, attachmentsMap.get(item.id) ?? []),
+    );
+  }
+
+  async createPhoto(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: CreateOneTimeOrderPhotoDto,
+  ): Promise<OneTimeOrderPhotoResponseDto> {
+    await this.getOrderForWrite(currentUser, id);
+
+    const item = (await this.prisma.oneTimeOrderPhoto.create({
+      data: {
+        oneTimeOrderId: id,
+        photoCategory: payload.category,
+        comment: payload.comment?.trim() || null,
+        createdByUserId: currentUser.id,
+      },
+      include: {
+        createdBy: true,
+      },
+    })) as OneTimeOrderPhotoView;
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.photo_created',
+      metadata: {
+        photoId: item.id,
+        category: item.photoCategory,
+      },
+    });
+
+    return this.mapPhoto(item, []);
   }
 
   async listHistory(
@@ -773,7 +967,7 @@ export class OneTimeOrdersService {
       login: string;
       fullName: string;
     };
-  }): OneTimeOrderCommentResponseDto {
+  }, attachments: FileResponseDto[]): OneTimeOrderCommentResponseDto {
     return {
       id: item.id,
       oneTimeOrderId: item.oneTimeOrderId,
@@ -786,6 +980,47 @@ export class OneTimeOrdersService {
         login: item.createdBy.login,
         fullName: item.createdBy.fullName,
       },
+      attachments,
+    };
+  }
+
+  private mapDailyReport(
+    item: OneTimeOrderDailyReportView,
+    attachments: FileResponseDto[],
+  ): OneTimeOrderDailyReportResponseDto {
+    return {
+      id: item.id,
+      oneTimeOrderId: item.oneTimeOrderId,
+      reportDate: item.reportDate.toISOString(),
+      content: item.content,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      updatedBy: {
+        id: item.updatedBy.id,
+        login: item.updatedBy.login,
+        fullName: item.updatedBy.fullName,
+      },
+      attachments,
+    };
+  }
+
+  private mapPhoto(
+    item: OneTimeOrderPhotoView,
+    attachments: FileResponseDto[],
+  ): OneTimeOrderPhotoResponseDto {
+    return {
+      id: item.id,
+      oneTimeOrderId: item.oneTimeOrderId,
+      category: item.photoCategory,
+      comment: item.comment,
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      createdBy: {
+        id: item.createdBy.id,
+        login: item.createdBy.login,
+        fullName: item.createdBy.fullName,
+      },
+      attachments,
     };
   }
 
@@ -859,5 +1094,77 @@ export class OneTimeOrdersService {
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private startOfToday(): Date {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  private async listAttachmentsByEntityIds(
+    entityType: string,
+    entityIds: string[],
+  ): Promise<Map<string, FileResponseDto[]>> {
+    const map = new Map<string, FileResponseDto[]>();
+
+    if (entityIds.length === 0) {
+      return map;
+    }
+
+    const rows = await this.prisma.fileAttachment.findMany({
+      where: {
+        entityType,
+        entityId: {
+          in: entityIds,
+        },
+        file: {
+          deletedAt: null,
+        },
+      },
+      include: {
+        file: {
+          include: {
+            attachments: {
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    for (const row of rows) {
+      const items = map.get(row.entityId) ?? [];
+      items.push(this.mapFile(row.file as StoredFileView));
+      map.set(row.entityId, items);
+    }
+
+    return map;
+  }
+
+  private mapFile(file: StoredFileView): FileResponseDto {
+    return {
+      id: file.id,
+      bucket: file.bucket,
+      objectKey: file.objectKey,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+      uploadedByUserId: file.uploadedByUserId,
+      createdAt: file.createdAt.toISOString(),
+      url: `/api/v1/files/${file.id}/content`,
+      attachments: file.attachments.map((attachment) => ({
+        id: attachment.id,
+        entityType: attachment.entityType,
+        entityId: attachment.entityId,
+        fieldCode: attachment.fieldCode,
+        uploadedByUserId: attachment.uploadedByUserId,
+        createdAt: attachment.createdAt.toISOString(),
+      })),
+    };
   }
 }

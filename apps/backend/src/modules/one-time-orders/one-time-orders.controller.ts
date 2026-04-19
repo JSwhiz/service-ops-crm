@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -17,11 +18,15 @@ import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
+import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
+import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
+import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
+import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
 import { OneTimeOrdersService } from './one-time-orders.service';
 
@@ -105,6 +110,40 @@ export class OneTimeOrdersController {
     @Param('id') id: string,
   ): Promise<OneTimeOrderCommentResponseDto[]> {
     return this.oneTimeOrdersService.listComments(user, id);
+  }
+
+  @Get(':id/daily-report/today')
+  getTodayDailyReport(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<OneTimeOrderDailyReportResponseDto | null> {
+    return this.oneTimeOrdersService.getTodayDailyReport(user, id);
+  }
+
+  @Put(':id/daily-report/today')
+  upsertTodayDailyReport(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: UpsertOneTimeOrderDailyReportDto,
+  ): Promise<OneTimeOrderDailyReportResponseDto> {
+    return this.oneTimeOrdersService.upsertTodayDailyReport(user, id, payload);
+  }
+
+  @Get(':id/photos')
+  listPhotos(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<OneTimeOrderPhotoResponseDto[]> {
+    return this.oneTimeOrdersService.listPhotos(user, id);
+  }
+
+  @Post(':id/photos')
+  createPhoto(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: CreateOneTimeOrderPhotoDto,
+  ): Promise<OneTimeOrderPhotoResponseDto> {
+    return this.oneTimeOrdersService.createPhoto(user, id, payload);
   }
 
   @Post(':id/comments')

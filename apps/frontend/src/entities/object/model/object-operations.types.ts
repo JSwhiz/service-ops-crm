@@ -1,3 +1,5 @@
+import type { AttachedFile } from '@/entities/file/model/file.types';
+
 export interface ObjectEmployeeOption {
   id: string;
   fullName: string;
@@ -26,7 +28,7 @@ export interface ObjectArrivalPhoto {
   id: string;
   objectId: string;
   operationDate: string;
-  photoUrl: string;
+  photoUrl: string | null;
   photoType: string | null;
   comment: string | null;
   createdAt: string;
@@ -36,6 +38,7 @@ export interface ObjectArrivalPhoto {
     login: string;
     fullName: string;
   };
+  attachments: AttachedFile[];
 }
 
 export interface ObjectDailyReport {
@@ -50,6 +53,7 @@ export interface ObjectDailyReport {
     login: string;
     fullName: string;
   };
+  attachments: AttachedFile[];
 }
 
 export interface ObjectComment {
@@ -63,6 +67,28 @@ export interface ObjectComment {
     id: string;
     login: string;
     fullName: string;
+  };
+  attachments: AttachedFile[];
+}
+
+export interface LinkedOneTimeOrderProjection {
+  id: string;
+  title: string;
+  status: string;
+  executionDate: string | null;
+  agreedSum: number | null;
+  canOpenOrderCard: boolean;
+  managers: Array<{
+    userId: string;
+    fullName: string;
+    roleCode: string;
+  }>;
+  summary: {
+    commentsCount: number;
+    reportsCount: number;
+    photosCount: number;
+    filesCount: number;
+    tasksCount: number;
   };
 }
 

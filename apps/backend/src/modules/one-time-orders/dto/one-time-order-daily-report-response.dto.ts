@@ -1,13 +1,13 @@
 import { FileResponseDto } from '../../files/dto/file-response.dto';
 
-export class OneTimeOrderCommentResponseDto {
+export class OneTimeOrderDailyReportResponseDto {
   id!: string;
   oneTimeOrderId!: string;
+  reportDate!: string;
   content!: string;
-  commentType!: string;
   createdAt!: string;
   updatedAt!: string;
-  createdBy!: {
+  updatedBy!: {
     id: string;
     login: string;
     fullName: string;

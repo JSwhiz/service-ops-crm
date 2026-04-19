@@ -300,6 +300,24 @@ export class FilesService {
         return this.canAccessObjectScopedEntity(currentUser, 'objectDailyReport', entityId);
       case 'object_comment':
         return this.canAccessObjectScopedEntity(currentUser, 'objectComment', entityId);
+      case 'one_time_order_comment':
+        return this.canAccessOneTimeOrderScopedEntity(
+          currentUser,
+          'oneTimeOrderComment',
+          entityId,
+        );
+      case 'one_time_order_daily_report':
+        return this.canAccessOneTimeOrderScopedEntity(
+          currentUser,
+          'oneTimeOrderDailyReport',
+          entityId,
+        );
+      case 'one_time_order_photo':
+        return this.canAccessOneTimeOrderScopedEntity(
+          currentUser,
+          'oneTimeOrderPhoto',
+          entityId,
+        );
       case 'task':
         return this.canAccessTask(currentUser, entityId);
       case 'one_time_order':
@@ -324,8 +342,29 @@ export class FilesService {
             ? 'objectArrivalPhoto'
             : entityType === 'object_daily_report'
               ? 'objectDailyReport'
-              : 'objectComment',
+            : 'objectComment',
           entityId,
+        );
+      case 'one_time_order_comment':
+        return this.canAccessOneTimeOrderScopedEntity(
+          currentUser,
+          'oneTimeOrderComment',
+          entityId,
+          'write',
+        );
+      case 'one_time_order_daily_report':
+        return this.canAccessOneTimeOrderScopedEntity(
+          currentUser,
+          'oneTimeOrderDailyReport',
+          entityId,
+          'write',
+        );
+      case 'one_time_order_photo':
+        return this.canAccessOneTimeOrderScopedEntity(
+          currentUser,
+          'oneTimeOrderPhoto',
+          entityId,
+          'write',
         );
       case 'task':
         return this.canAccessTask(currentUser, entityId);
@@ -544,6 +583,43 @@ export class FilesService {
       roleCodes,
       order,
     });
+  }
+
+  private async canAccessOneTimeOrderScopedEntity(
+    currentUser: CurrentAuthUser,
+    modelName:
+      | 'oneTimeOrderComment'
+      | 'oneTimeOrderDailyReport'
+      | 'oneTimeOrderPhoto',
+    entityId: string,
+    mode: 'read' | 'write' = 'read',
+  ): Promise<boolean> {
+    const model = (this.prisma as unknown as {
+      oneTimeOrderComment: {
+        findFirst(args: unknown): Promise<{ oneTimeOrderId: string } | null>;
+      };
+      oneTimeOrderDailyReport: {
+        findFirst(args: unknown): Promise<{ oneTimeOrderId: string } | null>;
+      };
+      oneTimeOrderPhoto: {
+        findFirst(args: unknown): Promise<{ oneTimeOrderId: string } | null>;
+      };
+    })[modelName];
+
+    const item = await model.findFirst({
+      where: {
+        id: entityId,
+      },
+      select: {
+        oneTimeOrderId: true,
+      },
+    });
+
+    if (!item) {
+      throw new NotFoundException('Attachment target one-time order entity not found');
+    }
+
+    return this.canAccessOneTimeOrder(currentUser, item.oneTimeOrderId, mode);
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

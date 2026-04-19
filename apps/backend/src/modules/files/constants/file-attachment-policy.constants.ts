@@ -11,6 +11,15 @@ export const FILE_ATTACHMENT_POLICY = {
   object_comment: {
     fieldCodes: [],
   },
+  one_time_order_comment: {
+    fieldCodes: [],
+  },
+  one_time_order_daily_report: {
+    fieldCodes: [],
+  },
+  one_time_order_photo: {
+    fieldCodes: [],
+  },
   task: {
     fieldCodes: [],
   },

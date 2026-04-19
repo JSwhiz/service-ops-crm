@@ -18,6 +18,7 @@ import { CreateArrivalPhotoDto } from './dto/create-arrival-photo.dto';
 import { CreateObjectCommentDto } from './dto/create-object-comment.dto';
 import { ListEmployeeDirectoryQueryDto } from './dto/list-employee-directory-query.dto';
 import { ListObjectFeedQueryDto } from './dto/list-object-feed-query.dto';
+import { LinkedOneTimeOrderProjectionDto } from './dto/linked-one-time-order-projection.dto';
 import { ObjectArrivalPhotoResponseDto } from './dto/object-arrival-photo-response.dto';
 import { ObjectAttendanceResponseDto } from './dto/object-attendance-response.dto';
 import { ObjectCommentResponseDto } from './dto/object-comment-response.dto';
@@ -110,6 +111,14 @@ export class ObjectOperationsController {
     @Query() query: ListObjectFeedQueryDto,
   ): Promise<ObjectFeedItemDto[]> {
     return this.objectOperationsService.getFeed(user, objectId, query);
+  }
+
+  @Get('linked-one-time-orders')
+  listLinkedOneTimeOrders(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+  ): Promise<LinkedOneTimeOrderProjectionDto[]> {
+    return this.objectOperationsService.listLinkedOneTimeOrders(user, objectId);
   }
 
   @Get('employees')

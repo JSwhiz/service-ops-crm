@@ -1,3 +1,5 @@
+import { FileResponseDto } from '../../files/dto/file-response.dto';
+
 export class ObjectCommentResponseDto {
   id!: string;
   objectId!: string;
@@ -10,4 +12,5 @@ export class ObjectCommentResponseDto {
     login: string;
     fullName: string;
   };
+  attachments!: FileResponseDto[];
 }

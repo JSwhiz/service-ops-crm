@@ -7,6 +7,10 @@ import {
 
 import { EmployeeAssignmentHistoryService } from '../employees/employee-assignment-history.service';
 import { EMPLOYEE_SUBSTITUTION_STATUSES } from '../employees/constants/employee-hr.constants';
+import { FileResponseDto } from '../files/dto/file-response.dto';
+import {
+  canViewOneTimeOrderByScope,
+} from '../one-time-orders/utils/one-time-order-access.util';
 import { canViewObjectByScope } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -21,6 +25,7 @@ import { ObjectCommentResponseDto } from './dto/object-comment-response.dto';
 import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response.dto';
 import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
+import { LinkedOneTimeOrderProjectionDto } from './dto/linked-one-time-order-projection.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 
@@ -66,6 +71,54 @@ interface ObjectEmployeeSubstitutionView {
   comment: string | null;
 }
 
+interface StoredFileView {
+  id: string;
+  bucket: string;
+  objectKey: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedByUserId: string | null;
+  createdAt: Date;
+  attachments: Array<{
+    id: string;
+    entityType: string;
+    entityId: string;
+    fieldCode: string | null;
+    uploadedByUserId: string | null;
+    createdAt: Date;
+  }>;
+}
+
+interface LinkedOneTimeOrderView {
+  id: string;
+  title: string;
+  status: string;
+  executionDate: Date | null;
+  agreedSum: number | null;
+  createdByUserId: string;
+  assignments: Array<{
+    userId: string;
+    assignmentRoleCode: string;
+    isActive: boolean;
+    user: {
+      id: string;
+      fullName: string;
+      roles: Array<{
+        role: {
+          code: string;
+        };
+      }>;
+    };
+  }>;
+  _count: {
+    comments: number;
+    dailyReports: number;
+    photos: number;
+    tasks: number;
+  };
+}
+
 @Injectable()
 export class ObjectOperationsService {
   constructor(
@@ -95,7 +148,12 @@ export class ObjectOperationsService {
       return null;
     }
 
-    return this.mapArrivalPhoto(item);
+    const attachmentsMap = await this.listAttachmentsByEntityIds(
+      'object_arrival_photo',
+      [item.id],
+    );
+
+    return this.mapArrivalPhoto(item, attachmentsMap.get(item.id) ?? []);
   }
 
   async upsertTodayArrivalPhoto(
@@ -113,7 +171,7 @@ export class ObjectOperationsService {
         },
       },
       update: {
-        photoUrl: payload.photoUrl,
+        photoUrl: payload.photoUrl ?? null,
         photoType: payload.photoType ?? null,
         comment: payload.comment ?? null,
         createdByUserId: currentUser.id,
@@ -121,7 +179,7 @@ export class ObjectOperationsService {
       create: {
         objectId,
         operationDate: startOfToday(),
-        photoUrl: payload.photoUrl,
+        photoUrl: payload.photoUrl ?? null,
         photoType: payload.photoType ?? null,
         comment: payload.comment ?? null,
         createdByUserId: currentUser.id,
@@ -131,7 +189,7 @@ export class ObjectOperationsService {
       },
     });
 
-    return this.mapArrivalPhoto(item);
+    return this.mapArrivalPhoto(item, []);
   }
 
   async getTodayDailyReport(
@@ -156,7 +214,12 @@ export class ObjectOperationsService {
       return null;
     }
 
-    return this.mapDailyReport(item);
+    const attachmentsMap = await this.listAttachmentsByEntityIds(
+      'object_daily_report',
+      [item.id],
+    );
+
+    return this.mapDailyReport(item, attachmentsMap.get(item.id) ?? []);
   }
 
   async upsertTodayDailyReport(
@@ -188,7 +251,7 @@ export class ObjectOperationsService {
       },
     });
 
-    return this.mapDailyReport(item);
+    return this.mapDailyReport(item, []);
   }
 
   async listComments(
@@ -204,7 +267,14 @@ export class ObjectOperationsService {
       take: 30,
     });
 
-    return items.map((item) => this.mapComment(item));
+    const attachmentsMap = await this.listAttachmentsByEntityIds(
+      'object_comment',
+      items.map((item) => item.id),
+    );
+
+    return items.map((item) =>
+      this.mapComment(item, attachmentsMap.get(item.id) ?? []),
+    );
   }
 
   async createComment(
@@ -226,7 +296,7 @@ export class ObjectOperationsService {
       },
     });
 
-    return this.mapComment(item);
+    return this.mapComment(item, []);
   }
 
   async getFeed(
@@ -265,7 +335,7 @@ export class ObjectOperationsService {
         id: item.id,
         occurredAt: item.updatedAt.toISOString(),
         title: 'Фото прибытия',
-        description: item.comment ?? item.photoUrl,
+        description: item.comment ?? item.photoUrl ?? 'Фото без описания',
         author: {
           id: item.createdBy.id,
           login: item.createdBy.login,
@@ -370,6 +440,109 @@ export class ObjectOperationsService {
         substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
       }),
     );
+  }
+
+  async listLinkedOneTimeOrders(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<LinkedOneTimeOrderProjectionDto[]> {
+    await this.assertObjectVisible(currentUser, objectId);
+
+    const orders = (await this.prisma.oneTimeOrder.findMany({
+      where: {
+        linkedObjectId: objectId,
+      },
+      include: {
+        assignments: {
+          where: {
+            isActive: true,
+            assignmentRoleCode: 'one_time_manager',
+          },
+          include: {
+            user: {
+              include: {
+                roles: {
+                  include: {
+                    role: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            comments: true,
+            dailyReports: true,
+            photos: true,
+            tasks: true,
+          },
+        },
+      },
+      orderBy: [
+        {
+          executionDate: 'desc',
+        },
+        {
+          createdAt: 'desc',
+        },
+      ],
+    })) as LinkedOneTimeOrderView[];
+
+    const fileRows = await this.prisma.fileAttachment.findMany({
+      where: {
+        entityType: 'one_time_order',
+        entityId: {
+          in: orders.map((order) => order.id),
+        },
+        file: {
+          deletedAt: null,
+        },
+      },
+      select: {
+        entityId: true,
+      },
+    });
+
+    const fileCountMap = new Map<string, number>();
+
+    for (const row of fileRows) {
+      fileCountMap.set(row.entityId, (fileCountMap.get(row.entityId) ?? 0) + 1);
+    }
+
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    return orders.map((order) => ({
+      id: order.id,
+      title: order.title,
+      status: order.status,
+      executionDate: order.executionDate?.toISOString() ?? null,
+      agreedSum: order.agreedSum,
+      canOpenOrderCard: canViewOneTimeOrderByScope({
+        currentUserId: currentUser.id,
+        roleCodes,
+        order: {
+          createdByUserId: order.createdByUserId,
+          assignments: order.assignments.map((assignment) => ({
+            userId: assignment.userId,
+            assignmentRoleCode: assignment.assignmentRoleCode,
+            isActive: assignment.isActive,
+          })),
+        },
+      }),
+      managers: order.assignments.map((assignment) => ({
+        userId: assignment.user.id,
+        fullName: assignment.user.fullName,
+        roleCode: assignment.user.roles[0]?.role.code ?? 'unknown',
+      })),
+      summary: {
+        commentsCount: order._count.comments,
+        reportsCount: order._count.dailyReports,
+        photosCount: order._count.photos,
+        filesCount: fileCountMap.get(order.id) ?? 0,
+        tasksCount: order._count.tasks,
+      },
+    }));
   }
 
   async searchEmployeeDirectory(
@@ -1190,7 +1363,7 @@ export class ObjectOperationsService {
     id: string;
     objectId: string;
     operationDate: Date;
-    photoUrl: string;
+    photoUrl: string | null;
     photoType: string | null;
     comment: string | null;
     createdAt: Date;
@@ -1200,7 +1373,7 @@ export class ObjectOperationsService {
       login: string;
       fullName: string;
     };
-  }): ObjectArrivalPhotoResponseDto {
+  }, attachments: FileResponseDto[]): ObjectArrivalPhotoResponseDto {
     return {
       id: item.id,
       objectId: item.objectId,
@@ -1215,6 +1388,7 @@ export class ObjectOperationsService {
         login: item.createdBy.login,
         fullName: item.createdBy.fullName,
       },
+      attachments,
     };
   }
 
@@ -1230,7 +1404,7 @@ export class ObjectOperationsService {
       login: string;
       fullName: string;
     };
-  }): ObjectDailyReportResponseDto {
+  }, attachments: FileResponseDto[]): ObjectDailyReportResponseDto {
     return {
       id: item.id,
       objectId: item.objectId,
@@ -1243,6 +1417,7 @@ export class ObjectOperationsService {
         login: item.updatedBy.login,
         fullName: item.updatedBy.fullName,
       },
+      attachments,
     };
   }
 
@@ -1258,7 +1433,7 @@ export class ObjectOperationsService {
       login: string;
       fullName: string;
     };
-  }): ObjectCommentResponseDto {
+  }, attachments: FileResponseDto[]): ObjectCommentResponseDto {
     return {
       id: item.id,
       objectId: item.objectId,
@@ -1271,6 +1446,74 @@ export class ObjectOperationsService {
         login: item.createdBy.login,
         fullName: item.createdBy.fullName,
       },
+      attachments,
+    };
+  }
+
+  private async listAttachmentsByEntityIds(
+    entityType: string,
+    entityIds: string[],
+  ): Promise<Map<string, FileResponseDto[]>> {
+    const map = new Map<string, FileResponseDto[]>();
+
+    if (entityIds.length === 0) {
+      return map;
+    }
+
+    const rows = await this.prisma.fileAttachment.findMany({
+      where: {
+        entityType,
+        entityId: {
+          in: entityIds,
+        },
+        file: {
+          deletedAt: null,
+        },
+      },
+      include: {
+        file: {
+          include: {
+            attachments: {
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+
+    for (const row of rows) {
+      const items = map.get(row.entityId) ?? [];
+      items.push(this.mapFile(row.file as StoredFileView));
+      map.set(row.entityId, items);
+    }
+
+    return map;
+  }
+
+  private mapFile(file: StoredFileView): FileResponseDto {
+    return {
+      id: file.id,
+      bucket: file.bucket,
+      objectKey: file.objectKey,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+      uploadedByUserId: file.uploadedByUserId,
+      createdAt: file.createdAt.toISOString(),
+      url: `/api/v1/files/${file.id}/content`,
+      attachments: file.attachments.map((attachment) => ({
+        id: attachment.id,
+        entityType: attachment.entityType,
+        entityId: attachment.entityId,
+        fieldCode: attachment.fieldCode,
+        uploadedByUserId: attachment.uploadedByUserId,
+        createdAt: attachment.createdAt.toISOString(),
+      })),
     };
   }
 

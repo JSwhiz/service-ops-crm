@@ -23,6 +23,9 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
   ]);
 
   let orderId: string | null = null;
+  let commentId: string | null = null;
+  let reportId: string | null = null;
+  let photoId: string | null = null;
   const createdFileIds: string[] = [];
 
   await prisma.objectAssignment.upsert({
@@ -46,11 +49,41 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   t.after(async () => {
     if (orderId) {
+      const attachmentEntityFilters = [
+        {
+          entityType: 'one_time_order',
+          entityId: orderId,
+        },
+        ...(commentId
+          ? [
+              {
+                entityType: 'one_time_order_comment',
+                entityId: commentId,
+              },
+            ]
+          : []),
+        ...(reportId
+          ? [
+              {
+                entityType: 'one_time_order_daily_report',
+                entityId: reportId,
+              },
+            ]
+          : []),
+        ...(photoId
+          ? [
+              {
+                entityType: 'one_time_order_photo',
+                entityId: photoId,
+              },
+            ]
+          : []),
+      ] as Array<{ entityType: string; entityId: string }>;
+
       const fileAttachmentFileIds = (
         await prisma.fileAttachment.findMany({
           where: {
-            entityType: 'one_time_order',
-            entityId: orderId,
+            OR: attachmentEntityFilters,
           },
           select: {
             fileId: true,
@@ -74,6 +107,18 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
         },
       });
 
+      await prisma.oneTimeOrderPhoto.deleteMany({
+        where: {
+          oneTimeOrderId: orderId,
+        },
+      });
+
+      await prisma.oneTimeOrderDailyReport.deleteMany({
+        where: {
+          oneTimeOrderId: orderId,
+        },
+      });
+
       await prisma.oneTimeOrderComment.deleteMany({
         where: {
           oneTimeOrderId: orderId,
@@ -82,8 +127,7 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
       await prisma.fileAttachment.deleteMany({
         where: {
-          entityType: 'one_time_order',
-          entityId: orderId,
+          OR: attachmentEntityFilters,
         },
       });
 
@@ -268,6 +312,111 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   assert.equal(commentResponse.status, 201);
 
+  const createdComment = (await commentResponse.json()) as { id: string };
+  commentId = createdComment.id;
+
+  const commentAttachmentForm = new FormData();
+  commentAttachmentForm.set('entityType', 'one_time_order_comment');
+  commentAttachmentForm.set('entityId', createdComment.id);
+  commentAttachmentForm.set(
+    'file',
+    new Blob(['comment image'], { type: 'image/jpeg' }),
+    'comment.jpg',
+  );
+
+  const commentUploadResponse = await fetch(`${baseUrl}/api/v1/files/upload`, {
+    method: 'POST',
+    headers: {
+      Cookie: managerOneCookie,
+    },
+    body: commentAttachmentForm,
+  });
+
+  assert.equal(commentUploadResponse.status, 201);
+
+  createdFileIds.push(((await commentUploadResponse.json()) as { id: string }).id);
+
+  const dailyReportResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${orderId}/daily-report/today`,
+    {
+      method: 'PUT',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: 'Сегодня выполнен выезд по заказу',
+      }),
+    },
+  );
+
+  assert.equal(dailyReportResponse.status, 200);
+
+  const createdReport = (await dailyReportResponse.json()) as { id: string };
+  reportId = createdReport.id;
+
+  const reportAttachmentForm = new FormData();
+  reportAttachmentForm.set('entityType', 'one_time_order_daily_report');
+  reportAttachmentForm.set('entityId', createdReport.id);
+  reportAttachmentForm.set(
+    'file',
+    new Blob(['report image'], { type: 'image/jpeg' }),
+    'report.jpg',
+  );
+
+  const reportUploadResponse = await fetch(`${baseUrl}/api/v1/files/upload`, {
+    method: 'POST',
+    headers: {
+      Cookie: managerOneCookie,
+    },
+    body: reportAttachmentForm,
+  });
+
+  assert.equal(reportUploadResponse.status, 201);
+
+  createdFileIds.push(((await reportUploadResponse.json()) as { id: string }).id);
+
+  const photoCreateResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${orderId}/photos`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        category: 'before',
+        comment: 'Фото до начала работ',
+      }),
+    },
+  );
+
+  assert.equal(photoCreateResponse.status, 201);
+
+  const createdPhoto = (await photoCreateResponse.json()) as { id: string };
+  photoId = createdPhoto.id;
+
+  const photoAttachmentForm = new FormData();
+  photoAttachmentForm.set('entityType', 'one_time_order_photo');
+  photoAttachmentForm.set('entityId', createdPhoto.id);
+  photoAttachmentForm.set(
+    'file',
+    new Blob(['before image'], { type: 'image/jpeg' }),
+    'before.jpg',
+  );
+
+  const photoUploadResponse = await fetch(`${baseUrl}/api/v1/files/upload`, {
+    method: 'POST',
+    headers: {
+      Cookie: managerOneCookie,
+    },
+    body: photoAttachmentForm,
+  });
+
+  assert.equal(photoUploadResponse.status, 201);
+
+  createdFileIds.push(((await photoUploadResponse.json()) as { id: string }).id);
+
   const form = new FormData();
   form.set('entityType', 'one_time_order');
   form.set('entityId', orderId);
@@ -348,4 +497,35 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   const updatedOrder = (await statusChangeResponse.json()) as { status: string };
   assert.equal(updatedOrder.status, 'in_progress');
+
+  const linkedOrdersProjectionResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${SEEDED_OBJECT_ID}/linked-one-time-orders`,
+    {
+      headers: {
+        Cookie: founderCookie,
+      },
+    },
+  );
+
+  assert.equal(linkedOrdersProjectionResponse.status, 200);
+
+  const linkedOrders = (await linkedOrdersProjectionResponse.json()) as Array<{
+    id: string;
+    summary: {
+      commentsCount: number;
+      reportsCount: number;
+      photosCount: number;
+      filesCount: number;
+      tasksCount: number;
+    };
+  }>;
+
+  const linkedOrder = linkedOrders.find((item) => item.id === orderId);
+
+  assert.ok(linkedOrder);
+  assert.equal(linkedOrder.summary.commentsCount, 1);
+  assert.equal(linkedOrder.summary.reportsCount, 1);
+  assert.equal(linkedOrder.summary.photosCount, 1);
+  assert.equal(linkedOrder.summary.filesCount, 1);
+  assert.equal(linkedOrder.summary.tasksCount, 1);
 });

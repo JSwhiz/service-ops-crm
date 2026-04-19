@@ -1,8 +1,7 @@
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class CreateOneTimeOrderCommentDto {
   @IsString()
-  @MinLength(1)
   content!: string;
 
   @IsOptional()

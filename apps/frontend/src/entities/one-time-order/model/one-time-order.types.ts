@@ -1,3 +1,5 @@
+import type { AttachedFile } from '@/entities/file/model/file.types';
+
 export interface OneTimeOrderManager {
   userId: string;
   fullName: string;
@@ -52,6 +54,37 @@ export interface OneTimeOrderCommentItem {
     login: string;
     fullName: string;
   };
+  attachments: AttachedFile[];
+}
+
+export interface OneTimeOrderDailyReportItem {
+  id: string;
+  oneTimeOrderId: string;
+  reportDate: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  updatedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+  attachments: AttachedFile[];
+}
+
+export interface OneTimeOrderPhotoItem {
+  id: string;
+  oneTimeOrderId: string;
+  category: string;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+  attachments: AttachedFile[];
 }
 
 export interface OneTimeOrderHistoryItem {

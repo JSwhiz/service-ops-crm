@@ -3,8 +3,10 @@ import { fetcher } from '@/shared/api/fetcher';
 import type {
   CreateOneTimeOrderPayload,
   OneTimeOrderCommentItem,
+  OneTimeOrderDailyReportItem,
   OneTimeOrderHistoryItem,
   OneTimeOrderItem,
+  OneTimeOrderPhotoItem,
   UpdateOneTimeOrderPayload,
 } from '../model/one-time-order.types';
 
@@ -124,5 +126,52 @@ export async function listOneTimeOrderHistory(
 ): Promise<OneTimeOrderHistoryItem[]> {
   return fetcher<OneTimeOrderHistoryItem[]>(`/one-time-orders/${id}/history`, {
     method: 'GET',
+  });
+}
+
+export async function getTodayOneTimeOrderDailyReport(
+  id: string,
+): Promise<OneTimeOrderDailyReportItem | null> {
+  return fetcher<OneTimeOrderDailyReportItem | null>(
+    `/one-time-orders/${id}/daily-report/today`,
+    {
+      method: 'GET',
+    },
+  );
+}
+
+export async function upsertTodayOneTimeOrderDailyReport(
+  id: string,
+  payload: {
+    content: string;
+  },
+): Promise<OneTimeOrderDailyReportItem> {
+  return fetcher<OneTimeOrderDailyReportItem>(
+    `/one-time-orders/${id}/daily-report/today`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function listOneTimeOrderPhotos(
+  id: string,
+): Promise<OneTimeOrderPhotoItem[]> {
+  return fetcher<OneTimeOrderPhotoItem[]>(`/one-time-orders/${id}/photos`, {
+    method: 'GET',
+  });
+}
+
+export async function createOneTimeOrderPhoto(
+  id: string,
+  payload: {
+    category: string;
+    comment?: string;
+  },
+): Promise<OneTimeOrderPhotoItem> {
+  return fetcher<OneTimeOrderPhotoItem>(`/one-time-orders/${id}/photos`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }

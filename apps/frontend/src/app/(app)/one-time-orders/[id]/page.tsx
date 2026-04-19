@@ -5,17 +5,23 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   assignOneTimeOrderManager,
   changeOneTimeOrderStatus,
+  createOneTimeOrderPhoto,
   createOneTimeOrderComment,
   getOneTimeOrderById,
+  getTodayOneTimeOrderDailyReport,
   listOneTimeOrderComments,
   listOneTimeOrderHistory,
+  listOneTimeOrderPhotos,
   removeOneTimeOrderManager,
+  upsertTodayOneTimeOrderDailyReport,
   updateOneTimeOrder,
 } from '@/entities/one-time-order/api/one-time-order-client';
 import type {
   OneTimeOrderCommentItem,
+  OneTimeOrderDailyReportItem,
   OneTimeOrderHistoryItem,
   OneTimeOrderItem,
+  OneTimeOrderPhotoItem,
 } from '@/entities/one-time-order/model/one-time-order.types';
 import {
   listTasksByOneTimeOrder,
@@ -40,6 +46,8 @@ import { OneTimeOrderManagersPanel } from '@/features/one-time-order-managers/ui
 import { OneTimeOrderCommentsPanel } from '@/features/one-time-order-comments/ui/one-time-order-comments-panel';
 import { OneTimeOrderHistoryList } from '@/features/one-time-order-history/ui/one-time-order-history-list';
 import { OneTimeOrderFilesPanel } from '@/features/one-time-order-files/ui/one-time-order-files-panel';
+import { OneTimeOrderDailyReportPanel } from '@/features/one-time-order-report/ui/one-time-order-daily-report-panel';
+import { OneTimeOrderPhotosPanel } from '@/features/one-time-order-photos/ui/one-time-order-photos-panel';
 import { OneTimeOrderTasksPanel } from '@/features/one-time-order-tasks/ui/one-time-order-tasks-panel';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
@@ -62,8 +70,10 @@ export default function OneTimeOrderDetailPage({
 }): React.JSX.Element {
   const [item, setItem] = useState<OneTimeOrderItem | null>(null);
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
+  const [dailyReport, setDailyReport] = useState<OneTimeOrderDailyReportItem | null>(null);
   const [history, setHistory] = useState<OneTimeOrderHistoryItem[]>([]);
   const [files, setFiles] = useState<AttachedFile[]>([]);
+  const [photos, setPhotos] = useState<OneTimeOrderPhotoItem[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [managerCandidates, setManagerCandidates] = useState<SystemUserOption[]>([]);
   const [taskAssignees, setTaskAssignees] = useState<SystemUserOption[]>([]);
@@ -143,6 +153,11 @@ export default function OneTimeOrderDetailPage({
           setComments(response);
         }
       }),
+      getTodayOneTimeOrderDailyReport(id).then((response) => {
+        if (!cancelled) {
+          setDailyReport(response);
+        }
+      }),
       listOneTimeOrderHistory(id).then((response) => {
         if (!cancelled) {
           setHistory(response);
@@ -151,6 +166,11 @@ export default function OneTimeOrderDetailPage({
       listFilesByEntity('one_time_order', id).then((response) => {
         if (!cancelled) {
           setFiles(response);
+        }
+      }),
+      listOneTimeOrderPhotos(id).then((response) => {
+        if (!cancelled) {
+          setPhotos(response);
         }
       }),
       listTasksByOneTimeOrder(id).then((response) => {
@@ -280,7 +300,64 @@ export default function OneTimeOrderDetailPage({
             items={comments}
             canCreate={item.capabilities.canComment}
             onCreate={async (payload) => {
-              await createOneTimeOrderComment(item.id, payload);
+              const created = await createOneTimeOrderComment(item.id, {
+                content: payload.content,
+                commentType: payload.commentType,
+              });
+
+              await Promise.all(
+                payload.files.map((file) =>
+                  uploadFileToEntity({
+                    entityType: 'one_time_order_comment',
+                    entityId: created.id,
+                    file,
+                  }),
+                ),
+              );
+              await loadAll(item.id);
+            }}
+          />
+
+          <OneTimeOrderDailyReportPanel
+            item={dailyReport}
+            onSave={async (payload) => {
+              const saved = await upsertTodayOneTimeOrderDailyReport(item.id, {
+                content: payload.content,
+              });
+
+              await Promise.all(
+                payload.files.map((file) =>
+                  uploadFileToEntity({
+                    entityType: 'one_time_order_daily_report',
+                    entityId: saved.id,
+                    file,
+                  }),
+                ),
+              );
+
+              await loadAll(item.id);
+            }}
+          />
+
+          <OneTimeOrderPhotosPanel
+            items={photos}
+            canCreate={item.capabilities.canAttachFiles}
+            onCreate={async (payload) => {
+              const created = await createOneTimeOrderPhoto(item.id, {
+                category: payload.category,
+                comment: payload.comment,
+              });
+
+              await Promise.all(
+                payload.files.map((file) =>
+                  uploadFileToEntity({
+                    entityType: 'one_time_order_photo',
+                    entityId: created.id,
+                    file,
+                  }),
+                ),
+              );
+
               await loadAll(item.id);
             }}
           />

@@ -1,8 +1,9 @@
 import { IsOptional, IsString, MinLength, IsUrl } from 'class-validator';
 
 export class CreateArrivalPhotoDto {
+  @IsOptional()
   @IsUrl()
-  photoUrl!: string;
+  photoUrl?: string;
 
   @IsOptional()
   @IsString()

@@ -1,6 +1,6 @@
 import { IsString } from 'class-validator';
 
-export class UpsertDailyReportDto {
+export class UpsertOneTimeOrderDailyReportDto {
   @IsString()
   content!: string;
 }
