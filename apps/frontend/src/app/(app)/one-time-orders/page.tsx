@@ -22,6 +22,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 export default function OneTimeOrdersPage(): React.JSX.Element {
   const { user } = useAuth();
+  const canAccessOneTimeOrders = user?.capabilities?.canAccessOneTimeOrders;
   const canCreateOneTimeOrder =
     user?.capabilities?.canCreateOneTimeOrder ?? false;
 
@@ -32,6 +33,13 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (canAccessOneTimeOrders === false) {
+      setItems([]);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     const load = async (): Promise<void> => {
@@ -65,65 +73,73 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [search, status]);
+  }, [search, status, canAccessOneTimeOrders]);
 
   return (
     <>
       <PageTitle title="Разовые заказы" />
 
-      <div className="page-card">
-        <div
-          style={{
-            display: 'grid',
-            gap: 12,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            alignItems: 'end',
-          }}
-        >
-          <label>
-            <div style={{ marginBottom: 6 }}>Поиск</div>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              style={{ width: '100%', padding: 10 }}
-              placeholder="Название, адрес, контакт"
-            />
-          </label>
-
-          <label>
-            <div style={{ marginBottom: 6 }}>Статус</div>
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-              style={{ width: '100%', padding: 10 }}
-            >
-              <option value="">Все статусы</option>
-              {ONE_TIME_ORDER_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {canCreateOneTimeOrder ? (
-            <div>
-              <Link href="/one-time-orders/new">
-                <button type="button">Создать заказ</button>
-              </Link>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="page-card">Загрузка...</div>
-      ) : error ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
-          {error}
+      {canAccessOneTimeOrders === false ? (
+        <div className="page-card">
+          У вас нет доступа к модулю разовых заказов.
         </div>
       ) : (
-        <OneTimeOrderListTable items={items} />
+        <>
+          <div className="page-card">
+            <div
+              style={{
+                display: 'grid',
+                gap: 12,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                alignItems: 'end',
+              }}
+            >
+              <label>
+                <div style={{ marginBottom: 6 }}>Поиск</div>
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  style={{ width: '100%', padding: 10 }}
+                  placeholder="Название, адрес, контакт"
+                />
+              </label>
+
+              <label>
+                <div style={{ marginBottom: 6 }}>Статус</div>
+                <select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value)}
+                  style={{ width: '100%', padding: 10 }}
+                >
+                  <option value="">Все статусы</option>
+                  {ONE_TIME_ORDER_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {canCreateOneTimeOrder ? (
+                <div>
+                  <Link href="/one-time-orders/new">
+                    <button type="button">Создать заказ</button>
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="page-card">Загрузка...</div>
+          ) : error ? (
+            <div className="page-card" style={{ color: '#b91c1c' }}>
+              {error}
+            </div>
+          ) : (
+            <OneTimeOrderListTable items={items} />
+          )}
+        </>
       )}
     </>
   );

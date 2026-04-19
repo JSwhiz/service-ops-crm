@@ -220,6 +220,19 @@ export class OneTimeOrdersService {
     payload: UpdateOneTimeOrderDto,
   ): Promise<OneTimeOrderResponseDto> {
     const existing = await this.getOrderForWrite(currentUser, id);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      order: existing,
+    });
+
+    const isLinkedObjectChanging =
+      payload.linkedObjectId !== undefined &&
+      payload.linkedObjectId !== existing.linkedObjectId;
+
+    if (isLinkedObjectChanging && !capabilities.canChangeLinkedObject) {
+      throw new ForbiddenException('Linked object relinking denied');
+    }
 
     await this.ensureLinkedObjectExists(payload.linkedObjectId ?? undefined);
 

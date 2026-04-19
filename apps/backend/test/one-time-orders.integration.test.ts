@@ -193,6 +193,38 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   assert.equal(ownOrderResponse.status, 200);
 
+  const allowedScopedEditResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${orderId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        description: 'Менеджер заказа обновил описание в рамках своего scope',
+      }),
+    },
+  );
+
+  assert.equal(allowedScopedEditResponse.status, 200);
+
+  const forbiddenRelinkResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${orderId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        linkedObjectId: null,
+      }),
+    },
+  );
+
+  assert.equal(forbiddenRelinkResponse.status, 403);
+
   const foreignByLinkedObjectResponse = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${orderId}`,
     {

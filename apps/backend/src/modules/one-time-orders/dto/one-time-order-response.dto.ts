@@ -29,6 +29,7 @@ export class OneTimeOrderResponseDto {
   }>;
   capabilities!: {
     canEdit: boolean;
+    canChangeLinkedObject: boolean;
     canChangeStatus: boolean;
     canManageManagers: boolean;
     canComment: boolean;

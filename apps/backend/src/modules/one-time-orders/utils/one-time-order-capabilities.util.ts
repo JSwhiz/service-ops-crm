@@ -1,4 +1,7 @@
-import { canViewObjectByScope } from '../../objects/utils/object-access.util';
+import {
+  canCreateObject,
+  canViewObjectByScope,
+} from '../../objects/utils/object-access.util';
 
 import {
   canCreateTaskOnOneTimeOrder,
@@ -8,6 +11,7 @@ import {
 
 export interface OneTimeOrderCapabilities {
   canEdit: boolean;
+  canChangeLinkedObject: boolean;
   canChangeStatus: boolean;
   canManageManagers: boolean;
   canComment: boolean;
@@ -28,9 +32,11 @@ export function buildOneTimeOrderCapabilities(params: {
   };
 }): OneTimeOrderCapabilities {
   const canEdit = canEditOneTimeOrderByScope(params);
+  const canChangeLinkedObject = canCreateObject(params.roleCodes);
 
   return {
     canEdit,
+    canChangeLinkedObject,
     canChangeStatus: canEdit,
     canManageManagers: canManageOneTimeOrderManagers(params.roleCodes),
     canComment: canEdit,

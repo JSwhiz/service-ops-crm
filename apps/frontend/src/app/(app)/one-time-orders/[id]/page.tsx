@@ -41,7 +41,6 @@ import { OneTimeOrderCommentsPanel } from '@/features/one-time-order-comments/ui
 import { OneTimeOrderHistoryList } from '@/features/one-time-order-history/ui/one-time-order-history-list';
 import { OneTimeOrderFilesPanel } from '@/features/one-time-order-files/ui/one-time-order-files-panel';
 import { OneTimeOrderTasksPanel } from '@/features/one-time-order-tasks/ui/one-time-order-tasks-panel';
-import { useAuth } from '@/shared/auth/use-auth';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
   getOneTimeOrderStatusLabel,
@@ -61,8 +60,6 @@ export default function OneTimeOrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
-  const { user } = useAuth();
-
   const [item, setItem] = useState<OneTimeOrderItem | null>(null);
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
   const [history, setHistory] = useState<OneTimeOrderHistoryItem[]>([]);
@@ -74,9 +71,7 @@ export default function OneTimeOrderDetailPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const canSelectLinkedObject =
-    Boolean(item?.capabilities.canEdit) &&
-    (user?.capabilities?.canCreateObject ?? false);
+  const canSelectLinkedObject = Boolean(item?.capabilities.canChangeLinkedObject);
 
   const editableInitialValue = useMemo(
     () =>
@@ -131,7 +126,7 @@ export default function OneTimeOrderDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [params, user?.capabilities?.canCreateObject]);
+  }, [params]);
 
   const loadAll = async (id: string, cancelled = false): Promise<void> => {
     const order = await getOneTimeOrderById(id);
@@ -189,10 +184,7 @@ export default function OneTimeOrderDetailPage({
       setTaskAssignees([]);
     }
 
-    if (
-      order.capabilities.canEdit &&
-      (user?.capabilities?.canCreateObject ?? false)
-    ) {
+    if (order.capabilities.canChangeLinkedObject) {
       requests.push(
         listObjects().then((response) => {
           if (!cancelled) {

@@ -31,6 +31,7 @@ export interface OneTimeOrderItem {
   managers: OneTimeOrderManager[];
   capabilities: {
     canEdit: boolean;
+    canChangeLinkedObject: boolean;
     canChangeStatus: boolean;
     canManageManagers: boolean;
     canComment: boolean;
