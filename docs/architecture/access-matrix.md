@@ -131,6 +131,22 @@
 
 ## 8. Inventory exception rule
 
+### 8.1. Inventory runtime bridge for Sprint 6
+
+| Action                         | leadership circle | deputy_director | manager | one_time_manager | hr |
+| ------------------------------ | ----------------- | --------------- | ------- | ---------------- | -- |
+| View inventory module          | yes               | yes             | no      | no               | no |
+| Manage inventory catalog       | yes               | no              | no      | no               | no |
+| Create receipt / issue / return| yes               | yes             | no      | no               | no |
+| Create writeoff                | yes               | no              | no      | no               | no |
+| Create adjustment              | yes               | no              | no      | no               | no |
+| View inventory reports         | yes               | yes             | no      | no               | no |
+
+Переходное правило:
+
+- object или one-time-order linkage внутри movement не расширяет их карточечную visibility автоматически;
+- `deputy_director` может выбрать объект/заказ как цель движения, но это не означает автоматическое право открыть карточку объекта/заказа.
+
 Для расходников без фото подтверждает:
 
 - `deputy_director`

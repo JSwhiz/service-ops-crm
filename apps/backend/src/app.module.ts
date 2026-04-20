@@ -33,6 +33,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { FilesModule } from './modules/files/files.module';
 import { HealthModule } from './modules/health/health.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 import { ObjectOperationsModule } from './modules/object-operations/object-operations.module';
 import { ObjectsModule } from './modules/objects/objects.module';
 import { OneTimeOrdersModule } from './modules/one-time-orders/one-time-orders.module';
@@ -59,6 +60,7 @@ import { UsersAccessModule } from './modules/users-access/users-access.module';
     AuthModule,
     EmployeesModule,
     HealthModule,
+    InventoryModule,
     FilesModule,
     ObjectsModule,
     OneTimeOrdersModule,

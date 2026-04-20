@@ -359,6 +359,37 @@
 - ответственные и руководящий круг видят его всегда;
 - действия менеджеров разового заказа должны быть прозрачно видны в связанном объекте, если заказ привязан к объекту.
 
+### OQ-045. Временное capability-разделение inventory для Sprint 6
+
+**Статус:** resolved
+
+Переходное правило Sprint 6:
+
+- leadership circle получает полный inventory access;
+- `deputy_director` получает operational inventory access:
+  - видит inventory-модуль;
+  - создает `receipt`, `issue_to_object`, `issue_to_one_time_order`, `return`;
+  - видит inventory reports;
+- `deputy_director` не получает по умолчанию:
+  - catalog admin;
+  - `writeoff`;
+  - `adjustment`;
+- `manager`, `one_time_manager`, `hr` не получают inventory module access по умолчанию.
+
+Это bridge-решение для MVP inventory layer до появления более детальной capability/approval-модели.
+
+### OQ-046. Как моделируется adjustment в Sprint 6
+
+**Статус:** resolved
+
+Для `inventory_movement.adjustment` используется отдельное поле направления:
+
+- `adjustmentDirection = increase | decrease`
+
+Количество в movement остается положительным, а знак изменения остатка вычисляется системой.
+
+Это нужно, чтобы ledger оставался однозначным и не требовал ручных отрицательных quantity.
+
 ---
 
 ### OQ-043. Что делать с фото складских операций после календарного месяца

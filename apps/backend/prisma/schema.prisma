@@ -24,6 +24,8 @@ model User {
   auditEvents                 AuditEvent[] @relation("AuditActor")
   createdObjects              Object[] @relation("ObjectCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
+  createdInventoryItems       InventoryItem[] @relation("InventoryItemCreatedBy")
+  createdInventoryMovements   InventoryMovement[] @relation("InventoryMovementCreatedBy")
   objectAssignments           ObjectAssignment[]
   oneTimeOrderAssignments     OneTimeOrderAssignment[]
   createdComments             ObjectComment[] @relation("ObjectCommentCreatedBy")
@@ -189,6 +191,7 @@ model Object {
   employeeAssignmentHistory EmployeeObjectAssignmentHistory[]
   employeeSubstitutions EmployeeSubstitution[]
   linkedOneTimeOrders   OneTimeOrder[]
+  inventoryMovements    InventoryMovement[]
   timesheetMonths      TimesheetMonth[]
   auditLogs            ObjectAuditLog[]
 
@@ -421,6 +424,7 @@ model OneTimeOrder {
   comments          OneTimeOrderComment[]
   dailyReports      OneTimeOrderDailyReport[]
   photos            OneTimeOrderPhoto[]
+  inventoryMovements InventoryMovement[]
   tasks             Task[]
 
   @@index([linkedObjectId])
@@ -542,6 +546,54 @@ model TaskAssignee {
   @@index([taskId])
   @@index([userId])
   @@map("task_assignees")
+}
+
+model InventoryItem {
+  id              String   @id @default(uuid())
+  name            String
+  category        String
+  unit            String
+  isActive        Boolean  @default(true)
+  notes           String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy       User                @relation("InventoryItemCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  movements       InventoryMovement[]
+
+  @@index([createdByUserId])
+  @@index([category])
+  @@index([isActive])
+  @@map("inventory_items")
+}
+
+model InventoryMovement {
+  id                   String   @id @default(uuid())
+  inventoryItemId      String
+  movementType         String
+  quantity             Decimal  @db.Decimal(12, 3)
+  adjustmentDirection  String?
+  comment              String?
+  evidenceRequired     Boolean  @default(false)
+  createdByUserId      String
+  relatedObjectId      String?
+  relatedOneTimeOrderId String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  inventoryItem        InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  createdBy            User          @relation("InventoryMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  relatedObject        Object?       @relation(fields: [relatedObjectId], references: [id], onDelete: SetNull)
+  relatedOneTimeOrder  OneTimeOrder? @relation(fields: [relatedOneTimeOrderId], references: [id], onDelete: SetNull)
+
+  @@index([inventoryItemId])
+  @@index([movementType])
+  @@index([createdByUserId])
+  @@index([relatedObjectId])
+  @@index([relatedOneTimeOrderId])
+  @@index([createdAt])
+  @@map("inventory_movements")
 }
 
 model TimesheetMonth {

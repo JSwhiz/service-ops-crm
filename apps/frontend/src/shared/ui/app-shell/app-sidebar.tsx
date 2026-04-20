@@ -10,6 +10,7 @@ export function AppSidebar(): React.JSX.Element {
   const canAccessEmployeesHr = user?.capabilities?.canAccessEmployeesHr ?? false;
   const canAccessOneTimeOrders =
     user?.capabilities?.canAccessOneTimeOrders ?? false;
+  const canAccessInventory = user?.capabilities?.canAccessInventory ?? false;
 
   return (
     <aside className="app-sidebar">
@@ -20,6 +21,9 @@ export function AppSidebar(): React.JSX.Element {
         <NavLink href="/objects" label="Объекты" />
         {canAccessOneTimeOrders ? (
           <NavLink href="/one-time-orders" label="Разовые заказы" />
+        ) : null}
+        {canAccessInventory ? (
+          <NavLink href="/inventory" label="Расходники" />
         ) : null}
         <NavLink href="/tasks" label="Задачи" />
         <NavLink href="/timesheet" label="Табель" />

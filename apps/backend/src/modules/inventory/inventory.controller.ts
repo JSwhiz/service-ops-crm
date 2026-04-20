@@ -1,0 +1,100 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
+import { CreateInventoryMovementDto } from './dto/create-inventory-movement.dto';
+import { InventoryItemResponseDto } from './dto/inventory-item-response.dto';
+import { InventoryMovementResponseDto } from './dto/inventory-movement-response.dto';
+import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto';
+import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
+import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
+import { InventoryService } from './inventory.service';
+
+interface CurrentAuthUser {
+  id: string;
+  login: string;
+  fullName: string;
+  roleCode: string;
+  roleCodes?: string[];
+  isActive: boolean;
+}
+
+@UseGuards(JwtAuthGuard)
+@Controller('inventory')
+export class InventoryController {
+  constructor(private readonly inventoryService: InventoryService) {}
+
+  @Get('items')
+  listItems(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListInventoryItemsQueryDto,
+  ): Promise<InventoryItemResponseDto[]> {
+    return this.inventoryService.listItems(user, query);
+  }
+
+  @Get('items/:id')
+  getItemById(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<InventoryItemResponseDto> {
+    return this.inventoryService.getItemById(user, id);
+  }
+
+  @Post('items')
+  createItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() payload: CreateInventoryItemDto,
+  ): Promise<InventoryItemResponseDto> {
+    return this.inventoryService.createItem(user, payload);
+  }
+
+  @Patch('items/:id')
+  updateItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: UpdateInventoryItemDto,
+  ): Promise<InventoryItemResponseDto> {
+    return this.inventoryService.updateItem(user, id, payload);
+  }
+
+  @Get('movements')
+  listMovements(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListInventoryMovementsQueryDto,
+  ): Promise<InventoryMovementResponseDto[]> {
+    return this.inventoryService.listMovements(user, query);
+  }
+
+  @Post('movements')
+  createMovement(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() payload: CreateInventoryMovementDto,
+  ): Promise<InventoryMovementResponseDto> {
+    return this.inventoryService.createMovement(user, payload);
+  }
+
+  @Get('reference/objects')
+  listObjectReferenceOptions(
+    @CurrentUser() user: CurrentAuthUser,
+  ): Promise<Array<{ id: string; name: string; status: string }>> {
+    return this.inventoryService.listObjectReferenceOptions(user);
+  }
+
+  @Get('reference/one-time-orders')
+  listOneTimeOrderReferenceOptions(
+    @CurrentUser() user: CurrentAuthUser,
+  ): Promise<Array<{ id: string; title: string; status: string }>> {
+    return this.inventoryService.listOneTimeOrderReferenceOptions(user);
+  }
+}

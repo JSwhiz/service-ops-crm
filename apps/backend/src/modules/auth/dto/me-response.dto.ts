@@ -11,5 +11,14 @@ export class MeResponseDto {
     canCreateOneTimeOrder: boolean;
     canAccessEmployeesHr: boolean;
     canManageEmployeesHr: boolean;
+    canAccessInventory: boolean;
+    canManageInventoryCatalog: boolean;
+    canCreateInventoryMovement: boolean;
+    canCreateInventoryReceipt: boolean;
+    canIssueInventoryToObject: boolean;
+    canIssueInventoryToOneTimeOrder: boolean;
+    canWriteoffInventory: boolean;
+    canAdjustInventory: boolean;
+    canViewInventoryReports: boolean;
   };
 }

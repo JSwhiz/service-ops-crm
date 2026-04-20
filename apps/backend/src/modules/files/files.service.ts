@@ -12,6 +12,10 @@ import {
   hasWideObjectAccess,
 } from '../objects/utils/object-access.util';
 import {
+  canAccessInventory,
+  canCreateInventoryMovement,
+} from '../inventory/utils/inventory-access.util';
+import {
   canEditOneTimeOrderByScope,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
@@ -322,6 +326,8 @@ export class FilesService {
         return this.canAccessTask(currentUser, entityId);
       case 'one_time_order':
         return this.canAccessOneTimeOrder(currentUser, entityId, 'read');
+      case 'inventory_movement':
+        return this.canAccessInventoryMovement(currentUser, entityId, 'read');
     }
   }
 
@@ -370,6 +376,8 @@ export class FilesService {
         return this.canAccessTask(currentUser, entityId);
       case 'one_time_order':
         return this.canAccessOneTimeOrder(currentUser, entityId, 'write');
+      case 'inventory_movement':
+        return this.canAccessInventoryMovement(currentUser, entityId, 'write');
     }
   }
 
@@ -538,6 +546,31 @@ export class FilesService {
           order: task.oneTimeOrder,
         }))
     );
+  }
+
+  private async canAccessInventoryMovement(
+    currentUser: CurrentAuthUser,
+    movementId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const movement = await this.prisma.inventoryMovement.findFirst({
+      where: {
+        id: movementId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Attachment target inventory movement not found');
+    }
+
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    return mode === 'read'
+      ? canAccessInventory(roleCodes)
+      : canCreateInventoryMovement(roleCodes);
   }
 
   private async canAccessOneTimeOrder(

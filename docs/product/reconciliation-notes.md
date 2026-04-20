@@ -34,6 +34,11 @@
 
 - если заказ привязан к объекту, его расходные операции отображаются в объекте блоком “Из разового заказа”;
 - фото складских операций сохраняются.
+- runtime bridge Sprint 6:
+  - leadership circle получает полный inventory access;
+  - `deputy_director` получает operational inventory access без catalog admin / writeoff / adjustment;
+  - `adjustment` моделируется явным `adjustmentDirection`;
+  - evidence/фото движения живут в files/storage baseline как `inventory_movement` attachments.
 
 ### HR и expenses
 

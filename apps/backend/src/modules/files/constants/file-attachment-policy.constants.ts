@@ -26,6 +26,9 @@ export const FILE_ATTACHMENT_POLICY = {
   one_time_order: {
     fieldCodes: [],
   },
+  inventory_movement: {
+    fieldCodes: [],
+  },
 } as const;
 
 export type FileAttachmentEntityType = keyof typeof FILE_ATTACHMENT_POLICY;

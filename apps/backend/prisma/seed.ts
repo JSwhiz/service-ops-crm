@@ -26,6 +26,7 @@ async function main(): Promise<void> {
   const directorPasswordHash = await hashPassword('director123');
   const managerPasswordHash = await hashPassword('manager123');
   const hrPasswordHash = await hashPassword('hr123');
+  const deputyDirectorPasswordHash = await hashPassword('deputy123');
 
   const founderRole = await prisma.role.upsert({
     where: { code: 'founder' },
@@ -64,6 +65,16 @@ async function main(): Promise<void> {
       code: 'hr',
       name: 'HR',
       description: 'Системная роль HR-контура',
+    },
+  });
+
+  const deputyDirectorRole = await prisma.role.upsert({
+    where: { code: 'deputy_director' },
+    update: {},
+    create: {
+      code: 'deputy_director',
+      name: 'Заместитель директора',
+      description: 'Системная роль заместителя директора',
     },
   });
 
@@ -166,6 +177,21 @@ async function main(): Promise<void> {
     },
   });
 
+  const deputyDirectorUser = await prisma.user.upsert({
+    where: { login: 'deputy1' },
+    update: {
+      fullName: 'Заместитель директора',
+      isActive: true,
+      passwordHash: deputyDirectorPasswordHash,
+    },
+    create: {
+      login: 'deputy1',
+      passwordHash: deputyDirectorPasswordHash,
+      fullName: 'Заместитель директора',
+      isActive: true,
+    },
+  });
+
   await prisma.userRole.upsert({
     where: {
       userId_roleId: {
@@ -233,6 +259,20 @@ async function main(): Promise<void> {
     create: {
       userId: managerTwo.id,
       roleId: managerRole.id,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: deputyDirectorUser.id,
+        roleId: deputyDirectorRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: deputyDirectorUser.id,
+      roleId: deputyDirectorRole.id,
     },
   });
 

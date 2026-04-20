@@ -6,6 +6,7 @@ import {
   canManageEmployeesHr,
   canViewEmployeesHr,
 } from '../employees/utils/employee-hr-access.util';
+import { buildInventoryGlobalCapabilities } from '../inventory/utils/inventory-capabilities.util';
 import {
   canAccessOneTimeOrders,
   canCreateOneTimeOrder,
@@ -167,6 +168,10 @@ export class AuthService {
   }
 
   private buildMeResponse(user: SanitizedAuthUserRecord): MeResponseDto {
+    const inventoryCapabilities = buildInventoryGlobalCapabilities(
+      user.roleCodes,
+    );
+
     return {
       id: user.id,
       login: user.login,
@@ -180,6 +185,20 @@ export class AuthService {
         canCreateOneTimeOrder: canCreateOneTimeOrder(user.roleCodes),
         canAccessEmployeesHr: canViewEmployeesHr(user.roleCodes),
         canManageEmployeesHr: canManageEmployeesHr(user.roleCodes),
+        canAccessInventory: inventoryCapabilities.canAccessInventory,
+        canManageInventoryCatalog:
+          inventoryCapabilities.canManageInventoryCatalog,
+        canCreateInventoryMovement:
+          inventoryCapabilities.canCreateInventoryMovement,
+        canCreateInventoryReceipt:
+          inventoryCapabilities.canCreateInventoryReceipt,
+        canIssueInventoryToObject:
+          inventoryCapabilities.canIssueInventoryToObject,
+        canIssueInventoryToOneTimeOrder:
+          inventoryCapabilities.canIssueInventoryToOneTimeOrder,
+        canWriteoffInventory: inventoryCapabilities.canWriteoffInventory,
+        canAdjustInventory: inventoryCapabilities.canAdjustInventory,
+        canViewInventoryReports: inventoryCapabilities.canViewInventoryReports,
       },
     };
   }
