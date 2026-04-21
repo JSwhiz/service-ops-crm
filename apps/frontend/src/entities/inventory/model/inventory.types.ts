@@ -78,6 +78,12 @@ export interface InventoryMovement {
     hasEvidence: boolean;
     requiresApprovalBridge: boolean;
     approvalBridgeType: string | null;
+    approvalBridgeResolvedAt: string | null;
+    approvalBridgeResolvedBy: {
+      id: string;
+      login: string;
+      fullName: string;
+    } | null;
     isSensitive: boolean;
     canResolveMissingPhotoApproval: boolean;
   };

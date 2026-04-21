@@ -98,6 +98,8 @@ export class FilesService {
           data: {
             requiresApprovalBridge: false,
             approvalBridgeType: null,
+            approvalBridgeResolvedAt: null,
+            approvalBridgeResolvedByUserId: null,
           },
         });
       }

@@ -84,6 +84,7 @@ type InventoryMovementRecord = {
   evidenceRequired: boolean;
   requiresApprovalBridge: boolean;
   approvalBridgeType: string | null;
+  approvalBridgeResolvedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   inventoryItem: {
@@ -99,6 +100,11 @@ type InventoryMovementRecord = {
     login: string;
     fullName: string;
   };
+  approvalBridgeResolvedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
   relatedObject: {
     id: string;
     name: string;
@@ -390,7 +396,7 @@ export class InventoryService {
           ? { relatedOneTimeOrderId: query.oneTimeOrderId }
           : {}),
         ...(query.approvalBridge === 'true'
-          ? { requiresApprovalBridge: true }
+          ? { requiresApprovalBridge: true, approvalBridgeResolvedAt: null }
           : {}),
         ...this.buildDateRangeWhere(query),
       },
@@ -406,6 +412,13 @@ export class InventoryService {
           },
         },
         createdBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        approvalBridgeResolvedBy: {
           select: {
             id: true,
             login: true,
@@ -466,6 +479,82 @@ export class InventoryService {
     this.assertMovementCreatable(currentUser, payload.movementType);
 
     return this.createMovementRecord(currentUser, payload);
+  }
+
+  async resolveMissingPhotoApproval(
+    currentUser: CurrentAuthUser,
+    movementId: string,
+  ): Promise<InventoryMovementResponseDto> {
+    if (
+      !canResolveInventoryMissingPhotoApproval(this.getRoleCodes(currentUser))
+    ) {
+      throw new ForbiddenException('Inventory missing photo approval denied');
+    }
+
+    const movement = await this.prisma.inventoryMovement.findFirst({
+      where: {
+        id: movementId,
+      },
+      select: {
+        id: true,
+        movementType: true,
+        requiresApprovalBridge: true,
+        approvalBridgeType: true,
+        approvalBridgeResolvedAt: true,
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Inventory movement not found');
+    }
+
+    if (
+      movement.movementType !== 'issue_to_object' ||
+      !movement.requiresApprovalBridge ||
+      movement.approvalBridgeType !== 'inventory_without_photo_confirmation'
+    ) {
+      throw new BadRequestException(
+        'Only issue_to_object without photo can be resolved by this bridge',
+      );
+    }
+
+    const attachments = await this.loadMovementAttachments([movement.id]);
+    if ((attachments.get(movement.id) ?? []).length > 0) {
+      throw new BadRequestException(
+        'Movement already has evidence and does not need missing photo approval',
+      );
+    }
+
+    if (!movement.approvalBridgeResolvedAt) {
+      await this.prisma.inventoryMovement.update({
+        where: {
+          id: movement.id,
+        },
+        data: {
+          approvalBridgeResolvedAt: new Date(),
+          approvalBridgeResolvedByUserId: currentUser.id,
+        },
+      });
+
+      await this.auditService.writeAuditEvent({
+        entityType: 'inventory_movement',
+        entityId: movement.id,
+        actorUserId: currentUser.id,
+        action: 'inventory.missing_photo_approval.resolved',
+        newValues: {
+          approvalBridgeType: movement.approvalBridgeType,
+        },
+      });
+    }
+
+    const updated = await this.loadMovementViewById(movement.id);
+    const updatedAttachments = await this.loadMovementAttachments([movement.id]);
+
+    return this.mapMovement(
+      updated,
+      updatedAttachments.get(movement.id) ?? [],
+      currentUser,
+    );
   }
 
   async listObjectInventory(
@@ -649,6 +738,13 @@ export class InventoryService {
             fullName: true,
           },
         },
+        approvalBridgeResolvedBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
         relatedObject: {
           select: {
             id: true,
@@ -746,6 +842,13 @@ export class InventoryService {
           },
         },
         createdBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        approvalBridgeResolvedBy: {
           select: {
             id: true,
             login: true,
@@ -1060,8 +1163,10 @@ export class InventoryService {
         comment,
         evidenceRequired,
         requiresApprovalBridge: evidenceRequired,
-        approvalBridgeType: evidenceRequired && movementType === 'issue_to_object'
-          ? 'inventory_without_photo_confirmation'
+        approvalBridgeType: evidenceRequired
+          ? movementType === 'issue_to_object'
+            ? 'inventory_without_photo_confirmation'
+            : 'inventory_missing_photo_evidence_required'
           : null,
         relatedObjectId: params.relatedObjectId,
         relatedOneTimeOrderId: params.relatedOneTimeOrderId,
@@ -1347,6 +1452,78 @@ export class InventoryService {
     };
   }
 
+  private async loadMovementViewById(
+    movementId: string,
+  ): Promise<InventoryMovementRecord> {
+    const movement = await this.prisma.inventoryMovement.findFirst({
+      where: {
+        id: movementId,
+      },
+      include: {
+        inventoryItem: {
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            unit: true,
+            isActive: true,
+            currentUnitPrice: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        approvalBridgeResolvedBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        relatedObject: {
+          select: {
+            id: true,
+            name: true,
+            createdByUserId: true,
+            assignments: {
+              where: { isActive: true },
+              select: {
+                userId: true,
+                isActive: true,
+              },
+            },
+          },
+        },
+        relatedOneTimeOrder: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            createdByUserId: true,
+            assignments: {
+              where: { isActive: true },
+              select: {
+                userId: true,
+                assignmentRoleCode: true,
+                isActive: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Inventory movement not found');
+    }
+
+    return movement as InventoryMovementRecord;
+  }
+
   private async loadMovementAttachments(
     movementIds: string[],
   ): Promise<Map<string, FileResponseDto[]>> {
@@ -1481,6 +1658,11 @@ export class InventoryService {
       adjustmentDirection: movement.adjustmentDirection,
     });
     const hasEvidence = attachments.length > 0;
+    const isPendingMissingPhotoBridge =
+      movement.requiresApprovalBridge &&
+      !hasEvidence &&
+      !movement.approvalBridgeResolvedAt &&
+      movement.approvalBridgeType === 'inventory_without_photo_confirmation';
 
     return {
       id: movement.id,
@@ -1522,19 +1704,24 @@ export class InventoryService {
       attachments,
       projection: {
         hasEvidence,
-        requiresApprovalBridge: movement.requiresApprovalBridge && !hasEvidence,
+        requiresApprovalBridge:
+          movement.requiresApprovalBridge &&
+          !hasEvidence &&
+          !movement.approvalBridgeResolvedAt,
         approvalBridgeType:
-          movement.requiresApprovalBridge && !hasEvidence
+          movement.requiresApprovalBridge &&
+          !hasEvidence &&
+          !movement.approvalBridgeResolvedAt
             ? movement.approvalBridgeType
             : null,
+        approvalBridgeResolvedAt:
+          movement.approvalBridgeResolvedAt?.toISOString() ?? null,
+        approvalBridgeResolvedBy: movement.approvalBridgeResolvedBy,
         isSensitive: isSensitiveInventoryMovementType(
           movement.movementType as InventoryMovementType,
         ),
         canResolveMissingPhotoApproval:
-          movement.requiresApprovalBridge &&
-          !hasEvidence &&
-          movement.approvalBridgeType ===
-            'inventory_without_photo_confirmation' &&
+          isPendingMissingPhotoBridge &&
           canResolveInventoryMissingPhotoApproval(roleCodes),
       },
     };

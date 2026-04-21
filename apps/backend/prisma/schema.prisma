@@ -26,6 +26,7 @@ model User {
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
   createdInventoryItems       InventoryItem[] @relation("InventoryItemCreatedBy")
   createdInventoryMovements   InventoryMovement[] @relation("InventoryMovementCreatedBy")
+  resolvedInventoryMovementApprovals InventoryMovement[] @relation("InventoryMovementApprovalResolvedBy")
   objectAssignments           ObjectAssignment[]
   oneTimeOrderAssignments     OneTimeOrderAssignment[]
   createdComments             ObjectComment[] @relation("ObjectCommentCreatedBy")
@@ -581,6 +582,8 @@ model InventoryMovement {
   evidenceRequired     Boolean  @default(false)
   requiresApprovalBridge Boolean @default(false)
   approvalBridgeType   String?
+  approvalBridgeResolvedAt DateTime?
+  approvalBridgeResolvedByUserId String?
   createdByUserId      String
   relatedObjectId      String?
   relatedOneTimeOrderId String?
@@ -589,12 +592,14 @@ model InventoryMovement {
 
   inventoryItem        InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
   createdBy            User          @relation("InventoryMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvalBridgeResolvedBy User?     @relation("InventoryMovementApprovalResolvedBy", fields: [approvalBridgeResolvedByUserId], references: [id], onDelete: SetNull)
   relatedObject        Object?       @relation(fields: [relatedObjectId], references: [id], onDelete: SetNull)
   relatedOneTimeOrder  OneTimeOrder? @relation(fields: [relatedOneTimeOrderId], references: [id], onDelete: SetNull)
 
   @@index([inventoryItemId])
   @@index([movementType])
   @@index([createdByUserId])
+  @@index([approvalBridgeResolvedByUserId])
   @@index([relatedObjectId])
   @@index([relatedOneTimeOrderId])
   @@index([createdAt])

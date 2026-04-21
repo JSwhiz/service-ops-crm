@@ -41,6 +41,7 @@
   - `receipt` обновляет текущую цену номенклатуры, а каждое движение хранит snapshot цены и суммы;
   - назначенный manager объекта может делать object-scoped `issue_to_object` без доступа к полному inventory admin;
   - `issue_to_object` без фото уходит в director-only approval bridge;
+  - другие движения с обязательным фото получают typed missing-evidence state без director-only resolution;
   - evidence/фото движения живут в files/storage baseline как `inventory_movement` attachments.
 
 ### HR и expenses

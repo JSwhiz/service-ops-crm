@@ -123,6 +123,12 @@ export function InventoryMovementList({
               <div>
                 {item.projection.hasEvidence
                   ? 'Подтверждение приложено'
+                  : item.projection.approvalBridgeResolvedAt
+                    ? `Подтверждено без фото${
+                        item.projection.approvalBridgeResolvedBy
+                          ? `: ${item.projection.approvalBridgeResolvedBy.fullName}`
+                          : ''
+                      }`
                   : item.projection.requiresApprovalBridge
                     ? 'Нужно подтверждение исключения'
                     : 'Без вложений'}

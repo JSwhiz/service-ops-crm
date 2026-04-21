@@ -322,6 +322,9 @@
 Канонический смысл:
 
 - отсутствие фото при списании расходника на объект считается исключением, требующим director-only bridge.
+- остальные движения с обязательным фото могут иметь typed runtime state
+  `inventory_missing_photo_evidence_required`, но это не дает им director-only
+  resolution автоматически.
 
 ---
 

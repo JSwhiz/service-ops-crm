@@ -96,6 +96,17 @@ export async function createInventoryMovement(
   });
 }
 
+export async function resolveInventoryMissingPhotoApproval(
+  movementId: string,
+): Promise<InventoryMovement> {
+  return fetcher<InventoryMovement>(
+    `/inventory/movements/${movementId}/resolve-missing-photo-approval`,
+    {
+      method: 'POST',
+    },
+  );
+}
+
 export async function getObjectInventory(
   objectId: string,
 ): Promise<ObjectInventory> {

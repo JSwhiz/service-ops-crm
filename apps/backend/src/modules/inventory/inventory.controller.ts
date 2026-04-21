@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -82,6 +83,15 @@ export class InventoryController {
     @Body() payload: CreateInventoryMovementDto,
   ): Promise<InventoryMovementResponseDto> {
     return this.inventoryService.createMovement(user, payload);
+  }
+
+  @Post('movements/:id/resolve-missing-photo-approval')
+  @HttpCode(200)
+  resolveMissingPhotoApproval(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<InventoryMovementResponseDto> {
+    return this.inventoryService.resolveMissingPhotoApproval(user, id);
   }
 
   @Get('reference/objects')

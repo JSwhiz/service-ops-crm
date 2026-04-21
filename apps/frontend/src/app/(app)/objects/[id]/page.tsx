@@ -17,6 +17,7 @@ import {
 import {
   createObjectInventoryIssue,
   getObjectInventory,
+  resolveInventoryMissingPhotoApproval,
 } from '@/entities/inventory/api/inventory-client';
 import type { ObjectInventory } from '@/entities/inventory/model/inventory.types';
 import {
@@ -852,6 +853,10 @@ export default function ObjectDetailPage({
                   ),
                 );
 
+                await loadObjectInventory(objectId);
+              }}
+              onResolveMissingPhotoApproval={async (movementId) => {
+                await resolveInventoryMissingPhotoApproval(movementId);
                 await loadObjectInventory(objectId);
               }}
             />

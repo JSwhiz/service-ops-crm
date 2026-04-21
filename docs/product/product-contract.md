@@ -269,6 +269,9 @@ one_time_manager не получает прав leadership circle и не пол
 - фото для `issue_to_object` обязательно;
 - если фото нет, движение уходит в bridge `inventory_without_photo_confirmation`;
 - bridge по `issue_to_object` без фото подтверждает только `director`.
+- для других движений с обязательным фото runtime использует typed state
+  `inventory_missing_photo_evidence_required`; это не дает director-only resolution
+  автоматически.
 
 ### 8.2. Оборудование
 

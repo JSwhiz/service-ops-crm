@@ -24,6 +24,7 @@ export function ObjectInventoryPanel({
   availableItems,
   canIssueInventoryToObject,
   onIssue,
+  onResolveMissingPhotoApproval,
 }: {
   movements: InventoryMovement[];
   availableItems: InventoryItem[];
@@ -34,6 +35,7 @@ export function ObjectInventoryPanel({
     comment?: string;
     evidenceFiles: File[];
   }) => Promise<void>;
+  onResolveMissingPhotoApproval: (movementId: string) => Promise<void>;
 }): React.JSX.Element {
   const [inventoryItemId, setInventoryItemId] = useState(
     availableItems[0]?.id ?? '',
@@ -203,12 +205,46 @@ export function ObjectInventoryPanel({
                 {new Date(movement.createdAt).toLocaleString('ru-RU')}
               </div>
               <div>
-                {movement.projection.hasEvidence
-                  ? 'Фото приложено'
-                  : movement.projection.requiresApprovalBridge
-                    ? 'Нет фото: ушло в director approval bridge'
-                    : 'Фото не требуется'}
+                {movement.projection.hasEvidence ? (
+                  'Фото приложено'
+                ) : movement.projection.approvalBridgeResolvedAt ? (
+                  <>
+                    Подтверждено директором без фото
+                    {movement.projection.approvalBridgeResolvedBy
+                      ? `: ${movement.projection.approvalBridgeResolvedBy.fullName}`
+                      : ''}
+                  </>
+                ) : movement.projection.requiresApprovalBridge ? (
+                  movement.projection.approvalBridgeType ===
+                  'inventory_without_photo_confirmation' ? (
+                    'Нет фото: ожидает director approval bridge'
+                  ) : (
+                    'Нет фото: требуется подтверждение evidence'
+                  )
+                ) : (
+                  'Фото не требуется'
+                )}
               </div>
+              {movement.projection.canResolveMissingPhotoApproval ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    void onResolveMissingPhotoApproval(movement.id).catch(
+                      (resolveError) => {
+                        setError(
+                          getErrorMessage(
+                            resolveError,
+                            'Не удалось подтвердить списание без фото.',
+                          ),
+                        );
+                      },
+                    );
+                  }}
+                >
+                  Подтвердить списание без фото
+                </button>
+              ) : null}
               {movement.comment ? <div>{movement.comment}</div> : null}
               <AttachmentPreviewList
                 files={movement.attachments}

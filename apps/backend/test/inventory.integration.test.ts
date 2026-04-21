@@ -392,7 +392,10 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   };
   createdMovementIds.push(issueToOrderMovement.id);
   assert.equal(issueToOrderMovement.projection.requiresApprovalBridge, true);
-  assert.equal(issueToOrderMovement.projection.approvalBridgeType, null);
+  assert.equal(
+    issueToOrderMovement.projection.approvalBridgeType,
+    'inventory_missing_photo_evidence_required',
+  );
   assert.equal(
     issueToOrderMovement.projection.canResolveMissingPhotoApproval,
     false,
@@ -459,7 +462,10 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   };
   createdMovementIds.push(writeoffMovement.id);
   assert.equal(writeoffMovement.projection.requiresApprovalBridge, true);
-  assert.equal(writeoffMovement.projection.approvalBridgeType, null);
+  assert.equal(
+    writeoffMovement.projection.approvalBridgeType,
+    'inventory_missing_photo_evidence_required',
+  );
   assert.equal(
     writeoffMovement.projection.canResolveMissingPhotoApproval,
     false,
@@ -494,7 +500,10 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   };
   createdMovementIds.push(adjustmentMovement.id);
   assert.equal(adjustmentMovement.projection.requiresApprovalBridge, true);
-  assert.equal(adjustmentMovement.projection.approvalBridgeType, null);
+  assert.equal(
+    adjustmentMovement.projection.approvalBridgeType,
+    'inventory_missing_photo_evidence_required',
+  );
   assert.equal(
     adjustmentMovement.projection.canResolveMissingPhotoApproval,
     false,
@@ -613,6 +622,8 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   const directorMovements = (await directorMovementsResponse.json()) as Array<{
     id: string;
     projection: {
+      requiresApprovalBridge: boolean;
+      approvalBridgeResolvedAt: string | null;
       canResolveMissingPhotoApproval: boolean;
     };
   }>;
@@ -624,4 +635,91 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
     directorBridgeMovement.projection.canResolveMissingPhotoApproval,
     true,
   );
+
+  const founderResolveResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/movements/${managerObjectIssue.id}/resolve-missing-photo-approval`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+      },
+    },
+  );
+
+  assert.equal(founderResolveResponse.status, 403);
+
+  const directorResolveResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/movements/${managerObjectIssue.id}/resolve-missing-photo-approval`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: directorCookie,
+      },
+    },
+  );
+
+  assert.equal(directorResolveResponse.status, 200);
+  const resolvedMovement = (await directorResolveResponse.json()) as {
+    id: string;
+    projection: {
+      hasEvidence: boolean;
+      requiresApprovalBridge: boolean;
+      approvalBridgeResolvedAt: string | null;
+      approvalBridgeResolvedBy: { fullName: string } | null;
+      canResolveMissingPhotoApproval: boolean;
+    };
+  };
+  assert.equal(resolvedMovement.id, managerObjectIssue.id);
+  assert.equal(resolvedMovement.projection.hasEvidence, false);
+  assert.equal(resolvedMovement.projection.requiresApprovalBridge, false);
+  assert.ok(resolvedMovement.projection.approvalBridgeResolvedAt);
+  assert.equal(
+    resolvedMovement.projection.approvalBridgeResolvedBy?.fullName,
+    'Директор',
+  );
+  assert.equal(
+    resolvedMovement.projection.canResolveMissingPhotoApproval,
+    false,
+  );
+
+  const objectInventoryResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${SEEDED_OBJECT_ID}/inventory`,
+    {
+      headers: {
+        Cookie: directorCookie,
+      },
+    },
+  );
+
+  assert.equal(objectInventoryResponse.status, 200);
+  const objectInventory = (await objectInventoryResponse.json()) as {
+    movements: Array<{
+      id: string;
+      inventoryItem: { unit: string };
+      quantity: number;
+      unitPriceSnapshot: number;
+      totalAmountSnapshot: number;
+      createdBy: { fullName: string };
+      projection: {
+        hasEvidence: boolean;
+        requiresApprovalBridge: boolean;
+        approvalBridgeResolvedAt: string | null;
+      };
+    }>;
+  };
+  const objectInventoryMovement = objectInventory.movements.find(
+    (movement) => movement.id === managerObjectIssue.id,
+  );
+  assert.ok(objectInventoryMovement);
+  assert.equal(objectInventoryMovement.inventoryItem.unit, 'л');
+  assert.equal(objectInventoryMovement.quantity, 1);
+  assert.equal(objectInventoryMovement.unitPriceSnapshot, 120.5);
+  assert.equal(objectInventoryMovement.totalAmountSnapshot, 120.5);
+  assert.equal(objectInventoryMovement.createdBy.fullName, 'Менеджер Первый');
+  assert.equal(objectInventoryMovement.projection.hasEvidence, false);
+  assert.equal(
+    objectInventoryMovement.projection.requiresApprovalBridge,
+    false,
+  );
+  assert.ok(objectInventoryMovement.projection.approvalBridgeResolvedAt);
 });
