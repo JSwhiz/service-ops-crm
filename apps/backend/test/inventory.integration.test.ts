@@ -384,8 +384,19 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   assert.equal(issueToOrderResponse.status, 201);
   const issueToOrderMovement = (await issueToOrderResponse.json()) as {
     id: string;
+    projection: {
+      requiresApprovalBridge: boolean;
+      approvalBridgeType: string | null;
+      canResolveMissingPhotoApproval: boolean;
+    };
   };
   createdMovementIds.push(issueToOrderMovement.id);
+  assert.equal(issueToOrderMovement.projection.requiresApprovalBridge, true);
+  assert.equal(issueToOrderMovement.projection.approvalBridgeType, null);
+  assert.equal(
+    issueToOrderMovement.projection.canResolveMissingPhotoApproval,
+    false,
+  );
 
   const returnResponse = await fetch(`${baseUrl}/api/v1/inventory/movements`, {
     method: 'POST',
@@ -438,8 +449,21 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   });
 
   assert.equal(writeoffResponse.status, 201);
-  const writeoffMovement = (await writeoffResponse.json()) as { id: string };
+  const writeoffMovement = (await writeoffResponse.json()) as {
+    id: string;
+    projection: {
+      requiresApprovalBridge: boolean;
+      approvalBridgeType: string | null;
+      canResolveMissingPhotoApproval: boolean;
+    };
+  };
   createdMovementIds.push(writeoffMovement.id);
+  assert.equal(writeoffMovement.projection.requiresApprovalBridge, true);
+  assert.equal(writeoffMovement.projection.approvalBridgeType, null);
+  assert.equal(
+    writeoffMovement.projection.canResolveMissingPhotoApproval,
+    false,
+  );
 
   const adjustmentResponse = await fetch(
     `${baseUrl}/api/v1/inventory/movements`,
@@ -460,8 +484,21 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   );
 
   assert.equal(adjustmentResponse.status, 201);
-  const adjustmentMovement = (await adjustmentResponse.json()) as { id: string };
+  const adjustmentMovement = (await adjustmentResponse.json()) as {
+    id: string;
+    projection: {
+      requiresApprovalBridge: boolean;
+      approvalBridgeType: string | null;
+      canResolveMissingPhotoApproval: boolean;
+    };
+  };
   createdMovementIds.push(adjustmentMovement.id);
+  assert.equal(adjustmentMovement.projection.requiresApprovalBridge, true);
+  assert.equal(adjustmentMovement.projection.approvalBridgeType, null);
+  assert.equal(
+    adjustmentMovement.projection.canResolveMissingPhotoApproval,
+    false,
+  );
 
   const itemDetailsResponse = await fetch(
     `${baseUrl}/api/v1/inventory/items/${inventoryItemId}`,

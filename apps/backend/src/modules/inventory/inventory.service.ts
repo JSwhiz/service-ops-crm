@@ -1060,7 +1060,7 @@ export class InventoryService {
         comment,
         evidenceRequired,
         requiresApprovalBridge: evidenceRequired,
-        approvalBridgeType: evidenceRequired
+        approvalBridgeType: evidenceRequired && movementType === 'issue_to_object'
           ? 'inventory_without_photo_confirmation'
           : null,
         relatedObjectId: params.relatedObjectId,
@@ -1533,6 +1533,8 @@ export class InventoryService {
         canResolveMissingPhotoApproval:
           movement.requiresApprovalBridge &&
           !hasEvidence &&
+          movement.approvalBridgeType ===
+            'inventory_without_photo_confirmation' &&
           canResolveInventoryMissingPhotoApproval(roleCodes),
       },
     };
