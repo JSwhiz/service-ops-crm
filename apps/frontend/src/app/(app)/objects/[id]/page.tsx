@@ -15,6 +15,11 @@ import {
   type ServiceObject,
 } from '@/entities/object/model/object.types';
 import {
+  createObjectInventoryIssue,
+  getObjectInventory,
+} from '@/entities/inventory/api/inventory-client';
+import type { ObjectInventory } from '@/entities/inventory/model/inventory.types';
+import {
   addEmployeeToObject,
   createObjectComment,
   getObjectFeed,
@@ -54,6 +59,7 @@ import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
 import { LinkedOneTimeOrdersPanel } from '@/features/linked-one-time-orders/ui/linked-one-time-orders-panel';
+import { ObjectInventoryPanel } from '@/features/object-inventory/ui/object-inventory-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
 import { ObjectStaffingPanel } from '@/features/object-staffing/ui/object-staffing-panel';
 import { ObjectStatusControlPanel } from '@/features/object-status-control/ui/object-status-control-panel';
@@ -151,6 +157,14 @@ export default function ObjectDetailPage({
   const [objectFilesLoading, setObjectFilesLoading] = useState(true);
   const [objectFilesError, setObjectFilesError] = useState<string | null>(null);
 
+  const [objectInventory, setObjectInventory] = useState<ObjectInventory | null>(
+    null,
+  );
+  const [objectInventoryLoading, setObjectInventoryLoading] = useState(true);
+  const [objectInventoryError, setObjectInventoryError] = useState<string | null>(
+    null,
+  );
+
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -178,6 +192,7 @@ export default function ObjectDetailPage({
         loadComments(resolved.id, cancelled),
         loadFeed(resolved.id, cancelled),
         loadLinkedOrders(resolved.id, cancelled),
+        loadObjectInventory(resolved.id, cancelled),
         loadObjectFiles(resolved.id, cancelled),
         loadTasks(resolved.id, cancelled),
         loadAssignedEmployees(resolved.id, cancelled),
@@ -438,6 +453,35 @@ export default function ObjectDetailPage({
     } finally {
       if (!cancelled) {
         setLinkedOrdersLoading(false);
+      }
+    }
+  };
+
+  const loadObjectInventory = async (
+    id: string,
+    cancelled = false,
+  ): Promise<void> => {
+    setObjectInventoryLoading(true);
+    setObjectInventoryError(null);
+
+    try {
+      const response = await getObjectInventory(id);
+
+      if (!cancelled) {
+        setObjectInventory(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setObjectInventoryError(
+          getErrorMessage(
+            error,
+            'Не удалось загрузить расходники объекта.',
+          ),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setObjectInventoryLoading(false);
       }
     }
   };
@@ -776,6 +820,42 @@ export default function ObjectDetailPage({
           ) : (
             <LinkedOneTimeOrdersPanel items={linkedOrders} />
           )}
+
+          {objectInventoryLoading ? (
+            <ObjectPanelLoading title="Расходники объекта" />
+          ) : objectInventoryError ? (
+            <ObjectPanelError
+              title="Расходники объекта"
+              message={objectInventoryError}
+            />
+          ) : objectInventory ? (
+            <ObjectInventoryPanel
+              movements={objectInventory.movements}
+              availableItems={objectInventory.availableItems}
+              canIssueInventoryToObject={
+                objectInventory.capabilities.canIssueInventoryToObject
+              }
+              onIssue={async (payload) => {
+                const created = await createObjectInventoryIssue(objectId, {
+                  inventoryItemId: payload.inventoryItemId,
+                  quantity: payload.quantity,
+                  comment: payload.comment,
+                });
+
+                await Promise.all(
+                  payload.evidenceFiles.map((file) =>
+                    uploadFileToEntity({
+                      entityType: 'inventory_movement',
+                      entityId: created.id,
+                      file,
+                    }),
+                  ),
+                );
+
+                await loadObjectInventory(objectId);
+              }}
+            />
+          ) : null}
 
           {objectFilesLoading ? (
             <ObjectPanelLoading title="Файлы объекта" />

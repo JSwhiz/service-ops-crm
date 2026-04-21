@@ -7,6 +7,7 @@ export interface InventoryItem {
   unit: string;
   isActive: boolean;
   notes: string | null;
+  currentUnitPrice: number | null;
   createdAt: string;
   updatedAt: string;
   createdBy: {
@@ -15,6 +16,7 @@ export interface InventoryItem {
     fullName: string;
   };
   currentStock: number;
+  currentEstimatedTotalValue: number;
   summary: {
     movementsCount: number;
     receiptsCount: number;
@@ -29,6 +31,7 @@ export interface InventoryItem {
     canCreateReceipt: boolean;
     canIssueToObject: boolean;
     canIssueToOneTimeOrder: boolean;
+    canReturn: boolean;
     canWriteoff: boolean;
     canAdjust: boolean;
     canViewReports: boolean;
@@ -47,6 +50,8 @@ export interface InventoryMovement {
   movementType: string;
   quantity: number;
   signedQuantity: number;
+  unitPriceSnapshot: number;
+  totalAmountSnapshot: number;
   adjustmentDirection: string | null;
   comment: string | null;
   evidenceRequired: boolean;
@@ -74,6 +79,16 @@ export interface InventoryMovement {
     requiresApprovalBridge: boolean;
     approvalBridgeType: string | null;
     isSensitive: boolean;
+    canResolveMissingPhotoApproval: boolean;
+  };
+}
+
+export interface ObjectInventory {
+  movements: InventoryMovement[];
+  availableItems: InventoryItem[];
+  capabilities: {
+    canIssueInventoryToObject: boolean;
+    canResolveMissingPhotoApproval: boolean;
   };
 }
 
@@ -115,6 +130,7 @@ export interface CreateInventoryMovementPayload {
     | 'writeoff'
     | 'adjustment';
   quantity: number;
+  unitPrice?: number;
   adjustmentDirection?: 'increase' | 'decrease';
   comment?: string;
   evidenceRequired?: boolean;
@@ -135,4 +151,5 @@ export interface ListInventoryMovementsParams {
   dateTo?: string;
   objectId?: string;
   oneTimeOrderId?: string;
+  approvalBridge?: string;
 }

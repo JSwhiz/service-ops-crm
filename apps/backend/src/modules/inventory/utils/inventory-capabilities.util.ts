@@ -6,6 +6,8 @@ import {
   canIssueInventoryToObject,
   canIssueInventoryToOneTimeOrder,
   canManageInventoryCatalog,
+  canResolveInventoryMissingPhotoApproval,
+  canReturnInventory,
   canViewInventoryReports,
   canWriteoffInventory,
 } from './inventory-access.util';
@@ -17,9 +19,11 @@ export interface InventoryGlobalCapabilities {
   canCreateInventoryReceipt: boolean;
   canIssueInventoryToObject: boolean;
   canIssueInventoryToOneTimeOrder: boolean;
+  canReturnInventory: boolean;
   canWriteoffInventory: boolean;
   canAdjustInventory: boolean;
   canViewInventoryReports: boolean;
+  canResolveInventoryMissingPhotoApproval: boolean;
 }
 
 export function buildInventoryGlobalCapabilities(
@@ -32,8 +36,11 @@ export function buildInventoryGlobalCapabilities(
     canCreateInventoryReceipt: canCreateInventoryReceipt(roleCodes),
     canIssueInventoryToObject: canIssueInventoryToObject(roleCodes),
     canIssueInventoryToOneTimeOrder: canIssueInventoryToOneTimeOrder(roleCodes),
+    canReturnInventory: canReturnInventory(roleCodes),
     canWriteoffInventory: canWriteoffInventory(roleCodes),
     canAdjustInventory: canAdjustInventory(roleCodes),
     canViewInventoryReports: canViewInventoryReports(roleCodes),
+    canResolveInventoryMissingPhotoApproval:
+      canResolveInventoryMissingPhotoApproval(roleCodes),
   };
 }

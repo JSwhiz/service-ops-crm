@@ -555,6 +555,7 @@ model InventoryItem {
   unit            String
   isActive        Boolean  @default(true)
   notes           String?
+  currentUnitPrice Decimal? @db.Decimal(12, 2)
   createdByUserId String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -573,9 +574,13 @@ model InventoryMovement {
   inventoryItemId      String
   movementType         String
   quantity             Decimal  @db.Decimal(12, 3)
+  unitPriceSnapshot    Decimal  @db.Decimal(12, 2)
+  totalAmountSnapshot  Decimal  @db.Decimal(14, 2)
   adjustmentDirection  String?
   comment              String?
   evidenceRequired     Boolean  @default(false)
+  requiresApprovalBridge Boolean @default(false)
+  approvalBridgeType   String?
   createdByUserId      String
   relatedObjectId      String?
   relatedOneTimeOrderId String?

@@ -145,6 +145,18 @@ export default function InventoryItemDetailPage({
                 <div>{formatInventoryQuantity(item.currentStock, item.unit)}</div>
               </div>
               <div>
+                <div className="page-muted">Текущая цена</div>
+                <div>
+                  {item.currentUnitPrice === null
+                    ? 'Нет прихода с ценой'
+                    : `${item.currentUnitPrice.toLocaleString('ru-RU')} ₽`}
+                </div>
+              </div>
+              <div>
+                <div className="page-muted">Оценка остатка</div>
+                <div>{item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽</div>
+              </div>
+              <div>
                 <div className="page-muted">Статус</div>
                 <div>{item.isActive ? 'Активна' : 'Неактивна'}</div>
               </div>
@@ -166,6 +178,7 @@ export default function InventoryItemDetailPage({
               canCreateReceipt={item.capabilities.canCreateReceipt}
               canIssueToObject={item.capabilities.canIssueToObject}
               canIssueToOneTimeOrder={item.capabilities.canIssueToOneTimeOrder}
+              canReturn={item.capabilities.canReturn}
               canWriteoff={item.capabilities.canWriteoff}
               canAdjust={item.capabilities.canAdjust}
               defaultInventoryItemId={item.id}

@@ -138,18 +138,20 @@
 | View inventory module          | yes               | yes             | no      | no               | no |
 | Manage inventory catalog       | yes               | no              | no      | no               | no |
 | Create receipt / issue / return| yes               | yes             | no      | no               | no |
+| Object-scoped issue_to_object  | yes               | yes             | yes if assigned to object | no | no |
 | Create writeoff                | yes               | no              | no      | no               | no |
 | Create adjustment              | yes               | no              | no      | no               | no |
 | View inventory reports         | yes               | yes             | no      | no               | no |
+| Resolve object issue without photo | director only | no | no | no | no |
 
 Переходное правило:
 
 - object или one-time-order linkage внутри movement не расширяет их карточечную visibility автоматически;
 - `deputy_director` может выбрать объект/заказ как цель движения, но это не означает автоматическое право открыть карточку объекта/заказа.
 
-Для расходников без фото подтверждает:
+Для `issue_to_object` без фото подтверждает:
 
-- `deputy_director`
+- `director`
 
 Это отдельное каноническое правило MVP.
 
@@ -199,7 +201,7 @@
 | task_result_confirmation                | tasks                   | task result                 | leadership / designated approver      | approval.resolve_task_result         |
 | object_change_confirmation              | objects                 | object                      | leadership                            | approval.resolve_object_change       |
 | object_assignment_change_confirmation   | objects                 | object assignment           | leadership                            | approval.resolve_object_change       |
-| inventory_without_photo_confirmation    | inventory               | inventory movement          | deputy_director / designated approver | approval.resolve_inventory_exception |
+| inventory_without_photo_confirmation    | inventory               | object issue without photo  | director                              | approval.resolve_inventory_exception |
 | expense_confirmation                    | expenses-accountability | expense                     | leadership / designated approver      | expense.approve                      |
 | manual_timesheet_exception_confirmation | timesheets              | manual correction exception | leadership / designated approver      | timesheet.manual_correction          |
 

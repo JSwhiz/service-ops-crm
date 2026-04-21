@@ -98,6 +98,15 @@ export default function InventoryReportsPage(): React.JSX.Element {
             totalItems={items.length}
             totalActiveItems={items.filter((item) => item.isActive).length}
             movementCount={movements.length}
+            totalStockValueEstimate={items.reduce(
+              (sum, item) => sum + item.currentEstimatedTotalValue,
+              0,
+            )}
+            missingPhotoBridgeCount={
+              movements.filter(
+                (movement) => movement.projection.requiresApprovalBridge,
+              ).length
+            }
           />
           <InventoryItemListTable items={items} />
           <InventoryMovementList items={movements.slice(0, 20)} />

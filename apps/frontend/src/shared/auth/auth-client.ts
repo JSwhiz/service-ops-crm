@@ -19,9 +19,11 @@ export interface AuthUser {
     canCreateInventoryReceipt?: boolean;
     canIssueInventoryToObject?: boolean;
     canIssueInventoryToOneTimeOrder?: boolean;
+    canReturnInventory?: boolean;
     canWriteoffInventory?: boolean;
     canAdjustInventory?: boolean;
     canViewInventoryReports?: boolean;
+    canResolveInventoryMissingPhotoApproval?: boolean;
   };
 }
 

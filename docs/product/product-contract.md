@@ -253,6 +253,23 @@ one_time_manager не получает прав leadership circle и не пол
 
 Расходники и склад — отдельный контур.
 
+Канонические правила Sprint 6:
+
+- inventory строится как единый центральный склад;
+- отдельный складской остаток на объекте не ведется;
+- остаток номенклатуры вычисляется из `InventoryMovement`;
+- текущая цена номенклатуры берется из последнего `receipt`;
+- каждое движение хранит `unitPriceSnapshot` и `totalAmountSnapshot`;
+- старые движения не пересчитываются при новом приходе с другой ценой.
+
+Объектный расход:
+
+- `issue_to_object` — это финальное списание с центрального склада на объект;
+- назначенный менеджер объекта может выполнить `issue_to_object` в рамках своего object scope;
+- фото для `issue_to_object` обязательно;
+- если фото нет, движение уходит в bridge `inventory_without_photo_confirmation`;
+- bridge по `issue_to_object` без фото подтверждает только `director`.
+
 ### 8.2. Оборудование
 
 Оборудование — отдельный контур, не смешивается с расходниками.
@@ -374,7 +391,7 @@ Approval для подмены в MVP допустим как отдельное
 | task_result_confirmation                | tasks                   | task result                     | leadership / designated approver       | approval.resolve_task_result         |
 | object_change_confirmation              | objects                 | object change                   | leadership                             | approval.resolve_object_change       |
 | object_assignment_change_confirmation   | objects                 | object assignment change        | leadership                             | approval.resolve_object_change       |
-| inventory_without_photo_confirmation    | inventory               | inventory operation             | deputy_director or designated approver | approval.resolve_inventory_exception |
+| inventory_without_photo_confirmation    | inventory               | object issue without photo      | director                               | approval.resolve_inventory_exception |
 | expense_confirmation                    | expenses-accountability | expense / accountability action | leadership / designated approver       | expense.approve                      |
 | manual_timesheet_exception_confirmation | timesheets              | exceptional correction flow     | leadership / designated approver       | timesheet.manual_correction          |
 

@@ -36,6 +36,10 @@ export function canIssueInventoryToOneTimeOrder(roleCodes: string[]): boolean {
   return canAccessInventory(roleCodes);
 }
 
+export function canReturnInventory(roleCodes: string[]): boolean {
+  return canAccessInventory(roleCodes);
+}
+
 export function canWriteoffInventory(roleCodes: string[]): boolean {
   return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
 }
@@ -46,4 +50,10 @@ export function canAdjustInventory(roleCodes: string[]): boolean {
 
 export function canViewInventoryReports(roleCodes: string[]): boolean {
   return canAccessInventory(roleCodes);
+}
+
+export function canResolveInventoryMissingPhotoApproval(
+  roleCodes: string[],
+): boolean {
+  return hasAnyRole(roleCodes, ['director']);
 }

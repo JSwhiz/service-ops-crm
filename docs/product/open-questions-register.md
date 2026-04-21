@@ -309,9 +309,9 @@
 
 **Статус:** resolved
 
-Для MVP подтверждение расходников без фото всегда выполняет:
+Для MVP подтверждение `issue_to_object` без фото выполняет:
 
-- deputy_director
+- director
 
 Это правило не зависит от:
 
@@ -321,7 +321,7 @@
 
 Канонический смысл:
 
-- отсутствие фото по расходникам всегда считается исключением, требующим подтверждения deputy_director.
+- отсутствие фото при списании расходника на объект считается исключением, требующим director-only bridge.
 
 ---
 
@@ -374,7 +374,8 @@
   - catalog admin;
   - `writeoff`;
   - `adjustment`;
-- `manager`, `one_time_manager`, `hr` не получают inventory module access по умолчанию.
+- `manager`, `one_time_manager`, `hr` не получают inventory module access по умолчанию;
+- назначенный manager объекта может выполнить object-scoped `issue_to_object` из карточки объекта, но это не дает ему catalog admin или полный inventory module access.
 
 Это bridge-решение для MVP inventory layer до появления более детальной capability/approval-модели.
 
@@ -387,6 +388,17 @@
 - `adjustmentDirection = increase | decrease`
 
 Количество в movement остается положительным, а знак изменения остатка вычисляется системой.
+
+### OQ-047. Цена и snapshot стоимости inventory movement
+
+**Статус:** resolved
+
+Для Sprint 6:
+
+- `receipt` требует цену за единицу;
+- `InventoryItem.currentUnitPrice` обновляется по последнему `receipt`;
+- каждое movement хранит `unitPriceSnapshot` и `totalAmountSnapshot`;
+- старые движения не пересчитываются от новой текущей цены.
 
 Это нужно, чтобы ledger оставался однозначным и не требовал ручных отрицательных quantity.
 

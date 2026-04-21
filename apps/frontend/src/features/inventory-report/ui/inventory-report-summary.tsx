@@ -6,15 +6,24 @@ export function InventoryReportSummary({
   totalItems,
   totalActiveItems,
   movementCount,
+  totalStockValueEstimate,
+  missingPhotoBridgeCount,
 }: {
   totalItems: number;
   totalActiveItems: number;
   movementCount: number;
+  totalStockValueEstimate: number;
+  missingPhotoBridgeCount: number;
 }): React.JSX.Element {
   const cards = [
     { label: 'Всего позиций', value: totalItems },
     { label: 'Активных позиций', value: totalActiveItems },
     { label: 'Движений по выборке', value: movementCount },
+    {
+      label: 'Оценка остатка',
+      value: `${totalStockValueEstimate.toLocaleString('ru-RU')} ₽`,
+    },
+    { label: 'Без фото / bridge', value: missingPhotoBridgeCount },
   ];
 
   return (

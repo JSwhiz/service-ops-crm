@@ -26,4 +26,8 @@ export class ListInventoryMovementsQueryDto {
   @IsOptional()
   @IsString()
   oneTimeOrderId?: string;
+
+  @IsOptional()
+  @IsString()
+  approvalBridge?: string;
 }

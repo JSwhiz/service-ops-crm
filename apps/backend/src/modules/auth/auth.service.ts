@@ -196,9 +196,12 @@ export class AuthService {
           inventoryCapabilities.canIssueInventoryToObject,
         canIssueInventoryToOneTimeOrder:
           inventoryCapabilities.canIssueInventoryToOneTimeOrder,
+        canReturnInventory: inventoryCapabilities.canReturnInventory,
         canWriteoffInventory: inventoryCapabilities.canWriteoffInventory,
         canAdjustInventory: inventoryCapabilities.canAdjustInventory,
         canViewInventoryReports: inventoryCapabilities.canViewInventoryReports,
+        canResolveInventoryMissingPhotoApproval:
+          inventoryCapabilities.canResolveInventoryMissingPhotoApproval,
       },
     };
   }

@@ -234,9 +234,11 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   const createdItem = (await createItemResponse.json()) as {
     id: string;
     currentStock: number;
+    currentUnitPrice: number | null;
   };
   inventoryItemId = createdItem.id;
   assert.equal(createdItem.currentStock, 0);
+  assert.equal(createdItem.currentUnitPrice, null);
 
   const createOrderResponse = await fetch(`${baseUrl}/api/v1/one-time-orders`, {
     method: 'POST',
@@ -263,17 +265,24 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
       Cookie: deputyCookie,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      inventoryItemId,
-      movementType: 'receipt',
-      quantity: 10,
-      comment: 'Приход для inventory integration test',
-    }),
+      body: JSON.stringify({
+        inventoryItemId,
+        movementType: 'receipt',
+        quantity: 10,
+        unitPrice: 120.5,
+        comment: 'Приход для inventory integration test',
+      }),
   });
 
   assert.equal(receiptResponse.status, 201);
-  const receiptMovement = (await receiptResponse.json()) as { id: string };
+  const receiptMovement = (await receiptResponse.json()) as {
+    id: string;
+    unitPriceSnapshot: number;
+    totalAmountSnapshot: number;
+  };
   createdMovementIds.push(receiptMovement.id);
+  assert.equal(receiptMovement.unitPriceSnapshot, 120.5);
+  assert.equal(receiptMovement.totalAmountSnapshot, 1205);
 
   const issueToObjectResponse = await fetch(
     `${baseUrl}/api/v1/inventory/movements`,
@@ -323,6 +332,37 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   assert.equal(uploadEvidenceResponse.status, 201);
   const uploadedEvidence = (await uploadEvidenceResponse.json()) as { id: string };
   createdFileIds.push(uploadedEvidence.id);
+
+  const managerObjectIssueResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${SEEDED_OBJECT_ID}/inventory/issue`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inventoryItemId,
+        quantity: 1,
+        comment: 'Объектный менеджер списал расходник без фото',
+      }),
+    },
+  );
+
+  assert.equal(managerObjectIssueResponse.status, 201);
+  const managerObjectIssue = (await managerObjectIssueResponse.json()) as {
+    id: string;
+    projection: {
+      requiresApprovalBridge: boolean;
+      canResolveMissingPhotoApproval: boolean;
+    };
+  };
+  createdMovementIds.push(managerObjectIssue.id);
+  assert.equal(managerObjectIssue.projection.requiresApprovalBridge, true);
+  assert.equal(
+    managerObjectIssue.projection.canResolveMissingPhotoApproval,
+    false,
+  );
 
   const issueToOrderResponse = await fetch(
     `${baseUrl}/api/v1/inventory/movements`,
@@ -436,13 +476,17 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
 
   const itemDetails = (await itemDetailsResponse.json()) as {
     currentStock: number;
+    currentUnitPrice: number;
+    currentEstimatedTotalValue: number;
     summary: {
       movementsCount: number;
     };
   };
 
-  assert.equal(itemDetails.currentStock, 4.5);
-  assert.equal(itemDetails.summary.movementsCount, 6);
+  assert.equal(itemDetails.currentStock, 3.5);
+  assert.equal(itemDetails.currentUnitPrice, 120.5);
+  assert.equal(itemDetails.currentEstimatedTotalValue, 421.75);
+  assert.equal(itemDetails.summary.movementsCount, 7);
 
   const founderMovementsResponse = await fetch(
     `${baseUrl}/api/v1/inventory/movements?inventoryItemId=${inventoryItemId}`,
@@ -459,6 +503,7 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
     projection: {
       hasEvidence: boolean;
       requiresApprovalBridge: boolean;
+      canResolveMissingPhotoApproval: boolean;
     };
     relatedObject: { canOpenObjectCard: boolean } | null;
     relatedOneTimeOrder: { canOpenOrderCard: boolean } | null;
@@ -471,6 +516,19 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   assert.equal(uploadedMovement.projection.hasEvidence, true);
   assert.equal(uploadedMovement.projection.requiresApprovalBridge, false);
   assert.equal(uploadedMovement.relatedObject?.canOpenObjectCard, true);
+
+  const managerMissingPhotoMovement = founderMovements.find(
+    (movement) => movement.id === managerObjectIssue.id,
+  );
+  assert.ok(managerMissingPhotoMovement);
+  assert.equal(
+    managerMissingPhotoMovement.projection.requiresApprovalBridge,
+    true,
+  );
+  assert.equal(
+    managerMissingPhotoMovement.projection.canResolveMissingPhotoApproval,
+    false,
+  );
 
   const orderLinkedMovement = founderMovements.find(
     (movement) => movement.id === issueToOrderMovement.id,
@@ -503,5 +561,30 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
     deputyMovements.some(
       (movement) => movement.relatedOneTimeOrder?.canOpenOrderCard === false,
     ),
+  );
+
+  const directorMovementsResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/movements?inventoryItemId=${inventoryItemId}`,
+    {
+      headers: {
+        Cookie: directorCookie,
+      },
+    },
+  );
+
+  assert.equal(directorMovementsResponse.status, 200);
+  const directorMovements = (await directorMovementsResponse.json()) as Array<{
+    id: string;
+    projection: {
+      canResolveMissingPhotoApproval: boolean;
+    };
+  }>;
+  const directorBridgeMovement = directorMovements.find(
+    (movement) => movement.id === managerObjectIssue.id,
+  );
+  assert.ok(directorBridgeMovement);
+  assert.equal(
+    directorBridgeMovement.projection.canResolveMissingPhotoApproval,
+    true,
   );
 });

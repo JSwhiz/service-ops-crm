@@ -38,6 +38,9 @@
   - leadership circle получает полный inventory access;
   - `deputy_director` получает operational inventory access без catalog admin / writeoff / adjustment;
   - `adjustment` моделируется явным `adjustmentDirection`;
+  - `receipt` обновляет текущую цену номенклатуры, а каждое движение хранит snapshot цены и суммы;
+  - назначенный manager объекта может делать object-scoped `issue_to_object` без доступа к полному inventory admin;
+  - `issue_to_object` без фото уходит в director-only approval bridge;
   - evidence/фото движения живут в files/storage baseline как `inventory_movement` attachments.
 
 ### HR и expenses

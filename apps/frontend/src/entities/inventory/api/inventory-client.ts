@@ -7,6 +7,7 @@ import type {
   InventoryMovement,
   InventoryObjectReference,
   InventoryOneTimeOrderReference,
+  ObjectInventory,
   ListInventoryItemsParams,
   ListInventoryMovementsParams,
   UpdateInventoryItemPayload,
@@ -90,6 +91,28 @@ export async function createInventoryMovement(
   payload: CreateInventoryMovementPayload,
 ): Promise<InventoryMovement> {
   return fetcher<InventoryMovement>('/inventory/movements', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getObjectInventory(
+  objectId: string,
+): Promise<ObjectInventory> {
+  return fetcher<ObjectInventory>(`/objects/${objectId}/inventory`, {
+    method: 'GET',
+  });
+}
+
+export async function createObjectInventoryIssue(
+  objectId: string,
+  payload: {
+    inventoryItemId: string;
+    quantity: number;
+    comment?: string;
+  },
+): Promise<InventoryMovement> {
+  return fetcher<InventoryMovement>(`/objects/${objectId}/inventory/issue`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

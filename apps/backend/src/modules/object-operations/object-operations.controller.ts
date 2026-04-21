@@ -12,6 +12,9 @@ import {
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateObjectInventoryIssueDto } from '../inventory/dto/create-object-inventory-issue.dto';
+import { InventoryMovementResponseDto } from '../inventory/dto/inventory-movement-response.dto';
+import { ObjectInventoryResponseDto } from '../inventory/dto/object-inventory-response.dto';
 
 import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
 import { CreateArrivalPhotoDto } from './dto/create-arrival-photo.dto';
@@ -119,6 +122,27 @@ export class ObjectOperationsController {
     @Param('id') objectId: string,
   ): Promise<LinkedOneTimeOrderProjectionDto[]> {
     return this.objectOperationsService.listLinkedOneTimeOrders(user, objectId);
+  }
+
+  @Get('inventory')
+  getObjectInventory(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+  ): Promise<ObjectInventoryResponseDto> {
+    return this.objectOperationsService.getObjectInventory(user, objectId);
+  }
+
+  @Post('inventory/issue')
+  createObjectInventoryIssue(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Body() payload: CreateObjectInventoryIssueDto,
+  ): Promise<InventoryMovementResponseDto> {
+    return this.objectOperationsService.createObjectInventoryIssue(
+      user,
+      objectId,
+      payload,
+    );
   }
 
   @Get('employees')

@@ -12,6 +12,8 @@ export class InventoryMovementResponseDto {
   movementType!: string;
   quantity!: number;
   signedQuantity!: number;
+  unitPriceSnapshot!: number;
+  totalAmountSnapshot!: number;
   adjustmentDirection!: string | null;
   comment!: string | null;
   evidenceRequired!: boolean;
@@ -39,5 +41,6 @@ export class InventoryMovementResponseDto {
     requiresApprovalBridge: boolean;
     approvalBridgeType: string | null;
     isSensitive: boolean;
+    canResolveMissingPhotoApproval: boolean;
   };
 }

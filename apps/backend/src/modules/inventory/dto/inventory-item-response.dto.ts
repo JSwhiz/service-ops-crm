@@ -5,6 +5,7 @@ export class InventoryItemResponseDto {
   unit!: string;
   isActive!: boolean;
   notes!: string | null;
+  currentUnitPrice!: number | null;
   createdAt!: string;
   updatedAt!: string;
   createdBy!: {
@@ -13,6 +14,7 @@ export class InventoryItemResponseDto {
     fullName: string;
   };
   currentStock!: number;
+  currentEstimatedTotalValue!: number;
   summary!: {
     movementsCount: number;
     receiptsCount: number;
@@ -27,6 +29,7 @@ export class InventoryItemResponseDto {
     canCreateReceipt: boolean;
     canIssueToObject: boolean;
     canIssueToOneTimeOrder: boolean;
+    canReturn: boolean;
     canWriteoff: boolean;
     canAdjust: boolean;
     canViewReports: boolean;

@@ -47,6 +47,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
   const [selectedItemId, setSelectedItemId] = useState('');
   const [selectedObjectId, setSelectedObjectId] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [approvalBridgeOnly, setApprovalBridgeOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -76,6 +77,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
               ...(selectedItemId ? { inventoryItemId: selectedItemId } : {}),
               ...(selectedObjectId ? { objectId: selectedObjectId } : {}),
               ...(selectedOrderId ? { oneTimeOrderId: selectedOrderId } : {}),
+              ...(approvalBridgeOnly ? { approvalBridge: 'true' } : {}),
               ...(dateFrom ? { dateFrom } : {}),
               ...(dateTo ? { dateTo } : {}),
             }),
@@ -116,6 +118,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
     selectedItemId,
     selectedObjectId,
     selectedOrderId,
+    approvalBridgeOnly,
     dateFrom,
     dateTo,
   ]);
@@ -138,6 +141,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
             canIssueToOneTimeOrder={
               capabilities?.canIssueInventoryToOneTimeOrder ?? false
             }
+            canReturn={capabilities?.canReturnInventory ?? false}
             canWriteoff={capabilities?.canWriteoffInventory ?? false}
             canAdjust={capabilities?.canAdjustInventory ?? false}
             onSubmit={async ({ payload, evidenceFiles }) => {
@@ -158,6 +162,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
                   ...(selectedItemId ? { inventoryItemId: selectedItemId } : {}),
                   ...(selectedObjectId ? { objectId: selectedObjectId } : {}),
                   ...(selectedOrderId ? { oneTimeOrderId: selectedOrderId } : {}),
+                  ...(approvalBridgeOnly ? { approvalBridge: 'true' } : {}),
                   ...(dateFrom ? { dateFrom } : {}),
                   ...(dateTo ? { dateTo } : {}),
                 }),
@@ -259,6 +264,17 @@ export default function InventoryMovementsPage(): React.JSX.Element {
                   onChange={(event) => setDateTo(event.target.value)}
                   style={{ width: '100%', padding: 10 }}
                 />
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={approvalBridgeOnly}
+                  onChange={(event) =>
+                    setApprovalBridgeOnly(event.target.checked)
+                  }
+                />
+                Только без фото / bridge
               </label>
             </div>
           </div>

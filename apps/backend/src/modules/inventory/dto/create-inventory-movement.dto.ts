@@ -26,6 +26,12 @@ export class CreateInventoryMovementDto {
   quantity!: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  unitPrice?: number;
+
+  @IsOptional()
   @IsIn(INVENTORY_ADJUSTMENT_DIRECTIONS)
   adjustmentDirection?: (typeof INVENTORY_ADJUSTMENT_DIRECTIONS)[number];
 

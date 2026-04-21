@@ -61,6 +61,15 @@ export function InventoryMovementList({
               </div>
             </div>
             <div>
+              <div className="page-muted">Стоимость</div>
+              <div>
+                {item.unitPriceSnapshot.toLocaleString('ru-RU')} ₽ /{' '}
+                {item.inventoryItem.unit}
+                {' • '}
+                {item.totalAmountSnapshot.toLocaleString('ru-RU')} ₽
+              </div>
+            </div>
+            <div>
               <div className="page-muted">Создано</div>
               <div>{new Date(item.createdAt).toLocaleString('ru-RU')}</div>
             </div>

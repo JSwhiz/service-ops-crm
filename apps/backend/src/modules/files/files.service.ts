@@ -90,6 +90,18 @@ export class FilesService {
         },
       });
 
+      if (entityType === 'inventory_movement') {
+        await tx.inventoryMovement.updateMany({
+          where: {
+            id: body.entityId,
+          },
+          data: {
+            requiresApprovalBridge: false,
+            approvalBridgeType: null,
+          },
+        });
+      }
+
       return tx.file.findUnique({
         where: { id: storedFile.id },
         include: {
@@ -559,6 +571,35 @@ export class FilesService {
       },
       select: {
         id: true,
+        createdByUserId: true,
+        relatedObject: {
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: {
+                isActive: true,
+              },
+              select: {
+                userId: true,
+              },
+            },
+          },
+        },
+        relatedOneTimeOrder: {
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: {
+                isActive: true,
+              },
+              select: {
+                userId: true,
+                assignmentRoleCode: true,
+                isActive: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -568,9 +609,28 @@ export class FilesService {
 
     const roleCodes = this.getRoleCodes(currentUser);
 
-    return mode === 'read'
-      ? canAccessInventory(roleCodes)
-      : canCreateInventoryMovement(roleCodes);
+    if (mode === 'write') {
+      return (
+        canCreateInventoryMovement(roleCodes) ||
+        movement.createdByUserId === currentUser.id
+      );
+    }
+
+    return (
+      canAccessInventory(roleCodes) ||
+      movement.createdByUserId === currentUser.id ||
+      (!!movement.relatedObject &&
+        (movement.relatedObject.createdByUserId === currentUser.id ||
+          movement.relatedObject.assignments.some(
+            (assignment) => assignment.userId === currentUser.id,
+          ))) ||
+      (!!movement.relatedOneTimeOrder &&
+        canViewOneTimeOrderByScope({
+          currentUserId: currentUser.id,
+          roleCodes,
+          order: movement.relatedOneTimeOrder,
+        }))
+    );
   }
 
   private async canAccessOneTimeOrder(

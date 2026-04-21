@@ -24,6 +24,8 @@ export function InventoryItemListTable({
             <th align="left">Категория</th>
             <th align="left">Ед.</th>
             <th align="left">Остаток</th>
+            <th align="left">Цена</th>
+            <th align="left">Оценка</th>
             <th align="left">Статус</th>
             <th align="left">Движений</th>
           </tr>
@@ -37,6 +39,12 @@ export function InventoryItemListTable({
               <td>{item.category}</td>
               <td>{item.unit}</td>
               <td>{formatInventoryQuantity(item.currentStock, item.unit)}</td>
+              <td>
+                {item.currentUnitPrice === null
+                  ? '—'
+                  : `${item.currentUnitPrice.toLocaleString('ru-RU')} ₽`}
+              </td>
+              <td>{item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽</td>
               <td>{item.isActive ? 'Активна' : 'Неактивна'}</td>
               <td>{item.summary.movementsCount}</td>
             </tr>

@@ -8,6 +8,10 @@ import {
 import { EmployeeAssignmentHistoryService } from '../employees/employee-assignment-history.service';
 import { EMPLOYEE_SUBSTITUTION_STATUSES } from '../employees/constants/employee-hr.constants';
 import { FileResponseDto } from '../files/dto/file-response.dto';
+import { CreateObjectInventoryIssueDto } from '../inventory/dto/create-object-inventory-issue.dto';
+import { InventoryMovementResponseDto } from '../inventory/dto/inventory-movement-response.dto';
+import { ObjectInventoryResponseDto } from '../inventory/dto/object-inventory-response.dto';
+import { InventoryService } from '../inventory/inventory.service';
 import {
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
@@ -124,6 +128,7 @@ export class ObjectOperationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly assignmentHistoryService: EmployeeAssignmentHistoryService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   async getTodayArrivalPhoto(
@@ -543,6 +548,25 @@ export class ObjectOperationsService {
         tasksCount: order._count.tasks,
       },
     }));
+  }
+
+  getObjectInventory(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<ObjectInventoryResponseDto> {
+    return this.inventoryService.listObjectInventory(currentUser, objectId);
+  }
+
+  createObjectInventoryIssue(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    payload: CreateObjectInventoryIssueDto,
+  ): Promise<InventoryMovementResponseDto> {
+    return this.inventoryService.createObjectIssueMovement(
+      currentUser,
+      objectId,
+      payload,
+    );
   }
 
   async searchEmployeeDirectory(

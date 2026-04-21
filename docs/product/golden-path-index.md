@@ -22,7 +22,7 @@
 
 ## Inventory
 - GP-INV-001: обычное движение расходников
-- GP-INV-002: исключение без фото через approval deputy_director
+- GP-INV-002: исключение списания на объект без фото через director-only approval bridge
 
 ## Equipment
 - GP-EQP-001: выдача/возврат/перемещение оборудования

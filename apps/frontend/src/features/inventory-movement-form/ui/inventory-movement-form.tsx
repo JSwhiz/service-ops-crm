@@ -31,6 +31,7 @@ export function InventoryMovementForm({
   canCreateReceipt,
   canIssueToObject,
   canIssueToOneTimeOrder,
+  canReturn,
   canWriteoff,
   canAdjust,
   defaultInventoryItemId,
@@ -43,6 +44,7 @@ export function InventoryMovementForm({
   canCreateReceipt: boolean;
   canIssueToObject: boolean;
   canIssueToOneTimeOrder: boolean;
+  canReturn: boolean;
   canWriteoff: boolean;
   canAdjust: boolean;
   defaultInventoryItemId?: string;
@@ -66,7 +68,7 @@ export function InventoryMovementForm({
           case 'adjustment':
             return canAdjust;
           case 'return':
-            return canCreateMovement;
+            return canReturn;
         }
       }),
     [
@@ -75,6 +77,7 @@ export function InventoryMovementForm({
       canCreateReceipt,
       canIssueToObject,
       canIssueToOneTimeOrder,
+      canReturn,
       canWriteoff,
     ],
   );
@@ -85,6 +88,7 @@ export function InventoryMovementForm({
   );
   const [movementType, setMovementType] = useState(initialMovementType);
   const [quantity, setQuantity] = useState('1');
+  const [unitPrice, setUnitPrice] = useState('');
   const [adjustmentDirection, setAdjustmentDirection] = useState<
     'increase' | 'decrease'
   >('increase');
@@ -109,6 +113,12 @@ export function InventoryMovementForm({
     movementType === 'issue_to_one_time_order' ||
     movementType === 'return' ||
     movementType === 'writeoff';
+  const selectedItem = items.find((item) => item.id === inventoryItemId) ?? null;
+  const isEvidenceMandatory =
+    movementType === 'issue_to_object' ||
+    movementType === 'issue_to_one_time_order' ||
+    movementType === 'writeoff' ||
+    (movementType === 'adjustment' && adjustmentDirection === 'decrease');
 
   return (
     <form
@@ -123,11 +133,12 @@ export function InventoryMovementForm({
           inventoryItemId,
           movementType: movementType as CreateInventoryMovementPayload['movementType'],
           quantity: Number(quantity),
+          ...(movementType === 'receipt' ? { unitPrice: Number(unitPrice) } : {}),
           ...(movementType === 'adjustment'
             ? { adjustmentDirection }
             : {}),
           ...(comment.trim() ? { comment: comment.trim() } : {}),
-          evidenceRequired,
+          evidenceRequired: isEvidenceMandatory || evidenceRequired,
           ...(movementType === 'issue_to_object' ||
           (movementType !== 'adjustment' &&
             movementType !== 'receipt' &&
@@ -150,6 +161,7 @@ export function InventoryMovementForm({
         })
           .then(() => {
             setQuantity('1');
+            setUnitPrice('');
             setComment('');
             setPendingEvidence([]);
           })
@@ -231,6 +243,31 @@ export function InventoryMovementForm({
             required
           />
         </label>
+
+        {movementType === 'receipt' ? (
+          <label>
+            <div style={{ marginBottom: 6 }}>Цена за единицу</div>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={unitPrice}
+              onChange={(event) => setUnitPrice(event.target.value)}
+              style={{ width: '100%', padding: 10 }}
+              required
+            />
+          </label>
+        ) : (
+          <div>
+            <div className="page-muted">Цена из последнего прихода</div>
+            <div>
+              {selectedItem?.currentUnitPrice === null ||
+              selectedItem?.currentUnitPrice === undefined
+                ? 'Сначала нужен приход с ценой'
+                : `${selectedItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedItem.unit}`}
+            </div>
+          </div>
+        )}
       </div>
 
       {movementType === 'adjustment' ? (
@@ -340,10 +377,13 @@ export function InventoryMovementForm({
       <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
           type="checkbox"
-          checked={evidenceRequired}
+          checked={isEvidenceMandatory || evidenceRequired}
+          disabled={isEvidenceMandatory}
           onChange={(event) => setEvidenceRequired(event.target.checked)}
         />
-        Для движения требуется фото/файл подтверждения
+        {isEvidenceMandatory
+          ? 'Фото/файл обязателен для этого типа движения'
+          : 'Для движения требуется фото/файл подтверждения'}
       </label>
 
       <div style={{ display: 'grid', gap: 8 }}>

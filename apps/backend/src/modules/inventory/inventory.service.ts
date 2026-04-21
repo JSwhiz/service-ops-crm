@@ -8,16 +8,21 @@ import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
-import { canViewObjectByScope } from '../objects/utils/object-access.util';
+import {
+  canViewObjectByScope,
+  hasWideObjectAccess,
+} from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { canViewOneTimeOrderByScope } from '../one-time-orders/utils/one-time-order-access.util';
 
+import { CreateObjectInventoryIssueDto } from './dto/create-object-inventory-issue.dto';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { CreateInventoryMovementDto } from './dto/create-inventory-movement.dto';
 import { InventoryItemResponseDto } from './dto/inventory-item-response.dto';
 import { InventoryMovementResponseDto } from './dto/inventory-movement-response.dto';
 import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto';
 import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
+import { ObjectInventoryResponseDto } from './dto/object-inventory-response.dto';
 import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
 import {
   buildInventoryGlobalCapabilities,
@@ -31,6 +36,8 @@ import {
   canIssueInventoryToObject,
   canIssueInventoryToOneTimeOrder,
   canManageInventoryCatalog,
+  canResolveInventoryMissingPhotoApproval,
+  canReturnInventory,
   canWriteoffInventory,
 } from './utils/inventory-access.util';
 import {
@@ -56,6 +63,7 @@ type InventoryItemRecord = {
   unit: string;
   isActive: boolean;
   notes: string | null;
+  currentUnitPrice: Prisma.Decimal | null;
   createdAt: Date;
   updatedAt: Date;
   createdBy: {
@@ -69,9 +77,13 @@ type InventoryMovementRecord = {
   id: string;
   movementType: string;
   quantity: Prisma.Decimal;
+  unitPriceSnapshot: Prisma.Decimal;
+  totalAmountSnapshot: Prisma.Decimal;
   adjustmentDirection: string | null;
   comment: string | null;
   evidenceRequired: boolean;
+  requiresApprovalBridge: boolean;
+  approvalBridgeType: string | null;
   createdAt: Date;
   updatedAt: Date;
   inventoryItem: {
@@ -80,6 +92,7 @@ type InventoryMovementRecord = {
     category: string;
     unit: string;
     isActive: boolean;
+    currentUnitPrice: Prisma.Decimal | null;
   };
   createdBy: {
     id: string;
@@ -376,6 +389,9 @@ export class InventoryService {
         ...(query.oneTimeOrderId
           ? { relatedOneTimeOrderId: query.oneTimeOrderId }
           : {}),
+        ...(query.approvalBridge === 'true'
+          ? { requiresApprovalBridge: true }
+          : {}),
         ...this.buildDateRangeWhere(query),
       },
       include: {
@@ -386,6 +402,7 @@ export class InventoryService {
             category: true,
             unit: true,
             isActive: true,
+            currentUnitPrice: true,
           },
         },
         createdBy: {
@@ -448,6 +465,78 @@ export class InventoryService {
   ): Promise<InventoryMovementResponseDto> {
     this.assertMovementCreatable(currentUser, payload.movementType);
 
+    return this.createMovementRecord(currentUser, payload);
+  }
+
+  async listObjectInventory(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<ObjectInventoryResponseDto> {
+    const object = await this.loadObjectScope(objectId);
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (
+      !canViewObjectByScope({
+        currentUserId: currentUser.id,
+        roleCodes,
+        object,
+      })
+    ) {
+      throw new ForbiddenException('Object inventory access denied');
+    }
+
+    const [movements, availableItems] = await Promise.all([
+      this.listObjectScopedMovements(currentUser, objectId),
+      this.listItems(currentUser, { isActive: true }).catch((error: unknown) => {
+        if (error instanceof ForbiddenException) {
+          return this.listOperationalInventoryItemsForObject(currentUser, object);
+        }
+
+        throw error;
+      }),
+    ]);
+
+    return {
+      movements,
+      availableItems: this.canIssueToSpecificObject(currentUser, object)
+        ? availableItems
+        : [],
+      capabilities: {
+        canIssueInventoryToObject: this.canIssueToSpecificObject(
+          currentUser,
+          object,
+        ),
+        canResolveMissingPhotoApproval:
+          canResolveInventoryMissingPhotoApproval(roleCodes),
+      },
+    };
+  }
+
+  async createObjectIssueMovement(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    payload: CreateObjectInventoryIssueDto,
+  ): Promise<InventoryMovementResponseDto> {
+    const object = await this.loadObjectScope(objectId);
+
+    if (!this.canIssueToSpecificObject(currentUser, object)) {
+      throw new ForbiddenException('Inventory issue to object denied');
+    }
+
+    return this.createMovementRecord(currentUser, {
+      inventoryItemId: payload.inventoryItemId,
+      movementType: 'issue_to_object',
+      quantity: payload.quantity,
+      comment: payload.comment,
+      evidenceRequired: true,
+      relatedObjectId: objectId,
+    });
+  }
+
+  private async createMovementRecord(
+    currentUser: CurrentAuthUser,
+    payload: CreateInventoryMovementDto,
+  ): Promise<InventoryMovementResponseDto> {
     const item = await this.prisma.inventoryItem.findFirst({
       where: {
         id: payload.inventoryItemId,
@@ -455,6 +544,7 @@ export class InventoryService {
       select: {
         id: true,
         isActive: true,
+        currentUnitPrice: true,
       },
     });
 
@@ -469,7 +559,10 @@ export class InventoryService {
     }
 
     await this.assertScopedTargets(payload);
-    const normalizedMovement = this.normalizeMovementPayload(payload);
+    const normalizedMovement = this.normalizeMovementPayload(
+      payload,
+      item.currentUnitPrice,
+    );
     const created = await this.prisma.$transaction(
       async (tx) => {
         const stockSummary = await this.loadStockSummaryForItem(tx, item.id);
@@ -479,19 +572,34 @@ export class InventoryService {
           throw new BadRequestException('Insufficient stock for movement');
         }
 
-        return tx.inventoryMovement.create({
+        const createdMovement = await tx.inventoryMovement.create({
           data: {
             inventoryItemId: item.id,
             movementType: normalizedMovement.movementType,
             quantity: normalizedMovement.quantity,
+            unitPriceSnapshot: normalizedMovement.unitPriceSnapshot,
+            totalAmountSnapshot: normalizedMovement.totalAmountSnapshot,
             adjustmentDirection: normalizedMovement.adjustmentDirection,
             comment: normalizedMovement.comment,
             evidenceRequired: normalizedMovement.evidenceRequired,
+            requiresApprovalBridge: normalizedMovement.requiresApprovalBridge,
+            approvalBridgeType: normalizedMovement.approvalBridgeType,
             createdByUserId: currentUser.id,
             relatedObjectId: normalizedMovement.relatedObjectId,
             relatedOneTimeOrderId: normalizedMovement.relatedOneTimeOrderId,
           },
         });
+
+        if (normalizedMovement.movementType === 'receipt') {
+          await tx.inventoryItem.update({
+            where: { id: item.id },
+            data: {
+              currentUnitPrice: normalizedMovement.unitPriceSnapshot,
+            },
+          });
+        }
+
+        return createdMovement;
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -507,8 +615,12 @@ export class InventoryService {
         inventoryItemId: created.inventoryItemId,
         movementType: created.movementType,
         quantity: Number(created.quantity),
+        unitPriceSnapshot: Number(created.unitPriceSnapshot),
+        totalAmountSnapshot: Number(created.totalAmountSnapshot),
         adjustmentDirection: created.adjustmentDirection,
         evidenceRequired: created.evidenceRequired,
+        requiresApprovalBridge: created.requiresApprovalBridge,
+        approvalBridgeType: created.approvalBridgeType,
         relatedObjectId: created.relatedObjectId,
         relatedOneTimeOrderId: created.relatedOneTimeOrderId,
         comment: created.comment,
@@ -527,6 +639,7 @@ export class InventoryService {
             category: true,
             unit: true,
             isActive: true,
+            currentUnitPrice: true,
           },
         },
         createdBy: {
@@ -613,6 +726,180 @@ export class InventoryService {
     });
   }
 
+  private async listObjectScopedMovements(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<InventoryMovementResponseDto[]> {
+    const movements = (await this.prisma.inventoryMovement.findMany({
+      where: {
+        relatedObjectId: objectId,
+      },
+      include: {
+        inventoryItem: {
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            unit: true,
+            isActive: true,
+            currentUnitPrice: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        relatedObject: {
+          select: {
+            id: true,
+            name: true,
+            createdByUserId: true,
+            assignments: {
+              where: { isActive: true },
+              select: {
+                userId: true,
+                isActive: true,
+              },
+            },
+          },
+        },
+        relatedOneTimeOrder: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            createdByUserId: true,
+            assignments: {
+              where: { isActive: true },
+              select: {
+                userId: true,
+                assignmentRoleCode: true,
+                isActive: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 30,
+    })) as InventoryMovementRecord[];
+
+    const attachmentsByEntityId = await this.loadMovementAttachments(
+      movements.map((movement) => movement.id),
+    );
+
+    return movements.map((movement) =>
+      this.mapMovement(
+        movement,
+        attachmentsByEntityId.get(movement.id) ?? [],
+        currentUser,
+      ),
+    );
+  }
+
+  private async listOperationalInventoryItemsForObject(
+    currentUser: CurrentAuthUser,
+    object: {
+      createdByUserId: string;
+      assignments: Array<{
+        userId: string;
+        isActive: boolean;
+      }>;
+    },
+  ): Promise<InventoryItemResponseDto[]> {
+    if (!this.canIssueToSpecificObject(currentUser, object)) {
+      return [];
+    }
+
+    const items = (await this.prisma.inventoryItem.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+      orderBy: [{ name: 'asc' }],
+    })) as InventoryItemRecord[];
+
+    const stockByItemId = await this.loadStockSummariesByItemIds(
+      items.map((item) => item.id),
+    );
+    const capabilities: InventoryGlobalCapabilities = {
+      ...this.getGlobalCapabilities(currentUser),
+      canAccessInventory: true,
+      canCreateInventoryMovement: true,
+      canIssueInventoryToObject: true,
+    };
+
+    return items.map((item) =>
+      this.mapItem(item, stockByItemId.get(item.id), capabilities),
+    );
+  }
+
+  private async loadObjectScope(objectId: string): Promise<{
+    id: string;
+    createdByUserId: string;
+    assignments: Array<{
+      userId: string;
+      isActive: boolean;
+    }>;
+  }> {
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: objectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        createdByUserId: true,
+        assignments: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            userId: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Related object not found');
+    }
+
+    return object;
+  }
+
+  private canIssueToSpecificObject(
+    currentUser: CurrentAuthUser,
+    object: {
+      createdByUserId: string;
+      assignments: Array<{
+        userId: string;
+        isActive: boolean;
+      }>;
+    },
+  ): boolean {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    return (
+      canIssueInventoryToObject(roleCodes) ||
+      hasWideObjectAccess(roleCodes) ||
+      object.createdByUserId === currentUser.id ||
+      object.assignments.some((assignment) => assignment.userId === currentUser.id)
+    );
+  }
+
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
     return currentUser.roleCodes ?? [currentUser.roleCode];
   }
@@ -668,6 +955,9 @@ export class InventoryService {
         }
         return;
       case 'return':
+        if (!canReturnInventory(roleCodes)) {
+          throw new ForbiddenException('Inventory return denied');
+        }
         return;
       case 'writeoff':
         if (!canWriteoffInventory(roleCodes)) {
@@ -719,13 +1009,20 @@ export class InventoryService {
     }
   }
 
-  private normalizeMovementPayload(payload: CreateInventoryMovementDto): {
+  private normalizeMovementPayload(
+    payload: CreateInventoryMovementDto,
+    currentUnitPrice: Prisma.Decimal | null,
+  ): {
     movementType: InventoryMovementType;
     quantity: Prisma.Decimal;
+    unitPriceSnapshot: Prisma.Decimal;
+    totalAmountSnapshot: Prisma.Decimal;
     signedQuantity: number;
     adjustmentDirection: string | null;
     comment: string | null;
     evidenceRequired: boolean;
+    requiresApprovalBridge: boolean;
+    approvalBridgeType: string | null;
     relatedObjectId: string | null;
     relatedOneTimeOrderId: string | null;
   } {
@@ -735,6 +1032,41 @@ export class InventoryService {
     const comment = payload.comment?.trim() || null;
     const relatedObjectId = payload.relatedObjectId ?? null;
     const relatedOneTimeOrderId = payload.relatedOneTimeOrderId ?? null;
+    const unitPriceSnapshot = this.resolveUnitPriceSnapshot(
+      movementType,
+      payload.unitPrice,
+      currentUnitPrice,
+    );
+    const totalAmountSnapshot = unitPriceSnapshot.mul(quantity);
+    const buildMovement = (params: {
+      signedQuantity: number;
+      adjustmentDirection: string | null;
+      relatedObjectId: string | null;
+      relatedOneTimeOrderId: string | null;
+    }) => {
+      const evidenceRequired = this.resolveEvidenceRequired(
+        movementType,
+        params.adjustmentDirection,
+        payload.evidenceRequired,
+      );
+
+      return {
+        movementType,
+        quantity,
+        unitPriceSnapshot,
+        totalAmountSnapshot,
+        signedQuantity: params.signedQuantity,
+        adjustmentDirection: params.adjustmentDirection,
+        comment,
+        evidenceRequired,
+        requiresApprovalBridge: evidenceRequired,
+        approvalBridgeType: evidenceRequired
+          ? 'inventory_without_photo_confirmation'
+          : null,
+        relatedObjectId: params.relatedObjectId,
+        relatedOneTimeOrderId: params.relatedOneTimeOrderId,
+      };
+    };
 
     switch (movementType) {
       case 'receipt':
@@ -743,85 +1075,55 @@ export class InventoryService {
             'Receipt movement cannot reference object or one-time order',
           );
         }
-        return {
-          movementType,
-          quantity,
+        return buildMovement({
           signedQuantity: quantityValue,
           adjustmentDirection: null,
-          comment,
-          evidenceRequired:
-            payload.evidenceRequired ??
-            defaultEvidenceRequiredForMovementType(movementType),
           relatedObjectId: null,
           relatedOneTimeOrderId: null,
-        };
+        });
       case 'issue_to_object':
         if (!relatedObjectId || relatedOneTimeOrderId) {
           throw new BadRequestException(
             'Issue to object requires relatedObjectId and forbids relatedOneTimeOrderId',
           );
         }
-        return {
-          movementType,
-          quantity,
+        return buildMovement({
           signedQuantity: -quantityValue,
           adjustmentDirection: null,
-          comment,
-          evidenceRequired:
-            payload.evidenceRequired ??
-            defaultEvidenceRequiredForMovementType(movementType),
           relatedObjectId,
           relatedOneTimeOrderId: null,
-        };
+        });
       case 'issue_to_one_time_order':
         if (!relatedOneTimeOrderId || relatedObjectId) {
           throw new BadRequestException(
             'Issue to one-time order requires relatedOneTimeOrderId and forbids relatedObjectId',
           );
         }
-        return {
-          movementType,
-          quantity,
+        return buildMovement({
           signedQuantity: -quantityValue,
           adjustmentDirection: null,
-          comment,
-          evidenceRequired:
-            payload.evidenceRequired ??
-            defaultEvidenceRequiredForMovementType(movementType),
           relatedObjectId: null,
           relatedOneTimeOrderId,
-        };
+        });
       case 'return':
         if (!relatedObjectId && !relatedOneTimeOrderId) {
           throw new BadRequestException(
             'Return movement requires relatedObjectId or relatedOneTimeOrderId',
           );
         }
-        return {
-          movementType,
-          quantity,
+        return buildMovement({
           signedQuantity: quantityValue,
           adjustmentDirection: null,
-          comment,
-          evidenceRequired:
-            payload.evidenceRequired ??
-            defaultEvidenceRequiredForMovementType(movementType),
           relatedObjectId,
           relatedOneTimeOrderId,
-        };
+        });
       case 'writeoff':
-        return {
-          movementType,
-          quantity,
+        return buildMovement({
           signedQuantity: -quantityValue,
           adjustmentDirection: null,
-          comment,
-          evidenceRequired:
-            payload.evidenceRequired ??
-            defaultEvidenceRequiredForMovementType(movementType),
           relatedObjectId,
           relatedOneTimeOrderId,
-        };
+        });
       case 'adjustment':
         if (relatedObjectId || relatedOneTimeOrderId) {
           throw new BadRequestException(
@@ -833,21 +1135,15 @@ export class InventoryService {
             'Adjustment movement requires adjustmentDirection',
           );
         }
-        return {
-          movementType,
-          quantity,
+        return buildMovement({
           signedQuantity:
             payload.adjustmentDirection === 'increase'
               ? quantityValue
               : -quantityValue,
           adjustmentDirection: payload.adjustmentDirection,
-          comment,
-          evidenceRequired:
-            payload.evidenceRequired ??
-            defaultEvidenceRequiredForMovementType(movementType),
           relatedObjectId: null,
           relatedOneTimeOrderId: null,
-        };
+        });
     }
   }
 
@@ -990,6 +1286,49 @@ export class InventoryService {
     }
   }
 
+  private resolveUnitPriceSnapshot(
+    movementType: InventoryMovementType,
+    requestedUnitPrice: number | undefined,
+    currentUnitPrice: Prisma.Decimal | null,
+  ): Prisma.Decimal {
+    if (movementType === 'receipt') {
+      if (requestedUnitPrice === undefined) {
+        throw new BadRequestException('Receipt movement requires unitPrice');
+      }
+
+      return new Prisma.Decimal(requestedUnitPrice);
+    }
+
+    if (!currentUnitPrice) {
+      throw new BadRequestException(
+        'Inventory item has no current unit price; create a receipt first',
+      );
+    }
+
+    return currentUnitPrice;
+  }
+
+  private resolveEvidenceRequired(
+    movementType: InventoryMovementType,
+    adjustmentDirection: string | null,
+    requestedEvidenceRequired: boolean | undefined,
+  ): boolean {
+    const mandatoryEvidence =
+      movementType === 'issue_to_object' ||
+      movementType === 'issue_to_one_time_order' ||
+      movementType === 'writeoff' ||
+      (movementType === 'adjustment' && adjustmentDirection === 'decrease');
+
+    if (mandatoryEvidence) {
+      return true;
+    }
+
+    return (
+      requestedEvidenceRequired ??
+      defaultEvidenceRequiredForMovementType(movementType)
+    );
+  }
+
   private buildDateRangeWhere(query: ListInventoryMovementsQueryDto): {
     createdAt?: {
       gte?: Date;
@@ -1089,6 +1428,10 @@ export class InventoryService {
       | undefined,
     capabilities: InventoryGlobalCapabilities,
   ): InventoryItemResponseDto {
+    const currentStock = Number((stockSummary?.currentStock ?? 0).toFixed(3));
+    const currentUnitPrice =
+      item.currentUnitPrice === null ? null : Number(item.currentUnitPrice);
+
     return {
       id: item.id,
       name: item.name,
@@ -1096,10 +1439,14 @@ export class InventoryService {
       unit: item.unit,
       isActive: item.isActive,
       notes: item.notes,
+      currentUnitPrice,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
       createdBy: item.createdBy,
-      currentStock: Number((stockSummary?.currentStock ?? 0).toFixed(3)),
+      currentStock,
+      currentEstimatedTotalValue: Number(
+        (currentStock * (currentUnitPrice ?? 0)).toFixed(2),
+      ),
       summary: {
         movementsCount: stockSummary?.movementsCount ?? 0,
         receiptsCount: stockSummary?.receiptsCount ?? 0,
@@ -1114,6 +1461,7 @@ export class InventoryService {
         canCreateReceipt: capabilities.canCreateInventoryReceipt,
         canIssueToObject: capabilities.canIssueInventoryToObject,
         canIssueToOneTimeOrder: capabilities.canIssueInventoryToOneTimeOrder,
+        canReturn: capabilities.canReturnInventory,
         canWriteoff: capabilities.canWriteoffInventory,
         canAdjust: capabilities.canAdjustInventory,
         canViewReports: capabilities.canViewInventoryReports,
@@ -1140,6 +1488,8 @@ export class InventoryService {
       movementType: movement.movementType,
       quantity: Number(movement.quantity),
       signedQuantity: Number(signedQuantity.toFixed(3)),
+      unitPriceSnapshot: Number(movement.unitPriceSnapshot),
+      totalAmountSnapshot: Number(movement.totalAmountSnapshot),
       adjustmentDirection: movement.adjustmentDirection,
       comment: movement.comment,
       evidenceRequired: movement.evidenceRequired,
@@ -1172,14 +1522,18 @@ export class InventoryService {
       attachments,
       projection: {
         hasEvidence,
-        requiresApprovalBridge: movement.evidenceRequired && !hasEvidence,
+        requiresApprovalBridge: movement.requiresApprovalBridge && !hasEvidence,
         approvalBridgeType:
-          movement.evidenceRequired && !hasEvidence
-            ? 'inventory_without_photo_confirmation'
+          movement.requiresApprovalBridge && !hasEvidence
+            ? movement.approvalBridgeType
             : null,
         isSensitive: isSensitiveInventoryMovementType(
           movement.movementType as InventoryMovementType,
         ),
+        canResolveMissingPhotoApproval:
+          movement.requiresApprovalBridge &&
+          !hasEvidence &&
+          canResolveInventoryMissingPhotoApproval(roleCodes),
       },
     };
   }
