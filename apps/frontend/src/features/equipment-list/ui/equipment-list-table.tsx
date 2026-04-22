@@ -19,7 +19,10 @@ export function EquipmentListTable({
     <div style={{ display: 'grid', gap: 12 }}>
       {items.map((item) => (
         <div key={item.id} className="page-card" style={{ display: 'grid', gap: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+          <div
+            className="section-header"
+            style={{ alignItems: 'center', paddingBottom: 0 }}
+          >
             <div>
               <Link href={`/equipment/${item.id}`} style={{ fontWeight: 700 }}>
                 {item.catalogItem.name} · {item.inventoryNumber}
@@ -30,7 +33,9 @@ export function EquipmentListTable({
                 {item.catalogItem.model ? ` · ${item.catalogItem.model}` : ''}
               </div>
             </div>
-            <div>{getEquipmentStatusLabel(item.status)}</div>
+            <span className="status-pill" data-status={item.status}>
+              {getEquipmentStatusLabel(item.status)}
+            </span>
           </div>
           <div className="page-muted">
             {item.currentObject

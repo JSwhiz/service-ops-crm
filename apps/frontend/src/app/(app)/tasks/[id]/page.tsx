@@ -61,7 +61,7 @@ export default function TaskDetailPage({
           {error}
         </div>
       ) : item ? (
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div className="page-stack">
           <TaskSummaryCard item={item} />
 
           <div className="page-card">
@@ -72,7 +72,9 @@ export default function TaskDetailPage({
                   Доступные переходы рассчитаны backend rules.
                 </div>
               </div>
-              <span className="status-pill">{getTaskStatusLabel(item.status)}</span>
+              <span className="status-pill" data-status={item.status}>
+                {getTaskStatusLabel(item.status)}
+              </span>
             </div>
             {item.capabilities.allowedStatusTransitions.length > 0 ? (
               <div className="action-row">
@@ -81,16 +83,16 @@ export default function TaskDetailPage({
                     status.value,
                   ),
                 ).map((status) => (
-                <button
-                  key={status.value}
-                  type="button"
-                  onClick={async () => {
-                    await updateTaskStatus(taskId, status.value);
-                    await loadTask(taskId);
-                  }}
-                >
-                  {status.label}
-                </button>
+                  <button
+                    key={status.value}
+                    type="button"
+                    onClick={async () => {
+                      await updateTaskStatus(taskId, status.value);
+                      await loadTask(taskId);
+                    }}
+                  >
+                    {status.label}
+                  </button>
                 ))}
               </div>
             ) : (

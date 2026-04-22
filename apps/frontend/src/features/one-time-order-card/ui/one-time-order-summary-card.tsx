@@ -11,72 +11,67 @@ export function OneTimeOrderSummaryCard({
 }): React.JSX.Element {
   return (
     <div
-      className="page-card"
-      style={{
-        display: 'grid',
-        gap: 16,
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-      }}
+      className="page-card hero-card"
+      style={{ display: 'grid', gap: 18 }}
     >
-      <div>
-        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>
-          Название
+      <div className="section-header">
+        <div>
+          <div className="hero-title">{item.title}</div>
+          <div className="hero-meta">{item.executionAddress}</div>
         </div>
-        <div style={{ fontSize: 20, fontWeight: 700 }}>{item.title}</div>
+        <span className="status-pill" data-status={item.status}>
+          {getOneTimeOrderStatusLabel(item.status)}
+        </span>
       </div>
-      <div>
-        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>
-          Статус
-        </div>
-        <span className="status-pill">{getOneTimeOrderStatusLabel(item.status)}</span>
+
+      <div className="detail-grid">
+        <Field
+          label="Дата исполнения"
+          value={
+            item.executionDate
+              ? new Date(item.executionDate).toLocaleDateString('ru-RU')
+              : '—'
+          }
+        />
+        <Field
+          label="Контакт"
+          value={
+            item.contactPhone
+              ? `${item.contactName} (${item.contactPhone})`
+              : item.contactName
+          }
+        />
+        <Field
+          label="Сумма"
+          value={
+            item.agreedSum !== null
+              ? `${item.agreedSum.toLocaleString('ru-RU')} ₽`
+              : '—'
+          }
+        />
+        <Field
+          label="Связанный объект"
+          value={
+            item.linkedObject
+              ? item.linkedObject.canOpenObjectCard
+                ? item.linkedObject.name
+                : `${item.linkedObject.name} (без доступа к карточке)`
+              : '—'
+          }
+          href={
+            item.linkedObject?.canOpenObjectCard
+              ? `/objects/${item.linkedObject.id}`
+              : undefined
+          }
+        />
+        <Field
+          label="Менеджеры"
+          value={item.managers.map((manager) => manager.fullName).join(', ') || '—'}
+        />
+        <Field label="Описание" value={item.description ?? '—'} />
+        <Field label="Финансовые заметки" value={item.financialNotes ?? '—'} />
+        <Field label="Расходные заметки" value={item.expenseNotes ?? '—'} />
       </div>
-      <Field label="Адрес" value={item.executionAddress} />
-      <Field
-        label="Дата исполнения"
-        value={
-          item.executionDate
-            ? new Date(item.executionDate).toLocaleDateString('ru-RU')
-            : '—'
-        }
-      />
-      <Field
-        label="Контакт"
-        value={
-          item.contactPhone
-            ? `${item.contactName} (${item.contactPhone})`
-            : item.contactName
-        }
-      />
-      <Field
-        label="Сумма"
-        value={
-          item.agreedSum !== null
-            ? `${item.agreedSum.toLocaleString('ru-RU')} ₽`
-            : '—'
-        }
-      />
-      <Field
-        label="Связанный объект"
-        value={
-          item.linkedObject
-            ? item.linkedObject.canOpenObjectCard
-              ? item.linkedObject.name
-              : `${item.linkedObject.name} (без доступа к карточке)`
-            : '—'
-        }
-        href={
-          item.linkedObject?.canOpenObjectCard
-            ? `/objects/${item.linkedObject.id}`
-            : undefined
-        }
-      />
-      <Field
-        label="Менеджеры"
-        value={item.managers.map((manager) => manager.fullName).join(', ') || '—'}
-      />
-      <Field label="Описание" value={item.description ?? '—'} />
-      <Field label="Финансовые заметки" value={item.financialNotes ?? '—'} />
-      <Field label="Расходные заметки" value={item.expenseNotes ?? '—'} />
     </div>
   );
 }
@@ -91,9 +86,9 @@ function Field({
   href?: string;
 }): React.JSX.Element {
   return (
-    <div>
-      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 15 }}>
+    <div className="detail-field">
+      <div className="detail-label">{label}</div>
+      <div className="detail-value">
         {href ? <Link href={href}>{value}</Link> : value}
       </div>
     </div>

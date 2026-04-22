@@ -13,30 +13,34 @@ export function TaskSummaryCard({
 }): React.JSX.Element {
   return (
     <div
-      className="page-card"
-      style={{
-        display: 'grid',
-        gap: 16,
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-      }}
+      className="page-card hero-card"
+      style={{ display: 'grid', gap: 18 }}
     >
-      <Field label="Название" value={item.title} />
-      <Field
-        label="Контур"
-        value={
-          item.targetType === 'one_time_order'
-            ? `Разовый заказ: ${item.targetName}`
-            : item.targetName
-        }
-      />
-      <Field label="Приоритет" value={getTaskPriorityLabel(item.priority)} />
-      <Field label="Статус" value={getTaskStatusLabel(item.status)} />
-      <Field
-        label="Исполнители"
-        value={item.assignees.map((assignee) => assignee.fullName).join(', ') || '—'}
-      />
-      <Field label="Описание" value={item.description ?? '—'} />
-      <Field label="Результат" value={item.resultText ?? '—'} />
+      <div className="section-header">
+        <div>
+          <div className="hero-title">{item.title}</div>
+          <div className="hero-meta">
+            {item.targetType === 'one_time_order'
+              ? `Разовый заказ: ${item.targetName}`
+              : item.targetName}
+          </div>
+        </div>
+        <span className="status-pill" data-status={item.status}>
+          {getTaskStatusLabel(item.status)}
+        </span>
+      </div>
+
+      <div className="detail-grid">
+        <Field label="Приоритет" value={getTaskPriorityLabel(item.priority)} />
+        <Field
+          label="Исполнители"
+          value={
+            item.assignees.map((assignee) => assignee.fullName).join(', ') || '—'
+          }
+        />
+        <Field label="Описание" value={item.description ?? '—'} />
+        <Field label="Результат" value={item.resultText ?? '—'} />
+      </div>
     </div>
   );
 }
@@ -49,9 +53,9 @@ function Field({
   value: string;
 }): React.JSX.Element {
   return (
-    <div>
-      <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 15 }}>{value}</div>
+    <div className="detail-field">
+      <div className="detail-label">{label}</div>
+      <div className="detail-value">{value}</div>
     </div>
   );
 }

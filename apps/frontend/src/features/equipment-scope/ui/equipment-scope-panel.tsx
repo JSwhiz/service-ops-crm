@@ -15,9 +15,13 @@ export function EquipmentScopePanel({
 }): React.JSX.Element {
   return (
     <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-      <div>
-        <div style={{ fontWeight: 700 }}>{title}</div>
-        <div className="page-muted">Штучное оборудование, закрепленное за этим контуром.</div>
+      <div className="section-header">
+        <div>
+          <div className="section-title">{title}</div>
+          <div className="section-subtitle">
+            Штучное оборудование, закрепленное за этим контуром.
+          </div>
+        </div>
       </div>
       {units.length === 0 ? (
         <div className="page-muted">Оборудование не закреплено.</div>
@@ -34,8 +38,10 @@ export function EquipmentScopePanel({
                   {unit.catalogItem.name} · {unit.inventoryNumber}
                 </div>
               )}
-              <div className="page-muted">
-                {getEquipmentStatusLabel(unit.status)}
+              <div className="page-muted" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span className="status-pill" data-status={unit.status}>
+                  {getEquipmentStatusLabel(unit.status)}
+                </span>
                 {unit.notes ? ` · ${unit.notes}` : ''}
               </div>
             </div>

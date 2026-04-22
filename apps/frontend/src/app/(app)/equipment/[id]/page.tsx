@@ -117,37 +117,37 @@ export default function EquipmentDetailPage({
           {error}
         </div>
       ) : unit ? (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 24 }}>
-              {unit.catalogItem.name}
+        <div className="page-stack">
+          <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
+            <div className="section-header">
+              <div>
+                <div className="hero-title">{unit.catalogItem.name}</div>
+                <div className="hero-meta">
+                  {unit.inventoryNumber}
+                  {unit.serialNumber ? ` · ${unit.serialNumber}` : ''}
+                </div>
+              </div>
+              <span className="status-pill" data-status={unit.status}>
+                {getEquipmentStatusLabel(unit.status)}
+              </span>
             </div>
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              }}
-            >
-              <div>
-                <div className="page-muted">Категория</div>
-                <div>{unit.catalogItem.category}</div>
+
+            <div className="detail-grid">
+              <div className="detail-field">
+                <div className="detail-label">Категория</div>
+                <div className="detail-value">{unit.catalogItem.category}</div>
               </div>
-              <div>
-                <div className="page-muted">Инвентарный номер</div>
-                <div>{unit.inventoryNumber}</div>
+              <div className="detail-field">
+                <div className="detail-label">Инвентарный номер</div>
+                <div className="detail-value">{unit.inventoryNumber}</div>
               </div>
-              <div>
-                <div className="page-muted">Серийный номер</div>
-                <div>{unit.serialNumber ?? '—'}</div>
+              <div className="detail-field">
+                <div className="detail-label">Серийный номер</div>
+                <div className="detail-value">{unit.serialNumber ?? '—'}</div>
               </div>
-              <div>
-                <div className="page-muted">Статус</div>
-                <div>{getEquipmentStatusLabel(unit.status)}</div>
-              </div>
-              <div>
-                <div className="page-muted">Текущая привязка</div>
-                <div>
+              <div className="detail-field">
+                <div className="detail-label">Текущая привязка</div>
+                <div className="detail-value">
                   {unit.currentObject
                     ? unit.currentObject.name
                     : unit.currentOneTimeOrder
@@ -157,9 +157,9 @@ export default function EquipmentDetailPage({
               </div>
             </div>
             {unit.notes ? (
-              <div>
-                <div className="page-muted">Заметки</div>
-                <div>{unit.notes}</div>
+              <div className="detail-field">
+                <div className="detail-label">Заметки</div>
+                <div className="detail-value">{unit.notes}</div>
               </div>
             ) : null}
           </div>

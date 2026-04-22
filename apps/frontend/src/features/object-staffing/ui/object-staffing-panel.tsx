@@ -73,8 +73,13 @@ export function ObjectStaffingPanel({
 
   return (
     <div className="page-card">
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>
-        Состав сотрудников объекта
+      <div className="section-header" style={{ marginBottom: 14 }}>
+        <div>
+          <div className="section-title">Состав сотрудников объекта</div>
+          <div className="section-subtitle">
+            Staffing отдельно от attendance и табеля.
+          </div>
+        </div>
       </div>
 
       <label style={{ display: 'block', marginBottom: 16 }}>
@@ -94,20 +99,22 @@ export function ObjectStaffingPanel({
           Сотрудники пока не добавлены.
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+        <div className="record-list" style={{ marginBottom: 16 }}>
           {assigned.map((employee) => (
             <div
               key={employee.id}
+              className="record-card"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: 12,
-                padding: 10,
                 border: employee.availability.isUnavailable
                   ? '1px solid #f59e0b'
-                  : '1px solid #d1d5db',
-                borderRadius: 10,
+                  : undefined,
+                background: employee.availability.isUnavailable
+                  ? '#fffbeb'
+                  : undefined,
               }}
               title={getAvailabilityExplanation(employee) ?? undefined}
             >
@@ -115,7 +122,9 @@ export function ObjectStaffingPanel({
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <span>{employee.fullName}</span>
                   {employee.availability.isUnavailable ? (
-                    <span style={{ color: '#b45309' }}>Недоступен</span>
+                    <span className="status-pill" data-status="under_repair">
+                      Недоступен
+                    </span>
                   ) : null}
                   {employee.activeSubstitutions
                     .filter((item) => item.role === 'primary')
@@ -154,15 +163,11 @@ export function ObjectStaffingPanel({
           Активных подмен на сегодня нет.
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 8, marginBottom: 16 }}>
+        <div className="record-list" style={{ marginBottom: 16 }}>
           {visibleSubstitutions.map((substitution) => (
             <div
               key={substitution.id}
-              style={{
-                padding: 10,
-                border: '1px solid #d1d5db',
-                borderRadius: 10,
-              }}
+              className="record-card"
             >
               <div>
                 <strong>{substitution.primaryEmployeeName}</strong> замещается{' '}
@@ -196,20 +201,22 @@ export function ObjectStaffingPanel({
       ) : directory.length === 0 ? (
         <div className="page-muted">Подходящих сотрудников не найдено.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <div className="record-list">
           {directory.map((employee) => (
             <div
               key={employee.id}
+              className="record-card"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: 12,
-                padding: 10,
                 border: employee.availability.isUnavailable
                   ? '1px solid #f59e0b'
-                  : '1px solid #d1d5db',
-                borderRadius: 10,
+                  : undefined,
+                background: employee.availability.isUnavailable
+                  ? '#fffbeb'
+                  : undefined,
               }}
               title={getAvailabilityExplanation(employee) ?? undefined}
             >
@@ -217,7 +224,9 @@ export function ObjectStaffingPanel({
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <span>{employee.fullName}</span>
                   {employee.availability.isUnavailable ? (
-                    <span style={{ color: '#b45309' }}>Недоступен</span>
+                    <span className="status-pill" data-status="under_repair">
+                      Недоступен
+                    </span>
                   ) : null}
                 </div>
                 {employee.availability.isUnavailable ? (

@@ -122,49 +122,57 @@ export default function InventoryItemDetailPage({
           {error}
         </div>
       ) : item ? (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ fontWeight: 700, fontSize: 24 }}>{item.name}</div>
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-              }}
-            >
+        <div className="page-stack">
+          <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
+            <div className="section-header">
               <div>
-                <div className="page-muted">Категория</div>
-                <div>{item.category}</div>
+                <div className="hero-title">{item.name}</div>
+                <div className="hero-meta">
+                  {item.category} · {item.unit}
+                </div>
               </div>
-              <div>
-                <div className="page-muted">Единица измерения</div>
-                <div>{item.unit}</div>
+              <span
+                className="status-pill"
+                data-status={item.isActive ? 'active' : 'archived'}
+              >
+                {item.isActive ? 'Активна' : 'Неактивна'}
+              </span>
+            </div>
+
+            <div className="detail-grid">
+              <div className="detail-field">
+                <div className="detail-label">Категория</div>
+                <div className="detail-value">{item.category}</div>
               </div>
-              <div>
-                <div className="page-muted">Текущий остаток</div>
-                <div>{formatInventoryQuantity(item.currentStock, item.unit)}</div>
+              <div className="detail-field">
+                <div className="detail-label">Единица измерения</div>
+                <div className="detail-value">{item.unit}</div>
               </div>
-              <div>
-                <div className="page-muted">Текущая цена</div>
-                <div>
+              <div className="detail-field">
+                <div className="detail-label">Текущий остаток</div>
+                <div className="detail-value">
+                  {formatInventoryQuantity(item.currentStock, item.unit)}
+                </div>
+              </div>
+              <div className="detail-field">
+                <div className="detail-label">Текущая цена</div>
+                <div className="detail-value">
                   {item.currentUnitPrice === null
                     ? 'Нет прихода с ценой'
                     : `${item.currentUnitPrice.toLocaleString('ru-RU')} ₽`}
                 </div>
               </div>
-              <div>
-                <div className="page-muted">Оценка остатка</div>
-                <div>{item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽</div>
-              </div>
-              <div>
-                <div className="page-muted">Статус</div>
-                <div>{item.isActive ? 'Активна' : 'Неактивна'}</div>
+              <div className="detail-field">
+                <div className="detail-label">Оценка остатка</div>
+                <div className="detail-value">
+                  {item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽
+                </div>
               </div>
             </div>
             {item.notes ? (
-              <div>
-                <div className="page-muted">Примечание</div>
-                <div>{item.notes}</div>
+              <div className="detail-field">
+                <div className="detail-label">Примечание</div>
+                <div className="detail-value">{item.notes}</div>
               </div>
             ) : null}
           </div>

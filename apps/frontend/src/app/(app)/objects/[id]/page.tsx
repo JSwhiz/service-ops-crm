@@ -651,7 +651,7 @@ export default function ObjectDetailPage({
           {coreError}
         </div>
       ) : item ? (
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div className="page-stack">
           <ObjectSummaryCard item={item} />
 
           {canManageObjectStatus ? (
@@ -665,13 +665,7 @@ export default function ObjectDetailPage({
           ) : null}
 
           {(canManageResponsibles || canManageManagers) && (
-            <div
-              style={{
-                display: 'grid',
-                gap: 16,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-              }}
-            >
+            <div className="detail-grid">
               {teamUsersLoading ? (
                 <ObjectPanelLoading title="Ответственные и менеджеры объекта" />
               ) : teamUsersError ? (
@@ -725,13 +719,7 @@ export default function ObjectDetailPage({
             </div>
           )}
 
-          <div
-            style={{
-              display: 'grid',
-              gap: 16,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            }}
-          >
+          <div className="detail-grid">
             {arrivalLoading ? (
               <ObjectPanelLoading title="Фото прибытия сегодня" />
             ) : arrivalError ? (
@@ -946,13 +934,7 @@ export default function ObjectDetailPage({
             <TaskListTable items={tasks} />
           )}
 
-          <div
-            style={{
-              display: 'grid',
-              gap: 16,
-              gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 0.8fr)',
-            }}
-          >
+          <div className="panel-grid">
             {commentsLoading ? (
               <ObjectPanelLoading title="Комментарии объекта" />
             ) : commentsError ? (

@@ -41,23 +41,17 @@ export function ObjectSummaryCard({
   const allowEdit = item.capabilities.canEdit;
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 16,
-          alignItems: 'flex-start',
-          flexWrap: 'wrap',
-        }}
-      >
+    <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
+      <div className="section-header">
         <div>
-          <div style={{ fontSize: 24, fontWeight: 700 }}>{item.name}</div>
-          <div className="page-muted">
+          <div className="hero-title">{item.name}</div>
+          <div className="hero-meta">
             {item.internalName ?? 'Без внутреннего имени'}
           </div>
           <div style={{ marginTop: 8 }}>
-            <span className="status-pill">{getStatusLabel(item.status)}</span>
+            <span className="status-pill" data-status={item.status}>
+              {getStatusLabel(item.status)}
+            </span>
           </div>
         </div>
 
@@ -74,38 +68,27 @@ export function ObjectSummaryCard({
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        }}
-      >
-        <div>
-          <div className="page-muted">Адрес</div>
-          <div>{item.address}</div>
+      <div className="detail-grid">
+        <div className="detail-field">
+          <div className="detail-label">Адрес</div>
+          <div className="detail-value">{item.address}</div>
         </div>
 
-        <div>
-          <div className="page-muted">Статус</div>
-          <div>{getStatusLabel(item.status)}</div>
+        <div className="detail-field">
+          <div className="detail-label">Сезон</div>
+          <div className="detail-value">{getSeasonLabel(item.seasonMode)}</div>
         </div>
 
-        <div>
-          <div className="page-muted">Сезон</div>
-          <div>{getSeasonLabel(item.seasonMode)}</div>
-        </div>
-
-        <div>
-          <div className="page-muted">Ставка за день</div>
-          <div>{item.dailyRate}</div>
+        <div className="detail-field">
+          <div className="detail-label">Ставка за день</div>
+          <div className="detail-value">{item.dailyRate}</div>
         </div>
       </div>
 
       {item.notes ? (
-        <div>
-          <div className="page-muted">Комментарий</div>
-          <div>{item.notes}</div>
+        <div className="detail-field">
+          <div className="detail-label">Комментарий</div>
+          <div className="detail-value">{item.notes}</div>
         </div>
       ) : null}
     </div>

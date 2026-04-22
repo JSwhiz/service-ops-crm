@@ -45,7 +45,11 @@ export function OneTimeOrderListTable({
                 </div>
                 <div className="page-muted">{item.executionAddress}</div>
               </td>
-              <td style={tdStyle}>{getOneTimeOrderStatusLabel(item.status)}</td>
+              <td style={tdStyle}>
+                <span className="status-pill" data-status={item.status}>
+                  {getOneTimeOrderStatusLabel(item.status)}
+                </span>
+              </td>
               <td style={tdStyle}>
                 {item.contactName}
                 {item.contactPhone ? ` (${item.contactPhone})` : ''}

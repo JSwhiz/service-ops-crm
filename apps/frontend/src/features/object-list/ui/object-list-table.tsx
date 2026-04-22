@@ -77,7 +77,9 @@ export function ObjectListTable({
               <td style={{ padding: '12px 8px' }}>{item.address}</td>
 
               <td style={{ padding: '12px 8px' }}>
-                {getStatusLabel(item.status)}
+                <span className="status-pill" data-status={item.status}>
+                  {getStatusLabel(item.status)}
+                </span>
               </td>
 
               <td style={{ padding: '12px 8px' }}>

@@ -27,21 +27,11 @@ export function InventoryReportSummary({
   ];
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gap: 12,
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-      }}
-    >
+    <div className="stat-grid">
       {cards.map((card) => (
-        <div
-          key={card.label}
-          className="page-card"
-          style={{ display: 'grid', gap: 4 }}
-        >
-          <div className="page-muted">{card.label}</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{card.value}</div>
+        <div key={card.label} className="stat-card">
+          <div className="detail-label">{card.label}</div>
+          <div className="stat-card__value">{card.value}</div>
         </div>
       ))}
     </div>

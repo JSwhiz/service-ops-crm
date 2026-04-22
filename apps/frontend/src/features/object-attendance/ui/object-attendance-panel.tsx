@@ -84,12 +84,11 @@ export function ObjectAttendancePanel({
 
   return (
     <div className="page-card">
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>
-        Кто был сегодня на объекте
-      </div>
-
-      <div className="page-muted" style={{ marginBottom: 12 }}>
-        {operationDate}
+      <div className="section-header" style={{ marginBottom: 12 }}>
+        <div>
+          <div className="section-title">Кто был сегодня на объекте</div>
+          <div className="section-subtitle">{operationDate}</div>
+        </div>
       </div>
 
       {safeEmployees.length === 0 ? (
@@ -98,19 +97,21 @@ export function ObjectAttendancePanel({
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
-          <div style={{ display: 'grid', gap: 10 }}>
+          <div className="record-list">
             {safeEmployees.map((employee) => (
               <label
                 key={employee.id}
+                className="record-card"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  padding: 10,
                   border: employee.availability.isUnavailable
                     ? '1px solid #f59e0b'
-                    : '1px solid #d1d5db',
-                  borderRadius: 10,
+                    : undefined,
+                  background: employee.availability.isUnavailable
+                    ? '#fffbeb'
+                    : undefined,
                   opacity:
                     employee.availability.isUnavailable &&
                     !selectedIds.includes(employee.id)
@@ -132,7 +133,7 @@ export function ObjectAttendancePanel({
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <span>{employee.fullName}</span>
                     {!employee.isAssignedToObject ? (
-                      <span className="page-muted">Подмена</span>
+                      <span className="status-pill">Подмена</span>
                     ) : null}
                     {employee.activeSubstitutions
                       .filter((item) => item.role === 'replacement')

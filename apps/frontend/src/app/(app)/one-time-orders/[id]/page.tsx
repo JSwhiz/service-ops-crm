@@ -239,15 +239,23 @@ export default function OneTimeOrderDetailPage({
           {error}
         </div>
       ) : item ? (
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div className="page-stack">
           <OneTimeOrderSummaryCard item={item} />
 
           {item.capabilities.canChangeStatus ? (
             <div className="page-card">
-              <div style={{ fontWeight: 600, marginBottom: 12 }}>
-                Статус заказа
+              <div className="section-header" style={{ marginBottom: 12 }}>
+                <div>
+                  <div className="section-title">Статус заказа</div>
+                  <div className="section-subtitle">
+                    Переходы доступны только если их разрешил backend.
+                  </div>
+                </div>
+                <span className="status-pill" data-status={item.status}>
+                  {getOneTimeOrderStatusLabel(item.status)}
+                </span>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="action-row">
                 {ONE_TIME_ORDER_STATUS_OPTIONS.filter(
                   (option) => option.value !== item.status,
                 ).map((option) => (
@@ -266,9 +274,6 @@ export default function OneTimeOrderDetailPage({
                     {option.label}
                   </button>
                 ))}
-              </div>
-              <div className="page-muted" style={{ marginTop: 12 }}>
-                Текущий статус: {getOneTimeOrderStatusLabel(item.status)}
               </div>
             </div>
           ) : null}

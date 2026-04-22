@@ -142,8 +142,17 @@ export function EquipmentMovementPanel({
             <div key={movement.id} className="record-card" style={{ display: 'grid', gap: 8 }}>
               <strong>{getEquipmentMovementLabel(movement.movementType)}</strong>
               <div className="page-muted">
-                {movement.fromStatus ? getEquipmentStatusLabel(movement.fromStatus) : '—'} →{' '}
-                {getEquipmentStatusLabel(movement.toStatus)}
+                {movement.fromStatus ? (
+                  <span className="status-pill" data-status={movement.fromStatus}>
+                    {getEquipmentStatusLabel(movement.fromStatus)}
+                  </span>
+                ) : (
+                  '—'
+                )}{' '}
+                →{' '}
+                <span className="status-pill" data-status={movement.toStatus}>
+                  {getEquipmentStatusLabel(movement.toStatus)}
+                </span>
               </div>
               <div className="page-muted">
                 {new Date(movement.createdAt).toLocaleString('ru-RU')} · {movement.createdBy.fullName}

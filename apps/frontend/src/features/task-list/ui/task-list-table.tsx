@@ -54,7 +54,11 @@ export function TaskListTable({
                   : item.targetName}
               </td>
               <td style={tdStyle}>{getTaskPriorityLabel(item.priority)}</td>
-              <td style={tdStyle}>{getTaskStatusLabel(item.status)}</td>
+              <td style={tdStyle}>
+                <span className="status-pill" data-status={item.status}>
+                  {getTaskStatusLabel(item.status)}
+                </span>
+              </td>
               <td style={tdStyle}>
                 {item.assignees.map((assignee) => assignee.fullName).join(', ') || '—'}
               </td>

@@ -67,19 +67,23 @@ export function ObjectStatusControlPanel({
 
   return (
     <div className="page-card">
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>
-        Управление статусом объекта
-      </div>
-
-      <div style={{ marginBottom: 8 }}>
-        <strong>Текущий статус:</strong> {getStatusLabel(currentStatus)}
+      <div className="section-header" style={{ marginBottom: 12 }}>
+        <div>
+          <div className="section-title">Управление статусом объекта</div>
+          <div className="section-subtitle">
+            Изменение статуса доступно только через backend policy.
+          </div>
+        </div>
+        <span className="status-pill" data-status={currentStatus}>
+          {getStatusLabel(currentStatus)}
+        </span>
       </div>
 
       <div className="page-muted" style={{ marginBottom: 16 }}>
         {getStatusDescription(currentStatus)}
       </div>
 
-      <div style={{ display: 'grid', gap: 8 }}>
+      <div className="action-row">
         {availableTransitions.map((status) => (
           <button
             key={status}
