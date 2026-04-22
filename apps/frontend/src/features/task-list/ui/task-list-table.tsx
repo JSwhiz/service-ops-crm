@@ -9,11 +9,15 @@ import {
 
 export function TaskListTable({
   items,
+  embedded = false,
 }: {
   items: TaskItem[];
+  embedded?: boolean;
 }): React.JSX.Element {
   if (items.length === 0) {
-    return (
+    return embedded ? (
+      <div className="page-muted">Задачи не найдены.</div>
+    ) : (
       <div className="page-card">
         <div className="page-muted">Задачи не найдены.</div>
       </div>
@@ -21,7 +25,7 @@ export function TaskListTable({
   }
 
   return (
-    <div className="page-card" style={{ overflowX: 'auto' }}>
+    <div className={embedded ? undefined : 'page-card'} style={{ overflowX: 'auto' }}>
       <table
         style={{
           width: '100%',

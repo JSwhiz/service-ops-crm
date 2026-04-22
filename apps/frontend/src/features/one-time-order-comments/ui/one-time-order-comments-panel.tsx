@@ -26,7 +26,14 @@ export function OneTimeOrderCommentsPanel({
 
   return (
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div style={{ fontWeight: 600 }}>Комментарии</div>
+      <div className="section-header">
+        <div>
+          <div className="section-title">Комментарии</div>
+          <div className="section-subtitle">
+            Обсуждение заказа без смешения с чатами.
+          </div>
+        </div>
+      </div>
 
       {canCreate ? (
         <form
@@ -92,15 +99,11 @@ export function OneTimeOrderCommentsPanel({
       {items.length === 0 ? (
         <div className="page-muted">Комментариев пока нет.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="record-list local-scroll">
           {items.map((item) => (
             <article
               key={item.id}
-              style={{
-                border: '1px solid #e5e7eb',
-                borderRadius: 12,
-                padding: 12,
-              }}
+              className="record-card"
             >
               <div
                 style={{

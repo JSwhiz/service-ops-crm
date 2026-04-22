@@ -32,7 +32,14 @@ export function OneTimeOrderPhotosPanel({
 
   return (
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div style={{ fontWeight: 600 }}>Фото заказа</div>
+      <div className="section-header">
+        <div>
+          <div className="section-title">Фото заказа</div>
+          <div className="section-subtitle">
+            До/после, отчетные и прочие фото через общий storage.
+          </div>
+        </div>
+      </div>
 
       {canCreate ? (
         <form
@@ -123,17 +130,12 @@ export function OneTimeOrderPhotosPanel({
       {items.length === 0 ? (
         <div className="page-muted">Фотографии заказа пока не загружены.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="record-list local-scroll">
           {items.map((item) => (
             <article
               key={item.id}
-              style={{
-                border: '1px solid #e5e7eb',
-                borderRadius: 12,
-                padding: 12,
-                display: 'grid',
-                gap: 10,
-              }}
+              className="record-card"
+              style={{ display: 'grid', gap: 10 }}
             >
               <div
                 style={{

@@ -22,11 +22,20 @@ export function EntityFilesPanel({
 }): React.JSX.Element {
   return (
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div style={{ fontWeight: 600 }}>{title}</div>
+      <div className="section-header">
+        <div>
+          <div className="section-title">{title}</div>
+          <div className="section-subtitle">
+            Файлы открываются через backend proxy.
+          </div>
+        </div>
+      </div>
 
       {canUpload ? <MediaActionPicker onPick={onUpload} /> : null}
 
-      <AttachmentPreviewList files={files} emptyText={emptyText} />
+      <div className="local-scroll local-scroll--sm">
+        <AttachmentPreviewList files={files} emptyText={emptyText} />
+      </div>
     </div>
   );
 }

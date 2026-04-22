@@ -22,23 +22,25 @@ export function EquipmentScopePanel({
       {units.length === 0 ? (
         <div className="page-muted">Оборудование не закреплено.</div>
       ) : (
-        units.map((unit) => (
-          <div key={unit.id} style={{ display: 'grid', gap: 4 }}>
-            {unit.capabilities.canCreateMovement ? (
-              <Link href={`/equipment/${unit.id}`}>
-                {unit.catalogItem.name} · {unit.inventoryNumber}
-              </Link>
-            ) : (
-              <div style={{ fontWeight: 600 }}>
-                {unit.catalogItem.name} · {unit.inventoryNumber}
+        <div className="record-list local-scroll local-scroll--sm">
+          {units.map((unit) => (
+            <div key={unit.id} className="record-card" style={{ display: 'grid', gap: 4 }}>
+              {unit.capabilities.canCreateMovement ? (
+                <Link href={`/equipment/${unit.id}`}>
+                  {unit.catalogItem.name} · {unit.inventoryNumber}
+                </Link>
+              ) : (
+                <div style={{ fontWeight: 600 }}>
+                  {unit.catalogItem.name} · {unit.inventoryNumber}
+                </div>
+              )}
+              <div className="page-muted">
+                {getEquipmentStatusLabel(unit.status)}
+                {unit.notes ? ` · ${unit.notes}` : ''}
               </div>
-            )}
-            <div className="page-muted">
-              {getEquipmentStatusLabel(unit.status)}
-              {unit.notes ? ` · ${unit.notes}` : ''}
             </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </div>
   );

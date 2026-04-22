@@ -65,9 +65,17 @@ export default function TaskDetailPage({
           <TaskSummaryCard item={item} />
 
           <div className="page-card">
-            <div style={{ fontWeight: 600, marginBottom: 12 }}>Статус задачи</div>
+            <div className="section-header" style={{ marginBottom: 12 }}>
+              <div>
+                <div className="section-title">Статус задачи</div>
+                <div className="section-subtitle">
+                  Доступные переходы рассчитаны backend rules.
+                </div>
+              </div>
+              <span className="status-pill">{getTaskStatusLabel(item.status)}</span>
+            </div>
             {item.capabilities.allowedStatusTransitions.length > 0 ? (
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="action-row">
                 {TASK_STATUS_OPTIONS.filter((status) =>
                   item.capabilities.allowedStatusTransitions.includes(
                     status.value,
@@ -90,10 +98,6 @@ export default function TaskDetailPage({
                 Для этой задачи сейчас нет доступных ручных смен статуса.
               </div>
             )}
-
-            <div className="page-muted" style={{ marginTop: 12 }}>
-              Текущий статус: {getTaskStatusLabel(item.status)}
-            </div>
           </div>
 
           <TaskResultPanel

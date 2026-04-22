@@ -48,7 +48,14 @@ export function ObjectCommentsPanel({
 
   return (
     <div className="page-card">
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>Комментарии объекта</div>
+      <div className="section-header" style={{ marginBottom: 12 }}>
+        <div>
+          <div className="section-title">Комментарии объекта</div>
+          <div className="section-subtitle">
+            Текст, фото и файлы по текущему объекту.
+          </div>
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: 16 }}>
         <label>
@@ -92,18 +99,14 @@ export function ObjectCommentsPanel({
         </div>
       </form>
 
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div className="record-list local-scroll">
         {items.length === 0 ? (
           <div className="page-muted">Комментариев пока нет.</div>
         ) : (
           items.map((item) => (
             <div
               key={item.id}
-              style={{
-                border: '1px solid #e5e7eb',
-                borderRadius: 12,
-                padding: 12,
-              }}
+              className="record-card"
             >
               <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>
                 {item.createdBy.fullName}

@@ -20,7 +20,7 @@ export function InventoryMovementList({
   }
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
+    <div className="record-list local-scroll local-scroll--lg">
       {items.map((item) => (
         <div
           key={item.id}

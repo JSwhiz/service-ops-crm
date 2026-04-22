@@ -43,19 +43,21 @@ export function ObjectHistoryList({
 
   return (
     <div className="page-card">
-      <div style={{ fontWeight: 600, marginBottom: 16 }}>История объекта</div>
+      <div className="section-header" style={{ marginBottom: 16 }}>
+        <div>
+          <div className="section-title">История объекта</div>
+          <div className="section-subtitle">
+            Audit trail карточки и назначений.
+          </div>
+        </div>
+      </div>
 
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div className="record-list local-scroll local-scroll--lg">
         {items.map((item) => (
           <div
             key={item.id}
-            style={{
-              border: '1px solid #d1d5db',
-              borderRadius: 10,
-              padding: 12,
-              display: 'grid',
-              gap: 8,
-            }}
+            className="record-card"
+            style={{ display: 'grid', gap: 8 }}
           >
             <div style={{ fontWeight: 600 }}>{getActionLabel(item.actionCode)}</div>
 

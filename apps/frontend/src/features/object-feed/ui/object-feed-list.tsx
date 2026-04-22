@@ -11,9 +11,16 @@ export function ObjectFeedList({
 }: ObjectFeedListProps): React.JSX.Element {
   return (
     <div className="page-card">
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>Лента объекта</div>
+      <div className="section-header" style={{ marginBottom: 12 }}>
+        <div>
+          <div className="section-title">Лента объекта</div>
+          <div className="section-subtitle">
+            Отчеты, комментарии и операционные события.
+          </div>
+        </div>
+      </div>
 
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div className="record-list local-scroll">
         {items.length === 0 ? (
           <div className="page-muted">Событий пока нет.</div>
         ) : (

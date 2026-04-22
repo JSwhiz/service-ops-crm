@@ -51,11 +51,13 @@ export function ObjectInventoryPanel({
 
   return (
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div>
-        <div style={{ fontWeight: 700 }}>Расходники объекта</div>
-        <div className="page-muted">
-          Это финальное списание с центрального склада на объект, не мини-склад
-          объекта.
+      <div className="section-header">
+        <div>
+          <div className="section-title">Расходники объекта</div>
+          <div className="page-muted">
+            Это финальное списание с центрального склада на объект, не мини-склад
+            объекта.
+          </div>
         </div>
       </div>
 
@@ -175,19 +177,17 @@ export function ObjectInventoryPanel({
         </form>
       ) : null}
 
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div className="record-list local-scroll">
         {movements.length === 0 ? (
           <div className="page-muted">По объекту пока нет списаний.</div>
         ) : (
           movements.map((movement) => (
             <div
               key={movement.id}
+              className="record-card"
               style={{
                 display: 'grid',
                 gap: 8,
-                padding: 12,
-                border: '1px solid #e5e7eb',
-                borderRadius: 12,
               }}
             >
               <div style={{ fontWeight: 600 }}>{movement.inventoryItem.name}</div>

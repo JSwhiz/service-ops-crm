@@ -56,9 +56,12 @@ export function ObjectSummaryCard({
           <div className="page-muted">
             {item.internalName ?? 'Без внутреннего имени'}
           </div>
+          <div style={{ marginTop: 8 }}>
+            <span className="status-pill">{getStatusLabel(item.status)}</span>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <div className="action-row">
           {allowEdit ? (
             <Link href={`/objects/${item.id}/edit`}>
               <button type="button">Редактировать</button>

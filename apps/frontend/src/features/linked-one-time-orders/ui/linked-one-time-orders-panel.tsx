@@ -20,7 +20,7 @@ export function LinkedOneTimeOrdersPanel({
           Связанных разовых заказов для объекта пока нет.
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="record-list local-scroll">
           {items.map((item) => {
             const header = (
               <div style={{ display: 'grid', gap: 4 }}>
@@ -33,12 +33,10 @@ export function LinkedOneTimeOrdersPanel({
               <div
                 key={item.id}
                 style={{
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 12,
-                  padding: 12,
                   display: 'grid',
                   gap: 10,
                 }}
+                className="record-card"
               >
                 {item.canOpenOrderCard ? (
                   <Link

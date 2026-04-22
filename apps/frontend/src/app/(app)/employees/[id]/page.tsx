@@ -528,49 +528,67 @@ export default function EmployeeDetailPage({
           </div>
 
           <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ fontWeight: 600 }}>История назначений</div>
+            <div className="section-header">
+              <div>
+                <div className="section-title">История назначений</div>
+                <div className="section-subtitle">
+                  Объекты, на которых сотрудник был закреплен.
+                </div>
+              </div>
+            </div>
             {item.objectAssignmentHistory.length === 0 ? (
               <div className="page-muted">История назначений пока пуста.</div>
             ) : (
-              item.objectAssignmentHistory.map((historyItem) => (
-                <div key={historyItem.id}>
-                  {renderObjectReference({
-                    objectId: historyItem.objectId,
-                    objectName: historyItem.objectName,
-                    canOpenObjectCard: historyItem.canOpenObjectCard,
-                  })}
-                  <div className="page-muted">
-                    {new Date(historyItem.startedAt).toLocaleDateString('ru-RU')} —{' '}
-                    {historyItem.endedAt
-                      ? new Date(historyItem.endedAt).toLocaleDateString('ru-RU')
-                      : 'по настоящее время'}
+              <div className="record-list local-scroll local-scroll--sm">
+                {item.objectAssignmentHistory.map((historyItem) => (
+                  <div key={historyItem.id} className="record-card">
+                    {renderObjectReference({
+                      objectId: historyItem.objectId,
+                      objectName: historyItem.objectName,
+                      canOpenObjectCard: historyItem.canOpenObjectCard,
+                    })}
+                    <div className="page-muted">
+                      {new Date(historyItem.startedAt).toLocaleDateString('ru-RU')} —{' '}
+                      {historyItem.endedAt
+                        ? new Date(historyItem.endedAt).toLocaleDateString('ru-RU')
+                        : 'по настоящее время'}
+                    </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
 
           <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ fontWeight: 600 }}>Доступность</div>
+            <div className="section-header">
+              <div>
+                <div className="section-title">Доступность</div>
+                <div className="section-subtitle">
+                  Full-day и timed окна, влияющие на staffing/attendance UX.
+                </div>
+              </div>
+            </div>
             {item.availabilityWindows.length === 0 ? (
               <div className="page-muted">Окна доступности пока не заведены.</div>
             ) : (
-              item.availabilityWindows.map((windowItem) => (
-                <div key={windowItem.id}>
-                  <div>
-                    {getAvailabilityStatusLabel(windowItem.availabilityStatus)}{' '}
-                    {windowItem.availabilityMode === 'full_day'
-                      ? '(весь день)'
-                      : '(по времени)'}
+              <div className="record-list local-scroll local-scroll--sm">
+                {item.availabilityWindows.map((windowItem) => (
+                  <div key={windowItem.id} className="record-card">
+                    <div>
+                      {getAvailabilityStatusLabel(windowItem.availabilityStatus)}{' '}
+                      {windowItem.availabilityMode === 'full_day'
+                        ? '(весь день)'
+                        : '(по времени)'}
+                    </div>
+                    <div className="page-muted">
+                      {formatAvailabilityPeriod(windowItem)}
+                    </div>
+                    {windowItem.comment ? (
+                      <div className="page-muted">{windowItem.comment}</div>
+                    ) : null}
                   </div>
-                  <div className="page-muted">
-                    {formatAvailabilityPeriod(windowItem)}
-                  </div>
-                  {windowItem.comment ? (
-                    <div className="page-muted">{windowItem.comment}</div>
-                  ) : null}
-                </div>
-              ))
+                ))}
+              </div>
             )}
 
             {item.capabilities.canManageAvailability ? (
@@ -674,34 +692,43 @@ export default function EmployeeDetailPage({
           </div>
 
           <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ fontWeight: 600 }}>Подмены</div>
+            <div className="section-header">
+              <div>
+                <div className="section-title">Подмены</div>
+                <div className="section-subtitle">
+                  Отдельный слой поверх состава объекта, без переписывания staffing.
+                </div>
+              </div>
+            </div>
             {item.substitutions.length === 0 ? (
               <div className="page-muted">Подмены пока не заведены.</div>
             ) : (
-              item.substitutions.map((substitution) => (
-                <div key={substitution.id}>
-                  <div>
-                    {substitution.role === 'primary' ? 'Замещается сотрудником' : 'Замещает сотрудника'}{' '}
-                    <strong>{substitution.counterpartEmployeeName}</strong>
+              <div className="record-list local-scroll local-scroll--sm">
+                {item.substitutions.map((substitution) => (
+                  <div key={substitution.id} className="record-card">
+                    <div>
+                      {substitution.role === 'primary' ? 'Замещается сотрудником' : 'Замещает сотрудника'}{' '}
+                      <strong>{substitution.counterpartEmployeeName}</strong>
+                    </div>
+                    <div className="page-muted">
+                      {getSubstitutionStatusLabel(substitution.status)}.{' '}
+                      {new Date(substitution.startDate).toLocaleDateString('ru-RU')} —{' '}
+                      {substitution.endDate
+                        ? new Date(substitution.endDate).toLocaleDateString('ru-RU')
+                        : 'без даты окончания'}
+                    </div>
+                    <div className="page-muted">
+                      {substitution.objectName
+                        ? `Объект: ${substitution.objectName}. `
+                        : ''}
+                      Причина: {substitution.reason}
+                    </div>
+                    {substitution.comment ? (
+                      <div className="page-muted">{substitution.comment}</div>
+                    ) : null}
                   </div>
-                  <div className="page-muted">
-                    {getSubstitutionStatusLabel(substitution.status)}.{' '}
-                    {new Date(substitution.startDate).toLocaleDateString('ru-RU')} —{' '}
-                    {substitution.endDate
-                      ? new Date(substitution.endDate).toLocaleDateString('ru-RU')
-                      : 'без даты окончания'}
-                  </div>
-                  <div className="page-muted">
-                    {substitution.objectName
-                      ? `Объект: ${substitution.objectName}. `
-                      : ''}
-                    Причина: {substitution.reason}
-                  </div>
-                  {substitution.comment ? (
-                    <div className="page-muted">{substitution.comment}</div>
-                  ) : null}
-                </div>
-              ))
+                ))}
+              </div>
             )}
 
             {item.capabilities.canManageSubstitutions ? (

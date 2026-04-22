@@ -38,7 +38,7 @@ export function TimesheetCorrectionsPanel({
           За выбранный месяц ручных корректировок нет.
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 12 }}>
+        <div className="record-list local-scroll">
           {items.map((item) => (
             <div
               key={`${item.employeeId}-${item.dayOfMonth}`}

@@ -49,8 +49,13 @@ export function OneTimeOrderTasksPanel({
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div className="page-card">
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Связанные задачи</div>
-        <TaskListTable items={items} />
+        <div className="section-header" style={{ marginBottom: 12 }}>
+          <div>
+            <div className="section-title">Связанные задачи</div>
+            <div className="section-subtitle">Task flow остается в общем tasks-модуле.</div>
+          </div>
+        </div>
+        <TaskListTable items={items} embedded />
       </div>
 
       {canCreateTask ? (
@@ -76,8 +81,13 @@ export function OneTimeOrderTasksPanel({
             }
           }}
         >
-          <div style={{ fontWeight: 600, marginBottom: 12 }}>
-            Завести задачу по заказу
+          <div className="section-header" style={{ marginBottom: 12 }}>
+            <div>
+              <div className="section-title">Завести задачу по заказу</div>
+              <div className="section-subtitle">
+                Быстрый scoped create без выхода из карточки заказа.
+              </div>
+            </div>
           </div>
 
           <div
@@ -138,6 +148,7 @@ export function OneTimeOrderTasksPanel({
                 </div>
               ) : (
                 <div
+                  className="local-scroll local-scroll--sm"
                   style={{
                     display: 'grid',
                     gap: 8,

@@ -18,8 +18,18 @@ export function OneTimeOrderSummaryCard({
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
       }}
     >
-      <Field label="Название" value={item.title} />
-      <Field label="Статус" value={getOneTimeOrderStatusLabel(item.status)} />
+      <div>
+        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>
+          Название
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 700 }}>{item.title}</div>
+      </div>
+      <div>
+        <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 6 }}>
+          Статус
+        </div>
+        <span className="status-pill">{getOneTimeOrderStatusLabel(item.status)}</span>
+      </div>
       <Field label="Адрес" value={item.executionAddress} />
       <Field
         label="Дата исполнения"

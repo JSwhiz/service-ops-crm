@@ -69,7 +69,14 @@ export function EquipmentMovementPanel({
             });
           }}
         >
-          <strong>Операция с оборудованием</strong>
+          <div className="section-header">
+            <div>
+              <div className="section-title">Операция с оборудованием</div>
+              <div className="section-subtitle">
+                Выдача, возврат, ремонт или списание unit.
+              </div>
+            </div>
+          </div>
           <select value={movementType} onChange={(event) => setMovementType(event.target.value)}>
             {EQUIPMENT_MOVEMENT_OPTIONS.filter((type) =>
               type === 'writeoff' ? unit.capabilities.canWriteoff : true,
@@ -119,18 +126,20 @@ export function EquipmentMovementPanel({
               }
             />
           </div>
-          <button type="submit" disabled={isSaving}>
-            {isSaving ? 'Сохраняем...' : 'Записать операцию'}
-          </button>
+          <div className="action-row">
+            <button type="submit" disabled={isSaving}>
+              {isSaving ? 'Сохраняем...' : 'Записать операцию'}
+            </button>
+          </div>
         </form>
       ) : null}
 
-      <div style={{ display: 'grid', gap: 12 }}>
+      <div className="record-list local-scroll local-scroll--lg">
         {movements.length === 0 ? (
           <div className="page-card">История пока пуста.</div>
         ) : (
           movements.map((movement) => (
-            <div key={movement.id} className="page-card" style={{ display: 'grid', gap: 8 }}>
+            <div key={movement.id} className="record-card" style={{ display: 'grid', gap: 8 }}>
               <strong>{getEquipmentMovementLabel(movement.movementType)}</strong>
               <div className="page-muted">
                 {movement.fromStatus ? getEquipmentStatusLabel(movement.fromStatus) : '—'} →{' '}
