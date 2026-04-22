@@ -12,6 +12,7 @@ import {
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { CreateObjectInventoryIssueDto } from '../inventory/dto/create-object-inventory-issue.dto';
 import { InventoryMovementResponseDto } from '../inventory/dto/inventory-movement-response.dto';
 import { ObjectInventoryResponseDto } from '../inventory/dto/object-inventory-response.dto';
@@ -143,6 +144,14 @@ export class ObjectOperationsController {
       objectId,
       payload,
     );
+  }
+
+  @Get('equipment')
+  getObjectEquipment(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+  ): Promise<EquipmentScopeResponseDto> {
+    return this.objectOperationsService.getObjectEquipment(user, objectId);
   }
 
   @Get('employees')

@@ -24,6 +24,17 @@ export interface AuthUser {
     canAdjustInventory?: boolean;
     canViewInventoryReports?: boolean;
     canResolveInventoryMissingPhotoApproval?: boolean;
+    canAccessEquipment?: boolean;
+    canManageEquipmentCatalog?: boolean;
+    canAssignEquipmentToObject?: boolean;
+    canAssignEquipmentToOneTimeOrder?: boolean;
+    canReturnEquipment?: boolean;
+    canMoveEquipment?: boolean;
+    canMarkEquipmentBroken?: boolean;
+    canSendEquipmentToRepair?: boolean;
+    canReturnEquipmentFromRepair?: boolean;
+    canWriteoffEquipment?: boolean;
+    canViewEquipmentHistory?: boolean;
   };
 }
 

@@ -277,6 +277,28 @@ one_time_manager не получает прав leadership circle и не пол
 
 Оборудование — отдельный контур, не смешивается с расходниками.
 
+Канонические правила Sprint 7:
+
+- equipment строится как unit-based домен;
+- `EquipmentCatalogItem` описывает тип/модель оборудования;
+- `EquipmentUnit` описывает конкретную штучную единицу;
+- текущий статус и текущая привязка хранятся materialized на unit;
+- история действий хранится в `EquipmentMovement`;
+- выдача на объект/разовый заказ не списывает equipment, а меняет текущую привязку;
+- возврат переводит unit на склад или в проблемный статус;
+- repair/broken/lost/writeoff фиксируются status transition + history entry;
+- attachments для equipment-событий живут в files/storage baseline как `equipment_movement`.
+
+Минимальные статусы unit:
+
+- `in_storage`
+- `assigned_to_object`
+- `assigned_to_one_time_order`
+- `under_repair`
+- `broken`
+- `lost`
+- `written_off`
+
 ### 8.3. Разовый заказ, привязанный к объекту
 
 Если разовый заказ привязан к объекту, операции разового заказа должны быть видны и в объекте через отдельный блок вида:

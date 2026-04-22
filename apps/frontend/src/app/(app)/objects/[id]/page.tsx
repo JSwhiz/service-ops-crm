@@ -20,6 +20,8 @@ import {
   resolveInventoryMissingPhotoApproval,
 } from '@/entities/inventory/api/inventory-client';
 import type { ObjectInventory } from '@/entities/inventory/model/inventory.types';
+import { getObjectEquipment } from '@/entities/equipment/api/equipment-client';
+import type { EquipmentScope } from '@/entities/equipment/model/equipment.types';
 import {
   addEmployeeToObject,
   createObjectComment,
@@ -60,6 +62,7 @@ import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
 import { LinkedOneTimeOrdersPanel } from '@/features/linked-one-time-orders/ui/linked-one-time-orders-panel';
+import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-scope-panel';
 import { ObjectInventoryPanel } from '@/features/object-inventory/ui/object-inventory-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
 import { ObjectStaffingPanel } from '@/features/object-staffing/ui/object-staffing-panel';
@@ -166,6 +169,14 @@ export default function ObjectDetailPage({
     null,
   );
 
+  const [objectEquipment, setObjectEquipment] = useState<EquipmentScope | null>(
+    null,
+  );
+  const [objectEquipmentLoading, setObjectEquipmentLoading] = useState(true);
+  const [objectEquipmentError, setObjectEquipmentError] = useState<string | null>(
+    null,
+  );
+
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
@@ -194,6 +205,7 @@ export default function ObjectDetailPage({
         loadFeed(resolved.id, cancelled),
         loadLinkedOrders(resolved.id, cancelled),
         loadObjectInventory(resolved.id, cancelled),
+        loadObjectEquipment(resolved.id, cancelled),
         loadObjectFiles(resolved.id, cancelled),
         loadTasks(resolved.id, cancelled),
         loadAssignedEmployees(resolved.id, cancelled),
@@ -483,6 +495,35 @@ export default function ObjectDetailPage({
     } finally {
       if (!cancelled) {
         setObjectInventoryLoading(false);
+      }
+    }
+  };
+
+  const loadObjectEquipment = async (
+    id: string,
+    cancelled = false,
+  ): Promise<void> => {
+    setObjectEquipmentLoading(true);
+    setObjectEquipmentError(null);
+
+    try {
+      const response = await getObjectEquipment(id);
+
+      if (!cancelled) {
+        setObjectEquipment(response);
+      }
+    } catch (error) {
+      if (!cancelled) {
+        setObjectEquipmentError(
+          getErrorMessage(
+            error,
+            'Не удалось загрузить оборудование объекта.',
+          ),
+        );
+      }
+    } finally {
+      if (!cancelled) {
+        setObjectEquipmentLoading(false);
       }
     }
   };
@@ -859,6 +900,20 @@ export default function ObjectDetailPage({
                 await resolveInventoryMissingPhotoApproval(movementId);
                 await loadObjectInventory(objectId);
               }}
+            />
+          ) : null}
+
+          {objectEquipmentLoading ? (
+            <ObjectPanelLoading title="Оборудование объекта" />
+          ) : objectEquipmentError ? (
+            <ObjectPanelError
+              title="Оборудование объекта"
+              message={objectEquipmentError}
+            />
+          ) : objectEquipment ? (
+            <EquipmentScopePanel
+              title="Оборудование объекта"
+              units={objectEquipment.units}
             />
           ) : null}
 

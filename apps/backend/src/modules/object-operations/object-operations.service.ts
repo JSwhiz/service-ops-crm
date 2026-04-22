@@ -7,6 +7,8 @@ import {
 
 import { EmployeeAssignmentHistoryService } from '../employees/employee-assignment-history.service';
 import { EMPLOYEE_SUBSTITUTION_STATUSES } from '../employees/constants/employee-hr.constants';
+import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
+import { EquipmentService } from '../equipment/equipment.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
 import { CreateObjectInventoryIssueDto } from '../inventory/dto/create-object-inventory-issue.dto';
 import { InventoryMovementResponseDto } from '../inventory/dto/inventory-movement-response.dto';
@@ -129,6 +131,7 @@ export class ObjectOperationsService {
     private readonly prisma: PrismaService,
     private readonly assignmentHistoryService: EmployeeAssignmentHistoryService,
     private readonly inventoryService: InventoryService,
+    private readonly equipmentService: EquipmentService,
   ) {}
 
   async getTodayArrivalPhoto(
@@ -567,6 +570,13 @@ export class ObjectOperationsService {
       objectId,
       payload,
     );
+  }
+
+  getObjectEquipment(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<EquipmentScopeResponseDto> {
+    return this.equipmentService.listObjectEquipment(currentUser, objectId);
   }
 
   async searchEmployeeDirectory(

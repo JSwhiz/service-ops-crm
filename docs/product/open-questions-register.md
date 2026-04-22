@@ -407,6 +407,24 @@
 
 ---
 
+### OQ-048. Equipment MVP lifecycle и scoped visibility
+
+**Статус:** resolved
+
+Для Sprint 7:
+
+- equipment не смешивается с inventory;
+- `EquipmentUnit` хранит materialized current state;
+- `EquipmentMovement` хранит историю выдачи, возврата, ремонта, поломки, утери и списания;
+- `deputy_director` получает operational equipment access без catalog admin и writeoff;
+- object manager видит equipment своего объекта только как scoped block;
+- one_time_manager видит equipment своего заказа только как scoped block;
+- scoped block не дает global equipment module access.
+
+Это bridge-решение для MVP equipment layer до появления более детальной repair/approval-модели.
+
+---
+
 ### OQ-043. Что делать с фото складских операций после календарного месяца
 
 **Статус:** resolved

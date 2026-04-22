@@ -13,6 +13,7 @@ import {
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
@@ -169,5 +170,13 @@ export class OneTimeOrdersController {
     @Param('id') id: string,
   ): Promise<TaskResponseDto[]> {
     return this.oneTimeOrdersService.listTasks(user, id);
+  }
+
+  @Get(':id/equipment')
+  listEquipment(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<EquipmentScopeResponseDto> {
+    return this.oneTimeOrdersService.listEquipment(user, id);
   }
 }

@@ -15,6 +15,7 @@ import {
   canAccessInventory,
   canCreateInventoryMovement,
 } from '../inventory/utils/inventory-access.util';
+import { canAccessEquipment } from '../equipment/utils/equipment-access.util';
 import {
   canEditOneTimeOrderByScope,
   canViewOneTimeOrderByScope,
@@ -342,6 +343,8 @@ export class FilesService {
         return this.canAccessOneTimeOrder(currentUser, entityId, 'read');
       case 'inventory_movement':
         return this.canAccessInventoryMovement(currentUser, entityId, 'read');
+      case 'equipment_movement':
+        return this.canAccessEquipmentMovement(currentUser, entityId, 'read');
     }
   }
 
@@ -392,6 +395,8 @@ export class FilesService {
         return this.canAccessOneTimeOrder(currentUser, entityId, 'write');
       case 'inventory_movement':
         return this.canAccessInventoryMovement(currentUser, entityId, 'write');
+      case 'equipment_movement':
+        return this.canAccessEquipmentMovement(currentUser, entityId, 'write');
     }
   }
 
@@ -631,6 +636,93 @@ export class FilesService {
           currentUserId: currentUser.id,
           roleCodes,
           order: movement.relatedOneTimeOrder,
+        }))
+    );
+  }
+
+  private async canAccessEquipmentMovement(
+    currentUser: CurrentAuthUser,
+    movementId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const movement = await this.prisma.equipmentMovement.findFirst({
+      where: { id: movementId },
+      select: {
+        createdByUserId: true,
+        fromObject: {
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: { isActive: true },
+              select: { userId: true },
+            },
+          },
+        },
+        toObject: {
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: { isActive: true },
+              select: { userId: true },
+            },
+          },
+        },
+        fromOneTimeOrder: {
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: { isActive: true },
+              select: { userId: true, assignmentRoleCode: true, isActive: true },
+            },
+          },
+        },
+        toOneTimeOrder: {
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: { isActive: true },
+              select: { userId: true, assignmentRoleCode: true, isActive: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Attachment target equipment movement not found');
+    }
+
+    const roleCodes = this.getRoleCodes(currentUser);
+    if (mode === 'write') {
+      return (
+        canAccessEquipment(roleCodes) ||
+        movement.createdByUserId === currentUser.id
+      );
+    }
+
+    const canReadObjectLike = (object: typeof movement.fromObject) =>
+      !!object &&
+      (object.createdByUserId === currentUser.id ||
+        object.assignments.some(
+          (assignment) => assignment.userId === currentUser.id,
+        ));
+
+    return (
+      canAccessEquipment(roleCodes) ||
+      movement.createdByUserId === currentUser.id ||
+      canReadObjectLike(movement.fromObject) ||
+      canReadObjectLike(movement.toObject) ||
+      (!!movement.fromOneTimeOrder &&
+        canViewOneTimeOrderByScope({
+          currentUserId: currentUser.id,
+          roleCodes,
+          order: movement.fromOneTimeOrder,
+        })) ||
+      (!!movement.toOneTimeOrder &&
+        canViewOneTimeOrderByScope({
+          currentUserId: currentUser.id,
+          roleCodes,
+          order: movement.toOneTimeOrder,
         }))
     );
   }

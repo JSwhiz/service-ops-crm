@@ -7,6 +7,7 @@ import {
   canViewEmployeesHr,
 } from '../employees/utils/employee-hr-access.util';
 import { buildInventoryGlobalCapabilities } from '../inventory/utils/inventory-capabilities.util';
+import { buildEquipmentGlobalCapabilities } from '../equipment/utils/equipment-capabilities.util';
 import {
   canAccessOneTimeOrders,
   canCreateOneTimeOrder,
@@ -171,6 +172,9 @@ export class AuthService {
     const inventoryCapabilities = buildInventoryGlobalCapabilities(
       user.roleCodes,
     );
+    const equipmentCapabilities = buildEquipmentGlobalCapabilities(
+      user.roleCodes,
+    );
 
     return {
       id: user.id,
@@ -202,6 +206,22 @@ export class AuthService {
         canViewInventoryReports: inventoryCapabilities.canViewInventoryReports,
         canResolveInventoryMissingPhotoApproval:
           inventoryCapabilities.canResolveInventoryMissingPhotoApproval,
+        canAccessEquipment: equipmentCapabilities.canAccessEquipment,
+        canManageEquipmentCatalog:
+          equipmentCapabilities.canManageEquipmentCatalog,
+        canAssignEquipmentToObject:
+          equipmentCapabilities.canAssignEquipmentToObject,
+        canAssignEquipmentToOneTimeOrder:
+          equipmentCapabilities.canAssignEquipmentToOneTimeOrder,
+        canReturnEquipment: equipmentCapabilities.canReturnEquipment,
+        canMoveEquipment: equipmentCapabilities.canMoveEquipment,
+        canMarkEquipmentBroken: equipmentCapabilities.canMarkEquipmentBroken,
+        canSendEquipmentToRepair:
+          equipmentCapabilities.canSendEquipmentToRepair,
+        canReturnEquipmentFromRepair:
+          equipmentCapabilities.canReturnEquipmentFromRepair,
+        canWriteoffEquipment: equipmentCapabilities.canWriteoffEquipment,
+        canViewEquipmentHistory: equipmentCapabilities.canViewEquipmentHistory,
       },
     };
   }

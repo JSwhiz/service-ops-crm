@@ -44,6 +44,15 @@
   - другие движения с обязательным фото получают typed missing-evidence state без director-only resolution;
   - evidence/фото движения живут в files/storage baseline как `inventory_movement` attachments.
 
+## Sprint 7 Equipment closeout contract
+
+- equipment отделен от inventory: штучный жизненный цикл вместо количественного ledger;
+- `EquipmentUnit` хранит текущий статус и текущую object/order привязку;
+- `EquipmentMovement` хранит историю выдач, возвратов, ремонта, поломок, утерь и списаний;
+- `equipment_movement` добавлен как канонический `FileAttachment.entityType`;
+- object/order карточки получают scoped equipment blocks без автоматического global equipment access;
+- `deputy_director` получает operational equipment access, но не catalog admin и не writeoff.
+
 ### HR и expenses
 
 - employee fields зафиксированы;

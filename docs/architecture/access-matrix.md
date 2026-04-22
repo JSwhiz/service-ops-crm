@@ -155,9 +155,28 @@
 
 Это отдельное каноническое правило MVP.
 
+## 9. Equipment runtime bridge for Sprint 7
+
+| Action                             | leadership circle | deputy_director | manager | one_time_manager | hr |
+| ---------------------------------- | ----------------- | --------------- | ------- | ---------------- | -- |
+| View equipment module              | yes               | yes             | no      | no               | no |
+| Manage equipment catalog           | yes               | no              | no      | no               | no |
+| Assign equipment to object         | yes               | yes             | no      | no               | no |
+| Assign equipment to one-time order | yes               | yes             | no      | no               | no |
+| Return / move equipment            | yes               | yes             | no      | no               | no |
+| Mark broken / send to repair       | yes               | yes             | no      | no               | no |
+| Writeoff equipment                 | yes               | no              | no      | no               | no |
+| View object-scoped equipment       | yes               | yes             | yes if assigned to object | no | no |
+| View order-scoped equipment        | yes               | yes             | no      | yes if assigned to order | no |
+
+Переходное правило:
+
+- object/order scoped equipment blocks показывают reference без доступа к глобальной equipment card;
+- object или one-time-order linkage не расширяет global equipment module access.
+
 ---
 
-## 9. Accountability / expenses
+## 10. Accountability / expenses
 
 | Action                                    | founder | director | other leadership          | others |
 | ----------------------------------------- | ------- | -------- | ------------------------- | ------ |
@@ -167,7 +186,7 @@
 
 ---
 
-## 10. Chats
+## 11. Chats
 
 | Action               | Rule                                                                |
 | -------------------- | ------------------------------------------------------------------- |
@@ -179,7 +198,7 @@
 
 ---
 
-## 11. Capability catalog
+## 12. Capability catalog
 
 Канонические capability codes на текущем этапе:
 
@@ -194,7 +213,7 @@
 
 ---
 
-## 12. Approval mapping
+## 13. Approval mapping
 
 | Approval type                           | Source module           | Source entity               | Resolver                              | Capability                           |
 | --------------------------------------- | ----------------------- | --------------------------- | ------------------------------------- | ------------------------------------ |

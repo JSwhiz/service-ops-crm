@@ -23,6 +23,8 @@ import type {
   OneTimeOrderItem,
   OneTimeOrderPhotoItem,
 } from '@/entities/one-time-order/model/one-time-order.types';
+import { getOneTimeOrderEquipment } from '@/entities/equipment/api/equipment-client';
+import type { EquipmentScope } from '@/entities/equipment/model/equipment.types';
 import {
   listTasksByOneTimeOrder,
   createTask,
@@ -49,6 +51,7 @@ import { OneTimeOrderFilesPanel } from '@/features/one-time-order-files/ui/one-t
 import { OneTimeOrderDailyReportPanel } from '@/features/one-time-order-report/ui/one-time-order-daily-report-panel';
 import { OneTimeOrderPhotosPanel } from '@/features/one-time-order-photos/ui/one-time-order-photos-panel';
 import { OneTimeOrderTasksPanel } from '@/features/one-time-order-tasks/ui/one-time-order-tasks-panel';
+import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-scope-panel';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
   getOneTimeOrderStatusLabel,
@@ -74,6 +77,7 @@ export default function OneTimeOrderDetailPage({
   const [history, setHistory] = useState<OneTimeOrderHistoryItem[]>([]);
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [photos, setPhotos] = useState<OneTimeOrderPhotoItem[]>([]);
+  const [equipment, setEquipment] = useState<EquipmentScope | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [managerCandidates, setManagerCandidates] = useState<SystemUserOption[]>([]);
   const [taskAssignees, setTaskAssignees] = useState<SystemUserOption[]>([]);
@@ -171,6 +175,11 @@ export default function OneTimeOrderDetailPage({
       listOneTimeOrderPhotos(id).then((response) => {
         if (!cancelled) {
           setPhotos(response);
+        }
+      }),
+      getOneTimeOrderEquipment(id).then((response) => {
+        if (!cancelled) {
+          setEquipment(response);
         }
       }),
       listTasksByOneTimeOrder(id).then((response) => {
@@ -374,6 +383,10 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+
+          {equipment ? (
+            <EquipmentScopePanel title="Оборудование заказа" units={equipment.units} />
+          ) : null}
 
           <OneTimeOrderTasksPanel
             items={tasks}

@@ -29,6 +29,9 @@ export const FILE_ATTACHMENT_POLICY = {
   inventory_movement: {
     fieldCodes: [],
   },
+  equipment_movement: {
+    fieldCodes: [],
+  },
 } as const;
 
 export type FileAttachmentEntityType = keyof typeof FILE_ATTACHMENT_POLICY;

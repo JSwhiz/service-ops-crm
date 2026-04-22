@@ -27,6 +27,9 @@ model User {
   createdInventoryItems       InventoryItem[] @relation("InventoryItemCreatedBy")
   createdInventoryMovements   InventoryMovement[] @relation("InventoryMovementCreatedBy")
   resolvedInventoryMovementApprovals InventoryMovement[] @relation("InventoryMovementApprovalResolvedBy")
+  createdEquipmentCatalogItems EquipmentCatalogItem[] @relation("EquipmentCatalogItemCreatedBy")
+  createdEquipmentUnits        EquipmentUnit[] @relation("EquipmentUnitCreatedBy")
+  createdEquipmentMovements    EquipmentMovement[] @relation("EquipmentMovementCreatedBy")
   objectAssignments           ObjectAssignment[]
   oneTimeOrderAssignments     OneTimeOrderAssignment[]
   createdComments             ObjectComment[] @relation("ObjectCommentCreatedBy")
@@ -193,6 +196,9 @@ model Object {
   employeeSubstitutions EmployeeSubstitution[]
   linkedOneTimeOrders   OneTimeOrder[]
   inventoryMovements    InventoryMovement[]
+  currentEquipmentUnits  EquipmentUnit[]
+  equipmentMovementsFrom EquipmentMovement[] @relation("EquipmentMovementFromObject")
+  equipmentMovementsTo   EquipmentMovement[] @relation("EquipmentMovementToObject")
   timesheetMonths      TimesheetMonth[]
   auditLogs            ObjectAuditLog[]
 
@@ -426,6 +432,9 @@ model OneTimeOrder {
   dailyReports      OneTimeOrderDailyReport[]
   photos            OneTimeOrderPhoto[]
   inventoryMovements InventoryMovement[]
+  currentEquipmentUnits EquipmentUnit[]
+  equipmentMovementsFrom EquipmentMovement[] @relation("EquipmentMovementFromOneTimeOrder")
+  equipmentMovementsTo   EquipmentMovement[] @relation("EquipmentMovementToOneTimeOrder")
   tasks             Task[]
 
   @@index([linkedObjectId])
@@ -604,6 +613,86 @@ model InventoryMovement {
   @@index([relatedOneTimeOrderId])
   @@index([createdAt])
   @@map("inventory_movements")
+}
+
+model EquipmentCatalogItem {
+  id              String   @id @default(uuid())
+  category        String
+  name            String
+  brand           String?
+  model           String?
+  isActive        Boolean  @default(true)
+  notes           String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy User            @relation("EquipmentCatalogItemCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  units     EquipmentUnit[]
+
+  @@index([category])
+  @@index([isActive])
+  @@index([createdByUserId])
+  @@map("equipment_catalog_items")
+}
+
+model EquipmentUnit {
+  id                    String   @id @default(uuid())
+  catalogItemId          String
+  inventoryNumber        String   @unique
+  serialNumber           String?
+  status                 String   @default("in_storage")
+  currentObjectId        String?
+  currentOneTimeOrderId  String?
+  notes                  String?
+  createdByUserId        String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  catalogItem         EquipmentCatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  currentObject       Object?              @relation(fields: [currentObjectId], references: [id], onDelete: SetNull)
+  currentOneTimeOrder OneTimeOrder?        @relation(fields: [currentOneTimeOrderId], references: [id], onDelete: SetNull)
+  createdBy           User                 @relation("EquipmentUnitCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  movements           EquipmentMovement[]
+
+  @@index([catalogItemId])
+  @@index([status])
+  @@index([currentObjectId])
+  @@index([currentOneTimeOrderId])
+  @@index([createdByUserId])
+  @@map("equipment_units")
+}
+
+model EquipmentMovement {
+  id                     String   @id @default(uuid())
+  equipmentUnitId         String
+  movementType            String
+  fromObjectId            String?
+  toObjectId              String?
+  fromOneTimeOrderId      String?
+  toOneTimeOrderId        String?
+  fromStatus              String?
+  toStatus                String
+  comment                 String?
+  createdByUserId         String
+  createdAt               DateTime @default(now())
+
+  equipmentUnit        EquipmentUnit @relation(fields: [equipmentUnitId], references: [id], onDelete: Cascade)
+  fromObject           Object?       @relation("EquipmentMovementFromObject", fields: [fromObjectId], references: [id], onDelete: SetNull)
+  toObject             Object?       @relation("EquipmentMovementToObject", fields: [toObjectId], references: [id], onDelete: SetNull)
+  fromOneTimeOrder     OneTimeOrder? @relation("EquipmentMovementFromOneTimeOrder", fields: [fromOneTimeOrderId], references: [id], onDelete: SetNull)
+  toOneTimeOrder       OneTimeOrder? @relation("EquipmentMovementToOneTimeOrder", fields: [toOneTimeOrderId], references: [id], onDelete: SetNull)
+  createdBy            User         @relation("EquipmentMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([equipmentUnitId])
+  @@index([movementType])
+  @@index([fromObjectId])
+  @@index([toObjectId])
+  @@index([fromOneTimeOrderId])
+  @@index([toOneTimeOrderId])
+  @@index([createdByUserId])
+  @@index([createdAt])
+  @@map("equipment_movements")
 }
 
 model TimesheetMonth {

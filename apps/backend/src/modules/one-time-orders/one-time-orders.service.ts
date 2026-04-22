@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 
 import { AuditService } from '../audit/audit.service';
+import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
+import { EquipmentService } from '../equipment/equipment.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
@@ -146,6 +148,7 @@ export class OneTimeOrdersService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly tasksService: TasksService,
+    private readonly equipmentService: EquipmentService,
   ) {}
 
   async listOrders(
@@ -730,6 +733,14 @@ export class OneTimeOrdersService {
   ): Promise<TaskResponseDto[]> {
     await this.getOrderById(currentUser, id);
     return this.tasksService.listTasksByOneTimeOrder(currentUser, id);
+  }
+
+  async listEquipment(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<EquipmentScopeResponseDto> {
+    await this.getOrderById(currentUser, id);
+    return this.equipmentService.listOneTimeOrderEquipment(currentUser, id);
   }
 
   private async getOrderForWrite(
