@@ -63,6 +63,7 @@
 - передавать подотчет другому нельзя.
 - в MVP расходы подотчета не требуют enum типов и заводятся свободным текстом;
 - closure делается через живой account + ledger + reconciliation attempt history.
+- approved closure возвращает обычный account в `active`, а не в terminal `closed`.
 
 ### Communication
 

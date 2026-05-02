@@ -722,7 +722,7 @@ export class AccountabilityService {
           id: currentClosure.accountabilityAccountId,
         },
         data: {
-          status: 'closed',
+          status: 'active',
         },
       });
 

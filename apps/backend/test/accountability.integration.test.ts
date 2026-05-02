@@ -517,7 +517,7 @@ test('accountability ledger supports funding, own expenses, attachments, closure
     }>;
   };
 
-  assert.equal(finalOwn.account.status, 'closed');
+  assert.equal(finalOwn.account.status, 'active');
   assert.equal(finalOwn.summary.totalFunding, 5000);
   assert.equal(finalOwn.summary.currentBalance, 3800);
   assert.equal(finalOwn.summary.totalReconciledExpenses, 1200);
@@ -529,4 +529,38 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   assert.equal(finalExpense.status, 'reconciled');
   assert.notEqual(finalExpense.reconciledAt, null);
   assert.equal(finalExpense.attachments[0]?.originalName, 'expense-receipt.txt');
+
+  const newExpenseAfterApprovedClosureResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/me/expenses`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: 250,
+        description: 'Новый расход после подтвержденной сверки',
+      }),
+    },
+  );
+
+  assert.equal(newExpenseAfterApprovedClosureResponse.status, 201);
+
+  const fundingAfterApprovedClosureResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/accounts/${manager.id}/fundings`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: 700,
+        comment: 'Дополнительное пополнение после сверки',
+      }),
+    },
+  );
+
+  assert.equal(fundingAfterApprovedClosureResponse.status, 201);
 });
