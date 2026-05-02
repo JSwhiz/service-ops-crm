@@ -15,6 +15,7 @@ import {
   canAccessInventory,
   canCreateInventoryMovement,
 } from '../inventory/utils/inventory-access.util';
+import { canReviewAccountability } from '../accountability/utils/accountability-access.util';
 import { canAccessEquipment } from '../equipment/utils/equipment-access.util';
 import {
   canEditOneTimeOrderByScope,
@@ -36,6 +37,7 @@ interface CurrentAuthUser {
   id: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
 }
 
 interface UploadedFilePayload {
@@ -345,6 +347,8 @@ export class FilesService {
         return this.canAccessInventoryMovement(currentUser, entityId, 'read');
       case 'equipment_movement':
         return this.canAccessEquipmentMovement(currentUser, entityId, 'read');
+      case 'accountability_expense':
+        return this.canAccessAccountabilityExpense(currentUser, entityId, 'read');
     }
   }
 
@@ -397,6 +401,8 @@ export class FilesService {
         return this.canAccessInventoryMovement(currentUser, entityId, 'write');
       case 'equipment_movement':
         return this.canAccessEquipmentMovement(currentUser, entityId, 'write');
+      case 'accountability_expense':
+        return this.canAccessAccountabilityExpense(currentUser, entityId, 'write');
     }
   }
 
@@ -809,12 +815,61 @@ export class FilesService {
     return this.canAccessOneTimeOrder(currentUser, item.oneTimeOrderId, mode);
   }
 
+  private async canAccessAccountabilityExpense(
+    currentUser: CurrentAuthUser,
+    expenseId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const expense = await this.prisma.accountabilityExpense.findFirst({
+      where: {
+        id: expenseId,
+      },
+      select: {
+        status: true,
+        createdByUserId: true,
+        accountabilityAccount: {
+          select: {
+            userId: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!expense) {
+      throw new NotFoundException('Attachment target accountability expense not found');
+    }
+
+    const isOwner = expense.accountabilityAccount.userId === currentUser.id;
+
+    if (mode === 'write') {
+      return (
+        isOwner &&
+        expense.createdByUserId === currentUser.id &&
+        expense.accountabilityAccount.status === 'active' &&
+        expense.status === 'draft'
+      );
+    }
+
+    return (
+      isOwner ||
+      canReviewAccountability({
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: this.getPermissionCodes(currentUser),
+      })
+    );
+  }
+
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
     if (Array.isArray(currentUser.roleCodes) && currentUser.roleCodes.length > 0) {
       return currentUser.roleCodes;
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private getPermissionCodes(currentUser: CurrentAuthUser): string[] {
+    return currentUser.permissionCodes ?? [];
   }
 
   private mapFile(file: {

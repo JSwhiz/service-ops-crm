@@ -13,6 +13,11 @@ export interface AuthUser {
     canCreateOneTimeOrder?: boolean;
     canAccessEmployeesHr?: boolean;
     canManageEmployeesHr?: boolean;
+    canAccessAccountability?: boolean;
+    canViewOwnAccountability?: boolean;
+    canIssueAccountabilityFunds?: boolean;
+    canReviewAccountability?: boolean;
+    canApproveAccountabilityClosure?: boolean;
     canAccessInventory?: boolean;
     canManageInventoryCatalog?: boolean;
     canCreateInventoryMovement?: boolean;

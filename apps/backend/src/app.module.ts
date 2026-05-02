@@ -29,6 +29,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
+import { AccountabilityModule } from './modules/accountability/accountability.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { EquipmentModule } from './modules/equipment/equipment.module';
@@ -58,6 +59,7 @@ import { UsersAccessModule } from './modules/users-access/users-access.module';
     RedisModule,
     StorageModule,
     UsersAccessModule,
+    AccountabilityModule,
     AuthModule,
     EmployeesModule,
     EquipmentModule,

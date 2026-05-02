@@ -14,6 +14,12 @@ interface UserWithRoles {
       name: string;
     };
   }>;
+  permissions: Array<{
+    permission: {
+      code: string;
+      name: string;
+    };
+  }>;
 }
 
 const authUserSelect = {
@@ -32,6 +38,16 @@ const authUserSelect = {
       },
     },
   },
+  permissions: {
+    select: {
+      permission: {
+        select: {
+          code: true,
+          name: true,
+        },
+      },
+    },
+  },
 } as const;
 
 export interface SanitizedAuthUser {
@@ -40,6 +56,7 @@ export interface SanitizedAuthUser {
   fullName: string;
   isActive: boolean;
   roleCodes: string[];
+  permissionCodes: string[];
 }
 
 @Injectable()
@@ -97,6 +114,7 @@ export class UsersService {
       fullName: user.fullName,
       isActive: user.isActive,
       roleCodes: user.roles.map((item) => item.role.code),
+      permissionCodes: user.permissions.map((item) => item.permission.code),
     };
   }
 }

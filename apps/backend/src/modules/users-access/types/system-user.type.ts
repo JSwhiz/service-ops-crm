@@ -4,4 +4,5 @@ export interface SystemUser {
   fullName: string;
   isActive: boolean;
   roleCodes: string[];
+  permissionCodes?: string[];
 }

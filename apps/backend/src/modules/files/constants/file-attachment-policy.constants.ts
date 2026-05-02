@@ -32,6 +32,9 @@ export const FILE_ATTACHMENT_POLICY = {
   equipment_movement: {
     fieldCodes: [],
   },
+  accountability_expense: {
+    fieldCodes: [],
+  },
 } as const;
 
 export type FileAttachmentEntityType = keyof typeof FILE_ATTACHMENT_POLICY;

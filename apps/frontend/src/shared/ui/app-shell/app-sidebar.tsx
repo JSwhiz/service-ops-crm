@@ -10,6 +10,8 @@ export function AppSidebar(): React.JSX.Element {
   const canAccessEmployeesHr = user?.capabilities?.canAccessEmployeesHr ?? false;
   const canAccessOneTimeOrders =
     user?.capabilities?.canAccessOneTimeOrders ?? false;
+  const canAccessAccountability =
+    user?.capabilities?.canAccessAccountability ?? false;
   const canAccessInventory = user?.capabilities?.canAccessInventory ?? false;
   const canAccessEquipment = user?.capabilities?.canAccessEquipment ?? false;
 
@@ -22,6 +24,9 @@ export function AppSidebar(): React.JSX.Element {
         <NavLink href="/objects" label="Объекты" />
         {canAccessOneTimeOrders ? (
           <NavLink href="/one-time-orders" label="Разовые заказы" />
+        ) : null}
+        {canAccessAccountability ? (
+          <NavLink href="/accountability" label="Подотчет" />
         ) : null}
         {canAccessInventory ? (
           <NavLink href="/inventory" label="Расходники" />

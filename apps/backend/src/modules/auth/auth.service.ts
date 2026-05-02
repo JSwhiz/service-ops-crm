@@ -6,6 +6,7 @@ import {
   canManageEmployeesHr,
   canViewEmployeesHr,
 } from '../employees/utils/employee-hr-access.util';
+import { buildAccountabilityGlobalCapabilities } from '../accountability/utils/accountability-capabilities.util';
 import { buildInventoryGlobalCapabilities } from '../inventory/utils/inventory-capabilities.util';
 import { buildEquipmentGlobalCapabilities } from '../equipment/utils/equipment-capabilities.util';
 import {
@@ -42,6 +43,7 @@ interface SanitizedAuthUserRecord {
   fullName: string;
   isActive: boolean;
   roleCodes: string[];
+  permissionCodes: string[];
 }
 
 @Injectable()
@@ -169,6 +171,10 @@ export class AuthService {
   }
 
   private buildMeResponse(user: SanitizedAuthUserRecord): MeResponseDto {
+    const accountabilityCapabilities = buildAccountabilityGlobalCapabilities({
+      roleCodes: user.roleCodes,
+      permissionCodes: user.permissionCodes,
+    });
     const inventoryCapabilities = buildInventoryGlobalCapabilities(
       user.roleCodes,
     );
@@ -189,6 +195,16 @@ export class AuthService {
         canCreateOneTimeOrder: canCreateOneTimeOrder(user.roleCodes),
         canAccessEmployeesHr: canViewEmployeesHr(user.roleCodes),
         canManageEmployeesHr: canManageEmployeesHr(user.roleCodes),
+        canAccessAccountability:
+          accountabilityCapabilities.canAccessAccountability,
+        canViewOwnAccountability:
+          accountabilityCapabilities.canViewOwnAccountability,
+        canIssueAccountabilityFunds:
+          accountabilityCapabilities.canIssueAccountabilityFunds,
+        canReviewAccountability:
+          accountabilityCapabilities.canReviewAccountability,
+        canApproveAccountabilityClosure:
+          accountabilityCapabilities.canApproveAccountabilityClosure,
         canAccessInventory: inventoryCapabilities.canAccessInventory,
         canManageInventoryCatalog:
           inventoryCapabilities.canManageInventoryCatalog,

@@ -61,6 +61,8 @@
 - substitution в object/runtime слое отображается поверх staffing и не переписывает основной состав объекта;
 - подотчет по умолчанию выдают founder/director;
 - передавать подотчет другому нельзя.
+- в MVP расходы подотчета не требуют enum типов и заводятся свободным текстом;
+- closure делается через живой account + ledger + reconciliation attempt history.
 
 ### Communication
 

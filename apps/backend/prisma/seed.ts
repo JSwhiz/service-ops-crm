@@ -89,6 +89,8 @@ async function main(): Promise<void> {
     { code: 'timesheet.read', name: 'Чтение табеля' },
     { code: 'timesheet.attendance.edit', name: 'Изменение табеля' },
     { code: 'timesheet.amount.edit', name: 'Изменение денежных ячеек табеля' },
+    { code: 'accountability.issue_cash', name: 'Выдача подотчетных средств' },
+    { code: 'expense.approve', name: 'Подтверждение расходов и сверки' },
   ];
 
   for (const permission of permissions) {

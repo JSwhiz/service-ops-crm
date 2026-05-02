@@ -30,6 +30,14 @@ model User {
   createdEquipmentCatalogItems EquipmentCatalogItem[] @relation("EquipmentCatalogItemCreatedBy")
   createdEquipmentUnits        EquipmentUnit[] @relation("EquipmentUnitCreatedBy")
   createdEquipmentMovements    EquipmentMovement[] @relation("EquipmentMovementCreatedBy")
+  accountabilityAccount        AccountabilityAccount? @relation("UserAccountabilityAccount")
+  issuedAccountabilityFundings AccountabilityFunding[] @relation("AccountabilityFundingIssuedBy")
+  createdAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseCreatedBy")
+  approvedAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseApprovedBy")
+  rejectedAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseRejectedBy")
+  requestedAccountabilityClosures AccountabilityClosure[] @relation("AccountabilityClosureRequestedBy")
+  approvedAccountabilityClosures AccountabilityClosure[] @relation("AccountabilityClosureApprovedBy")
+  rejectedAccountabilityClosures AccountabilityClosure[] @relation("AccountabilityClosureRejectedBy")
   objectAssignments           ObjectAssignment[]
   oneTimeOrderAssignments     OneTimeOrderAssignment[]
   createdComments             ObjectComment[] @relation("ObjectCommentCreatedBy")
@@ -693,6 +701,95 @@ model EquipmentMovement {
   @@index([createdByUserId])
   @@index([createdAt])
   @@map("equipment_movements")
+}
+
+model AccountabilityAccount {
+  id        String   @id @default(uuid())
+  userId     String   @unique
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user      User                    @relation("UserAccountabilityAccount", fields: [userId], references: [id], onDelete: Cascade)
+  fundings  AccountabilityFunding[]
+  expenses  AccountabilityExpense[]
+  closures  AccountabilityClosure[]
+
+  @@index([status])
+  @@map("accountability_accounts")
+}
+
+model AccountabilityFunding {
+  id                      String   @id @default(uuid())
+  accountabilityAccountId String
+  amount                  Decimal  @db.Decimal(14, 2)
+  comment                 String?
+  issuedByUserId          String
+  issuedAt                DateTime @default(now())
+
+  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Cascade)
+  issuedBy             User                 @relation("AccountabilityFundingIssuedBy", fields: [issuedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([accountabilityAccountId, issuedAt])
+  @@index([issuedByUserId])
+  @@map("accountability_fundings")
+}
+
+model AccountabilityExpense {
+  id                      String   @id @default(uuid())
+  accountabilityAccountId String
+  amount                  Decimal  @db.Decimal(14, 2)
+  description             String
+  status                  String   @default("draft")
+  createdByUserId         String
+  submittedAt             DateTime?
+  approvedByUserId        String?
+  approvedAt              DateTime?
+  rejectedByUserId        String?
+  rejectedAt              DateTime?
+  rejectionComment        String?
+  reconciledAt            DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Cascade)
+  createdBy             User                 @relation("AccountabilityExpenseCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedBy            User?                @relation("AccountabilityExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  rejectedBy            User?                @relation("AccountabilityExpenseRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([accountabilityAccountId, createdAt])
+  @@index([accountabilityAccountId, status])
+  @@index([createdByUserId])
+  @@index([approvedByUserId])
+  @@index([rejectedByUserId])
+  @@map("accountability_expenses")
+}
+
+model AccountabilityClosure {
+  id                      String   @id @default(uuid())
+  accountabilityAccountId String
+  requestedByUserId       String
+  requestedAt             DateTime @default(now())
+  status                  String   @default("requested")
+  approvedByUserId        String?
+  approvedAt              DateTime?
+  rejectedByUserId        String?
+  rejectedAt              DateTime?
+  comment                 String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Cascade)
+  requestedBy          User                 @relation("AccountabilityClosureRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  approvedBy           User?                @relation("AccountabilityClosureApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  rejectedBy           User?                @relation("AccountabilityClosureRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([accountabilityAccountId, requestedAt])
+  @@index([status])
+  @@index([requestedByUserId])
+  @@index([approvedByUserId])
+  @@index([rejectedByUserId])
+  @@map("accountability_closures")
 }
 
 model TimesheetMonth {
