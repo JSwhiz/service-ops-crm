@@ -14,7 +14,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = context.getResponse<Response>();
     const request = context.getRequest<Request>();
 
-    if (response.headersSent || response.writableEnded) {
+    if (response.headersSent || response.writableEnded || response.destroyed) {
       return;
     }
 
@@ -27,6 +27,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const exceptionResponse = isHttpException
       ? exception.getResponse()
       : 'Internal server error';
+
+    if (response.headersSent || response.writableEnded || response.destroyed) {
+      return;
+    }
 
     response.status(status).json({
       statusCode: status,

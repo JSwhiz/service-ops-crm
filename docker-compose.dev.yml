@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16
+    image: ${POSTGRES_IMAGE:-postgres:16.13}
     container_name: service_ops_postgres
     restart: unless-stopped
     environment:
@@ -12,28 +12,30 @@ services:
     volumes:
       - service_ops_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U service_ops -d service_ops"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   redis:
-    image: redis:7
+    image: ${REDIS_IMAGE:-redis:7.4.8}
     container_name: service_ops_redis
     restart: unless-stopped
     command: redis-server --appendonly yes
     ports:
-      - "${REDIS_PORT}:6379"
+      - "${REDIS_HOST_PORT:-6379}:6379"
     volumes:
       - service_ops_redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
 
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2025-06-13T11-33-47Z}
     container_name: service_ops_minio
     restart: unless-stopped
     environment:
@@ -41,18 +43,19 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     command: server /data --console-address ":9001"
     ports:
-      - "${MINIO_PORT}:9000"
-      - "${MINIO_CONSOLE_PORT}:9001"
+      - "${MINIO_HOST_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
     volumes:
       - service_ops_minio_data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
   minio-init:
-    image: minio/mc:latest
+    image: ${MINIO_MC_IMAGE:-minio/mc:RELEASE.2025-08-13T08-35-41Z}
     container_name: service_ops_minio_init
     restart: "no"
     depends_on:
@@ -66,7 +69,92 @@ services:
         && mc mb --ignore-existing "local/${MINIO_BUCKET}" \
         && mc anonymous set private "local/${MINIO_BUCKET}"
 
+  backend:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        NODE_IMAGE: ${DEV_NODE_IMAGE:-node:22.22-bookworm}
+    container_name: service_ops_backend
+    restart: unless-stopped
+    working_dir: /workspace
+    env_file:
+      - .env.backend.docker.local
+    environment:
+      APP_ENV_FILE: ../../.env.backend.docker.local
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    command: ["pnpm", "--filter", "backend", "start:dev"]
+    ports:
+      - "${BACKEND_HOST_PORT:-4000}:4000"
+    volumes:
+      - .:/workspace
+      - service_ops_root_node_modules:/workspace/node_modules
+      - service_ops_backend_node_modules:/workspace/apps/backend/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:4000/api/v1/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 25s
+
+  frontend:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/dev.Dockerfile
+      args:
+        NODE_IMAGE: ${DEV_NODE_IMAGE:-node:22.22-bookworm}
+    container_name: service_ops_frontend
+    restart: unless-stopped
+    working_dir: /workspace
+    env_file:
+      - .env.frontend.docker.local
+    environment:
+      FRONTEND_ENV_FILE: ../../.env.frontend.docker.local
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    command: ["pnpm", "--filter", "frontend", "dev"]
+    ports:
+      - "${FRONTEND_HOST_PORT:-3000}:3000"
+    volumes:
+      - .:/workspace
+      - service_ops_root_node_modules:/workspace/node_modules
+      - service_ops_frontend_node_modules:/workspace/apps/frontend/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
 volumes:
   service_ops_postgres_data:
   service_ops_redis_data:
   service_ops_minio_data:
+  service_ops_root_node_modules:
+  service_ops_backend_node_modules:
+  service_ops_frontend_node_modules:

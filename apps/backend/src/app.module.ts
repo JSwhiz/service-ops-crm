@@ -47,12 +47,14 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { TimesheetsModule } from './modules/timesheets/timesheets.module';
 import { UsersAccessModule } from './modules/users-access/users-access.module';
 
+const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      envFilePath: ['.env.backend.local', '.env.local'],
+      envFilePath: [backendEnvFilePath, '.env.local'],
       load: [configuration],
       validate: validateEnv,
     }),

@@ -40,27 +40,49 @@
 The project timesheet foundation is numeric-first.
 The daily source from object card will be connected in the next microstage.
 
-## Local bootstrap
+## Local runtime
 
-For a clean local environment:
+### Host mode
 
 ```bash
 pnpm bootstrap:local
-```
-
-The bootstrap flow:
-
-- creates missing local env files from examples;
-- starts PostgreSQL, Redis and MinIO through `docker-compose.dev.yml`;
-- waits until infra ports are reachable;
-- generates Prisma client;
-- applies Prisma migrations;
-- runs seed;
-- ensures the first founder admin exists.
-
-After bootstrap:
-
-```bash
 pnpm --filter backend start:dev
 pnpm --filter frontend dev
 ```
+
+Useful commands:
+
+```bash
+pnpm infra:up
+pnpm infra:ps
+pnpm infra:logs
+pnpm infra:down
+pnpm infra:reset
+```
+
+### Docker mode
+
+```bash
+pnpm bootstrap:docker
+```
+
+Useful commands:
+
+```bash
+pnpm dev:docker:up
+pnpm dev:docker:ps
+pnpm dev:docker:logs
+pnpm dev:docker:down
+pnpm dev:docker:reset
+```
+
+### Bootstrap summary
+
+Both bootstrap flows:
+
+- create missing local env files from examples;
+- prepare PostgreSQL, Redis and MinIO;
+- generate Prisma client;
+- apply Prisma migrations;
+- run seed;
+- ensure the first founder admin exists.
