@@ -1,4 +1,5 @@
 import { fetcher } from '@/shared/api/fetcher';
+import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
 
 import type {
   ObjectAuditLogItem,
@@ -99,8 +100,8 @@ export async function updateObject(
 export async function changeObjectStatus(
   id: string,
   payload: ChangeObjectStatusPayload,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}/status`, {
+): Promise<ApprovalRequestItem> {
+  return fetcher<ApprovalRequestItem>(`/objects/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });

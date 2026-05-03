@@ -12,6 +12,7 @@ import {
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
 
 import { AssignObjectUserDto } from './dto/assign-object-user.dto';
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
@@ -82,7 +83,7 @@ export class ObjectsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
     @Body() payload: ChangeObjectStatusDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ApprovalRequestResponseDto> {
     return this.objectsService.changeStatus(user, id, payload);
   }
 

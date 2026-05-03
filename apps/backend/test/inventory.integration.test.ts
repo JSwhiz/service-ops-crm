@@ -116,6 +116,15 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
         },
       });
 
+      await prisma.approvalRequest.deleteMany({
+        where: {
+          sourceEntityType: 'inventory_movement',
+          sourceEntityId: {
+            in: createdMovementIds,
+          },
+        },
+      });
+
       await prisma.inventoryMovement.deleteMany({
         where: {
           id: {
@@ -454,6 +463,12 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   assert.equal(writeoffResponse.status, 201);
   const writeoffMovement = (await writeoffResponse.json()) as {
     id: string;
+    status: string;
+    approvalRequest: {
+      id: string;
+      approvalType: string;
+      status: string;
+    } | null;
     projection: {
       requiresApprovalBridge: boolean;
       approvalBridgeType: string | null;
@@ -461,15 +476,50 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
     };
   };
   createdMovementIds.push(writeoffMovement.id);
-  assert.equal(writeoffMovement.projection.requiresApprovalBridge, true);
-  assert.equal(
-    writeoffMovement.projection.approvalBridgeType,
-    'inventory_missing_photo_evidence_required',
-  );
+  assert.equal(writeoffMovement.status, 'pending_approval');
+  assert.equal(writeoffMovement.approvalRequest?.approvalType, 'inventory_writeoff_confirmation');
+  assert.equal(writeoffMovement.approvalRequest?.status, 'pending');
+  assert.equal(writeoffMovement.projection.requiresApprovalBridge, false);
+  assert.equal(writeoffMovement.projection.approvalBridgeType, null);
   assert.equal(
     writeoffMovement.projection.canResolveMissingPhotoApproval,
     false,
   );
+
+  const directorWriteoffApprovalsResponse = await fetch(
+    `${baseUrl}/api/v1/approvals?sourceEntityType=inventory_movement&sourceEntityId=${writeoffMovement.id}&status=pending`,
+    {
+      headers: {
+        Cookie: directorCookie,
+      },
+    },
+  );
+
+  assert.equal(directorWriteoffApprovalsResponse.status, 200);
+  const directorWriteoffApprovals = (await directorWriteoffApprovalsResponse.json()) as Array<{
+    id: string;
+    approvalType: string;
+    status: string;
+  }>;
+  assert.equal(directorWriteoffApprovals.length, 1);
+  assert.equal(
+    directorWriteoffApprovals[0]?.approvalType,
+    'inventory_writeoff_confirmation',
+  );
+
+  const directorWriteoffApproveResponse = await fetch(
+    `${baseUrl}/api/v1/approvals/${directorWriteoffApprovals[0]?.id}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: directorCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+
+  assert.equal(directorWriteoffApproveResponse.status, 200);
 
   const adjustmentResponse = await fetch(
     `${baseUrl}/api/v1/inventory/movements`,

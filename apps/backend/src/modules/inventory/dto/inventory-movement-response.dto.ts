@@ -10,6 +10,7 @@ export class InventoryMovementResponseDto {
     isActive: boolean;
   };
   movementType!: string;
+  status!: string;
   quantity!: number;
   signedQuantity!: number;
   unitPriceSnapshot!: number;
@@ -36,6 +37,11 @@ export class InventoryMovementResponseDto {
     canOpenOrderCard: boolean;
   } | null;
   attachments!: FileResponseDto[];
+  approvalRequest!: {
+    id: string;
+    approvalType: string;
+    status: string;
+  } | null;
   projection!: {
     hasEvidence: boolean;
     requiresApprovalBridge: boolean;

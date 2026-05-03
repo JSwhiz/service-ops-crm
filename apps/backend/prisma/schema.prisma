@@ -56,6 +56,8 @@ model User {
   createdTimesheetMonths      TimesheetMonth[] @relation("TimesheetMonthCreatedBy")
   createdTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryCreatedBy")
   updatedTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryUpdatedBy")
+  requestedTimesheetManualExceptions TimesheetManualException[] @relation("TimesheetManualExceptionRequestedBy")
+  resolvedTimesheetManualExceptions  TimesheetManualException[] @relation("TimesheetManualExceptionResolvedBy")
   objectAuditLogs             ObjectAuditLog[] @relation("ObjectAuditLogActor")
   authSessions                AuthSession[]
   uploadedFiles               File[]          @relation("FileUploadedBy")
@@ -236,11 +238,12 @@ model Object {
   employeeSubstitutions EmployeeSubstitution[]
   linkedOneTimeOrders   OneTimeOrder[]
   inventoryMovements    InventoryMovement[]
-  currentEquipmentUnits  EquipmentUnit[]
-  equipmentMovementsFrom EquipmentMovement[] @relation("EquipmentMovementFromObject")
-  equipmentMovementsTo   EquipmentMovement[] @relation("EquipmentMovementToObject")
-  timesheetMonths      TimesheetMonth[]
-  auditLogs            ObjectAuditLog[]
+  currentEquipmentUnits   EquipmentUnit[]
+  equipmentMovementsFrom  EquipmentMovement[] @relation("EquipmentMovementFromObject")
+  equipmentMovementsTo    EquipmentMovement[] @relation("EquipmentMovementToObject")
+  timesheetMonths         TimesheetMonth[]
+  timesheetManualExceptions TimesheetManualException[]
+  auditLogs               ObjectAuditLog[]
 
   @@index([status])
   @@index([createdByUserId])
@@ -286,6 +289,7 @@ model Employee {
   substitutionsAsPrimary EmployeeSubstitution[] @relation("EmployeeSubstitutionPrimary")
   substitutionsAsReplacement EmployeeSubstitution[] @relation("EmployeeSubstitutionReplacement")
   timesheetRows      TimesheetEmployeeRow[]
+  timesheetManualExceptions TimesheetManualException[]
 
   @@index([employmentStatus])
   @@map("employees")
@@ -623,6 +627,7 @@ model InventoryMovement {
   id                   String   @id @default(uuid())
   inventoryItemId      String
   movementType         String
+  status               String   @default("applied")
   quantity             Decimal  @db.Decimal(12, 3)
   unitPriceSnapshot    Decimal  @db.Decimal(12, 2)
   totalAmountSnapshot  Decimal  @db.Decimal(14, 2)
@@ -647,6 +652,7 @@ model InventoryMovement {
 
   @@index([inventoryItemId])
   @@index([movementType])
+  @@index([status])
   @@index([createdByUserId])
   @@index([approvalBridgeResolvedByUserId])
   @@index([relatedObjectId])
@@ -707,6 +713,7 @@ model EquipmentMovement {
   id                     String   @id @default(uuid())
   equipmentUnitId         String
   movementType            String
+  status                  String   @default("applied")
   fromObjectId            String?
   toObjectId              String?
   fromOneTimeOrderId      String?
@@ -726,6 +733,7 @@ model EquipmentMovement {
 
   @@index([equipmentUnitId])
   @@index([movementType])
+  @@index([status])
   @@index([fromObjectId])
   @@index([toObjectId])
   @@index([fromOneTimeOrderId])
@@ -882,6 +890,36 @@ model TimesheetDayEntry {
   @@index([rowId])
   @@index([dayOfMonth])
   @@map("timesheet_day_entries")
+}
+
+model TimesheetManualException {
+  id                      String   @id @default(uuid())
+  objectId                String
+  employeeId              String
+  year                    Int
+  month                   Int
+  dayOfMonth              Int
+  requestedDayValue       Int
+  currentDayValueSnapshot Int
+  comment                 String
+  status                  String   @default("pending")
+  requestedByUserId       String
+  resolvedByUserId        String?
+  resolvedAt              DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  object      Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  requestedBy User     @relation("TimesheetManualExceptionRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  resolvedBy  User?    @relation("TimesheetManualExceptionResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([objectId, year, month])
+  @@index([employeeId, year, month])
+  @@index([status])
+  @@index([requestedByUserId])
+  @@index([resolvedByUserId])
+  @@map("timesheet_manual_exceptions")
 }
 
 model File {

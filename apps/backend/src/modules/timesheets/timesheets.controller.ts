@@ -2,7 +2,9 @@ import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
 
+import { CreateTimesheetManualExceptionDto } from './dto/create-timesheet-manual-exception.dto';
 import { GetTimesheetQueryDto } from './dto/get-timesheet-query.dto';
 import { ListTimesheetCorrectionsQueryDto } from './dto/list-timesheet-corrections-query.dto';
 import { TimesheetCorrectionItemDto } from './dto/timesheet-correction-item.dto';
@@ -46,5 +48,13 @@ export class TimesheetsController {
     @Body() payload: UpsertTimesheetEntryDto,
   ): Promise<TimesheetResponseDto> {
     return this.timesheetsService.upsertEntry(user, payload);
+  }
+
+  @Post('exceptions')
+  requestManualException(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() payload: CreateTimesheetManualExceptionDto,
+  ): Promise<ApprovalRequestResponseDto> {
+    return this.timesheetsService.requestManualException(user, payload);
   }
 }

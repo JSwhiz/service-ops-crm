@@ -25,6 +25,14 @@ export const APPROVAL_TYPE_OPTIONS = [
     label: 'Изменение объекта',
   },
   {
+    value: 'inventory_writeoff_confirmation',
+    label: 'Списание расходников',
+  },
+  {
+    value: 'equipment_writeoff_confirmation',
+    label: 'Списание оборудования',
+  },
+  {
     value: 'manual_timesheet_exception_confirmation',
     label: 'Исключение табеля',
   },

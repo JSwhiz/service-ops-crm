@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -10,6 +11,7 @@ import { AuditService } from '../audit/audit.service';
 import {
   INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
   INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+  INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
   LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE,
 } from '../approvals/constants/approval.constants';
 import { FileResponseDto } from '../files/dto/file-response.dto';
@@ -81,6 +83,7 @@ type InventoryItemRecord = {
 type InventoryMovementRecord = {
   id: string;
   movementType: string;
+  status: string;
   quantity: Prisma.Decimal;
   unitPriceSnapshot: Prisma.Decimal;
   totalAmountSnapshot: Prisma.Decimal;
@@ -467,11 +470,16 @@ export class InventoryService {
     const attachmentsByEntityId = await this.loadMovementAttachments(
       movements.map((movement) => movement.id),
     );
+    const approvalRequestsByEntityId =
+      await this.loadPendingApprovalRequestsByMovementIds(
+        movements.map((movement) => movement.id),
+      );
 
     return movements.map((movement) =>
       this.mapMovement(
         movement,
         attachmentsByEntityId.get(movement.id) ?? [],
+        approvalRequestsByEntityId.get(movement.id) ?? null,
         currentUser,
       ),
     );
@@ -586,6 +594,7 @@ export class InventoryService {
     return this.mapMovement(
       updated,
       updatedAttachments.get(movement.id) ?? [],
+      null,
       currentUser,
     );
   }
@@ -685,10 +694,13 @@ export class InventoryService {
       payload,
       item.currentUnitPrice,
     );
+    const requiresWriteoffApproval =
+      normalizedMovement.movementType === 'writeoff';
     const creationResult = await this.prisma.$transaction(
       async (tx) => {
         const stockSummary = await this.loadStockSummaryForItem(tx, item.id);
-        const nextStock = stockSummary.currentStock + normalizedMovement.signedQuantity;
+        const nextStock =
+          stockSummary.currentStock + normalizedMovement.signedQuantity;
 
         if (nextStock < -0.0001) {
           throw new BadRequestException('Insufficient stock for movement');
@@ -698,6 +710,7 @@ export class InventoryService {
           data: {
             inventoryItemId: item.id,
             movementType: normalizedMovement.movementType,
+            status: requiresWriteoffApproval ? 'pending_approval' : 'applied',
             quantity: normalizedMovement.quantity,
             unitPriceSnapshot: normalizedMovement.unitPriceSnapshot,
             totalAmountSnapshot: normalizedMovement.totalAmountSnapshot,
@@ -721,10 +734,33 @@ export class InventoryService {
           });
         }
 
-        const approvalRequest =
-          createdMovement.requiresApprovalBridge &&
-          createdMovement.approvalBridgeType ===
-            LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE
+        const approvalRequest = requiresWriteoffApproval
+          ? await tx.approvalRequest.create({
+              data: {
+                approvalType: INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
+                sourceEntityType:
+                  INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+                sourceEntityId: createdMovement.id,
+                createdByUserId: currentUser.id,
+                payloadSnapshot: {
+                  summaryTitle: 'Списание расходников',
+                  summarySubtitle: `${payload.relatedObjectId ? 'Объект' : payload.relatedOneTimeOrderId ? 'Разовый заказ' : 'Склад'} · ${Number(createdMovement.quantity).toLocaleString('ru-RU')} ед.`,
+                  movementType: createdMovement.movementType,
+                  inventoryItemId: createdMovement.inventoryItemId,
+                  relatedObjectId: createdMovement.relatedObjectId,
+                  relatedOneTimeOrderId: createdMovement.relatedOneTimeOrderId,
+                  quantity: Number(createdMovement.quantity),
+                  unitPriceSnapshot: Number(createdMovement.unitPriceSnapshot),
+                  totalAmountSnapshot: Number(
+                    createdMovement.totalAmountSnapshot,
+                  ),
+                  comment: createdMovement.comment,
+                },
+              },
+            })
+          : createdMovement.requiresApprovalBridge &&
+              createdMovement.approvalBridgeType ===
+                LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE
             ? await tx.approvalRequest.create({
                 data: {
                   approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
@@ -779,6 +815,7 @@ export class InventoryService {
         requiresApprovalBridge:
           creationResult.createdMovement.requiresApprovalBridge,
         approvalBridgeType: creationResult.createdMovement.approvalBridgeType,
+        status: creationResult.createdMovement.status,
         relatedObjectId: creationResult.createdMovement.relatedObjectId,
         relatedOneTimeOrderId:
           creationResult.createdMovement.relatedOneTimeOrderId,
@@ -793,7 +830,9 @@ export class InventoryService {
         actorUserId: currentUser.id,
         action: 'approval.request.created',
         newValues: {
-          approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+          approvalType: requiresWriteoffApproval
+            ? INVENTORY_WRITEOFF_CONFIRMATION_TYPE
+            : INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
           sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
           sourceEntityId: creationResult.createdMovement.id,
         },
@@ -866,7 +905,17 @@ export class InventoryService {
       throw new NotFoundException('Inventory movement not found after creation');
     }
 
-    return this.mapMovement(createdView as InventoryMovementRecord, [], currentUser);
+    const approvalRequestsByEntityId =
+      await this.loadPendingApprovalRequestsByMovementIds([
+        creationResult.createdMovement.id,
+      ]);
+
+    return this.mapMovement(
+      createdView as InventoryMovementRecord,
+      [],
+      approvalRequestsByEntityId.get(creationResult.createdMovement.id) ?? null,
+      currentUser,
+    );
   }
 
   async applyInventoryExceptionApprovalDecision(
@@ -927,6 +976,103 @@ export class InventoryService {
         },
       });
     }
+  }
+
+  async applyInventoryWriteoffApprovalDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      movementId: string;
+      actorUserId: string;
+    },
+  ): Promise<void> {
+    void params.actorUserId;
+
+    const movement = await tx.inventoryMovement.findFirst({
+      where: {
+        id: params.movementId,
+      },
+      select: {
+        id: true,
+        inventoryItemId: true,
+        movementType: true,
+        status: true,
+        quantity: true,
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Inventory movement not found');
+    }
+
+    if (movement.movementType !== 'writeoff') {
+      throw new BadRequestException('Only inventory writeoff can use this approval path');
+    }
+
+    if (movement.status !== 'pending_approval') {
+      throw new ConflictException('Inventory writeoff is already resolved');
+    }
+
+    const stockSummary = await this.loadStockSummaryForItem(
+      tx,
+      movement.inventoryItemId,
+    );
+    const nextStock = stockSummary.currentStock - Number(movement.quantity);
+
+    if (nextStock < -0.0001) {
+      throw new ConflictException('Insufficient stock to approve inventory writeoff');
+    }
+
+    await tx.inventoryMovement.update({
+      where: {
+        id: movement.id,
+      },
+      data: {
+        status: 'applied',
+      },
+    });
+  }
+
+  async applyInventoryWriteoffRejectionDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      movementId: string;
+      actorUserId: string;
+      decision: 'reject' | 'cancel';
+    },
+  ): Promise<void> {
+    void params.actorUserId;
+
+    const movement = await tx.inventoryMovement.findFirst({
+      where: {
+        id: params.movementId,
+      },
+      select: {
+        id: true,
+        movementType: true,
+        status: true,
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Inventory movement not found');
+    }
+
+    if (movement.movementType !== 'writeoff') {
+      throw new BadRequestException('Only inventory writeoff can use this approval path');
+    }
+
+    if (movement.status !== 'pending_approval') {
+      throw new ConflictException('Inventory writeoff is already resolved');
+    }
+
+    await tx.inventoryMovement.update({
+      where: {
+        id: movement.id,
+      },
+      data: {
+        status: params.decision === 'reject' ? 'rejected' : 'cancelled',
+      },
+    });
   }
 
   async listObjectReferenceOptions(
@@ -1037,11 +1183,16 @@ export class InventoryService {
     const attachmentsByEntityId = await this.loadMovementAttachments(
       movements.map((movement) => movement.id),
     );
+    const approvalRequestsByEntityId =
+      await this.loadPendingApprovalRequestsByMovementIds(
+        movements.map((movement) => movement.id),
+      );
 
     return movements.map((movement) =>
       this.mapMovement(
         movement,
         attachmentsByEntityId.get(movement.id) ?? [],
+        approvalRequestsByEntityId.get(movement.id) ?? null,
         currentUser,
       ),
     );
@@ -1296,6 +1447,8 @@ export class InventoryService {
         params.adjustmentDirection,
         payload.evidenceRequired,
       );
+      const requiresApprovalBridge =
+        evidenceRequired && movementType !== 'writeoff';
 
       return {
         movementType,
@@ -1306,8 +1459,8 @@ export class InventoryService {
         adjustmentDirection: params.adjustmentDirection,
         comment,
         evidenceRequired,
-        requiresApprovalBridge: evidenceRequired,
-        approvalBridgeType: evidenceRequired
+        requiresApprovalBridge,
+        approvalBridgeType: requiresApprovalBridge
           ? movementType === 'issue_to_object'
             ? 'inventory_without_photo_confirmation'
             : 'inventory_missing_photo_evidence_required'
@@ -1432,6 +1585,7 @@ export class InventoryService {
         inventoryItemId: {
           in: itemIds,
         },
+        status: 'applied',
       },
       select: {
         inventoryItemId: true,
@@ -1493,6 +1647,7 @@ export class InventoryService {
     const movements = await tx.inventoryMovement.findMany({
       where: {
         inventoryItemId: itemId,
+        status: 'applied',
       },
       select: {
         movementType: true,
@@ -1712,6 +1867,61 @@ export class InventoryService {
     return result;
   }
 
+  private async loadPendingApprovalRequestsByMovementIds(
+    movementIds: string[],
+  ): Promise<
+    Map<
+      string,
+      {
+        id: string;
+        approvalType: string;
+        status: string;
+      }
+    >
+  > {
+    const result = new Map<
+      string,
+      {
+        id: string;
+        approvalType: string;
+        status: string;
+      }
+    >();
+
+    if (movementIds.length === 0) {
+      return result;
+    }
+
+    const approvalRequests = await this.prisma.approvalRequest.findMany({
+      where: {
+        sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: {
+          in: movementIds,
+        },
+        status: 'pending',
+      },
+      select: {
+        id: true,
+        approvalType: true,
+        status: true,
+        sourceEntityId: true,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+
+    for (const request of approvalRequests) {
+      if (!result.has(request.sourceEntityId)) {
+        result.set(request.sourceEntityId, {
+          id: request.id,
+          approvalType: request.approvalType,
+          status: request.status,
+        });
+      }
+    }
+
+    return result;
+  }
+
   private mapFile(file: FileAttachmentRecord['file']): FileResponseDto {
     return {
       id: file.id,
@@ -1793,6 +2003,13 @@ export class InventoryService {
   private mapMovement(
     movement: InventoryMovementRecord,
     attachments: FileResponseDto[],
+    approvalRequest:
+      | {
+          id: string;
+          approvalType: string;
+          status: string;
+        }
+      | null,
     currentUser: CurrentAuthUser,
   ): InventoryMovementResponseDto {
     const roleCodes = this.getRoleCodes(currentUser);
@@ -1812,6 +2029,7 @@ export class InventoryService {
       id: movement.id,
       inventoryItem: movement.inventoryItem,
       movementType: movement.movementType,
+      status: movement.status,
       quantity: Number(movement.quantity),
       signedQuantity: Number(signedQuantity.toFixed(3)),
       unitPriceSnapshot: Number(movement.unitPriceSnapshot),
@@ -1846,6 +2064,7 @@ export class InventoryService {
           }
         : null,
       attachments,
+      approvalRequest,
       projection: {
         hasEvidence,
         requiresApprovalBridge:

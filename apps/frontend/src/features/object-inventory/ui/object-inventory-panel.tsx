@@ -206,6 +206,8 @@ export function ObjectInventoryPanel({
               <div>
                 {movement.projection.hasEvidence ? (
                   'Фото приложено'
+                ) : movement.approvalRequest ? (
+                  'Ожидает shared approval'
                 ) : movement.projection.approvalBridgeResolvedAt ? (
                   <>
                     Подтверждено директором без фото
@@ -224,7 +226,7 @@ export function ObjectInventoryPanel({
                   'Фото не требуется'
                 )}
               </div>
-              {movement.projection.requiresApprovalBridge ? (
+              {movement.projection.requiresApprovalBridge || movement.approvalRequest ? (
                 <Link
                   href={`/approvals?sourceEntityType=inventory_movement&sourceEntityId=${movement.id}`}
                 >

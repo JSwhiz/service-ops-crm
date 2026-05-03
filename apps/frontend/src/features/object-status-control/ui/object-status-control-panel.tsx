@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useMemo, useState } from 'react';
 
 type ObjectStatusCode = 'active' | 'frozen' | 'archived';
 
 interface ObjectStatusControlPanelProps {
   currentStatus: string;
+  approvalsHref?: string;
   onChangeStatus: (status: ObjectStatusCode) => Promise<void>;
 }
 
@@ -37,10 +39,12 @@ function getStatusDescription(status: string): string {
 
 export function ObjectStatusControlPanel({
   currentStatus,
+  approvalsHref,
   onChangeStatus,
 }: ObjectStatusControlPanelProps): React.JSX.Element {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const availableTransitions = useMemo<ObjectStatusCode[]>(() => {
     const allStatuses: ObjectStatusCode[] = ['active', 'frozen', 'archived'];
@@ -50,10 +54,14 @@ export function ObjectStatusControlPanel({
 
   const handleChangeStatus = async (status: ObjectStatusCode): Promise<void> => {
     setError(null);
+    setSuccess(null);
     setIsSubmitting(true);
 
     try {
       await onChangeStatus(status);
+      setSuccess(
+        `Запрос на перевод объекта в статус "${getStatusLabel(status)}" отправлен в approvals queue.`,
+      );
     } catch (caughtError) {
       if (caughtError instanceof Error && caughtError.message.trim()) {
         setError(caughtError.message);
@@ -100,6 +108,12 @@ export function ObjectStatusControlPanel({
 
       {error ? (
         <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>
+      ) : null}
+      {success ? (
+        <div style={{ marginTop: 12, color: '#15803d', display: 'grid', gap: 6 }}>
+          <div>{success}</div>
+          {approvalsHref ? <Link href={approvalsHref}>Открыть согласование</Link> : null}
+        </div>
       ) : null}
     </div>
   );

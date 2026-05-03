@@ -6,8 +6,12 @@ import { canManuallyCorrectTimesheet } from '../../timesheets/utils/timesheet-ac
 
 import {
   ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+  EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
   ApprovalType,
   INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+  INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
+  MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+  OBJECT_CHANGE_CONFIRMATION_TYPE,
   TASK_RESULT_CONFIRMATION_TYPE,
 } from '../constants/approval.constants';
 
@@ -47,7 +51,7 @@ export function buildApprovalGlobalCapabilities(params: {
     hasWideTaskAccess(params.roleCodes) ||
     hasPermission(params.permissionCodes, TASK_RESULT_PERMISSION);
   const canResolveInventoryApproval =
-    canResolveInventoryMissingPhotoApproval(params.roleCodes) ||
+    hasAnyRole(params.roleCodes, LEADERSHIP_OBJECT_ROLE_CODES) ||
     hasPermission(params.permissionCodes, INVENTORY_EXCEPTION_PERMISSION);
   const canResolveObjectChangeApproval =
     canEditObject(params.roleCodes) ||
@@ -85,14 +89,20 @@ export function canResolveApprovalType(params: {
         canResolveInventoryMissingPhotoApproval(params.roleCodes) ||
         hasPermission(params.permissionCodes, INVENTORY_EXCEPTION_PERMISSION)
       );
+    case INVENTORY_WRITEOFF_CONFIRMATION_TYPE:
+      return (
+        hasAnyRole(params.roleCodes, LEADERSHIP_OBJECT_ROLE_CODES) ||
+        hasPermission(params.permissionCodes, INVENTORY_EXCEPTION_PERMISSION)
+      );
     case ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE:
       return canApproveAccountabilityClosure(params);
-    case 'object_change_confirmation':
+    case OBJECT_CHANGE_CONFIRMATION_TYPE:
+    case EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE:
       return (
         hasAnyRole(params.roleCodes, LEADERSHIP_OBJECT_ROLE_CODES) ||
         hasPermission(params.permissionCodes, OBJECT_CHANGE_PERMISSION)
       );
-    case 'manual_timesheet_exception_confirmation':
+    case MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE:
       return (
         canManuallyCorrectTimesheet(params.roleCodes) ||
         hasPermission(params.permissionCodes, TIMESHEET_EXCEPTION_PERMISSION)
@@ -109,9 +119,11 @@ export function getResolvableApprovalTypes(params: {
   const approvalTypes: ApprovalType[] = [
     TASK_RESULT_CONFIRMATION_TYPE,
     INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+    INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
     ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
-    'object_change_confirmation',
-    'manual_timesheet_exception_confirmation',
+    OBJECT_CHANGE_CONFIRMATION_TYPE,
+    EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+    MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
   ];
 
   return approvalTypes.filter((approvalType) =>

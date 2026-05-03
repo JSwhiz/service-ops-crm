@@ -1,4 +1,5 @@
 import { fetcher } from '@/shared/api/fetcher';
+import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
 
 import type {
   TimesheetCorrectionItem,
@@ -50,6 +51,21 @@ export async function upsertTimesheetEntry(payload: {
   comment?: string;
 }): Promise<TimesheetMonth> {
   return fetcher<TimesheetMonth>('/timesheets/entries', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function requestTimesheetManualException(payload: {
+  objectId: string;
+  year: number;
+  month: number;
+  employeeId: string;
+  dayOfMonth: number;
+  dayValue: number;
+  comment: string;
+}): Promise<ApprovalRequestItem> {
+  return fetcher<ApprovalRequestItem>('/timesheets/exceptions', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

@@ -46,6 +46,7 @@ export interface EquipmentMovement {
   id: string;
   equipmentUnitId: string;
   movementType: string;
+  status: string;
   fromStatus: string | null;
   toStatus: string;
   fromObject: { id: string; name: string; canOpenObjectCard: boolean } | null;
@@ -66,6 +67,11 @@ export interface EquipmentMovement {
   createdBy: { id: string; login: string; fullName: string };
   createdAt: string;
   attachments: AttachedFile[];
+  approvalRequest: {
+    id: string;
+    approvalType: string;
+    status: string;
+  } | null;
 }
 
 export interface EquipmentScope {

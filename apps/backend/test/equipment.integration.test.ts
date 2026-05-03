@@ -51,6 +51,15 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
         },
       });
 
+      await prisma.approvalRequest.deleteMany({
+        where: {
+          sourceEntityType: 'equipment_movement',
+          sourceEntityId: {
+            in: movementIds,
+          },
+        },
+      });
+
       await prisma.equipmentMovement.deleteMany({
         where: { id: { in: movementIds } },
       });
@@ -456,8 +465,53 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
   assert.equal(writeoffResponse.status, 201);
   const writeoff = (await writeoffResponse.json()) as {
     id: string;
+    status: string;
     toStatus: string;
+    approvalRequest: {
+      id: string;
+      approvalType: string;
+      status: string;
+    } | null;
   };
   movementIds.push(writeoff.id);
   assert.equal(writeoff.toStatus, 'written_off');
+  assert.equal(writeoff.status, 'pending_approval');
+  assert.equal(writeoff.approvalRequest?.approvalType, 'equipment_writeoff_confirmation');
+
+  const founderWriteoffApprovalsResponse = await fetch(
+    `${baseUrl}/api/v1/approvals?sourceEntityType=equipment_movement&sourceEntityId=${writeoff.id}&status=pending`,
+    {
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(founderWriteoffApprovalsResponse.status, 200);
+  const founderWriteoffApprovals = (await founderWriteoffApprovalsResponse.json()) as Array<{
+    id: string;
+    approvalType: string;
+  }>;
+  assert.equal(founderWriteoffApprovals.length, 1);
+  assert.equal(
+    founderWriteoffApprovals[0]?.approvalType,
+    'equipment_writeoff_confirmation',
+  );
+
+  const founderWriteoffApproveResponse = await fetch(
+    `${baseUrl}/api/v1/approvals/${founderWriteoffApprovals[0]?.id}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+  assert.equal(founderWriteoffApproveResponse.status, 200);
+
+  const finalUnitResponse = await fetch(`${baseUrl}/api/v1/equipment/units/${unitId}`, {
+    headers: { Cookie: founderCookie },
+  });
+  assert.equal(finalUnitResponse.status, 200);
+  const finalUnit = (await finalUnitResponse.json()) as { status: string };
+  assert.equal(finalUnit.status, 'written_off');
 });

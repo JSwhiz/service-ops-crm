@@ -73,6 +73,11 @@
 ### Approvals
 
 - подтверждение нужно для создания объекта, закрытия задачи, изменения объекта и assignments.
+- runtime Wave 2 перевел в shared approvals следующие sensitive actions:
+  - `manual_timesheet_exception_confirmation` через отдельную `timesheet_manual_exception` сущность;
+  - `object_change_confirmation` в первом проходе ограничен object status change path;
+  - `inventory_writeoff_confirmation`;
+  - `equipment_writeoff_confirmation`.
 
 # Runtime vs Contract Reconciliation Notes
 

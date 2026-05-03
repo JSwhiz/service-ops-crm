@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,8 +8,14 @@ import {
 
 import { Prisma } from '@prisma/client';
 
+import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
+import {
+  MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+  TIMESHEET_EXCEPTION_APPROVAL_SOURCE_ENTITY_TYPE,
+} from '../approvals/constants/approval.constants';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { CreateTimesheetManualExceptionDto } from './dto/create-timesheet-manual-exception.dto';
 import { GetTimesheetQueryDto } from './dto/get-timesheet-query.dto';
 import { ListTimesheetCorrectionsQueryDto } from './dto/list-timesheet-corrections-query.dto';
 import { TimesheetCorrectionItemDto } from './dto/timesheet-correction-item.dto';
@@ -263,13 +270,312 @@ export class TimesheetsService {
       currentUser.id,
     );
 
-    const row = await this.prisma.timesheetEmployeeRow.findFirst({
+    const mutationContext = await this.prepareEntryMutationContext({
+      objectId: payload.objectId,
+      employeeId: payload.employeeId,
+      year: payload.year,
+      month: payload.month,
+      dayOfMonth: payload.dayOfMonth,
+      dayValue: payload.dayValue,
+      comment: payload.comment,
+      monthContainerId: monthContainer.id,
+    });
+
+    await this.applyEntryMutation(this.prisma, {
+      rowId: mutationContext.row.id,
+      existingEntryId: mutationContext.existingEntry?.id ?? null,
+      dayOfMonth: payload.dayOfMonth,
+      dayValue: payload.dayValue,
+      expectedAutoValue: mutationContext.expectedAutoValue,
+      hasAttendanceFact: mutationContext.hasAttendanceFact,
+      normalizedComment: mutationContext.normalizedComment,
+      actorUserId: currentUser.id,
+    });
+
+    return this.getTimesheet(currentUser, {
+      objectId: payload.objectId,
+      year: payload.year,
+      month: payload.month,
+    });
+  }
+
+  async requestManualException(
+    currentUser: CurrentAuthUser,
+    payload: CreateTimesheetManualExceptionDto,
+  ): Promise<ApprovalRequestResponseDto> {
+    await this.assertAccess(currentUser, payload.objectId);
+
+    if (canManuallyCorrectTimesheet(this.getRoleCodes(currentUser))) {
+      throw new BadRequestException(
+        'Direct manual correction is available for current user',
+      );
+    }
+
+    const daysInMonth = this.getDaysInMonth(payload.year, payload.month);
+    if (payload.dayOfMonth > daysInMonth) {
+      throw new NotFoundException('Day exceeds month length');
+    }
+
+    const monthContainer = await this.ensureMonthContainer(
+      payload.objectId,
+      payload.year,
+      payload.month,
+      currentUser.id,
+    );
+
+    const mutationContext = await this.prepareEntryMutationContext({
+      objectId: payload.objectId,
+      employeeId: payload.employeeId,
+      year: payload.year,
+      month: payload.month,
+      dayOfMonth: payload.dayOfMonth,
+      dayValue: payload.dayValue,
+      comment: payload.comment,
+      monthContainerId: monthContainer.id,
+    });
+
+    if (payload.dayValue === mutationContext.expectedAutoValue) {
+      throw new BadRequestException(
+        'Manual exception must differ from current automatic value',
+      );
+    }
+
+    const existingPendingRequest = await this.prisma.timesheetManualException.findFirst({
       where: {
-        timesheetMonthId: monthContainer.id,
+        objectId: payload.objectId,
         employeeId: payload.employeeId,
+        year: payload.year,
+        month: payload.month,
+        dayOfMonth: payload.dayOfMonth,
+        status: 'pending',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingPendingRequest) {
+      throw new ConflictException(
+        'Timesheet manual exception approval is already pending for this day',
+      );
+    }
+
+    const createdRequest = await this.prisma.$transaction(async (tx) => {
+      const exception = await tx.timesheetManualException.create({
+        data: {
+          objectId: payload.objectId,
+          employeeId: payload.employeeId,
+          year: payload.year,
+          month: payload.month,
+          dayOfMonth: payload.dayOfMonth,
+          requestedDayValue: payload.dayValue,
+          currentDayValueSnapshot: mutationContext.currentDayValueSnapshot,
+          comment: mutationContext.normalizedComment ?? payload.comment.trim(),
+          requestedByUserId: currentUser.id,
+        },
+      });
+
+      return tx.approvalRequest.create({
+        data: {
+          approvalType: MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+          sourceEntityType: TIMESHEET_EXCEPTION_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: exception.id,
+          createdByUserId: currentUser.id,
+          payloadSnapshot: {
+            summaryTitle: 'Исключение табеля',
+            summarySubtitle: `${mutationContext.row.employeeNameSnapshot} · ${payload.year}-${String(payload.month).padStart(2, '0')} · день ${payload.dayOfMonth}`,
+            objectId: payload.objectId,
+            employeeId: payload.employeeId,
+            employeeName: mutationContext.row.employeeNameSnapshot,
+            year: payload.year,
+            month: payload.month,
+            dayOfMonth: payload.dayOfMonth,
+            currentDayValue: mutationContext.currentDayValueSnapshot,
+            requestedDayValue: payload.dayValue,
+            comment: mutationContext.normalizedComment ?? payload.comment.trim(),
+          },
+        },
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
+          },
+          resolvedBy: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
+          },
+          cancelledBy: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
+          },
+        },
+      });
+    });
+
+    await this.prisma.auditEvent.create({
+      data: {
+        entityType: 'approval_request',
+        entityId: createdRequest.id,
+        actorUserId: currentUser.id,
+        action: 'approval.request.created',
+        newValues: {
+          approvalType: MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+          sourceEntityType: TIMESHEET_EXCEPTION_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: createdRequest.sourceEntityId,
+        },
+      },
+    });
+
+    return this.mapApprovalRequest(createdRequest, currentUser.id);
+  }
+
+  async applyManualExceptionApprovalDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      exceptionId: string;
+      decision: 'approve' | 'reject' | 'cancel';
+      actorUserId: string;
+    },
+  ): Promise<void> {
+    const exception = await tx.timesheetManualException.findFirst({
+      where: {
+        id: params.exceptionId,
+      },
+      select: {
+        id: true,
+        objectId: true,
+        employeeId: true,
+        year: true,
+        month: true,
+        dayOfMonth: true,
+        requestedDayValue: true,
+        currentDayValueSnapshot: true,
+        comment: true,
+        status: true,
+        resolvedAt: true,
+      },
+    });
+
+    if (!exception) {
+      throw new NotFoundException('Timesheet manual exception not found');
+    }
+
+    if (exception.status !== 'pending') {
+      throw new ConflictException('Timesheet manual exception is already resolved');
+    }
+
+    if (params.decision === 'approve') {
+      const monthContainer = await this.ensureMonthContainer(
+        exception.objectId,
+        exception.year,
+        exception.month,
+        params.actorUserId,
+        tx,
+      );
+      const mutationContext = await this.prepareEntryMutationContext({
+        objectId: exception.objectId,
+        employeeId: exception.employeeId,
+        year: exception.year,
+        month: exception.month,
+        dayOfMonth: exception.dayOfMonth,
+        dayValue: exception.requestedDayValue,
+        comment: exception.comment,
+        monthContainerId: monthContainer.id,
+        client: tx,
+      });
+
+      if (mutationContext.currentDayValueSnapshot !== exception.currentDayValueSnapshot) {
+        throw new ConflictException(
+          'Timesheet cell changed after approval request was created',
+        );
+      }
+
+      await this.applyEntryMutation(tx, {
+        rowId: mutationContext.row.id,
+        existingEntryId: mutationContext.existingEntry?.id ?? null,
+        dayOfMonth: exception.dayOfMonth,
+        dayValue: exception.requestedDayValue,
+        expectedAutoValue: mutationContext.expectedAutoValue,
+        hasAttendanceFact: mutationContext.hasAttendanceFact,
+        normalizedComment: exception.comment,
+        actorUserId: params.actorUserId,
+      });
+    }
+
+    await tx.timesheetManualException.update({
+      where: {
+        id: exception.id,
+      },
+      data: {
+        status:
+          params.decision === 'approve'
+            ? 'approved'
+            : params.decision === 'reject'
+              ? 'rejected'
+              : 'cancelled',
+        resolvedByUserId: params.actorUserId,
+        resolvedAt: new Date(),
+      },
+    });
+  }
+
+  private async prepareEntryMutationContext(params: {
+    objectId: string;
+    employeeId: string;
+    year: number;
+    month: number;
+    dayOfMonth: number;
+    dayValue: number;
+    comment?: string;
+    monthContainerId: string;
+    client?: PrismaService | Prisma.TransactionClient;
+  }): Promise<{
+    row: {
+      id: string;
+      employeeNameSnapshot: string;
+      entries: Array<{
+        id: string;
+        dayOfMonth: number;
+        dayValue: number;
+        isChangedManually: boolean;
+      }>;
+    };
+    existingEntry: {
+      id: string;
+      dayOfMonth: number;
+      dayValue: number;
+      isChangedManually: boolean;
+    } | undefined;
+    expectedAutoValue: number;
+    currentDayValueSnapshot: number;
+    hasAttendanceFact: boolean;
+    normalizedComment: string | null;
+  }> {
+    const client = params.client ?? this.prisma;
+
+    const row = await client.timesheetEmployeeRow.findFirst({
+      where: {
+        timesheetMonthId: params.monthContainerId,
+        employeeId: params.employeeId,
       },
       include: {
-        entries: true,
+        entries: {
+          select: {
+            id: true,
+            dayOfMonth: true,
+            dayValue: true,
+            isChangedManually: true,
+          },
+        },
       },
     });
 
@@ -278,21 +584,20 @@ export class TimesheetsService {
     }
 
     const existingEntry = row.entries.find(
-      (entry) => entry.dayOfMonth === payload.dayOfMonth,
+      (entry) => entry.dayOfMonth === params.dayOfMonth,
     );
 
-    const attendanceFact = await this.prisma.objectAttendanceFact.findFirst({
+    const attendanceFact = await client.objectAttendanceFact.findFirst({
       where: {
-        objectId: payload.objectId,
-        employeeId: payload.employeeId,
+        objectId: params.objectId,
+        employeeId: params.employeeId,
         operationDate: this.getDayRange(
-          payload.year,
-          payload.month,
-          payload.dayOfMonth,
+          params.year,
+          params.month,
+          params.dayOfMonth,
         ),
       },
       select: {
-        id: true,
         dailyRateSnapshot: true,
       },
     });
@@ -300,90 +605,99 @@ export class TimesheetsService {
     const expectedAutoValue = attendanceFact
       ? attendanceFact.dailyRateSnapshot
       : 0;
-    const normalizedComment = payload.comment?.trim();
+    const normalizedComment = params.comment?.trim() || null;
 
-    if (payload.dayValue !== expectedAutoValue && !normalizedComment) {
+    if (params.dayValue !== expectedAutoValue && !normalizedComment) {
       throw new BadRequestException(
         'Manual timesheet correction requires a comment',
       );
     }
 
-    if (payload.dayValue === expectedAutoValue) {
-      if (!attendanceFact) {
-        if (existingEntry) {
-          await this.prisma.timesheetDayEntry.delete({
+    return {
+      row,
+      existingEntry,
+      expectedAutoValue,
+      currentDayValueSnapshot: existingEntry?.dayValue ?? expectedAutoValue,
+      hasAttendanceFact: Boolean(attendanceFact),
+      normalizedComment,
+    };
+  }
+
+  private async applyEntryMutation(
+    tx: Prisma.TransactionClient,
+    params: {
+      rowId: string;
+      existingEntryId: string | null;
+      dayOfMonth: number;
+      dayValue: number;
+      expectedAutoValue: number;
+      hasAttendanceFact: boolean;
+      normalizedComment: string | null;
+      actorUserId: string;
+    },
+  ): Promise<void> {
+    if (params.dayValue === params.expectedAutoValue) {
+      if (!params.hasAttendanceFact) {
+        if (params.existingEntryId) {
+          await tx.timesheetDayEntry.delete({
             where: {
-              id: existingEntry.id,
+              id: params.existingEntryId,
             },
           });
         }
 
-        return this.getTimesheet(currentUser, {
-          objectId: payload.objectId,
-          year: payload.year,
-          month: payload.month,
-        });
+        return;
       }
 
-      await this.prisma.timesheetDayEntry.upsert({
+      await tx.timesheetDayEntry.upsert({
         where: {
           rowId_dayOfMonth: {
-            rowId: row.id,
-            dayOfMonth: payload.dayOfMonth,
+            rowId: params.rowId,
+            dayOfMonth: params.dayOfMonth,
           },
         },
         update: {
-          dayValue: expectedAutoValue,
+          dayValue: params.expectedAutoValue,
           comment: null,
           isChangedManually: false,
-          updatedByUserId: currentUser.id,
+          updatedByUserId: params.actorUserId,
         },
         create: {
-          rowId: row.id,
-          dayOfMonth: payload.dayOfMonth,
-          dayValue: expectedAutoValue,
+          rowId: params.rowId,
+          dayOfMonth: params.dayOfMonth,
+          dayValue: params.expectedAutoValue,
           comment: null,
           isChangedManually: false,
-          createdByUserId: currentUser.id,
-          updatedByUserId: currentUser.id,
+          createdByUserId: params.actorUserId,
+          updatedByUserId: params.actorUserId,
         },
       });
 
-      return this.getTimesheet(currentUser, {
-        objectId: payload.objectId,
-        year: payload.year,
-        month: payload.month,
-      });
+      return;
     }
 
-    await this.prisma.timesheetDayEntry.upsert({
+    await tx.timesheetDayEntry.upsert({
       where: {
         rowId_dayOfMonth: {
-          rowId: row.id,
-          dayOfMonth: payload.dayOfMonth,
+          rowId: params.rowId,
+          dayOfMonth: params.dayOfMonth,
         },
       },
       update: {
-        dayValue: payload.dayValue,
-        comment: normalizedComment ?? null,
+        dayValue: params.dayValue,
+        comment: params.normalizedComment,
         isChangedManually: true,
-        updatedByUserId: currentUser.id,
+        updatedByUserId: params.actorUserId,
       },
       create: {
-        rowId: row.id,
-        dayOfMonth: payload.dayOfMonth,
-        dayValue: payload.dayValue,
-        comment: normalizedComment ?? null,
+        rowId: params.rowId,
+        dayOfMonth: params.dayOfMonth,
+        dayValue: params.dayValue,
+        comment: params.normalizedComment,
         isChangedManually: true,
-        createdByUserId: currentUser.id,
-        updatedByUserId: currentUser.id,
+        createdByUserId: params.actorUserId,
+        updatedByUserId: params.actorUserId,
       },
-    });
-
-    return this.getTimesheet(currentUser, {
-      objectId: payload.objectId,
-      year: payload.year,
-      month: payload.month,
     });
   }
 
@@ -428,8 +742,9 @@ export class TimesheetsService {
     year: number,
     month: number,
     currentUserId: string,
+    client: PrismaService | Prisma.TransactionClient = this.prisma,
   ) {
-    const object = await this.prisma.object.findFirst({
+    const object = await client.object.findFirst({
       where: {
         id: objectId,
         deletedAt: null,
@@ -443,7 +758,7 @@ export class TimesheetsService {
       throw new NotFoundException('Object not found');
     }
 
-    const monthContainer = await this.prisma.timesheetMonth.upsert({
+    const monthContainer = await client.timesheetMonth.upsert({
       where: {
         objectId_year_month: {
           objectId,
@@ -462,7 +777,7 @@ export class TimesheetsService {
     });
 
     const [activeAssignments, monthAttendanceFacts] = await Promise.all([
-      this.prisma.objectEmployeeAssignment.findMany({
+      client.objectEmployeeAssignment.findMany({
         where: {
           objectId,
           isActive: true,
@@ -471,7 +786,7 @@ export class TimesheetsService {
           employee: true,
         },
       }),
-      this.prisma.objectAttendanceFact.findMany({
+      client.objectAttendanceFact.findMany({
         where: {
           objectId,
           operationDate: this.getMonthRange(year, month),
@@ -493,7 +808,7 @@ export class TimesheetsService {
       return monthContainer;
     }
 
-    const employees = await this.prisma.employee.findMany({
+    const employees = await client.employee.findMany({
       where: {
         id: {
           in: employeeIds,
@@ -510,7 +825,7 @@ export class TimesheetsService {
     );
 
     for (const employeeId of employeeIds) {
-      await this.prisma.timesheetEmployeeRow.upsert({
+      await client.timesheetEmployeeRow.upsert({
         where: {
           timesheetMonthId_employeeId: {
             timesheetMonthId: monthContainer.id,
@@ -655,6 +970,83 @@ export class TimesheetsService {
     if (operations.length > 0) {
       await this.prisma.$transaction(operations);
     }
+  }
+
+  private mapApprovalRequest(
+    request: {
+      id: string;
+      approvalType: string;
+      sourceEntityType: string;
+      sourceEntityId: string;
+      status: string;
+      decisionComment: string | null;
+      payloadSnapshot: Prisma.JsonValue;
+      createdAt: Date;
+      updatedAt: Date;
+      resolvedAt: Date | null;
+      cancelledAt: Date | null;
+      createdBy: {
+        id: string;
+        login: string;
+        fullName: string;
+      };
+      resolvedBy: {
+        id: string;
+        login: string;
+        fullName: string;
+      } | null;
+      cancelledBy: {
+        id: string;
+        login: string;
+        fullName: string;
+      } | null;
+    },
+    currentUserId: string,
+  ): ApprovalRequestResponseDto {
+    const payloadSnapshot =
+      request.payloadSnapshot &&
+      typeof request.payloadSnapshot === 'object' &&
+      !Array.isArray(request.payloadSnapshot)
+        ? (request.payloadSnapshot as Prisma.JsonObject as Record<string, unknown>)
+        : {};
+
+    const summaryTitle =
+      typeof payloadSnapshot.summaryTitle === 'string' &&
+      payloadSnapshot.summaryTitle.trim()
+        ? payloadSnapshot.summaryTitle
+        : request.approvalType;
+    const summarySubtitle =
+      typeof payloadSnapshot.summarySubtitle === 'string' &&
+      payloadSnapshot.summarySubtitle.trim()
+        ? payloadSnapshot.summarySubtitle
+        : null;
+
+    return {
+      id: request.id,
+      approvalType: request.approvalType,
+      sourceEntityType: request.sourceEntityType,
+      sourceEntityId: request.sourceEntityId,
+      status: request.status,
+      decisionComment: request.decisionComment,
+      payloadSnapshot,
+      createdAt: request.createdAt.toISOString(),
+      updatedAt: request.updatedAt.toISOString(),
+      resolvedAt: request.resolvedAt?.toISOString() ?? null,
+      cancelledAt: request.cancelledAt?.toISOString() ?? null,
+      createdBy: request.createdBy,
+      resolvedBy: request.resolvedBy,
+      cancelledBy: request.cancelledBy,
+      summary: {
+        title: summaryTitle,
+        subtitle: summarySubtitle,
+      },
+      capabilities: {
+        canApprove: false,
+        canReject: false,
+        canCancel:
+          request.status === 'pending' && request.createdBy.id === currentUserId,
+      },
+    };
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

@@ -9,15 +9,22 @@ import { Prisma } from '@prisma/client';
 
 import { AccountabilityService } from '../accountability/accountability.service';
 import { AuditService } from '../audit/audit.service';
+import { EquipmentService } from '../equipment/equipment.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { ObjectsService } from '../objects/objects.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskStatus } from '../tasks/types/task-status.type';
 import { TasksService } from '../tasks/tasks.service';
+import { TimesheetsService } from '../timesheets/timesheets.service';
 
 import {
   ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
   ApprovalType,
+  EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
   INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+  INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
+  MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+  OBJECT_CHANGE_CONFIRMATION_TYPE,
   TASK_RESULT_CONFIRMATION_TYPE,
 } from './constants/approval.constants';
 import { ApprovalRequestResponseDto } from './dto/approval-request-response.dto';
@@ -81,6 +88,9 @@ export class ApprovalsService {
     private readonly auditService: AuditService,
     private readonly tasksService: TasksService,
     private readonly inventoryService: InventoryService,
+    private readonly equipmentService: EquipmentService,
+    private readonly objectsService: ObjectsService,
+    private readonly timesheetsService: TimesheetsService,
     private readonly accountabilityService: AccountabilityService,
   ) {}
 
@@ -163,6 +173,20 @@ export class ApprovalsService {
         decisionComment: approved.decisionComment,
       },
     });
+
+    if (approved.approvalType === OBJECT_CHANGE_CONFIRMATION_TYPE) {
+      const payloadSnapshot = this.normalizePayloadSnapshot(approved.payloadSnapshot);
+      await this.auditService.writeObjectAuditLog({
+        objectId: approved.sourceEntityId,
+        actorUserId: currentUser.id,
+        actionCode: 'object.status_changed',
+        payload: {
+          oldStatus: this.getStringPayloadValue(payloadSnapshot, 'currentStatus'),
+          newStatus: this.getStringPayloadValue(payloadSnapshot, 'requestedStatus'),
+          approvalRequestId: approved.id,
+        },
+      });
+    }
 
     return this.mapRequest(approved, currentUser);
   }
@@ -388,7 +412,13 @@ export class ApprovalsService {
     request: ApprovalRequestRecord,
   ): void {
     if (
-      request.approvalType !== TASK_RESULT_CONFIRMATION_TYPE ||
+      ![
+        TASK_RESULT_CONFIRMATION_TYPE,
+        OBJECT_CHANGE_CONFIRMATION_TYPE,
+        MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+        INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
+        EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+      ].includes(request.approvalType as ApprovalType) ||
       request.createdByUserId !== currentUser.id
     ) {
       throw new ForbiddenException('Approval cancellation denied');
@@ -413,9 +443,40 @@ export class ApprovalsService {
           actorUserId: currentUser.id,
         });
         return;
+      case INVENTORY_WRITEOFF_CONFIRMATION_TYPE:
+        await this.inventoryService.applyInventoryWriteoffApprovalDecision(tx, {
+          movementId: request.sourceEntityId,
+          actorUserId: currentUser.id,
+        });
+        return;
+      case EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE:
+        await this.equipmentService.applyEquipmentWriteoffApprovalDecision(tx, {
+          movementId: request.sourceEntityId,
+          actorUserId: currentUser.id,
+        });
+        return;
+      case OBJECT_CHANGE_CONFIRMATION_TYPE: {
+        const payloadSnapshot = this.normalizePayloadSnapshot(request.payloadSnapshot);
+        await this.objectsService.applyObjectStatusChangeApprovalDecision(tx, {
+          objectId: request.sourceEntityId,
+          actorUserId: currentUser.id,
+          expectedCurrentStatus:
+            this.getRequiredStringPayloadValue(payloadSnapshot, 'currentStatus'),
+          nextStatus:
+            this.getRequiredStringPayloadValue(payloadSnapshot, 'requestedStatus'),
+        });
+        return;
+      }
       case ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE:
         await this.accountabilityService.applyClosureApprovalDecision(tx, {
           closureId: request.sourceEntityId,
+          decision: 'approve',
+          actorUserId: currentUser.id,
+        });
+        return;
+      case MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE:
+        await this.timesheetsService.applyManualExceptionApprovalDecision(tx, {
+          exceptionId: request.sourceEntityId,
           decision: 'approve',
           actorUserId: currentUser.id,
         });
@@ -446,6 +507,32 @@ export class ApprovalsService {
           comment,
         });
         return;
+      case INVENTORY_WRITEOFF_CONFIRMATION_TYPE:
+        await this.inventoryService.applyInventoryWriteoffRejectionDecision(tx, {
+          movementId: request.sourceEntityId,
+          actorUserId: currentUser.id,
+          decision: 'reject',
+        });
+        return;
+      case EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE:
+        await this.equipmentService.applyEquipmentWriteoffRejectionDecision(tx, {
+          movementId: request.sourceEntityId,
+          actorUserId: currentUser.id,
+          decision: 'reject',
+        });
+        return;
+      case OBJECT_CHANGE_CONFIRMATION_TYPE:
+        await this.objectsService.assertObjectStatusChangeApprovalStillValid(tx, {
+          objectId: request.sourceEntityId,
+        });
+        return;
+      case MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE:
+        await this.timesheetsService.applyManualExceptionApprovalDecision(tx, {
+          exceptionId: request.sourceEntityId,
+          decision: 'reject',
+          actorUserId: currentUser.id,
+        });
+        return;
       default:
         throw new BadRequestException('Approval reject path is not wired yet');
     }
@@ -473,6 +560,32 @@ export class ApprovalsService {
         });
         return;
       }
+      case OBJECT_CHANGE_CONFIRMATION_TYPE:
+        await this.objectsService.assertObjectStatusChangeApprovalStillValid(tx, {
+          objectId: request.sourceEntityId,
+        });
+        return;
+      case MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE:
+        await this.timesheetsService.applyManualExceptionApprovalDecision(tx, {
+          exceptionId: request.sourceEntityId,
+          decision: 'cancel',
+          actorUserId: currentUser.id,
+        });
+        return;
+      case INVENTORY_WRITEOFF_CONFIRMATION_TYPE:
+        await this.inventoryService.applyInventoryWriteoffRejectionDecision(tx, {
+          movementId: request.sourceEntityId,
+          actorUserId: currentUser.id,
+          decision: 'cancel',
+        });
+        return;
+      case EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE:
+        await this.equipmentService.applyEquipmentWriteoffRejectionDecision(tx, {
+          movementId: request.sourceEntityId,
+          actorUserId: currentUser.id,
+          decision: 'cancel',
+        });
+        return;
       default:
         throw new BadRequestException('Approval cancellation is not wired yet');
     }
@@ -494,7 +607,13 @@ export class ApprovalsService {
       canApprove && request.approvalType !== INVENTORY_EXCEPTION_CONFIRMATION_TYPE;
     const canCancel =
       request.status === 'pending' &&
-      request.approvalType === TASK_RESULT_CONFIRMATION_TYPE &&
+      [
+        TASK_RESULT_CONFIRMATION_TYPE,
+        OBJECT_CHANGE_CONFIRMATION_TYPE,
+        MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+        INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
+        EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+      ].includes(request.approvalType as ApprovalType) &&
       request.createdByUserId === currentUser.id;
 
     return {
@@ -549,6 +668,19 @@ export class ApprovalsService {
   ): string | null {
     const value = payloadSnapshot[key];
     return typeof value === 'string' && value.trim() ? value : null;
+  }
+
+  private getRequiredStringPayloadValue(
+    payloadSnapshot: Record<string, unknown>,
+    key: string,
+  ): string {
+    const value = this.getStringPayloadValue(payloadSnapshot, key);
+
+    if (!value) {
+      throw new BadRequestException(`Approval payload is missing ${key}`);
+    }
+
+    return value;
   }
 
   private parseTaskStatus(value: unknown): TaskStatus | null {

@@ -1,11 +1,16 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import {
+  EQUIPMENT_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+  EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+} from '../approvals/constants/approval.constants';
 import { AuditService } from '../audit/audit.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
 import {
@@ -102,6 +107,7 @@ type EquipmentMovementRecord = {
   id: string;
   equipmentUnitId: string;
   movementType: string;
+  status: string;
   fromStatus: string | null;
   toStatus: string;
   comment: string | null;
@@ -292,11 +298,16 @@ export class EquipmentService {
     const attachmentsByMovementId = await this.loadMovementAttachments(
       movements.map((movement) => movement.id),
     );
+    const approvalRequestsByMovementId =
+      await this.loadPendingApprovalRequestsByMovementIds(
+        movements.map((movement) => movement.id),
+      );
 
     return movements.map((movement) =>
       this.mapMovement(
         movement,
         attachmentsByMovementId.get(movement.id) ?? [],
+        approvalRequestsByMovementId.get(movement.id) ?? null,
         currentUser,
       ),
     );
@@ -314,12 +325,31 @@ export class EquipmentService {
 
     const unit = await this.loadUnit(unitId);
     const normalized = await this.normalizeMovement(unit, payload);
+    const requiresWriteoffApproval = movementType === 'writeoff';
+
+    if (requiresWriteoffApproval) {
+      const existingPendingWriteoff = await this.prisma.equipmentMovement.findFirst({
+        where: {
+          equipmentUnitId: unit.id,
+          movementType: 'writeoff',
+          status: 'pending_approval',
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (existingPendingWriteoff) {
+        throw new ConflictException('Equipment writeoff approval is already pending');
+      }
+    }
 
     const created = await this.prisma.$transaction(async (tx) => {
       const movement = await tx.equipmentMovement.create({
         data: {
           equipmentUnitId: unit.id,
           movementType,
+          status: requiresWriteoffApproval ? 'pending_approval' : 'applied',
           fromStatus: unit.status,
           toStatus: normalized.status,
           fromObjectId: unit.currentObject?.id ?? null,
@@ -331,33 +361,83 @@ export class EquipmentService {
         },
       });
 
-      await tx.equipmentUnit.update({
-        where: { id: unit.id },
-        data: {
-          status: normalized.status,
-          currentObjectId: normalized.currentObjectId,
-          currentOneTimeOrderId: normalized.currentOneTimeOrderId,
-        },
-      });
+      if (!requiresWriteoffApproval) {
+        await tx.equipmentUnit.update({
+          where: { id: unit.id },
+          data: {
+            status: normalized.status,
+            currentObjectId: normalized.currentObjectId,
+            currentOneTimeOrderId: normalized.currentOneTimeOrderId,
+          },
+        });
+      }
 
-      return movement;
+      const approvalRequest = requiresWriteoffApproval
+        ? await tx.approvalRequest.create({
+            data: {
+              approvalType: EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+              sourceEntityType:
+                EQUIPMENT_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+              sourceEntityId: movement.id,
+              createdByUserId: currentUser.id,
+              payloadSnapshot: {
+                summaryTitle: 'Списание оборудования',
+                summarySubtitle: `${unit.inventoryNumber} · ${unit.catalogItem.name}`,
+                equipmentUnitId: unit.id,
+                inventoryNumber: unit.inventoryNumber,
+                movementType,
+                fromStatus: unit.status,
+                toStatus: normalized.status,
+                comment: payload.comment?.trim() || null,
+              },
+            },
+          })
+        : null;
+
+      return {
+        movement,
+        approvalRequestId: approvalRequest?.id ?? null,
+      };
     });
 
     await this.auditService.writeAuditEvent({
       entityType: 'equipment_movement',
-      entityId: created.id,
+      entityId: created.movement.id,
       actorUserId: currentUser.id,
       action: `equipment.${movementType}`,
       newValues: {
         equipmentUnitId: unit.id,
+        status: created.movement.status,
         toStatus: normalized.status,
         toObjectId: normalized.currentObjectId,
         toOneTimeOrderId: normalized.currentOneTimeOrderId,
       },
     });
 
-    const movement = await this.loadMovement(created.id);
-    return this.mapMovement(movement, [], currentUser);
+    if (created.approvalRequestId) {
+      await this.auditService.writeAuditEvent({
+        entityType: 'approval_request',
+        entityId: created.approvalRequestId,
+        actorUserId: currentUser.id,
+        action: 'approval.request.created',
+        newValues: {
+          approvalType: EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+          sourceEntityType: EQUIPMENT_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: created.movement.id,
+        },
+      });
+    }
+
+    const movement = await this.loadMovement(created.movement.id);
+    const approvalRequestByMovementId =
+      await this.loadPendingApprovalRequestsByMovementIds([movement.id]);
+
+    return this.mapMovement(
+      movement,
+      [],
+      approvalRequestByMovementId.get(movement.id) ?? null,
+      currentUser,
+    );
   }
 
   async listObjectEquipment(
@@ -424,6 +504,135 @@ export class EquipmentService {
         canViewEquipmentHistory: true,
       },
     };
+  }
+
+  async applyEquipmentWriteoffApprovalDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      movementId: string;
+      actorUserId: string;
+    },
+  ): Promise<void> {
+    void params.actorUserId;
+
+    const movement = await tx.equipmentMovement.findFirst({
+      where: {
+        id: params.movementId,
+      },
+      select: {
+        id: true,
+        equipmentUnitId: true,
+        movementType: true,
+        status: true,
+        fromStatus: true,
+        fromObjectId: true,
+        fromOneTimeOrderId: true,
+        toStatus: true,
+        toObjectId: true,
+        toOneTimeOrderId: true,
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Equipment movement not found');
+    }
+
+    if (movement.movementType !== 'writeoff') {
+      throw new BadRequestException('Only equipment writeoff can use this approval path');
+    }
+
+    if (movement.status !== 'pending_approval') {
+      throw new ConflictException('Equipment writeoff is already resolved');
+    }
+
+    const unit = await tx.equipmentUnit.findFirst({
+      where: {
+        id: movement.equipmentUnitId,
+      },
+      select: {
+        id: true,
+        status: true,
+        currentObjectId: true,
+        currentOneTimeOrderId: true,
+      },
+    });
+
+    if (!unit) {
+      throw new NotFoundException('Equipment unit not found');
+    }
+
+    if (
+      unit.status !== movement.fromStatus ||
+      unit.currentObjectId !== movement.fromObjectId ||
+      unit.currentOneTimeOrderId !== movement.fromOneTimeOrderId
+    ) {
+      throw new ConflictException(
+        'Equipment unit state changed after approval request was created',
+      );
+    }
+
+    await tx.equipmentUnit.update({
+      where: {
+        id: unit.id,
+      },
+      data: {
+        status: movement.toStatus,
+        currentObjectId: movement.toObjectId,
+        currentOneTimeOrderId: movement.toOneTimeOrderId,
+      },
+    });
+
+    await tx.equipmentMovement.update({
+      where: {
+        id: movement.id,
+      },
+      data: {
+        status: 'applied',
+      },
+    });
+  }
+
+  async applyEquipmentWriteoffRejectionDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      movementId: string;
+      actorUserId: string;
+      decision: 'reject' | 'cancel';
+    },
+  ): Promise<void> {
+    void params.actorUserId;
+
+    const movement = await tx.equipmentMovement.findFirst({
+      where: {
+        id: params.movementId,
+      },
+      select: {
+        id: true,
+        movementType: true,
+        status: true,
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Equipment movement not found');
+    }
+
+    if (movement.movementType !== 'writeoff') {
+      throw new BadRequestException('Only equipment writeoff can use this approval path');
+    }
+
+    if (movement.status !== 'pending_approval') {
+      throw new ConflictException('Equipment writeoff is already resolved');
+    }
+
+    await tx.equipmentMovement.update({
+      where: {
+        id: movement.id,
+      },
+      data: {
+        status: params.decision === 'reject' ? 'rejected' : 'cancelled',
+      },
+    });
   }
 
   private async normalizeMovement(
@@ -678,6 +887,61 @@ export class EquipmentService {
     return result;
   }
 
+  private async loadPendingApprovalRequestsByMovementIds(
+    movementIds: string[],
+  ): Promise<
+    Map<
+      string,
+      {
+        id: string;
+        approvalType: string;
+        status: string;
+      }
+    >
+  > {
+    const result = new Map<
+      string,
+      {
+        id: string;
+        approvalType: string;
+        status: string;
+      }
+    >();
+
+    if (movementIds.length === 0) {
+      return result;
+    }
+
+    const requests = await this.prisma.approvalRequest.findMany({
+      where: {
+        sourceEntityType: EQUIPMENT_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: {
+          in: movementIds,
+        },
+        status: 'pending',
+      },
+      select: {
+        id: true,
+        approvalType: true,
+        status: true,
+        sourceEntityId: true,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    });
+
+    for (const request of requests) {
+      if (!result.has(request.sourceEntityId)) {
+        result.set(request.sourceEntityId, {
+          id: request.id,
+          approvalType: request.approvalType,
+          status: request.status,
+        });
+      }
+    }
+
+    return result;
+  }
+
   private mapCatalogItem(
     item: EquipmentCatalogRecord | Prisma.EquipmentCatalogItemGetPayload<object>,
   ): EquipmentCatalogItemResponseDto {
@@ -749,6 +1013,13 @@ export class EquipmentService {
   private mapMovement(
     movement: EquipmentMovementRecord,
     attachments: FileResponseDto[],
+    approvalRequest:
+      | {
+          id: string;
+          approvalType: string;
+          status: string;
+        }
+      | null,
     currentUser: CurrentAuthUser,
   ): EquipmentMovementResponseDto {
     const roleCodes = this.getRoleCodes(currentUser);
@@ -782,6 +1053,7 @@ export class EquipmentService {
       id: movement.id,
       equipmentUnitId: movement.equipmentUnitId,
       movementType: movement.movementType,
+      status: movement.status,
       fromStatus: movement.fromStatus,
       toStatus: movement.toStatus,
       fromObject: mapObject(movement.fromObject),
@@ -792,6 +1064,7 @@ export class EquipmentService {
       createdBy: movement.createdBy,
       createdAt: movement.createdAt.toISOString(),
       attachments,
+      approvalRequest,
     };
   }
 

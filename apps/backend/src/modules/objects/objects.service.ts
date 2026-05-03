@@ -1,10 +1,17 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
+import {
+  OBJECT_APPROVAL_SOURCE_ENTITY_TYPE,
+  OBJECT_CHANGE_CONFIRMATION_TYPE,
+} from '../approvals/constants/approval.constants';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -308,6 +315,15 @@ export class ObjectsService {
       throw new ForbiddenException('Daily rate editing denied');
     }
 
+    if (
+      payload.status !== undefined &&
+      payload.status !== existing.status
+    ) {
+      throw new BadRequestException(
+        'Object status change must go through approval request flow',
+      );
+    }
+
     const changes: ObjectUpdateChangeSet = {};
 
     if (payload.name !== undefined && payload.name !== existing.name) {
@@ -404,30 +420,180 @@ export class ObjectsService {
     currentUser: CurrentAuthUser,
     id: string,
     payload: ChangeObjectStatusDto,
-  ): Promise<ObjectResponseDto> {
+  ): Promise<ApprovalRequestResponseDto> {
     const existing = await this.getObjectById(currentUser, id);
 
     if (!canManageObjectResponsibles(this.getRoleCodes(currentUser))) {
       throw new ForbiddenException('Object status changing denied');
     }
 
-    const updated = await this.updateObject(currentUser, id, {
-      status: payload.status,
-    });
-
-    if (existing.status !== payload.status) {
-      await this.auditService.writeObjectAuditLog({
-        objectId: id,
-        actorUserId: currentUser.id,
-        actionCode: 'object.status_changed',
-        payload: {
-          oldStatus: existing.status,
-          newStatus: payload.status,
-        } as Prisma.InputJsonObject,
-      });
+    if (existing.status === payload.status) {
+      throw new BadRequestException('Object already has requested status');
     }
 
-    return updated;
+    const pendingRequest = await this.prisma.approvalRequest.findFirst({
+      where: {
+        approvalType: OBJECT_CHANGE_CONFIRMATION_TYPE,
+        sourceEntityType: OBJECT_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: id,
+        status: 'pending',
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        resolvedBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        cancelledBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (pendingRequest) {
+      throw new ConflictException(
+        'Object status change approval request is already pending',
+      );
+    }
+
+    const createdRequest = await this.prisma.approvalRequest.create({
+      data: {
+        approvalType: OBJECT_CHANGE_CONFIRMATION_TYPE,
+        sourceEntityType: OBJECT_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: id,
+        createdByUserId: currentUser.id,
+        payloadSnapshot: {
+          summaryTitle: 'Изменение объекта',
+          summarySubtitle: `${existing.name} · ${existing.status} → ${payload.status}`,
+          objectId: id,
+          objectName: existing.name,
+          currentStatus: existing.status,
+          requestedStatus: payload.status,
+        },
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        resolvedBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+        cancelledBy: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    await this.auditService.writeObjectAuditLog({
+      objectId: id,
+      actorUserId: currentUser.id,
+      actionCode: 'object.status_change_requested',
+      payload: {
+        oldStatus: existing.status,
+        newStatus: payload.status,
+        approvalRequestId: createdRequest.id,
+      } as Prisma.InputJsonObject,
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'approval_request',
+      entityId: createdRequest.id,
+      actorUserId: currentUser.id,
+      action: 'approval.request.created',
+      newValues: {
+        approvalType: OBJECT_CHANGE_CONFIRMATION_TYPE,
+        sourceEntityType: OBJECT_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: id,
+      },
+    });
+
+    return this.mapApprovalRequest(createdRequest, currentUser.id);
+  }
+
+  async applyObjectStatusChangeApprovalDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      objectId: string;
+      actorUserId: string;
+      expectedCurrentStatus: string;
+      nextStatus: string;
+    },
+  ): Promise<void> {
+    const object = await tx.object.findFirst({
+      where: {
+        id: params.objectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Object not found');
+    }
+
+    if (object.status !== params.expectedCurrentStatus) {
+      throw new ConflictException(
+        'Object status changed after approval request was created',
+      );
+    }
+
+    await tx.object.update({
+      where: {
+        id: params.objectId,
+      },
+      data: {
+        status: params.nextStatus,
+      },
+    });
+  }
+
+  async assertObjectStatusChangeApprovalStillValid(
+    tx: Prisma.TransactionClient,
+    params: {
+      objectId: string;
+    },
+  ): Promise<void> {
+    const object = await tx.object.findFirst({
+      where: {
+        id: params.objectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!object) {
+      throw new NotFoundException('Object not found');
+    }
   }
 
   async addResponsibleToObject(
@@ -740,6 +906,83 @@ export class ObjectsService {
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private mapApprovalRequest(
+    request: {
+      id: string;
+      approvalType: string;
+      sourceEntityType: string;
+      sourceEntityId: string;
+      status: string;
+      decisionComment: string | null;
+      payloadSnapshot: Prisma.JsonValue;
+      createdAt: Date;
+      updatedAt: Date;
+      resolvedAt: Date | null;
+      cancelledAt: Date | null;
+      createdBy: {
+        id: string;
+        login: string;
+        fullName: string;
+      };
+      resolvedBy: {
+        id: string;
+        login: string;
+        fullName: string;
+      } | null;
+      cancelledBy: {
+        id: string;
+        login: string;
+        fullName: string;
+      } | null;
+    },
+    currentUserId: string,
+  ): ApprovalRequestResponseDto {
+    const payloadSnapshot =
+      request.payloadSnapshot &&
+      typeof request.payloadSnapshot === 'object' &&
+      !Array.isArray(request.payloadSnapshot)
+        ? (request.payloadSnapshot as Prisma.JsonObject as Record<string, unknown>)
+        : {};
+
+    const summaryTitle =
+      typeof payloadSnapshot.summaryTitle === 'string' &&
+      payloadSnapshot.summaryTitle.trim()
+        ? payloadSnapshot.summaryTitle
+        : request.approvalType;
+    const summarySubtitle =
+      typeof payloadSnapshot.summarySubtitle === 'string' &&
+      payloadSnapshot.summarySubtitle.trim()
+        ? payloadSnapshot.summarySubtitle
+        : null;
+
+    return {
+      id: request.id,
+      approvalType: request.approvalType,
+      sourceEntityType: request.sourceEntityType,
+      sourceEntityId: request.sourceEntityId,
+      status: request.status,
+      decisionComment: request.decisionComment,
+      payloadSnapshot,
+      createdAt: request.createdAt.toISOString(),
+      updatedAt: request.updatedAt.toISOString(),
+      resolvedAt: request.resolvedAt?.toISOString() ?? null,
+      cancelledAt: request.cancelledAt?.toISOString() ?? null,
+      createdBy: request.createdBy,
+      resolvedBy: request.resolvedBy,
+      cancelledBy: request.cancelledBy,
+      summary: {
+        title: summaryTitle,
+        subtitle: summarySubtitle,
+      },
+      capabilities: {
+        canApprove: false,
+        canReject: false,
+        canCancel:
+          request.status === 'pending' && request.createdBy.id === currentUserId,
+      },
+    };
   }
 
   private mapObject(

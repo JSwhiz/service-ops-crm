@@ -301,6 +301,27 @@ export default function ApprovalsPage(): React.JSX.Element {
 
                   {item.sourceEntityType === 'task' ? (
                     <Link href={`/tasks/${item.sourceEntityId}`}>Открыть задачу</Link>
+                  ) : item.sourceEntityType === 'object' ? (
+                    <Link href={`/objects/${item.sourceEntityId}`}>Открыть объект</Link>
+                  ) : item.sourceEntityType === 'inventory_movement' &&
+                    typeof item.payloadSnapshot.inventoryItemId === 'string' ? (
+                    <Link href={`/inventory/${item.payloadSnapshot.inventoryItemId}`}>
+                      Открыть расходник
+                    </Link>
+                  ) : item.sourceEntityType === 'equipment_movement' &&
+                    typeof item.payloadSnapshot.equipmentUnitId === 'string' ? (
+                    <Link href={`/equipment/${item.payloadSnapshot.equipmentUnitId}`}>
+                      Открыть оборудование
+                    </Link>
+                  ) : item.sourceEntityType === 'timesheet_exception' &&
+                    typeof item.payloadSnapshot.objectId === 'string' &&
+                    typeof item.payloadSnapshot.year === 'number' &&
+                    typeof item.payloadSnapshot.month === 'number' ? (
+                    <Link
+                      href={`/timesheet?objectId=${item.payloadSnapshot.objectId}&year=${item.payloadSnapshot.year}&month=${item.payloadSnapshot.month}`}
+                    >
+                      Открыть табель
+                    </Link>
                   ) : item.sourceEntityType === 'accountability_closure' ? (
                     <Link href="/accountability">Открыть подотчет</Link>
                   ) : null}

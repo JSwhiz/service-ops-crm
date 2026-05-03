@@ -73,6 +73,18 @@ export function InventoryMovementList({
               <div className="page-muted">Создано</div>
               <div>{new Date(item.createdAt).toLocaleString('ru-RU')}</div>
             </div>
+            <div>
+              <div className="page-muted">Статус движения</div>
+              <div>
+                {item.status === 'pending_approval'
+                  ? 'Ожидает согласования'
+                  : item.status === 'rejected'
+                    ? 'Отклонено'
+                    : item.status === 'cancelled'
+                      ? 'Отменено'
+                      : 'Применено'}
+              </div>
+            </div>
           </div>
 
           <div
@@ -148,6 +160,14 @@ export function InventoryMovementList({
               Чувствительное действие: требует повышенного внимания в audit и
               approval bridge.
             </div>
+          ) : null}
+
+          {item.approvalRequest ? (
+            <Link
+              href={`/approvals?sourceEntityType=inventory_movement&sourceEntityId=${item.id}`}
+            >
+              Открыть согласование
+            </Link>
           ) : null}
 
           <AttachmentPreviewList

@@ -656,9 +656,9 @@ export default function ObjectDetailPage({
           {canManageObjectStatus ? (
             <ObjectStatusControlPanel
               currentStatus={item.status}
+              approvalsHref={`/approvals?sourceEntityType=object&sourceEntityId=${objectId}`}
               onChangeStatus={async (status) => {
-                const updated = await changeObjectStatus(objectId, { status });
-                setItem(updated);
+                await changeObjectStatus(objectId, { status });
               }}
             />
           ) : null}

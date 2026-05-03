@@ -112,6 +112,12 @@ export async function cleanupCoreTestObject(
   prisma: PrismaClient,
   objectId: string,
 ): Promise<void> {
+  await prisma.timesheetManualException.deleteMany({
+    where: {
+      objectId,
+    },
+  });
+
   const monthIds = (
     await prisma.timesheetMonth.findMany({
       where: {

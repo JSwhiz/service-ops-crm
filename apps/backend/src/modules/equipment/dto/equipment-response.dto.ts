@@ -16,6 +16,7 @@ export class EquipmentMovementResponseDto {
   id!: string;
   equipmentUnitId!: string;
   movementType!: string;
+  status!: string;
   fromStatus!: string | null;
   toStatus!: string;
   fromObject!: { id: string; name: string; canOpenObjectCard: boolean } | null;
@@ -36,6 +37,11 @@ export class EquipmentMovementResponseDto {
   createdBy!: { id: string; login: string; fullName: string };
   createdAt!: string;
   attachments!: FileResponseDto[];
+  approvalRequest!: {
+    id: string;
+    approvalType: string;
+    status: string;
+  } | null;
 }
 
 export class EquipmentUnitResponseDto {

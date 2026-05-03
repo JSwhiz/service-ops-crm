@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useState } from 'react';
 
 interface ObjectStatusPanelProps {
   currentStatus: string;
   canChangeStatus: boolean;
+  approvalsHref?: string;
   onChangeStatus: (status: string) => Promise<void>;
 }
 
@@ -21,6 +23,7 @@ function getStatusLabel(status: string): string {
 export function ObjectStatusPanel({
   currentStatus,
   canChangeStatus,
+  approvalsHref,
   onChangeStatus,
 }: ObjectStatusPanelProps): React.JSX.Element {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,7 +37,9 @@ export function ObjectStatusPanel({
 
     try {
       await onChangeStatus(status);
-      setSuccess(`Статус объекта изменен: ${getStatusLabel(status)}.`);
+      setSuccess(
+        `Запрос на смену статуса объекта создан: ${getStatusLabel(status)}.`,
+      );
     } catch (caughtError) {
       if (caughtError instanceof Error && caughtError.message) {
         setError(caughtError.message);
@@ -74,7 +79,12 @@ export function ObjectStatusPanel({
       )}
 
       {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
-      {success ? <div style={{ color: '#15803d' }}>{success}</div> : null}
+      {success ? (
+        <div style={{ color: '#15803d', display: 'grid', gap: 6 }}>
+          <div>{success}</div>
+          {approvalsHref ? <Link href={approvalsHref}>Открыть согласование</Link> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import React, { useState } from 'react';
 
 import type {
@@ -157,9 +158,25 @@ export function EquipmentMovementPanel({
               <div className="page-muted">
                 {new Date(movement.createdAt).toLocaleString('ru-RU')} · {movement.createdBy.fullName}
               </div>
+              <div className="page-muted">
+                {movement.status === 'pending_approval'
+                  ? 'Ожидает согласования'
+                  : movement.status === 'rejected'
+                    ? 'Отклонено'
+                    : movement.status === 'cancelled'
+                      ? 'Отменено'
+                      : 'Применено'}
+              </div>
               {movement.toObject ? <div>Объект: {movement.toObject.name}</div> : null}
               {movement.toOneTimeOrder ? <div>Заказ: {movement.toOneTimeOrder.title}</div> : null}
               {movement.comment ? <div>{movement.comment}</div> : null}
+              {movement.approvalRequest ? (
+                <Link
+                  href={`/approvals?sourceEntityType=equipment_movement&sourceEntityId=${movement.id}`}
+                >
+                  Открыть согласование
+                </Link>
+              ) : null}
               <AttachmentPreviewList files={movement.attachments} emptyText="Файлы не приложены." />
             </div>
           ))

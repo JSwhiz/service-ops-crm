@@ -48,6 +48,7 @@ export interface InventoryMovement {
     isActive: boolean;
   };
   movementType: string;
+  status: string;
   quantity: number;
   signedQuantity: number;
   unitPriceSnapshot: number;
@@ -74,6 +75,11 @@ export interface InventoryMovement {
     canOpenOrderCard: boolean;
   } | null;
   attachments: AttachedFile[];
+  approvalRequest: {
+    id: string;
+    approvalType: string;
+    status: string;
+  } | null;
   projection: {
     hasEvidence: boolean;
     requiresApprovalBridge: boolean;

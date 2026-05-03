@@ -162,9 +162,9 @@ export default function EditObjectPage({
         <ObjectStatusPanel
           currentStatus={item.status}
           canChangeStatus={allowChangeStatus}
+          approvalsHref={`/approvals?sourceEntityType=object&sourceEntityId=${item.id}`}
           onChangeStatus={async (status) => {
-            const updated = await changeObjectStatus(item.id, { status });
-            setItem(updated);
+            await changeObjectStatus(item.id, { status });
           }}
         />
 
