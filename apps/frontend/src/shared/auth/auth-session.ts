@@ -1,15 +1,5 @@
 import { fetcher } from '@/shared/api/fetcher';
-
-interface RefreshResponse {
-  user: {
-    id: string;
-    login: string;
-    fullName: string;
-    roleCode: string;
-    roleCodes?: string[];
-    isActive: boolean;
-  };
-}
+import type { AuthResponse } from './auth-client';
 
 const AUTH_CLEARED_EVENT = 'service-ops-auth-cleared';
 let refreshPromise: Promise<boolean> | null = null;
@@ -41,10 +31,11 @@ export async function refreshSession(): Promise<boolean> {
 
   refreshPromise = (async () => {
     try {
-      await fetcher<RefreshResponse>('/auth/refresh', {
+      await fetcher<AuthResponse>('/auth/refresh', {
         method: 'POST',
         skipAuthRetry: true,
       });
+
       return true;
     } catch {
       emitAuthCleared();

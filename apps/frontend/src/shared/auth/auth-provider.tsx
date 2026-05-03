@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 import {
   getMe,
@@ -29,6 +30,9 @@ export function AuthProvider({
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const router = useRouter();
+  const pathname = usePathname();
+
   useEffect(() => {
     const bootstrap = async (): Promise<void> => {
       try {
@@ -48,8 +52,12 @@ export function AuthProvider({
     return subscribeToAuthCleared(() => {
       setUser(null);
       setIsLoading(false);
+
+      if (typeof window !== 'undefined' && pathname !== '/login') {
+        router.replace('/login');
+      }
     });
-  }, []);
+  }, [pathname, router]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -66,10 +74,15 @@ export function AuthProvider({
         } catch {
           // local auth state should still be cleared on logout intent
         }
+
         setUser(null);
+
+        if (typeof window !== 'undefined' && pathname !== '/login') {
+          router.replace('/login');
+        }
       },
     }),
-    [user, isLoading],
+    [user, isLoading, pathname, router],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
