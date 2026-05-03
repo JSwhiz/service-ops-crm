@@ -91,6 +91,10 @@ async function main(): Promise<void> {
     { code: 'timesheet.amount.edit', name: 'Изменение денежных ячеек табеля' },
     { code: 'accountability.issue_cash', name: 'Выдача подотчетных средств' },
     { code: 'expense.approve', name: 'Подтверждение расходов и сверки' },
+    { code: 'approval.resolve_task_result', name: 'Подтверждение результата задачи' },
+    { code: 'approval.resolve_object_change', name: 'Подтверждение чувствительных изменений объекта' },
+    { code: 'approval.resolve_inventory_exception', name: 'Подтверждение inventory exception' },
+    { code: 'timesheet.manual_correction', name: 'Подтверждение manual timesheet exception' },
   ];
 
   for (const permission of permissions) {

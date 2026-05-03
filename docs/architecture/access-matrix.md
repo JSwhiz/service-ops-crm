@@ -219,9 +219,12 @@
 | --------------------------------------- | ----------------------- | --------------------------- | ------------------------------------- | ------------------------------------ |
 | task_result_confirmation                | tasks                   | task result                 | leadership / designated approver      | approval.resolve_task_result         |
 | object_change_confirmation              | objects                 | object                      | leadership                            | approval.resolve_object_change       |
-| object_assignment_change_confirmation   | objects                 | object assignment           | leadership                            | approval.resolve_object_change       |
-| inventory_without_photo_confirmation    | inventory               | object issue without photo  | director                              | approval.resolve_inventory_exception |
-| expense_confirmation                    | expenses-accountability | expense                     | leadership / designated approver      | expense.approve                      |
+| inventory_exception_confirmation        | inventory               | inventory exception         | director / designated approver        | approval.resolve_inventory_exception |
+| inventory_return_confirmation           | inventory               | inventory return            | leadership / designated approver      | approval.resolve_inventory_exception |
+| inventory_writeoff_confirmation         | inventory               | inventory writeoff          | leadership / designated approver      | approval.resolve_inventory_exception |
+| equipment_return_confirmation           | equipment               | equipment return            | leadership / designated approver      | approval.resolve_object_change       |
+| equipment_writeoff_confirmation         | equipment               | equipment writeoff          | leadership / designated approver      | approval.resolve_object_change       |
+| accountability_closure_confirmation     | expenses-accountability | accountability closure      | leadership / designated approver      | expense.approve                      |
 | manual_timesheet_exception_confirmation | timesheets              | manual correction exception | leadership / designated approver      | timesheet.manual_correction          |
 
 ---

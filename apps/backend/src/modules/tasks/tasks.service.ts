@@ -1,10 +1,17 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
+import { AuditService } from '../audit/audit.service';
+import {
+  TASK_APPROVAL_SOURCE_ENTITY_TYPE,
+  TASK_RESULT_CONFIRMATION_TYPE,
+} from '../approvals/constants/approval.constants';
 import {
   canAssignTaskToUserOnOneTimeOrder,
   canCreateTaskOnOneTimeOrder,
@@ -87,7 +94,10 @@ interface TaskView {
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async listTasks(
     currentUser: CurrentAuthUser,
@@ -417,18 +427,114 @@ export class TasksService {
       throw new ForbiddenException('Only assignee or wide role can submit result');
     }
 
-    const task = (await this.prisma.task.update({
-      where: { id },
-      data: {
-        resultText: payload.resultText,
-        submittedByUserId: currentUser.id,
-        submittedAt: new Date(),
-        status: 'awaiting_confirmation',
-      },
-      include: this.getTaskInclude(),
-    })) as TaskView;
+    const submittedAt = new Date();
+    const submissionResult = await this.prisma.$transaction(async (tx) => {
+      const existingPendingApproval = await tx.approvalRequest.findFirst({
+        where: {
+          approvalType: TASK_RESULT_CONFIRMATION_TYPE,
+          sourceEntityType: TASK_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: id,
+          status: 'pending',
+        },
+        select: {
+          id: true,
+        },
+      });
 
-    return this.mapTask(task, currentUser);
+      if (existingPendingApproval) {
+        throw new ConflictException(
+          'Task result already has a pending approval request',
+        );
+      }
+
+      const updatedTask = (await tx.task.update({
+        where: { id },
+        data: {
+          resultText: payload.resultText,
+          submittedByUserId: currentUser.id,
+          submittedAt,
+          status: 'awaiting_confirmation',
+        },
+        include: this.getTaskInclude(),
+      })) as TaskView;
+
+      const approvalRequest = await tx.approvalRequest.create({
+        data: {
+          approvalType: TASK_RESULT_CONFIRMATION_TYPE,
+          sourceEntityType: TASK_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: updatedTask.id,
+          createdByUserId: currentUser.id,
+          payloadSnapshot: {
+            summaryTitle: 'Подтверждение результата задачи',
+            summarySubtitle: `${updatedTask.title} · ${updatedTask.oneTimeOrder?.title ?? updatedTask.object?.name ?? 'Без привязки'}`,
+            taskTitle: updatedTask.title,
+            targetType: updatedTask.oneTimeOrder ? 'one_time_order' : 'object',
+            targetId: updatedTask.oneTimeOrder?.id ?? updatedTask.object?.id ?? '',
+            targetName:
+              updatedTask.oneTimeOrder?.title ?? updatedTask.object?.name ?? '—',
+            resultText: payload.resultText,
+            submittedAt: submittedAt.toISOString(),
+            returnStatusOnCancel: existing.status,
+          },
+        },
+      });
+
+      return {
+        task: updatedTask,
+        approvalRequestId: approvalRequest.id,
+      };
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'approval_request',
+      entityId: submissionResult.approvalRequestId,
+      actorUserId: currentUser.id,
+      action: 'approval.request.created',
+      newValues: {
+        approvalType: TASK_RESULT_CONFIRMATION_TYPE,
+        sourceEntityType: TASK_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: submissionResult.task.id,
+      },
+    });
+
+    return this.mapTask(submissionResult.task as TaskView, currentUser);
+  }
+
+  async applyTaskResultApprovalDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      taskId: string;
+      nextStatus: TaskStatus;
+    },
+  ): Promise<void> {
+    const existingTask = await tx.task.findUnique({
+      where: {
+        id: params.taskId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (!existingTask) {
+      throw new NotFoundException('Task not found for approval decision');
+    }
+
+    if (existingTask.status !== 'awaiting_confirmation') {
+      throw new ConflictException(
+        'Task is not waiting for approval decision anymore',
+      );
+    }
+
+    await tx.task.update({
+      where: {
+        id: params.taskId,
+      },
+      data: {
+        status: params.nextStatus,
+      },
+    });
   }
 
   async listTasksByObject(

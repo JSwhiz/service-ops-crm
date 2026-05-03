@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
-  approveAccountabilityClosure,
   approveAccountabilityExpense,
   createAccountabilityExpense,
   getAccountabilityAccountByUserId,
@@ -11,7 +10,6 @@ import {
   issueAccountabilityFunding,
   listAccountabilityAccounts,
   listAccountabilityUsers,
-  rejectAccountabilityClosure,
   rejectAccountabilityExpense,
   requestAccountabilityClosure,
   submitAccountabilityExpense,
@@ -315,30 +313,6 @@ export default function AccountabilityPage(): React.JSX.Element {
                 );
               }
             }}
-            onApproveClosure={async (closureId) => {
-              setActionError(null);
-
-              try {
-                await approveAccountabilityClosure(closureId);
-                await reloadAfterAccountChange(user?.id ?? ownView.account.user.id);
-              } catch (error) {
-                setActionError(
-                  getErrorMessage(error, 'Не удалось подтвердить сверку подотчета.'),
-                );
-              }
-            }}
-            onRejectClosure={async (closureId, comment) => {
-              setActionError(null);
-
-              try {
-                await rejectAccountabilityClosure(closureId, comment);
-                await reloadAfterAccountChange(user?.id ?? ownView.account.user.id);
-              } catch (error) {
-                setActionError(
-                  getErrorMessage(error, 'Не удалось отклонить сверку подотчета.'),
-                );
-              }
-            }}
           />
         ) : null}
 
@@ -572,36 +546,6 @@ export default function AccountabilityPage(): React.JSX.Element {
               }}
               onRequestClosure={async () => {
                 throw new Error('Closure request is not available in review mode');
-              }}
-              onApproveClosure={async (closureId) => {
-                setActionError(null);
-
-                try {
-                  await approveAccountabilityClosure(closureId);
-                  await reloadAfterAccountChange(selectedUserId);
-                } catch (error) {
-                  setActionError(
-                    getErrorMessage(
-                      error,
-                      'Не удалось подтвердить сверку подотчетного контура.',
-                    ),
-                  );
-                }
-              }}
-              onRejectClosure={async (closureId, comment) => {
-                setActionError(null);
-
-                try {
-                  await rejectAccountabilityClosure(closureId, comment);
-                  await reloadAfterAccountChange(selectedUserId);
-                } catch (error) {
-                  setActionError(
-                    getErrorMessage(
-                      error,
-                      'Не удалось отклонить сверку подотчетного контура.',
-                    ),
-                  );
-                }
               }}
             />
           ) : null

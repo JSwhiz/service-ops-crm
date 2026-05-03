@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 import {
   getTaskById,
@@ -97,7 +98,19 @@ export default function TaskDetailPage({
               </div>
             ) : (
               <div className="page-muted">
-                Для этой задачи сейчас нет доступных ручных смен статуса.
+                {item.status === 'awaiting_confirmation' ? (
+                  <>
+                    Подтверждение результата теперь идет через shared approvals.{' '}
+                    <Link
+                      href={`/approvals?sourceEntityType=task&sourceEntityId=${taskId}`}
+                    >
+                      Открыть согласование
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  'Для этой задачи сейчас нет доступных ручных смен статуса.'
+                )}
               </div>
             )}
           </div>

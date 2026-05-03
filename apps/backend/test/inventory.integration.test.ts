@@ -636,30 +636,71 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
     true,
   );
 
-  const founderResolveResponse = await fetch(
-    `${baseUrl}/api/v1/inventory/movements/${managerObjectIssue.id}/resolve-missing-photo-approval`,
+  const directorApprovalsResponse = await fetch(
+    `${baseUrl}/api/v1/approvals?sourceEntityType=inventory_movement&sourceEntityId=${managerObjectIssue.id}&status=pending`,
     {
-      method: 'POST',
-      headers: {
-        Cookie: founderCookie,
-      },
-    },
-  );
-
-  assert.equal(founderResolveResponse.status, 403);
-
-  const directorResolveResponse = await fetch(
-    `${baseUrl}/api/v1/inventory/movements/${managerObjectIssue.id}/resolve-missing-photo-approval`,
-    {
-      method: 'POST',
       headers: {
         Cookie: directorCookie,
       },
     },
   );
 
+  assert.equal(directorApprovalsResponse.status, 200);
+  const directorApprovals = (await directorApprovalsResponse.json()) as Array<{
+    id: string;
+    approvalType: string;
+    status: string;
+  }>;
+  assert.equal(directorApprovals.length, 1);
+  assert.equal(
+    directorApprovals[0]?.approvalType,
+    'inventory_exception_confirmation',
+  );
+  assert.equal(directorApprovals[0]?.status, 'pending');
+
+  const founderResolveResponse = await fetch(
+    `${baseUrl}/api/v1/approvals/${directorApprovals[0]?.id}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+
+  assert.equal(founderResolveResponse.status, 403);
+
+  const directorResolveResponse = await fetch(
+    `${baseUrl}/api/v1/approvals/${directorApprovals[0]?.id}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: directorCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+
   assert.equal(directorResolveResponse.status, 200);
   const resolvedMovement = (await directorResolveResponse.json()) as {
+    status: string;
+  };
+  assert.equal(resolvedMovement.status, 'approved');
+
+  const resolvedMovementViewResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/movements?inventoryItemId=${inventoryItemId}`,
+    {
+      headers: {
+        Cookie: directorCookie,
+      },
+    },
+  );
+
+  assert.equal(resolvedMovementViewResponse.status, 200);
+  const resolvedMovementView = (await resolvedMovementViewResponse.json()) as Array<{
     id: string;
     projection: {
       hasEvidence: boolean;
@@ -668,17 +709,20 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
       approvalBridgeResolvedBy: { fullName: string } | null;
       canResolveMissingPhotoApproval: boolean;
     };
-  };
-  assert.equal(resolvedMovement.id, managerObjectIssue.id);
-  assert.equal(resolvedMovement.projection.hasEvidence, false);
-  assert.equal(resolvedMovement.projection.requiresApprovalBridge, false);
-  assert.ok(resolvedMovement.projection.approvalBridgeResolvedAt);
+  }>;
+  const approvedMovement = resolvedMovementView.find(
+    (movement) => movement.id === managerObjectIssue.id,
+  );
+  assert.ok(approvedMovement);
+  assert.equal(approvedMovement.projection.hasEvidence, false);
+  assert.equal(approvedMovement.projection.requiresApprovalBridge, false);
+  assert.ok(approvedMovement.projection.approvalBridgeResolvedAt);
   assert.equal(
-    resolvedMovement.projection.approvalBridgeResolvedBy?.fullName,
+    approvedMovement.projection.approvalBridgeResolvedBy?.fullName,
     'Директор',
   );
   assert.equal(
-    resolvedMovement.projection.canResolveMissingPhotoApproval,
+    approvedMovement.projection.canResolveMissingPhotoApproval,
     false,
   );
 

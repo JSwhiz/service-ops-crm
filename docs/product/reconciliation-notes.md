@@ -197,6 +197,10 @@ Contract rule:
 Контрактный источник истины:
 
 - shared approval semantics принадлежат отдельному `approvals` module.
+- для migrated MVP flows shared runtime owner уже существует:
+  - `task_result_confirmation`
+  - `inventory_exception_confirmation`
+  - `accountability_closure_confirmation`
 
 ---
 

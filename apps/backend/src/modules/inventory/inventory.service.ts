@@ -7,6 +7,11 @@ import {
 import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
+import {
+  INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+  INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+  LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE,
+} from '../approvals/constants/approval.constants';
 import { FileResponseDto } from '../files/dto/file-response.dto';
 import {
   canViewObjectByScope,
@@ -511,38 +516,66 @@ export class InventoryService {
     if (
       movement.movementType !== 'issue_to_object' ||
       !movement.requiresApprovalBridge ||
-      movement.approvalBridgeType !== 'inventory_without_photo_confirmation'
+      movement.approvalBridgeType !== LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE
     ) {
       throw new BadRequestException(
         'Only issue_to_object without photo can be resolved by this bridge',
       );
     }
 
-    const attachments = await this.loadMovementAttachments([movement.id]);
-    if ((attachments.get(movement.id) ?? []).length > 0) {
-      throw new BadRequestException(
-        'Movement already has evidence and does not need missing photo approval',
-      );
-    }
+    const approvalRequest = await this.prisma.approvalRequest.findFirst({
+      where: {
+        approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+        sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: movement.id,
+        status: 'pending',
+      },
+      select: {
+        id: true,
+      },
+    });
 
-    if (!movement.approvalBridgeResolvedAt) {
-      await this.prisma.inventoryMovement.update({
-        where: {
-          id: movement.id,
-        },
-        data: {
-          approvalBridgeResolvedAt: new Date(),
-          approvalBridgeResolvedByUserId: currentUser.id,
-        },
+    await this.prisma.$transaction(async (tx) => {
+      await this.applyInventoryExceptionApprovalDecision(tx, {
+        movementId: movement.id,
+        actorUserId: currentUser.id,
       });
 
-      await this.auditService.writeAuditEvent({
-        entityType: 'inventory_movement',
-        entityId: movement.id,
-        actorUserId: currentUser.id,
+      if (approvalRequest) {
+        await tx.approvalRequest.update({
+          where: {
+            id: approvalRequest.id,
+          },
+          data: {
+            status: 'approved',
+            resolvedByUserId: currentUser.id,
+            resolvedAt: new Date(),
+            decisionComment: null,
+          },
+        });
+      }
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'inventory_movement',
+      entityId: movement.id,
+      actorUserId: currentUser.id,
         action: 'inventory.missing_photo_approval.resolved',
         newValues: {
           approvalBridgeType: movement.approvalBridgeType,
+        },
+      });
+
+    if (approvalRequest) {
+      await this.auditService.writeAuditEvent({
+        entityType: 'approval_request',
+        entityId: approvalRequest.id,
+        actorUserId: currentUser.id,
+        action: 'approval.request.approved',
+        newValues: {
+          approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+          sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: movement.id,
         },
       });
     }
@@ -652,7 +685,7 @@ export class InventoryService {
       payload,
       item.currentUnitPrice,
     );
-    const created = await this.prisma.$transaction(
+    const creationResult = await this.prisma.$transaction(
       async (tx) => {
         const stockSummary = await this.loadStockSummaryForItem(tx, item.id);
         const nextStock = stockSummary.currentStock + normalizedMovement.signedQuantity;
@@ -688,7 +721,40 @@ export class InventoryService {
           });
         }
 
-        return createdMovement;
+        const approvalRequest =
+          createdMovement.requiresApprovalBridge &&
+          createdMovement.approvalBridgeType ===
+            LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE
+            ? await tx.approvalRequest.create({
+                data: {
+                  approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+                  sourceEntityType:
+                    INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+                  sourceEntityId: createdMovement.id,
+                  createdByUserId: currentUser.id,
+                  payloadSnapshot: {
+                    summaryTitle: 'Inventory exception',
+                    summarySubtitle: `${normalizedMovement.movementType} · ${payload.relatedObjectId ? 'объект' : 'движение'}`,
+                    movementType: createdMovement.movementType,
+                    inventoryItemId: createdMovement.inventoryItemId,
+                    relatedObjectId: createdMovement.relatedObjectId,
+                    relatedOneTimeOrderId: createdMovement.relatedOneTimeOrderId,
+                    quantity: Number(createdMovement.quantity),
+                    unitPriceSnapshot: Number(createdMovement.unitPriceSnapshot),
+                    totalAmountSnapshot: Number(
+                      createdMovement.totalAmountSnapshot,
+                    ),
+                    comment: createdMovement.comment,
+                    approvalBridgeType: createdMovement.approvalBridgeType,
+                  },
+                },
+              })
+            : null;
+
+        return {
+          createdMovement,
+          approvalRequestId: approvalRequest?.id ?? null,
+        };
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -697,28 +763,46 @@ export class InventoryService {
 
     await this.auditService.writeAuditEvent({
       entityType: 'inventory_movement',
-      entityId: created.id,
+      entityId: creationResult.createdMovement.id,
       actorUserId: currentUser.id,
       action: 'inventory.movement.created',
       newValues: {
-        inventoryItemId: created.inventoryItemId,
-        movementType: created.movementType,
-        quantity: Number(created.quantity),
-        unitPriceSnapshot: Number(created.unitPriceSnapshot),
-        totalAmountSnapshot: Number(created.totalAmountSnapshot),
-        adjustmentDirection: created.adjustmentDirection,
-        evidenceRequired: created.evidenceRequired,
-        requiresApprovalBridge: created.requiresApprovalBridge,
-        approvalBridgeType: created.approvalBridgeType,
-        relatedObjectId: created.relatedObjectId,
-        relatedOneTimeOrderId: created.relatedOneTimeOrderId,
-        comment: created.comment,
+        inventoryItemId: creationResult.createdMovement.inventoryItemId,
+        movementType: creationResult.createdMovement.movementType,
+        quantity: Number(creationResult.createdMovement.quantity),
+        unitPriceSnapshot: Number(creationResult.createdMovement.unitPriceSnapshot),
+        totalAmountSnapshot: Number(
+          creationResult.createdMovement.totalAmountSnapshot,
+        ),
+        adjustmentDirection: creationResult.createdMovement.adjustmentDirection,
+        evidenceRequired: creationResult.createdMovement.evidenceRequired,
+        requiresApprovalBridge:
+          creationResult.createdMovement.requiresApprovalBridge,
+        approvalBridgeType: creationResult.createdMovement.approvalBridgeType,
+        relatedObjectId: creationResult.createdMovement.relatedObjectId,
+        relatedOneTimeOrderId:
+          creationResult.createdMovement.relatedOneTimeOrderId,
+        comment: creationResult.createdMovement.comment,
       },
     });
 
+    if (creationResult.approvalRequestId) {
+      await this.auditService.writeAuditEvent({
+        entityType: 'approval_request',
+        entityId: creationResult.approvalRequestId,
+        actorUserId: currentUser.id,
+        action: 'approval.request.created',
+        newValues: {
+          approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+          sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: creationResult.createdMovement.id,
+        },
+      });
+    }
+
     const createdView = await this.prisma.inventoryMovement.findFirst({
       where: {
-        id: created.id,
+        id: creationResult.createdMovement.id,
       },
       include: {
         inventoryItem: {
@@ -783,6 +867,66 @@ export class InventoryService {
     }
 
     return this.mapMovement(createdView as InventoryMovementRecord, [], currentUser);
+  }
+
+  async applyInventoryExceptionApprovalDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      movementId: string;
+      actorUserId: string;
+    },
+  ): Promise<void> {
+    const movement = await tx.inventoryMovement.findFirst({
+      where: {
+        id: params.movementId,
+      },
+      select: {
+        id: true,
+        movementType: true,
+        requiresApprovalBridge: true,
+        approvalBridgeType: true,
+        approvalBridgeResolvedAt: true,
+      },
+    });
+
+    if (!movement) {
+      throw new NotFoundException('Inventory movement not found');
+    }
+
+    if (
+      movement.movementType !== 'issue_to_object' ||
+      !movement.requiresApprovalBridge ||
+      movement.approvalBridgeType !== LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE
+    ) {
+      throw new BadRequestException(
+        'Only issue_to_object without photo can be approved through shared approvals',
+      );
+    }
+
+    const attachmentCount = await tx.fileAttachment.count({
+      where: {
+        entityType: 'inventory_movement',
+        entityId: movement.id,
+      },
+    });
+
+    if (attachmentCount > 0) {
+      throw new BadRequestException(
+        'Movement already has evidence and does not need missing photo approval',
+      );
+    }
+
+    if (!movement.approvalBridgeResolvedAt) {
+      await tx.inventoryMovement.update({
+        where: {
+          id: movement.id,
+        },
+        data: {
+          approvalBridgeResolvedAt: new Date(),
+          approvalBridgeResolvedByUserId: params.actorUserId,
+        },
+      });
+    }
   }
 
   async listObjectReferenceOptions(

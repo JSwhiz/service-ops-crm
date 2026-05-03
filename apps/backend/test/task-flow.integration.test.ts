@@ -141,9 +141,31 @@ test('task result confirmation flow is enforced between assignee and leadership'
     };
   };
 
-  assert.ok(founderView.capabilities.allowedStatusTransitions.includes('closed'));
+  assert.equal(
+    founderView.capabilities.allowedStatusTransitions.includes('closed'),
+    false,
+  );
 
-  const closeResponse = await fetch(
+  const founderApprovalListResponse = await fetch(
+    `${baseUrl}/api/v1/approvals?sourceEntityType=task&sourceEntityId=${createdTask.id}&status=pending`,
+    {
+      headers: {
+        Cookie: founderCookie,
+      },
+    },
+  );
+
+  assert.equal(founderApprovalListResponse.status, 200);
+  const founderApprovalList = (await founderApprovalListResponse.json()) as Array<{
+    id: string;
+    approvalType: string;
+    status: string;
+  }>;
+  assert.equal(founderApprovalList.length, 1);
+  assert.equal(founderApprovalList[0]?.approvalType, 'task_result_confirmation');
+  assert.equal(founderApprovalList[0]?.status, 'pending');
+
+  const founderDirectCloseResponse = await fetch(
     `${baseUrl}/api/v1/tasks/${createdTask.id}/status`,
     {
       method: 'PATCH',
@@ -157,11 +179,180 @@ test('task result confirmation flow is enforced between assignee and leadership'
     },
   );
 
+  assert.equal(founderDirectCloseResponse.status, 403);
+
+  const rejectResponse = await fetch(
+    `${baseUrl}/api/v1/approvals/${founderApprovalList[0]?.id}/reject`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        comment: 'Нужно доработать результат.',
+      }),
+    },
+  );
+
+  assert.equal(rejectResponse.status, 200);
+
+  const rejectedTaskResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${createdTask.id}`,
+    {
+      headers: {
+        Cookie: managerCookie,
+      },
+    },
+  );
+
+  assert.equal(rejectedTaskResponse.status, 200);
+  const rejectedTask = (await rejectedTaskResponse.json()) as {
+    status: string;
+    capabilities: {
+      allowedStatusTransitions: string[];
+    };
+  };
+  assert.equal(rejectedTask.status, 'returned_to_work');
+  assert.ok(rejectedTask.capabilities.allowedStatusTransitions.includes('in_progress'));
+
+  const restartResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${createdTask.id}/status`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: managerCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: 'in_progress',
+      }),
+    },
+  );
+
+  assert.equal(restartResponse.status, 200);
+
+  const resubmitResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${createdTask.id}/result`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        resultText: 'Повторная сдача после доработки',
+      }),
+    },
+  );
+
+  assert.equal(resubmitResponse.status, 201);
+
+  const managerApprovalListResponse = await fetch(
+    `${baseUrl}/api/v1/approvals?sourceEntityType=task&sourceEntityId=${createdTask.id}&status=pending`,
+    {
+      headers: {
+        Cookie: managerCookie,
+      },
+    },
+  );
+
+  assert.equal(managerApprovalListResponse.status, 200);
+  const managerApprovalList = (await managerApprovalListResponse.json()) as Array<{
+    id: string;
+    status: string;
+  }>;
+  assert.equal(managerApprovalList.length, 1);
+
+  const cancelResponse = await fetch(
+    `${baseUrl}/api/v1/approvals/${managerApprovalList[0]?.id}/cancel`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+
+  assert.equal(cancelResponse.status, 200);
+
+  const cancelledTaskResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${createdTask.id}`,
+    {
+      headers: {
+        Cookie: managerCookie,
+      },
+    },
+  );
+
+  assert.equal(cancelledTaskResponse.status, 200);
+  const cancelledTask = (await cancelledTaskResponse.json()) as {
+    status: string;
+  };
+  assert.equal(cancelledTask.status, 'in_progress');
+
+  const finalSubmitResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${createdTask.id}/result`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        resultText: 'Финальный результат готов к подтверждению',
+      }),
+    },
+  );
+
+  assert.equal(finalSubmitResponse.status, 201);
+
+  const finalApprovalListResponse = await fetch(
+    `${baseUrl}/api/v1/approvals?sourceEntityType=task&sourceEntityId=${createdTask.id}&status=pending`,
+    {
+      headers: {
+        Cookie: founderCookie,
+      },
+    },
+  );
+
+  assert.equal(finalApprovalListResponse.status, 200);
+  const finalApprovalList = (await finalApprovalListResponse.json()) as Array<{
+    id: string;
+  }>;
+  assert.equal(finalApprovalList.length, 1);
+
+  const closeResponse = await fetch(
+    `${baseUrl}/api/v1/approvals/${finalApprovalList[0]?.id}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    },
+  );
+
   assert.equal(closeResponse.status, 200);
 
   const closedTask = (await closeResponse.json()) as {
     status: string;
   };
 
-  assert.equal(closedTask.status, 'closed');
+  assert.equal(closedTask.status, 'approved');
+
+  const finalTaskResponse = await fetch(`${baseUrl}/api/v1/tasks/${createdTask.id}`, {
+    headers: {
+      Cookie: founderCookie,
+    },
+  });
+
+  assert.equal(finalTaskResponse.status, 200);
+  const finalTask = (await finalTaskResponse.json()) as {
+    status: string;
+  };
+  assert.equal(finalTask.status, 'closed');
 });

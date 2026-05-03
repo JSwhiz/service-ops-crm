@@ -6,6 +6,12 @@ export class MeResponseDto {
   roleCodes!: string[];
   isActive!: boolean;
   capabilities!: {
+    canAccessApprovals: boolean;
+    canResolveTaskResultApproval: boolean;
+    canResolveInventoryApproval: boolean;
+    canResolveObjectChangeApproval: boolean;
+    canResolveAccountabilityApproval: boolean;
+    canResolveTimesheetApproval: boolean;
     canCreateObject: boolean;
     canAccessOneTimeOrders: boolean;
     canCreateOneTimeOrder: boolean;

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 
 import type {
   InventoryItem,
@@ -24,7 +25,6 @@ export function ObjectInventoryPanel({
   availableItems,
   canIssueInventoryToObject,
   onIssue,
-  onResolveMissingPhotoApproval,
 }: {
   movements: InventoryMovement[];
   availableItems: InventoryItem[];
@@ -35,7 +35,6 @@ export function ObjectInventoryPanel({
     comment?: string;
     evidenceFiles: File[];
   }) => Promise<void>;
-  onResolveMissingPhotoApproval: (movementId: string) => Promise<void>;
 }): React.JSX.Element {
   const [inventoryItemId, setInventoryItemId] = useState(
     availableItems[0]?.id ?? '',
@@ -225,25 +224,12 @@ export function ObjectInventoryPanel({
                   'Фото не требуется'
                 )}
               </div>
-              {movement.projection.canResolveMissingPhotoApproval ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    void onResolveMissingPhotoApproval(movement.id).catch(
-                      (resolveError) => {
-                        setError(
-                          getErrorMessage(
-                            resolveError,
-                            'Не удалось подтвердить списание без фото.',
-                          ),
-                        );
-                      },
-                    );
-                  }}
+              {movement.projection.requiresApprovalBridge ? (
+                <Link
+                  href={`/approvals?sourceEntityType=inventory_movement&sourceEntityId=${movement.id}`}
                 >
-                  Подтвердить списание без фото
-                </button>
+                  Открыть согласование
+                </Link>
               ) : null}
               {movement.comment ? <div>{movement.comment}</div> : null}
               <AttachmentPreviewList

@@ -416,9 +416,12 @@ Approval для подмены в MVP допустим как отдельное
 
 - `task_result_confirmation`
 - `object_change_confirmation`
-- `object_assignment_change_confirmation`
-- `inventory_without_photo_confirmation`
-- `expense_confirmation`
+- `inventory_exception_confirmation`
+- `inventory_return_confirmation`
+- `inventory_writeoff_confirmation`
+- `equipment_return_confirmation`
+- `equipment_writeoff_confirmation`
+- `accountability_closure_confirmation`
 - `manual_timesheet_exception_confirmation`
 
 ---
@@ -429,22 +432,27 @@ Approval для подмены в MVP допустим как отдельное
 | --------------------------------------- | ----------------------- | ------------------------------- | -------------------------------------- | ------------------------------------ |
 | task_result_confirmation                | tasks                   | task result                     | leadership / designated approver       | approval.resolve_task_result         |
 | object_change_confirmation              | objects                 | object change                   | leadership                             | approval.resolve_object_change       |
-| object_assignment_change_confirmation   | objects                 | object assignment change        | leadership                             | approval.resolve_object_change       |
-| inventory_without_photo_confirmation    | inventory               | object issue without photo      | director                               | approval.resolve_inventory_exception |
-| expense_confirmation                    | expenses-accountability | expense / accountability action | leadership / designated approver       | expense.approve                      |
+| inventory_exception_confirmation        | inventory               | inventory exception             | director / designated approver         | approval.resolve_inventory_exception |
+| inventory_return_confirmation           | inventory               | inventory return                | leadership / designated approver       | approval.resolve_inventory_exception |
+| inventory_writeoff_confirmation         | inventory               | inventory writeoff              | leadership / designated approver       | approval.resolve_inventory_exception |
+| equipment_return_confirmation           | equipment               | equipment return                | leadership / designated approver       | approval.resolve_object_change       |
+| equipment_writeoff_confirmation         | equipment               | equipment writeoff              | leadership / designated approver       | approval.resolve_object_change       |
+| accountability_closure_confirmation     | expenses-accountability | accountability closure          | leadership / designated approver       | expense.approve                      |
 | manual_timesheet_exception_confirmation | timesheets              | exceptional correction flow     | leadership / designated approver       | timesheet.manual_correction          |
 
 ---
 
 ## 15. Transitional rule for runtime
 
-На текущем этапе shared `ApprovalsModule` может еще отсутствовать в runtime.
+Shared `ApprovalsModule` является owner approval-контура там, где runtime migration уже встроен.
 
-Переходное правило:
+На текущем MVP-слое в shared runtime уже переведены:
 
-- отдельные модули могут иметь промежуточные статусы типа `awaiting_confirmation`;
-- это не означает, что они являются владельцами будущего shared approval workflow;
-- каноническим owner approval-контура будет отдельный shared module.
+- `task_result_confirmation`
+- `inventory_exception_confirmation`
+- `accountability_closure_confirmation`
+
+Для остальных approval types transitional bridge-state в доменных модулях еще допустим, но он не считается owner shared approval semantics.
 
 ---
 

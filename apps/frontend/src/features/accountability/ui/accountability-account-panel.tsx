@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
 
 import type {
   AccountabilityAccountView,
@@ -32,8 +33,6 @@ export function AccountabilityAccountPanel({
   onApproveExpense,
   onRejectExpense,
   onRequestClosure,
-  onApproveClosure,
-  onRejectClosure,
 }: {
   title: string;
   view: AccountabilityAccountView;
@@ -49,8 +48,6 @@ export function AccountabilityAccountPanel({
   onApproveExpense: (expenseId: string) => Promise<void>;
   onRejectExpense: (expenseId: string, comment: string) => Promise<void>;
   onRequestClosure: () => Promise<void>;
-  onApproveClosure: (closureId: string) => Promise<void>;
-  onRejectClosure: (closureId: string, comment: string) => Promise<void>;
 }): React.JSX.Element {
   const [editingExpense, setEditingExpense] =
     useState<AccountabilityExpenseItem | null>(null);
@@ -58,10 +55,6 @@ export function AccountabilityAccountPanel({
     null,
   );
   const [expenseRejectComment, setExpenseRejectComment] = useState('');
-  const [rejectingClosureId, setRejectingClosureId] = useState<string | null>(
-    null,
-  );
-  const [closureRejectComment, setClosureRejectComment] = useState('');
   const latestClosure = view.closures[0] ?? null;
 
   const summaryCards = useMemo(
@@ -360,23 +353,7 @@ export function AccountabilityAccountPanel({
         ) : (
           <div className="record-list local-scroll local-scroll--sm">
             {view.closures.map((closure) => (
-              <ClosureCard
-                key={closure.id}
-                closure={closure}
-                rejectingClosureId={rejectingClosureId}
-                closureRejectComment={closureRejectComment}
-                onChangeRejectComment={setClosureRejectComment}
-                onStartReject={(item) => {
-                  setRejectingClosureId(item.id);
-                  setClosureRejectComment('');
-                }}
-                onCancelReject={() => {
-                  setRejectingClosureId(null);
-                  setClosureRejectComment('');
-                }}
-                onApproveClosure={onApproveClosure}
-                onRejectClosure={onRejectClosure}
-              />
+              <ClosureCard key={closure.id} closure={closure} />
             ))}
           </div>
         )}
@@ -387,22 +364,8 @@ export function AccountabilityAccountPanel({
 
 function ClosureCard({
   closure,
-  rejectingClosureId,
-  closureRejectComment,
-  onChangeRejectComment,
-  onStartReject,
-  onCancelReject,
-  onApproveClosure,
-  onRejectClosure,
 }: {
   closure: AccountabilityClosureItem;
-  rejectingClosureId: string | null;
-  closureRejectComment: string;
-  onChangeRejectComment: (value: string) => void;
-  onStartReject: (item: AccountabilityClosureItem) => void;
-  onCancelReject: () => void;
-  onApproveClosure: (closureId: string) => Promise<void>;
-  onRejectClosure: (closureId: string, comment: string) => Promise<void>;
 }): React.JSX.Element {
   return (
     <div className="record-card" style={{ display: 'grid', gap: 10 }}>
@@ -431,54 +394,12 @@ function ClosureCard({
       </div>
 
       <div className="action-row">
-        {closure.capabilities.canApprove ? (
-          <button
-            type="button"
-            onClick={() => {
-              void onApproveClosure(closure.id);
-            }}
-          >
-            Подтвердить сверку
-          </button>
-        ) : null}
-
-        {closure.capabilities.canReject ? (
-          <button
-            type="button"
-            onClick={() => {
-              onStartReject(closure);
-            }}
-          >
-            Отклонить сверку
-          </button>
-        ) : null}
+        <Link
+          href={`/approvals?sourceEntityType=accountability_closure&sourceEntityId=${closure.id}`}
+        >
+          Открыть согласование
+        </Link>
       </div>
-
-      {rejectingClosureId === closure.id ? (
-        <div style={{ display: 'grid', gap: 8 }}>
-          <textarea
-            rows={3}
-            value={closureRejectComment}
-            onChange={(event) => onChangeRejectComment(event.target.value)}
-            placeholder="Укажите причину отклонения сверки"
-          />
-          <div className="action-row">
-            <button
-              type="button"
-              onClick={() => {
-                void onRejectClosure(closure.id, closureRejectComment).finally(
-                  onCancelReject,
-                );
-              }}
-            >
-              Подтвердить отклонение
-            </button>
-            <button type="button" onClick={onCancelReject}>
-              Отмена
-            </button>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

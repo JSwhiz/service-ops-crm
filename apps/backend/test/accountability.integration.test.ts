@@ -359,6 +359,29 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   };
   assert.equal(requestedClosure.status, 'requested');
 
+  const founderPendingClosureApprovalsResponse = await fetch(
+    `${baseUrl}/api/v1/approvals?sourceEntityType=accountability_closure&sourceEntityId=${requestedClosure.id}&status=pending`,
+    {
+      headers: {
+        Cookie: founderCookie,
+      },
+    },
+  );
+
+  assert.equal(founderPendingClosureApprovalsResponse.status, 200);
+  const founderPendingClosureApprovals =
+    (await founderPendingClosureApprovalsResponse.json()) as Array<{
+      id: string;
+      approvalType: string;
+      status: string;
+    }>;
+  assert.equal(founderPendingClosureApprovals.length, 1);
+  assert.equal(
+    founderPendingClosureApprovals[0]?.approvalType,
+    'accountability_closure_confirmation',
+  );
+  assert.equal(founderPendingClosureApprovals[0]?.status, 'pending');
+
   const newExpenseWhileClosingResponse = await fetch(
     `${baseUrl}/api/v1/accountability/me/expenses`,
     {
@@ -393,19 +416,21 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   assert.equal(fundingWhileClosingResponse.status, 409);
 
   const approveClosureTooEarlyResponse = await fetch(
-    `${baseUrl}/api/v1/accountability/closures/${requestedClosure.id}/approve`,
+    `${baseUrl}/api/v1/approvals/${founderPendingClosureApprovals[0]?.id}/approve`,
     {
       method: 'POST',
       headers: {
         Cookie: founderCookie,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({}),
     },
   );
 
   assert.equal(approveClosureTooEarlyResponse.status, 409);
 
   const rejectClosureResponse = await fetch(
-    `${baseUrl}/api/v1/accountability/closures/${requestedClosure.id}/reject`,
+    `${baseUrl}/api/v1/approvals/${founderPendingClosureApprovals[0]?.id}/reject`,
     {
       method: 'POST',
       headers: {
@@ -478,13 +503,36 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   };
   assert.equal(secondClosure.status, 'requested');
 
+  const secondPendingClosureApprovalsResponse = await fetch(
+    `${baseUrl}/api/v1/approvals?sourceEntityType=accountability_closure&sourceEntityId=${secondClosure.id}&status=pending`,
+    {
+      headers: {
+        Cookie: founderCookie,
+      },
+    },
+  );
+
+  assert.equal(secondPendingClosureApprovalsResponse.status, 200);
+  const secondPendingClosureApprovals =
+    (await secondPendingClosureApprovalsResponse.json()) as Array<{
+      id: string;
+      approvalType: string;
+    }>;
+  assert.equal(secondPendingClosureApprovals.length, 1);
+  assert.equal(
+    secondPendingClosureApprovals[0]?.approvalType,
+    'accountability_closure_confirmation',
+  );
+
   const approveClosureResponse = await fetch(
-    `${baseUrl}/api/v1/accountability/closures/${secondClosure.id}/approve`,
+    `${baseUrl}/api/v1/approvals/${secondPendingClosureApprovals[0]?.id}/approve`,
     {
       method: 'POST',
       headers: {
         Cookie: founderCookie,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({}),
     },
   );
 

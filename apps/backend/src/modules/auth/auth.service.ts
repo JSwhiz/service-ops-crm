@@ -6,6 +6,7 @@ import {
   canManageEmployeesHr,
   canViewEmployeesHr,
 } from '../employees/utils/employee-hr-access.util';
+import { buildApprovalGlobalCapabilities } from '../approvals/utils/approval-capabilities.util';
 import { buildAccountabilityGlobalCapabilities } from '../accountability/utils/accountability-capabilities.util';
 import { buildInventoryGlobalCapabilities } from '../inventory/utils/inventory-capabilities.util';
 import { buildEquipmentGlobalCapabilities } from '../equipment/utils/equipment-capabilities.util';
@@ -171,6 +172,10 @@ export class AuthService {
   }
 
   private buildMeResponse(user: SanitizedAuthUserRecord): MeResponseDto {
+    const approvalCapabilities = buildApprovalGlobalCapabilities({
+      roleCodes: user.roleCodes,
+      permissionCodes: user.permissionCodes,
+    });
     const accountabilityCapabilities = buildAccountabilityGlobalCapabilities({
       roleCodes: user.roleCodes,
       permissionCodes: user.permissionCodes,
@@ -190,6 +195,17 @@ export class AuthService {
       roleCode: user.roleCodes[0] ?? 'unknown',
       roleCodes: user.roleCodes,
       capabilities: {
+        canAccessApprovals: approvalCapabilities.canAccessApprovals,
+        canResolveTaskResultApproval:
+          approvalCapabilities.canResolveTaskResultApproval,
+        canResolveInventoryApproval:
+          approvalCapabilities.canResolveInventoryApproval,
+        canResolveObjectChangeApproval:
+          approvalCapabilities.canResolveObjectChangeApproval,
+        canResolveAccountabilityApproval:
+          approvalCapabilities.canResolveAccountabilityApproval,
+        canResolveTimesheetApproval:
+          approvalCapabilities.canResolveTimesheetApproval,
         canCreateObject: canCreateObject(user.roleCodes),
         canAccessOneTimeOrders: canAccessOneTimeOrders(user.roleCodes),
         canCreateOneTimeOrder: canCreateOneTimeOrder(user.roleCodes),

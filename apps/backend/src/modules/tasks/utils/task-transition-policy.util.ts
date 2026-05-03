@@ -14,8 +14,6 @@ const WIDE_WORKFLOW_STATUSES: TaskStatus[] = [
   'partially_completed',
   'returned_to_work',
 ];
-const WIDE_CONFIRMATION_STATUSES: TaskStatus[] = ['returned_to_work', 'closed'];
-
 export function getAllowedTaskStatusTransitions(
   context: TaskTransitionContext,
 ): TaskStatus[] {
@@ -24,7 +22,7 @@ export function getAllowedTaskStatusTransitions(
   }
 
   if (context.currentStatus === 'awaiting_confirmation') {
-    return context.isWideAccess ? WIDE_CONFIRMATION_STATUSES : [];
+    return [];
   }
 
   const transitions = new Set<TaskStatus>();

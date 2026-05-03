@@ -8,6 +8,10 @@ import {
 import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
+import {
+  ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+  ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+} from '../approvals/constants/approval.constants';
 import { FileResponseDto } from '../files/dto/file-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -617,7 +621,7 @@ export class AccountabilityService {
       );
     }
 
-    const closure = await this.prisma.$transaction(async (tx) => {
+    const closureCreation = await this.prisma.$transaction(async (tx) => {
       await tx.accountabilityAccount.update({
         where: {
           id: account.id,
@@ -636,6 +640,22 @@ export class AccountabilityService {
         include: this.accountabilityClosureInclude(),
       });
 
+      const approvalRequest = await tx.approvalRequest.create({
+        data: {
+          approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+          sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: createdClosure.id,
+          createdByUserId: currentUser.id,
+          payloadSnapshot: {
+            summaryTitle: 'Сверка подотчета',
+            summarySubtitle: `${currentUser.fullName} · ${currentUser.login}`,
+            accountabilityAccountId: account.id,
+            requestedByUserId: currentUser.id,
+            requestedAt: createdClosure.requestedAt.toISOString(),
+          },
+        },
+      });
+
       await this.auditService.writeAuditEvent({
         entityType: 'accountability_closure',
         entityId: createdClosure.id,
@@ -647,11 +667,26 @@ export class AccountabilityService {
         },
       });
 
-      return createdClosure;
+      return {
+        closure: createdClosure,
+        approvalRequestId: approvalRequest.id,
+      };
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'approval_request',
+      entityId: closureCreation.approvalRequestId,
+      actorUserId: currentUser.id,
+      action: 'approval.request.created',
+      newValues: {
+        approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+        sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: closureCreation.closure.id,
+      },
     });
 
     return this.mapClosure({
-      closure,
+      closure: closureCreation.closure,
       currentUser,
     });
   }
@@ -661,10 +696,124 @@ export class AccountabilityService {
     closureId: string,
   ): Promise<AccountabilityClosureResponseDto> {
     this.assertCanApproveClosure(currentUser);
+    const approvalRequest = await this.findPendingClosureApprovalRequest(closureId);
 
-    const currentClosure = await this.prisma.accountabilityClosure.findFirst({
+    const approvedClosure = await this.prisma.$transaction(async (tx) => {
+      const closure = await this.applyClosureApprovalDecision(tx, {
+        closureId,
+        decision: 'approve',
+        actorUserId: currentUser.id,
+      });
+
+      if (approvalRequest) {
+        await tx.approvalRequest.update({
+          where: {
+            id: approvalRequest.id,
+          },
+          data: {
+            status: 'approved',
+            resolvedByUserId: currentUser.id,
+            resolvedAt: new Date(),
+            decisionComment: null,
+          },
+        });
+      }
+
+      return closure;
+    });
+
+    if (approvalRequest) {
+      await this.auditService.writeAuditEvent({
+        entityType: 'approval_request',
+        entityId: approvalRequest.id,
+        actorUserId: currentUser.id,
+        action: 'approval.request.approved',
+        newValues: {
+          approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+          sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: closureId,
+        },
+      });
+    }
+
+    return this.mapClosure({
+      closure: approvedClosure,
+      currentUser,
+    });
+  }
+
+  async rejectClosure(
+    currentUser: CurrentAuthUser,
+    closureId: string,
+    payload: RejectAccountabilityClosureDto,
+  ): Promise<AccountabilityClosureResponseDto> {
+    this.assertCanApproveClosure(currentUser);
+
+    const rejectionComment = payload.comment.trim();
+
+    if (!rejectionComment) {
+      throw new BadRequestException('Closure rejection comment is required');
+    }
+    const approvalRequest = await this.findPendingClosureApprovalRequest(closureId);
+
+    const rejectedClosure = await this.prisma.$transaction(async (tx) => {
+      const closure = await this.applyClosureApprovalDecision(tx, {
+        closureId,
+        decision: 'reject',
+        actorUserId: currentUser.id,
+        comment: rejectionComment,
+      });
+
+      if (approvalRequest) {
+        await tx.approvalRequest.update({
+          where: {
+            id: approvalRequest.id,
+          },
+          data: {
+            status: 'rejected',
+            resolvedByUserId: currentUser.id,
+            resolvedAt: new Date(),
+            decisionComment: rejectionComment,
+          },
+        });
+      }
+
+      return closure;
+    });
+
+    if (approvalRequest) {
+      await this.auditService.writeAuditEvent({
+        entityType: 'approval_request',
+        entityId: approvalRequest.id,
+        actorUserId: currentUser.id,
+        action: 'approval.request.rejected',
+        newValues: {
+          approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+          sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: closureId,
+          decisionComment: rejectionComment,
+        },
+      });
+    }
+
+    return this.mapClosure({
+      closure: rejectedClosure,
+      currentUser,
+    });
+  }
+
+  async applyClosureApprovalDecision(
+    tx: Prisma.TransactionClient,
+    params: {
+      closureId: string;
+      decision: 'approve' | 'reject';
+      actorUserId: string;
+      comment?: string;
+    },
+  ) {
+    const currentClosure = await tx.accountabilityClosure.findFirst({
       where: {
-        id: closureId,
+        id: params.closureId,
       },
       include: {
         accountabilityAccount: {
@@ -677,6 +826,7 @@ export class AccountabilityService {
             },
           },
         },
+        ...this.accountabilityClosureInclude(),
       },
     });
 
@@ -685,7 +835,9 @@ export class AccountabilityService {
     }
 
     if (currentClosure.status !== 'requested') {
-      throw new ConflictException('Only requested closure can be approved');
+      throw new ConflictException(
+        `Only requested closure can be ${params.decision === 'approve' ? 'approved' : 'rejected'}`,
+      );
     }
 
     if (currentClosure.accountabilityAccount.status !== 'closing_requested') {
@@ -694,18 +846,19 @@ export class AccountabilityService {
       );
     }
 
-    const unresolvedExpense = currentClosure.accountabilityAccount.expenses.find(
-      (expense) =>
-        expense.status === 'draft' || expense.status === 'submitted',
-    );
+    if (params.decision === 'approve') {
+      const unresolvedExpense =
+        currentClosure.accountabilityAccount.expenses.find(
+          (expense) =>
+            expense.status === 'draft' || expense.status === 'submitted',
+        );
 
-    if (unresolvedExpense) {
-      throw new ConflictException(
-        'Submitted or draft expenses must be resolved before final closure approval',
-      );
-    }
+      if (unresolvedExpense) {
+        throw new ConflictException(
+          'Submitted or draft expenses must be resolved before final closure approval',
+        );
+      }
 
-    const approvedClosure = await this.prisma.$transaction(async (tx) => {
       await tx.accountabilityExpense.updateMany({
         where: {
           accountabilityAccountId: currentClosure.accountabilityAccountId,
@@ -728,11 +881,11 @@ export class AccountabilityService {
 
       const closure = await tx.accountabilityClosure.update({
         where: {
-          id: closureId,
+          id: params.closureId,
         },
         data: {
           status: 'approved',
-          approvedByUserId: currentUser.id,
+          approvedByUserId: params.actorUserId,
           approvedAt: new Date(),
         },
         include: this.accountabilityClosureInclude(),
@@ -741,7 +894,7 @@ export class AccountabilityService {
       await this.auditService.writeAuditEvent({
         entityType: 'accountability_closure',
         entityId: closure.id,
-        actorUserId: currentUser.id,
+        actorUserId: params.actorUserId,
         action: 'accountability_closure_approved',
         newValues: {
           status: 'approved',
@@ -749,87 +902,48 @@ export class AccountabilityService {
       });
 
       return closure;
-    });
-
-    return this.mapClosure({
-      closure: approvedClosure,
-      currentUser,
-    });
-  }
-
-  async rejectClosure(
-    currentUser: CurrentAuthUser,
-    closureId: string,
-    payload: RejectAccountabilityClosureDto,
-  ): Promise<AccountabilityClosureResponseDto> {
-    this.assertCanApproveClosure(currentUser);
-
-    const currentClosure = await this.prisma.accountabilityClosure.findFirst({
-      where: {
-        id: closureId,
-      },
-      select: {
-        id: true,
-        status: true,
-        accountabilityAccountId: true,
-      },
-    });
-
-    if (!currentClosure) {
-      throw new NotFoundException('Accountability closure not found');
     }
 
-    if (currentClosure.status !== 'requested') {
-      throw new ConflictException('Only requested closure can be rejected');
-    }
-
-    const rejectionComment = payload.comment.trim();
+    const rejectionComment = params.comment?.trim();
 
     if (!rejectionComment) {
       throw new BadRequestException('Closure rejection comment is required');
     }
 
-    const rejectedClosure = await this.prisma.$transaction(async (tx) => {
-      await tx.accountabilityAccount.update({
-        where: {
-          id: currentClosure.accountabilityAccountId,
-        },
-        data: {
-          status: 'active',
-        },
-      });
-
-      const closure = await tx.accountabilityClosure.update({
-        where: {
-          id: closureId,
-        },
-        data: {
-          status: 'rejected',
-          rejectedByUserId: currentUser.id,
-          rejectedAt: new Date(),
-          comment: rejectionComment,
-        },
-        include: this.accountabilityClosureInclude(),
-      });
-
-      await this.auditService.writeAuditEvent({
-        entityType: 'accountability_closure',
-        entityId: closure.id,
-        actorUserId: currentUser.id,
-        action: 'accountability_closure_rejected',
-        newValues: {
-          status: 'rejected',
-          comment: rejectionComment,
-        },
-      });
-
-      return closure;
+    await tx.accountabilityAccount.update({
+      where: {
+        id: currentClosure.accountabilityAccountId,
+      },
+      data: {
+        status: 'active',
+      },
     });
 
-    return this.mapClosure({
-      closure: rejectedClosure,
-      currentUser,
+    const closure = await tx.accountabilityClosure.update({
+      where: {
+        id: params.closureId,
+      },
+      data: {
+        status: 'rejected',
+        rejectedByUserId: params.actorUserId,
+        rejectedAt: new Date(),
+        comment: rejectionComment,
+      },
+      include: this.accountabilityClosureInclude(),
     });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'accountability_closure',
+      entityId: closure.id,
+      actorUserId: params.actorUserId,
+      action: 'accountability_closure_rejected',
+      newValues: {
+        status: 'rejected',
+        comment: rejectionComment,
+      },
+    });
+
+    return closure;
   }
 
   private async buildAccountView(params: {
@@ -1432,6 +1546,20 @@ export class AccountabilityService {
     }
 
     return account;
+  }
+
+  private async findPendingClosureApprovalRequest(closureId: string) {
+    return this.prisma.approvalRequest.findFirst({
+      where: {
+        approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+        sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+        sourceEntityId: closureId,
+        status: 'pending',
+      },
+      select: {
+        id: true,
+      },
+    });
   }
 
   private assertAccountAllowsOwnExpenseWrite(status: string): void {

@@ -6,6 +6,11 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
+import { AuditService } from '../audit/audit.service';
+import {
+  INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+  INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+} from '../approvals/constants/approval.constants';
 import {
   canEditObject,
   canOverrideFrozenObject,
@@ -52,6 +57,7 @@ export class FilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    private readonly auditService: AuditService,
   ) {}
 
   async upload(
@@ -71,7 +77,7 @@ export class FilesService {
       contentLength: file.size,
     });
 
-    const created = await this.prisma.$transaction(async (tx) => {
+    const uploadResult = await this.prisma.$transaction(async (tx) => {
       const storedFile = await tx.file.create({
         data: {
           bucket: storageResult.bucket,
@@ -93,7 +99,21 @@ export class FilesService {
         },
       });
 
+      let cancelledApprovalRequestIds: string[] = [];
+
       if (entityType === 'inventory_movement') {
+        const pendingApprovalRequests = await tx.approvalRequest.findMany({
+          where: {
+            approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+            sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+            sourceEntityId: body.entityId,
+            status: 'pending',
+          },
+          select: {
+            id: true,
+          },
+        });
+
         await tx.inventoryMovement.updateMany({
           where: {
             id: body.entityId,
@@ -105,9 +125,29 @@ export class FilesService {
             approvalBridgeResolvedByUserId: null,
           },
         });
+
+        if (pendingApprovalRequests.length > 0) {
+          cancelledApprovalRequestIds = pendingApprovalRequests.map(
+            (request) => request.id,
+          );
+
+          await tx.approvalRequest.updateMany({
+            where: {
+              id: {
+                in: cancelledApprovalRequestIds,
+              },
+            },
+            data: {
+              status: 'cancelled',
+              cancelledByUserId: currentUser.id,
+              cancelledAt: new Date(),
+              decisionComment: 'Evidence attached to inventory movement',
+            },
+          });
+        }
       }
 
-      return tx.file.findUnique({
+      const createdFile = await tx.file.findUnique({
         where: { id: storedFile.id },
         include: {
           attachments: {
@@ -117,13 +157,33 @@ export class FilesService {
           },
         },
       });
+
+      return {
+        file: createdFile,
+        cancelledApprovalRequestIds,
+      };
     });
 
-    if (!created) {
+    if (!uploadResult.file) {
       throw new NotFoundException('Stored file not found after upload');
     }
 
-    return this.mapFile(created);
+    for (const approvalRequestId of uploadResult.cancelledApprovalRequestIds) {
+      await this.auditService.writeAuditEvent({
+        entityType: 'approval_request',
+        entityId: approvalRequestId,
+        actorUserId: currentUser.id,
+        action: 'approval.request.cancelled',
+        newValues: {
+          approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+          sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: body.entityId,
+          decisionComment: 'Evidence attached to inventory movement',
+        },
+      });
+    }
+
+    return this.mapFile(uploadResult.file);
   }
 
   async getById(

@@ -21,6 +21,9 @@ model User {
   permissions                 UserPermission[]
   visibilityGroups            UserVisibilityGroup[]
   approvalCapabilities        UserApprovalCapability[]
+  createdApprovalRequests     ApprovalRequest[] @relation("ApprovalRequestCreatedBy")
+  resolvedApprovalRequests    ApprovalRequest[] @relation("ApprovalRequestResolvedBy")
+  cancelledApprovalRequests   ApprovalRequest[] @relation("ApprovalRequestCancelledBy")
   auditEvents                 AuditEvent[] @relation("AuditActor")
   createdObjects              Object[] @relation("ObjectCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
@@ -176,6 +179,35 @@ model UserApprovalCapability {
   @@index([userId])
   @@index([approvalCapabilityId])
   @@map("user_approval_capabilities")
+}
+
+model ApprovalRequest {
+  id                String   @id @default(uuid())
+  approvalType      String
+  sourceEntityType  String
+  sourceEntityId    String
+  status            String   @default("pending")
+  createdByUserId   String
+  resolvedByUserId  String?
+  cancelledByUserId String?
+  decisionComment   String?
+  payloadSnapshot   Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  resolvedAt        DateTime?
+  cancelledAt       DateTime?
+
+  createdBy   User  @relation("ApprovalRequestCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  resolvedBy  User? @relation("ApprovalRequestResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  cancelledBy User? @relation("ApprovalRequestCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([approvalType, status])
+  @@index([sourceEntityType, sourceEntityId])
+  @@index([createdByUserId])
+  @@index([resolvedByUserId])
+  @@index([cancelledByUserId])
+  @@map("approval_requests")
 }
 
 model Object {
