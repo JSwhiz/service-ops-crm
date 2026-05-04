@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { canManageChats } from '../chats/utils/chat-access.util';
 import {
   canBeObjectManager,
   canBeObjectResponsible,
@@ -71,6 +72,8 @@ export class UsersAccessService {
           currentUser,
           query.oneTimeOrderId,
         );
+      case 'chat_participant':
+        return this.listChatParticipantCandidates(currentUser);
       default:
         throw new ForbiddenException('Scoped user listing purpose is required');
     }
@@ -247,6 +250,18 @@ export class UsersAccessService {
     return Array.from(candidateMap.values())
       .sort((left, right) => left.fullName.localeCompare(right.fullName))
       .map((user) => this.mapUser(user));
+  }
+
+  private async listChatParticipantCandidates(
+    currentUser: CurrentAuthUser,
+  ): Promise<SystemUserOptionDto[]> {
+    if (!canManageChats(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('Chat participant candidate access denied');
+    }
+
+    const users = await this.getActiveUsersWithRoles();
+
+    return users.map((user) => this.mapUser(user));
   }
 
   private async getActiveUsersWithRoles(): Promise<UserOptionSource[]> {

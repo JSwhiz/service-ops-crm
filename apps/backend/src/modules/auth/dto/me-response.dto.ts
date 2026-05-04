@@ -44,5 +44,7 @@ export class MeResponseDto {
     canReturnEquipmentFromRepair: boolean;
     canWriteoffEquipment: boolean;
     canViewEquipmentHistory: boolean;
+    canAccessChats: boolean;
+    canManageChats: boolean;
   };
 }

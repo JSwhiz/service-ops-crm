@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 
 import {
   assignOneTimeOrderManager,
@@ -241,6 +242,18 @@ export default function OneTimeOrderDetailPage({
       ) : item ? (
         <div className="page-stack">
           <OneTimeOrderSummaryCard item={item} />
+
+          <div className="page-card">
+            <div className="section-header" style={{ paddingBottom: 0 }}>
+              <div>
+                <div className="section-title">Рабочий чат разовых заказов</div>
+                <div className="section-subtitle">
+                  Полный мессенджер живет отдельно от комментариев заказа.
+                </div>
+              </div>
+              <Link href="/chats?room=one_time_orders">Открыть чат</Link>
+            </div>
+          </div>
 
           {item.capabilities.canChangeStatus ? (
             <div className="page-card">

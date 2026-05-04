@@ -29,6 +29,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { hasWideTaskAccess } from '../tasks/utils/task-access.util';
+import {
+  canManageChats,
+  hasOperationalChatRole,
+  isChatLeadership,
+} from '../chats/utils/chat-access.util';
 
 import { FileResponseDto } from './dto/file-response.dto';
 import { UploadFileBodyDto } from './dto/upload-file-body.dto';
@@ -409,6 +414,8 @@ export class FilesService {
         return this.canAccessEquipmentMovement(currentUser, entityId, 'read');
       case 'accountability_expense':
         return this.canAccessAccountabilityExpense(currentUser, entityId, 'read');
+      case 'chat_message':
+        return this.canAccessChatMessage(currentUser, entityId, 'read');
     }
   }
 
@@ -463,6 +470,8 @@ export class FilesService {
         return this.canAccessEquipmentMovement(currentUser, entityId, 'write');
       case 'accountability_expense':
         return this.canAccessAccountabilityExpense(currentUser, entityId, 'write');
+      case 'chat_message':
+        return this.canAccessChatMessage(currentUser, entityId, 'write');
     }
   }
 
@@ -918,6 +927,130 @@ export class FilesService {
         permissionCodes: this.getPermissionCodes(currentUser),
       })
     );
+  }
+
+  private async canAccessChatMessage(
+    currentUser: CurrentAuthUser,
+    messageId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const message = await this.prisma.chatMessage.findFirst({
+      where: {
+        id: messageId,
+      },
+      include: {
+        chatRoom: true,
+      },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Attachment target chat message not found');
+    }
+
+    if (mode === 'write') {
+      return (
+        message.authorUserId === currentUser.id ||
+        canManageChats(this.getRoleCodes(currentUser))
+      );
+    }
+
+    const canAccessRoom = await this.canAccessChatRoom(
+      currentUser,
+      message.chatRoom,
+    );
+
+    if (!canAccessRoom) {
+      return false;
+    }
+
+    const participant = await this.prisma.chatRoomParticipant.findUnique({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId: message.chatRoomId,
+          userId: currentUser.id,
+        },
+      },
+      select: {
+        joinedAt: true,
+      },
+    });
+
+    if (message.chatRoom.visibilityType === 'explicit_members') {
+      return !!participant && message.createdAt >= participant.joinedAt;
+    }
+
+    return !participant || message.createdAt >= participant.joinedAt;
+  }
+
+  private async canAccessChatRoom(
+    currentUser: CurrentAuthUser,
+    room: {
+      id: string;
+      visibilityType: string;
+    },
+  ): Promise<boolean> {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (room.visibilityType === 'leadership_only') {
+      return isChatLeadership(roleCodes);
+    }
+
+    if (room.visibilityType === 'objects_scope') {
+      return (
+        hasOperationalChatRole(roleCodes) ||
+        (await this.hasActiveObjectAssignment(currentUser.id))
+      );
+    }
+
+    if (room.visibilityType === 'one_time_orders_scope') {
+      return (
+        hasOperationalChatRole(roleCodes) ||
+        (await this.hasActiveOneTimeOrderManagerAssignment(currentUser.id))
+      );
+    }
+
+    if (room.visibilityType === 'explicit_members') {
+      const participant = await this.prisma.chatRoomParticipant.findUnique({
+        where: {
+          chatRoomId_userId: {
+            chatRoomId: room.id,
+            userId: currentUser.id,
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      return !!participant;
+    }
+
+    return false;
+  }
+
+  private async hasActiveObjectAssignment(userId: string): Promise<boolean> {
+    const count = await this.prisma.objectAssignment.count({
+      where: {
+        userId,
+        isActive: true,
+      },
+    });
+
+    return count > 0;
+  }
+
+  private async hasActiveOneTimeOrderManagerAssignment(
+    userId: string,
+  ): Promise<boolean> {
+    const count = await this.prisma.oneTimeOrderAssignment.count({
+      where: {
+        userId,
+        isActive: true,
+        assignmentRoleCode: 'one_time_manager',
+      },
+    });
+
+    return count > 0;
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

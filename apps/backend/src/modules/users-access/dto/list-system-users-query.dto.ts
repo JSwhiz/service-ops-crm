@@ -6,6 +6,7 @@ export const SYSTEM_USER_PURPOSES = [
   'task_assignee',
   'one_time_order_manager',
   'one_time_order_task_assignee',
+  'chat_participant',
 ] as const;
 
 export class ListSystemUsersQueryDto {

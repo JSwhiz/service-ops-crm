@@ -35,6 +35,9 @@ export const FILE_ATTACHMENT_POLICY = {
   accountability_expense: {
     fieldCodes: [],
   },
+  chat_message: {
+    fieldCodes: [],
+  },
 } as const;
 
 export type FileAttachmentEntityType = keyof typeof FILE_ATTACHMENT_POLICY;

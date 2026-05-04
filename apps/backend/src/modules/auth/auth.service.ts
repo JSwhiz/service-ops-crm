@@ -10,6 +10,7 @@ import { buildApprovalGlobalCapabilities } from '../approvals/utils/approval-cap
 import { buildAccountabilityGlobalCapabilities } from '../accountability/utils/accountability-capabilities.util';
 import { buildInventoryGlobalCapabilities } from '../inventory/utils/inventory-capabilities.util';
 import { buildEquipmentGlobalCapabilities } from '../equipment/utils/equipment-capabilities.util';
+import { buildChatGlobalCapabilities } from '../chats/utils/chat-capabilities.util';
 import {
   canAccessOneTimeOrders,
   canCreateOneTimeOrder,
@@ -186,6 +187,7 @@ export class AuthService {
     const equipmentCapabilities = buildEquipmentGlobalCapabilities(
       user.roleCodes,
     );
+    const chatCapabilities = buildChatGlobalCapabilities(user.roleCodes);
 
     return {
       id: user.id,
@@ -254,6 +256,8 @@ export class AuthService {
           equipmentCapabilities.canReturnEquipmentFromRepair,
         canWriteoffEquipment: equipmentCapabilities.canWriteoffEquipment,
         canViewEquipmentHistory: equipmentCapabilities.canViewEquipmentHistory,
+        canAccessChats: chatCapabilities.canAccessChats,
+        canManageChats: chatCapabilities.canManageChats,
       },
     };
   }

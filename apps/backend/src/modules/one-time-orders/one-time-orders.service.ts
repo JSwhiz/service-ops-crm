@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { AuditService } from '../audit/audit.service';
+import { ChatsService } from '../chats/chats.service';
 import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { EquipmentService } from '../equipment/equipment.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
@@ -149,6 +150,7 @@ export class OneTimeOrdersService {
     private readonly auditService: AuditService,
     private readonly tasksService: TasksService,
     private readonly equipmentService: EquipmentService,
+    private readonly chatsService: ChatsService,
   ) {}
 
   async listOrders(
@@ -265,6 +267,27 @@ export class OneTimeOrdersService {
         linkedObjectId: created.linkedObjectId,
       },
     });
+
+    await this.chatsService.createSystemMessage(
+      'one_time_orders',
+      `Создан разовый заказ: ${created.title}`,
+      {
+        oneTimeOrderId: created.id,
+        status: created.status,
+        linkedObjectId: created.linkedObjectId,
+      },
+      currentUser.id,
+    );
+    await this.chatsService.createSystemMessage(
+      'leadership',
+      `Создан разовый заказ: ${created.title}`,
+      {
+        oneTimeOrderId: created.id,
+        status: created.status,
+        linkedObjectId: created.linkedObjectId,
+      },
+      currentUser.id,
+    );
 
     return this.mapOrder(created, currentUser);
   }

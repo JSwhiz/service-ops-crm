@@ -24,6 +24,9 @@ model User {
   createdApprovalRequests     ApprovalRequest[] @relation("ApprovalRequestCreatedBy")
   resolvedApprovalRequests    ApprovalRequest[] @relation("ApprovalRequestResolvedBy")
   cancelledApprovalRequests   ApprovalRequest[] @relation("ApprovalRequestCancelledBy")
+  createdChatRooms            ChatRoom[] @relation("ChatRoomCreatedBy")
+  chatRoomParticipants        ChatRoomParticipant[]
+  authoredChatMessages        ChatMessage[] @relation("ChatMessageAuthor")
   auditEvents                 AuditEvent[] @relation("AuditActor")
   createdObjects              Object[] @relation("ObjectCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
@@ -210,6 +213,69 @@ model ApprovalRequest {
   @@index([resolvedByUserId])
   @@index([cancelledByUserId])
   @@map("approval_requests")
+}
+
+model ChatRoom {
+  id                 String   @id @default(uuid())
+  code               String?  @unique
+  title              String
+  roomType           String
+  visibilityType     String
+  createdByUserId    String?
+  lastMessageAt      DateTime?
+  lastMessagePreview String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  createdBy    User?                 @relation("ChatRoomCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  participants ChatRoomParticipant[]
+  messages     ChatMessage[]
+
+  @@index([roomType])
+  @@index([visibilityType])
+  @@index([lastMessageAt])
+  @@index([createdByUserId])
+  @@map("chat_rooms")
+}
+
+model ChatRoomParticipant {
+  id             String   @id @default(uuid())
+  chatRoomId     String
+  userId         String
+  roleInRoom     String   @default("member")
+  joinedAt       DateTime @default(now())
+  lastReadAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatRoomId, userId])
+  @@index([chatRoomId])
+  @@index([userId])
+  @@index([roleInRoom])
+  @@map("chat_room_participants")
+}
+
+model ChatMessage {
+  id            String   @id @default(uuid())
+  chatRoomId    String
+  authorUserId  String?
+  messageType   String
+  text          String?
+  metadata      Json?
+  editedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  author   User?    @relation("ChatMessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([chatRoomId, createdAt])
+  @@index([authorUserId])
+  @@index([messageType])
+  @@map("chat_messages")
 }
 
 model Object {

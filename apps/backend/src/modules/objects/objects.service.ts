@@ -13,6 +13,7 @@ import {
   OBJECT_CHANGE_CONFIRMATION_TYPE,
 } from '../approvals/constants/approval.constants';
 import { AuditService } from '../audit/audit.service';
+import { ChatsService } from '../chats/chats.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
@@ -86,6 +87,7 @@ export class ObjectsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly chatsService: ChatsService,
   ) {}
 
   async listObjects(
@@ -295,6 +297,25 @@ export class ObjectsService {
         responsibleUserId: currentUser.id,
       } as Prisma.InputJsonObject,
     });
+
+    await this.chatsService.createSystemMessage(
+      'objects',
+      `Создан объект: ${created.name}`,
+      {
+        objectId: created.id,
+        status: created.status,
+      },
+      currentUser.id,
+    );
+    await this.chatsService.createSystemMessage(
+      'leadership',
+      `Создан объект: ${created.name}`,
+      {
+        objectId: created.id,
+        status: created.status,
+      },
+      currentUser.id,
+    );
 
     return this.mapObject(created as ObjectView, currentUser);
   }

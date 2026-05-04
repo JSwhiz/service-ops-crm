@@ -46,6 +46,8 @@ export interface AuthUser {
     canReturnEquipmentFromRepair?: boolean;
     canWriteoffEquipment?: boolean;
     canViewEquipmentHistory?: boolean;
+    canAccessChats?: boolean;
+    canManageChats?: boolean;
   };
 }
 

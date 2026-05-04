@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 import {
   addManagerToObject,
@@ -652,6 +653,18 @@ export default function ObjectDetailPage({
       ) : item ? (
         <div className="page-stack">
           <ObjectSummaryCard item={item} />
+
+          <div className="page-card">
+            <div className="section-header" style={{ paddingBottom: 0 }}>
+              <div>
+                <div className="section-title">Рабочий чат объектов</div>
+                <div className="section-subtitle">
+                  Полный мессенджер живет отдельно от комментариев объекта.
+                </div>
+              </div>
+              <Link href="/chats?room=objects">Открыть чат</Link>
+            </div>
+          </div>
 
           {canManageObjectStatus ? (
             <ObjectStatusControlPanel

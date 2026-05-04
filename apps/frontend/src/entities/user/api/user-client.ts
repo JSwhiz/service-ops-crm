@@ -9,7 +9,8 @@ export type SystemUserListPurpose =
   | 'object_responsible'
   | 'task_assignee'
   | 'one_time_order_manager'
-  | 'one_time_order_task_assignee';
+  | 'one_time_order_task_assignee'
+  | 'chat_participant';
 
 interface ListSystemUsersParams {
   purpose: SystemUserListPurpose;
@@ -85,5 +86,13 @@ export async function listOneTimeOrderTaskAssigneeCandidates(
   return listSystemUsers({
     purpose: 'one_time_order_task_assignee',
     oneTimeOrderId,
+  });
+}
+
+export async function listChatParticipantCandidates(): Promise<
+  SystemUserOption[]
+> {
+  return listSystemUsers({
+    purpose: 'chat_participant',
   });
 }
