@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 
 import type { OneTimeOrderPhotoItem } from '@/entities/one-time-order/model/one-time-order.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   MEDIA_CATEGORY_OPTIONS,
   getMediaCategoryLabel,
@@ -152,7 +153,9 @@ export function OneTimeOrderPhotosPanel({
                   {new Date(item.createdAt).toLocaleString('ru-RU')}
                 </div>
               </div>
-              <div className="page-muted">{item.createdBy.fullName}</div>
+              <div className="page-muted">
+                {getUserDisplayName(item.createdBy)}
+              </div>
               {item.comment ? <div>{item.comment}</div> : null}
               <AttachmentPreviewList
                 files={item.attachments}

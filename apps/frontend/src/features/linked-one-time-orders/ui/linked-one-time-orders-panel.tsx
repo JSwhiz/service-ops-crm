@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { LinkedOneTimeOrderProjection } from '@/entities/object/model/object-operations.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 
 export function LinkedOneTimeOrdersPanel({
@@ -78,7 +79,7 @@ export function LinkedOneTimeOrdersPanel({
                     <div className="page-muted">Менеджер заказа</div>
                     <div>
                       {item.managers.length > 0
-                        ? item.managers.map((manager) => manager.fullName).join(', ')
+                        ? item.managers.map(getUserDisplayName).join(', ')
                         : 'Не назначен'}
                     </div>
                   </div>

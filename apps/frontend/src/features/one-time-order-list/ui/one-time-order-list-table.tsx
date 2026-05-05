@@ -2,6 +2,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 
 export function OneTimeOrderListTable({
@@ -65,7 +66,7 @@ export function OneTimeOrderListTable({
                   : '—'}
               </td>
               <td style={tdStyle}>
-                {item.managers.map((manager) => manager.fullName).join(', ') || '—'}
+                {item.managers.map(getUserDisplayName).join(', ') || '—'}
               </td>
             </tr>
           ))}

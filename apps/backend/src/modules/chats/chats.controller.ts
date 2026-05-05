@@ -16,7 +16,11 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { ChatsService } from './chats.service';
 import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
-import { ChatMessageResponseDto, ChatRoomResponseDto } from './dto/chat-response.dto';
+import {
+  ChatMessageResponseDto,
+  ChatRoomParticipantResponseDto,
+  ChatRoomResponseDto,
+} from './dto/chat-response.dto';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { EditChatMessageDto } from './dto/edit-chat-message.dto';
 import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
@@ -73,6 +77,14 @@ export class ChatsController {
     @Body() body: AddChatParticipantsDto,
   ): Promise<ChatRoomResponseDto> {
     return this.chatsService.addParticipants(user, roomId, body);
+  }
+
+  @Get('rooms/:roomId/participants')
+  listParticipants(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('roomId') roomId: string,
+  ): Promise<ChatRoomParticipantResponseDto[]> {
+    return this.chatsService.listParticipants(user, roomId);
   }
 
   @Get('rooms/:roomId/messages')

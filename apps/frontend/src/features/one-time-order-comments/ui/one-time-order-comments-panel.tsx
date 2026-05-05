@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 
 import type { OneTimeOrderCommentItem } from '@/entities/one-time-order/model/one-time-order.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
@@ -113,7 +114,9 @@ export function OneTimeOrderCommentsPanel({
                   marginBottom: 8,
                 }}
               >
-                <div style={{ fontWeight: 600 }}>{item.createdBy.fullName}</div>
+                <div style={{ fontWeight: 600 }}>
+                  {getUserDisplayName(item.createdBy)}
+                </div>
                 <div className="page-muted">
                   {new Date(item.createdAt).toLocaleString('ru-RU')}
                 </div>

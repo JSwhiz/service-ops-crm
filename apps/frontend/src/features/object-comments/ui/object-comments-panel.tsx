@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 
 import type { ObjectComment } from '@/entities/object/model/object-operations.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
@@ -109,7 +110,7 @@ export function ObjectCommentsPanel({
               className="record-card"
             >
               <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>
-                {item.createdBy.fullName}
+                {getUserDisplayName(item.createdBy)}
               </div>
               {item.content ? <div>{item.content}</div> : null}
               <div style={{ marginTop: 10 }}>

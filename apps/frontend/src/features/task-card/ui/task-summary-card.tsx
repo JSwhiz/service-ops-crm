@@ -1,6 +1,7 @@
 import React from 'react';
 
 import type { TaskItem } from '@/entities/task/model/task.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   getTaskPriorityLabel,
   getTaskStatusLabel,
@@ -34,9 +35,7 @@ export function TaskSummaryCard({
         <Field label="Приоритет" value={getTaskPriorityLabel(item.priority)} />
         <Field
           label="Исполнители"
-          value={
-            item.assignees.map((assignee) => assignee.fullName).join(', ') || '—'
-          }
+          value={item.assignees.map(getUserDisplayName).join(', ') || '—'}
         />
         <Field label="Описание" value={item.description ?? '—'} />
         <Field label="Результат" value={item.resultText ?? '—'} />

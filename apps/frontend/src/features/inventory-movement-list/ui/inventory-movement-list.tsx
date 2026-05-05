@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { InventoryMovement } from '@/entities/inventory/model/inventory.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   formatInventoryQuantity,
   getInventoryMovementTypeLabel,
@@ -128,7 +129,7 @@ export function InventoryMovementList({
             </div>
             <div>
               <div className="page-muted">Создал</div>
-              <div>{item.createdBy.fullName}</div>
+              <div>{getUserDisplayName(item.createdBy)}</div>
             </div>
             <div>
               <div className="page-muted">Статус evidence</div>
@@ -138,7 +139,9 @@ export function InventoryMovementList({
                   : item.projection.approvalBridgeResolvedAt
                     ? `Подтверждено без фото${
                         item.projection.approvalBridgeResolvedBy
-                          ? `: ${item.projection.approvalBridgeResolvedBy.fullName}`
+                          ? `: ${getUserDisplayName(
+                              item.projection.approvalBridgeResolvedBy,
+                            )}`
                           : ''
                       }`
                   : item.projection.requiresApprovalBridge

@@ -3,6 +3,10 @@
 import React from 'react';
 
 import type { ObjectAuditLogItem } from '@/entities/object/model/object.types';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 
 interface ObjectHistoryListProps {
   items: ObjectAuditLogItem[];
@@ -62,8 +66,11 @@ export function ObjectHistoryList({
             <div style={{ fontWeight: 600 }}>{getActionLabel(item.actionCode)}</div>
 
             <div className="page-muted">
-              {new Date(item.createdAt).toLocaleString('ru-RU')} · {item.actor.fullName} (
-              {item.actor.login})
+              {new Date(item.createdAt).toLocaleString('ru-RU')} ·{' '}
+              {getUserDisplayName(item.actor)}
+              {getUserSecondaryLabel(item.actor)
+                ? ` ${getUserSecondaryLabel(item.actor)}`
+                : ''}
             </div>
 
             {item.payload ? (

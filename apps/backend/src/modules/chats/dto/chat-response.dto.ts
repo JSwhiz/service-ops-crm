@@ -22,6 +22,14 @@ export class ChatRoomResponseDto {
   };
 }
 
+export class ChatRoomParticipantResponseDto {
+  id!: string;
+  roleInRoom!: string;
+  joinedAt!: string;
+  lastReadAt!: string | null;
+  user!: ChatUserSummaryDto;
+}
+
 export class ChatMessageResponseDto {
   id!: string;
   chatRoomId!: string;

@@ -4,6 +4,10 @@ import React, { useMemo, useState } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 import { TASK_PRIORITY_OPTIONS } from '@/shared/lib/task-presentation';
 
 export function TaskForm({
@@ -194,7 +198,12 @@ export function TaskForm({
                     onChange={() => handleToggleUser(user.id)}
                   />
                   <span>
-                    {user.fullName} ({user.login})
+                    {getUserDisplayName(user)}
+                    {getUserSecondaryLabel(user) ? (
+                      <span className="identity-secondary">
+                        {getUserSecondaryLabel(user)}
+                      </span>
+                    ) : null}
                   </span>
                 </label>
               ))}

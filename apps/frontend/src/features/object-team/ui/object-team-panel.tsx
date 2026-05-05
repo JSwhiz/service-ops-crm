@@ -4,6 +4,10 @@ import React from 'react';
 
 import type { ObjectAssignedUser } from '@/entities/object/model/object.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 
 interface ObjectTeamPanelProps {
   title: string;
@@ -54,7 +58,7 @@ export function ObjectTeamPanel({
                   borderRadius: 10,
                 }}
               >
-                <span>{item.fullName}</span>
+                <span>{getUserDisplayName(item)}</span>
 
                 <button
                   type="button"
@@ -91,7 +95,12 @@ export function ObjectTeamPanel({
                 }}
               >
                 <span>
-                  {user.fullName} ({user.login})
+                  {getUserDisplayName(user)}
+                  {getUserSecondaryLabel(user) ? (
+                    <span className="identity-secondary">
+                      {getUserSecondaryLabel(user)}
+                    </span>
+                  ) : null}
                 </span>
 
                 {currentIds.has(user.id) ? (

@@ -17,6 +17,7 @@ import {
   getApprovalStatusLabel,
   getApprovalTypeLabel,
 } from '@/shared/lib/approval-presentation';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -218,7 +219,9 @@ export default function ApprovalsPage(): React.JSX.Element {
                   </div>
                   <div className="detail-field">
                     <div className="detail-label">Инициатор</div>
-                    <div className="detail-value">{item.createdBy.fullName}</div>
+                    <div className="detail-value">
+                      {getUserDisplayName(item.createdBy)}
+                    </div>
                   </div>
                 </div>
 

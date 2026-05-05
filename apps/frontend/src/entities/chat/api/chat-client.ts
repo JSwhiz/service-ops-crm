@@ -1,7 +1,12 @@
 import { fetcher } from '@/shared/api/fetcher';
 import { appConfig } from '@/shared/config/app-config';
 
-import type { ChatMessage, ChatRoom, ChatRoomCode } from '../model/chat.types';
+import type {
+  ChatMessage,
+  ChatRoom,
+  ChatRoomCode,
+  ChatRoomParticipant,
+} from '../model/chat.types';
 
 export type { ChatMessage, ChatRoom, ChatRoomCode } from '../model/chat.types';
 
@@ -44,6 +49,14 @@ export async function addChatParticipants(
   return fetcher<ChatRoom>(`/chats/rooms/${roomId}/participants`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+export async function listChatRoomParticipants(
+  roomId: string,
+): Promise<ChatRoomParticipant[]> {
+  return fetcher<ChatRoomParticipant[]>(`/chats/rooms/${roomId}/participants`, {
+    method: 'GET',
   });
 }
 

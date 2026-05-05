@@ -8,18 +8,28 @@ import {
   buildChatRealtimeUrl,
   createChatRoom,
   editChatMessage,
+  listChatRoomParticipants,
   listChatMessages,
   listChatRooms,
   markChatRoomRead,
   renameChatRoom,
   sendChatMessage,
 } from '@/entities/chat/api/chat-client';
-import type { ChatMessage, ChatRoom, ChatRoomCode } from '@/entities/chat/model/chat.types';
+import type {
+  ChatMessage,
+  ChatRoom,
+  ChatRoomCode,
+  ChatRoomParticipant,
+} from '@/entities/chat/model/chat.types';
 import { buildFileDownloadUrl } from '@/entities/file/api/file-client';
 import type { AttachedFile } from '@/entities/file/model/file.types';
 import { listChatParticipantCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 type RealtimePayload = {
@@ -88,6 +98,101 @@ function getPendingFileKey(file: File, index: number): string {
   return `${file.name}-${file.size}-${file.lastModified}-${index}`;
 }
 
+function getParticipantRoleLabel(roleInRoom: string): string {
+  return roleInRoom === 'admin' ? 'Администратор' : 'Участник';
+}
+
+function ParticipantPicker({
+  candidates,
+  selectedIds,
+  onChange,
+  placeholder,
+}: {
+  candidates: SystemUserOption[];
+  selectedIds: string[];
+  onChange: (nextIds: string[]) => void;
+  placeholder: string;
+}): React.JSX.Element {
+  const [query, setQuery] = useState('');
+  const selectedIdSet = new Set(selectedIds);
+  const selectedUsers = candidates.filter((candidate) =>
+    selectedIdSet.has(candidate.id),
+  );
+  const normalizedQuery = query.trim().toLocaleLowerCase('ru-RU');
+  const filteredCandidates = candidates
+    .filter((candidate) => candidate.isActive && !selectedIdSet.has(candidate.id))
+    .filter((candidate) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return `${candidate.fullName} ${candidate.login}`
+        .toLocaleLowerCase('ru-RU')
+        .includes(normalizedQuery);
+    })
+    .slice(0, 8);
+
+  const removeUser = (userId: string): void => {
+    onChange(selectedIds.filter((selectedId) => selectedId !== userId));
+  };
+
+  return (
+    <div className="participant-picker">
+      <div className="participant-picker__chips">
+        {selectedUsers.length === 0 ? (
+          <span className="page-muted">Участники не выбраны.</span>
+        ) : (
+          selectedUsers.map((participant) => (
+            <span key={participant.id} className="identity-chip">
+              <span>
+                <strong>{getUserDisplayName(participant)}</strong>
+                {getUserSecondaryLabel(participant) ? (
+                  <small>{getUserSecondaryLabel(participant)}</small>
+                ) : null}
+              </span>
+              <button
+                type="button"
+                aria-label={`Убрать ${getUserDisplayName(participant)}`}
+                onClick={() => removeUser(participant.id)}
+              >
+                ×
+              </button>
+            </span>
+          ))
+        )}
+      </div>
+
+      <input
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={placeholder}
+      />
+
+      {filteredCandidates.length > 0 ? (
+        <div className="participant-picker__options">
+          {filteredCandidates.map((candidate) => (
+            <button
+              key={candidate.id}
+              type="button"
+              onClick={() => {
+                onChange([...selectedIds, candidate.id]);
+                setQuery('');
+              }}
+            >
+              <span>
+                <strong>{getUserDisplayName(candidate)}</strong>
+                {getUserSecondaryLabel(candidate) ? (
+                  <small>{getUserSecondaryLabel(candidate)}</small>
+                ) : null}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function ChatsPage(): React.JSX.Element {
   const searchParams = useSearchParams();
   const requestedRoomCode = searchParams.get('room') as ChatRoomCode | null;
@@ -110,13 +215,19 @@ export default function ChatsPage(): React.JSX.Element {
   const [isSending, setIsSending] = useState(false);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const [isRoomSettingsOpen, setIsRoomSettingsOpen] = useState(false);
+  const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
   const [isRoomListOpen, setIsRoomListOpen] = useState(true);
   const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
+  const [roomParticipants, setRoomParticipants] = useState<
+    ChatRoomParticipant[]
+  >([]);
+  const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
   const [pendingImagePreviews, setPendingImagePreviews] = useState<
     Array<{ key: string; url: string; name: string }>
   >([]);
   const [error, setError] = useState<string | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
   const pendingScrollToBottomRef = useRef(false);
   const activeRoomIdRef = useRef<string | null>(null);
@@ -142,7 +253,6 @@ export default function ChatsPage(): React.JSX.Element {
         behavior,
       });
       setHasNewMessagesBelow(false);
-      void markActiveRoomReadIfBottom().catch(() => undefined);
     });
   };
 
@@ -178,26 +288,35 @@ export default function ChatsPage(): React.JSX.Element {
     }
   };
 
-  const markActiveRoomReadIfBottom = async (): Promise<void> => {
-    if (!activeRoomId || !latestMessageId || !messageListRef.current) {
+  const markActiveRoomRead = async (messageId: string): Promise<void> => {
+    if (!activeRoomId) {
       return;
     }
 
-    if (!isAtBottom(messageListRef.current)) {
-      return;
-    }
-
-    if (lastMarkedReadMessageIdRef.current === latestMessageId) {
+    if (lastMarkedReadMessageIdRef.current === messageId) {
       return;
     }
 
     const updatedRoom = await markChatRoomRead(activeRoomId, {
-      lastReadMessageId: latestMessageId,
+      lastReadMessageId: messageId,
     });
-    lastMarkedReadMessageIdRef.current = latestMessageId;
+    lastMarkedReadMessageIdRef.current = messageId;
     setRooms((current) =>
       current.map((room) => (room.id === updatedRoom.id ? updatedRoom : room)),
     );
+  };
+
+  const loadRoomParticipants = async (roomId: string): Promise<void> => {
+    setIsLoadingParticipants(true);
+
+    try {
+      const nextParticipants = await listChatRoomParticipants(roomId);
+      setRoomParticipants(nextParticipants);
+    } catch {
+      setRoomParticipants([]);
+    } finally {
+      setIsLoadingParticipants(false);
+    }
   };
 
   useEffect(() => {
@@ -234,6 +353,8 @@ export default function ChatsPage(): React.JSX.Element {
     pendingScrollToBottomRef.current = true;
     setHasNewMessagesBelow(false);
     setIsRoomSettingsOpen(false);
+    setIsParticipantsPanelOpen(false);
+    setRoomParticipants([]);
     void loadMessages(activeRoomId).catch((loadError) => {
       setError(getErrorMessage(loadError, 'Не удалось загрузить сообщения.'));
       setMessages([]);
@@ -258,6 +379,38 @@ export default function ChatsPage(): React.JSX.Element {
     pendingScrollToBottomRef.current = false;
     scrollMessagesToBottom('auto');
   }, [activeRoomId, messages.length]);
+
+  useEffect(() => {
+    const root = messageListRef.current;
+    const sentinel = bottomSentinelRef.current;
+
+    if (!root || !sentinel || !activeRoomId || !latestMessageId) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const isBottomVisible = entries.some((entry) => entry.isIntersecting);
+
+        if (!isBottomVisible) {
+          return;
+        }
+
+        setHasNewMessagesBelow(false);
+        void markActiveRoomRead(latestMessageId).catch(() => undefined);
+      },
+      {
+        root,
+        threshold: 0.9,
+      },
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [activeRoomId, latestMessageId]);
 
   useEffect(() => {
     const previews = files
@@ -379,6 +532,7 @@ export default function ChatsPage(): React.JSX.Element {
 
     try {
       await renameChatRoom(activeRoom.id, { title: renameTitle.trim() });
+      setIsRoomSettingsOpen(false);
       await loadRooms();
     } catch (renameError) {
       setError(getErrorMessage(renameError, 'Не удалось переименовать чат.'));
@@ -400,6 +554,9 @@ export default function ChatsPage(): React.JSX.Element {
       await addChatParticipants(activeRoom.id, { userIds: addParticipantIds });
       setAddParticipantIds([]);
       await loadRooms();
+      if (isParticipantsPanelOpen) {
+        await loadRoomParticipants(activeRoom.id);
+      }
     } catch (addError) {
       setError(getErrorMessage(addError, 'Не удалось добавить участников.'));
     }
@@ -426,6 +583,12 @@ export default function ChatsPage(): React.JSX.Element {
   const selectableParticipants = participants.filter(
     (participant) => participant.isActive,
   );
+  const roomParticipantUserIds = new Set(
+    roomParticipants.map((participant) => participant.user.id),
+  );
+  const addableParticipants = selectableParticipants.filter(
+    (participant) => !roomParticipantUserIds.has(participant.id),
+  );
   const activeRoomTypeLabel = activeRoom ? getRoomTypeLabel(activeRoom) : '';
   const layoutClassName = `chat-layout${
     isRoomListOpen ? ' chat-layout--room-list-open' : ''
@@ -437,6 +600,15 @@ export default function ChatsPage(): React.JSX.Element {
   const selectRoom = (roomId: string): void => {
     setActiveRoomId(roomId);
     setIsRoomListOpen(false);
+  };
+
+  const openParticipantsPanel = (): void => {
+    if (!activeRoom) {
+      return;
+    }
+
+    setIsParticipantsPanelOpen(true);
+    void loadRoomParticipants(activeRoom.id);
   };
 
   const removePendingFile = (indexToRemove: number): void => {
@@ -540,8 +712,14 @@ export default function ChatsPage(): React.JSX.Element {
                       <div className="section-subtitle">
                         <span className="chat-room-type-badge">
                           {activeRoomTypeLabel}
-                        </span>{' '}
-                        · участников: {activeRoom.participantCount}
+                        </span>
+                        <button
+                          type="button"
+                          className="chat-participants-link"
+                          onClick={openParticipantsPanel}
+                        >
+                          Участники: {activeRoom.participantCount}
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -564,48 +742,6 @@ export default function ChatsPage(): React.JSX.Element {
                   </div>
                 </header>
 
-                {activeRoom.capabilities.canManage && isRoomSettingsOpen ? (
-                  <div className="chat-room-settings-panel">
-                    <form onSubmit={handleRenameRoom}>
-                      <label>
-                        <span>Название комнаты</span>
-                        <input
-                          value={renameTitle}
-                          onChange={(event) => setRenameTitle(event.target.value)}
-                          aria-label="Название чата"
-                        />
-                      </label>
-                      <button type="submit">Переименовать</button>
-                    </form>
-
-                    {activeRoom.visibilityType === 'explicit_members' ? (
-                      <form onSubmit={handleAddParticipants}>
-                        <label>
-                          <span>Добавить участников</span>
-                          <select
-                            multiple
-                            value={addParticipantIds}
-                            onChange={(event) =>
-                              setAddParticipantIds(
-                                Array.from(
-                                  event.currentTarget.selectedOptions,
-                                ).map((option) => option.value),
-                              )
-                            }
-                          >
-                            {selectableParticipants.map((participant) => (
-                              <option key={participant.id} value={participant.id}>
-                                {participant.fullName} · {participant.login}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <button type="submit">Добавить</button>
-                      </form>
-                    ) : null}
-                  </div>
-                ) : null}
-
                 <div className="chat-message-stage">
                   <div
                     ref={messageListRef}
@@ -616,7 +752,6 @@ export default function ChatsPage(): React.JSX.Element {
                         isAtBottom(messageListRef.current)
                       ) {
                         setHasNewMessagesBelow(false);
-                        void markActiveRoomReadIfBottom().catch(() => undefined);
                       }
                     }}
                   >
@@ -651,8 +786,14 @@ export default function ChatsPage(): React.JSX.Element {
                               <strong>
                                 {message.messageType === 'system'
                                   ? 'Система'
-                                  : message.author?.fullName ?? 'Пользователь'}
+                                  : getUserDisplayName(message.author)}
                               </strong>
+                              {message.author &&
+                              getUserSecondaryLabel(message.author) ? (
+                                <span>
+                                  {getUserSecondaryLabel(message.author)}
+                                </span>
+                              ) : null}
                               <span>{formatDateTime(message.createdAt)}</span>
                               {message.editedAt ? <span>изменено</span> : null}
                             </div>
@@ -756,6 +897,11 @@ export default function ChatsPage(): React.JSX.Element {
                         );
                       })
                     )}
+                    <div
+                      ref={bottomSentinelRef}
+                      className="chat-bottom-sentinel"
+                      aria-hidden
+                    />
                   </div>
                   {hasNewMessagesBelow ? (
                     <button
@@ -896,23 +1042,12 @@ export default function ChatsPage(): React.JSX.Element {
 
               <label>
                 <span>Участники</span>
-                <select
-                  multiple
-                  value={newRoomParticipantIds}
-                  onChange={(event) =>
-                    setNewRoomParticipantIds(
-                      Array.from(event.currentTarget.selectedOptions).map(
-                        (option) => option.value,
-                      ),
-                    )
-                  }
-                >
-                  {selectableParticipants.map((participant) => (
-                    <option key={participant.id} value={participant.id}>
-                      {participant.fullName} · {participant.login}
-                    </option>
-                  ))}
-                </select>
+                <ParticipantPicker
+                  candidates={selectableParticipants}
+                  selectedIds={newRoomParticipantIds}
+                  onChange={setNewRoomParticipantIds}
+                  placeholder="Найти участника по ФИО"
+                />
               </label>
 
               <div className="action-row">
@@ -929,6 +1064,142 @@ export default function ChatsPage(): React.JSX.Element {
                 </button>
               </div>
             </form>
+          </div>
+        ) : null}
+
+        {activeRoom?.capabilities.canManage && isRoomSettingsOpen ? (
+          <div
+            className="chat-modal-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setIsRoomSettingsOpen(false);
+              }
+            }}
+          >
+            <form className="chat-modal" onSubmit={handleRenameRoom}>
+              <div className="section-header">
+                <div>
+                  <div className="section-title">Настройки комнаты</div>
+                  <div className="section-subtitle">
+                    Управление названием без лишнего шума в списке комнат.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRoomSettingsOpen(false)}
+                >
+                  Закрыть
+                </button>
+              </div>
+
+              <label>
+                <span>Название комнаты</span>
+                <input
+                  value={renameTitle}
+                  onChange={(event) => setRenameTitle(event.target.value)}
+                  aria-label="Название чата"
+                />
+              </label>
+
+              <div className="action-row">
+                <button type="submit">Сохранить название</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRoomSettingsOpen(false);
+                    openParticipantsPanel();
+                  }}
+                >
+                  Участники
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {activeRoom && isParticipantsPanelOpen ? (
+          <div
+            className="chat-modal-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setIsParticipantsPanelOpen(false);
+              }
+            }}
+          >
+            <div className="chat-modal chat-modal--wide">
+              <div className="section-header">
+                <div>
+                  <div className="section-title">Участники</div>
+                  <div className="section-subtitle">
+                    {activeRoom.title} · {activeRoomTypeLabel}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsParticipantsPanelOpen(false)}
+                >
+                  Закрыть
+                </button>
+              </div>
+
+              {isLoadingParticipants ? (
+                <div className="page-muted">Загрузка участников...</div>
+              ) : roomParticipants.length === 0 ? (
+                <div className="page-muted">Участники пока не загружены.</div>
+              ) : (
+                <div className="chat-participant-list">
+                  {roomParticipants.map((participant) => (
+                    <div key={participant.id} className="chat-participant-row">
+                      <div>
+                        <strong>{getUserDisplayName(participant.user)}</strong>
+                        {getUserSecondaryLabel(participant.user) ? (
+                          <div className="identity-secondary">
+                            {getUserSecondaryLabel(participant.user)}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="chat-participant-row__meta">
+                        <span className="status-pill">
+                          {getParticipantRoleLabel(participant.roleInRoom)}
+                        </span>
+                        <span>
+                          с {formatDateTime(participant.joinedAt)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeRoom.capabilities.canManage &&
+              activeRoom.visibilityType === 'explicit_members' ? (
+                <form
+                  className="chat-participant-add-form"
+                  onSubmit={handleAddParticipants}
+                >
+                  <div>
+                    <div className="section-title">Добавить участников</div>
+                    <div className="section-subtitle">
+                      Новые участники увидят историю только после добавления.
+                    </div>
+                  </div>
+                  <ParticipantPicker
+                    candidates={addableParticipants}
+                    selectedIds={addParticipantIds}
+                    onChange={setAddParticipantIds}
+                    placeholder="Найти пользователя"
+                  />
+                  <button
+                    type="submit"
+                    disabled={addParticipantIds.length === 0}
+                  >
+                    Добавить выбранных
+                  </button>
+                </form>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>

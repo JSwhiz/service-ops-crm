@@ -11,6 +11,7 @@ import type {
 } from '@/entities/equipment/model/equipment.types';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   EQUIPMENT_MOVEMENT_OPTIONS,
   getEquipmentMovementLabel,
@@ -156,7 +157,8 @@ export function EquipmentMovementPanel({
                 </span>
               </div>
               <div className="page-muted">
-                {new Date(movement.createdAt).toLocaleString('ru-RU')} · {movement.createdBy.fullName}
+                {new Date(movement.createdAt).toLocaleString('ru-RU')} ·{' '}
+                {getUserDisplayName(movement.createdBy)}
               </div>
               <div className="page-muted">
                 {movement.status === 'pending_approval'

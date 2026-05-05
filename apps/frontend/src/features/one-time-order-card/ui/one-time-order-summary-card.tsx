@@ -2,6 +2,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 
 export function OneTimeOrderSummaryCard({
@@ -66,7 +67,7 @@ export function OneTimeOrderSummaryCard({
         />
         <Field
           label="Менеджеры"
-          value={item.managers.map((manager) => manager.fullName).join(', ') || '—'}
+          value={item.managers.map(getUserDisplayName).join(', ') || '—'}
         />
         <Field label="Описание" value={item.description ?? '—'} />
         <Field label="Финансовые заметки" value={item.financialNotes ?? '—'} />

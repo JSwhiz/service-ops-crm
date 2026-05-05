@@ -4,6 +4,10 @@ import React from 'react';
 
 import type { ObjectAssignedUser } from '@/entities/object/model/object.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 
 interface ObjectManagersPanelProps {
   responsibles: ObjectAssignedUser[];
@@ -72,7 +76,7 @@ export function ObjectManagersPanel({
                     borderRadius: 10,
                   }}
                 >
-                  <span>{item.fullName}</span>
+                  <span>{getUserDisplayName(item)}</span>
 
                   <button
                     type="button"
@@ -107,7 +111,12 @@ export function ObjectManagersPanel({
                   }}
                 >
                   <span>
-                    {user.fullName} ({user.login})
+                    {getUserDisplayName(user)}
+                    {getUserSecondaryLabel(user) ? (
+                      <span className="identity-secondary">
+                        {getUserSecondaryLabel(user)}
+                      </span>
+                    ) : null}
                   </span>
 
                   {responsibleIds.has(user.id) ? (
@@ -150,7 +159,7 @@ export function ObjectManagersPanel({
                     borderRadius: 10,
                   }}
                 >
-                  <span>{item.fullName}</span>
+                  <span>{getUserDisplayName(item)}</span>
 
                   <button
                     type="button"
@@ -185,7 +194,12 @@ export function ObjectManagersPanel({
                   }}
                 >
                   <span>
-                    {user.fullName} ({user.login})
+                    {getUserDisplayName(user)}
+                    {getUserSecondaryLabel(user) ? (
+                      <span className="identity-secondary">
+                        {getUserSecondaryLabel(user)}
+                      </span>
+                    ) : null}
                   </span>
 
                   {managerIds.has(user.id) ? (

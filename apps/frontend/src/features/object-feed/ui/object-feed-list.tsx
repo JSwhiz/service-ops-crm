@@ -1,6 +1,7 @@
 import React from 'react';
 
 import type { ObjectFeedItem } from '@/entities/object/model/object-operations.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 
 interface ObjectFeedListProps {
   items: ObjectFeedItem[];
@@ -33,7 +34,7 @@ export function ObjectFeedList({
               }}
             >
               <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
-                {item.title} · {item.author.fullName}
+                {item.title} · {getUserDisplayName(item.author)}
               </div>
               <div>{item.description}</div>
             </div>

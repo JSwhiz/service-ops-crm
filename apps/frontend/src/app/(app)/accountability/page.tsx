@@ -24,6 +24,10 @@ import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import { AccountabilityAccountPanel } from '@/features/accountability/ui/accountability-account-panel';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getAccountabilityAccountStatusLabel } from '@/shared/lib/accountability-presentation';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -336,7 +340,9 @@ export default function AccountabilityPage(): React.JSX.Element {
                 >
                   {userOptions.map((option) => (
                     <option key={option.id} value={option.id}>
-                      {option.fullName} · {option.login}
+                      {[getUserDisplayName(option), getUserSecondaryLabel(option)]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </option>
                   ))}
                 </select>
@@ -373,7 +379,9 @@ export default function AccountabilityPage(): React.JSX.Element {
               <div className="detail-grid">
                 <div className="detail-field">
                   <div className="detail-label">Выбранный пользователь</div>
-                  <div className="detail-value">{selectedUser.fullName}</div>
+                  <div className="detail-value">
+                    {getUserDisplayName(selectedUser)}
+                  </div>
                 </div>
                 <div className="detail-field">
                   <div className="detail-label">Статус account</div>
@@ -464,12 +472,16 @@ export default function AccountabilityPage(): React.JSX.Element {
                       }}
                     >
                       <div className="section-header" style={{ paddingBottom: 0 }}>
-                        <strong>{item.user.fullName}</strong>
+                        <strong>{getUserDisplayName(item.user)}</strong>
                         <span className="status-pill" data-status={item.status}>
                           {getAccountabilityAccountStatusLabel(item.status)}
                         </span>
                       </div>
-                      <div className="page-muted">{item.user.login}</div>
+                      {getUserSecondaryLabel(item.user) ? (
+                        <div className="page-muted">
+                          {getUserSecondaryLabel(item.user)}
+                        </div>
+                      ) : null}
                       <div className="detail-grid">
                         <div className="detail-field">
                           <div className="detail-label">Остаток</div>
@@ -509,7 +521,7 @@ export default function AccountabilityPage(): React.JSX.Element {
             <AccountabilityAccountPanel
               title={
                 selectedUser
-                  ? `Подотчет пользователя: ${selectedUser.fullName}`
+                  ? `Подотчет пользователя: ${getUserDisplayName(selectedUser)}`
                   : 'Подотчет пользователя'
               }
               view={reviewView}

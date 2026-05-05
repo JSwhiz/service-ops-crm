@@ -6,6 +6,10 @@ import type { ServiceObject } from '@/entities/object/model/object.types';
 import type { CreateOneTimeOrderPayload } from '@/entities/one-time-order/model/one-time-order.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
+import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
 } from '@/shared/lib/one-time-order-presentation';
 
@@ -308,7 +312,12 @@ export function OneTimeOrderForm({
                       onChange={() => handleToggleManager(user.id)}
                     />
                     <span>
-                      {user.fullName} ({user.login})
+                      {getUserDisplayName(user)}
+                      {getUserSecondaryLabel(user) ? (
+                        <span className="identity-secondary">
+                          {getUserSecondaryLabel(user)}
+                        </span>
+                      ) : null}
                     </span>
                   </label>
                 ))}

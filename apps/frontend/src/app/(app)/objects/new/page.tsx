@@ -9,6 +9,10 @@ import {
   type SystemUserOption,
 } from '@/entities/user/api/user-client';
 import { useAuth } from '@/shared/auth/use-auth';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 export default function NewObjectPage(): React.JSX.Element {
@@ -267,7 +271,12 @@ export default function NewObjectPage(): React.JSX.Element {
                     onChange={() => toggleManager(candidate.id)}
                   />
                   <span>
-                    {candidate.fullName} ({candidate.login})
+                    {getUserDisplayName(candidate)}
+                    {getUserSecondaryLabel(candidate) ? (
+                      <span className="identity-secondary">
+                        {getUserSecondaryLabel(candidate)}
+                      </span>
+                    ) : null}
                   </span>
                 </label>
               ))}

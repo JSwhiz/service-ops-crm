@@ -2,6 +2,11 @@ import React from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
+import {
+  getUserDisplayName,
+  getUserRoleLabel,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 
 export function OneTimeOrderManagersPanel({
   item,
@@ -38,8 +43,10 @@ export function OneTimeOrderManagersPanel({
                 }}
               >
                 <div>
-                  <div>{manager.fullName}</div>
-                  <div className="page-muted">{manager.roleCode}</div>
+                  <div>{getUserDisplayName(manager)}</div>
+                  <div className="page-muted">
+                    {getUserRoleLabel(manager.roleCode)}
+                  </div>
                 </div>
                 {item.capabilities.canManageManagers ? (
                   <button type="button" onClick={() => void onRemove(manager.userId)}>
@@ -77,8 +84,12 @@ export function OneTimeOrderManagersPanel({
                     }}
                   >
                     <div>
-                      <div>{candidate.fullName}</div>
-                      <div className="page-muted">{candidate.login}</div>
+                      <div>{getUserDisplayName(candidate)}</div>
+                      {getUserSecondaryLabel(candidate) ? (
+                        <div className="page-muted">
+                          {getUserSecondaryLabel(candidate)}
+                        </div>
+                      ) : null}
                     </div>
                     <button
                       type="button"

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 
 import type { ObjectDailyReport } from '@/entities/object/model/object-operations.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
@@ -52,7 +53,7 @@ export function ObjectDailyReportPanel({
 
       {item ? (
         <div className="page-muted" style={{ marginBottom: 12 }}>
-          Последнее обновление: {item.updatedBy.fullName}
+          Последнее обновление: {getUserDisplayName(item.updatedBy)}
         </div>
       ) : (
         <div className="page-muted" style={{ marginBottom: 12 }}>

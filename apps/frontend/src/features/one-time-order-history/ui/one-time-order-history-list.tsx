@@ -1,6 +1,10 @@
 import React from 'react';
 
 import type { OneTimeOrderHistoryItem } from '@/entities/one-time-order/model/one-time-order.types';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 
 export function OneTimeOrderHistoryList({
   items,
@@ -27,7 +31,12 @@ export function OneTimeOrderHistoryList({
               <div style={{ fontWeight: 600 }}>{item.action}</div>
               <div className="page-muted" style={{ marginTop: 4 }}>
                 {item.actor
-                  ? `${item.actor.fullName} (${item.actor.login})`
+                  ? [
+                      getUserDisplayName(item.actor),
+                      getUserSecondaryLabel(item.actor),
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
                   : 'Системное событие'}{' '}
                 · {new Date(item.createdAt).toLocaleString('ru-RU')}
               </div>

@@ -7,6 +7,7 @@ import type {
   ObjectAssignedUser,
   ServiceObject,
 } from '@/entities/object/model/object.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 
 interface ObjectListTableProps {
   items: ServiceObject[];
@@ -17,7 +18,7 @@ function renderPeople(items: ObjectAssignedUser[]): string {
     return '—';
   }
 
-  return items.map((item) => item.fullName).join(', ');
+  return items.map(getUserDisplayName).join(', ');
 }
 
 function getStatusLabel(status: string): string {

@@ -13,6 +13,7 @@ import {
   getAccountabilityClosureStatusLabel,
   getAccountabilityExpenseStatusLabel,
 } from '@/shared/lib/accountability-presentation';
+import { getUserDisplayName, getUserSecondaryLabel } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 
 import { AccountabilityExpenseForm } from './accountability-expense-form';
@@ -88,7 +89,9 @@ export function AccountabilityAccountPanel({
           <div>
             <div className="hero-title">{title}</div>
             <div className="hero-meta">
-              {view.account.user.fullName} · {view.account.user.login}
+              {[getUserDisplayName(view.account.user), getUserSecondaryLabel(view.account.user)]
+                .filter(Boolean)
+                .join(' · ')}
             </div>
           </div>
           <span
@@ -193,7 +196,7 @@ export function AccountabilityAccountPanel({
                   </div>
                 </div>
                 <div className="page-muted" style={{ marginTop: 6 }}>
-                  Выдал: {funding.issuedBy.fullName}
+                  Выдал: {getUserDisplayName(funding.issuedBy)}
                 </div>
                 {funding.comment ? (
                   <div style={{ marginTop: 8 }}>{funding.comment}</div>
@@ -225,7 +228,7 @@ export function AccountabilityAccountPanel({
                     <strong>{formatMoney(expense.amount)}</strong>
                     <div className="page-muted">
                       {new Date(expense.createdAt).toLocaleString('ru-RU')} ·{' '}
-                      {expense.createdBy.fullName}
+                      {getUserDisplayName(expense.createdBy)}
                     </div>
                   </div>
                   <span
@@ -375,7 +378,7 @@ function ClosureCard({
             {new Date(closure.requestedAt).toLocaleString('ru-RU')}
           </strong>
           <div className="page-muted">
-            Запросил: {closure.requestedBy.fullName}
+            Запросил: {getUserDisplayName(closure.requestedBy)}
           </div>
         </div>
         <span className="status-pill" data-status={closure.status}>
@@ -387,9 +390,9 @@ function ClosureCard({
 
       <div className="page-muted">
         {closure.approvedBy
-          ? `Подтвердил: ${closure.approvedBy.fullName}`
+          ? `Подтвердил: ${getUserDisplayName(closure.approvedBy)}`
           : closure.rejectedBy
-            ? `Отклонил: ${closure.rejectedBy.fullName}`
+            ? `Отклонил: ${getUserDisplayName(closure.rejectedBy)}`
             : 'Ожидает решения руководства'}
       </div>
 

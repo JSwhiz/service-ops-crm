@@ -2,6 +2,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { TaskItem } from '@/entities/task/model/task.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   getTaskPriorityLabel,
   getTaskStatusLabel,
@@ -60,7 +61,7 @@ export function TaskListTable({
                 </span>
               </td>
               <td style={tdStyle}>
-                {item.assignees.map((assignee) => assignee.fullName).join(', ') || '—'}
+                {item.assignees.map(getUserDisplayName).join(', ') || '—'}
               </td>
             </tr>
           ))}

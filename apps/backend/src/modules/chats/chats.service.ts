@@ -13,7 +13,11 @@ import { FilesService } from '../files/files.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
-import { ChatMessageResponseDto, ChatRoomResponseDto } from './dto/chat-response.dto';
+import {
+  ChatMessageResponseDto,
+  ChatRoomParticipantResponseDto,
+  ChatRoomResponseDto,
+} from './dto/chat-response.dto';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { EditChatMessageDto } from './dto/edit-chat-message.dto';
 import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
@@ -286,6 +290,47 @@ export class ChatsService implements OnModuleInit {
     );
 
     return this.mapRoom(currentUser, updated, participant);
+  }
+
+  async listParticipants(
+    currentUser: CurrentAuthUser,
+    roomId: string,
+  ): Promise<ChatRoomParticipantResponseDto[]> {
+    const room = await this.getRoomRecord(roomId);
+    await this.assertCanReadRoom(currentUser, room);
+
+    const participants = await this.prisma.chatRoomParticipant.findMany({
+      where: { chatRoomId: room.id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+      orderBy: [
+        {
+          roleInRoom: 'asc',
+        },
+        {
+          joinedAt: 'asc',
+        },
+      ],
+    });
+
+    return participants.map((participant) => ({
+      id: participant.id,
+      roleInRoom: participant.roleInRoom,
+      joinedAt: participant.joinedAt.toISOString(),
+      lastReadAt: participant.lastReadAt?.toISOString() ?? null,
+      user: {
+        id: participant.user.id,
+        login: participant.user.login,
+        fullName: participant.user.fullName,
+      },
+    }));
   }
 
   async listMessages(

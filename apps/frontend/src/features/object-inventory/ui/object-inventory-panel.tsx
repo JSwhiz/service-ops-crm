@@ -7,6 +7,7 @@ import type {
   InventoryItem,
   InventoryMovement,
 } from '@/entities/inventory/model/inventory.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import { formatInventoryQuantity } from '@/shared/lib/inventory-presentation';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
@@ -200,7 +201,7 @@ export function ObjectInventoryPanel({
                 {movement.totalAmountSnapshot.toLocaleString('ru-RU')} ₽
               </div>
               <div className="page-muted">
-                Списал: {movement.createdBy.fullName} •{' '}
+                Списал: {getUserDisplayName(movement.createdBy)} •{' '}
                 {new Date(movement.createdAt).toLocaleString('ru-RU')}
               </div>
               <div>
@@ -212,7 +213,9 @@ export function ObjectInventoryPanel({
                   <>
                     Подтверждено директором без фото
                     {movement.projection.approvalBridgeResolvedBy
-                      ? `: ${movement.projection.approvalBridgeResolvedBy.fullName}`
+                      ? `: ${getUserDisplayName(
+                          movement.projection.approvalBridgeResolvedBy,
+                        )}`
                       : ''}
                   </>
                 ) : movement.projection.requiresApprovalBridge ? (

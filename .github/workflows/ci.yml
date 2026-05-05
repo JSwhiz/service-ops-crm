@@ -14,6 +14,7 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -32,6 +33,28 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Create infra env file
+        run: |
+          cat > .env.infra.local <<'EOF'
+          POSTGRES_IMAGE=postgres:16.13
+          POSTGRES_DB=service_ops
+          POSTGRES_USER=service_ops
+          POSTGRES_PASSWORD=service_ops_password
+          POSTGRES_HOST_PORT=55432
+          REDIS_IMAGE=redis:7.4.8
+          REDIS_HOST_PORT=6379
+          MINIO_IMAGE=minio/minio:RELEASE.2025-06-13T11-33-47Z
+          MINIO_MC_IMAGE=minio/mc:RELEASE.2025-08-13T08-35-41Z
+          MINIO_ROOT_USER=minioadmin
+          MINIO_ROOT_PASSWORD=minioadminpassword
+          MINIO_HOST_PORT=9000
+          MINIO_CONSOLE_HOST_PORT=9001
+          MINIO_BUCKET=service-ops-files
+          DEV_NODE_IMAGE=node:22.22-bookworm
+          BACKEND_HOST_PORT=4000
+          FRONTEND_HOST_PORT=3000
+          EOF
 
       - name: Create backend env file
         run: |
@@ -53,6 +76,10 @@ jobs:
           MINIO_ACCESS_KEY=minioadmin
           MINIO_SECRET_KEY=minioadminpassword
           MINIO_BUCKET=service-ops-files
+          MINIO_PUBLIC_BASE_URL=http://localhost:9000
+          FIRST_ADMIN_LOGIN=founder
+          FIRST_ADMIN_PASSWORD=founder123
+          FIRST_ADMIN_FULL_NAME=Учредитель
           EOF
 
       - name: Create frontend env file
@@ -62,14 +89,36 @@ jobs:
           NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
           EOF
 
+      - name: Start CI infrastructure
+        run: docker compose --env-file .env.infra.local -f docker-compose.dev.yml up -d --wait postgres redis minio
+
+      - name: Initialize MinIO bucket
+        run: docker compose --env-file .env.infra.local -f docker-compose.dev.yml up minio-init
+
+      - name: Show infrastructure status
+        run: docker compose --env-file .env.infra.local -f docker-compose.dev.yml ps
+
       - name: Prisma generate
         run: pnpm db:generate
 
-      - name: Typecheck workspace
-        run: pnpm typecheck
+      - name: Apply database migrations
+        run: pnpm --filter backend prisma:deploy
 
-      - name: Build backend
-        run: pnpm --filter backend build
+      - name: Seed CI database
+        run: pnpm --filter backend prisma:seed
 
-      - name: Build frontend
-        run: pnpm --filter frontend build
+      - name: Backend typecheck
+        run: pnpm --filter backend typecheck
+
+      - name: Frontend typecheck
+        run: pnpm --filter frontend typecheck
+
+      - name: Backend integration tests
+        run: pnpm --filter backend test:integration
+
+      - name: Full repository CI check
+        run: pnpm ci:check
+
+      - name: Stop CI infrastructure
+        if: always()
+        run: docker compose --env-file .env.infra.local -f docker-compose.dev.yml down -v --remove-orphans

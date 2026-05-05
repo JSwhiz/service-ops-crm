@@ -24,6 +24,14 @@ export interface ChatUserSummary {
   fullName: string;
 }
 
+export interface ChatRoomParticipant {
+  id: string;
+  roleInRoom: 'admin' | 'member' | string;
+  joinedAt: string;
+  lastReadAt: string | null;
+  user: ChatUserSummary;
+}
+
 export interface ChatMessage {
   id: string;
   chatRoomId: string;

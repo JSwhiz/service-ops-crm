@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 
 import type { ObjectArrivalPhoto } from '@/entities/object/model/object-operations.types';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   MEDIA_CATEGORY_OPTIONS,
   getMediaCategoryLabel,
@@ -74,7 +75,7 @@ export function ObjectArrivalPanel({
 
       {item ? (
         <div className="page-muted" style={{ marginBottom: 12 }}>
-          Уже зафиксировано: {item.createdBy.fullName}
+          Уже зафиксировано: {getUserDisplayName(item.createdBy)}
           {item.photoType ? ` • ${getMediaCategoryLabel(item.photoType)}` : ''}
         </div>
       ) : (
