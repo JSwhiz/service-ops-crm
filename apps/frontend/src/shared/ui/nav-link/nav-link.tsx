@@ -9,9 +9,14 @@ import { cn } from '@/shared/lib/cn';
 interface NavLinkProps {
   href: string;
   label: string;
+  className?: string;
 }
 
-export function NavLink({ href, label }: NavLinkProps): React.JSX.Element {
+export function NavLink({
+  href,
+  label,
+  className,
+}: NavLinkProps): React.JSX.Element {
   const pathname = usePathname();
   const isActive = pathname === href;
 
@@ -20,6 +25,7 @@ export function NavLink({ href, label }: NavLinkProps): React.JSX.Element {
       href={href}
       className={cn(
         'app-sidebar__link',
+        className,
         isActive && 'app-sidebar__link--active',
       )}
     >

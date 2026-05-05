@@ -16,6 +16,7 @@ import {
 } from '@/entities/chat/api/chat-client';
 import type { ChatMessage, ChatRoom, ChatRoomCode } from '@/entities/chat/model/chat.types';
 import { buildFileDownloadUrl } from '@/entities/file/api/file-client';
+import type { AttachedFile } from '@/entities/file/model/file.types';
 import { listChatParticipantCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
@@ -51,8 +52,36 @@ function resolveFileUrl(url: string, id: string): string {
   return buildFileDownloadUrl(id);
 }
 
+function isImageAttachment(file: AttachedFile): boolean {
+  return file.mimeType.startsWith('image/');
+}
+
+function formatFileSize(sizeBytes: number): string {
+  if (sizeBytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(sizeBytes / 1024))} КБ`;
+  }
+
+  return `${(sizeBytes / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+function getRoomTypeLabel(room: ChatRoom): string {
+  if (room.code === 'objects') {
+    return 'Объекты';
+  }
+
+  if (room.code === 'one_time_orders') {
+    return 'Разовые заказы';
+  }
+
+  if (room.code === 'leadership') {
+    return 'Руководство';
+  }
+
+  return 'Custom room';
+}
+
 function isAtBottom(element: HTMLDivElement): boolean {
-  return element.scrollHeight - element.scrollTop - element.clientHeight < 48;
+  return element.scrollHeight - element.scrollTop - element.clientHeight < 96;
 }
 
 export default function ChatsPage(): React.JSX.Element {
@@ -330,7 +359,7 @@ export default function ChatsPage(): React.JSX.Element {
     <>
       <PageTitle title="Чаты" />
 
-      <div className="page-stack">
+      <div className="page-stack chat-page-stack">
         {error ? (
           <div className="page-card" style={{ color: '#b91c1c' }}>
             {error}
@@ -404,6 +433,9 @@ export default function ChatsPage(): React.JSX.Element {
                       </span>
                     </span>
                     <span className="chat-room-item__meta">
+                      <span className="chat-room-item__type">
+                        {getRoomTypeLabel(room)}
+                      </span>
                       <span>{formatDateTime(room.lastMessageAt)}</span>
                       {room.unreadCount > 0 ? (
                         <span className="chat-unread">{room.unreadCount}</span>
@@ -424,7 +456,7 @@ export default function ChatsPage(): React.JSX.Element {
                     <div className="section-subtitle">
                       {activeRoom.roomType === 'custom'
                         ? 'Custom room'
-                        : 'System room'}{' '}
+                        : getRoomTypeLabel(activeRoom)}{' '}
                       · участников: {activeRoom.participantCount}
                     </div>
                   </div>
@@ -488,6 +520,11 @@ export default function ChatsPage(): React.JSX.Element {
                     messages.map((message) => {
                       const isOwn = message.author?.id === user?.id;
                       const isEditing = editingMessageId === message.id;
+                      const imageAttachments =
+                        message.attachments.filter(isImageAttachment);
+                      const fileAttachments = message.attachments.filter(
+                        (file) => !isImageAttachment(file),
+                      );
 
                       return (
                         <article
@@ -544,24 +581,49 @@ export default function ChatsPage(): React.JSX.Element {
                                   {message.text}
                                 </p>
                               ) : null}
-                              {message.attachments.length > 0 ? (
-                                <div className="chat-attachments">
-                                  {message.attachments.map((file) => (
+                              {imageAttachments.length > 0 ? (
+                                <div
+                                  className={`chat-image-grid chat-image-grid--${Math.min(
+                                    imageAttachments.length,
+                                    4,
+                                  )}`}
+                                >
+                                  {imageAttachments.map((file) => (
                                     <a
                                       key={file.id}
                                       href={resolveFileUrl(file.url, file.id)}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="chat-attachment"
+                                      className="chat-image-attachment"
                                     >
-                                      {file.mimeType.startsWith('image/') ? (
-                                        <img
-                                          src={resolveFileUrl(file.url, file.id)}
-                                          alt={file.originalName}
-                                        />
-                                      ) : (
-                                        <span>{file.originalName}</span>
-                                      )}
+                                      <img
+                                        src={resolveFileUrl(file.url, file.id)}
+                                        alt={file.originalName}
+                                      />
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {fileAttachments.length > 0 ? (
+                                <div className="chat-file-list">
+                                  {fileAttachments.map((file) => (
+                                    <a
+                                      key={file.id}
+                                      href={resolveFileUrl(file.url, file.id)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="chat-file-card"
+                                    >
+                                      <span className="chat-file-card__icon">
+                                        FILE
+                                      </span>
+                                      <span className="chat-file-card__body">
+                                        <strong>{file.originalName}</strong>
+                                        <span>
+                                          {file.mimeType} ·{' '}
+                                          {formatFileSize(file.sizeBytes)}
+                                        </span>
+                                      </span>
                                     </a>
                                   ))}
                                 </div>
@@ -610,10 +672,33 @@ export default function ChatsPage(): React.JSX.Element {
                           ? `Выбрано файлов: ${files.length}`
                           : 'Текст, фото или файл'}
                       </span>
-                      <button type="submit" disabled={isSending}>
+                      <button
+                        type="submit"
+                        disabled={isSending || (!text.trim() && files.length === 0)}
+                      >
                         Отправить
                       </button>
                     </div>
+                    {files.length > 0 ? (
+                      <div className="chat-pending-files">
+                        {files.map((file) => (
+                          <span
+                            key={`${file.name}-${file.size}-${file.lastModified}`}
+                            className="chat-pending-file"
+                          >
+                            <strong>{file.name}</strong>
+                            <span>{formatFileSize(file.size)}</span>
+                          </span>
+                        ))}
+                        <button
+                          type="button"
+                          className="quiet-button"
+                          onClick={() => setFiles([])}
+                        >
+                          Очистить
+                        </button>
+                      </div>
+                    ) : null}
                   </form>
                 ) : (
                   <div className="page-muted">Нет права писать в этот чат.</div>

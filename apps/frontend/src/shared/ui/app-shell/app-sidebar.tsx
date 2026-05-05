@@ -26,7 +26,13 @@ export function AppSidebar(): React.JSX.Element {
         {canAccessApprovals ? (
           <NavLink href="/approvals" label="Согласования" />
         ) : null}
-        {canAccessChats ? <NavLink href="/chats" label="Чаты" /> : null}
+        {canAccessChats ? (
+          <NavLink
+            href="/chats"
+            label="Чаты"
+            className="app-sidebar__link--chat"
+          />
+        ) : null}
         <NavLink href="/objects" label="Объекты" />
         {canAccessOneTimeOrders ? (
           <NavLink href="/one-time-orders" label="Разовые заказы" />
