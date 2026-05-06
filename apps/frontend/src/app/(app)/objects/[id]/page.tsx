@@ -37,6 +37,7 @@ import {
   upsertObjectAttendance,
   upsertTodayArrivalPhoto,
   upsertTodayDailyReport,
+  updateObjectEmployeeRatePolicy,
 } from '@/entities/object/api/object-operations-client';
 import type {
   ObjectArrivalPhoto,
@@ -846,6 +847,14 @@ export default function ObjectDetailPage({
                 await Promise.all([
                   loadAssignedEmployees(objectId),
                   loadDirectory(objectId, employeeSearch),
+                  loadAttendance(objectId),
+                ]);
+              }}
+              canManageRatePolicy={item.capabilities.canEditDailyRate}
+              onUpdateRatePolicy={async (employeeId, payload) => {
+                await updateObjectEmployeeRatePolicy(objectId, employeeId, payload);
+                await Promise.all([
+                  loadAssignedEmployees(objectId),
                   loadAttendance(objectId),
                 ]);
               }}

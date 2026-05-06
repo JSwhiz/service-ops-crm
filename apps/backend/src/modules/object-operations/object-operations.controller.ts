@@ -29,6 +29,7 @@ import { ObjectCommentResponseDto } from './dto/object-comment-response.dto';
 import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response.dto';
 import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
+import { UpdateObjectEmployeeRatePolicyDto } from './dto/update-object-employee-rate-policy.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 import { ObjectOperationsService } from './object-operations.service';
@@ -198,6 +199,21 @@ export class ObjectOperationsController {
       user,
       objectId,
       employeeId,
+    );
+  }
+
+  @Put('employees/:employeeId/rate-policy')
+  updateEmployeeRatePolicy(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() payload: UpdateObjectEmployeeRatePolicyDto,
+  ): Promise<ObjectEmployeeOptionDto> {
+    return this.objectOperationsService.updateEmployeeRatePolicy(
+      user,
+      objectId,
+      employeeId,
+      payload,
     );
   }
 

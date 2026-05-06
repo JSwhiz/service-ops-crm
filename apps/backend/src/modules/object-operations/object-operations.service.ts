@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { EmployeeAssignmentHistoryService } from '../employees/employee-assignment-history.service';
 import { EMPLOYEE_SUBSTITUTION_STATUSES } from '../employees/constants/employee-hr.constants';
@@ -17,8 +18,15 @@ import { InventoryService } from '../inventory/inventory.service';
 import {
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
-import { canViewObjectByScope } from '../objects/utils/object-access.util';
+import {
+  canEditObjectDailyRate,
+  canViewObjectByScope,
+} from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  getRatePolicyLabel,
+  normalizeRatePolicy,
+} from '../timesheets/utils/timesheet-rate-policy.util';
 
 import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
 import { CreateArrivalPhotoDto } from './dto/create-arrival-photo.dto';
@@ -32,6 +40,7 @@ import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response
 import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { LinkedOneTimeOrderProjectionDto } from './dto/linked-one-time-order-projection.dto';
+import { UpdateObjectEmployeeRatePolicyDto } from './dto/update-object-employee-rate-policy.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 
@@ -389,60 +398,72 @@ export class ObjectOperationsService {
     await this.assertObjectVisible(currentUser, objectId);
 
     const dayRange = this.getBusinessDayRange(startOfToday());
-    const items = await this.prisma.objectEmployeeAssignment.findMany({
-      where: {
-        objectId,
-        isActive: true,
-        employee: {
-          deletedAt: null,
+    const [object, items] = await Promise.all([
+      this.prisma.object.findUnique({
+        where: {
+          id: objectId,
         },
-      },
-      include: {
-        employee: {
-          include: {
-            availabilityWindows: {
-              where: this.buildAvailabilityOverlapWhere(dayRange),
-              orderBy: {
-                startDate: 'asc',
+        select: {
+          dailyRate: true,
+        },
+      }),
+      this.prisma.objectEmployeeAssignment.findMany({
+        where: {
+          objectId,
+          isActive: true,
+          employee: {
+            deletedAt: null,
+          },
+        },
+        include: {
+          employee: {
+            include: {
+              availabilityWindows: {
+                where: this.buildAvailabilityOverlapWhere(dayRange),
+                orderBy: {
+                  startDate: 'asc',
+                },
               },
-            },
-            substitutionsAsPrimary: {
-              where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
-              include: {
-                substituteEmployee: {
-                  select: {
-                    id: true,
-                    fullName: true,
+              substitutionsAsPrimary: {
+                where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+                include: {
+                  substituteEmployee: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                    },
                   },
                 },
               },
-            },
-            substitutionsAsReplacement: {
-              where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
-              include: {
-                employee: {
-                  select: {
-                    id: true,
-                    fullName: true,
+              substitutionsAsReplacement: {
+                where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
+                include: {
+                  employee: {
+                    select: {
+                      id: true,
+                      fullName: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-      orderBy: {
-        employee: {
-          fullName: 'asc',
+        orderBy: {
+          employee: {
+            fullName: 'asc',
+          },
         },
-      },
-    });
+      }),
+    ]);
 
     return items.map((item) =>
       this.mapObjectEmployeeOption({
         employeeId: item.employee.id,
         fullName: item.employee.fullName,
         isAssignedToObject: true,
+        ratePolicy: item,
+        ratePolicyFallbackAmount: object?.dailyRate ?? 0,
         availabilityWindows: item.employee.availabilityWindows,
         substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
         substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
@@ -746,6 +767,140 @@ export class ObjectOperationsService {
     return { success: true };
   }
 
+  async updateEmployeeRatePolicy(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    employeeId: string,
+    payload: UpdateObjectEmployeeRatePolicyDto,
+  ): Promise<ObjectEmployeeOptionDto> {
+    await this.assertRatePolicyWritable(currentUser);
+
+    const assignment = await this.prisma.objectEmployeeAssignment.findFirst({
+      where: {
+        objectId,
+        employeeId,
+        isActive: true,
+      },
+      include: {
+        employee: {
+          include: {
+            availabilityWindows: {
+              where: this.buildAvailabilityOverlapWhere(
+                this.getBusinessDayRange(startOfToday()),
+              ),
+              orderBy: {
+                startDate: 'asc',
+              },
+            },
+            substitutionsAsPrimary: {
+              where: this.buildActiveObjectSubstitutionWhere(
+                objectId,
+                this.getBusinessDayRange(startOfToday()),
+              ),
+              include: {
+                substituteEmployee: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                  },
+                },
+              },
+            },
+            substitutionsAsReplacement: {
+              where: this.buildActiveObjectSubstitutionWhere(
+                objectId,
+                this.getBusinessDayRange(startOfToday()),
+              ),
+              include: {
+                employee: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      throw new NotFoundException('Object employee assignment not found');
+    }
+
+    const updated = await this.prisma.objectEmployeeAssignment.update({
+      where: {
+        id: assignment.id,
+      },
+      data: {
+        ratePolicyType: payload.ratePolicyType,
+        ratePolicyBaseAmount: payload.baseAmount,
+        ratePolicyScheduleCode: payload.scheduleCode ?? null,
+        ratePolicyRoundingMode: payload.roundingMode ?? 'none',
+        ratePolicyRoundingStep: payload.roundingStep ?? null,
+        ratePolicyStandardShiftHours: payload.standardShiftHours ?? null,
+        ratePolicyWorkingDaysInMonth: payload.workingDaysInMonth ?? null,
+        ratePolicyExcludedHolidayDays: payload.excludedHolidayDays ?? null,
+        ratePolicyNotes: payload.notes?.trim() || null,
+        ratePolicyUpdatedByUserId: currentUser.id,
+        ratePolicyUpdatedAt: new Date(),
+      },
+      include: {
+        employee: {
+          include: {
+            availabilityWindows: {
+              where: this.buildAvailabilityOverlapWhere(
+                this.getBusinessDayRange(startOfToday()),
+              ),
+              orderBy: {
+                startDate: 'asc',
+              },
+            },
+            substitutionsAsPrimary: {
+              where: this.buildActiveObjectSubstitutionWhere(
+                objectId,
+                this.getBusinessDayRange(startOfToday()),
+              ),
+              include: {
+                substituteEmployee: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                  },
+                },
+              },
+            },
+            substitutionsAsReplacement: {
+              where: this.buildActiveObjectSubstitutionWhere(
+                objectId,
+                this.getBusinessDayRange(startOfToday()),
+              ),
+              include: {
+                employee: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return this.mapObjectEmployeeOption({
+      employeeId: updated.employee.id,
+      fullName: updated.employee.fullName,
+      isAssignedToObject: true,
+      ratePolicy: updated,
+      availabilityWindows: updated.employee.availabilityWindows,
+      substitutionsAsPrimary: updated.employee.substitutionsAsPrimary,
+      substitutionsAsReplacement: updated.employee.substitutionsAsReplacement,
+    });
+  }
+
   async getTodayAttendance(
     currentUser: CurrentAuthUser,
     objectId: string,
@@ -798,10 +953,14 @@ export class ObjectOperationsService {
     }
 
     const normalizedDate = this.parseBusinessDate(payload.operationDate);
-    const selectedEmployeeIds = new Set(payload.employeeIds);
+    const workedHoursByEmployeeId = new Map(
+      (payload.employeeFacts ?? []).map((item) => [
+        item.employeeId,
+        item.workedHours ?? null,
+      ]),
+    );
     const targetYear = normalizedDate.getFullYear();
     const targetMonth = normalizedDate.getMonth() + 1;
-    const dayOfMonth = normalizedDate.getDate();
     const dayRange = this.getBusinessDayRange(normalizedDate);
 
     const [existingFacts, activeSubstitutions, unavailableEmployees] =
@@ -935,13 +1094,38 @@ export class ObjectOperationsService {
 
       if (payload.employeeIds.length > 0) {
         await tx.objectAttendanceFact.createMany({
-          data: payload.employeeIds.map((employeeId) => ({
-            objectId,
-            employeeId,
-            operationDate: normalizedDate,
-            dailyRateSnapshot: object.dailyRate,
-            createdByUserId: currentUser.id,
-          })),
+          data: payload.employeeIds.map((employeeId) => {
+            const assignment = object.employeeAssignments.find(
+              (item) => item.employeeId === employeeId,
+            );
+            const ratePolicy = normalizeRatePolicy(
+              assignment,
+              object.dailyRate,
+            );
+            const workedHours = workedHoursByEmployeeId.get(employeeId) ?? null;
+            const dailyRateSnapshot =
+              ratePolicy.ratePolicyType === 'partial_shift'
+                ? Math.round(
+                    ratePolicy.baseAmount *
+                      (workedHours ?? ratePolicy.standardShiftHours) /
+                      ratePolicy.standardShiftHours,
+                  )
+                : ratePolicy.baseAmount;
+
+            return {
+              objectId,
+              employeeId,
+              operationDate: normalizedDate,
+              dailyRateSnapshot,
+              workedHours,
+              ratePolicySnapshot: ratePolicy as unknown as Prisma.InputJsonObject,
+              calculationExplanation:
+                ratePolicy.ratePolicyType === 'partial_shift'
+                  ? `${ratePolicy.baseAmount} * ${workedHours ?? ratePolicy.standardShiftHours} / ${ratePolicy.standardShiftHours}`
+                  : null,
+              createdByUserId: currentUser.id,
+            };
+          }),
         });
       }
 
@@ -964,7 +1148,7 @@ export class ObjectOperationsService {
       });
 
       for (const [employeeId, employeeFullName] of timesheetEmployees.entries()) {
-        const row = await tx.timesheetEmployeeRow.upsert({
+        await tx.timesheetEmployeeRow.upsert({
           where: {
             timesheetMonthId_employeeId: {
               timesheetMonthId: monthContainer.id,
@@ -980,50 +1164,6 @@ export class ObjectOperationsService {
             employeeNameSnapshot: employeeFullName,
           },
         });
-
-        const existingEntry = await tx.timesheetDayEntry.findUnique({
-          where: {
-            rowId_dayOfMonth: {
-              rowId: row.id,
-              dayOfMonth,
-            },
-          },
-        });
-
-        if (selectedEmployeeIds.has(employeeId)) {
-          await tx.timesheetDayEntry.upsert({
-            where: {
-              rowId_dayOfMonth: {
-                rowId: row.id,
-                dayOfMonth,
-              },
-            },
-            update: {
-              dayValue: existingEntry?.isChangedManually
-                ? existingEntry.dayValue
-                : object.dailyRate,
-              updatedByUserId: currentUser.id,
-            },
-            create: {
-              rowId: row.id,
-              dayOfMonth,
-              dayValue: object.dailyRate,
-              isChangedManually: false,
-              createdByUserId: currentUser.id,
-              updatedByUserId: currentUser.id,
-            },
-          });
-
-          continue;
-        }
-
-        if (existingEntry && !existingEntry.isChangedManually) {
-          await tx.timesheetDayEntry.delete({
-            where: {
-              id: existingEntry.id,
-            },
-          });
-        }
       }
     });
 
@@ -1130,12 +1270,13 @@ export class ObjectOperationsService {
       mapped.set(
         item.employee.id,
         this.mapObjectEmployeeOption({
-          employeeId: item.employee.id,
-          fullName: item.employee.fullName,
-          isAssignedToObject: true,
-          availabilityWindows: item.employee.availabilityWindows,
-          substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
-          substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
+        employeeId: item.employee.id,
+        fullName: item.employee.fullName,
+        isAssignedToObject: true,
+        ratePolicy: item,
+        availabilityWindows: item.employee.availabilityWindows,
+        substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
+        substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
         }),
       );
     }
@@ -1262,6 +1403,22 @@ export class ObjectOperationsService {
     employeeId: string;
     fullName: string;
     isAssignedToObject: boolean;
+    ratePolicy?: {
+      ratePolicyType: string | null;
+      ratePolicyBaseAmount: number | null;
+      ratePolicyScheduleCode: string | null;
+      ratePolicyRoundingMode: string | null;
+      ratePolicyRoundingStep: number | null;
+      ratePolicyStandardShiftHours: number | null;
+      ratePolicyWorkingDaysInMonth: number | null;
+      ratePolicyExcludedHolidayDays: number | null;
+      ratePolicyNotes: string | null;
+      ratePolicyUpdatedAt: Date | null;
+      employee?: {
+        baseDailyRate: number | null;
+      };
+    } | null;
+    ratePolicyFallbackAmount?: number;
     availabilityWindows: Array<{
       id: string;
       startDate: Date;
@@ -1322,11 +1479,26 @@ export class ObjectOperationsService {
         comment: item.comment,
       })),
     ].sort((left, right) => (left.startDate < right.startDate ? 1 : -1));
+    const ratePolicy = params.ratePolicy
+      ? normalizeRatePolicy(
+          params.ratePolicy,
+          params.ratePolicyFallbackAmount ??
+            params.ratePolicy.employee?.baseDailyRate ??
+            0,
+        )
+      : null;
 
     return {
       id: params.employeeId,
       fullName: params.fullName,
       isAssignedToObject: params.isAssignedToObject,
+      ratePolicy: ratePolicy
+        ? {
+            ...ratePolicy,
+            label: getRatePolicyLabel(ratePolicy),
+            updatedAt: params.ratePolicy?.ratePolicyUpdatedAt?.toISOString() ?? null,
+          }
+        : null,
       availability:
         activeAvailability ?? {
           isUnavailable: false,
@@ -1383,6 +1555,14 @@ export class ObjectOperationsService {
     objectId: string,
   ): Promise<void> {
     await this.assertObjectVisible(currentUser, objectId);
+  }
+
+  private async assertRatePolicyWritable(
+    currentUser: CurrentAuthUser,
+  ): Promise<void> {
+    if (!canEditObjectDailyRate(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('Timesheet rate policy edit denied');
+    }
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

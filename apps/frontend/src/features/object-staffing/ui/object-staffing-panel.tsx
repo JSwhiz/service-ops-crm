@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
+import type { UpdateObjectEmployeeRatePolicyPayload } from '@/entities/object/api/object-operations-client';
 
 interface ObjectStaffingPanelProps {
   assignedEmployees: ObjectEmployeeOption[];
@@ -13,6 +14,50 @@ interface ObjectStaffingPanelProps {
   onSearchChange: (value: string) => void;
   onAdd: (employeeId: string) => Promise<void>;
   onRemove: (employeeId: string) => Promise<void>;
+  canManageRatePolicy?: boolean;
+  onUpdateRatePolicy?: (
+    employeeId: string,
+    payload: UpdateObjectEmployeeRatePolicyPayload,
+  ) => Promise<void>;
+}
+
+const RATE_POLICY_OPTIONS = [
+  ['daily_rate', 'Дневная ставка'],
+  ['per_attendance', 'За выход'],
+  ['monthly_fixed', 'Оклад по графику'],
+  ['monthly_excluding_holidays', 'Оклад без праздников'],
+  ['shift_2_2_fixed', '2/2 фикс'],
+  ['shift_2_2_by_actual_shifts', '2/2 по сменам'],
+  ['partial_shift', 'Частичная смена'],
+  ['agreed_substitution_rate', 'Подмена по договоренности'],
+] as const;
+
+const SCHEDULE_OPTIONS = ['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'];
+
+function buildInitialRateForm(employee: ObjectEmployeeOption): {
+  ratePolicyType: string;
+  baseAmount: string;
+  scheduleCode: string;
+  roundingMode: string;
+  roundingStep: string;
+  standardShiftHours: string;
+  workingDaysInMonth: string;
+  excludedHolidayDays: string;
+  notes: string;
+} {
+  const policy = employee.ratePolicy;
+
+  return {
+    ratePolicyType: policy?.ratePolicyType ?? 'daily_rate',
+    baseAmount: String(policy?.baseAmount ?? 0),
+    scheduleCode: policy?.scheduleCode ?? '5/2',
+    roundingMode: policy?.roundingMode ?? 'none',
+    roundingStep: String(policy?.roundingStep ?? 50),
+    standardShiftHours: String(policy?.standardShiftHours ?? 8),
+    workingDaysInMonth: String(policy?.workingDaysInMonth ?? ''),
+    excludedHolidayDays: String(policy?.excludedHolidayDays ?? 0),
+    notes: policy?.notes ?? '',
+  };
 }
 
 export function ObjectStaffingPanel({
@@ -24,7 +69,31 @@ export function ObjectStaffingPanel({
   onSearchChange,
   onAdd,
   onRemove,
+  canManageRatePolicy = false,
+  onUpdateRatePolicy,
 }: ObjectStaffingPanelProps): React.JSX.Element {
+  const [editingRateEmployee, setEditingRateEmployee] =
+    useState<ObjectEmployeeOption | null>(null);
+  const [rateForm, setRateForm] = useState(
+    editingRateEmployee
+      ? buildInitialRateForm(editingRateEmployee)
+      : buildInitialRateForm({
+          id: '',
+          fullName: '',
+          isAssignedToObject: false,
+          ratePolicy: null,
+          availability: {
+            isUnavailable: false,
+            availabilityMode: null,
+            startDate: null,
+            endDate: null,
+            comment: null,
+          },
+          activeSubstitutions: [],
+        }),
+  );
+  const [isSavingRate, setIsSavingRate] = useState(false);
+  const [rateError, setRateError] = useState<string | null>(null);
   const assigned = assignedEmployees ?? [];
   const directory = directoryEmployees ?? [];
   const assignedIds = new Set(assigned.map((employee) => employee.id));
@@ -69,6 +138,54 @@ export function ObjectStaffingPanel({
     return employee.availability.comment
       ? `${modeLabel}. ${periodLabel}. Причина: ${employee.availability.comment}`
       : `${modeLabel}. ${periodLabel}.`;
+  };
+
+  useEffect(() => {
+    if (!editingRateEmployee) {
+      return;
+    }
+
+    setRateForm(buildInitialRateForm(editingRateEmployee));
+    setRateError(null);
+  }, [editingRateEmployee]);
+
+  const submitRatePolicy = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
+    event.preventDefault();
+
+    if (!editingRateEmployee || !onUpdateRatePolicy) {
+      return;
+    }
+
+    setIsSavingRate(true);
+    setRateError(null);
+
+    try {
+      await onUpdateRatePolicy(editingRateEmployee.id, {
+        ratePolicyType: rateForm.ratePolicyType,
+        baseAmount: Number(rateForm.baseAmount) || 0,
+        scheduleCode: rateForm.scheduleCode || undefined,
+        roundingMode: rateForm.roundingMode,
+        roundingStep:
+          rateForm.roundingMode === 'nearest_step'
+            ? Number(rateForm.roundingStep) || 50
+            : undefined,
+        standardShiftHours: Number(rateForm.standardShiftHours) || 8,
+        workingDaysInMonth: rateForm.workingDaysInMonth
+          ? Number(rateForm.workingDaysInMonth)
+          : undefined,
+        excludedHolidayDays: rateForm.excludedHolidayDays
+          ? Number(rateForm.excludedHolidayDays)
+          : undefined,
+        notes: rateForm.notes,
+      });
+      setEditingRateEmployee(null);
+    } catch {
+      setRateError('Не удалось сохранить расчетную политику.');
+    } finally {
+      setIsSavingRate(false);
+    }
   };
 
   return (
@@ -141,6 +258,20 @@ export function ObjectStaffingPanel({
                       </span>
                     ))}
                 </div>
+                <div className="rate-policy-line">
+                  <span>
+                    {employee.ratePolicy?.label ?? 'Дневная ставка объекта'}
+                  </span>
+                  {canManageRatePolicy && onUpdateRatePolicy ? (
+                    <button
+                      type="button"
+                      className="quiet-button"
+                      onClick={() => setEditingRateEmployee(employee)}
+                    >
+                      Настроить расчет
+                    </button>
+                  ) : null}
+                </div>
                 {employee.availability.isUnavailable ? (
                   <div style={{ color: '#b45309', fontSize: 13 }}>
                     {getAvailabilityExplanation(employee)}
@@ -155,6 +286,208 @@ export function ObjectStaffingPanel({
           ))}
         </div>
       )}
+
+      {editingRateEmployee ? (
+        <div
+          className="chat-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setEditingRateEmployee(null);
+            }
+          }}
+        >
+          <form className="chat-modal chat-modal--wide" onSubmit={submitRatePolicy}>
+            <div className="section-header">
+              <div>
+                <div className="section-title">Настроить расчет</div>
+                <div className="section-subtitle">
+                  {editingRateEmployee.fullName} · ставка хранится на назначении
+                  сотрудника к объекту.
+                </div>
+              </div>
+              <button type="button" onClick={() => setEditingRateEmployee(null)}>
+                Закрыть
+              </button>
+            </div>
+
+            <div className="rate-policy-form-grid">
+              <label>
+                <span>Тип расчета</span>
+                <select
+                  value={rateForm.ratePolicyType}
+                  onChange={(event) =>
+                    setRateForm((current) => ({
+                      ...current,
+                      ratePolicyType: event.target.value,
+                    }))
+                  }
+                >
+                  {RATE_POLICY_OPTIONS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Сумма / ставка</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={rateForm.baseAmount}
+                  onChange={(event) =>
+                    setRateForm((current) => ({
+                      ...current,
+                      baseAmount: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+
+              {['monthly_fixed'].includes(rateForm.ratePolicyType) ? (
+                <label>
+                  <span>График</span>
+                  <select
+                    value={rateForm.scheduleCode}
+                    onChange={(event) =>
+                      setRateForm((current) => ({
+                        ...current,
+                        scheduleCode: event.target.value,
+                      }))
+                    }
+                  >
+                    {SCHEDULE_OPTIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              {rateForm.ratePolicyType === 'monthly_excluding_holidays' ? (
+                <>
+                  <label>
+                    <span>Рабочих дней</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={rateForm.workingDaysInMonth}
+                      onChange={(event) =>
+                        setRateForm((current) => ({
+                          ...current,
+                          workingDaysInMonth: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>Праздничных дней</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="31"
+                      value={rateForm.excludedHolidayDays}
+                      onChange={(event) =>
+                        setRateForm((current) => ({
+                          ...current,
+                          excludedHolidayDays: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </>
+              ) : null}
+
+              {rateForm.ratePolicyType === 'shift_2_2_by_actual_shifts' ? (
+                <>
+                  <label>
+                    <span>Округление</span>
+                    <select
+                      value={rateForm.roundingMode}
+                      onChange={(event) =>
+                        setRateForm((current) => ({
+                          ...current,
+                          roundingMode: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="none">Без шага</option>
+                      <option value="nearest_step">До шага</option>
+                    </select>
+                  </label>
+                  {rateForm.roundingMode === 'nearest_step' ? (
+                    <label>
+                      <span>Шаг</span>
+                      <select
+                        value={rateForm.roundingStep}
+                        onChange={(event) =>
+                          setRateForm((current) => ({
+                            ...current,
+                            roundingStep: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
+                    </label>
+                  ) : null}
+                </>
+              ) : null}
+
+              {rateForm.ratePolicyType === 'partial_shift' ? (
+                <label>
+                  <span>Стандартные часы смены</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="24"
+                    step="0.5"
+                    value={rateForm.standardShiftHours}
+                    onChange={(event) =>
+                      setRateForm((current) => ({
+                        ...current,
+                        standardShiftHours: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ) : null}
+
+              {rateForm.ratePolicyType === 'agreed_substitution_rate' ? (
+                <label style={{ gridColumn: '1 / -1' }}>
+                  <span>Основание договорной ставки</span>
+                  <textarea
+                    value={rateForm.notes}
+                    onChange={(event) =>
+                      setRateForm((current) => ({
+                        ...current,
+                        notes: event.target.value,
+                      }))
+                    }
+                    rows={3}
+                  />
+                </label>
+              ) : null}
+            </div>
+
+            {rateError ? <div style={{ color: '#b91c1c' }}>{rateError}</div> : null}
+
+            <div className="action-row">
+              <button type="submit" disabled={isSavingRate}>
+                {isSavingRate ? 'Сохраняем...' : 'Сохранить расчет'}
+              </button>
+              <button type="button" onClick={() => setEditingRateEmployee(null)}>
+                Отмена
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Подмены на сегодня</div>
 

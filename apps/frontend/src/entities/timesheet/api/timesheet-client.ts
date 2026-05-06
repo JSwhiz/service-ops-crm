@@ -1,5 +1,6 @@
 import { fetcher } from '@/shared/api/fetcher';
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
+import { appConfig } from '@/shared/config/app-config';
 
 import type {
   TimesheetCorrectionItem,
@@ -69,4 +70,29 @@ export async function requestTimesheetManualException(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function downloadTimesheetExcel(params: {
+  objectId: string;
+  year: number;
+  month: number;
+}): Promise<Blob> {
+  const query = new URLSearchParams({
+    objectId: params.objectId,
+    year: String(params.year),
+    month: String(params.month),
+  });
+  const response = await fetch(
+    `${appConfig.apiUrl}/timesheets/export?${query.toString()}`,
+    {
+      method: 'GET',
+      credentials: 'include',
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`GET /timesheets/export failed with status ${response.status}`);
+  }
+
+  return response.blob();
 }

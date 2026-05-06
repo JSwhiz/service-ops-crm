@@ -16,74 +16,62 @@ export function AttachmentPreviewList({
     return <div className="page-muted">{emptyText}</div>;
   }
 
+  const imageFiles = files.filter((file) => file.mimeType.startsWith('image/'));
+  const regularFiles = files.filter((file) => !file.mimeType.startsWith('image/'));
+
   return (
-    <div
-      style={{
-        display: 'grid',
-        gap: 12,
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-      }}
-    >
-      {files.map((file) => {
-        const url = buildFileDownloadUrl(file.id);
-        const isImage = file.mimeType.startsWith('image/');
+    <div className="attachment-preview-stack">
+      {imageFiles.length > 0 ? (
+        <div
+          className={`attachment-image-grid attachment-image-grid--${Math.min(
+            imageFiles.length,
+            4,
+          )}`}
+        >
+          {imageFiles.map((file) => {
+            const url = buildFileDownloadUrl(file.id);
 
-        return (
-          <a
-            key={file.id}
-            href={url}
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              border: '1px solid #e5e7eb',
-              borderRadius: 12,
-              padding: 10,
-              color: 'inherit',
-              textDecoration: 'none',
-              display: 'grid',
-              gap: 8,
-            }}
-          >
-            {isImage ? (
-              <img
-                src={url}
-                alt={file.originalName}
-                style={{
-                  width: '100%',
-                  height: 140,
-                  objectFit: 'cover',
-                  borderRadius: 8,
-                  background: '#f3f4f6',
-                }}
-              />
-            ) : (
-              <div
-                style={{
-                  minHeight: 140,
-                  display: 'grid',
-                  placeItems: 'center',
-                  borderRadius: 8,
-                  background: '#f3f4f6',
-                  color: '#6b7280',
-                  textAlign: 'center',
-                  padding: 12,
-                }}
+            return (
+              <a
+                key={file.id}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="attachment-image-card"
               >
-                Файл
-              </div>
-            )}
+                <img src={url} alt={file.originalName} />
+                <span>{file.originalName}</span>
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
 
-            <div>
-              <div style={{ fontWeight: 600, wordBreak: 'break-word' }}>
-                {file.originalName}
-              </div>
-              <div className="page-muted">
-                {(file.sizeBytes / 1024).toFixed(1)} КБ
-              </div>
-            </div>
-          </a>
-        );
-      })}
+      {regularFiles.length > 0 ? (
+        <div className="attachment-file-list">
+          {regularFiles.map((file) => {
+            const url = buildFileDownloadUrl(file.id);
+
+            return (
+              <a
+                key={file.id}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="attachment-file-card"
+              >
+                <span className="attachment-file-card__icon">FILE</span>
+                <span className="attachment-file-card__body">
+                  <strong>{file.originalName}</strong>
+                  <span>
+                    {file.mimeType} · {(file.sizeBytes / 1024).toFixed(1)} КБ
+                  </span>
+                </span>
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

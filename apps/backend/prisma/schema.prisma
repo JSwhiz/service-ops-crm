@@ -454,6 +454,17 @@ model ObjectEmployeeAssignment {
   isActive    Boolean  @default(true)
   startDate   DateTime?
   endDate     DateTime?
+  ratePolicyType String @default("daily_rate")
+  ratePolicyBaseAmount Int?
+  ratePolicyScheduleCode String?
+  ratePolicyRoundingMode String?
+  ratePolicyRoundingStep Int?
+  ratePolicyStandardShiftHours Float?
+  ratePolicyWorkingDaysInMonth Int?
+  ratePolicyExcludedHolidayDays Int?
+  ratePolicyNotes String?
+  ratePolicyUpdatedByUserId String?
+  ratePolicyUpdatedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -941,8 +952,14 @@ model TimesheetDayEntry {
   rowId              String
   dayOfMonth         Int
   dayValue           Int      @default(0)
+  autoValue          Int      @default(0)
+  manualValue        Int?
+  difference         Int      @default(0)
   comment            String?
   isChangedManually  Boolean  @default(false)
+  workedHours        Float?
+  ratePolicySnapshot Json?
+  calculationExplanation String?
   createdByUserId    String?
   updatedByUserId    String?
   createdAt          DateTime @default(now())
@@ -1049,6 +1066,9 @@ model ObjectAttendanceFact {
   employeeId      String
   operationDate   DateTime
   dailyRateSnapshot Int
+  workedHours     Float?
+  ratePolicySnapshot Json?
+  calculationExplanation String?
   createdByUserId String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

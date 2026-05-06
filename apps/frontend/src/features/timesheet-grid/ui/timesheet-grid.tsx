@@ -25,24 +25,37 @@ function getCellTitle(params: {
   isChangedManually: boolean;
   hasFact: boolean;
   comment: string | null;
+  autoValue: number;
+  finalValue: number;
+  difference: number;
+  calculationExplanation: string | null;
 }): string | undefined {
+  const base = [
+    `Auto: ${params.autoValue}`,
+    `Final: ${params.finalValue}`,
+    params.difference !== 0 ? `Отклонение: ${params.difference}` : null,
+    params.calculationExplanation,
+  ]
+    .filter(Boolean)
+    .join('. ');
+
   if (params.isChangedManually && params.hasFact && params.comment) {
-    return `Ручная корректировка поверх attendance. Комментарий: ${params.comment}`;
+    return `Ручная корректировка поверх attendance. Комментарий: ${params.comment}. ${base}`;
   }
 
   if (params.isChangedManually && params.comment) {
-    return `Ручная корректировка. Комментарий: ${params.comment}`;
+    return `Ручная корректировка. Комментарий: ${params.comment}. ${base}`;
   }
 
   if (params.isChangedManually) {
-    return 'Ручная корректировка';
+    return `Ручная корректировка. ${base}`;
   }
 
   if (params.hasFact) {
-    return 'Есть факт присутствия';
+    return `Есть факт присутствия. ${base}`;
   }
 
-  return undefined;
+  return base || undefined;
 }
 
 export function TimesheetGrid({
@@ -135,6 +148,10 @@ export function TimesheetGrid({
                       isChangedManually: entry.isChangedManually,
                       hasFact: entry.hasFact,
                       comment: entry.comment,
+                      autoValue: entry.autoValue,
+                      finalValue: entry.finalValue,
+                      difference: entry.difference,
+                      calculationExplanation: entry.calculationExplanation,
                     });
 
                     return (
@@ -206,9 +223,7 @@ export function TimesheetGrid({
                               return;
                             }
 
-                            const expectedAutoValue = entry.hasFact
-                              ? timesheet.objectDailyRate
-                              : 0;
+                            const expectedAutoValue = entry.autoValue;
 
                             let comment: string | undefined;
 
@@ -268,6 +283,11 @@ export function TimesheetGrid({
                           }}
                           className="timesheet-table__input"
                         />
+                        {entry.autoValue !== entry.finalValue ? (
+                          <span className="timesheet-table__auto-value">
+                            auto {entry.autoValue}
+                          </span>
+                        ) : null}
                       </td>
                     );
                   })}

@@ -11,6 +11,10 @@ interface ObjectAttendancePanelProps {
   onSave: (payload: {
     operationDate: string;
     employeeIds: string[];
+    employeeFacts?: Array<{
+      employeeId: string;
+      workedHours?: number;
+    }>;
   }) => Promise<void>;
 }
 
@@ -21,11 +25,21 @@ export function ObjectAttendancePanel({
   onSave,
 }: ObjectAttendancePanelProps): React.JSX.Element {
   const [selectedIds, setSelectedIds] = useState<string[]>(initialEmployeeIds);
+  const [workedHoursById, setWorkedHoursById] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedIds(initialEmployeeIds);
+    setWorkedHoursById((current) => {
+      const next = { ...current };
+
+      for (const employeeId of initialEmployeeIds) {
+        next[employeeId] = next[employeeId] ?? '8';
+      }
+
+      return next;
+    });
   }, [initialEmployeeIds, operationDate]);
 
   const safeEmployees = useMemo(() => employees ?? [], [employees]);
@@ -52,11 +66,17 @@ export function ObjectAttendancePanel({
   };
 
   const toggleEmployee = (employeeId: string): void => {
-    setSelectedIds((prev) =>
-      prev.includes(employeeId)
-        ? prev.filter((id) => id !== employeeId)
-        : [...prev, employeeId],
-    );
+    setSelectedIds((prev) => {
+      if (prev.includes(employeeId)) {
+        return prev.filter((id) => id !== employeeId);
+      }
+
+      setWorkedHoursById((current) => ({
+        ...current,
+        [employeeId]: current[employeeId] ?? '8',
+      }));
+      return [...prev, employeeId];
+    });
   };
 
   const handleSubmit = async (
@@ -70,6 +90,10 @@ export function ObjectAttendancePanel({
       await onSave({
         operationDate,
         employeeIds: selectedIds,
+        employeeFacts: selectedIds.map((employeeId) => ({
+          employeeId,
+          workedHours: Number(workedHoursById[employeeId] || '8') || 8,
+        })),
       });
     } catch (caughtError) {
       if (caughtError instanceof Error && caughtError.message) {
@@ -154,6 +178,24 @@ export function ObjectAttendancePanel({
                     <div style={{ color: '#b45309', fontSize: 13 }}>
                       {getAvailabilityExplanation(employee)}
                     </div>
+                  ) : null}
+                  {selectedIds.includes(employee.id) ? (
+                    <label className="attendance-hours-control">
+                      <span>Часы</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="24"
+                        step="0.5"
+                        value={workedHoursById[employee.id] ?? '8'}
+                        onChange={(event) =>
+                          setWorkedHoursById((current) => ({
+                            ...current,
+                            [employee.id]: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
                   ) : null}
                 </div>
               </label>

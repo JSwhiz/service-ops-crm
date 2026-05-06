@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Res,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
+import type { Response } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -32,6 +42,26 @@ export class TimesheetsController {
     @Query() query: GetTimesheetQueryDto,
   ): Promise<TimesheetResponseDto> {
     return this.timesheetsService.getTimesheet(user, query);
+  }
+
+  @Get('export')
+  async exportTimesheet(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: GetTimesheetQueryDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const exportFile = await this.timesheetsService.exportTimesheet(user, query);
+
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${exportFile.fileName}"`,
+    );
+
+    return new StreamableFile(exportFile.buffer);
   }
 
   @Get('corrections')

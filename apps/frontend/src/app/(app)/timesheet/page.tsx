@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import {
+  downloadTimesheetExcel,
   getTimesheet,
   getTimesheetCorrections,
   requestTimesheetManualException,
@@ -49,6 +50,7 @@ export default function TimesheetPage(): React.JSX.Element {
   const [exceptionMessage, setExceptionMessage] = useState<string | null>(null);
   const [exceptionApprovalsHref, setExceptionApprovalsHref] = useState<string | null>(null);
   const [isSubmittingException, setIsSubmittingException] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   useEffect(() => {
     const loadObjects = async (): Promise<void> => {
@@ -129,11 +131,51 @@ export default function TimesheetPage(): React.JSX.Element {
         </div>
       ) : timesheet ? (
         <div style={{ display: 'grid', gap: 16 }}>
+          <div className="page-card timesheet-action-card">
+            <div>
+              <div className="section-title">Отчет табеля</div>
+              <div className="section-subtitle">
+                Excel содержит итог, авторасчет, отклонения и сводку.
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={isExportingExcel}
+              onClick={() => {
+                setIsExportingExcel(true);
+                void downloadTimesheetExcel({
+                  objectId: selectedObjectId,
+                  year: selectedYear,
+                  month: selectedMonth,
+                })
+                  .then((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `timesheet-${selectedYear}-${String(selectedMonth).padStart(2, '0')}.xlsx`;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  })
+                  .catch(() => {
+                    setLoadError('Не удалось выгрузить Excel.');
+                  })
+                  .finally(() => {
+                    setIsExportingExcel(false);
+                  });
+              }}
+            >
+              {isExportingExcel ? 'Готовим Excel...' : 'Выгрузить Excel'}
+            </button>
+          </div>
+
           {!timesheet.capabilities.canManualCorrection ? (
-            <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-              <div className="page-muted">
-                Прямая ручная корректировка табеля сейчас недоступна для вашей роли.
-                Для чувствительного изменения используйте exception request.
+            <div className="page-card timesheet-exception-card">
+              <div>
+                <div className="section-title">Запросить исключение табеля</div>
+                <div className="section-subtitle">
+                  Прямая ручная корректировка недоступна. Запрос уйдет в approvals
+                  и применится только после подтверждения.
+                </div>
               </div>
 
               {timesheet.rows.length > 0 ? (

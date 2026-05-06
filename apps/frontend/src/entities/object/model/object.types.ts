@@ -8,6 +8,19 @@ export interface ObjectEmployeeOption {
   id: string;
   fullName: string;
   isAssignedToObject: boolean;
+  ratePolicy: {
+    ratePolicyType: string;
+    baseAmount: number;
+    scheduleCode: string | null;
+    roundingMode: string;
+    roundingStep: number | null;
+    standardShiftHours: number;
+    workingDaysInMonth: number | null;
+    excludedHolidayDays: number | null;
+    notes: string | null;
+    label: string;
+    updatedAt: string | null;
+  } | null;
   availability: {
     isUnavailable: boolean;
     availabilityMode: string | null;

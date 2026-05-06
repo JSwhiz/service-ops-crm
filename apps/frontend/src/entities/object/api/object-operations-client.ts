@@ -33,6 +33,22 @@ export interface ObjectAttendanceToday {
 export interface UpsertObjectAttendancePayload {
   operationDate: string;
   employeeIds: string[];
+  employeeFacts?: Array<{
+    employeeId: string;
+    workedHours?: number;
+  }>;
+}
+
+export interface UpdateObjectEmployeeRatePolicyPayload {
+  ratePolicyType: string;
+  baseAmount: number;
+  scheduleCode?: string;
+  roundingMode?: string;
+  roundingStep?: number;
+  standardShiftHours?: number;
+  workingDaysInMonth?: number;
+  excludedHolidayDays?: number;
+  notes?: string;
 }
 
 export async function getTodayArrivalPhoto(
@@ -156,6 +172,20 @@ export async function removeEmployeeFromObject(
     `/objects/${objectId}/employees/${employeeId}`,
     {
       method: 'DELETE',
+    },
+  );
+}
+
+export async function updateObjectEmployeeRatePolicy(
+  objectId: string,
+  employeeId: string,
+  payload: UpdateObjectEmployeeRatePolicyPayload,
+): Promise<ObjectEmployeeOption> {
+  return fetcher<ObjectEmployeeOption>(
+    `/objects/${objectId}/employees/${employeeId}/rate-policy`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
     },
   );
 }

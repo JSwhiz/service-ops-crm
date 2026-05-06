@@ -21,8 +21,6 @@ import type {
   ChatRoomCode,
   ChatRoomParticipant,
 } from '@/entities/chat/model/chat.types';
-import { buildFileDownloadUrl } from '@/entities/file/api/file-client';
-import type { AttachedFile } from '@/entities/file/model/file.types';
 import { listChatParticipantCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
@@ -30,11 +28,14 @@ import {
   getUserDisplayName,
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
+import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
+import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 type RealtimePayload = {
   type?: string;
   roomId?: string;
+  payload?: unknown;
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -52,26 +53,6 @@ function formatDateTime(value: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-function resolveFileUrl(url: string, id: string): string {
-  if (url.startsWith('http')) {
-    return url;
-  }
-
-  return buildFileDownloadUrl(id);
-}
-
-function isImageAttachment(file: AttachedFile): boolean {
-  return file.mimeType.startsWith('image/');
-}
-
-function formatFileSize(sizeBytes: number): string {
-  if (sizeBytes < 1024 * 1024) {
-    return `${Math.max(1, Math.round(sizeBytes / 1024))} КБ`;
-  }
-
-  return `${(sizeBytes / 1024 / 1024).toFixed(1)} МБ`;
 }
 
 function getRoomTypeLabel(room: ChatRoom): string {
@@ -92,10 +73,6 @@ function getRoomTypeLabel(room: ChatRoom): string {
 
 function isAtBottom(element: HTMLDivElement): boolean {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 96;
-}
-
-function getPendingFileKey(file: File, index: number): string {
-  return `${file.name}-${file.size}-${file.lastModified}-${index}`;
 }
 
 function getParticipantRoleLabel(roleInRoom: string): string {
@@ -222,9 +199,6 @@ export default function ChatsPage(): React.JSX.Element {
     ChatRoomParticipant[]
   >([]);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
-  const [pendingImagePreviews, setPendingImagePreviews] = useState<
-    Array<{ key: string; url: string; name: string }>
-  >([]);
   const [error, setError] = useState<string | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -413,25 +387,6 @@ export default function ChatsPage(): React.JSX.Element {
   }, [activeRoomId, latestMessageId]);
 
   useEffect(() => {
-    const previews = files
-      .map((file, index) => ({ file, index }))
-      .filter(({ file }) => file.type.startsWith('image/'))
-      .map(({ file, index }) => ({
-        key: getPendingFileKey(file, index),
-        url: URL.createObjectURL(file),
-        name: file.name,
-      }));
-
-    setPendingImagePreviews(previews);
-
-    return () => {
-      for (const preview of previews) {
-        URL.revokeObjectURL(preview.url);
-      }
-    };
-  }, [files]);
-
-  useEffect(() => {
     const socket = new WebSocket(buildChatRealtimeUrl());
 
     socket.onmessage = (event) => {
@@ -442,7 +397,17 @@ export default function ChatsPage(): React.JSX.Element {
           return;
         }
 
-        void listChatRooms().then(setRooms).catch(() => undefined);
+        if (payload.type === 'chat.room_updated') {
+          void listChatRooms().then(setRooms).catch(() => undefined);
+          return;
+        }
+
+        if (
+          payload.type === 'chat.message_created' ||
+          payload.type === 'chat.message_updated'
+        ) {
+          void listChatRooms().then(setRooms).catch(() => undefined);
+        }
 
         if (payload.roomId && payload.roomId === activeRoomIdRef.current) {
           const shouldStickToBottom = messageListRef.current
@@ -450,7 +415,26 @@ export default function ChatsPage(): React.JSX.Element {
             : true;
           pendingScrollToBottomRef.current = shouldStickToBottom;
           setHasNewMessagesBelow(!shouldStickToBottom);
-          void loadMessages(payload.roomId).catch(() => undefined);
+
+          if (
+            (payload.type === 'chat.message_created' ||
+              payload.type === 'chat.message_updated') &&
+            payload.payload &&
+            typeof payload.payload === 'object'
+          ) {
+            const incomingMessage = payload.payload as ChatMessage;
+            setMessages((current) => {
+              const exists = current.some((message) => message.id === incomingMessage.id);
+
+              if (payload.type === 'chat.message_updated') {
+                return current.map((message) =>
+                  message.id === incomingMessage.id ? incomingMessage : message,
+                );
+              }
+
+              return exists ? current : [...current, incomingMessage];
+            });
+          }
         }
       } catch {
         // Ignore malformed realtime events.
@@ -475,15 +459,19 @@ export default function ChatsPage(): React.JSX.Element {
     setHasNewMessagesBelow(false);
 
     try {
-      await sendChatMessage({
+      const sentMessage = await sendChatMessage({
         roomId: activeRoomId,
         text,
         files,
       });
       setText('');
       setFiles([]);
-      await loadRooms();
-      await loadMessages(activeRoomId);
+      setMessages((current) =>
+        current.some((message) => message.id === sentMessage.id)
+          ? current
+          : [...current, sentMessage],
+      );
+      void loadRooms().catch(() => undefined);
       scrollMessagesToBottom('smooth');
     } catch (sendError) {
       setError(getErrorMessage(sendError, 'Не удалось отправить сообщение.'));
@@ -593,10 +581,6 @@ export default function ChatsPage(): React.JSX.Element {
   const layoutClassName = `chat-layout${
     isRoomListOpen ? ' chat-layout--room-list-open' : ''
   }`;
-  const pendingImagePreviewMap = new Map(
-    pendingImagePreviews.map((preview) => [preview.key, preview]),
-  );
-
   const selectRoom = (roomId: string): void => {
     setActiveRoomId(roomId);
     setIsRoomListOpen(false);
@@ -765,11 +749,6 @@ export default function ChatsPage(): React.JSX.Element {
                       messages.map((message) => {
                         const isOwn = message.author?.id === user?.id;
                         const isEditing = editingMessageId === message.id;
-                        const imageAttachments =
-                          message.attachments.filter(isImageAttachment);
-                        const fileAttachments = message.attachments.filter(
-                          (file) => !isImageAttachment(file),
-                        );
 
                         return (
                           <article
@@ -832,52 +811,11 @@ export default function ChatsPage(): React.JSX.Element {
                                     {message.text}
                                   </p>
                                 ) : null}
-                                {imageAttachments.length > 0 ? (
-                                  <div
-                                    className={`chat-image-grid chat-image-grid--${Math.min(
-                                      imageAttachments.length,
-                                      4,
-                                    )}`}
-                                  >
-                                    {imageAttachments.map((file) => (
-                                      <a
-                                        key={file.id}
-                                        href={resolveFileUrl(file.url, file.id)}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="chat-image-attachment"
-                                      >
-                                        <img
-                                          src={resolveFileUrl(file.url, file.id)}
-                                          alt={file.originalName}
-                                        />
-                                      </a>
-                                    ))}
-                                  </div>
-                                ) : null}
-                                {fileAttachments.length > 0 ? (
-                                  <div className="chat-file-list">
-                                    {fileAttachments.map((file) => (
-                                      <a
-                                        key={file.id}
-                                        href={resolveFileUrl(file.url, file.id)}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="chat-file-card"
-                                      >
-                                        <span className="chat-file-card__icon">
-                                          FILE
-                                        </span>
-                                        <span className="chat-file-card__body">
-                                          <strong>{file.originalName}</strong>
-                                          <span>
-                                            {file.mimeType} ·{' '}
-                                            {formatFileSize(file.sizeBytes)}
-                                          </span>
-                                        </span>
-                                      </a>
-                                    ))}
-                                  </div>
+                                {message.attachments.length > 0 ? (
+                                  <AttachmentPreviewList
+                                    files={message.attachments}
+                                    emptyText=""
+                                  />
                                 ) : null}
                                 {message.capabilities.canEdit ? (
                                   <button
@@ -922,39 +860,7 @@ export default function ChatsPage(): React.JSX.Element {
                   >
                     {files.length > 0 ? (
                       <div className="chat-pending-files">
-                        {files.map((file, index) => {
-                          const preview = pendingImagePreviewMap.get(
-                            getPendingFileKey(file, index),
-                          );
-
-                          return (
-                            <span
-                              key={getPendingFileKey(file, index)}
-                              className={`chat-pending-file${
-                                preview ? ' chat-pending-file--image' : ''
-                              }`}
-                            >
-                              {preview ? (
-                                <img src={preview.url} alt={preview.name} />
-                              ) : (
-                                <span className="chat-pending-file__icon">
-                                  FILE
-                                </span>
-                              )}
-                              <span className="chat-pending-file__body">
-                                <strong>{file.name}</strong>
-                                <span>{formatFileSize(file.size)}</span>
-                              </span>
-                              <button
-                                type="button"
-                                aria-label={`Убрать ${file.name}`}
-                                onClick={() => removePendingFile(index)}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          );
-                        })}
+                        <PendingMediaList files={files} onRemove={removePendingFile} />
                       </div>
                     ) : null}
                     <textarea

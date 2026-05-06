@@ -825,6 +825,170 @@ tbody tr:hover {
   appearance: textfield;
 }
 
+.timesheet-table__auto-value {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.timesheet-action-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.timesheet-exception-card {
+  display: grid;
+  gap: 14px;
+  border-color: #bfdbfe;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.rate-policy-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.rate-policy-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.rate-policy-form-grid label,
+.attendance-hours-control {
+  display: grid;
+  gap: 6px;
+}
+
+.attendance-hours-control {
+  max-width: 130px;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.attachment-preview-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.attachment-image-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.attachment-image-grid--1 {
+  grid-template-columns: minmax(180px, 320px);
+}
+
+.attachment-image-card {
+  position: relative;
+  display: block;
+  min-height: 130px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #ffffff;
+  box-shadow: var(--shadow-sm);
+}
+
+.attachment-image-card img {
+  width: 100%;
+  height: 180px;
+  display: block;
+  object-fit: cover;
+}
+
+.attachment-image-card span {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.62);
+  padding: 4px 8px;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-file-list,
+.pending-media-list {
+  display: grid;
+  gap: 8px;
+}
+
+.attachment-file-card,
+.pending-media-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: #ffffff;
+  padding: 10px;
+  color: inherit;
+}
+
+.attachment-file-card__icon,
+.pending-media-item__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.attachment-file-card__body,
+.pending-media-item__body {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.attachment-file-card__body strong,
+.pending-media-item__body strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-file-card__body span,
+.pending-media-item__body span {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.pending-media-item img {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #f1f5f9;
+}
+
+.pending-media-item button {
+  margin-left: auto;
+}
+
 @media (max-width: 900px) {
   .timesheet-card {
     padding: 12px;
@@ -832,6 +996,11 @@ tbody tr:hover {
 
   .timesheet-table {
     min-width: 1200px;
+  }
+
+  .timesheet-action-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

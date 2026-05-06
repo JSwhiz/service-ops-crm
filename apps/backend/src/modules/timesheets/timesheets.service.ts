@@ -21,10 +21,23 @@ import { ListTimesheetCorrectionsQueryDto } from './dto/list-timesheet-correctio
 import { TimesheetCorrectionItemDto } from './dto/timesheet-correction-item.dto';
 import { TimesheetResponseDto } from './dto/timesheet-response.dto';
 import { UpsertTimesheetEntryDto } from './dto/upsert-timesheet-entry.dto';
+import type { TimesheetRatePolicySnapshot } from './types/timesheet-rate-policy.type';
 import {
   canManuallyCorrectTimesheet,
   hasWideTimesheetAccess,
 } from './utils/timesheet-access.util';
+import {
+  calculateTimesheetAutoValues,
+  getRatePolicyLabel,
+  normalizeRatePolicy,
+  parseRatePolicySnapshot,
+} from './utils/timesheet-rate-policy.util';
+import type {
+  CalculatedTimesheetDay,
+  RatePolicyRecord,
+} from './utils/timesheet-rate-policy.util';
+import { createSimpleXlsxWorkbook } from './utils/simple-xlsx.util';
+import type { XlsxCell } from './utils/simple-xlsx.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -81,6 +94,14 @@ export class TimesheetsService {
       },
       include: {
         entries: {
+          include: {
+            updatedBy: {
+              select: {
+                id: true,
+                fullName: true,
+              },
+            },
+          },
           orderBy: {
             dayOfMonth: 'asc',
           },
@@ -99,6 +120,9 @@ export class TimesheetsService {
       select: {
         employeeId: true,
         operationDate: true,
+        dailyRateSnapshot: true,
+        workedHours: true,
+        ratePolicySnapshot: true,
       },
     });
 
@@ -108,6 +132,12 @@ export class TimesheetsService {
         return `${fact.employeeId}:${day}`;
       }),
     );
+    const factsByEmployeeId = this.groupAttendanceFactsByEmployee(monthFacts);
+    const policyByEmployeeId = await this.loadRatePoliciesByEmployeeId({
+      objectId: query.objectId,
+      employeeIds: rows.map((row) => row.employeeId),
+      objectDailyRate: object.dailyRate,
+    });
 
     const daysInSelectedMonth = this.getDaysInMonth(query.year, query.month);
 
@@ -115,19 +145,55 @@ export class TimesheetsService {
       const entriesByDay = new Map(
         row.entries.map((entry) => [entry.dayOfMonth, entry]),
       );
+      const ratePolicy =
+        policyByEmployeeId.get(row.employeeId) ??
+        normalizeRatePolicy(null, object.dailyRate);
+      const autoValues = calculateTimesheetAutoValues({
+        year: query.year,
+        month: query.month,
+        daysInMonth: daysInSelectedMonth,
+        policy: ratePolicy,
+        facts: factsByEmployeeId.get(row.employeeId) ?? [],
+      });
 
       const fullEntries = Array.from(
         { length: daysInSelectedMonth },
         (_, index) => {
           const dayOfMonth = index + 1;
           const existing = entriesByDay.get(dayOfMonth);
+          const calculated = autoValues.get(dayOfMonth);
+          const autoValue =
+            existing?.autoValue ??
+            calculated?.autoValue ??
+            (existing?.isChangedManually ? 0 : existing?.dayValue ?? 0);
+          const finalValue = existing?.dayValue ?? calculated?.autoValue ?? 0;
+          const manualValue = existing?.isChangedManually
+            ? existing.dayValue
+            : null;
+          const ratePolicySnapshot =
+            this.normalizeStoredPolicySnapshot(
+              existing?.ratePolicySnapshot ?? null,
+            ) ?? calculated?.ratePolicySnapshot ?? ratePolicy;
 
           return {
             dayOfMonth,
-            dayValue: existing?.dayValue ?? 0,
+            dayValue: finalValue,
+            autoValue,
+            finalValue,
+            manualValue,
+            difference: finalValue - autoValue,
             comment: existing?.comment ?? null,
             isChangedManually: existing?.isChangedManually ?? false,
             hasFact: factSet.has(`${row.employeeId}:${dayOfMonth}`),
+            workedHours: existing?.workedHours ?? calculated?.workedHours ?? null,
+            ratePolicySnapshot,
+            calculationExplanation:
+              existing?.calculationExplanation ??
+              calculated?.calculationExplanation ??
+              null,
+            updatedAt: existing?.updatedAt.toISOString() ?? null,
+            updatedByUserId: existing?.updatedBy?.id ?? null,
+            updatedByUserName: existing?.updatedBy?.fullName ?? null,
           };
         },
       );
@@ -135,7 +201,11 @@ export class TimesheetsService {
       return {
         employeeId: row.employeeId,
         employeeName: row.employeeNameSnapshot,
-        rowTotal: fullEntries.reduce((sum, item) => sum + item.dayValue, 0),
+        rowTotal: fullEntries.reduce((sum, item) => sum + item.finalValue, 0),
+        ratePolicy: {
+          ...ratePolicy,
+          label: getRatePolicyLabel(ratePolicy),
+        },
         entries: fullEntries,
       };
     });
@@ -155,6 +225,154 @@ export class TimesheetsService {
         ),
       },
       rows: mappedRows,
+    };
+  }
+
+  async exportTimesheet(
+    currentUser: CurrentAuthUser,
+    query: GetTimesheetQueryDto,
+  ): Promise<{ fileName: string; buffer: Buffer }> {
+    const timesheet = await this.getTimesheet(currentUser, query);
+    const dayHeaders = Array.from(
+      { length: timesheet.daysInMonth },
+      (_unused, index) => index + 1,
+    );
+    const lastDayColumnIndex = dayHeaders.length + 1;
+    const totalColumnName = this.toExcelColumnName(lastDayColumnIndex + 1);
+
+    const mainRows: XlsxCell[][] = [
+      [`Объект: ${timesheet.objectName}`],
+      [`Период: ${timesheet.month}.${timesheet.year}`],
+      [],
+      [
+        { value: 'Сотрудник', styleId: 1 },
+        ...dayHeaders.map((day) => ({ value: day, styleId: 1 })),
+        { value: 'Итого', styleId: 1 },
+      ],
+      ...timesheet.rows.map((row, rowIndex) => {
+        const excelRowNumber = rowIndex + 5;
+        return [
+          row.employeeName,
+          ...row.entries.map((entry) => ({
+            value: entry.finalValue,
+            styleId: entry.isChangedManually ? 2 : undefined,
+          })),
+          {
+            formula: `SUM(B${excelRowNumber}:${this.toExcelColumnName(lastDayColumnIndex)}${excelRowNumber})`,
+            value: row.rowTotal,
+          },
+        ];
+      }),
+      [
+        { value: 'Итого', styleId: 1 },
+        ...dayHeaders.map((day, index) => ({
+          formula: `SUM(${this.toExcelColumnName(index + 2)}5:${this.toExcelColumnName(index + 2)}${timesheet.rows.length + 4})`,
+          value: timesheet.rows.reduce(
+            (sum, row) => sum + (row.entries[index]?.finalValue ?? 0),
+            0,
+          ),
+        })),
+        {
+          formula: `SUM(${totalColumnName}5:${totalColumnName}${timesheet.rows.length + 4})`,
+          value: timesheet.monthTotal,
+        },
+      ],
+    ];
+
+    const autoRows: XlsxCell[][] = [
+      [`Объект: ${timesheet.objectName}`],
+      [`Период: ${timesheet.month}.${timesheet.year}`],
+      [],
+      [
+        { value: 'Сотрудник', styleId: 1 },
+        { value: 'Политика', styleId: 1 },
+        ...dayHeaders.map((day) => ({ value: day, styleId: 1 })),
+      ],
+      ...timesheet.rows.map((row) => [
+        row.employeeName,
+        row.ratePolicy.label,
+        ...row.entries.map((entry) =>
+          entry.calculationExplanation
+            ? `${entry.autoValue} · ${entry.calculationExplanation}`
+            : entry.autoValue,
+        ),
+      ]),
+    ];
+
+    const deviationRows: XlsxCell[][] = [
+      [
+        { value: 'Сотрудник', styleId: 1 },
+        { value: 'День', styleId: 1 },
+        { value: 'Политика', styleId: 1 },
+        { value: 'Auto', styleId: 1 },
+        { value: 'Final', styleId: 1 },
+        { value: 'Отклонение', styleId: 1 },
+        { value: 'Комментарий', styleId: 1 },
+        { value: 'Кто изменил', styleId: 1 },
+        { value: 'Когда', styleId: 1 },
+        { value: 'Fact', styleId: 1 },
+      ],
+      ...timesheet.rows.flatMap((row) =>
+        row.entries
+          .filter((entry) => entry.isChangedManually || entry.difference !== 0)
+          .map((entry) => [
+            row.employeeName,
+            entry.dayOfMonth,
+            row.ratePolicy.label,
+            entry.autoValue,
+            entry.finalValue,
+            { value: entry.difference, styleId: 2 },
+            entry.comment ?? '',
+            entry.updatedByUserName ?? '',
+            entry.updatedAt ?? '',
+            entry.hasFact ? 'да' : 'нет',
+          ]),
+      ),
+    ];
+
+    const summaryRows: XlsxCell[][] = [
+      [{ value: 'Показатель', styleId: 1 }, { value: 'Значение', styleId: 1 }],
+      ['Объект', timesheet.objectName],
+      ['Период', `${timesheet.month}.${timesheet.year}`],
+      [
+        'Всего авто',
+        timesheet.rows.reduce(
+          (sum, row) =>
+            sum + row.entries.reduce((rowSum, entry) => rowSum + entry.autoValue, 0),
+          0,
+        ),
+      ],
+      ['Всего итог', timesheet.monthTotal],
+      [
+        'Сумма отклонений',
+        timesheet.rows.reduce(
+          (sum, row) =>
+            sum + row.entries.reduce((rowSum, entry) => rowSum + entry.difference, 0),
+          0,
+        ),
+      ],
+      ['Сотрудников', timesheet.rows.length],
+      [
+        'Ручных изменений',
+        timesheet.rows.reduce(
+          (sum, row) =>
+            sum + row.entries.filter((entry) => entry.isChangedManually).length,
+          0,
+        ),
+      ],
+      [],
+      [{ value: 'Итоги по типам расчета', styleId: 1 }],
+      ...this.buildPolicySummaryRows(timesheet),
+    ];
+
+    return {
+      fileName: `timesheet-${timesheet.objectId}-${timesheet.year}-${String(timesheet.month).padStart(2, '0')}.xlsx`,
+      buffer: createSimpleXlsxWorkbook([
+        { name: 'Табель', rows: mainRows },
+        { name: 'Авторасчет', rows: autoRows },
+        { name: 'Отклонения', rows: deviationRows },
+        { name: 'Сводка', rows: summaryRows },
+      ]),
     };
   }
 
@@ -288,6 +506,7 @@ export class TimesheetsService {
       dayValue: payload.dayValue,
       expectedAutoValue: mutationContext.expectedAutoValue,
       hasAttendanceFact: mutationContext.hasAttendanceFact,
+      calculatedDay: mutationContext.calculatedDay,
       normalizedComment: mutationContext.normalizedComment,
       actorUserId: currentUser.id,
     });
@@ -506,6 +725,7 @@ export class TimesheetsService {
         dayValue: exception.requestedDayValue,
         expectedAutoValue: mutationContext.expectedAutoValue,
         hasAttendanceFact: mutationContext.hasAttendanceFact,
+        calculatedDay: mutationContext.calculatedDay,
         normalizedComment: exception.comment,
         actorUserId: params.actorUserId,
       });
@@ -546,18 +766,27 @@ export class TimesheetsService {
         id: string;
         dayOfMonth: number;
         dayValue: number;
+        autoValue: number;
         isChangedManually: boolean;
+        ratePolicySnapshot: Prisma.JsonValue | null;
+        calculationExplanation: string | null;
+        workedHours: number | null;
       }>;
     };
     existingEntry: {
       id: string;
       dayOfMonth: number;
       dayValue: number;
+      autoValue: number;
       isChangedManually: boolean;
+      ratePolicySnapshot: Prisma.JsonValue | null;
+      calculationExplanation: string | null;
+      workedHours: number | null;
     } | undefined;
     expectedAutoValue: number;
     currentDayValueSnapshot: number;
     hasAttendanceFact: boolean;
+    calculatedDay: CalculatedTimesheetDay | null;
     normalizedComment: string | null;
   }> {
     const client = params.client ?? this.prisma;
@@ -573,7 +802,11 @@ export class TimesheetsService {
             id: true,
             dayOfMonth: true,
             dayValue: true,
+            autoValue: true,
             isChangedManually: true,
+            ratePolicySnapshot: true,
+            calculationExplanation: true,
+            workedHours: true,
           },
         },
       },
@@ -599,12 +832,43 @@ export class TimesheetsService {
       },
       select: {
         dailyRateSnapshot: true,
+        workedHours: true,
+        ratePolicySnapshot: true,
       },
     });
 
-    const expectedAutoValue = attendanceFact
-      ? attendanceFact.dailyRateSnapshot
-      : 0;
+    const object = await client.object.findUnique({
+      where: {
+        id: params.objectId,
+      },
+      select: {
+        dailyRate: true,
+      },
+    });
+    const ratePolicy = await this.loadRatePolicyForEmployee({
+      client,
+      objectId: params.objectId,
+      employeeId: params.employeeId,
+      objectDailyRate: object?.dailyRate ?? 0,
+    });
+    const calculatedDay =
+      calculateTimesheetAutoValues({
+        year: params.year,
+        month: params.month,
+        daysInMonth: this.getDaysInMonth(params.year, params.month),
+        policy: ratePolicy,
+        facts: attendanceFact
+          ? [
+              {
+                dayOfMonth: params.dayOfMonth,
+                dailyRateSnapshot: attendanceFact.dailyRateSnapshot,
+                workedHours: attendanceFact.workedHours,
+                ratePolicySnapshot: attendanceFact.ratePolicySnapshot,
+              },
+            ]
+          : [],
+      }).get(params.dayOfMonth) ?? null;
+    const expectedAutoValue = calculatedDay?.autoValue ?? 0;
     const normalizedComment = params.comment?.trim() || null;
 
     if (params.dayValue !== expectedAutoValue && !normalizedComment) {
@@ -619,6 +883,7 @@ export class TimesheetsService {
       expectedAutoValue,
       currentDayValueSnapshot: existingEntry?.dayValue ?? expectedAutoValue,
       hasAttendanceFact: Boolean(attendanceFact),
+      calculatedDay,
       normalizedComment,
     };
   }
@@ -632,12 +897,13 @@ export class TimesheetsService {
       dayValue: number;
       expectedAutoValue: number;
       hasAttendanceFact: boolean;
+      calculatedDay: CalculatedTimesheetDay | null;
       normalizedComment: string | null;
       actorUserId: string;
     },
   ): Promise<void> {
     if (params.dayValue === params.expectedAutoValue) {
-      if (!params.hasAttendanceFact) {
+      if (!params.hasAttendanceFact && params.expectedAutoValue === 0) {
         if (params.existingEntryId) {
           await tx.timesheetDayEntry.delete({
             where: {
@@ -658,16 +924,34 @@ export class TimesheetsService {
         },
         update: {
           dayValue: params.expectedAutoValue,
+          autoValue: params.expectedAutoValue,
+          manualValue: null,
+          difference: 0,
           comment: null,
           isChangedManually: false,
+          workedHours: params.calculatedDay?.workedHours ?? null,
+          ratePolicySnapshot: this.policySnapshotToJson(
+            params.calculatedDay?.ratePolicySnapshot,
+          ),
+          calculationExplanation:
+            params.calculatedDay?.calculationExplanation ?? null,
           updatedByUserId: params.actorUserId,
         },
         create: {
           rowId: params.rowId,
           dayOfMonth: params.dayOfMonth,
           dayValue: params.expectedAutoValue,
+          autoValue: params.expectedAutoValue,
+          manualValue: null,
+          difference: 0,
           comment: null,
           isChangedManually: false,
+          workedHours: params.calculatedDay?.workedHours ?? null,
+          ratePolicySnapshot: this.policySnapshotToJson(
+            params.calculatedDay?.ratePolicySnapshot,
+          ),
+          calculationExplanation:
+            params.calculatedDay?.calculationExplanation ?? null,
           createdByUserId: params.actorUserId,
           updatedByUserId: params.actorUserId,
         },
@@ -685,16 +969,34 @@ export class TimesheetsService {
       },
       update: {
         dayValue: params.dayValue,
+        autoValue: params.expectedAutoValue,
+        manualValue: params.dayValue,
+        difference: params.dayValue - params.expectedAutoValue,
         comment: params.normalizedComment,
         isChangedManually: true,
+        workedHours: params.calculatedDay?.workedHours ?? null,
+        ratePolicySnapshot: this.policySnapshotToJson(
+          params.calculatedDay?.ratePolicySnapshot,
+        ),
+        calculationExplanation:
+          params.calculatedDay?.calculationExplanation ?? null,
         updatedByUserId: params.actorUserId,
       },
       create: {
         rowId: params.rowId,
         dayOfMonth: params.dayOfMonth,
         dayValue: params.dayValue,
+        autoValue: params.expectedAutoValue,
+        manualValue: params.dayValue,
+        difference: params.dayValue - params.expectedAutoValue,
         comment: params.normalizedComment,
         isChangedManually: true,
+        workedHours: params.calculatedDay?.workedHours ?? null,
+        ratePolicySnapshot: this.policySnapshotToJson(
+          params.calculatedDay?.ratePolicySnapshot,
+        ),
+        calculationExplanation:
+          params.calculatedDay?.calculationExplanation ?? null,
         createdByUserId: params.actorUserId,
         updatedByUserId: params.actorUserId,
       },
@@ -852,16 +1154,29 @@ export class TimesheetsService {
     year: number;
     month: number;
   }): Promise<void> {
+    const object = await this.prisma.object.findUnique({
+      where: {
+        id: params.objectId,
+      },
+      select: {
+        dailyRate: true,
+      },
+    });
     const rows = await this.prisma.timesheetEmployeeRow.findMany({
       where: {
         timesheetMonthId: params.timesheetMonthId,
       },
       include: {
         entries: true,
+        employee: {
+          select: {
+            baseDailyRate: true,
+          },
+        },
       },
     });
 
-    if (rows.length === 0) {
+    if (rows.length === 0 || !object) {
       return;
     }
 
@@ -874,31 +1189,42 @@ export class TimesheetsService {
         employeeId: true,
         operationDate: true,
         dailyRateSnapshot: true,
+        workedHours: true,
+        ratePolicySnapshot: true,
       },
     });
 
-    const factSnapshotByKey = new Map<string, number>(
-      monthFacts.map((fact) => {
-        const day = new Date(fact.operationDate).getDate();
-        return [`${fact.employeeId}:${day}`, fact.dailyRateSnapshot];
-      }),
-    );
-
     const daysInMonth = this.getDaysInMonth(params.year, params.month);
+    const factsByEmployeeId = this.groupAttendanceFactsByEmployee(monthFacts);
+    const policyByEmployeeId = await this.loadRatePoliciesByEmployeeId({
+      objectId: params.objectId,
+      employeeIds: rows.map((row) => row.employeeId),
+      objectDailyRate: object.dailyRate,
+    });
     const operations: Prisma.PrismaPromise<unknown>[] = [];
 
     for (const row of rows) {
       const entriesByDay = new Map(
         row.entries.map((entry) => [entry.dayOfMonth, entry]),
       );
+      const ratePolicy =
+        policyByEmployeeId.get(row.employeeId) ??
+        normalizeRatePolicy(null, row.employee.baseDailyRate ?? object.dailyRate);
+      const autoValues = calculateTimesheetAutoValues({
+        year: params.year,
+        month: params.month,
+        daysInMonth,
+        policy: ratePolicy,
+        facts: factsByEmployeeId.get(row.employeeId) ?? [],
+      });
 
       for (let dayOfMonth = 1; dayOfMonth <= daysInMonth; dayOfMonth += 1) {
-        const factKey = `${row.employeeId}:${dayOfMonth}`;
-        const autoValue = factSnapshotByKey.get(factKey);
-        const hasFact = typeof autoValue === 'number';
+        const calculatedDay = autoValues.get(dayOfMonth) ?? null;
+        const autoValue = calculatedDay?.autoValue ?? 0;
+        const hasAutoValue = Boolean(calculatedDay) && autoValue !== 0;
         const existing = entriesByDay.get(dayOfMonth);
 
-        if (hasFact) {
+        if (hasAutoValue) {
           if (!existing) {
             operations.push(
               this.prisma.timesheetDayEntry.create({
@@ -906,8 +1232,17 @@ export class TimesheetsService {
                   rowId: row.id,
                   dayOfMonth,
                   dayValue: autoValue,
+                  autoValue,
+                  manualValue: null,
+                  difference: 0,
                   comment: null,
                   isChangedManually: false,
+                  workedHours: calculatedDay?.workedHours ?? null,
+                  ratePolicySnapshot: this.policySnapshotToJson(
+                    calculatedDay?.ratePolicySnapshot,
+                  ),
+                  calculationExplanation:
+                    calculatedDay?.calculationExplanation ?? null,
                 },
               }),
             );
@@ -915,7 +1250,11 @@ export class TimesheetsService {
           }
 
           if (!existing.isChangedManually) {
-            if (existing.dayValue !== autoValue || existing.comment !== null) {
+            if (
+              existing.dayValue !== autoValue ||
+              existing.autoValue !== autoValue ||
+              existing.comment !== null
+            ) {
               operations.push(
                 this.prisma.timesheetDayEntry.update({
                   where: {
@@ -923,8 +1262,17 @@ export class TimesheetsService {
                   },
                   data: {
                     dayValue: autoValue,
+                    autoValue,
+                    manualValue: null,
+                    difference: 0,
                     comment: null,
                     isChangedManually: false,
+                    workedHours: calculatedDay?.workedHours ?? null,
+                    ratePolicySnapshot: this.policySnapshotToJson(
+                      calculatedDay?.ratePolicySnapshot,
+                    ),
+                    calculationExplanation:
+                      calculatedDay?.calculationExplanation ?? null,
                   },
                 }),
               );
@@ -945,8 +1293,38 @@ export class TimesheetsService {
                 },
                 data: {
                   dayValue: autoValue,
+                  autoValue,
+                  manualValue: null,
+                  difference: 0,
                   comment: null,
                   isChangedManually: false,
+                  workedHours: calculatedDay?.workedHours ?? null,
+                  ratePolicySnapshot: this.policySnapshotToJson(
+                    calculatedDay?.ratePolicySnapshot,
+                  ),
+                  calculationExplanation:
+                    calculatedDay?.calculationExplanation ?? null,
+                },
+              }),
+            );
+          }
+
+          if (hasMeaningfulManualComment) {
+            operations.push(
+              this.prisma.timesheetDayEntry.update({
+                where: {
+                  id: existing.id,
+                },
+                data: {
+                  autoValue,
+                  manualValue: existing.dayValue,
+                  difference: existing.dayValue - autoValue,
+                  workedHours: calculatedDay?.workedHours ?? null,
+                  ratePolicySnapshot: this.policySnapshotToJson(
+                    calculatedDay?.ratePolicySnapshot,
+                  ),
+                  calculationExplanation:
+                    calculatedDay?.calculationExplanation ?? null,
                 },
               }),
             );
@@ -964,12 +1342,153 @@ export class TimesheetsService {
             }),
           );
         }
+
+        if (existing?.isChangedManually) {
+          operations.push(
+            this.prisma.timesheetDayEntry.update({
+              where: {
+                id: existing.id,
+              },
+              data: {
+                autoValue: 0,
+                manualValue: existing.dayValue,
+                difference: existing.dayValue,
+                workedHours: null,
+                calculationExplanation: null,
+              },
+            }),
+          );
+        }
       }
     }
 
     if (operations.length > 0) {
       await this.prisma.$transaction(operations);
     }
+  }
+
+  private groupAttendanceFactsByEmployee(
+    facts: Array<{
+      employeeId: string;
+      operationDate: Date;
+      dailyRateSnapshot: number;
+      workedHours: number | null;
+      ratePolicySnapshot: Prisma.JsonValue | null;
+    }>,
+  ): Map<string, Array<{
+    dayOfMonth: number;
+    dailyRateSnapshot: number;
+    workedHours: number | null;
+    ratePolicySnapshot: Prisma.JsonValue | null;
+  }>> {
+    const grouped = new Map<string, Array<{
+      dayOfMonth: number;
+      dailyRateSnapshot: number;
+      workedHours: number | null;
+      ratePolicySnapshot: Prisma.JsonValue | null;
+    }>>();
+
+    for (const fact of facts) {
+      const items = grouped.get(fact.employeeId) ?? [];
+      items.push({
+        dayOfMonth: new Date(fact.operationDate).getDate(),
+        dailyRateSnapshot: fact.dailyRateSnapshot,
+        workedHours: fact.workedHours,
+        ratePolicySnapshot: fact.ratePolicySnapshot,
+      });
+      grouped.set(fact.employeeId, items);
+    }
+
+    return grouped;
+  }
+
+  private async loadRatePoliciesByEmployeeId(params: {
+    objectId: string;
+    employeeIds: string[];
+    objectDailyRate: number;
+    client?: PrismaService | Prisma.TransactionClient;
+  }): Promise<Map<string, TimesheetRatePolicySnapshot>> {
+    const client = params.client ?? this.prisma;
+
+    if (params.employeeIds.length === 0) {
+      return new Map();
+    }
+
+    const assignments = await client.objectEmployeeAssignment.findMany({
+      where: {
+        objectId: params.objectId,
+        employeeId: {
+          in: params.employeeIds,
+        },
+      },
+      include: {
+        employee: {
+          select: {
+            baseDailyRate: true,
+          },
+        },
+      },
+    });
+
+    return new Map(
+      assignments.map((assignment) => [
+        assignment.employeeId,
+        normalizeRatePolicy(
+          assignment as RatePolicyRecord,
+          params.objectDailyRate,
+        ),
+      ]),
+    );
+  }
+
+  private async loadRatePolicyForEmployee(params: {
+    objectId: string;
+    employeeId: string;
+    objectDailyRate: number;
+    client: PrismaService | Prisma.TransactionClient;
+  }): Promise<TimesheetRatePolicySnapshot> {
+    const policies = await this.loadRatePoliciesByEmployeeId({
+      objectId: params.objectId,
+      employeeIds: [params.employeeId],
+      objectDailyRate: params.objectDailyRate,
+      client: params.client,
+    });
+
+    return policies.get(params.employeeId) ?? normalizeRatePolicy(null, params.objectDailyRate);
+  }
+
+  private normalizeStoredPolicySnapshot(
+    value: Prisma.JsonValue | null,
+  ): TimesheetRatePolicySnapshot | null {
+    return parseRatePolicySnapshot(value);
+  }
+
+  private policySnapshotToJson(
+    value: TimesheetRatePolicySnapshot | undefined,
+  ): Prisma.InputJsonValue | undefined {
+    return value
+      ? (value as unknown as Prisma.InputJsonObject)
+      : undefined;
+  }
+
+  private buildPolicySummaryRows(timesheet: TimesheetResponseDto): XlsxCell[][] {
+    const summary = new Map<string, { employees: number; total: number }>();
+
+    for (const row of timesheet.rows) {
+      const current = summary.get(row.ratePolicy.ratePolicyType) ?? {
+        employees: 0,
+        total: 0,
+      };
+      current.employees += 1;
+      current.total += row.rowTotal;
+      summary.set(row.ratePolicy.ratePolicyType, current);
+    }
+
+    return [...summary.entries()].map(([policyType, item]) => [
+      policyType,
+      `сотрудников: ${item.employees}`,
+      item.total,
+    ]);
   }
 
   private mapApprovalRequest(
@@ -1073,5 +1592,18 @@ export class TimesheetsService {
       gte: new Date(year, month - 1, dayOfMonth),
       lt: new Date(year, month - 1, dayOfMonth + 1),
     };
+  }
+
+  private toExcelColumnName(index: number): string {
+    let value = index;
+    let name = '';
+
+    while (value > 0) {
+      const remainder = (value - 1) % 26;
+      name = String.fromCharCode(65 + remainder) + name;
+      value = Math.floor((value - 1) / 26);
+    }
+
+    return name;
   }
 }
