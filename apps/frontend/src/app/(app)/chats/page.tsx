@@ -3,7 +3,6 @@
 import React, {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -49,6 +48,11 @@ type InitialScrollTarget = {
   messageId: string;
   target: 'message' | 'bottom';
   unreadMessageId: string | null;
+};
+
+type LoadMessagesOptions = {
+  scheduleInitial?: boolean;
+  roomSnapshot?: ChatRoom | null;
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -125,7 +129,7 @@ function getInitialScrollTarget(
 ): InitialScrollTarget | null {
   const latestMessage = messages.at(-1);
 
-  if (!room || !latestMessage) {
+  if (!latestMessage) {
     return null;
   }
 
@@ -148,6 +152,23 @@ function getInitialScrollTarget(
     target: 'bottom',
     unreadMessageId: null,
   };
+}
+
+function getInitialScrollRunId(
+  roomId: string,
+  room: ChatRoom | null,
+  messages: ChatMessage[],
+  target: InitialScrollTarget,
+): string {
+  return [
+    roomId,
+    room?.lastReadAt ?? 'no-read-marker',
+    room?.unreadCount ?? 0,
+    target.target,
+    target.messageId,
+    messages.length,
+    messages.at(-1)?.id ?? 'empty',
+  ].join(':');
 }
 
 function getParticipantRoleLabel(roleInRoom: string): string {
@@ -284,8 +305,11 @@ export default function ChatsPage(): React.JSX.Element {
   const pendingScrollToBottomRef = useRef(false);
   const activeRoomIdRef = useRef<string | null>(null);
   const lastMarkedReadMessageIdRef = useRef<string | null>(null);
-  const initialScrollKeyRef = useRef<string | null>(null);
+  const initialScrollRunIdRef = useRef<string | null>(null);
+  const scheduledInitialScrollRunIdRef = useRef<string | null>(null);
   const initialScrollTimeoutsRef = useRef<number[]>([]);
+  const openingRoomSnapshotRef = useRef<ChatRoom | null>(null);
+  const isInitialScrollPendingRef = useRef(false);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) ?? null,
@@ -300,6 +324,7 @@ export default function ChatsPage(): React.JSX.Element {
     }
 
     initialScrollTimeoutsRef.current = [];
+    scheduledInitialScrollRunIdRef.current = null;
   }, []);
 
   const forceScrollMessagesToBottom = useCallback((): boolean => {
@@ -360,57 +385,96 @@ export default function ChatsPage(): React.JSX.Element {
     return true;
   }, []);
 
-  const runInitialScroll = useCallback((
-    target: InitialScrollTarget,
-  ): boolean => {
-    if (target.target === 'bottom') {
-      return forceScrollMessagesToBottom();
-    }
-
-    return scrollToMessage(target.messageId);
-  }, [forceScrollMessagesToBottom, scrollToMessage]);
-
   const scheduleInitialScroll = useCallback((
     target: InitialScrollTarget,
-    scrollKey: string,
+    runId: string,
   ): void => {
+    if (initialScrollRunIdRef.current === runId) {
+      return;
+    }
+
     clearInitialScrollTimers();
+    isInitialScrollPendingRef.current = true;
+    scheduledInitialScrollRunIdRef.current = runId;
+    let isDone = false;
 
-    const attemptScroll = (allowFallback: boolean): void => {
-      const didScroll = runInitialScroll(target);
+    if (target.target === 'bottom') {
+      const runBottomCorrection = (isFinalAttempt: boolean): void => {
+        if (isDone || scheduledInitialScrollRunIdRef.current !== runId) {
+          return;
+        }
 
-      if (didScroll) {
-        initialScrollKeyRef.current = scrollKey;
+        forceScrollMessagesToBottom();
+
+        if (isFinalAttempt) {
+          isDone = true;
+          initialScrollRunIdRef.current = runId;
+          isInitialScrollPendingRef.current = false;
+          scheduledInitialScrollRunIdRef.current = null;
+          initialScrollTimeoutsRef.current = [];
+        }
+      };
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          runBottomCorrection(false);
+        });
+      });
+
+      for (const delayMs of [60, 160]) {
+        const timeoutId = window.setTimeout(() => {
+          runBottomCorrection(false);
+        }, delayMs);
+        initialScrollTimeoutsRef.current.push(timeoutId);
+      }
+
+      const finalTimeoutId = window.setTimeout(() => {
+        runBottomCorrection(true);
+      }, 320);
+      initialScrollTimeoutsRef.current.push(finalTimeoutId);
+      return;
+    }
+
+    const finishMessageAttempts = (): void => {
+      initialScrollRunIdRef.current = runId;
+      isInitialScrollPendingRef.current = false;
+      scheduledInitialScrollRunIdRef.current = null;
+      clearInitialScrollTimers();
+    };
+
+    const attemptMessageScroll = (isFinalAttempt: boolean): void => {
+      if (isDone || scheduledInitialScrollRunIdRef.current !== runId) {
         return;
       }
 
-      if (allowFallback) {
-        forceScrollMessagesToBottom();
-        initialScrollKeyRef.current = scrollKey;
+      if (scrollToMessage(target.messageId) || isFinalAttempt) {
+        isDone = true;
+        finishMessageAttempts();
+        return;
       }
     };
 
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        attemptScroll(false);
+        attemptMessageScroll(false);
       });
     });
 
     for (const delayMs of [60, 160]) {
       const timeoutId = window.setTimeout(() => {
-        attemptScroll(false);
+        attemptMessageScroll(false);
       }, delayMs);
       initialScrollTimeoutsRef.current.push(timeoutId);
     }
 
-    const fallbackTimeoutId = window.setTimeout(() => {
-      attemptScroll(true);
+    const finalTimeoutId = window.setTimeout(() => {
+      attemptMessageScroll(true);
     }, 320);
-    initialScrollTimeoutsRef.current.push(fallbackTimeoutId);
+    initialScrollTimeoutsRef.current.push(finalTimeoutId);
   }, [
     clearInitialScrollTimers,
     forceScrollMessagesToBottom,
-    runInitialScroll,
+    scrollToMessage,
   ]);
 
   const loadRooms = async (): Promise<ChatRoom[]> => {
@@ -424,6 +488,8 @@ export default function ChatsPage(): React.JSX.Element {
       const fallbackRoom = requestedRoom ?? nextRooms[0];
 
       if (fallbackRoom) {
+        openingRoomSnapshotRef.current = fallbackRoom;
+        initialScrollRunIdRef.current = null;
         setActiveRoomId(fallbackRoom.id);
         if (requestedRoomCode) {
           setIsRoomListOpen(false);
@@ -434,11 +500,35 @@ export default function ChatsPage(): React.JSX.Element {
     return nextRooms;
   };
 
-  const loadMessages = async (roomId: string): Promise<ChatMessage[]> => {
+  const loadMessages = async (
+    roomId: string,
+    options: LoadMessagesOptions = {},
+  ): Promise<ChatMessage[]> => {
     setIsLoadingMessages(true);
+
     try {
       const nextMessages = await listChatMessages(roomId);
       setMessages(nextMessages);
+
+      if (options?.scheduleInitial) {
+        const roomSnapshot =
+          options.roomSnapshot ?? openingRoomSnapshotRef.current;
+
+        const target = getInitialScrollTarget(roomSnapshot, nextMessages, user?.id);
+
+        setInitialUnreadMessageId(target?.unreadMessageId ?? null);
+
+        if (target) {
+          scheduleInitialScroll(
+            target,
+            getInitialScrollRunId(roomId, roomSnapshot, nextMessages, target),
+          );
+        } else {
+          initialScrollRunIdRef.current = `${roomId}:empty`;
+          isInitialScrollPendingRef.current = false;
+        }
+      }
+
       return nextMessages;
     } finally {
       setIsLoadingMessages(false);
@@ -489,6 +579,8 @@ export default function ChatsPage(): React.JSX.Element {
       .finally(() => setIsLoadingRooms(false));
   }, []);
 
+  useEffect(() => () => clearInitialScrollTimers(), [clearInitialScrollTimers]);
+
   useEffect(() => {
     if (!canManageChats) {
       return;
@@ -509,18 +601,30 @@ export default function ChatsPage(): React.JSX.Element {
     activeRoomIdRef.current = activeRoomId;
     lastMarkedReadMessageIdRef.current = null;
     clearInitialScrollTimers();
-    initialScrollKeyRef.current = null;
+    initialScrollRunIdRef.current = null;
+    isInitialScrollPendingRef.current = false;
     pendingScrollToBottomRef.current = false;
     setInitialUnreadMessageId(null);
     setHasNewMessagesBelow(false);
     setIsRoomSettingsOpen(false);
     setIsParticipantsPanelOpen(false);
     setRoomParticipants([]);
-    void loadMessages(activeRoomId).catch((loadError) => {
+    const roomSnapshot =
+      openingRoomSnapshotRef.current?.id === activeRoomId
+        ? openingRoomSnapshotRef.current
+        : rooms.find((room) => room.id === activeRoomId) ?? null;
+
+    openingRoomSnapshotRef.current = roomSnapshot;
+
+    void loadMessages(activeRoomId, {
+      scheduleInitial: true,
+      roomSnapshot,
+    }).catch((loadError) => {
       setError(getErrorMessage(loadError, 'Не удалось загрузить сообщения.'));
       setMessages([]);
+      isInitialScrollPendingRef.current = false;
     });
-  }, [activeRoomId]);
+  }, [activeRoomId, clearInitialScrollTimers]);
 
   useEffect(() => {
     if (!activeRoom) {
@@ -531,42 +635,6 @@ export default function ChatsPage(): React.JSX.Element {
     setRenameTitle(activeRoom.title);
     setAddParticipantIds([]);
   }, [activeRoom]);
-
-  useLayoutEffect(() => {
-    if (!activeRoom || messages.length === 0) {
-      return;
-    }
-
-    if (initialScrollKeyRef.current) {
-      return;
-    }
-
-    const target = getInitialScrollTarget(activeRoom, messages, user?.id);
-
-    if (!target) {
-      return;
-    }
-
-    const scrollKey = [
-      activeRoom.id,
-      target.target,
-      target.messageId,
-      messages.length,
-      latestMessageId ?? '',
-    ].join(':');
-
-    setInitialUnreadMessageId(target.unreadMessageId);
-    scheduleInitialScroll(target, scrollKey);
-
-    return clearInitialScrollTimers;
-  }, [
-    activeRoom,
-    clearInitialScrollTimers,
-    latestMessageId,
-    messages,
-    scheduleInitialScroll,
-    user?.id,
-  ]);
 
   useEffect(() => {
     if (!pendingScrollToBottomRef.current) {
@@ -590,6 +658,10 @@ export default function ChatsPage(): React.JSX.Element {
         const isBottomVisible = entries.some((entry) => entry.isIntersecting);
 
         if (!isBottomVisible) {
+          return;
+        }
+
+        if (isInitialScrollPendingRef.current) {
           return;
         }
 
@@ -633,23 +705,29 @@ export default function ChatsPage(): React.JSX.Element {
         }
 
         if (payload.roomId && payload.roomId === activeRoomIdRef.current) {
-          const shouldStickToBottom = messageListRef.current
-            ? isAtBottom(messageListRef.current)
-            : true;
-          pendingScrollToBottomRef.current = shouldStickToBottom;
-          setHasNewMessagesBelow(!shouldStickToBottom);
+          const isMessageCreated = payload.type === 'chat.message_created';
+          const isMessageUpdated = payload.type === 'chat.message_updated';
 
           if (
-            (payload.type === 'chat.message_created' ||
-              payload.type === 'chat.message_updated') &&
+            (isMessageCreated || isMessageUpdated) &&
             payload.payload &&
             typeof payload.payload === 'object'
           ) {
             const incomingMessage = payload.payload as ChatMessage;
+
+            if (isMessageCreated) {
+              const shouldStickToBottom = messageListRef.current
+                ? isAtBottom(messageListRef.current)
+                : true;
+
+              pendingScrollToBottomRef.current = shouldStickToBottom;
+              setHasNewMessagesBelow(!shouldStickToBottom);
+            }
+
             setMessages((current) => {
               const exists = current.some((message) => message.id === incomingMessage.id);
 
-              if (payload.type === 'chat.message_updated') {
+              if (isMessageUpdated) {
                 return current.map((message) =>
                   message.id === incomingMessage.id ? incomingMessage : message,
                 );
@@ -804,6 +882,9 @@ export default function ChatsPage(): React.JSX.Element {
     isRoomListOpen ? ' chat-layout--room-list-open' : ''
   }`;
   const selectRoom = (roomId: string): void => {
+    openingRoomSnapshotRef.current =
+      rooms.find((room) => room.id === roomId) ?? null;
+    initialScrollRunIdRef.current = null;
     setActiveRoomId(roomId);
     setIsRoomListOpen(false);
   };
