@@ -1,6 +1,13 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import {
@@ -40,7 +47,7 @@ type RealtimePayload = {
 
 type InitialScrollTarget = {
   messageId: string;
-  align: 'start' | 'end';
+  target: 'message' | 'bottom';
   unreadMessageId: string | null;
 };
 
@@ -131,14 +138,14 @@ function getInitialScrollTarget(
   if (unreadMessageId) {
     return {
       messageId: unreadMessageId,
-      align: 'start',
+      target: 'message',
       unreadMessageId,
     };
   }
 
   return {
     messageId: latestMessage.id,
-    align: 'end',
+    target: 'bottom',
     unreadMessageId: null,
   };
 }
@@ -277,7 +284,8 @@ export default function ChatsPage(): React.JSX.Element {
   const pendingScrollToBottomRef = useRef(false);
   const activeRoomIdRef = useRef<string | null>(null);
   const lastMarkedReadMessageIdRef = useRef<string | null>(null);
-  const initialScrollRoomIdRef = useRef<string | null>(null);
+  const initialScrollKeyRef = useRef<string | null>(null);
+  const initialScrollTimeoutsRef = useRef<number[]>([]);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) ?? null,
@@ -286,21 +294,124 @@ export default function ChatsPage(): React.JSX.Element {
 
   const latestMessageId = messages.at(-1)?.id ?? null;
 
-  const scrollMessagesToBottom = (behavior: ScrollBehavior = 'auto'): void => {
-    window.requestAnimationFrame(() => {
-      const container = messageListRef.current;
+  const clearInitialScrollTimers = useCallback((): void => {
+    for (const timeoutId of initialScrollTimeoutsRef.current) {
+      window.clearTimeout(timeoutId);
+    }
 
-      if (!container) {
+    initialScrollTimeoutsRef.current = [];
+  }, []);
+
+  const forceScrollMessagesToBottom = useCallback((): boolean => {
+    const container = messageListRef.current;
+
+    if (!container) {
+      return false;
+    }
+
+    container.scrollTop = container.scrollHeight;
+    setHasNewMessagesBelow(false);
+
+    return true;
+  }, []);
+
+  const scrollMessagesToBottom = useCallback((
+    behavior: ScrollBehavior = 'auto',
+  ): void => {
+    const container = messageListRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    if (behavior === 'auto') {
+      forceScrollMessagesToBottom();
+      return;
+    }
+
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
+    });
+    setHasNewMessagesBelow(false);
+  }, [forceScrollMessagesToBottom]);
+
+  const scrollToMessage = useCallback((messageId: string): boolean => {
+    const container = messageListRef.current;
+
+    if (!container) {
+      return false;
+    }
+
+    const targetElement = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-message-id]'),
+    ).find((element) => element.dataset.messageId === messageId);
+
+    if (!targetElement) {
+      return false;
+    }
+
+    targetElement.scrollIntoView({
+      block: 'start',
+      behavior: 'auto',
+    });
+    setHasNewMessagesBelow(false);
+
+    return true;
+  }, []);
+
+  const runInitialScroll = useCallback((
+    target: InitialScrollTarget,
+  ): boolean => {
+    if (target.target === 'bottom') {
+      return forceScrollMessagesToBottom();
+    }
+
+    return scrollToMessage(target.messageId);
+  }, [forceScrollMessagesToBottom, scrollToMessage]);
+
+  const scheduleInitialScroll = useCallback((
+    target: InitialScrollTarget,
+    scrollKey: string,
+  ): void => {
+    clearInitialScrollTimers();
+
+    const attemptScroll = (allowFallback: boolean): void => {
+      const didScroll = runInitialScroll(target);
+
+      if (didScroll) {
+        initialScrollKeyRef.current = scrollKey;
         return;
       }
 
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior,
+      if (allowFallback) {
+        forceScrollMessagesToBottom();
+        initialScrollKeyRef.current = scrollKey;
+      }
+    };
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        attemptScroll(false);
       });
-      setHasNewMessagesBelow(false);
     });
-  };
+
+    for (const delayMs of [60, 160]) {
+      const timeoutId = window.setTimeout(() => {
+        attemptScroll(false);
+      }, delayMs);
+      initialScrollTimeoutsRef.current.push(timeoutId);
+    }
+
+    const fallbackTimeoutId = window.setTimeout(() => {
+      attemptScroll(true);
+    }, 320);
+    initialScrollTimeoutsRef.current.push(fallbackTimeoutId);
+  }, [
+    clearInitialScrollTimers,
+    forceScrollMessagesToBottom,
+    runInitialScroll,
+  ]);
 
   const loadRooms = async (): Promise<ChatRoom[]> => {
     const nextRooms = await listChatRooms();
@@ -397,7 +508,8 @@ export default function ChatsPage(): React.JSX.Element {
     setError(null);
     activeRoomIdRef.current = activeRoomId;
     lastMarkedReadMessageIdRef.current = null;
-    initialScrollRoomIdRef.current = null;
+    clearInitialScrollTimers();
+    initialScrollKeyRef.current = null;
     pendingScrollToBottomRef.current = false;
     setInitialUnreadMessageId(null);
     setHasNewMessagesBelow(false);
@@ -420,12 +532,12 @@ export default function ChatsPage(): React.JSX.Element {
     setAddParticipantIds([]);
   }, [activeRoom]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!activeRoom || messages.length === 0) {
       return;
     }
 
-    if (initialScrollRoomIdRef.current === activeRoom.id) {
+    if (initialScrollKeyRef.current) {
       return;
     }
 
@@ -435,33 +547,26 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
-    initialScrollRoomIdRef.current = activeRoom.id;
+    const scrollKey = [
+      activeRoom.id,
+      target.target,
+      target.messageId,
+      messages.length,
+      latestMessageId ?? '',
+    ].join(':');
+
     setInitialUnreadMessageId(target.unreadMessageId);
+    scheduleInitialScroll(target, scrollKey);
 
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const container = messageListRef.current;
-
-        if (!container) {
-          return;
-        }
-
-        const targetElement = Array.from(
-          container.querySelectorAll<HTMLElement>('[data-message-id]'),
-        ).find((element) => element.dataset.messageId === target.messageId);
-
-        if (!targetElement) {
-          return;
-        }
-
-        targetElement.scrollIntoView({
-          block: target.align,
-          behavior: 'auto',
-        });
-        setHasNewMessagesBelow(false);
-      });
-    });
-  }, [activeRoom, messages, user?.id]);
+    return clearInitialScrollTimers;
+  }, [
+    activeRoom,
+    clearInitialScrollTimers,
+    latestMessageId,
+    messages,
+    scheduleInitialScroll,
+    user?.id,
+  ]);
 
   useEffect(() => {
     if (!pendingScrollToBottomRef.current) {
