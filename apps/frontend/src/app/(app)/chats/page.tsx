@@ -858,11 +858,17 @@ export default function ChatsPage(): React.JSX.Element {
     setError(null);
 
     try {
-      await editChatMessage(message.id, { text: editingText.trim() });
+      const updatedMessage = await editChatMessage(message.id, {
+        text: editingText.trim(),
+      });
       setEditingMessageId(null);
       setEditingText('');
-      await loadMessages(message.chatRoomId);
-      await loadRooms();
+      setMessages((current) =>
+        current.map((currentMessage) =>
+          currentMessage.id === updatedMessage.id ? updatedMessage : currentMessage,
+        ),
+      );
+      void loadRooms().catch(() => undefined);
     } catch (editError) {
       setError(getErrorMessage(editError, 'Не удалось изменить сообщение.'));
     }
