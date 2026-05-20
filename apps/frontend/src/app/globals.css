@@ -1260,6 +1260,32 @@ tbody tr:hover {
   transform: translateX(-50%) translateY(-1px);
 }
 
+.chat-unread-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.chat-unread-divider::before,
+.chat-unread-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #bfdbfe;
+}
+
+.chat-unread-divider span {
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #eff6ff;
+}
+
 .chat-message {
   width: min(76%, 680px);
   border: 1px solid var(--border);

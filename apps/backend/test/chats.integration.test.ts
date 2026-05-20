@@ -199,8 +199,12 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
   );
   assert.equal(markReadResponse.status, 201);
-  const readRoom = (await markReadResponse.json()) as { unreadCount: number };
+  const readRoom = (await markReadResponse.json()) as {
+    unreadCount: number;
+    lastReadAt: string | null;
+  };
   assert.equal(readRoom.unreadCount, 0);
+  assert.ok(readRoom.lastReadAt);
 
   const createRoomResponse = await fetch(`${baseUrl}/api/v1/chats/rooms`, {
     method: 'POST',

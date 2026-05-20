@@ -1,12 +1,16 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 
 interface ObjectAttendancePanelProps {
   employees: ObjectEmployeeOption[];
   initialEmployeeIds: string[];
+  initialEmployeeFacts: Array<{
+    employeeId: string;
+    workedHours: number | null;
+  }>;
   operationDate: string;
   onSave: (payload: {
     operationDate: string;
@@ -21,6 +25,7 @@ interface ObjectAttendancePanelProps {
 export function ObjectAttendancePanel({
   employees,
   initialEmployeeIds,
+  initialEmployeeFacts,
   operationDate,
   onSave,
 }: ObjectAttendancePanelProps): React.JSX.Element {
@@ -28,21 +33,64 @@ export function ObjectAttendancePanel({
   const [workedHoursById, setWorkedHoursById] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const safeEmployees = useMemo(() => employees ?? [], [employees]);
+  const employeeById = useMemo(
+    () => new Map(safeEmployees.map((employee) => [employee.id, employee])),
+    [safeEmployees],
+  );
+  const initialFactsById = useMemo(
+    () =>
+      new Map(
+        initialEmployeeFacts.map((fact) => [fact.employeeId, fact.workedHours]),
+      ),
+    [initialEmployeeFacts],
+  );
+  const initialFactsSignature = useMemo(
+    () =>
+      initialEmployeeFacts
+        .map((fact) => `${fact.employeeId}:${fact.workedHours ?? ''}`)
+        .sort()
+        .join('|'),
+    [initialEmployeeFacts],
+  );
+
+  const getDefaultWorkedHours = useCallback((employeeId: string): string => {
+    const standardShiftHours =
+      employeeById.get(employeeId)?.ratePolicy?.standardShiftHours ?? 8;
+
+    return String(standardShiftHours);
+  }, [employeeById]);
 
   useEffect(() => {
     setSelectedIds(initialEmployeeIds);
     setWorkedHoursById((current) => {
       const next = { ...current };
+      const selectedIdSet = new Set(initialEmployeeIds);
+
+      for (const employeeId of Object.keys(next)) {
+        if (!selectedIdSet.has(employeeId)) {
+          delete next[employeeId];
+        }
+      }
 
       for (const employeeId of initialEmployeeIds) {
-        next[employeeId] = next[employeeId] ?? '8';
+        const savedWorkedHours = initialFactsById.get(employeeId);
+
+        next[employeeId] =
+          savedWorkedHours !== undefined && savedWorkedHours !== null
+            ? String(savedWorkedHours)
+            : next[employeeId] ?? getDefaultWorkedHours(employeeId);
       }
 
       return next;
     });
-  }, [initialEmployeeIds, operationDate]);
-
-  const safeEmployees = useMemo(() => employees ?? [], [employees]);
+  }, [
+    initialEmployeeIds,
+    initialFactsById,
+    initialFactsSignature,
+    operationDate,
+    getDefaultWorkedHours,
+  ]);
 
   const getAvailabilityExplanation = (employee: ObjectEmployeeOption): string | null => {
     if (!employee.availability.isUnavailable) {
@@ -73,7 +121,7 @@ export function ObjectAttendancePanel({
 
       setWorkedHoursById((current) => ({
         ...current,
-        [employeeId]: current[employeeId] ?? '8',
+        [employeeId]: current[employeeId] ?? getDefaultWorkedHours(employeeId),
       }));
       return [...prev, employeeId];
     });
@@ -92,7 +140,9 @@ export function ObjectAttendancePanel({
         employeeIds: selectedIds,
         employeeFacts: selectedIds.map((employeeId) => ({
           employeeId,
-          workedHours: Number(workedHoursById[employeeId] || '8') || 8,
+          workedHours:
+            Number(workedHoursById[employeeId] || getDefaultWorkedHours(employeeId)) ||
+            8,
         })),
       });
     } catch (caughtError) {
@@ -187,7 +237,10 @@ export function ObjectAttendancePanel({
                         min="0"
                         max="24"
                         step="0.5"
-                        value={workedHoursById[employee.id] ?? '8'}
+                        value={
+                          workedHoursById[employee.id] ??
+                          getDefaultWorkedHours(employee.id)
+                        }
                         onChange={(event) =>
                           setWorkedHoursById((current) => ({
                             ...current,

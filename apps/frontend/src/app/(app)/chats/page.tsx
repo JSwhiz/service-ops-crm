@@ -38,6 +38,12 @@ type RealtimePayload = {
   payload?: unknown;
 };
 
+type InitialScrollTarget = {
+  messageId: string;
+  align: 'start' | 'end';
+  unreadMessageId: string | null;
+};
+
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
@@ -73,6 +79,68 @@ function getRoomTypeLabel(room: ChatRoom): string {
 
 function isAtBottom(element: HTMLDivElement): boolean {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 96;
+}
+
+function getFirstUnreadMessageId(
+  room: ChatRoom | null,
+  messages: ChatMessage[],
+  currentUserId: string | undefined,
+): string | null {
+  if (!room?.lastReadAt || room.unreadCount <= 0) {
+    return null;
+  }
+
+  const lastReadAt = Date.parse(room.lastReadAt);
+
+  if (!Number.isFinite(lastReadAt)) {
+    return null;
+  }
+
+  return (
+    messages.find((message) => {
+      const createdAt = Date.parse(message.createdAt);
+      const isOwnMessage =
+        message.author !== null && message.author.id === currentUserId;
+
+      return (
+        Number.isFinite(createdAt) &&
+        createdAt > lastReadAt &&
+        !isOwnMessage
+      );
+    })?.id ?? null
+  );
+}
+
+function getInitialScrollTarget(
+  room: ChatRoom | null,
+  messages: ChatMessage[],
+  currentUserId: string | undefined,
+): InitialScrollTarget | null {
+  const latestMessage = messages.at(-1);
+
+  if (!room || !latestMessage) {
+    return null;
+  }
+
+  const unreadMessageId = getFirstUnreadMessageId(
+    room,
+    messages,
+    currentUserId,
+  );
+
+  if (unreadMessageId) {
+    return {
+      messageId: unreadMessageId,
+      align: 'start',
+      unreadMessageId,
+    };
+  }
+
+  return {
+    messageId: latestMessage.id,
+    align: 'end',
+    unreadMessageId: null,
+  };
 }
 
 function getParticipantRoleLabel(roleInRoom: string): string {
@@ -195,6 +263,9 @@ export default function ChatsPage(): React.JSX.Element {
   const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
   const [isRoomListOpen, setIsRoomListOpen] = useState(true);
   const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
+  const [initialUnreadMessageId, setInitialUnreadMessageId] = useState<
+    string | null
+  >(null);
   const [roomParticipants, setRoomParticipants] = useState<
     ChatRoomParticipant[]
   >([]);
@@ -206,6 +277,7 @@ export default function ChatsPage(): React.JSX.Element {
   const pendingScrollToBottomRef = useRef(false);
   const activeRoomIdRef = useRef<string | null>(null);
   const lastMarkedReadMessageIdRef = useRef<string | null>(null);
+  const initialScrollRoomIdRef = useRef<string | null>(null);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) ?? null,
@@ -275,6 +347,7 @@ export default function ChatsPage(): React.JSX.Element {
       lastReadMessageId: messageId,
     });
     lastMarkedReadMessageIdRef.current = messageId;
+    setInitialUnreadMessageId(null);
     setRooms((current) =>
       current.map((room) => (room.id === updatedRoom.id ? updatedRoom : room)),
     );
@@ -324,7 +397,9 @@ export default function ChatsPage(): React.JSX.Element {
     setError(null);
     activeRoomIdRef.current = activeRoomId;
     lastMarkedReadMessageIdRef.current = null;
-    pendingScrollToBottomRef.current = true;
+    initialScrollRoomIdRef.current = null;
+    pendingScrollToBottomRef.current = false;
+    setInitialUnreadMessageId(null);
     setHasNewMessagesBelow(false);
     setIsRoomSettingsOpen(false);
     setIsParticipantsPanelOpen(false);
@@ -344,6 +419,49 @@ export default function ChatsPage(): React.JSX.Element {
     setRenameTitle(activeRoom.title);
     setAddParticipantIds([]);
   }, [activeRoom]);
+
+  useEffect(() => {
+    if (!activeRoom || messages.length === 0) {
+      return;
+    }
+
+    if (initialScrollRoomIdRef.current === activeRoom.id) {
+      return;
+    }
+
+    const target = getInitialScrollTarget(activeRoom, messages, user?.id);
+
+    if (!target) {
+      return;
+    }
+
+    initialScrollRoomIdRef.current = activeRoom.id;
+    setInitialUnreadMessageId(target.unreadMessageId);
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const container = messageListRef.current;
+
+        if (!container) {
+          return;
+        }
+
+        const targetElement = Array.from(
+          container.querySelectorAll<HTMLElement>('[data-message-id]'),
+        ).find((element) => element.dataset.messageId === target.messageId);
+
+        if (!targetElement) {
+          return;
+        }
+
+        targetElement.scrollIntoView({
+          block: target.align,
+          behavior: 'auto',
+        });
+        setHasNewMessagesBelow(false);
+      });
+    });
+  }, [activeRoom, messages, user?.id]);
 
   useEffect(() => {
     if (!pendingScrollToBottomRef.current) {
@@ -472,7 +590,6 @@ export default function ChatsPage(): React.JSX.Element {
           : [...current, sentMessage],
       );
       void loadRooms().catch(() => undefined);
-      scrollMessagesToBottom('smooth');
     } catch (sendError) {
       setError(getErrorMessage(sendError, 'Не удалось отправить сообщение.'));
     } finally {
@@ -751,8 +868,14 @@ export default function ChatsPage(): React.JSX.Element {
                         const isEditing = editingMessageId === message.id;
 
                         return (
+                          <React.Fragment key={message.id}>
+                            {initialUnreadMessageId === message.id ? (
+                              <div className="chat-unread-divider">
+                                <span>Новые сообщения</span>
+                              </div>
+                            ) : null}
                           <article
-                            key={message.id}
+                            data-message-id={message.id}
                             className={`chat-message ${
                               message.messageType === 'system'
                                 ? 'chat-message--system'
@@ -832,6 +955,7 @@ export default function ChatsPage(): React.JSX.Element {
                               </>
                             )}
                           </article>
+                          </React.Fragment>
                         );
                       })
                     )}

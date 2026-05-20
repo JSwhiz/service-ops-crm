@@ -916,6 +916,7 @@ export class ObjectOperationsService {
         },
         select: {
           employeeId: true,
+          workedHours: true,
         },
       }),
       this.listAttendanceEmployees(objectId, operationDate),
@@ -924,6 +925,10 @@ export class ObjectOperationsService {
     return {
       operationDate: todayAsBusinessDate(),
       employeeIds: facts.map((item) => item.employeeId),
+      employeeFacts: facts.map((item) => ({
+        employeeId: item.employeeId,
+        workedHours: item.workedHours,
+      })),
       employees,
     };
   }

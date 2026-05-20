@@ -10,6 +10,7 @@ export interface ChatRoom {
   visibilityType: string;
   lastMessageAt: string | null;
   lastMessagePreview: string | null;
+  lastReadAt: string | null;
   unreadCount: number;
   participantCount: number;
   capabilities: {

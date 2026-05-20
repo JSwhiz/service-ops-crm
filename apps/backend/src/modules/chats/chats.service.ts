@@ -830,6 +830,7 @@ export class ChatsService implements OnModuleInit {
       visibilityType: room.visibilityType,
       lastMessageAt: room.lastMessageAt?.toISOString() ?? null,
       lastMessagePreview: room.lastMessagePreview,
+      lastReadAt: participant.lastReadAt?.toISOString() ?? null,
       unreadCount,
       participantCount,
       capabilities: {

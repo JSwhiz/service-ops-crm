@@ -27,6 +27,10 @@ export interface UpsertDailyReportPayload {
 export interface ObjectAttendanceToday {
   operationDate: string;
   employeeIds: string[];
+  employeeFacts: Array<{
+    employeeId: string;
+    workedHours: number | null;
+  }>;
   employees: ObjectEmployeeOption[];
 }
 

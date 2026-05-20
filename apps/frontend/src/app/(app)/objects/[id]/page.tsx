@@ -38,6 +38,7 @@ import {
   upsertTodayArrivalPhoto,
   upsertTodayDailyReport,
   updateObjectEmployeeRatePolicy,
+  type ObjectAttendanceToday,
 } from '@/entities/object/api/object-operations-client';
 import type {
   ObjectArrivalPhoto,
@@ -132,6 +133,9 @@ export default function ObjectDetailPage({
   const [attendanceEmployeeIds, setAttendanceEmployeeIds] = useState<string[]>(
     [],
   );
+  const [attendanceEmployeeFacts, setAttendanceEmployeeFacts] = useState<
+    ObjectAttendanceToday['employeeFacts']
+  >([]);
   const [attendanceEmployees, setAttendanceEmployees] = useState<
     ObjectEmployeeOption[]
   >([]);
@@ -623,6 +627,7 @@ export default function ObjectDetailPage({
 
       if (!cancelled) {
         setAttendanceEmployeeIds(response.employeeIds ?? []);
+        setAttendanceEmployeeFacts(response.employeeFacts ?? []);
         setAttendanceEmployees(Array.isArray(response.employees) ? response.employees : []);
       }
     } catch (error) {
@@ -806,6 +811,7 @@ export default function ObjectDetailPage({
               <ObjectAttendancePanel
                 employees={attendanceEmployees}
                 initialEmployeeIds={attendanceEmployeeIds}
+                initialEmployeeFacts={attendanceEmployeeFacts}
                 operationDate={todayAsBusinessDate()}
                 onSave={async (payload) => {
                   await upsertObjectAttendance(objectId, payload);

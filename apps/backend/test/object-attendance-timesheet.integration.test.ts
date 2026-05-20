@@ -151,6 +151,74 @@ test('attendance sync keeps manual timesheet correction stable when fact is late
   assert.equal(finalEntry.hasFact, false);
 });
 
+test('object attendance today returns saved worked hours for controlled UI state', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const founderCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'founder',
+    password: 'founder123',
+  });
+  const targetDate = getSafeBusinessDate(new Date().getDate());
+  const { objectId } = await createCoreTestObject(prisma);
+
+  t.after(async () => {
+    await cleanupCoreTestObject(prisma, objectId);
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const saveAttendanceResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${objectId}/attendance`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        operationDate: targetDate.operationDate,
+        employeeIds: [SEEDED_EMPLOYEE_IDS.ivan],
+        employeeFacts: [
+          {
+            employeeId: SEEDED_EMPLOYEE_IDS.ivan,
+            workedHours: 5,
+          },
+        ],
+      }),
+    },
+  );
+
+  assert.equal(saveAttendanceResponse.status, 201);
+
+  const attendanceViewResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${objectId}/attendance/today`,
+    {
+      headers: {
+        Cookie: founderCookie,
+      },
+    },
+  );
+
+  assert.equal(attendanceViewResponse.status, 200);
+
+  const attendanceView = (await attendanceViewResponse.json()) as {
+    employeeIds: string[];
+    employeeFacts: Array<{
+      employeeId: string;
+      workedHours: number | null;
+    }>;
+  };
+
+  assert.deepEqual(attendanceView.employeeIds, [SEEDED_EMPLOYEE_IDS.ivan]);
+  assert.deepEqual(attendanceView.employeeFacts, [
+    {
+      employeeId: SEEDED_EMPLOYEE_IDS.ivan,
+      workedHours: 5,
+    },
+  ]);
+});
+
 test('object staffing and attendance surface active substitution and block unavailable employee selection', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
