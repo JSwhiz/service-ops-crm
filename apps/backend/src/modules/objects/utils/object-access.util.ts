@@ -16,7 +16,10 @@ export const OBJECT_MANAGER_ROLE_CODES = [
   'deputy_founder',
 ] as const;
 
-export const WIDE_OBJECT_ACCESS_ROLES = LEADERSHIP_OBJECT_ROLE_CODES;
+export const WIDE_OBJECT_ACCESS_ROLES = [
+  ...LEADERSHIP_OBJECT_ROLE_CODES,
+  'deputy_director',
+] as const;
 
 export const OBJECT_EDIT_ROLES = LEADERSHIP_OBJECT_ROLE_CODES;
 

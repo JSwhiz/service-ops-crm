@@ -10,6 +10,13 @@ export const ONE_TIME_ORDER_ASSIGNMENT_ROLE_CODES = [
   'one_time_manager',
 ] as const;
 
+export const WIDE_ONE_TIME_ORDER_VIEW_ROLE_CODES = [
+  ...LEADERSHIP_OBJECT_ROLE_CODES,
+  'deputy_director',
+] as const;
+
+export const ONE_TIME_ORDER_MANAGEMENT_ROLE_CODES = LEADERSHIP_OBJECT_ROLE_CODES;
+
 function hasAnyRole(
   roleCodes: string[],
   allowed: readonly string[],
@@ -38,7 +45,13 @@ function hasActiveOrderAssignment(
 }
 
 export function hasWideOneTimeOrderAccess(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
+  return hasAnyRole(roleCodes, WIDE_ONE_TIME_ORDER_VIEW_ROLE_CODES);
+}
+
+export function hasOneTimeOrderManagementAccess(
+  roleCodes: string[],
+): boolean {
+  return hasAnyRole(roleCodes, ONE_TIME_ORDER_MANAGEMENT_ROLE_CODES);
 }
 
 export function canAccessOneTimeOrders(roleCodes: string[]): boolean {
@@ -49,11 +62,11 @@ export function canAccessOneTimeOrders(roleCodes: string[]): boolean {
 }
 
 export function canCreateOneTimeOrder(roleCodes: string[]): boolean {
-  return hasWideOneTimeOrderAccess(roleCodes);
+  return hasOneTimeOrderManagementAccess(roleCodes);
 }
 
 export function canManageOneTimeOrderManagers(roleCodes: string[]): boolean {
-  return hasWideOneTimeOrderAccess(roleCodes);
+  return hasOneTimeOrderManagementAccess(roleCodes);
 }
 
 export function canBeOneTimeOrderManager(roleCodes: string[]): boolean {
@@ -95,7 +108,11 @@ export function canEditOneTimeOrderByScope(params: {
     }>;
   };
 }): boolean {
-  return canViewOneTimeOrderByScope(params);
+  return (
+    hasOneTimeOrderManagementAccess(params.roleCodes) ||
+    params.order.createdByUserId === params.currentUserId ||
+    hasActiveOrderAssignment(params.order, params.currentUserId)
+  );
 }
 
 export function canCreateTaskOnOneTimeOrder(params: {

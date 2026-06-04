@@ -1,4 +1,8 @@
-const WIDE_TASK_ACCESS_ROLE_CODES = ['founder', 'director'] as const;
+const WIDE_TASK_ACCESS_ROLE_CODES = [
+  'founder',
+  'director',
+  'deputy_director',
+] as const;
 
 export const OBJECT_TASK_ASSIGNMENT_ROLE_CODES = [
   'responsible',

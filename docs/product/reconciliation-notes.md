@@ -36,7 +36,7 @@
 - фото складских операций сохраняются.
 - runtime bridge Sprint 6:
   - leadership circle получает полный inventory access;
-  - `deputy_director` получает operational inventory access без catalog admin / writeoff / adjustment;
+  - `deputy_director` получает operational inventory access, включая catalog admin / writeoff / adjustment;
   - `adjustment` моделируется явным `adjustmentDirection`;
   - `receipt` обновляет текущую цену номенклатуры, а каждое движение хранит snapshot цены и суммы;
   - назначенный manager объекта может делать object-scoped `issue_to_object` без доступа к полному inventory admin;
@@ -51,7 +51,7 @@
 - `EquipmentMovement` хранит историю выдач, возвратов, ремонта, поломок, утерь и списаний;
 - `equipment_movement` добавлен как канонический `FileAttachment.entityType`;
 - object/order карточки получают scoped equipment blocks без автоматического global equipment access;
-- `deputy_director` получает operational equipment access, но не catalog admin и не writeoff.
+- `deputy_director` получает operational equipment access, включая catalog admin и writeoff.
 
 ### HR и expenses
 
@@ -69,6 +69,13 @@
 
 - внутри объекта — comments, не чат;
 - MVP-чаты зафиксированы: общий, регулярные объекты, разовые, подмены.
+- `deputy_director` может создавать и администрировать рабочие/custom-чаты, не становясь участником leadership circle.
+
+### Deputy director operational access correction
+
+- `deputy_director` получает широкий operational просмотр objects и one-time-orders;
+- `deputy_director` получает широкий task access для создания и назначения задач вне собственного object-manager scope;
+- это не расширяет HR, accountability cash issuance, manual timesheet correction, object daily rate edit и leadership-only visibility.
 
 ### Approvals
 

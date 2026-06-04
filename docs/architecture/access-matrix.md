@@ -51,7 +51,7 @@
 
 | Action                 | founder | deputy_founder | director | corporate_director | deputy_director        | responsible                                                    | manager |
 | ---------------------- | ------- | -------------- | -------- | ------------------ | ---------------------- | -------------------------------------------------------------- | ------- |
-| View object core       | yes     | yes            | yes      | yes                | optional operationally | yes                                                            | yes     |
+| View object core       | yes     | yes            | yes      | yes                | yes operationally      | yes                                                            | yes     |
 | Create object          | yes     | yes            | yes      | yes                | no                     | no                                                             | no      |
 | Edit object core       | yes     | yes            | yes      | yes                | no                     | no                                                             | no      |
 | Freeze object          | yes     | yes            | yes      | yes                | no                     | no                                                             | no      |
@@ -126,6 +126,7 @@
 Каноническое правило:
 
 - закрытие задачи требует подтверждения.
+- `deputy_director` имеет широкий operational task access: может создавать задачи и выбирать назначаемых не только в объектах, где назначен manager.
 
 ---
 
@@ -136,11 +137,11 @@
 | Action                         | leadership circle | deputy_director | manager | one_time_manager | hr |
 | ------------------------------ | ----------------- | --------------- | ------- | ---------------- | -- |
 | View inventory module          | yes               | yes             | no      | no               | no |
-| Manage inventory catalog       | yes               | no              | no      | no               | no |
+| Manage inventory catalog       | yes               | yes             | no      | no               | no |
 | Create receipt / issue / return| yes               | yes             | no      | no               | no |
 | Object-scoped issue_to_object  | yes               | yes             | yes if assigned to object | no | no |
-| Create writeoff                | yes               | no              | no      | no               | no |
-| Create adjustment              | yes               | no              | no      | no               | no |
+| Create writeoff                | yes               | yes             | no      | no               | no |
+| Create adjustment              | yes               | yes             | no      | no               | no |
 | View inventory reports         | yes               | yes             | no      | no               | no |
 | Resolve object issue without photo | director only | no | no | no | no |
 
@@ -160,12 +161,12 @@
 | Action                             | leadership circle | deputy_director | manager | one_time_manager | hr |
 | ---------------------------------- | ----------------- | --------------- | ------- | ---------------- | -- |
 | View equipment module              | yes               | yes             | no      | no               | no |
-| Manage equipment catalog           | yes               | no              | no      | no               | no |
+| Manage equipment catalog           | yes               | yes             | no      | no               | no |
 | Assign equipment to object         | yes               | yes             | no      | no               | no |
 | Assign equipment to one-time order | yes               | yes             | no      | no               | no |
 | Return / move equipment            | yes               | yes             | no      | no               | no |
 | Mark broken / send to repair       | yes               | yes             | no      | no               | no |
-| Writeoff equipment                 | yes               | no              | no      | no               | no |
+| Writeoff equipment                 | yes               | yes             | no      | no               | no |
 | View object-scoped equipment       | yes               | yes             | yes if assigned to object | no | no |
 | View order-scoped equipment        | yes               | yes             | no      | yes if assigned to order | no |
 
@@ -195,6 +196,10 @@
 | Regular objects chat | yes                                                                 |
 | One-time orders chat | yes                                                                 |
 | Substitution chat    | yes                                                                 |
+
+Runtime уточнение:
+
+- `deputy_director` может создавать и администрировать рабочие/custom-чаты, но не входит в `leadership` chat visibility по умолчанию.
 
 ---
 

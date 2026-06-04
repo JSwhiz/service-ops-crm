@@ -17,7 +17,7 @@ export function canAccessInventory(roleCodes: string[]): boolean {
 }
 
 export function canManageInventoryCatalog(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
+  return canAccessInventory(roleCodes);
 }
 
 export function canCreateInventoryMovement(roleCodes: string[]): boolean {
@@ -41,11 +41,11 @@ export function canReturnInventory(roleCodes: string[]): boolean {
 }
 
 export function canWriteoffInventory(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
+  return canAccessInventory(roleCodes);
 }
 
 export function canAdjustInventory(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
+  return canAccessInventory(roleCodes);
 }
 
 export function canViewInventoryReports(roleCodes: string[]): boolean {

@@ -14,7 +14,7 @@ export function canAccessEquipment(roleCodes: string[]): boolean {
 }
 
 export function canManageEquipmentCatalog(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
+  return canAccessEquipment(roleCodes);
 }
 
 export function canAssignEquipmentToObject(roleCodes: string[]): boolean {
@@ -46,7 +46,7 @@ export function canReturnEquipmentFromRepair(roleCodes: string[]): boolean {
 }
 
 export function canWriteoffEquipment(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
+  return canAccessEquipment(roleCodes);
 }
 
 export function canViewEquipmentHistory(roleCodes: string[]): boolean {

@@ -15,6 +15,11 @@ export const CHAT_OPERATIONAL_ROLE_CODES = [
   'operation_manager',
 ] as const;
 
+export const CHAT_ADMIN_ROLE_CODES = [
+  ...CHAT_LEADERSHIP_ROLE_CODES,
+  'deputy_director',
+] as const;
+
 function hasAnyRole(roleCodes: string[], allowed: readonly string[]): boolean {
   return roleCodes.some((roleCode) => allowed.includes(roleCode as never));
 }
@@ -28,7 +33,7 @@ export function hasOperationalChatRole(roleCodes: string[]): boolean {
 }
 
 export function canManageChats(roleCodes: string[]): boolean {
-  return isChatLeadership(roleCodes);
+  return hasAnyRole(roleCodes, CHAT_ADMIN_ROLE_CODES);
 }
 
 export function canAccessDefaultChatByRole(
