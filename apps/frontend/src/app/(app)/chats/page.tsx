@@ -503,19 +503,14 @@ export default function ChatsPage(): React.JSX.Element {
     const nextRooms = await listChatRooms({ view: 'active' });
     setRooms(nextRooms);
 
-    if (!activeRoomId && nextRooms.length > 0) {
-      const requestedRoom = requestedRoomCode
-        ? nextRooms.find((room) => room.code === requestedRoomCode)
-        : null;
-      const fallbackRoom = requestedRoom ?? nextRooms[0];
+    if (!activeRoomId && requestedRoomCode) {
+      const requestedRoom = nextRooms.find((room) => room.code === requestedRoomCode);
 
-      if (fallbackRoom) {
-        openingRoomSnapshotRef.current = fallbackRoom;
+      if (requestedRoom) {
+        openingRoomSnapshotRef.current = requestedRoom;
         initialScrollRunIdRef.current = null;
-        setActiveRoomId(fallbackRoom.id);
-        if (requestedRoomCode) {
-          setIsRoomListOpen(false);
-        }
+        setActiveRoomId(requestedRoom.id);
+        setIsRoomListOpen(false);
       }
     }
 
@@ -970,13 +965,16 @@ export default function ChatsPage(): React.JSX.Element {
   };
 
   const clearActiveRoomAfterRemoval = async (): Promise<void> => {
-    const nextRooms = await refreshRoomLists();
-    const nextActiveRoom = nextRooms.find((room) => room.id !== activeRoomId) ?? null;
+    await refreshRoomLists();
 
-    openingRoomSnapshotRef.current = nextActiveRoom;
+    openingRoomSnapshotRef.current = null;
     initialScrollRunIdRef.current = null;
-    setActiveRoomId(nextActiveRoom?.id ?? null);
+    lastMarkedReadMessageIdRef.current = null;
+    activeRoomIdRef.current = null;
+    setActiveRoomId(null);
     setMessages([]);
+    setInitialUnreadMessageId(null);
+    setHasNewMessagesBelow(false);
   };
 
   const handleHideRoom = async (): Promise<void> => {
