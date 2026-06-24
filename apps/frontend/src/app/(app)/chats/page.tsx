@@ -570,8 +570,11 @@ export default function ChatsPage(): React.JSX.Element {
     }
   };
 
-  const markActiveRoomRead = async (messageId: string): Promise<void> => {
-    if (!activeRoomId) {
+  const markRoomRead = async (
+    roomId: string,
+    messageId: string,
+  ): Promise<void> => {
+    if (activeRoomIdRef.current !== roomId) {
       return;
     }
 
@@ -579,12 +582,18 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
-    const updatedRoom = await markChatRoomRead(activeRoomId, {
+    const updatedRoom = await markChatRoomRead(roomId, {
       lastReadMessageId: messageId,
     });
+
     lastMarkedReadMessageIdRef.current = messageId;
     setInitialUnreadMessageId(null);
+
     setRooms((current) =>
+      current.map((room) => (room.id === updatedRoom.id ? updatedRoom : room)),
+    );
+
+    setArchivedRooms((current) =>
       current.map((room) => (room.id === updatedRoom.id ? updatedRoom : room)),
     );
   };
@@ -617,10 +626,30 @@ export default function ChatsPage(): React.JSX.Element {
         return;
       }
 
-      void markActiveRoomRead(messageId).catch(() => undefined);
+      void markRoomRead(roomId, messageId).catch(() => undefined);
     };
 
     window.setTimeout(() => tryMarkRead(), 360);
+  };
+
+  const resetActiveChatSelection = (): void => {
+    clearInitialScrollTimers();
+
+    openingRoomSnapshotRef.current = null;
+    initialScrollRunIdRef.current = null;
+    scheduledInitialScrollRunIdRef.current = null;
+    lastMarkedReadMessageIdRef.current = null;
+    activeRoomIdRef.current = null;
+    isInitialScrollPendingRef.current = false;
+    pendingScrollToBottomRef.current = false;
+
+    setActiveRoomId(null);
+    setMessages([]);
+    setInitialUnreadMessageId(null);
+    setHasNewMessagesBelow(false);
+    setRoomParticipants([]);
+    setIsRoomSettingsOpen(false);
+    setIsParticipantsPanelOpen(false);
   };
 
   const loadRoomParticipants = async (roomId: string): Promise<void> => {
@@ -663,7 +692,7 @@ export default function ChatsPage(): React.JSX.Element {
 
   useEffect(() => {
     if (!activeRoomId) {
-      setMessages([]);
+      resetActiveChatSelection();
       return;
     }
 
@@ -744,7 +773,7 @@ export default function ChatsPage(): React.JSX.Element {
         }
 
         setHasNewMessagesBelow(false);
-        void markActiveRoomRead(latestMessageId).catch(() => undefined);
+        void markRoomRead(activeRoomId, latestMessageId).catch(() => undefined);
       },
       {
         root,
@@ -784,15 +813,16 @@ export default function ChatsPage(): React.JSX.Element {
           payload.type === 'chat.room_left' ||
           payload.type === 'chat.room_closed'
         ) {
-          void refreshRoomLists().then((nextRooms) => {
-            if (
-              payload.roomId === activeRoomIdRef.current &&
-              !nextRooms.some((room) => room.id === payload.roomId)
-            ) {
-              setActiveRoomId(nextRooms[0]?.id ?? null);
-              setMessages([]);
-            }
-          }).catch(() => undefined);
+          void refreshRoomLists()
+            .then((nextRooms) => {
+              if (
+                payload.roomId === activeRoomIdRef.current &&
+                !nextRooms.some((room) => room.id === payload.roomId)
+              ) {
+                resetActiveChatSelection();
+              }
+            })
+            .catch(() => undefined);
           return;
         }
 
@@ -966,15 +996,7 @@ export default function ChatsPage(): React.JSX.Element {
 
   const clearActiveRoomAfterRemoval = async (): Promise<void> => {
     await refreshRoomLists();
-
-    openingRoomSnapshotRef.current = null;
-    initialScrollRunIdRef.current = null;
-    lastMarkedReadMessageIdRef.current = null;
-    activeRoomIdRef.current = null;
-    setActiveRoomId(null);
-    setMessages([]);
-    setInitialUnreadMessageId(null);
-    setHasNewMessagesBelow(false);
+    resetActiveChatSelection();
   };
 
   const handleHideRoom = async (): Promise<void> => {
