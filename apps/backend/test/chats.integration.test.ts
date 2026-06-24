@@ -274,7 +274,10 @@ test('chats support default visibility, attachments, unread, custom join-point a
     id: string;
     code: string | null;
     unreadCount: number;
-    capabilities: { canManage: boolean };
+    capabilities: {
+      canManage: boolean;
+      canCloseGlobally: boolean;
+    };
   }>;
 
   assert.deepEqual(
@@ -285,6 +288,9 @@ test('chats support default visibility, attachments, unread, custom join-point a
     ['leadership', 'objects', 'one_time_orders'],
   );
   assert.ok(founderRooms.every((room) => room.capabilities.canManage));
+  assert.ok(
+    founderRooms.every((room) => room.capabilities.canCloseGlobally === false),
+  );
 
   const hrRoomsResponse = await fetch(`${baseUrl}/api/v1/chats/rooms`, {
     headers: { Cookie: hrCookie },
@@ -639,12 +645,17 @@ test('chats support default visibility, attachments, unread, custom join-point a
   const customRoom = (await createRoomResponse.json()) as {
     id: string;
     roomType: string;
-    capabilities: { canManage: boolean; canLeave: boolean };
+    capabilities: {
+      canManage: boolean;
+      canLeave: boolean;
+      canCloseGlobally: boolean;
+    };
   };
   createdRoomIds.push(customRoom.id);
   assert.equal(customRoom.roomType, 'group');
   assert.equal(customRoom.capabilities.canManage, true);
   assert.equal(customRoom.capabilities.canLeave, true);
+  assert.equal(customRoom.capabilities.canCloseGlobally, false);
 
   const customParticipantsResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/participants`,
@@ -666,6 +677,26 @@ test('chats support default visibility, attachments, unread, custom join-point a
     ),
     true,
   );
+
+  const creatorRenameResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: 'Integration chat renamed by creator' }),
+    },
+  );
+  assert.equal(creatorRenameResponse.status, 200);
+  const creatorRenamedRoom = (await creatorRenameResponse.json()) as {
+    title: string;
+    capabilities: { canManage: boolean; canCloseGlobally: boolean };
+  };
+  assert.equal(creatorRenamedRoom.title, 'Integration chat renamed by creator');
+  assert.equal(creatorRenamedRoom.capabilities.canManage, true);
+  assert.equal(creatorRenamedRoom.capabilities.canCloseGlobally, false);
 
   const oldCustomMessageResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
@@ -698,6 +729,55 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
   );
   assert.equal(addParticipantResponse.status, 201);
+
+  const ordinaryMemberRenameResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: 'Manager member rename attempt' }),
+    },
+  );
+  assert.equal(ordinaryMemberRenameResponse.status, 403);
+
+  const ordinaryMemberAddParticipantsResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/participants`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userIds: [managerTwo.id] }),
+    },
+  );
+  assert.equal(ordinaryMemberAddParticipantsResponse.status, 403);
+
+  const globalManagerRenameResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: 'Integration chat managed by global manager' }),
+    },
+  );
+  assert.equal(globalManagerRenameResponse.status, 200);
+  const globalManagerRenamedRoom = (await globalManagerRenameResponse.json()) as {
+    title: string;
+    capabilities: { canManage: boolean; canCloseGlobally: boolean };
+  };
+  assert.equal(
+    globalManagerRenamedRoom.title,
+    'Integration chat managed by global manager',
+  );
+  assert.equal(globalManagerRenamedRoom.capabilities.canManage, true);
+  assert.equal(globalManagerRenamedRoom.capabilities.canCloseGlobally, false);
 
   const managerTwoMessagesResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
@@ -828,6 +908,24 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
   );
   assert.equal(forbiddenCloseResponse.status, 403);
+
+  const closerRoomsBeforeCloseResponse = await fetch(`${baseUrl}/api/v1/chats/rooms`, {
+    headers: { Cookie: closerCookie },
+  });
+  assert.equal(closerRoomsBeforeCloseResponse.status, 200);
+  const closerRoomsBeforeClose =
+    (await closerRoomsBeforeCloseResponse.json()) as Array<{
+      id: string;
+      capabilities: {
+        canManage: boolean;
+        canCloseGlobally: boolean;
+      };
+    }>;
+  const closerCustomRoom = closerRoomsBeforeClose.find(
+    (room) => room.id === customRoom.id,
+  );
+  assert.ok(closerCustomRoom);
+  assert.equal(closerCustomRoom.capabilities.canCloseGlobally, true);
 
   const closeGroupResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/close`,
