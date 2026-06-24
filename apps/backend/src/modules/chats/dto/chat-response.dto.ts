@@ -10,6 +10,7 @@ export class ChatRoomResponseDto {
   id!: string;
   code!: string | null;
   title!: string;
+  displayTitle!: string;
   roomType!: string;
   visibilityType!: string;
   lastMessageAt!: string | null;

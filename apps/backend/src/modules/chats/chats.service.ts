@@ -1157,6 +1157,43 @@ export class ChatsService implements OnModuleInit {
     });
   }
 
+  private async resolveRoomDisplayTitle(
+    currentUser: CurrentAuthUser,
+    room: ChatRoomRecord,
+  ): Promise<string> {
+    if (room.roomType !== 'direct') {
+      return room.title;
+    }
+
+    const otherParticipant = await this.prisma.chatRoomParticipant.findFirst({
+      where: {
+        chatRoomId: room.id,
+        userId: {
+          not: currentUser.id,
+        },
+        leftAt: null,
+        user: {
+          isActive: true,
+          deletedAt: null,
+        },
+      },
+      select: {
+        user: {
+          select: {
+            fullName: true,
+            login: true,
+          },
+        },
+      },
+    });
+
+    return (
+      otherParticipant?.user.fullName?.trim() ||
+      otherParticipant?.user.login ||
+      room.title
+    );
+  }
+
   private async mapRoom(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
@@ -1192,6 +1229,7 @@ export class ChatsService implements OnModuleInit {
       id: room.id,
       code: room.code,
       title: room.title,
+      displayTitle: await this.resolveRoomDisplayTitle(currentUser, room),
       roomType: room.roomType,
       visibilityType: room.visibilityType,
       lastMessageAt: room.lastMessageAt?.toISOString() ?? null,

@@ -101,6 +101,10 @@ function getRoomTypeLabel(room: ChatRoom): string {
   return 'Чат';
 }
 
+function getRoomDisplayTitle(room: ChatRoom): string {
+  return room.displayTitle || room.title;
+}
+
 function isAtBottom(element: HTMLDivElement): boolean {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 96;
 }
@@ -1212,7 +1216,7 @@ export default function ChatsPage(): React.JSX.Element {
                     onClick={() => selectRoom(room.id)}
                   >
                     <span className="chat-room-item__main">
-                      <strong>{room.title}</strong>
+                      <strong>{getRoomDisplayTitle(room)}</strong>
                       <span>
                         {room.lastMessagePreview ?? 'Сообщений пока нет'}
                       </span>
@@ -1256,7 +1260,7 @@ export default function ChatsPage(): React.JSX.Element {
                           onClick={() => void handleOpenArchivedRoom(room.id)}
                         >
                           <span className="chat-room-item__main">
-                            <strong>{room.title}</strong>
+                            <strong>{getRoomDisplayTitle(room)}</strong>
                             <span>
                               {room.lastMessagePreview ?? 'Сообщений пока нет'}
                             </span>
@@ -1296,7 +1300,7 @@ export default function ChatsPage(): React.JSX.Element {
                       Комнаты
                     </button>
                     <div>
-                      <div className="section-title">{activeRoom.title}</div>
+                      <div className="section-title">{getRoomDisplayTitle(activeRoom)}</div>
                       <div className="section-subtitle">
                         <span className="chat-room-type-badge">
                           {activeRoomTypeLabel}
@@ -1711,7 +1715,7 @@ export default function ChatsPage(): React.JSX.Element {
                 <div>
                   <div className="section-title">Участники</div>
                   <div className="section-subtitle">
-                    {activeRoom.title} · {activeRoomTypeLabel}
+                    {getRoomDisplayTitle(activeRoom)} · {activeRoomTypeLabel}
                   </div>
                 </div>
                 <button

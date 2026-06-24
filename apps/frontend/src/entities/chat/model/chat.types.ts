@@ -6,6 +6,7 @@ export interface ChatRoom {
   id: string;
   code: ChatRoomCode | null;
   title: string;
+  displayTitle: string;
   roomType: string;
   visibilityType: string;
   lastMessageAt: string | null;
