@@ -21,8 +21,12 @@ export interface ChatRealtimeEvent {
   type:
     | 'chat.message_created'
     | 'chat.message_updated'
+    | 'chat.room_created'
     | 'chat.room_updated'
-    | 'chat.room_read';
+    | 'chat.room_read'
+    | 'chat.room_hidden'
+    | 'chat.room_left'
+    | 'chat.room_closed';
   roomId: string;
   recipientUserIds: string[];
   payload: Record<string, unknown>;

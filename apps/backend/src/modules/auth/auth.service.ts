@@ -268,6 +268,8 @@ export class AuthService {
         canViewEquipmentHistory: equipmentCapabilities.canViewEquipmentHistory,
         canAccessChats: chatCapabilities.canAccessChats,
         canManageChats: chatCapabilities.canManageChats,
+        canCreateDirectChat: chatCapabilities.canCreateDirectChat,
+        canCreateGroupChat: chatCapabilities.canCreateGroupChat,
       },
     };
   }

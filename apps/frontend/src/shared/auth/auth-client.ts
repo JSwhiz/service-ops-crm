@@ -48,6 +48,8 @@ export interface AuthUser {
     canViewEquipmentHistory?: boolean;
     canAccessChats?: boolean;
     canManageChats?: boolean;
+    canCreateDirectChat?: boolean;
+    canCreateGroupChat?: boolean;
   };
 }
 

@@ -20,6 +20,9 @@ export class ChatRoomResponseDto {
   capabilities!: {
     canWrite: boolean;
     canManage: boolean;
+    canHide: boolean;
+    canLeave: boolean;
+    canCloseGlobally: boolean;
   };
 }
 
@@ -28,6 +31,7 @@ export class ChatRoomParticipantResponseDto {
   roleInRoom!: string;
   joinedAt!: string;
   lastReadAt!: string | null;
+  leftAt!: string | null;
   user!: ChatUserSummaryDto;
 }
 

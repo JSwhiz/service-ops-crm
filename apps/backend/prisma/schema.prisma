@@ -25,6 +25,7 @@ model User {
   resolvedApprovalRequests    ApprovalRequest[] @relation("ApprovalRequestResolvedBy")
   cancelledApprovalRequests   ApprovalRequest[] @relation("ApprovalRequestCancelledBy")
   createdChatRooms            ChatRoom[] @relation("ChatRoomCreatedBy")
+  deletedChatRooms            ChatRoom[] @relation("ChatRoomDeletedBy")
   chatRoomParticipants        ChatRoomParticipant[]
   authoredChatMessages        ChatMessage[] @relation("ChatMessageAuthor")
   auditEvents                 AuditEvent[] @relation("AuditActor")
@@ -221,13 +222,18 @@ model ChatRoom {
   title              String
   roomType           String
   visibilityType     String
+  directKey          String?  @unique
   createdByUserId    String?
+  deletedByUserId    String?
+  deletedAt          DateTime?
+  deleteReason       String?
   lastMessageAt      DateTime?
   lastMessagePreview String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   createdBy    User?                 @relation("ChatRoomCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  deletedBy    User?                 @relation("ChatRoomDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
   participants ChatRoomParticipant[]
   messages     ChatMessage[]
 
@@ -235,6 +241,8 @@ model ChatRoom {
   @@index([visibilityType])
   @@index([lastMessageAt])
   @@index([createdByUserId])
+  @@index([deletedByUserId])
+  @@index([deletedAt])
   @@map("chat_rooms")
 }
 
@@ -245,6 +253,8 @@ model ChatRoomParticipant {
   roleInRoom     String   @default("member")
   joinedAt       DateTime @default(now())
   lastReadAt     DateTime?
+  hiddenAt       DateTime?
+  leftAt         DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -255,6 +265,8 @@ model ChatRoomParticipant {
   @@index([chatRoomId])
   @@index([userId])
   @@index([roleInRoom])
+  @@index([hiddenAt])
+  @@index([leftAt])
   @@map("chat_room_participants")
 }
 

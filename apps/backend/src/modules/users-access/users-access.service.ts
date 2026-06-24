@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { canManageChats } from '../chats/utils/chat-access.util';
 import {
   canBeObjectManager,
   canBeObjectResponsible,
@@ -255,7 +254,7 @@ export class UsersAccessService {
   private async listChatParticipantCandidates(
     currentUser: CurrentAuthUser,
   ): Promise<SystemUserOptionDto[]> {
-    if (!canManageChats(this.getRoleCodes(currentUser))) {
+    if (!currentUser.isActive) {
       throw new ForbiddenException('Chat participant candidate access denied');
     }
 

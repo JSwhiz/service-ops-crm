@@ -16,6 +16,9 @@ export interface ChatRoom {
   capabilities: {
     canWrite: boolean;
     canManage: boolean;
+    canHide: boolean;
+    canLeave: boolean;
+    canCloseGlobally: boolean;
   };
 }
 
@@ -30,6 +33,7 @@ export interface ChatRoomParticipant {
   roleInRoom: 'admin' | 'member' | string;
   joinedAt: string;
   lastReadAt: string | null;
+  leftAt: string | null;
   user: ChatUserSummary;
 }
 

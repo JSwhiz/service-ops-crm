@@ -46,5 +46,7 @@ export class MeResponseDto {
     canViewEquipmentHistory: boolean;
     canAccessChats: boolean;
     canManageChats: boolean;
+    canCreateDirectChat: boolean;
+    canCreateGroupChat: boolean;
   };
 }

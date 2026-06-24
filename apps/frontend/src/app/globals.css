@@ -1588,6 +1588,30 @@ tbody tr:hover {
   padding-bottom: 6px;
 }
 
+.chat-mode-switch {
+  display: inline-flex;
+  width: fit-content;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f8fafc;
+  padding: 4px;
+}
+
+.chat-mode-switch button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.chat-mode-switch button.is-active {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
 .participant-picker {
   display: grid;
   gap: 10px;

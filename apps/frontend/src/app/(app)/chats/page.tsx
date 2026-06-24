@@ -12,8 +12,12 @@ import { useSearchParams } from 'next/navigation';
 import {
   addChatParticipants,
   buildChatRealtimeUrl,
-  createChatRoom,
+  closeChatRoom,
+  createDirectChat,
+  createGroupChat,
   editChatMessage,
+  hideChatRoom,
+  leaveChatRoom,
   listChatRoomParticipants,
   listChatMessages,
   listChatRooms,
@@ -85,7 +89,15 @@ function getRoomTypeLabel(room: ChatRoom): string {
     return 'Руководство';
   }
 
-  return 'Custom room';
+  if (room.roomType === 'direct') {
+    return 'Личный чат';
+  }
+
+  if (room.roomType === 'group') {
+    return 'Группа';
+  }
+
+  return 'Чат';
 }
 
 function isAtBottom(element: HTMLDivElement): boolean {
@@ -271,10 +283,14 @@ export default function ChatsPage(): React.JSX.Element {
   const requestedRoomCode = searchParams.get('room') as ChatRoomCode | null;
   const { user } = useAuth();
   const canManageChats = user?.capabilities?.canManageChats ?? false;
+  const canCreateDirectChat = user?.capabilities?.canCreateDirectChat ?? false;
+  const canCreateGroupChat = user?.capabilities?.canCreateGroupChat ?? false;
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [participants, setParticipants] = useState<SystemUserOption[]>([]);
+  const [newRoomMode, setNewRoomMode] = useState<'direct' | 'group'>('direct');
+  const [directTargetUserId, setDirectTargetUserId] = useState('');
   const [newRoomTitle, setNewRoomTitle] = useState('');
   const [newRoomParticipantIds, setNewRoomParticipantIds] = useState<string[]>([]);
   const [renameTitle, setRenameTitle] = useState('');
@@ -582,14 +598,14 @@ export default function ChatsPage(): React.JSX.Element {
   useEffect(() => () => clearInitialScrollTimers(), [clearInitialScrollTimers]);
 
   useEffect(() => {
-    if (!canManageChats) {
+    if (!canManageChats && !canCreateDirectChat && !canCreateGroupChat) {
       return;
     }
 
     void listChatParticipantCandidates()
       .then(setParticipants)
       .catch(() => setParticipants([]));
-  }, [canManageChats]);
+  }, [canManageChats, canCreateDirectChat, canCreateGroupChat]);
 
   useEffect(() => {
     if (!activeRoomId) {
@@ -692,8 +708,29 @@ export default function ChatsPage(): React.JSX.Element {
           return;
         }
 
-        if (payload.type === 'chat.room_updated') {
+        if (
+          payload.type === 'chat.room_updated' ||
+          payload.type === 'chat.room_created'
+        ) {
           void listChatRooms().then(setRooms).catch(() => undefined);
+          return;
+        }
+
+        if (
+          payload.type === 'chat.room_hidden' ||
+          payload.type === 'chat.room_left' ||
+          payload.type === 'chat.room_closed'
+        ) {
+          void listChatRooms().then((nextRooms) => {
+            setRooms(nextRooms);
+            if (
+              payload.roomId === activeRoomIdRef.current &&
+              !nextRooms.some((room) => room.id === payload.roomId)
+            ) {
+              setActiveRoomId(nextRooms[0]?.id ?? null);
+              setMessages([]);
+            }
+          }).catch(() => undefined);
           return;
         }
 
@@ -785,17 +822,26 @@ export default function ChatsPage(): React.JSX.Element {
   ): Promise<void> => {
     event.preventDefault();
 
-    if (!newRoomTitle.trim()) {
+    if (newRoomMode === 'direct' && !directTargetUserId) {
+      return;
+    }
+
+    if (newRoomMode === 'group' && !newRoomTitle.trim()) {
       return;
     }
 
     setError(null);
 
     try {
-      const created = await createChatRoom({
-        title: newRoomTitle.trim(),
-        participantUserIds: newRoomParticipantIds,
-      });
+      const created =
+        newRoomMode === 'direct'
+          ? await createDirectChat({ targetUserId: directTargetUserId })
+          : await createGroupChat({
+              title: newRoomTitle.trim(),
+              participantUserIds: newRoomParticipantIds,
+            });
+
+      setDirectTargetUserId('');
       setNewRoomTitle('');
       setNewRoomParticipantIds([]);
       setIsCreateRoomOpen(false);
@@ -850,6 +896,71 @@ export default function ChatsPage(): React.JSX.Element {
     }
   };
 
+  const clearActiveRoomAfterRemoval = async (): Promise<void> => {
+    const nextRooms = await loadRooms();
+    const nextActiveRoom = nextRooms.find((room) => room.id !== activeRoomId) ?? null;
+
+    openingRoomSnapshotRef.current = nextActiveRoom;
+    initialScrollRunIdRef.current = null;
+    setActiveRoomId(nextActiveRoom?.id ?? null);
+    setMessages([]);
+  };
+
+  const handleHideRoom = async (): Promise<void> => {
+    if (!activeRoom) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      await hideChatRoom(activeRoom.id);
+      await clearActiveRoomAfterRemoval();
+    } catch (hideError) {
+      setError(getErrorMessage(hideError, 'Не удалось скрыть чат.'));
+    }
+  };
+
+  const handleLeaveRoom = async (): Promise<void> => {
+    if (!activeRoom) {
+      return;
+    }
+
+    if (!window.confirm('Покинуть групповой чат?')) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      await leaveChatRoom(activeRoom.id);
+      await clearActiveRoomAfterRemoval();
+    } catch (leaveError) {
+      setError(getErrorMessage(leaveError, 'Не удалось покинуть чат.'));
+    }
+  };
+
+  const handleCloseRoom = async (): Promise<void> => {
+    if (!activeRoom) {
+      return;
+    }
+
+    const reason = window.prompt('Причина закрытия чата для всех', '');
+
+    if (reason === null) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      await closeChatRoom(activeRoom.id, { reason: reason.trim() || undefined });
+      await clearActiveRoomAfterRemoval();
+    } catch (closeError) {
+      setError(getErrorMessage(closeError, 'Не удалось закрыть чат.'));
+    }
+  };
+
   const handleEdit = async (message: ChatMessage): Promise<void> => {
     if (!editingText.trim()) {
       return;
@@ -876,6 +987,9 @@ export default function ChatsPage(): React.JSX.Element {
 
   const selectableParticipants = participants.filter(
     (participant) => participant.isActive,
+  );
+  const directParticipants = selectableParticipants.filter(
+    (participant) => participant.id !== user?.id,
   );
   const roomParticipantUserIds = new Set(
     roomParticipants.map((participant) => participant.user.id),
@@ -941,11 +1055,14 @@ export default function ChatsPage(): React.JSX.Element {
                   Рабочие чаты отдельно от комментариев.
                 </div>
               </div>
-              {canManageChats ? (
+              {canCreateDirectChat || canCreateGroupChat ? (
                 <button
                   type="button"
                   className="chat-icon-button"
-                  onClick={() => setIsCreateRoomOpen(true)}
+                  onClick={() => {
+                    setNewRoomMode(canCreateDirectChat ? 'direct' : 'group');
+                    setIsCreateRoomOpen(true);
+                  }}
                 >
                   Новый чат
                 </button>
@@ -1022,6 +1139,21 @@ export default function ChatsPage(): React.JSX.Element {
                         ? `Новых: ${activeRoom.unreadCount}`
                         : 'Прочитано'}
                     </span>
+                    {activeRoom.capabilities.canHide ? (
+                      <button type="button" onClick={() => void handleHideRoom()}>
+                        Скрыть
+                      </button>
+                    ) : null}
+                    {activeRoom.capabilities.canLeave ? (
+                      <button type="button" onClick={() => void handleLeaveRoom()}>
+                        Покинуть
+                      </button>
+                    ) : null}
+                    {activeRoom.capabilities.canCloseGlobally ? (
+                      <button type="button" onClick={() => void handleCloseRoom()}>
+                        Закрыть для всех
+                      </button>
+                    ) : null}
                     {activeRoom.capabilities.canManage ? (
                       <button
                         type="button"
@@ -1226,7 +1358,7 @@ export default function ChatsPage(): React.JSX.Element {
           </section>
         </div>
 
-        {canManageChats && isCreateRoomOpen ? (
+        {(canCreateDirectChat || canCreateGroupChat) && isCreateRoomOpen ? (
           <div
             className="chat-modal-backdrop"
             role="presentation"
@@ -1241,7 +1373,7 @@ export default function ChatsPage(): React.JSX.Element {
                 <div>
                   <div className="section-title">Новый чат</div>
                   <div className="section-subtitle">
-                    Участники увидят историю только после добавления.
+                    Личный диалог или рабочая группа без смешивания с системными комнатами.
                   </div>
                 </div>
                 <button
@@ -1252,31 +1384,77 @@ export default function ChatsPage(): React.JSX.Element {
                 </button>
               </div>
 
-              <label>
-                <span>Название</span>
-                <input
-                  value={newRoomTitle}
-                  onChange={(event) => setNewRoomTitle(event.target.value)}
-                  placeholder="Например: Бригада вечер"
-                  autoFocus
-                />
-              </label>
+              <div className="chat-mode-switch" role="group" aria-label="Тип чата">
+                {canCreateDirectChat ? (
+                  <button
+                    type="button"
+                    className={
+                      newRoomMode === 'direct' ? 'is-active' : undefined
+                    }
+                    onClick={() => setNewRoomMode('direct')}
+                  >
+                    Личный чат
+                  </button>
+                ) : null}
+                {canCreateGroupChat ? (
+                  <button
+                    type="button"
+                    className={newRoomMode === 'group' ? 'is-active' : undefined}
+                    onClick={() => setNewRoomMode('group')}
+                  >
+                    Групповой чат
+                  </button>
+                ) : null}
+              </div>
 
-              <label>
-                <span>Участники</span>
-                <ParticipantPicker
-                  candidates={selectableParticipants}
-                  selectedIds={newRoomParticipantIds}
-                  onChange={setNewRoomParticipantIds}
-                  placeholder="Найти участника по ФИО"
-                />
-              </label>
+              {newRoomMode === 'direct' ? (
+                <label>
+                  <span>Собеседник</span>
+                  <ParticipantPicker
+                    candidates={directParticipants}
+                    selectedIds={
+                      directTargetUserId ? [directTargetUserId] : []
+                    }
+                    onChange={(selectedIds) =>
+                      setDirectTargetUserId(selectedIds.at(-1) ?? '')
+                    }
+                    placeholder="Найти пользователя по ФИО"
+                  />
+                </label>
+              ) : (
+                <>
+                  <label>
+                    <span>Название</span>
+                    <input
+                      value={newRoomTitle}
+                      onChange={(event) => setNewRoomTitle(event.target.value)}
+                      placeholder="Например: Бригада вечер"
+                      autoFocus
+                    />
+                  </label>
+
+                  <label>
+                    <span>Участники</span>
+                    <ParticipantPicker
+                      candidates={directParticipants}
+                      selectedIds={newRoomParticipantIds}
+                      onChange={setNewRoomParticipantIds}
+                      placeholder="Найти участника по ФИО"
+                    />
+                  </label>
+                </>
+              )}
 
               <div className="action-row">
-                <button type="submit">Создать чат</button>
+                <button type="submit">
+                  {newRoomMode === 'direct'
+                    ? 'Открыть личный чат'
+                    : 'Создать группу'}
+                </button>
                 <button
                   type="button"
                   onClick={() => {
+                    setDirectTargetUserId('');
                     setNewRoomTitle('');
                     setNewRoomParticipantIds([]);
                     setIsCreateRoomOpen(false);
@@ -1396,7 +1574,7 @@ export default function ChatsPage(): React.JSX.Element {
               )}
 
               {activeRoom.capabilities.canManage &&
-              activeRoom.visibilityType === 'explicit_members' ? (
+              activeRoom.roomType === 'group' ? (
                 <form
                   className="chat-participant-add-form"
                   onSubmit={handleAddParticipants}

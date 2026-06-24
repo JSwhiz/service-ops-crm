@@ -32,6 +32,25 @@ export async function createChatRoom(payload: {
   });
 }
 
+export async function createDirectChat(payload: {
+  targetUserId: string;
+}): Promise<ChatRoom> {
+  return fetcher<ChatRoom>('/chats/rooms/direct', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createGroupChat(payload: {
+  title: string;
+  participantUserIds: string[];
+}): Promise<ChatRoom> {
+  return fetcher<ChatRoom>('/chats/rooms/group', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function renameChatRoom(
   roomId: string,
   payload: { title: string },
@@ -47,6 +66,28 @@ export async function addChatParticipants(
   payload: { userIds: string[] },
 ): Promise<ChatRoom> {
   return fetcher<ChatRoom>(`/chats/rooms/${roomId}/participants`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function hideChatRoom(roomId: string): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/chats/rooms/${roomId}/hide`, {
+    method: 'POST',
+  });
+}
+
+export async function leaveChatRoom(roomId: string): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/chats/rooms/${roomId}/leave`, {
+    method: 'POST',
+  });
+}
+
+export async function closeChatRoom(
+  roomId: string,
+  payload: { reason?: string },
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/chats/rooms/${roomId}/close`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

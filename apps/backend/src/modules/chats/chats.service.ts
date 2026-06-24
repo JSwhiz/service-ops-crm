@@ -13,11 +13,13 @@ import { FilesService } from '../files/files.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
+import { CloseChatRoomDto } from './dto/close-chat-room.dto';
 import {
   ChatMessageResponseDto,
   ChatRoomParticipantResponseDto,
   ChatRoomResponseDto,
 } from './dto/chat-response.dto';
+import { CreateDirectChatDto } from './dto/create-direct-chat.dto';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { EditChatMessageDto } from './dto/edit-chat-message.dto';
 import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
@@ -31,6 +33,7 @@ import {
 } from './constants/chat.constants';
 import type {
   ChatParticipantRole,
+  ChatRoomType,
   ChatRoomCode,
   ChatVisibilityType,
   CurrentAuthUser,
@@ -38,6 +41,9 @@ import type {
 import {
   CHAT_LEADERSHIP_ROLE_CODES,
   CHAT_OPERATIONAL_ROLE_CODES,
+  canCloseChatGlobally,
+  canCreateDirectChat,
+  canCreateGroupChat,
   canManageChats,
   hasOperationalChatRole,
   isChatLeadership,
@@ -56,7 +62,11 @@ type ChatRoomRecord = {
   title: string;
   roomType: string;
   visibilityType: string;
+  directKey: string | null;
   createdByUserId: string | null;
+  deletedByUserId: string | null;
+  deletedAt: Date | null;
+  deleteReason: string | null;
   lastMessageAt: Date | null;
   lastMessagePreview: string | null;
 };
@@ -68,6 +78,8 @@ type ChatParticipantRecord = {
   roleInRoom: string;
   joinedAt: Date;
   lastReadAt: Date | null;
+  hiddenAt: Date | null;
+  leftAt: Date | null;
 };
 
 type ChatMessageRecord = {
@@ -104,6 +116,9 @@ export class ChatsService implements OnModuleInit {
     await this.ensureDefaultRooms();
 
     const rooms = await this.prisma.chatRoom.findMany({
+      where: {
+        deletedAt: null,
+      },
       orderBy: [
         {
           lastMessageAt: 'desc',
@@ -125,6 +140,13 @@ export class ChatsService implements OnModuleInit {
         currentUser,
         room,
       );
+
+      if (
+        room.roomType !== 'system_default' &&
+        (participant.hiddenAt || participant.leftAt)
+      ) {
+        continue;
+      }
 
       visibleRooms.push(await this.mapRoom(currentUser, room, participant));
     }
@@ -158,18 +180,138 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     dto: CreateChatRoomDto,
   ): Promise<ChatRoomResponseDto> {
-    this.assertCanManageChats(currentUser);
+    return this.createGroupRoom(currentUser, dto);
+  }
+
+  async createDirectRoom(
+    currentUser: CurrentAuthUser,
+    dto: CreateDirectChatDto,
+  ): Promise<ChatRoomResponseDto> {
+    if (!canCreateDirectChat()) {
+      throw new ForbiddenException('Direct chat creation denied');
+    }
+
+    const targetUserId = dto.targetUserId.trim();
+
+    if (!targetUserId || targetUserId === currentUser.id) {
+      throw new BadRequestException('Direct chat target user is invalid');
+    }
+
+    const targetUser = await this.findActiveUser(targetUserId);
+
+    if (!targetUser) {
+      throw new BadRequestException('Direct chat target user is not available');
+    }
+
+    const directKey = [currentUser.id, targetUser.id].sort().join(':');
+    let wasCreated = false;
+    let room: ChatRoomRecord;
+
+    try {
+      room = (await this.prisma.chatRoom.create({
+        data: {
+          title: `${currentUser.fullName} / ${targetUser.fullName}`,
+          roomType: 'direct',
+          visibilityType: 'explicit_members',
+          directKey,
+          createdByUserId: currentUser.id,
+          participants: {
+            create: [
+              {
+                userId: currentUser.id,
+                roleInRoom: 'member',
+                joinedAt: new Date(),
+              },
+              {
+                userId: targetUser.id,
+                roleInRoom: 'member',
+                joinedAt: new Date(),
+              },
+            ],
+          },
+        },
+      })) as ChatRoomRecord;
+      wasCreated = true;
+    } catch (error) {
+      if (!this.isUniqueConstraintError(error)) {
+        throw error;
+      }
+
+      const existingRoom = (await this.prisma.chatRoom.findUnique({
+        where: {
+          directKey,
+        },
+      })) as ChatRoomRecord | null;
+
+      if (!existingRoom) {
+        throw error;
+      }
+
+      room = existingRoom;
+    }
+
+    await this.ensureDirectParticipant(room.id, currentUser.id, true);
+    await this.ensureDirectParticipant(room.id, targetUser.id, false);
+
+    if (wasCreated) {
+      await this.auditService.writeAuditEvent({
+        entityType: 'chat_room',
+        entityId: room.id,
+        actorUserId: currentUser.id,
+        action: 'chat.room.direct.created',
+        newValues: {
+          directKey,
+          participantUserIds: [currentUser.id, targetUser.id],
+        },
+      });
+
+      await this.publishRoomLifecycleEvent(room, 'chat.room_created', [
+        currentUser.id,
+        targetUser.id,
+      ]);
+    } else {
+      await this.publishRoomLifecycleEvent(room, 'chat.room_updated', [
+        currentUser.id,
+      ]);
+    }
+
+    const participant = await this.ensureParticipantForAccessibleRoom(
+      currentUser,
+      room,
+    );
+
+    return this.mapRoom(currentUser, room, participant);
+  }
+
+  async createGroupRoom(
+    currentUser: CurrentAuthUser,
+    dto: CreateChatRoomDto,
+  ): Promise<ChatRoomResponseDto> {
+    if (!canCreateGroupChat(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('Group chat creation denied');
+    }
+
+    const title = dto.title.trim();
+
+    if (!title) {
+      throw new BadRequestException('Group chat title is required');
+    }
 
     const participantIds = this.dedupeUserIds([
       currentUser.id,
       ...(dto.participantUserIds ?? []),
     ]);
+
+    if (participantIds.filter((userId) => userId !== currentUser.id).length === 0) {
+      throw new BadRequestException('Group chat requires participants');
+    }
+
     await this.assertActiveUsersExist(participantIds);
 
     const room = await this.prisma.chatRoom.create({
       data: {
-        title: dto.title.trim(),
-        roomType: 'custom',
+        title,
+        roomType: 'group',
         visibilityType: 'explicit_members',
         createdByUserId: currentUser.id,
         participants: {
@@ -186,14 +328,14 @@ export class ChatsService implements OnModuleInit {
       entityType: 'chat_room',
       entityId: room.id,
       actorUserId: currentUser.id,
-      action: 'chat.room.created',
+      action: 'chat.room.group.created',
       newValues: {
         title: room.title,
         participantUserIds: participantIds,
       },
     });
 
-    await this.publishRoomUpdate(room);
+    await this.publishRoomLifecycleEvent(room, 'chat.room_created', participantIds);
 
     const participant = await this.ensureParticipantForAccessibleRoom(
       currentUser,
@@ -210,6 +352,7 @@ export class ChatsService implements OnModuleInit {
   ): Promise<ChatRoomResponseDto> {
     const room = await this.getRoomRecord(roomId);
     await this.assertCanManageRoom(currentUser, room);
+    this.assertRoomOpen(room);
 
     const updated = await this.prisma.chatRoom.update({
       where: { id: room.id },
@@ -242,10 +385,11 @@ export class ChatsService implements OnModuleInit {
   ): Promise<ChatRoomResponseDto> {
     const room = await this.getRoomRecord(roomId);
     await this.assertCanManageRoom(currentUser, room);
+    this.assertRoomOpen(room);
 
-    if (room.visibilityType !== 'explicit_members') {
+    if (room.roomType !== 'group' || room.visibilityType !== 'explicit_members') {
       throw new BadRequestException(
-        'Participants can be manually managed only for custom chats',
+        'Participants can be manually managed only for group chats',
       );
     }
 
@@ -268,7 +412,12 @@ export class ChatsService implements OnModuleInit {
             roleInRoom: 'member',
             joinedAt,
           },
-          update: {},
+          update: {
+            roleInRoom: 'member',
+            joinedAt,
+            hiddenAt: null,
+            leftAt: null,
+          },
         }),
       ),
     );
@@ -292,6 +441,131 @@ export class ChatsService implements OnModuleInit {
     return this.mapRoom(currentUser, updated, participant);
   }
 
+  async hideRoom(
+    currentUser: CurrentAuthUser,
+    roomId: string,
+  ): Promise<{ success: true }> {
+    const room = await this.getRoomRecord(roomId);
+    this.assertRoomOpen(room);
+
+    if (!this.isDirectOrGroupRoom(room)) {
+      throw new BadRequestException('Only direct or group chats can be hidden');
+    }
+
+    const participant = await this.assertActiveManualParticipant(
+      currentUser,
+      room,
+    );
+
+    await this.prisma.chatRoomParticipant.update({
+      where: {
+        id: participant.id,
+      },
+      data: {
+        hiddenAt: new Date(),
+      },
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'chat_room',
+      entityId: room.id,
+      actorUserId: currentUser.id,
+      action: 'chat.room.hidden',
+    });
+
+    await this.publishRoomLifecycleEvent(room, 'chat.room_hidden', [
+      currentUser.id,
+    ]);
+
+    return { success: true };
+  }
+
+  async leaveRoom(
+    currentUser: CurrentAuthUser,
+    roomId: string,
+  ): Promise<{ success: true }> {
+    const room = await this.getRoomRecord(roomId);
+    this.assertRoomOpen(room);
+
+    if (room.roomType !== 'group') {
+      throw new BadRequestException('Only group chats can be left');
+    }
+
+    const participant = await this.assertActiveManualParticipant(
+      currentUser,
+      room,
+    );
+    const recipientUserIds = await this.loadRecipientUserIds(room);
+
+    await this.prisma.chatRoomParticipant.update({
+      where: {
+        id: participant.id,
+      },
+      data: {
+        hiddenAt: null,
+        leftAt: new Date(),
+      },
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'chat_room',
+      entityId: room.id,
+      actorUserId: currentUser.id,
+      action: 'chat.room.left',
+    });
+
+    await this.publishRoomLifecycleEvent(room, 'chat.room_left', [
+      ...new Set([...recipientUserIds, currentUser.id]),
+    ]);
+
+    return { success: true };
+  }
+
+  async closeRoom(
+    currentUser: CurrentAuthUser,
+    roomId: string,
+    dto: CloseChatRoomDto,
+  ): Promise<{ success: true }> {
+    const room = await this.getRoomRecord(roomId);
+    this.assertRoomOpen(room);
+
+    if (room.roomType !== 'group') {
+      throw new BadRequestException('Only group chats can be closed globally');
+    }
+
+    if (!canCloseChatGlobally(currentUser.login)) {
+      throw new ForbiddenException('Global chat close denied');
+    }
+
+    const recipientUserIds = await this.loadRecipientUserIds(room);
+    const deleteReason = dto.reason?.trim() || null;
+
+    await this.prisma.chatRoom.update({
+      where: {
+        id: room.id,
+      },
+      data: {
+        deletedAt: new Date(),
+        deletedByUserId: currentUser.id,
+        deleteReason,
+      },
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'chat_room',
+      entityId: room.id,
+      actorUserId: currentUser.id,
+      action: 'chat.room.closed_globally',
+      newValues: {
+        reason: deleteReason,
+      },
+    });
+
+    await this.publishRoomLifecycleEvent(room, 'chat.room_closed', recipientUserIds);
+
+    return { success: true };
+  }
+
   async listParticipants(
     currentUser: CurrentAuthUser,
     roomId: string,
@@ -300,7 +574,10 @@ export class ChatsService implements OnModuleInit {
     await this.assertCanReadRoom(currentUser, room);
 
     const participants = await this.prisma.chatRoomParticipant.findMany({
-      where: { chatRoomId: room.id },
+      where: {
+        chatRoomId: room.id,
+        leftAt: null,
+      },
       include: {
         user: {
           select: {
@@ -325,6 +602,7 @@ export class ChatsService implements OnModuleInit {
       roleInRoom: participant.roleInRoom,
       joinedAt: participant.joinedAt.toISOString(),
       lastReadAt: participant.lastReadAt?.toISOString() ?? null,
+      leftAt: participant.leftAt?.toISOString() ?? null,
       user: {
         id: participant.user.id,
         login: participant.user.login,
@@ -412,6 +690,7 @@ export class ChatsService implements OnModuleInit {
     }
 
     await this.updateRoomLastMessage(room.id, this.buildMessagePreview(text, files));
+    await this.revealHiddenActiveParticipants(room.id);
 
     const mapped = await this.mapMessage(currentUser, message);
     await this.publishMessageEvent(room.id, 'chat.message_created', mapped);
@@ -443,6 +722,7 @@ export class ChatsService implements OnModuleInit {
     }
 
     await this.assertCanReadRoom(currentUser, message.chatRoom);
+    this.assertRoomOpen(message.chatRoom);
 
     if (message.messageType !== 'user' || message.authorUserId !== currentUser.id) {
       throw new ForbiddenException('Only message author can edit this message');
@@ -623,6 +903,10 @@ export class ChatsService implements OnModuleInit {
       return false;
     }
 
+    if (message.chatRoom.deletedAt) {
+      return false;
+    }
+
     if (mode === 'read') {
       const participant = await this.ensureParticipantForAccessibleRoom(
         currentUser,
@@ -665,6 +949,12 @@ export class ChatsService implements OnModuleInit {
     return room;
   }
 
+  private assertRoomOpen(room: ChatRoomRecord): void {
+    if (room.deletedAt) {
+      throw new ForbiddenException('Chat room is closed');
+    }
+  }
+
   private async assertCanReadRoom(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
@@ -685,12 +975,6 @@ export class ChatsService implements OnModuleInit {
     }
   }
 
-  private assertCanManageChats(currentUser: CurrentAuthUser): void {
-    if (!canManageChats(this.getRoleCodes(currentUser))) {
-      throw new ForbiddenException('Chat admin access denied');
-    }
-  }
-
   private async assertCanManageRoom(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
@@ -704,6 +988,10 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
   ): Promise<boolean> {
+    if (room.deletedAt) {
+      return false;
+    }
+
     const roleCodes = this.getRoleCodes(currentUser);
 
     switch (room.visibilityType as ChatVisibilityType) {
@@ -720,7 +1008,7 @@ export class ChatsService implements OnModuleInit {
           (await this.hasActiveOneTimeOrderManagerAssignment(currentUser.id))
         );
       case 'explicit_members':
-        return this.hasParticipant(room.id, currentUser.id);
+        return this.hasActiveParticipant(room.id, currentUser.id);
     }
   }
 
@@ -728,6 +1016,14 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
   ): Promise<boolean> {
+    if (!currentUser.isActive || room.deletedAt) {
+      return false;
+    }
+
+    if (room.visibilityType === 'explicit_members') {
+      return this.hasActiveParticipant(room.id, currentUser.id);
+    }
+
     return this.canAccessRoom(currentUser, room);
   }
 
@@ -736,6 +1032,10 @@ export class ChatsService implements OnModuleInit {
     room: ChatRoomRecord,
   ): Promise<boolean> {
     const roleCodes = this.getRoleCodes(currentUser);
+
+    if (room.deletedAt) {
+      return false;
+    }
 
     if (canManageChats(roleCodes)) {
       return true;
@@ -754,10 +1054,11 @@ export class ChatsService implements OnModuleInit {
       },
       select: {
         roleInRoom: true,
+        leftAt: true,
       },
     });
 
-    return participant?.roleInRoom === 'admin';
+    return participant?.roleInRoom === 'admin' && participant.leftAt === null;
   }
 
   private async ensureParticipantForAccessibleRoom(
@@ -774,6 +1075,13 @@ export class ChatsService implements OnModuleInit {
     });
 
     if (existing) {
+      if (
+        room.visibilityType === 'explicit_members' &&
+        existing.leftAt !== null
+      ) {
+        throw new ForbiddenException('Chat participant has left this room');
+      }
+
       return existing;
     }
 
@@ -800,7 +1108,10 @@ export class ChatsService implements OnModuleInit {
     participant: ChatParticipantRecord,
   ): Promise<ChatRoomResponseDto> {
     const participantCount = await this.prisma.chatRoomParticipant.count({
-      where: { chatRoomId: room.id },
+      where: {
+        chatRoomId: room.id,
+        leftAt: null,
+      },
     });
     const unreadThreshold = participant.lastReadAt ?? participant.joinedAt;
     const unreadCount = await this.prisma.chatMessage.count({
@@ -836,6 +1147,18 @@ export class ChatsService implements OnModuleInit {
       capabilities: {
         canWrite: await this.canWriteRoom(currentUser, room),
         canManage: await this.canManageRoom(currentUser, room),
+        canHide:
+          this.isDirectOrGroupRoom(room) &&
+          !room.deletedAt &&
+          participant.leftAt === null,
+        canLeave:
+          room.roomType === 'group' &&
+          !room.deletedAt &&
+          participant.leftAt === null,
+        canCloseGlobally:
+          room.roomType === 'group' &&
+          !room.deletedAt &&
+          canCloseChatGlobally(currentUser.login),
       },
     };
   }
@@ -956,6 +1279,26 @@ export class ChatsService implements OnModuleInit {
     await this.publishRoomUpdate(room);
   }
 
+  private async publishRoomLifecycleEvent(
+    room: ChatRoomRecord,
+    type:
+      | 'chat.room_created'
+      | 'chat.room_updated'
+      | 'chat.room_hidden'
+      | 'chat.room_left'
+      | 'chat.room_closed',
+    recipientUserIds: string[],
+  ): Promise<void> {
+    await this.realtimeService.publish({
+      type,
+      roomId: room.id,
+      recipientUserIds: Array.from(new Set(recipientUserIds)),
+      payload: {
+        roomId: room.id,
+      },
+    });
+  }
+
   private async publishRoomUpdate(room: ChatRoomRecord): Promise<void> {
     const recipientUserIds = await this.loadRecipientUserIds(room);
 
@@ -979,7 +1322,14 @@ export class ChatsService implements OnModuleInit {
         return this.loadOperationalOrderChatUserIds();
       case 'explicit_members': {
         const participants = await this.prisma.chatRoomParticipant.findMany({
-          where: { chatRoomId: room.id },
+          where: {
+            chatRoomId: room.id,
+            leftAt: null,
+            user: {
+              isActive: true,
+              deletedAt: null,
+            },
+          },
           select: { userId: true },
         });
         return participants.map((participant) => participant.userId);
@@ -1015,7 +1365,10 @@ export class ChatsService implements OnModuleInit {
     return 'Сообщение';
   }
 
-  private async hasParticipant(roomId: string, userId: string): Promise<boolean> {
+  private async hasActiveParticipant(
+    roomId: string,
+    userId: string,
+  ): Promise<boolean> {
     const participant = await this.prisma.chatRoomParticipant.findUnique({
       where: {
         chatRoomId_userId: {
@@ -1023,10 +1376,78 @@ export class ChatsService implements OnModuleInit {
           userId,
         },
       },
-      select: { id: true },
+      select: {
+        id: true,
+        leftAt: true,
+      },
     });
 
-    return !!participant;
+    return !!participant && participant.leftAt === null;
+  }
+
+  private async assertActiveManualParticipant(
+    currentUser: CurrentAuthUser,
+    room: ChatRoomRecord,
+  ): Promise<ChatParticipantRecord> {
+    if (room.visibilityType !== 'explicit_members') {
+      throw new BadRequestException('Action is available only for manual rooms');
+    }
+
+    const participant = (await this.prisma.chatRoomParticipant.findUnique({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId: room.id,
+          userId: currentUser.id,
+        },
+      },
+    })) as ChatParticipantRecord | null;
+
+    if (!participant || participant.leftAt) {
+      throw new ForbiddenException('Active chat participant required');
+    }
+
+    return participant;
+  }
+
+  private async ensureDirectParticipant(
+    roomId: string,
+    userId: string,
+    shouldUnhide: boolean,
+  ): Promise<void> {
+    await this.prisma.chatRoomParticipant.upsert({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId: roomId,
+          userId,
+        },
+      },
+      create: {
+        chatRoomId: roomId,
+        userId,
+        roleInRoom: 'member',
+        joinedAt: new Date(),
+      },
+      update: {
+        roleInRoom: 'member',
+        leftAt: null,
+        ...(shouldUnhide ? { hiddenAt: null } : {}),
+      },
+    });
+  }
+
+  private async revealHiddenActiveParticipants(roomId: string): Promise<void> {
+    await this.prisma.chatRoomParticipant.updateMany({
+      where: {
+        chatRoomId: roomId,
+        hiddenAt: {
+          not: null,
+        },
+        leftAt: null,
+      },
+      data: {
+        hiddenAt: null,
+      },
+    });
   }
 
   private async hasActiveObjectAssignment(userId: string): Promise<boolean> {
@@ -1110,6 +1531,23 @@ export class ChatsService implements OnModuleInit {
     );
   }
 
+  private async findActiveUser(userId: string): Promise<{
+    id: string;
+    fullName: string;
+  } | null> {
+    return this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        fullName: true,
+      },
+    });
+  }
+
   private async assertActiveUsersExist(userIds: string[]): Promise<void> {
     if (userIds.length === 0) {
       return;
@@ -1136,6 +1574,21 @@ export class ChatsService implements OnModuleInit {
   private dedupeUserIds(userIds: string[]): string[] {
     return Array.from(
       new Set(userIds.map((userId) => userId.trim()).filter(Boolean)),
+    );
+  }
+
+  private isDirectOrGroupRoom(room: ChatRoomRecord): boolean {
+    return (['direct', 'group'] as ChatRoomType[]).includes(
+      room.roomType as ChatRoomType,
+    );
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
     );
   }
 

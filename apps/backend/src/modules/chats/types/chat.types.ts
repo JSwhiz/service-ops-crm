@@ -1,6 +1,6 @@
 export type ChatRoomCode = 'objects' | 'one_time_orders' | 'leadership';
 
-export type ChatRoomType = 'system_default' | 'custom';
+export type ChatRoomType = 'system_default' | 'direct' | 'group';
 
 export type ChatVisibilityType =
   | 'objects_scope'

@@ -16,11 +16,13 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { ChatsService } from './chats.service';
 import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
+import { CloseChatRoomDto } from './dto/close-chat-room.dto';
 import {
   ChatMessageResponseDto,
   ChatRoomParticipantResponseDto,
   ChatRoomResponseDto,
 } from './dto/chat-response.dto';
+import { CreateDirectChatDto } from './dto/create-direct-chat.dto';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { EditChatMessageDto } from './dto/edit-chat-message.dto';
 import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
@@ -61,6 +63,22 @@ export class ChatsController {
     return this.chatsService.createRoom(user, body);
   }
 
+  @Post('rooms/direct')
+  createDirectRoom(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() body: CreateDirectChatDto,
+  ): Promise<ChatRoomResponseDto> {
+    return this.chatsService.createDirectRoom(user, body);
+  }
+
+  @Post('rooms/group')
+  createGroupRoom(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() body: CreateChatRoomDto,
+  ): Promise<ChatRoomResponseDto> {
+    return this.chatsService.createGroupRoom(user, body);
+  }
+
   @Patch('rooms/:roomId')
   renameRoom(
     @CurrentUser() user: CurrentAuthUser,
@@ -77,6 +95,31 @@ export class ChatsController {
     @Body() body: AddChatParticipantsDto,
   ): Promise<ChatRoomResponseDto> {
     return this.chatsService.addParticipants(user, roomId, body);
+  }
+
+  @Post('rooms/:roomId/hide')
+  hideRoom(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('roomId') roomId: string,
+  ): Promise<{ success: true }> {
+    return this.chatsService.hideRoom(user, roomId);
+  }
+
+  @Post('rooms/:roomId/leave')
+  leaveRoom(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('roomId') roomId: string,
+  ): Promise<{ success: true }> {
+    return this.chatsService.leaveRoom(user, roomId);
+  }
+
+  @Post('rooms/:roomId/close')
+  closeRoom(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('roomId') roomId: string,
+    @Body() body: CloseChatRoomDto,
+  ): Promise<{ success: true }> {
+    return this.chatsService.closeRoom(user, roomId, body);
   }
 
   @Get('rooms/:roomId/participants')
