@@ -594,6 +594,40 @@ export default function ChatsPage(): React.JSX.Element {
     );
   };
 
+  const scheduleMarkLatestMessageRead = (
+    roomId: string,
+    messageId: string,
+  ): void => {
+    const tryMarkRead = (attempt = 0): void => {
+      if (activeRoomIdRef.current !== roomId) {
+        return;
+      }
+
+      if (lastMarkedReadMessageIdRef.current === messageId) {
+        return;
+      }
+
+      const container = messageListRef.current;
+
+      if (!container) {
+        return;
+      }
+
+      if (isInitialScrollPendingRef.current && attempt < 8) {
+        window.setTimeout(() => tryMarkRead(attempt + 1), 80);
+        return;
+      }
+
+      if (!isAtBottom(container)) {
+        return;
+      }
+
+      void markActiveRoomRead(messageId).catch(() => undefined);
+    };
+
+    window.setTimeout(() => tryMarkRead(), 360);
+  };
+
   const loadRoomParticipants = async (roomId: string): Promise<void> => {
     setIsLoadingParticipants(true);
 
@@ -660,11 +694,19 @@ export default function ChatsPage(): React.JSX.Element {
     void loadMessages(activeRoomId, {
       scheduleInitial: true,
       roomSnapshot,
-    }).catch((loadError) => {
-      setError(getErrorMessage(loadError, 'Не удалось загрузить сообщения.'));
-      setMessages([]);
-      isInitialScrollPendingRef.current = false;
-    });
+    })
+      .then((nextMessages) => {
+        const latestLoadedMessageId = nextMessages.at(-1)?.id;
+
+        if (latestLoadedMessageId) {
+          scheduleMarkLatestMessageRead(activeRoomId, latestLoadedMessageId);
+        }
+      })
+      .catch((loadError) => {
+        setError(getErrorMessage(loadError, 'Не удалось загрузить сообщения.'));
+        setMessages([]);
+        isInitialScrollPendingRef.current = false;
+      });
   }, [activeRoomId, clearInitialScrollTimers]);
 
   useEffect(() => {
