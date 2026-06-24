@@ -104,8 +104,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  me(@CurrentUser() user: MeResponseDto): MeResponseDto {
-    return user;
+  async me(@CurrentUser() user: { id: string }): Promise<MeResponseDto> {
+    return this.authService.getMe(user.id);
   }
 
   private getRequestMeta(request: Request): AuthRequestMeta {

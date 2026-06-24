@@ -119,6 +119,16 @@ export class AuthService {
     };
   }
 
+  async getMe(userId: string): Promise<MeResponseDto> {
+    const user = await this.usersService.findById(userId);
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException('User is not available');
+    }
+
+    return this.buildMeResponse(this.usersService.sanitizeUser(user));
+  }
+
   async logout(refreshToken?: string): Promise<void> {
     if (!refreshToken) {
       return;
