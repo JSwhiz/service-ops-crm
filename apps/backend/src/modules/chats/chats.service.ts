@@ -512,6 +512,13 @@ export class ChatsService implements OnModuleInit {
       },
     });
 
+    await this.auditService.writeAuditEvent({
+      entityType: 'chat_room',
+      entityId: room.id,
+      actorUserId: currentUser.id,
+      action: 'chat.room.unhidden',
+    });
+
     await this.publishRoomLifecycleEvent(room, 'chat.room_unhidden', [
       currentUser.id,
     ]);
