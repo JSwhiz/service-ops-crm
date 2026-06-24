@@ -426,6 +426,59 @@ test('chats support default visibility, attachments, unread, custom join-point a
     false,
   );
 
+  const managerOneArchivedRoomsResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms?view=archived`,
+    {
+      headers: { Cookie: managerOneCookie },
+    },
+  );
+  assert.equal(managerOneArchivedRoomsResponse.status, 200);
+  const managerOneArchivedRooms =
+    (await managerOneArchivedRoomsResponse.json()) as Array<{
+      id: string;
+      roomType: string;
+    }>;
+  assert.equal(
+    managerOneArchivedRooms.some(
+      (room) => room.id === directRoom.id && room.roomType === 'direct',
+    ),
+    true,
+  );
+
+  const unhideDirectResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${directRoom.id}/unhide`,
+    {
+      method: 'POST',
+      headers: { Cookie: managerOneCookie },
+    },
+  );
+  assert.equal(unhideDirectResponse.status, 201);
+
+  const managerOneArchivedRoomsAfterUnhideResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms?view=archived`,
+    {
+      headers: { Cookie: managerOneCookie },
+    },
+  );
+  assert.equal(managerOneArchivedRoomsAfterUnhideResponse.status, 200);
+  const managerOneArchivedRoomsAfterUnhide =
+    (await managerOneArchivedRoomsAfterUnhideResponse.json()) as Array<{
+      id: string;
+    }>;
+  assert.equal(
+    managerOneArchivedRoomsAfterUnhide.some((room) => room.id === directRoom.id),
+    false,
+  );
+
+  const hideDirectAgainResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${directRoom.id}/hide`,
+    {
+      method: 'POST',
+      headers: { Cookie: managerOneCookie },
+    },
+  );
+  assert.equal(hideDirectAgainResponse.status, 201);
+
   const managerTwoRoomsAfterHideResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms`,
     {
@@ -470,8 +523,49 @@ test('chats support default visibility, attachments, unread, custom join-point a
     true,
   );
 
+  const managerOneArchivedRoomsAfterRevealResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms?view=archived`,
+    {
+      headers: { Cookie: managerOneCookie },
+    },
+  );
+  assert.equal(managerOneArchivedRoomsAfterRevealResponse.status, 200);
+  const managerOneArchivedRoomsAfterReveal =
+    (await managerOneArchivedRoomsAfterRevealResponse.json()) as Array<{
+      id: string;
+    }>;
+  assert.equal(
+    managerOneArchivedRoomsAfterReveal.some((room) => room.id === directRoom.id),
+    false,
+  );
+
   const objectsRoom = founderRooms.find((room) => room.code === 'objects');
   assert.ok(objectsRoom);
+
+  const hideSystemRoomResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${objectsRoom.id}/hide`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(hideSystemRoomResponse.status, 400);
+
+  const founderArchivedRoomsResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms?view=archived`,
+    {
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(founderArchivedRoomsResponse.status, 200);
+  const founderArchivedRooms =
+    (await founderArchivedRoomsResponse.json()) as Array<{
+      code: string | null;
+    }>;
+  assert.equal(
+    founderArchivedRooms.some((room) => room.code === 'objects'),
+    false,
+  );
 
   const form = new FormData();
   form.set('text', 'Objects chat integration message');

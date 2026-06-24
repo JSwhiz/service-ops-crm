@@ -25,6 +25,7 @@ export interface ChatRealtimeEvent {
     | 'chat.room_updated'
     | 'chat.room_read'
     | 'chat.room_hidden'
+    | 'chat.room_unhidden'
     | 'chat.room_left'
     | 'chat.room_closed';
   roomId: string;

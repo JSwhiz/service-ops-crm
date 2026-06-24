@@ -99,6 +99,8 @@ type ChatMessageRecord = {
   } | null;
 };
 
+type ChatRoomsView = 'active' | 'archived';
+
 @Injectable()
 export class ChatsService implements OnModuleInit {
   constructor(
@@ -112,9 +114,17 @@ export class ChatsService implements OnModuleInit {
     await this.ensureDefaultRooms();
   }
 
-  async listRooms(currentUser: CurrentAuthUser): Promise<ChatRoomResponseDto[]> {
+  async listRooms(
+    currentUser: CurrentAuthUser,
+    view: string = 'active',
+  ): Promise<ChatRoomResponseDto[]> {
     await this.ensureDefaultRooms();
 
+    if (view !== 'active' && view !== 'archived') {
+      throw new BadRequestException('Unsupported chat rooms view');
+    }
+
+    const roomsView = view as ChatRoomsView;
     const rooms = await this.prisma.chatRoom.findMany({
       where: {
         deletedAt: null,
@@ -141,10 +151,7 @@ export class ChatsService implements OnModuleInit {
         room,
       );
 
-      if (
-        room.roomType !== 'system_default' &&
-        (participant.hiddenAt || participant.leftAt)
-      ) {
+      if (!this.shouldIncludeRoomInView(room, participant, roomsView)) {
         continue;
       }
 
@@ -478,6 +485,38 @@ export class ChatsService implements OnModuleInit {
     ]);
 
     return { success: true };
+  }
+
+  async unhideRoom(
+    currentUser: CurrentAuthUser,
+    roomId: string,
+  ): Promise<ChatRoomResponseDto> {
+    const room = await this.getRoomRecord(roomId);
+    this.assertRoomOpen(room);
+
+    if (!this.isDirectOrGroupRoom(room)) {
+      throw new BadRequestException('Only direct or group chats can be unhidden');
+    }
+
+    const participant = await this.assertActiveManualParticipant(
+      currentUser,
+      room,
+    );
+
+    const updatedParticipant = await this.prisma.chatRoomParticipant.update({
+      where: {
+        id: participant.id,
+      },
+      data: {
+        hiddenAt: null,
+      },
+    });
+
+    await this.publishRoomLifecycleEvent(room, 'chat.room_unhidden', [
+      currentUser.id,
+    ]);
+
+    return this.mapRoom(currentUser, room, updatedParticipant);
   }
 
   async leaveRoom(
@@ -955,6 +994,22 @@ export class ChatsService implements OnModuleInit {
     }
   }
 
+  private shouldIncludeRoomInView(
+    room: ChatRoomRecord,
+    participant: ChatParticipantRecord,
+    view: ChatRoomsView,
+  ): boolean {
+    if (participant.leftAt) {
+      return false;
+    }
+
+    if (view === 'archived') {
+      return this.isDirectOrGroupRoom(room) && participant.hiddenAt !== null;
+    }
+
+    return room.roomType === 'system_default' || participant.hiddenAt === null;
+  }
+
   private async assertCanReadRoom(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
@@ -1285,6 +1340,7 @@ export class ChatsService implements OnModuleInit {
       | 'chat.room_created'
       | 'chat.room_updated'
       | 'chat.room_hidden'
+      | 'chat.room_unhidden'
       | 'chat.room_left'
       | 'chat.room_closed',
     recipientUserIds: string[],

@@ -10,8 +10,18 @@ import type {
 
 export type { ChatMessage, ChatRoom, ChatRoomCode } from '../model/chat.types';
 
-export async function listChatRooms(): Promise<ChatRoom[]> {
-  return fetcher<ChatRoom[]>('/chats/rooms', {
+export async function listChatRooms(params?: {
+  view?: 'active' | 'archived';
+}): Promise<ChatRoom[]> {
+  const searchParams = new URLSearchParams();
+
+  if (params?.view) {
+    searchParams.set('view', params.view);
+  }
+
+  const query = searchParams.toString();
+
+  return fetcher<ChatRoom[]>(`/chats/rooms${query ? `?${query}` : ''}`, {
     method: 'GET',
   });
 }
@@ -73,6 +83,12 @@ export async function addChatParticipants(
 
 export async function hideChatRoom(roomId: string): Promise<{ success: true }> {
   return fetcher<{ success: true }>(`/chats/rooms/${roomId}/hide`, {
+    method: 'POST',
+  });
+}
+
+export async function unhideChatRoom(roomId: string): Promise<ChatRoom> {
+  return fetcher<ChatRoom>(`/chats/rooms/${roomId}/unhide`, {
     method: 'POST',
   });
 }

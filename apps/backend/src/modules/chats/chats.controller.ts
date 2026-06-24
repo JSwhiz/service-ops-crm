@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
@@ -43,8 +44,11 @@ export class ChatsController {
   constructor(private readonly chatsService: ChatsService) {}
 
   @Get('rooms')
-  listRooms(@CurrentUser() user: CurrentAuthUser): Promise<ChatRoomResponseDto[]> {
-    return this.chatsService.listRooms(user);
+  listRooms(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query('view') view?: string,
+  ): Promise<ChatRoomResponseDto[]> {
+    return this.chatsService.listRooms(user, view);
   }
 
   @Get('rooms/code/:code')
@@ -103,6 +107,14 @@ export class ChatsController {
     @Param('roomId') roomId: string,
   ): Promise<{ success: true }> {
     return this.chatsService.hideRoom(user, roomId);
+  }
+
+  @Post('rooms/:roomId/unhide')
+  unhideRoom(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('roomId') roomId: string,
+  ): Promise<ChatRoomResponseDto> {
+    return this.chatsService.unhideRoom(user, roomId);
   }
 
   @Post('rooms/:roomId/leave')

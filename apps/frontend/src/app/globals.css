@@ -1116,6 +1116,49 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.chat-archive-block {
+  border-top: 1px solid var(--border);
+  padding: 10px 14px 14px;
+}
+
+.chat-archive-toggle {
+  width: 100%;
+  justify-content: space-between;
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: var(--text);
+}
+
+.chat-room-list--archive {
+  flex: 0 0 auto;
+  max-height: 260px;
+  padding: 10px 0 0;
+}
+
+.chat-room-item--archived {
+  align-items: center;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+}
+
+.chat-room-item__open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  text-align: left;
+}
+
+.chat-room-item__open:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 .chat-unread {
   justify-self: end;
   min-width: 24px;
@@ -1610,6 +1653,16 @@ tbody tr:hover {
   background: #ffffff;
   color: var(--text);
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.chat-form-field {
+  display: grid;
+  gap: 8px;
+}
+
+.chat-form-field > span {
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .participant-picker {
