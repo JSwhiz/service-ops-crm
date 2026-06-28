@@ -638,7 +638,7 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
     body: JSON.stringify({
       title: `Integration chat ${Date.now()}`,
-      participantUserIds: [managerOne.id],
+      participantUserIds: [managerOne.id, closerUser.id],
     }),
   });
   assert.equal(createRoomResponse.status, 201);
@@ -841,6 +841,115 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
   );
   assert.equal(lateEditResponse.status, 403);
+
+  const ordinaryMemberDeleteResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/delete`,
+    {
+      method: 'POST',
+      headers: { Cookie: managerOneCookie },
+    },
+  );
+  assert.equal(ordinaryMemberDeleteResponse.status, 403);
+
+  const attachedDeleteForm = new FormData();
+  attachedDeleteForm.set('text', 'Message with attachment to delete');
+  attachedDeleteForm.append(
+    'files',
+    new Blob(['deleted chat attachment'], { type: 'text/plain' }),
+    'deleted-chat-attachment.txt',
+  );
+  const attachedDeleteMessageResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+      body: attachedDeleteForm,
+    },
+  );
+  assert.equal(attachedDeleteMessageResponse.status, 201);
+  const attachedDeleteMessage = (await attachedDeleteMessageResponse.json()) as {
+    id: string;
+    attachments: Array<{ id: string }>;
+  };
+  createdMessageIds.push(attachedDeleteMessage.id);
+  createdFileIds.push(...attachedDeleteMessage.attachments.map((file) => file.id));
+  assert.equal(attachedDeleteMessage.attachments.length, 1);
+
+  const authorDeleteResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}/delete`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(authorDeleteResponse.status, 201);
+  const deletedMessage = (await authorDeleteResponse.json()) as {
+    isDeleted: boolean;
+    deletedAt: string | null;
+    text: string | null;
+    attachments: unknown[];
+    capabilities: { canEdit: boolean; canDelete: boolean };
+  };
+  assert.equal(deletedMessage.isDeleted, true);
+  assert.ok(deletedMessage.deletedAt);
+  assert.equal(deletedMessage.text, 'Сообщение удалено');
+  assert.deepEqual(deletedMessage.attachments, []);
+  assert.deepEqual(deletedMessage.capabilities, {
+    canEdit: false,
+    canDelete: false,
+  });
+
+  const editDeletedResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text: 'Deleted message edit attempt' }),
+    },
+  );
+  assert.equal(editDeletedResponse.status, 403);
+
+  const roomAfterAuthorDeleteResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms`,
+    { headers: { Cookie: founderCookie } },
+  );
+  const roomAfterAuthorDelete = (
+    (await roomAfterAuthorDeleteResponse.json()) as Array<{
+      id: string;
+      lastMessagePreview: string | null;
+    }>
+  ).find((room) => room.id === customRoom.id);
+  assert.equal(roomAfterAuthorDelete?.lastMessagePreview, 'Сообщение удалено');
+
+  const memberMessageResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text: 'Member message for room admin delete' }),
+    },
+  );
+  assert.equal(memberMessageResponse.status, 201);
+  const memberMessage = (await memberMessageResponse.json()) as { id: string };
+  createdMessageIds.push(memberMessage.id);
+
+  const roomManagerDeleteResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${memberMessage.id}/delete`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(roomManagerDeleteResponse.status, 201);
+  const roomManagerDeletedMessage =
+    (await roomManagerDeleteResponse.json()) as { isDeleted: boolean };
+  assert.equal(roomManagerDeletedMessage.isDeleted, true);
 
   const leaveDirectResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${directRoom.id}/leave`,

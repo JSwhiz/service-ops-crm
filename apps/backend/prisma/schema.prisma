@@ -28,6 +28,7 @@ model User {
   deletedChatRooms            ChatRoom[] @relation("ChatRoomDeletedBy")
   chatRoomParticipants        ChatRoomParticipant[]
   authoredChatMessages        ChatMessage[] @relation("ChatMessageAuthor")
+  deletedChatMessages         ChatMessage[] @relation("ChatMessageDeletedBy")
   auditEvents                 AuditEvent[] @relation("AuditActor")
   createdObjects              Object[] @relation("ObjectCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
@@ -278,14 +279,20 @@ model ChatMessage {
   text          String?
   metadata      Json?
   editedAt      DateTime?
+  deletedAt     DateTime?
+  deletedByUserId String?
+  deleteReason  String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   author   User?    @relation("ChatMessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  deletedBy User?   @relation("ChatMessageDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
 
   @@index([chatRoomId, createdAt])
   @@index([authorUserId])
+  @@index([deletedByUserId])
+  @@index([deletedAt])
   @@index([messageType])
   @@map("chat_messages")
 }

@@ -154,6 +154,12 @@ export async function editChatMessage(
   });
 }
 
+export async function deleteChatMessage(messageId: string): Promise<ChatMessage> {
+  return fetcher<ChatMessage>(`/chats/messages/${messageId}/delete`, {
+    method: 'POST',
+  });
+}
+
 export async function markChatRoomRead(
   roomId: string,
   payload: { lastReadMessageId: string },

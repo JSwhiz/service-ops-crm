@@ -47,9 +47,12 @@ export interface ChatMessage {
   createdAt: string;
   updatedAt: string;
   editedAt: string | null;
+  deletedAt: string | null;
+  isDeleted: boolean;
   author: ChatUserSummary | null;
   attachments: AttachedFile[];
   capabilities: {
     canEdit: boolean;
+    canDelete: boolean;
   };
 }

@@ -90,6 +90,9 @@ type ChatMessageRecord = {
   text: string | null;
   metadata: Prisma.JsonValue | null;
   editedAt: Date | null;
+  deletedAt: Date | null;
+  deletedByUserId: string | null;
+  deleteReason: string | null;
   createdAt: Date;
   updatedAt: Date;
   author: {
@@ -770,6 +773,10 @@ export class ChatsService implements OnModuleInit {
     await this.assertCanReadRoom(currentUser, message.chatRoom);
     this.assertRoomOpen(message.chatRoom);
 
+    if (message.deletedAt) {
+      throw new ForbiddenException('Deleted message cannot be edited');
+    }
+
     if (message.messageType !== 'user' || message.authorUserId !== currentUser.id) {
       throw new ForbiddenException('Only message author can edit this message');
     }
@@ -800,6 +807,84 @@ export class ChatsService implements OnModuleInit {
         message.chatRoomId,
         this.buildMessagePreview(updated.text, []),
       );
+    }
+
+    const mapped = await this.mapMessage(currentUser, updated);
+    await this.publishMessageEvent(
+      message.chatRoomId,
+      'chat.message_updated',
+      mapped,
+    );
+
+    return mapped;
+  }
+
+  async deleteMessage(
+    currentUser: CurrentAuthUser,
+    messageId: string,
+  ): Promise<ChatMessageResponseDto> {
+    const message = await this.prisma.chatMessage.findFirst({
+      where: { id: messageId },
+      include: {
+        chatRoom: true,
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Chat message not found');
+    }
+
+    await this.assertCanReadRoom(currentUser, message.chatRoom);
+    this.assertRoomOpen(message.chatRoom);
+
+    if (message.messageType !== 'user') {
+      throw new ForbiddenException('System messages cannot be deleted');
+    }
+
+    if (
+      message.authorUserId !== currentUser.id &&
+      !(await this.canManageRoom(currentUser, message.chatRoom))
+    ) {
+      throw new ForbiddenException('Chat message delete denied');
+    }
+
+    const updated = message.deletedAt
+      ? message
+      : await this.prisma.chatMessage.update({
+          where: { id: message.id },
+          data: {
+            deletedAt: new Date(),
+            deletedByUserId: currentUser.id,
+          },
+          include: {
+            author: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+              },
+            },
+          },
+        });
+
+    const latestMessage = await this.prisma.chatMessage.findFirst({
+      where: { chatRoomId: message.chatRoomId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
+
+    if (latestMessage?.id === message.id) {
+      await this.prisma.chatRoom.update({
+        where: { id: message.chatRoomId },
+        data: { lastMessagePreview: 'Сообщение удалено' },
+      });
     }
 
     const mapped = await this.mapMessage(currentUser, updated);
@@ -1267,17 +1352,28 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     message: ChatMessageRecord,
   ): Promise<ChatMessageResponseDto> {
-    const attachments = await this.loadMessageAttachments(message.id);
+    const isDeleted = message.deletedAt !== null;
+    const attachments = isDeleted
+      ? []
+      : await this.loadMessageAttachments(message.id);
+    const canManageRoom = currentUser.id
+      ? await this.canManageRoom(
+          currentUser,
+          await this.getRoomRecord(message.chatRoomId),
+        )
+      : false;
 
     return {
       id: message.id,
       chatRoomId: message.chatRoomId,
       messageType: message.messageType,
-      text: message.text,
+      text: isDeleted ? 'Сообщение удалено' : message.text,
       metadata: this.mapJsonObject(message.metadata),
       createdAt: message.createdAt.toISOString(),
       updatedAt: message.updatedAt.toISOString(),
       editedAt: message.editedAt?.toISOString() ?? null,
+      deletedAt: message.deletedAt?.toISOString() ?? null,
+      isDeleted,
       author: message.author
         ? {
             id: message.author.id,
@@ -1288,10 +1384,15 @@ export class ChatsService implements OnModuleInit {
       attachments,
       capabilities: {
         canEdit:
+          !isDeleted &&
           message.messageType === 'user' &&
           message.authorUserId === currentUser.id &&
           Date.now() - message.createdAt.getTime() <=
             CHAT_MESSAGE_EDIT_WINDOW_MS,
+        canDelete:
+          !isDeleted &&
+          message.messageType === 'user' &&
+          (message.authorUserId === currentUser.id || canManageRoom),
       },
     };
   }

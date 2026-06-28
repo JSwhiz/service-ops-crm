@@ -45,9 +45,12 @@ export class ChatMessageResponseDto {
   createdAt!: string;
   updatedAt!: string;
   editedAt!: string | null;
+  deletedAt!: string | null;
+  isDeleted!: boolean;
   author!: ChatUserSummaryDto | null;
   attachments!: FileResponseDto[];
   capabilities!: {
     canEdit: boolean;
+    canDelete: boolean;
   };
 }

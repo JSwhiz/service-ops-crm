@@ -176,6 +176,14 @@ export class ChatsController {
     return this.chatsService.editMessage(user, messageId, body);
   }
 
+  @Post('messages/:messageId/delete')
+  deleteMessage(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('messageId') messageId: string,
+  ): Promise<ChatMessageResponseDto> {
+    return this.chatsService.deleteMessage(user, messageId);
+  }
+
   @Post('rooms/:roomId/read')
   markRead(
     @CurrentUser() user: CurrentAuthUser,

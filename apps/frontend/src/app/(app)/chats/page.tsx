@@ -15,6 +15,7 @@ import {
   closeChatRoom,
   createDirectChat,
   createGroupChat,
+  deleteChatMessage,
   editChatMessage,
   hideChatRoom,
   leaveChatRoom,
@@ -1112,6 +1113,26 @@ export default function ChatsPage(): React.JSX.Element {
     }
   };
 
+  const handleDeleteMessage = async (message: ChatMessage): Promise<void> => {
+    if (!window.confirm('Удалить сообщение?')) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      const updatedMessage = await deleteChatMessage(message.id);
+      setMessages((current) =>
+        current.map((currentMessage) =>
+          currentMessage.id === updatedMessage.id ? updatedMessage : currentMessage,
+        ),
+      );
+      void refreshRoomLists().catch(() => undefined);
+    } catch (deleteError) {
+      setError(getErrorMessage(deleteError, 'Не удалось удалить сообщение.'));
+    }
+  };
+
   const selectableParticipants = participants.filter(
     (participant) => participant.isActive,
   );
@@ -1406,7 +1427,7 @@ export default function ChatsPage(): React.JSX.Element {
                               {message.editedAt ? <span>изменено</span> : null}
                             </div>
 
-                            {isEditing ? (
+                            {isEditing && !message.isDeleted ? (
                               <div className="chat-edit-box">
                                 <textarea
                                   value={editingText}
@@ -1440,23 +1461,36 @@ export default function ChatsPage(): React.JSX.Element {
                                     {message.text}
                                   </p>
                                 ) : null}
-                                {message.attachments.length > 0 ? (
+                                {!message.isDeleted && message.attachments.length > 0 ? (
                                   <AttachmentPreviewList
                                     files={message.attachments}
                                     emptyText=""
                                   />
                                 ) : null}
-                                {message.capabilities.canEdit ? (
-                                  <button
-                                    type="button"
-                                    className="quiet-button"
-                                    onClick={() => {
-                                      setEditingMessageId(message.id);
-                                      setEditingText(message.text ?? '');
-                                    }}
-                                  >
-                                    Редактировать
-                                  </button>
+                                {!message.isDeleted ? (
+                                  <div className="action-row">
+                                    {message.capabilities.canEdit ? (
+                                      <button
+                                        type="button"
+                                        className="quiet-button"
+                                        onClick={() => {
+                                          setEditingMessageId(message.id);
+                                          setEditingText(message.text ?? '');
+                                        }}
+                                      >
+                                        Редактировать
+                                      </button>
+                                    ) : null}
+                                    {message.capabilities.canDelete ? (
+                                      <button
+                                        type="button"
+                                        className="quiet-button"
+                                        onClick={() => void handleDeleteMessage(message)}
+                                      >
+                                        Удалить
+                                      </button>
+                                    ) : null}
+                                  </div>
                                 ) : null}
                               </>
                             )}
