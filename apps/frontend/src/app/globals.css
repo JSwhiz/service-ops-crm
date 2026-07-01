@@ -1402,6 +1402,13 @@ tbody tr:hover {
   gap: 2px;
 }
 
+.chat-forwarded-label {
+  margin-top: 8px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .chat-image-grid {
   display: grid;
   gap: 8px;

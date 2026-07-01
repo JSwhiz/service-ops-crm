@@ -17,6 +17,7 @@ import {
   createGroupChat,
   deleteChatMessage,
   editChatMessage,
+  forwardChatMessage,
   hideChatRoom,
   leaveChatRoom,
   listChatRoomParticipants,
@@ -309,6 +310,10 @@ export default function ChatsPage(): React.JSX.Element {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(
+    null,
+  );
+  const [forwardTargetRoomId, setForwardTargetRoomId] = useState('');
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isLoadingArchivedRooms, setIsLoadingArchivedRooms] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -655,6 +660,8 @@ export default function ChatsPage(): React.JSX.Element {
     setHasNewMessagesBelow(false);
     setRoomParticipants([]);
     setReplyingTo(null);
+    setForwardingMessage(null);
+    setForwardTargetRoomId('');
     setIsRoomSettingsOpen(false);
     setIsParticipantsPanelOpen(false);
   };
@@ -1137,6 +1144,29 @@ export default function ChatsPage(): React.JSX.Element {
     }
   };
 
+  const handleForwardMessage = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
+    event.preventDefault();
+
+    if (!forwardingMessage || !forwardTargetRoomId) {
+      return;
+    }
+
+    setError(null);
+
+    try {
+      await forwardChatMessage(forwardingMessage.id, {
+        targetRoomId: forwardTargetRoomId,
+      });
+      setForwardingMessage(null);
+      setForwardTargetRoomId('');
+      await refreshRoomLists();
+    } catch (forwardError) {
+      setError(getErrorMessage(forwardError, 'Не удалось переслать сообщение.'));
+    }
+  };
+
   const selectableParticipants = participants.filter(
     (participant) => participant.isActive,
   );
@@ -1153,6 +1183,9 @@ export default function ChatsPage(): React.JSX.Element {
     newRoomMode === 'direct'
       ? !directTargetUserId
       : !newRoomTitle.trim() || newRoomParticipantIds.length === 0;
+  const forwardTargetRooms = rooms.filter(
+    (room) => room.id !== activeRoomId && room.capabilities.canWrite,
+  );
   const activeRoomTypeLabel = activeRoom ? getRoomTypeLabel(activeRoom) : '';
   const layoutClassName = `chat-layout${
     isRoomListOpen ? ' chat-layout--room-list-open' : ''
@@ -1472,6 +1505,16 @@ export default function ChatsPage(): React.JSX.Element {
                                     </span>
                                   </div>
                                 ) : null}
+                                {message.forwardedFrom ? (
+                                  <div className="chat-forwarded-label">
+                                    Переслано ·{' '}
+                                    {message.forwardedFrom.author
+                                      ? getUserDisplayName(
+                                          message.forwardedFrom.author,
+                                        )
+                                      : 'Пользователь'}
+                                  </div>
+                                ) : null}
                                 {message.text ? (
                                   <p className="chat-message__text">
                                     {message.text}
@@ -1516,6 +1559,20 @@ export default function ChatsPage(): React.JSX.Element {
                                     >
                                       Ответить
                                     </button>
+                                    {message.messageType === 'user' ? (
+                                      <button
+                                        type="button"
+                                        className="quiet-button"
+                                        onClick={() => {
+                                          setForwardingMessage(message);
+                                          setForwardTargetRoomId(
+                                            forwardTargetRooms.at(0)?.id ?? '',
+                                          );
+                                        }}
+                                      >
+                                        Переслать
+                                      </button>
+                                    ) : null}
                                   </div>
                                 ) : null}
                               </>
@@ -1861,6 +1918,74 @@ export default function ChatsPage(): React.JSX.Element {
                 </form>
               ) : null}
             </div>
+          </div>
+        ) : null}
+
+        {forwardingMessage ? (
+          <div
+            className="chat-modal-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setForwardingMessage(null);
+                setForwardTargetRoomId('');
+              }
+            }}
+          >
+            <form className="chat-modal" onSubmit={handleForwardMessage}>
+              <div className="section-header">
+                <div>
+                  <div className="section-title">Переслать сообщение</div>
+                  <div className="section-subtitle">
+                    Вложения в этом этапе не копируются.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForwardingMessage(null);
+                    setForwardTargetRoomId('');
+                  }}
+                >
+                  Закрыть
+                </button>
+              </div>
+
+              <label>
+                <span>Чат назначения</span>
+                <select
+                  value={forwardTargetRoomId}
+                  onChange={(event) => setForwardTargetRoomId(event.target.value)}
+                >
+                  {forwardTargetRooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {getRoomDisplayTitle(room)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {forwardTargetRooms.length === 0 ? (
+                <div className="page-muted">
+                  Нет другой комнаты, куда можно отправить сообщение.
+                </div>
+              ) : null}
+
+              <div className="action-row">
+                <button type="submit" disabled={!forwardTargetRoomId}>
+                  Переслать
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForwardingMessage(null);
+                    setForwardTargetRoomId('');
+                  }}
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
           </div>
         ) : null}
       </div>

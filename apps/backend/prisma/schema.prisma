@@ -283,6 +283,7 @@ model ChatMessage {
   deletedByUserId String?
   deleteReason  String?
   replyToMessageId String?
+  forwardedFromMessageId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -291,12 +292,15 @@ model ChatMessage {
   deletedBy User?   @relation("ChatMessageDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
   replyTo   ChatMessage?  @relation("ChatMessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
   replies   ChatMessage[] @relation("ChatMessageReplies")
+  forwardedFrom ChatMessage?  @relation("ChatMessageForwards", fields: [forwardedFromMessageId], references: [id], onDelete: SetNull)
+  forwards      ChatMessage[] @relation("ChatMessageForwards")
 
   @@index([chatRoomId, createdAt])
   @@index([authorUserId])
   @@index([deletedByUserId])
   @@index([deletedAt])
   @@index([replyToMessageId])
+  @@index([forwardedFromMessageId])
   @@index([messageType])
   @@map("chat_messages")
 }

@@ -22,6 +22,7 @@ import {
 import { CreateDirectChatDto } from './dto/create-direct-chat.dto';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { EditChatMessageDto } from './dto/edit-chat-message.dto';
+import { ForwardChatMessageDto } from './dto/forward-chat-message.dto';
 import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
 import { RenameChatRoomDto } from './dto/rename-chat-room.dto';
 import { SendChatMessageDto } from './dto/send-chat-message.dto';
@@ -94,6 +95,7 @@ type ChatMessageRecord = {
   deletedByUserId: string | null;
   deleteReason: string | null;
   replyToMessageId: string | null;
+  forwardedFromMessageId: string | null;
   createdAt: Date;
   updatedAt: Date;
   author: {
@@ -918,6 +920,81 @@ export class ChatsService implements OnModuleInit {
     return mapped;
   }
 
+  async forwardMessage(
+    currentUser: CurrentAuthUser,
+    messageId: string,
+    dto: ForwardChatMessageDto,
+  ): Promise<ChatMessageResponseDto> {
+    const sourceMessage = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      include: { chatRoom: true },
+    });
+
+    if (!sourceMessage) {
+      throw new NotFoundException('Chat message not found');
+    }
+
+    const sourceParticipant = await this.assertCanReadRoom(
+      currentUser,
+      sourceMessage.chatRoom,
+    );
+
+    if (sourceMessage.createdAt < sourceParticipant.joinedAt) {
+      throw new ForbiddenException('Chat message is not available');
+    }
+
+    if (sourceMessage.deletedAt) {
+      throw new ForbiddenException('Deleted message cannot be forwarded');
+    }
+
+    if (sourceMessage.messageType !== 'user') {
+      throw new ForbiddenException('Only user messages can be forwarded');
+    }
+
+    if (!sourceMessage.text?.trim()) {
+      throw new BadRequestException(
+        'Forwarding attachment-only messages is not supported yet',
+      );
+    }
+
+    const targetRoom = await this.getRoomRecord(dto.targetRoomId);
+    await this.assertCanWriteRoom(currentUser, targetRoom);
+
+    const forwardedMessage = await this.prisma.chatMessage.create({
+      data: {
+        chatRoomId: targetRoom.id,
+        authorUserId: currentUser.id,
+        messageType: 'user',
+        text: sourceMessage.text,
+        forwardedFromMessageId: sourceMessage.id,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    await this.updateRoomLastMessage(
+      targetRoom.id,
+      this.buildMessagePreview(forwardedMessage.text, []),
+    );
+    await this.revealHiddenActiveParticipants(targetRoom.id);
+
+    const mapped = await this.mapMessage(currentUser, forwardedMessage);
+    await this.publishMessageEvent(
+      targetRoom.id,
+      'chat.message_created',
+      mapped,
+    );
+
+    return mapped;
+  }
+
   async markRead(
     currentUser: CurrentAuthUser,
     roomId: string,
@@ -1395,7 +1472,10 @@ export class ChatsService implements OnModuleInit {
       editedAt: message.editedAt?.toISOString() ?? null,
       deletedAt: message.deletedAt?.toISOString() ?? null,
       isDeleted,
-      replyTo: await this.loadReplyPreview(message.replyToMessageId),
+      replyTo: await this.loadMessageReferencePreview(message.replyToMessageId),
+      forwardedFrom: await this.loadMessageReferencePreview(
+        message.forwardedFromMessageId,
+      ),
       author: message.author
         ? {
             id: message.author.id,
@@ -1484,7 +1564,7 @@ export class ChatsService implements OnModuleInit {
     }));
   }
 
-  private async loadReplyPreview(
+  private async loadMessageReferencePreview(
     messageId: string | null,
   ): Promise<ChatMessageResponseDto['replyTo']> {
     if (!messageId) {

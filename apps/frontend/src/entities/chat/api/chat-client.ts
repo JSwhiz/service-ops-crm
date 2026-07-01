@@ -165,6 +165,16 @@ export async function deleteChatMessage(messageId: string): Promise<ChatMessage>
   });
 }
 
+export async function forwardChatMessage(
+  messageId: string,
+  payload: { targetRoomId: string },
+): Promise<ChatMessage> {
+  return fetcher<ChatMessage>(`/chats/messages/${messageId}/forward`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function markChatRoomRead(
   roomId: string,
   payload: { lastReadMessageId: string },

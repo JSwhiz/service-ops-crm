@@ -26,6 +26,7 @@ import {
 import { CreateDirectChatDto } from './dto/create-direct-chat.dto';
 import { CreateChatRoomDto } from './dto/create-chat-room.dto';
 import { EditChatMessageDto } from './dto/edit-chat-message.dto';
+import { ForwardChatMessageDto } from './dto/forward-chat-message.dto';
 import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
 import { RenameChatRoomDto } from './dto/rename-chat-room.dto';
 import { SendChatMessageDto } from './dto/send-chat-message.dto';
@@ -182,6 +183,15 @@ export class ChatsController {
     @Param('messageId') messageId: string,
   ): Promise<ChatMessageResponseDto> {
     return this.chatsService.deleteMessage(user, messageId);
+  }
+
+  @Post('messages/:messageId/forward')
+  forwardMessage(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('messageId') messageId: string,
+    @Body() body: ForwardChatMessageDto,
+  ): Promise<ChatMessageResponseDto> {
+    return this.chatsService.forwardMessage(user, messageId, body);
   }
 
   @Post('rooms/:roomId/read')

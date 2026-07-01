@@ -546,7 +546,9 @@ test('chats support default visibility, attachments, unread, custom join-point a
   );
 
   const objectsRoom = founderRooms.find((room) => room.code === 'objects');
+  const leadershipRoom = founderRooms.find((room) => room.code === 'leadership');
   assert.ok(objectsRoom);
+  assert.ok(leadershipRoom);
 
   const hideSystemRoomResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${objectsRoom.id}/hide`,
@@ -854,6 +856,42 @@ test('chats support default visibility, attachments, unread, custom join-point a
   );
   assert.equal(crossRoomReplyResponse.status, 400);
 
+  const forwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/forward`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ targetRoomId: objectsRoom.id }),
+    },
+  );
+  assert.equal(forwardResponse.status, 201);
+  const forwardedMessage = (await forwardResponse.json()) as {
+    id: string;
+    chatRoomId: string;
+    text: string | null;
+    forwardedFrom: { id: string; text: string | null } | null;
+  };
+  createdMessageIds.push(forwardedMessage.id);
+  assert.equal(forwardedMessage.chatRoomId, objectsRoom.id);
+  assert.equal(forwardedMessage.text, 'Message after manager2 join');
+  assert.equal(forwardedMessage.forwardedFrom?.id, newCustomMessage.id);
+
+  const forbiddenForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/forward`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ targetRoomId: leadershipRoom.id }),
+    },
+  );
+  assert.equal(forbiddenForwardResponse.status, 403);
+
   const editResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}`,
     {
@@ -944,6 +982,19 @@ test('chats support default visibility, attachments, unread, custom join-point a
     canEdit: false,
     canDelete: false,
   });
+
+  const deletedForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}/forward`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ targetRoomId: objectsRoom.id }),
+    },
+  );
+  assert.equal(deletedForwardResponse.status, 403);
 
   const editDeletedResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}`,

@@ -56,6 +56,7 @@ export class ChatMessageResponseDto {
   deletedAt!: string | null;
   isDeleted!: boolean;
   replyTo!: ChatMessageReplyPreviewDto | null;
+  forwardedFrom!: ChatMessageReplyPreviewDto | null;
   author!: ChatUserSummaryDto | null;
   attachments!: FileResponseDto[];
   capabilities!: {
