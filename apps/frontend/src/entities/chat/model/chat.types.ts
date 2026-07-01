@@ -72,3 +72,25 @@ export interface ChatMessage {
     canDelete: boolean;
   };
 }
+
+export interface ChatSearchResponse {
+  rooms: Array<{
+    id: string;
+    title: string;
+    displayTitle: string;
+    roomType: string;
+    lastMessagePreview: string | null;
+  }>;
+  messages: Array<{
+    id: string;
+    roomId: string;
+    text: string;
+    createdAt: string;
+    author: ChatUserSummary | null;
+    room: {
+      id: string;
+      title: string;
+      displayTitle: string;
+    };
+  }>;
+}

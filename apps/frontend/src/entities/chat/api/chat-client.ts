@@ -6,6 +6,7 @@ import type {
   ChatRoom,
   ChatRoomCode,
   ChatRoomParticipant,
+  ChatSearchResponse,
 } from '../model/chat.types';
 
 export type { ChatMessage, ChatRoom, ChatRoomCode } from '../model/chat.types';
@@ -22,6 +23,14 @@ export async function listChatRooms(params?: {
   const query = searchParams.toString();
 
   return fetcher<ChatRoom[]>(`/chats/rooms${query ? `?${query}` : ''}`, {
+    method: 'GET',
+  });
+}
+
+export async function searchChats(query: string): Promise<ChatSearchResponse> {
+  const searchParams = new URLSearchParams({ q: query });
+
+  return fetcher<ChatSearchResponse>(`/chats/search?${searchParams.toString()}`, {
     method: 'GET',
   });
 }

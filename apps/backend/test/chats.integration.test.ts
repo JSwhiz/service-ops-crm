@@ -781,6 +781,31 @@ test('chats support default visibility, attachments, unread, custom join-point a
   assert.equal(globalManagerRenamedRoom.capabilities.canManage, true);
   assert.equal(globalManagerRenamedRoom.capabilities.canCloseGlobally, false);
 
+  const roomSearchResponse = await fetch(
+    `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent('managed by global')}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(roomSearchResponse.status, 200);
+  const roomSearch = (await roomSearchResponse.json()) as {
+    rooms: Array<{ id: string }>;
+    messages: Array<{ id: string }>;
+  };
+  assert.equal(roomSearch.rooms.some((room) => room.id === customRoom.id), true);
+
+  const inaccessibleRoomSearchResponse = await fetch(
+    `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent('Руководство')}`,
+    { headers: { Cookie: managerOneCookie } },
+  );
+  assert.equal(inaccessibleRoomSearchResponse.status, 200);
+  const inaccessibleRoomSearch =
+    (await inaccessibleRoomSearchResponse.json()) as {
+      rooms: Array<{ id: string }>;
+    };
+  assert.equal(
+    inaccessibleRoomSearch.rooms.some((room) => room.id === leadershipRoom.id),
+    false,
+  );
+
   const managerTwoMessagesResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
     {
@@ -809,6 +834,35 @@ test('chats support default visibility, attachments, unread, custom join-point a
     id: string;
   };
   createdMessageIds.push(newCustomMessage.id);
+
+  const messageSearchResponse = await fetch(
+    `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent('after manager2 join')}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(messageSearchResponse.status, 200);
+  const messageSearch = (await messageSearchResponse.json()) as {
+    messages: Array<{ id: string; roomId: string; text: string }>;
+  };
+  assert.equal(
+    messageSearch.messages.some(
+      (message) =>
+        message.id === newCustomMessage.id && message.roomId === customRoom.id,
+    ),
+    true,
+  );
+
+  const joinedAtSearchResponse = await fetch(
+    `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent('before manager2 join')}`,
+    { headers: { Cookie: managerTwoCookie } },
+  );
+  assert.equal(joinedAtSearchResponse.status, 200);
+  const joinedAtSearch = (await joinedAtSearchResponse.json()) as {
+    messages: Array<{ id: string }>;
+  };
+  assert.equal(
+    joinedAtSearch.messages.some((message) => message.id === oldCustomMessage.id),
+    false,
+  );
 
   const replyResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
@@ -1050,6 +1104,24 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
   );
   assert.equal(deletedReactionResponse.status, 403);
+
+  const deletedMessageSearchResponse = await fetch(
+    `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent(
+      'Message with attachment to delete',
+    )}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(deletedMessageSearchResponse.status, 200);
+  const deletedMessageSearch =
+    (await deletedMessageSearchResponse.json()) as {
+      messages: Array<{ id: string; text: string }>;
+    };
+  assert.equal(
+    deletedMessageSearch.messages.some(
+      (message) => message.id === attachedDeleteMessage.id,
+    ),
+    false,
+  );
 
   const editDeletedResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}`,

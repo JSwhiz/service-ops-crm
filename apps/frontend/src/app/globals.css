@@ -1065,6 +1065,67 @@ tbody tr:hover {
   -webkit-overflow-scrolling: touch;
 }
 
+.chat-search-box {
+  position: relative;
+  padding: 0 14px 12px;
+}
+
+.chat-search-box input {
+  width: 100%;
+}
+
+.chat-search-results {
+  position: absolute;
+  z-index: 4;
+  top: calc(100% - 8px);
+  right: 14px;
+  left: 14px;
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  background: #ffffff;
+  box-shadow: var(--shadow-md);
+}
+
+.chat-search-group {
+  display: grid;
+  gap: 4px;
+}
+
+.chat-search-group + .chat-search-group {
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.chat-search-group > strong {
+  padding: 4px 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chat-search-group button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  border-color: transparent;
+  background: transparent;
+  text-align: left;
+}
+
+.chat-search-group button:hover {
+  background: #f1f5f9;
+}
+
+.chat-search-group small {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chat-room-item {
   width: 100%;
   display: flex;

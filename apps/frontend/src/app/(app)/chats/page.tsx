@@ -25,6 +25,7 @@ import {
   listChatRooms,
   markChatRoomRead,
   renameChatRoom,
+  searchChats,
   sendChatMessage,
   toggleChatMessageHeart,
   unhideChatRoom,
@@ -34,6 +35,7 @@ import type {
   ChatRoom,
   ChatRoomCode,
   ChatRoomParticipant,
+  ChatSearchResponse,
 } from '@/entities/chat/model/chat.types';
 import { listChatParticipantCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
@@ -333,6 +335,12 @@ export default function ChatsPage(): React.JSX.Element {
   >([]);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<ChatSearchResponse>({
+    rooms: [],
+    messages: [],
+  });
+  const [isSearching, setIsSearching] = useState(false);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
@@ -757,6 +765,42 @@ export default function ChatsPage(): React.JSX.Element {
     setRenameTitle(activeRoom.title);
     setAddParticipantIds([]);
   }, [activeRoom]);
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+
+    if (query.length < 2) {
+      setSearchResults({ rooms: [], messages: [] });
+      setIsSearching(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsSearching(true);
+    const timeoutId = window.setTimeout(() => {
+      void searchChats(query)
+        .then((results) => {
+          if (!isCancelled) {
+            setSearchResults(results);
+          }
+        })
+        .catch((searchError) => {
+          if (!isCancelled) {
+            setError(getErrorMessage(searchError, 'Не удалось выполнить поиск.'));
+          }
+        })
+        .finally(() => {
+          if (!isCancelled) {
+            setIsSearching(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchQuery]);
 
   useEffect(() => {
     if (!pendingScrollToBottomRef.current) {
@@ -1277,6 +1321,65 @@ export default function ChatsPage(): React.JSX.Element {
                 >
                   Новый чат
                 </button>
+              ) : null}
+            </div>
+
+            <div className="chat-search-box">
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Поиск по чатам и сообщениям"
+                aria-label="Поиск по чатам и сообщениям"
+              />
+              {searchQuery.trim().length >= 2 ? (
+                <div className="chat-search-results">
+                  {isSearching ? (
+                    <div className="page-muted">Поиск...</div>
+                  ) : searchResults.rooms.length === 0 &&
+                    searchResults.messages.length === 0 ? (
+                    <div className="page-muted">Ничего не найдено.</div>
+                  ) : (
+                    <>
+                      {searchResults.rooms.length > 0 ? (
+                        <div className="chat-search-group">
+                          <strong>Чаты</strong>
+                          {searchResults.rooms.map((room) => (
+                            <button
+                              key={room.id}
+                              type="button"
+                              onClick={() => {
+                                selectRoom(room.id);
+                                setSearchQuery('');
+                              }}
+                            >
+                              <span>{room.displayTitle || room.title}</span>
+                              <small>{room.lastMessagePreview ?? 'Без сообщений'}</small>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {searchResults.messages.length > 0 ? (
+                        <div className="chat-search-group">
+                          <strong>Сообщения</strong>
+                          {searchResults.messages.map((message) => (
+                            <button
+                              key={message.id}
+                              type="button"
+                              onClick={() => {
+                                selectRoom(message.roomId);
+                                setSearchQuery('');
+                              }}
+                            >
+                              <span>{message.room.displayTitle || message.room.title}</span>
+                              <small>{message.text}</small>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
               ) : null}
             </div>
 

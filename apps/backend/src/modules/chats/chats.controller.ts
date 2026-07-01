@@ -30,6 +30,7 @@ import { ForwardChatMessageDto } from './dto/forward-chat-message.dto';
 import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
 import { RenameChatRoomDto } from './dto/rename-chat-room.dto';
 import { SendChatMessageDto } from './dto/send-chat-message.dto';
+import { ChatSearchResponseDto } from './dto/chat-search-response.dto';
 import type { ChatRoomCode, CurrentAuthUser } from './types/chat.types';
 
 interface UploadedFilePayload {
@@ -43,6 +44,14 @@ interface UploadedFilePayload {
 @Controller('chats')
 export class ChatsController {
   constructor(private readonly chatsService: ChatsService) {}
+
+  @Get('search')
+  search(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query('q') query?: string,
+  ): Promise<ChatSearchResponseDto> {
+    return this.chatsService.search(user, query ?? '');
+  }
 
   @Get('rooms')
   listRooms(

@@ -26,6 +26,7 @@ import { ForwardChatMessageDto } from './dto/forward-chat-message.dto';
 import { MarkChatRoomReadDto } from './dto/mark-chat-room-read.dto';
 import { RenameChatRoomDto } from './dto/rename-chat-room.dto';
 import { SendChatMessageDto } from './dto/send-chat-message.dto';
+import { ChatSearchResponseDto } from './dto/chat-search-response.dto';
 import { ChatRealtimeService } from './chat-realtime.service';
 import {
   CHAT_MESSAGE_EDIT_WINDOW_MS,
@@ -165,6 +166,108 @@ export class ChatsService implements OnModuleInit {
     }
 
     return visibleRooms;
+  }
+
+  async search(
+    currentUser: CurrentAuthUser,
+    rawQuery: string,
+  ): Promise<ChatSearchResponseDto> {
+    const query = rawQuery.trim();
+
+    if (query.length < 2) {
+      return { rooms: [], messages: [] };
+    }
+
+    const normalizedQuery = query.toLocaleLowerCase('ru-RU');
+    const visibleRooms = await this.listRooms(currentUser, 'active');
+    const rooms = visibleRooms
+      .filter((room) =>
+        `${room.displayTitle} ${room.title}`
+          .toLocaleLowerCase('ru-RU')
+          .includes(normalizedQuery),
+      )
+      .slice(0, 20)
+      .map((room) => ({
+        id: room.id,
+        title: room.title,
+        displayTitle: room.displayTitle,
+        roomType: room.roomType,
+        lastMessagePreview: room.lastMessagePreview,
+      }));
+
+    const candidates = await this.prisma.chatMessage.findMany({
+      where: {
+        deletedAt: null,
+        text: {
+          contains: query,
+          mode: 'insensitive',
+        },
+        chatRoom: {
+          deletedAt: null,
+        },
+      },
+      include: {
+        chatRoom: true,
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 100,
+    });
+    const messages: ChatSearchResponseDto['messages'] = [];
+
+    for (const message of candidates) {
+      if (messages.length >= 20) {
+        break;
+      }
+
+      if (!(await this.canAccessRoom(currentUser, message.chatRoom))) {
+        continue;
+      }
+
+      const participant = await this.ensureParticipantForAccessibleRoom(
+        currentUser,
+        message.chatRoom,
+      );
+
+      if (
+        participant.hiddenAt ||
+        participant.leftAt ||
+        message.createdAt < participant.joinedAt ||
+        !message.text
+      ) {
+        continue;
+      }
+
+      messages.push({
+        id: message.id,
+        roomId: message.chatRoomId,
+        text: message.text,
+        createdAt: message.createdAt.toISOString(),
+        author: message.author
+          ? {
+              id: message.author.id,
+              login: message.author.login,
+              fullName: message.author.fullName,
+            }
+          : null,
+        room: {
+          id: message.chatRoom.id,
+          title: message.chatRoom.title,
+          displayTitle: await this.resolveRoomDisplayTitle(
+            currentUser,
+            message.chatRoom,
+          ),
+        },
+      });
+    }
+
+    return { rooms, messages };
   }
 
   async getRoomByCode(
