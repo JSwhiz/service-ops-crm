@@ -156,8 +156,10 @@ export class ChatsController {
   listMessages(
     @CurrentUser() user: CurrentAuthUser,
     @Param('roomId') roomId: string,
+    @Query('before') before?: string,
+    @Query('limit') limit?: string,
   ): Promise<ChatMessageResponseDto[]> {
-    return this.chatsService.listMessages(user, roomId);
+    return this.chatsService.listMessages(user, roomId, { before, limit });
   }
 
   @Post('rooms/:roomId/messages')

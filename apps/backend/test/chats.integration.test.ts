@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -678,6 +679,65 @@ test('chats support default visibility, attachments, unread, custom join-point a
         participant.roleInRoom === 'admin',
     ),
     true,
+  );
+
+  const paginationRoomResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/group`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `Pagination chat ${Date.now()}`,
+        participantUserIds: [managerOne.id],
+      }),
+    },
+  );
+  assert.equal(paginationRoomResponse.status, 201);
+  const paginationRoom = (await paginationRoomResponse.json()) as { id: string };
+  createdRoomIds.push(paginationRoom.id);
+
+  const paginationMessageIds = Array.from({ length: 55 }, () => randomUUID());
+  const paginationStartedAt = Date.now() + 1000;
+  await prisma.chatMessage.createMany({
+    data: paginationMessageIds.map((id, index) => ({
+      id,
+      chatRoomId: paginationRoom.id,
+      authorUserId: founderUser.id,
+      messageType: 'user',
+      text: `Pagination message ${index + 1}`,
+      createdAt: new Date(paginationStartedAt + index),
+    })),
+  });
+  createdMessageIds.push(...paginationMessageIds);
+
+  const latestMessagesResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${paginationRoom.id}/messages`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(latestMessagesResponse.status, 200);
+  const latestMessages = (await latestMessagesResponse.json()) as Array<{
+    id: string;
+  }>;
+  assert.equal(latestMessages.length, 50);
+  assert.deepEqual(
+    latestMessages.map((message) => message.id),
+    paginationMessageIds.slice(5),
+  );
+
+  const olderMessagesResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${paginationRoom.id}/messages?before=${latestMessages[0]?.id}&limit=50`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(olderMessagesResponse.status, 200);
+  const olderMessages = (await olderMessagesResponse.json()) as Array<{
+    id: string;
+  }>;
+  assert.deepEqual(
+    olderMessages.map((message) => message.id),
+    paginationMessageIds.slice(0, 5),
   );
 
   const creatorRenameResponse = await fetch(

@@ -320,6 +320,8 @@ export default function ChatsPage(): React.JSX.Element {
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isLoadingArchivedRooms, setIsLoadingArchivedRooms] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const [isRoomSettingsOpen, setIsRoomSettingsOpen] = useState(false);
@@ -352,6 +354,7 @@ export default function ChatsPage(): React.JSX.Element {
   const initialScrollTimeoutsRef = useRef<number[]>([]);
   const openingRoomSnapshotRef = useRef<ChatRoom | null>(null);
   const isInitialScrollPendingRef = useRef(false);
+  const isLoadingOlderMessagesRef = useRef(false);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) ?? null,
@@ -562,8 +565,9 @@ export default function ChatsPage(): React.JSX.Element {
     setIsLoadingMessages(true);
 
     try {
-      const nextMessages = await listChatMessages(roomId);
+      const nextMessages = await listChatMessages(roomId, { limit: 50 });
       setMessages(nextMessages);
+      setHasOlderMessages(nextMessages.length === 50);
 
       if (options?.scheduleInitial) {
         const roomSnapshot =
@@ -587,6 +591,66 @@ export default function ChatsPage(): React.JSX.Element {
       return nextMessages;
     } finally {
       setIsLoadingMessages(false);
+    }
+  };
+
+  const loadOlderMessages = async (): Promise<void> => {
+    const roomId = activeRoomIdRef.current;
+    const firstMessageId = messages.at(0)?.id;
+    const container = messageListRef.current;
+
+    if (
+      !roomId ||
+      !firstMessageId ||
+      !container ||
+      isLoadingMessages ||
+      isLoadingOlderMessagesRef.current ||
+      !hasOlderMessages
+    ) {
+      return;
+    }
+
+    const previousScrollHeight = container.scrollHeight;
+    const previousScrollTop = container.scrollTop;
+    isLoadingOlderMessagesRef.current = true;
+    setIsLoadingOlderMessages(true);
+
+    try {
+      const olderMessages = await listChatMessages(roomId, {
+        before: firstMessageId,
+        limit: 50,
+      });
+
+      if (activeRoomIdRef.current !== roomId) {
+        return;
+      }
+
+      setHasOlderMessages(olderMessages.length === 50);
+      setMessages((current) => {
+        const currentIds = new Set(current.map((message) => message.id));
+        return [
+          ...olderMessages.filter((message) => !currentIds.has(message.id)),
+          ...current,
+        ];
+      });
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const currentContainer = messageListRef.current;
+
+          if (currentContainer && activeRoomIdRef.current === roomId) {
+            currentContainer.scrollTop =
+              previousScrollTop +
+              (currentContainer.scrollHeight - previousScrollHeight);
+          }
+        });
+      });
+    } catch (loadError) {
+      setError(
+        getErrorMessage(loadError, 'Не удалось загрузить предыдущие сообщения.'),
+      );
+    } finally {
+      isLoadingOlderMessagesRef.current = false;
+      setIsLoadingOlderMessages(false);
     }
   };
 
@@ -667,6 +731,9 @@ export default function ChatsPage(): React.JSX.Element {
     setMessages([]);
     setInitialUnreadMessageId(null);
     setHasNewMessagesBelow(false);
+    setHasOlderMessages(false);
+    isLoadingOlderMessagesRef.current = false;
+    setIsLoadingOlderMessages(false);
     setRoomParticipants([]);
     setReplyingTo(null);
     setForwardingMessage(null);
@@ -1536,15 +1603,23 @@ export default function ChatsPage(): React.JSX.Element {
                   <div
                     ref={messageListRef}
                     className="chat-message-list"
-                    onScroll={() => {
-                      if (
-                        messageListRef.current &&
-                        isAtBottom(messageListRef.current)
-                      ) {
+                    onScroll={(event) => {
+                      const container = event.currentTarget;
+
+                      if (container.scrollTop < 80) {
+                        void loadOlderMessages();
+                      }
+
+                      if (isAtBottom(container)) {
                         setHasNewMessagesBelow(false);
                       }
                     }}
                   >
+                    {isLoadingOlderMessages ? (
+                      <div className="chat-history-loader">
+                        Загрузка предыдущих сообщений...
+                      </div>
+                    ) : null}
                     {isLoadingMessages ? (
                       <div className="page-muted">Загрузка сообщений...</div>
                     ) : messages.length === 0 ? (

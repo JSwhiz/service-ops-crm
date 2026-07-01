@@ -769,9 +769,31 @@ export class ChatsService implements OnModuleInit {
   async listMessages(
     currentUser: CurrentAuthUser,
     roomId: string,
+    options: { before?: string; limit?: string } = {},
   ): Promise<ChatMessageResponseDto[]> {
     const room = await this.getRoomRecord(roomId);
     const participant = await this.assertCanReadRoom(currentUser, room);
+    const requestedLimit = Number.parseInt(options.limit ?? '', 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(100, Math.max(1, requestedLimit))
+      : 50;
+    const beforeMessage = options.before
+      ? await this.prisma.chatMessage.findFirst({
+          where: {
+            id: options.before,
+            chatRoomId: room.id,
+            createdAt: { gte: participant.joinedAt },
+          },
+          select: {
+            id: true,
+            createdAt: true,
+          },
+        })
+      : null;
+
+    if (options.before && !beforeMessage) {
+      throw new BadRequestException('Message cursor is invalid');
+    }
 
     const messages = await this.prisma.chatMessage.findMany({
       where: {
@@ -779,6 +801,17 @@ export class ChatsService implements OnModuleInit {
         createdAt: {
           gte: participant.joinedAt,
         },
+        ...(beforeMessage
+          ? {
+              OR: [
+                { createdAt: { lt: beforeMessage.createdAt } },
+                {
+                  createdAt: beforeMessage.createdAt,
+                  id: { lt: beforeMessage.id },
+                },
+              ],
+            }
+          : {}),
       },
       include: {
         author: {
@@ -789,11 +822,10 @@ export class ChatsService implements OnModuleInit {
           },
         },
       },
-      orderBy: {
-        createdAt: 'asc',
-      },
-      take: 300,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit,
     });
+    messages.reverse();
 
     return Promise.all(
       messages.map((message) => this.mapMessage(currentUser, message)),

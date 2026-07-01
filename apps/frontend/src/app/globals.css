@@ -1375,6 +1375,12 @@ tbody tr:hover {
   letter-spacing: 0.08em;
 }
 
+.chat-history-loader {
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .chat-unread-divider::before,
 .chat-unread-divider::after {
   content: '';

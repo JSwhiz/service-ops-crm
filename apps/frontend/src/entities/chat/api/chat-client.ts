@@ -126,8 +126,25 @@ export async function listChatRoomParticipants(
   });
 }
 
-export async function listChatMessages(roomId: string): Promise<ChatMessage[]> {
-  return fetcher<ChatMessage[]>(`/chats/rooms/${roomId}/messages`, {
+export async function listChatMessages(
+  roomId: string,
+  params: { before?: string; limit?: number } = {},
+): Promise<ChatMessage[]> {
+  const searchParams = new URLSearchParams();
+
+  if (params.before) {
+    searchParams.set('before', params.before);
+  }
+
+  if (params.limit) {
+    searchParams.set('limit', String(params.limit));
+  }
+
+  const query = searchParams.toString();
+
+  return fetcher<ChatMessage[]>(`/chats/rooms/${roomId}/messages${
+    query ? `?${query}` : ''
+  }`, {
     method: 'GET',
   });
 }
