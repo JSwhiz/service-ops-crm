@@ -808,6 +808,52 @@ test('chats support default visibility, attachments, unread, custom join-point a
   };
   createdMessageIds.push(newCustomMessage.id);
 
+  const replyResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: 'Reply to custom message',
+        replyToMessageId: newCustomMessage.id,
+      }),
+    },
+  );
+  assert.equal(replyResponse.status, 201);
+  const replyMessage = (await replyResponse.json()) as {
+    id: string;
+    replyTo: {
+      id: string;
+      text: string | null;
+      author: { id: string } | null;
+      isDeleted: boolean;
+    } | null;
+  };
+  createdMessageIds.push(replyMessage.id);
+  assert.equal(replyMessage.replyTo?.id, newCustomMessage.id);
+  assert.equal(replyMessage.replyTo?.text, 'Message after manager2 join');
+  assert.equal(replyMessage.replyTo?.author?.id, founderUser.id);
+  assert.equal(replyMessage.replyTo?.isDeleted, false);
+
+  const crossRoomReplyResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: 'Invalid cross-room reply',
+        replyToMessageId: sentMessage.id,
+      }),
+    },
+  );
+  assert.equal(crossRoomReplyResponse.status, 400);
+
   const editResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}`,
     {

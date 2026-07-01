@@ -308,6 +308,7 @@ export default function ChatsPage(): React.JSX.Element {
   const [files, setFiles] = useState<File[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isLoadingArchivedRooms, setIsLoadingArchivedRooms] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -653,6 +654,7 @@ export default function ChatsPage(): React.JSX.Element {
     setInitialUnreadMessageId(null);
     setHasNewMessagesBelow(false);
     setRoomParticipants([]);
+    setReplyingTo(null);
     setIsRoomSettingsOpen(false);
     setIsParticipantsPanelOpen(false);
   };
@@ -898,9 +900,11 @@ export default function ChatsPage(): React.JSX.Element {
         roomId: activeRoomId,
         text,
         files,
+        replyToMessageId: replyingTo?.id,
       });
       setText('');
       setFiles([]);
+      setReplyingTo(null);
       setMessages((current) =>
         current.some((message) => message.id === sentMessage.id)
           ? current
@@ -1456,6 +1460,18 @@ export default function ChatsPage(): React.JSX.Element {
                               </div>
                             ) : (
                               <>
+                                {message.replyTo ? (
+                                  <div className="chat-reply-preview">
+                                    <strong>
+                                      {message.replyTo.author
+                                        ? getUserDisplayName(message.replyTo.author)
+                                        : 'Система'}
+                                    </strong>
+                                    <span>
+                                      {message.replyTo.text || 'Сообщение без текста'}
+                                    </span>
+                                  </div>
+                                ) : null}
                                 {message.text ? (
                                   <p className="chat-message__text">
                                     {message.text}
@@ -1490,6 +1506,16 @@ export default function ChatsPage(): React.JSX.Element {
                                         Удалить
                                       </button>
                                     ) : null}
+                                    <button
+                                      type="button"
+                                      className="quiet-button"
+                                      onClick={() => {
+                                        setReplyingTo(message);
+                                        composerFormRef.current?.querySelector('textarea')?.focus();
+                                      }}
+                                    >
+                                      Ответить
+                                    </button>
                                   </div>
                                 ) : null}
                               </>
@@ -1522,6 +1548,25 @@ export default function ChatsPage(): React.JSX.Element {
                     className="chat-composer"
                     onSubmit={handleSend}
                   >
+                    {replyingTo ? (
+                      <div className="chat-composer-reply">
+                        <div>
+                          <strong>
+                            Ответ для {replyingTo.author
+                              ? getUserDisplayName(replyingTo.author)
+                              : 'Система'}
+                          </strong>
+                          <span>{replyingTo.text || 'Сообщение без текста'}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="quiet-button"
+                          onClick={() => setReplyingTo(null)}
+                        >
+                          Отменить
+                        </button>
+                      </div>
+                    ) : null}
                     {files.length > 0 ? (
                       <div className="chat-pending-files">
                         <PendingMediaList files={files} onRemove={removePendingFile} />

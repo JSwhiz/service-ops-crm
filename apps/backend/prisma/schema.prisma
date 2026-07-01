@@ -282,17 +282,21 @@ model ChatMessage {
   deletedAt     DateTime?
   deletedByUserId String?
   deleteReason  String?
+  replyToMessageId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   author   User?    @relation("ChatMessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
   deletedBy User?   @relation("ChatMessageDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  replyTo   ChatMessage?  @relation("ChatMessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[] @relation("ChatMessageReplies")
 
   @@index([chatRoomId, createdAt])
   @@index([authorUserId])
   @@index([deletedByUserId])
   @@index([deletedAt])
+  @@index([replyToMessageId])
   @@index([messageType])
   @@map("chat_messages")
 }

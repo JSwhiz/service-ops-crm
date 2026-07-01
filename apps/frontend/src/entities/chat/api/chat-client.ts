@@ -127,6 +127,7 @@ export async function sendChatMessage(params: {
   roomId: string;
   text?: string;
   files?: File[];
+  replyToMessageId?: string;
 }): Promise<ChatMessage> {
   const formData = new FormData();
 
@@ -136,6 +137,10 @@ export async function sendChatMessage(params: {
 
   for (const file of params.files ?? []) {
     formData.append('files', file);
+  }
+
+  if (params.replyToMessageId) {
+    formData.set('replyToMessageId', params.replyToMessageId);
   }
 
   return fetcher<ChatMessage>(`/chats/rooms/${params.roomId}/messages`, {

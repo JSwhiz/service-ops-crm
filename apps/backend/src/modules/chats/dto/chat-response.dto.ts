@@ -36,6 +36,14 @@ export class ChatRoomParticipantResponseDto {
   user!: ChatUserSummaryDto;
 }
 
+export class ChatMessageReplyPreviewDto {
+  id!: string;
+  text!: string | null;
+  author!: ChatUserSummaryDto | null;
+  createdAt!: string;
+  isDeleted!: boolean;
+}
+
 export class ChatMessageResponseDto {
   id!: string;
   chatRoomId!: string;
@@ -47,6 +55,7 @@ export class ChatMessageResponseDto {
   editedAt!: string | null;
   deletedAt!: string | null;
   isDeleted!: boolean;
+  replyTo!: ChatMessageReplyPreviewDto | null;
   author!: ChatUserSummaryDto | null;
   attachments!: FileResponseDto[];
   capabilities!: {

@@ -49,6 +49,13 @@ export interface ChatMessage {
   editedAt: string | null;
   deletedAt: string | null;
   isDeleted: boolean;
+  replyTo: {
+    id: string;
+    text: string | null;
+    author: ChatUserSummary | null;
+    createdAt: string;
+    isDeleted: boolean;
+  } | null;
   author: ChatUserSummary | null;
   attachments: AttachedFile[];
   capabilities: {

@@ -93,6 +93,7 @@ type ChatMessageRecord = {
   deletedAt: Date | null;
   deletedByUserId: string | null;
   deleteReason: string | null;
+  replyToMessageId: string | null;
   createdAt: Date;
   updatedAt: Date;
   author: {
@@ -709,12 +710,32 @@ export class ChatsService implements OnModuleInit {
       throw new BadRequestException('Message text or attachment is required');
     }
 
+    if (dto.replyToMessageId) {
+      const participant = await this.assertCanReadRoom(currentUser, room);
+      const replyTarget = await this.prisma.chatMessage.findUnique({
+        where: { id: dto.replyToMessageId },
+        select: {
+          chatRoomId: true,
+          createdAt: true,
+        },
+      });
+
+      if (!replyTarget || replyTarget.chatRoomId !== room.id) {
+        throw new BadRequestException('Reply target must belong to this room');
+      }
+
+      if (replyTarget.createdAt < participant.joinedAt) {
+        throw new ForbiddenException('Reply target is not available');
+      }
+    }
+
     const message = await this.prisma.chatMessage.create({
       data: {
         chatRoomId: room.id,
         authorUserId: currentUser.id,
         messageType: 'user',
         text,
+        replyToMessageId: dto.replyToMessageId,
       },
       include: {
         author: {
@@ -1374,6 +1395,7 @@ export class ChatsService implements OnModuleInit {
       editedAt: message.editedAt?.toISOString() ?? null,
       deletedAt: message.deletedAt?.toISOString() ?? null,
       isDeleted,
+      replyTo: await this.loadReplyPreview(message.replyToMessageId),
       author: message.author
         ? {
             id: message.author.id,
@@ -1460,6 +1482,45 @@ export class ChatsService implements OnModuleInit {
         createdAt: item.createdAt.toISOString(),
       })),
     }));
+  }
+
+  private async loadReplyPreview(
+    messageId: string | null,
+  ): Promise<ChatMessageResponseDto['replyTo']> {
+    if (!messageId) {
+      return null;
+    }
+
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      include: {
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (!message) {
+      return null;
+    }
+
+    return {
+      id: message.id,
+      text: message.deletedAt ? 'Сообщение удалено' : message.text,
+      author: message.author
+        ? {
+            id: message.author.id,
+            login: message.author.login,
+            fullName: message.author.fullName,
+          }
+        : null,
+      createdAt: message.createdAt.toISOString(),
+      isDeleted: message.deletedAt !== null,
+    };
   }
 
   private async publishMessageEvent(
