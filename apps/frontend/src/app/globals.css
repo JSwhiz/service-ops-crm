@@ -1409,6 +1409,17 @@ tbody tr:hover {
   font-weight: 700;
 }
 
+.chat-reaction-button {
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.chat-reaction-button.is-active {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+
 .chat-image-grid {
   display: grid;
   gap: 8px;

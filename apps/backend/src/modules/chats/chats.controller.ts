@@ -194,6 +194,14 @@ export class ChatsController {
     return this.chatsService.forwardMessage(user, messageId, body);
   }
 
+  @Post('messages/:messageId/reactions/heart')
+  toggleHeartReaction(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('messageId') messageId: string,
+  ): Promise<ChatMessageResponseDto> {
+    return this.chatsService.toggleHeartReaction(user, messageId);
+  }
+
   @Post('rooms/:roomId/read')
   markRead(
     @CurrentUser() user: CurrentAuthUser,

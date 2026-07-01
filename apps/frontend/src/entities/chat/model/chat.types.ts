@@ -63,6 +63,8 @@ export interface ChatMessage {
     createdAt: string;
     isDeleted: boolean;
   } | null;
+  reactionCounts: Record<string, number>;
+  myReactions: string[];
   author: ChatUserSummary | null;
   attachments: AttachedFile[];
   capabilities: {

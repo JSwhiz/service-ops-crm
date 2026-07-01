@@ -892,6 +892,52 @@ test('chats support default visibility, attachments, unread, custom join-point a
   );
   assert.equal(forbiddenForwardResponse.status, 403);
 
+  const founderHeartResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/reactions/heart`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(founderHeartResponse.status, 201);
+  const founderHeartMessage = (await founderHeartResponse.json()) as {
+    reactionCounts: Record<string, number>;
+    myReactions: string[];
+  };
+  assert.equal(founderHeartMessage.reactionCounts.heart, 1);
+  assert.deepEqual(founderHeartMessage.myReactions, ['heart']);
+
+  const managerHeartResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/reactions/heart`,
+    {
+      method: 'POST',
+      headers: { Cookie: managerOneCookie },
+    },
+  );
+  assert.equal(managerHeartResponse.status, 201);
+  const managerHeartMessage = (await managerHeartResponse.json()) as {
+    reactionCounts: Record<string, number>;
+    myReactions: string[];
+  };
+  assert.equal(managerHeartMessage.reactionCounts.heart, 2);
+  assert.deepEqual(managerHeartMessage.myReactions, ['heart']);
+
+  const founderHeartToggleOffResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/reactions/heart`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(founderHeartToggleOffResponse.status, 201);
+  const founderHeartToggledOff =
+    (await founderHeartToggleOffResponse.json()) as {
+      reactionCounts: Record<string, number>;
+      myReactions: string[];
+    };
+  assert.equal(founderHeartToggledOff.reactionCounts.heart, 1);
+  assert.deepEqual(founderHeartToggledOff.myReactions, []);
+
   const editResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}`,
     {
@@ -995,6 +1041,15 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
   );
   assert.equal(deletedForwardResponse.status, 403);
+
+  const deletedReactionResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}/reactions/heart`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(deletedReactionResponse.status, 403);
 
   const editDeletedResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}`,

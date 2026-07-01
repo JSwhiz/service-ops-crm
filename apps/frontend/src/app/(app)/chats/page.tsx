@@ -26,6 +26,7 @@ import {
   markChatRoomRead,
   renameChatRoom,
   sendChatMessage,
+  toggleChatMessageHeart,
   unhideChatRoom,
 } from '@/entities/chat/api/chat-client';
 import type {
@@ -872,7 +873,13 @@ export default function ChatsPage(): React.JSX.Element {
 
               if (isMessageUpdated) {
                 return current.map((message) =>
-                  message.id === incomingMessage.id ? incomingMessage : message,
+                  message.id === incomingMessage.id
+                    ? {
+                        ...incomingMessage,
+                        capabilities: message.capabilities,
+                        myReactions: message.myReactions,
+                      }
+                    : message,
                 );
               }
 
@@ -1164,6 +1171,21 @@ export default function ChatsPage(): React.JSX.Element {
       await refreshRoomLists();
     } catch (forwardError) {
       setError(getErrorMessage(forwardError, 'Не удалось переслать сообщение.'));
+    }
+  };
+
+  const handleToggleHeart = async (message: ChatMessage): Promise<void> => {
+    setError(null);
+
+    try {
+      const updatedMessage = await toggleChatMessageHeart(message.id);
+      setMessages((current) =>
+        current.map((currentMessage) =>
+          currentMessage.id === updatedMessage.id ? updatedMessage : currentMessage,
+        ),
+      );
+    } catch (reactionError) {
+      setError(getErrorMessage(reactionError, 'Не удалось изменить реакцию.'));
     }
   };
 
@@ -1573,6 +1595,18 @@ export default function ChatsPage(): React.JSX.Element {
                                         Переслать
                                       </button>
                                     ) : null}
+                                    <button
+                                      type="button"
+                                      className={`chat-reaction-button ${
+                                        message.myReactions.includes('heart')
+                                          ? 'is-active'
+                                          : ''
+                                      }`}
+                                      onClick={() => void handleToggleHeart(message)}
+                                      aria-label="Поставить реакцию сердце"
+                                    >
+                                      ♥ {message.reactionCounts.heart ?? 0}
+                                    </button>
                                   </div>
                                 ) : null}
                               </>

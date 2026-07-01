@@ -175,6 +175,15 @@ export async function forwardChatMessage(
   });
 }
 
+export async function toggleChatMessageHeart(
+  messageId: string,
+): Promise<ChatMessage> {
+  return fetcher<ChatMessage>(
+    `/chats/messages/${messageId}/reactions/heart`,
+    { method: 'POST' },
+  );
+}
+
 export async function markChatRoomRead(
   roomId: string,
   payload: { lastReadMessageId: string },

@@ -29,6 +29,7 @@ model User {
   chatRoomParticipants        ChatRoomParticipant[]
   authoredChatMessages        ChatMessage[] @relation("ChatMessageAuthor")
   deletedChatMessages         ChatMessage[] @relation("ChatMessageDeletedBy")
+  chatMessageReactions        ChatMessageReaction[]
   auditEvents                 AuditEvent[] @relation("AuditActor")
   createdObjects              Object[] @relation("ObjectCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
@@ -294,6 +295,7 @@ model ChatMessage {
   replies   ChatMessage[] @relation("ChatMessageReplies")
   forwardedFrom ChatMessage?  @relation("ChatMessageForwards", fields: [forwardedFromMessageId], references: [id], onDelete: SetNull)
   forwards      ChatMessage[] @relation("ChatMessageForwards")
+  reactions     ChatMessageReaction[]
 
   @@index([chatRoomId, createdAt])
   @@index([authorUserId])
@@ -303,6 +305,22 @@ model ChatMessage {
   @@index([forwardedFromMessageId])
   @@index([messageType])
   @@map("chat_messages")
+}
+
+model ChatMessageReaction {
+  id            String   @id @default(uuid())
+  chatMessageId String
+  userId        String
+  reactionType  String
+  createdAt     DateTime @default(now())
+
+  chatMessage ChatMessage @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatMessageId, userId, reactionType])
+  @@index([chatMessageId])
+  @@index([userId])
+  @@map("chat_message_reactions")
 }
 
 model Object {

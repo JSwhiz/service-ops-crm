@@ -995,6 +995,77 @@ export class ChatsService implements OnModuleInit {
     return mapped;
   }
 
+  async toggleHeartReaction(
+    currentUser: CurrentAuthUser,
+    messageId: string,
+  ): Promise<ChatMessageResponseDto> {
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      include: {
+        chatRoom: true,
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Chat message not found');
+    }
+
+    const participant = await this.assertCanReadRoom(
+      currentUser,
+      message.chatRoom,
+    );
+    this.assertRoomOpen(message.chatRoom);
+
+    if (message.createdAt < participant.joinedAt) {
+      throw new ForbiddenException('Chat message is not available');
+    }
+
+    if (message.deletedAt) {
+      throw new ForbiddenException('Deleted message cannot receive reactions');
+    }
+
+    const uniqueKey = {
+      chatMessageId_userId_reactionType: {
+        chatMessageId: message.id,
+        userId: currentUser.id,
+        reactionType: 'heart',
+      },
+    };
+    const existing = await this.prisma.chatMessageReaction.findUnique({
+      where: uniqueKey,
+      select: { id: true },
+    });
+
+    if (existing) {
+      await this.prisma.chatMessageReaction.delete({ where: { id: existing.id } });
+    } else {
+      await this.prisma.chatMessageReaction.create({
+        data: {
+          chatMessageId: message.id,
+          userId: currentUser.id,
+          reactionType: 'heart',
+        },
+      });
+    }
+
+    const mapped = await this.mapMessage(currentUser, message);
+    const broadcast = await this.mapMessageForBroadcast(message);
+    await this.publishMessageEvent(
+      message.chatRoomId,
+      'chat.message_updated',
+      broadcast,
+    );
+
+    return mapped;
+  }
+
   async markRead(
     currentUser: CurrentAuthUser,
     roomId: string,
@@ -1460,6 +1531,21 @@ export class ChatsService implements OnModuleInit {
           await this.getRoomRecord(message.chatRoomId),
         )
       : false;
+    const reactions = await this.prisma.chatMessageReaction.findMany({
+      where: { chatMessageId: message.id },
+      select: {
+        userId: true,
+        reactionType: true,
+      },
+    });
+    const reactionCounts = reactions.reduce<Record<string, number>>(
+      (counts, reaction) => {
+        counts[reaction.reactionType] =
+          (counts[reaction.reactionType] ?? 0) + 1;
+        return counts;
+      },
+      {},
+    );
 
     return {
       id: message.id,
@@ -1476,6 +1562,12 @@ export class ChatsService implements OnModuleInit {
       forwardedFrom: await this.loadMessageReferencePreview(
         message.forwardedFromMessageId,
       ),
+      reactionCounts,
+      myReactions: currentUser.id
+        ? reactions
+            .filter((reaction) => reaction.userId === currentUser.id)
+            .map((reaction) => reaction.reactionType)
+        : [],
       author: message.author
         ? {
             id: message.author.id,
