@@ -10,7 +10,7 @@ import { hashPassword } from '../src/modules/auth/utils/password-hash.util';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
 
-test('chats support default visibility, attachments, unread, custom join-point and edit window', async (t) => {
+test('chats support production messaging, access, unread and lifecycle flows', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
 

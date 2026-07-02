@@ -107,6 +107,33 @@ type ChatMessageRecord = {
   } | null;
 };
 
+type ChatFileAttachmentRecord = Prisma.FileAttachmentGetPayload<{
+  include: {
+    file: {
+      include: {
+        attachments: true;
+      };
+    };
+  };
+}>;
+
+type ChatMessageMapContext = {
+  attachmentsByMessageId: Map<string, FileResponseDto[]>;
+  reactionsByMessageId: Map<
+    string,
+    Array<{ userId: string; reactionType: string }>
+  >;
+  deletedUsersById: Map<
+    string,
+    { id: string; login: string; fullName: string } | null
+  >;
+  canManageByRoomId: Map<string, boolean>;
+  referencesByMessageId: Map<
+    string,
+    ChatMessageResponseDto['replyTo']
+  >;
+};
+
 type ChatRoomsView = 'active' | 'archived';
 
 @Injectable()
@@ -845,9 +872,7 @@ export class ChatsService implements OnModuleInit {
     });
     messages.reverse();
 
-    return Promise.all(
-      messages.map((message) => this.mapMessage(currentUser, message)),
-    );
+    return this.mapMessages(currentUser, messages);
   }
 
   async listMessagesAround(
@@ -934,9 +959,7 @@ export class ChatsService implements OnModuleInit {
     ];
 
     return {
-      messages: await Promise.all(
-        windowMessages.map((message) => this.mapMessage(currentUser, message)),
-      ),
+      messages: await this.mapMessages(currentUser, windowMessages),
       hasOlder,
       hasNewer,
       anchorMessageId: anchor.id,
@@ -1884,27 +1907,167 @@ export class ChatsService implements OnModuleInit {
     };
   }
 
+  private async mapMessages(
+    currentUser: CurrentAuthUser,
+    messages: ChatMessageRecord[],
+  ): Promise<ChatMessageResponseDto[]> {
+    if (messages.length === 0) {
+      return [];
+    }
+
+    const messageIds = messages.map((message) => message.id);
+    const deletedUserIds = Array.from(
+      new Set(
+        messages
+          .map((message) => message.deletedByUserId)
+          .filter((userId): userId is string => !!userId),
+      ),
+    );
+    const roomIds = Array.from(
+      new Set(messages.map((message) => message.chatRoomId)),
+    );
+    const referenceIds = Array.from(
+      new Set(
+        messages
+          .flatMap((message) => [
+            message.replyToMessageId,
+            message.forwardedFromMessageId,
+          ])
+          .filter((messageId): messageId is string => !!messageId),
+      ),
+    );
+    const [attachments, reactions, deletedUsers, rooms, referenceEntries] =
+      await Promise.all([
+        this.prisma.fileAttachment.findMany({
+          where: {
+            entityType: CHAT_MESSAGE_FILE_ENTITY_TYPE,
+            entityId: { in: messageIds },
+            file: { deletedAt: null },
+          },
+          include: {
+            file: {
+              include: {
+                attachments: {
+                  orderBy: { createdAt: 'asc' },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        }),
+        this.prisma.chatMessageReaction.findMany({
+          where: { chatMessageId: { in: messageIds } },
+          select: {
+            chatMessageId: true,
+            userId: true,
+            reactionType: true,
+          },
+        }),
+        deletedUserIds.length
+          ? this.prisma.user.findMany({
+              where: { id: { in: deletedUserIds } },
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+              },
+            })
+          : [],
+        this.prisma.chatRoom.findMany({
+          where: { id: { in: roomIds } },
+        }),
+        Promise.all(
+          referenceIds.map(async (referenceId) => [
+            referenceId,
+            await this.loadMessageReferencePreview(currentUser, referenceId),
+          ] as const),
+        ),
+      ]);
+    const attachmentsByMessageId = new Map<string, FileResponseDto[]>();
+
+    for (const messageId of messageIds) {
+      attachmentsByMessageId.set(messageId, []);
+    }
+
+    for (const attachment of attachments) {
+      const current = attachmentsByMessageId.get(attachment.entityId) ?? [];
+      current.push(this.mapChatFileAttachment(attachment));
+      attachmentsByMessageId.set(attachment.entityId, current);
+    }
+
+    const reactionsByMessageId = new Map<
+      string,
+      Array<{ userId: string; reactionType: string }>
+    >();
+
+    for (const messageId of messageIds) {
+      reactionsByMessageId.set(messageId, []);
+    }
+
+    for (const reaction of reactions) {
+      const current = reactionsByMessageId.get(reaction.chatMessageId) ?? [];
+      current.push({
+        userId: reaction.userId,
+        reactionType: reaction.reactionType,
+      });
+      reactionsByMessageId.set(reaction.chatMessageId, current);
+    }
+
+    const canManageEntries = await Promise.all(
+      rooms.map(async (room) => [
+        room.id,
+        currentUser.id ? await this.canManageRoom(currentUser, room) : false,
+      ] as const),
+    );
+    const deletedUsersById = new Map<
+      string,
+      { id: string; login: string; fullName: string } | null
+    >(deletedUserIds.map((userId) => [userId, null]));
+
+    for (const user of deletedUsers) {
+      deletedUsersById.set(user.id, user);
+    }
+
+    const context: ChatMessageMapContext = {
+      attachmentsByMessageId,
+      reactionsByMessageId,
+      deletedUsersById,
+      canManageByRoomId: new Map(canManageEntries),
+      referencesByMessageId: new Map(referenceEntries),
+    };
+
+    return Promise.all(
+      messages.map((message) => this.mapMessage(currentUser, message, context)),
+    );
+  }
+
   private async mapMessage(
     currentUser: CurrentAuthUser,
     message: ChatMessageRecord,
+    context?: ChatMessageMapContext,
   ): Promise<ChatMessageResponseDto> {
     const isDeleted = message.deletedAt !== null;
     const attachments = isDeleted
       ? []
-      : await this.loadMessageAttachments(message.id);
-    const canManageRoom = currentUser.id
-      ? await this.canManageRoom(
-          currentUser,
-          await this.getRoomRecord(message.chatRoomId),
-        )
-      : false;
-    const reactions = await this.prisma.chatMessageReaction.findMany({
-      where: { chatMessageId: message.id },
-      select: {
-        userId: true,
-        reactionType: true,
-      },
-    });
+      : context?.attachmentsByMessageId.get(message.id) ??
+        (await this.loadMessageAttachments(message.id));
+    const canManageRoom =
+      context?.canManageByRoomId.get(message.chatRoomId) ??
+      (currentUser.id
+        ? await this.canManageRoom(
+            currentUser,
+            await this.getRoomRecord(message.chatRoomId),
+          )
+        : false);
+    const reactions =
+      context?.reactionsByMessageId.get(message.id) ??
+      (await this.prisma.chatMessageReaction.findMany({
+        where: { chatMessageId: message.id },
+        select: {
+          userId: true,
+          reactionType: true,
+        },
+      }));
     const reactionCounts = reactions.reduce<Record<string, number>>(
       (counts, reaction) => {
         counts[reaction.reactionType] =
@@ -1914,14 +2077,16 @@ export class ChatsService implements OnModuleInit {
       {},
     );
     const deletedBy = message.deletedByUserId
-      ? await this.prisma.user.findUnique({
-          where: { id: message.deletedByUserId },
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
-          },
-        })
+      ? context?.deletedUsersById.has(message.deletedByUserId)
+        ? context.deletedUsersById.get(message.deletedByUserId) ?? null
+        : await this.prisma.user.findUnique({
+            where: { id: message.deletedByUserId },
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
+          })
       : null;
     const deletedByKind =
       message.deletedByKind === 'author' || message.deletedByKind === 'manager'
@@ -1947,14 +2112,23 @@ export class ChatsService implements OnModuleInit {
       isDeleted,
       deletedBy,
       deletedByKind,
-      replyTo: await this.loadMessageReferencePreview(
-        currentUser,
-        message.replyToMessageId,
-      ),
-      forwardedFrom: await this.loadMessageReferencePreview(
-        currentUser,
-        message.forwardedFromMessageId,
-      ),
+      replyTo: message.replyToMessageId
+        ? context?.referencesByMessageId.has(message.replyToMessageId)
+          ? context.referencesByMessageId.get(message.replyToMessageId) ?? null
+          : await this.loadMessageReferencePreview(
+              currentUser,
+              message.replyToMessageId,
+            )
+        : null,
+      forwardedFrom: message.forwardedFromMessageId
+        ? context?.referencesByMessageId.has(message.forwardedFromMessageId)
+          ? context.referencesByMessageId.get(message.forwardedFromMessageId) ??
+            null
+          : await this.loadMessageReferencePreview(
+              currentUser,
+              message.forwardedFromMessageId,
+            )
+        : null,
       reactionCounts,
       myReactions: currentUser.id
         ? reactions
@@ -2032,7 +2206,15 @@ export class ChatsService implements OnModuleInit {
       },
     });
 
-    return attachments.map((attachment) => ({
+    return attachments.map((attachment) =>
+      this.mapChatFileAttachment(attachment),
+    );
+  }
+
+  private mapChatFileAttachment(
+    attachment: ChatFileAttachmentRecord,
+  ): FileResponseDto {
+    return {
       id: attachment.file.id,
       bucket: attachment.file.bucket,
       objectKey: attachment.file.objectKey,
@@ -2050,7 +2232,7 @@ export class ChatsService implements OnModuleInit {
         uploadedByUserId: item.uploadedByUserId,
         createdAt: item.createdAt.toISOString(),
       })),
-    }));
+    };
   }
 
   private async loadMessageReferencePreview(
