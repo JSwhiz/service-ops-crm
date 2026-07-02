@@ -734,6 +734,50 @@ test('chats support default visibility, attachments, unread, custom join-point a
   });
   createdMessageIds.push(...paginationMessageIds);
 
+  const managerPaginationParticipantBeforeUnreadWindow =
+    await prisma.chatRoomParticipant.findUniqueOrThrow({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId: paginationRoom.id,
+          userId: managerOne.id,
+        },
+      },
+      select: { lastReadAt: true },
+    });
+  const unreadWindowResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${paginationRoom.id}/messages/unread-window`,
+    { headers: { Cookie: managerOneCookie } },
+  );
+  assert.equal(unreadWindowResponse.status, 200);
+  const unreadWindow = (await unreadWindowResponse.json()) as {
+    messages: Array<{ id: string }>;
+    hasOlder: boolean;
+    hasNewer: boolean;
+    anchorMessageId: string | null;
+    unreadMessageId: string | null;
+    isLatestWindow: boolean;
+  };
+  assert.equal(unreadWindow.unreadMessageId, paginationMessageIds[0]);
+  assert.equal(unreadWindow.anchorMessageId, paginationMessageIds[0]);
+  assert.equal(unreadWindow.messages[0]?.id, paginationMessageIds[0]);
+  assert.equal(unreadWindow.hasOlder, false);
+  assert.equal(unreadWindow.hasNewer, true);
+  assert.equal(unreadWindow.isLatestWindow, false);
+  const managerPaginationParticipantAfterUnreadWindow =
+    await prisma.chatRoomParticipant.findUniqueOrThrow({
+      where: {
+        chatRoomId_userId: {
+          chatRoomId: paginationRoom.id,
+          userId: managerOne.id,
+        },
+      },
+      select: { lastReadAt: true },
+    });
+  assert.equal(
+    managerPaginationParticipantAfterUnreadWindow.lastReadAt?.toISOString() ?? null,
+    managerPaginationParticipantBeforeUnreadWindow.lastReadAt?.toISOString() ?? null,
+  );
+
   const latestMessagesResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${paginationRoom.id}/messages`,
     { headers: { Cookie: founderCookie } },

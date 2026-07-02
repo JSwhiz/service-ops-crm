@@ -178,6 +178,14 @@ export class ChatsController {
     });
   }
 
+  @Get('rooms/:roomId/messages/unread-window')
+  listUnreadMessagesWindow(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('roomId') roomId: string,
+  ): Promise<ChatMessageWindowResponseDto> {
+    return this.chatsService.listUnreadMessagesWindow(user, roomId);
+  }
+
   @Post('rooms/:roomId/messages')
   @UseInterceptors(
     FilesInterceptor('files', 10, {

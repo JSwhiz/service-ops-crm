@@ -162,6 +162,15 @@ export async function listChatMessagesAround(
   );
 }
 
+export async function listUnreadChatMessages(
+  roomId: string,
+): Promise<ChatMessageWindow> {
+  return fetcher<ChatMessageWindow>(
+    `/chats/rooms/${roomId}/messages/unread-window`,
+    { method: 'GET' },
+  );
+}
+
 export async function sendChatMessage(params: {
   roomId: string;
   text?: string;

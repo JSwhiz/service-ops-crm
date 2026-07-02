@@ -939,6 +939,64 @@ export class ChatsService implements OnModuleInit {
       hasOlder,
       hasNewer,
       anchorMessageId: anchor.id,
+      unreadMessageId: null,
+      isLatestWindow: !hasNewer,
+    };
+  }
+
+  async listUnreadMessagesWindow(
+    currentUser: CurrentAuthUser,
+    roomId: string,
+  ): Promise<ChatMessageWindowResponseDto> {
+    const room = await this.getRoomRecord(roomId);
+    const participant = await this.assertCanReadRoom(currentUser, room);
+    const unreadThreshold = participant.lastReadAt ?? participant.joinedAt;
+    const firstUnread = await this.prisma.chatMessage.findFirst({
+      where: {
+        chatRoomId: room.id,
+        createdAt: {
+          gt: unreadThreshold,
+          gte: participant.joinedAt,
+        },
+        OR: [
+          { authorUserId: { not: currentUser.id } },
+          { authorUserId: null },
+        ],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true },
+    });
+
+    if (firstUnread) {
+      const windowResult = await this.listMessagesAround(currentUser, roomId, {
+        around: firstUnread.id,
+        limitBefore: '20',
+        limitAfter: '50',
+      });
+
+      return {
+        ...windowResult,
+        unreadMessageId: firstUnread.id,
+      };
+    }
+
+    const messages = await this.listMessages(currentUser, roomId, {
+      limit: '50',
+    });
+    const totalVisibleMessages = await this.prisma.chatMessage.count({
+      where: {
+        chatRoomId: room.id,
+        createdAt: { gte: participant.joinedAt },
+      },
+    });
+
+    return {
+      messages,
+      hasOlder: totalVisibleMessages > messages.length,
+      hasNewer: false,
+      anchorMessageId: messages.at(-1)?.id ?? null,
+      unreadMessageId: null,
+      isLatestWindow: true,
     };
   }
 

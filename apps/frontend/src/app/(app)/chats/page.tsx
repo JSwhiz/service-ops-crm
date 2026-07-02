@@ -23,6 +23,7 @@ import {
   listChatRoomParticipants,
   listChatMessages,
   listChatMessagesAround,
+  listUnreadChatMessages,
   listChatRooms,
   markChatRoomRead,
   renameChatRoom,
@@ -64,6 +65,11 @@ type InitialScrollTarget = {
 type LoadMessagesOptions = {
   scheduleInitial?: boolean;
   roomSnapshot?: ChatRoom | null;
+};
+
+type LoadedMessagesResult = {
+  messages: ChatMessage[];
+  isLatestWindow: boolean;
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -360,6 +366,7 @@ export default function ChatsPage(): React.JSX.Element {
   const openingRoomSnapshotRef = useRef<ChatRoom | null>(null);
   const isInitialScrollPendingRef = useRef(false);
   const isLoadingOlderMessagesRef = useRef(false);
+  const isLatestWindowRef = useRef(true);
   const pendingSearchMessageRef = useRef<{
     roomId: string;
     messageId: string;
@@ -571,20 +578,32 @@ export default function ChatsPage(): React.JSX.Element {
   const loadMessages = async (
     roomId: string,
     options: LoadMessagesOptions = {},
-  ): Promise<ChatMessage[]> => {
+  ): Promise<LoadedMessagesResult> => {
     setIsLoadingMessages(true);
 
     try {
-      const nextMessages = await listChatMessages(roomId, { limit: 50 });
+      const roomSnapshot =
+        options.roomSnapshot ?? openingRoomSnapshotRef.current;
+      const unreadWindow =
+        options.scheduleInitial && (roomSnapshot?.unreadCount ?? 0) > 0
+          ? await listUnreadChatMessages(roomId)
+          : null;
+      const nextMessages = unreadWindow
+        ? unreadWindow.messages
+        : await listChatMessages(roomId, { limit: 50 });
       setMessages(nextMessages);
-      setHasOlderMessages(nextMessages.length === 50);
-      setHasNewerMessages(false);
+      setHasOlderMessages(unreadWindow?.hasOlder ?? nextMessages.length === 50);
+      setHasNewerMessages(unreadWindow?.hasNewer ?? false);
+      isLatestWindowRef.current = unreadWindow?.isLatestWindow ?? true;
 
       if (options?.scheduleInitial) {
-        const roomSnapshot =
-          options.roomSnapshot ?? openingRoomSnapshotRef.current;
-
-        const target = getInitialScrollTarget(roomSnapshot, nextMessages, user?.id);
+        const target = unreadWindow?.unreadMessageId
+          ? {
+              messageId: unreadWindow.unreadMessageId,
+              target: 'message' as const,
+              unreadMessageId: unreadWindow.unreadMessageId,
+            }
+          : getInitialScrollTarget(roomSnapshot, nextMessages, user?.id);
 
         setInitialUnreadMessageId(target?.unreadMessageId ?? null);
 
@@ -599,7 +618,10 @@ export default function ChatsPage(): React.JSX.Element {
         }
       }
 
-      return nextMessages;
+      return {
+        messages: nextMessages,
+        isLatestWindow: isLatestWindowRef.current,
+      };
     } finally {
       setIsLoadingMessages(false);
     }
@@ -621,6 +643,7 @@ export default function ChatsPage(): React.JSX.Element {
       setMessages(windowResult.messages);
       setHasOlderMessages(windowResult.hasOlder);
       setHasNewerMessages(windowResult.hasNewer);
+      isLatestWindowRef.current = windowResult.isLatestWindow;
       setInitialUnreadMessageId(null);
       const anchorMessageId = windowResult.anchorMessageId ?? messageId;
       scheduleInitialScroll(
@@ -661,6 +684,7 @@ export default function ChatsPage(): React.JSX.Element {
       setMessages(latestMessages);
       setHasOlderMessages(latestMessages.length === 50);
       setHasNewerMessages(false);
+      isLatestWindowRef.current = true;
       setHighlightedMessageId(null);
       setInitialUnreadMessageId(null);
       pendingScrollToBottomRef.current = true;
@@ -884,6 +908,7 @@ export default function ChatsPage(): React.JSX.Element {
     setInitialUnreadMessageId(null);
     setHasNewMessagesBelow(false);
     setHasNewerMessages(false);
+    isLatestWindowRef.current = false;
     setIsRoomSettingsOpen(false);
     setIsParticipantsPanelOpen(false);
     setRoomParticipants([]);
@@ -915,10 +940,10 @@ export default function ChatsPage(): React.JSX.Element {
       scheduleInitial: true,
       roomSnapshot,
     })
-      .then((nextMessages) => {
-        const latestLoadedMessageId = nextMessages.at(-1)?.id;
+      .then((result) => {
+        const latestLoadedMessageId = result.messages.at(-1)?.id;
 
-        if (latestLoadedMessageId) {
+        if (result.isLatestWindow && latestLoadedMessageId) {
           scheduleMarkLatestMessageRead(activeRoomId, latestLoadedMessageId);
         }
       })
@@ -1000,7 +1025,10 @@ export default function ChatsPage(): React.JSX.Element {
           return;
         }
 
-        if (isInitialScrollPendingRef.current) {
+        if (
+          isInitialScrollPendingRef.current ||
+          !isLatestWindowRef.current
+        ) {
           return;
         }
 
@@ -1075,6 +1103,12 @@ export default function ChatsPage(): React.JSX.Element {
             typeof payload.payload === 'object'
           ) {
             const incomingMessage = payload.payload as ChatMessage;
+
+            if (isMessageCreated && !isLatestWindowRef.current) {
+              setHasNewerMessages(true);
+              setHasNewMessagesBelow(true);
+              return;
+            }
 
             if (isMessageCreated) {
               const shouldStickToBottom = messageListRef.current

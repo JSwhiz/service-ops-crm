@@ -73,4 +73,6 @@ export class ChatMessageWindowResponseDto {
   hasOlder!: boolean;
   hasNewer!: boolean;
   anchorMessageId!: string | null;
+  unreadMessageId!: string | null;
+  isLatestWindow!: boolean;
 }
