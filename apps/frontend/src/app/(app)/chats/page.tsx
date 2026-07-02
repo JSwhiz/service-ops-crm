@@ -1274,9 +1274,17 @@ export default function ChatsPage(): React.JSX.Element {
     setError(null);
 
     try {
-      await forwardChatMessage(forwardingMessage.id, {
+      const forwardedMessage = await forwardChatMessage(forwardingMessage.id, {
         targetRoomId: forwardTargetRoomId,
       });
+      if (forwardTargetRoomId === activeRoomIdRef.current) {
+        setMessages((current) =>
+          current.some((message) => message.id === forwardedMessage.id)
+            ? current
+            : [...current, forwardedMessage],
+        );
+        pendingScrollToBottomRef.current = true;
+      }
       setForwardingMessage(null);
       setForwardTargetRoomId('');
       await refreshRoomLists();
@@ -1707,12 +1715,15 @@ export default function ChatsPage(): React.JSX.Element {
                                 ) : null}
                                 {message.forwardedFrom ? (
                                   <div className="chat-forwarded-label">
-                                    Переслано ·{' '}
-                                    {message.forwardedFrom.author
-                                      ? getUserDisplayName(
-                                          message.forwardedFrom.author,
-                                        )
-                                      : 'Пользователь'}
+                                    {message.forwardedFrom.isAccessRestricted
+                                      ? 'Переслано'
+                                      : `Переслано · ${
+                                          message.forwardedFrom.author
+                                            ? getUserDisplayName(
+                                                message.forwardedFrom.author,
+                                              )
+                                            : 'Пользователь'
+                                        }`}
                                   </div>
                                 ) : null}
                                 {message.text ? (
@@ -2149,7 +2160,7 @@ export default function ChatsPage(): React.JSX.Element {
                 <div>
                   <div className="section-title">Переслать сообщение</div>
                   <div className="section-subtitle">
-                    Вложения в этом этапе не копируются.
+                    Будут пересланы текст и вложения.
                   </div>
                 </div>
                 <button

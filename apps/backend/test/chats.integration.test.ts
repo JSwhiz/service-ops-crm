@@ -994,12 +994,153 @@ test('chats support default visibility, attachments, unread, custom join-point a
     id: string;
     chatRoomId: string;
     text: string | null;
-    forwardedFrom: { id: string; text: string | null } | null;
+    forwardedFrom: {
+      id: string;
+      text: string | null;
+      author: { id: string } | null;
+      isAccessRestricted: boolean;
+    } | null;
   };
   createdMessageIds.push(forwardedMessage.id);
   assert.equal(forwardedMessage.chatRoomId, objectsRoom.id);
   assert.equal(forwardedMessage.text, 'Message after manager2 join');
   assert.equal(forwardedMessage.forwardedFrom?.id, newCustomMessage.id);
+  assert.equal(forwardedMessage.forwardedFrom?.isAccessRestricted, false);
+
+  const managerObjectsMessagesResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${objectsRoom.id}/messages`,
+    { headers: { Cookie: managerOneCookie } },
+  );
+  assert.equal(managerObjectsMessagesResponse.status, 200);
+  const managerObjectsMessages =
+    (await managerObjectsMessagesResponse.json()) as Array<{
+      id: string;
+      forwardedFrom: {
+        text: string | null;
+        author: { id: string } | null;
+        isAccessRestricted: boolean;
+      } | null;
+    }>;
+  const managerVisibleForward = managerObjectsMessages.find(
+    (message) => message.id === forwardedMessage.id,
+  );
+  assert.equal(managerVisibleForward?.forwardedFrom?.isAccessRestricted, false);
+  assert.equal(
+    managerVisibleForward?.forwardedFrom?.text,
+    'Message after manager2 join',
+  );
+  assert.equal(managerVisibleForward?.forwardedFrom?.author?.id, founderUser.id);
+
+  const leadershipSourceResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${leadershipRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text: 'Restricted leadership source' }),
+    },
+  );
+  assert.equal(leadershipSourceResponse.status, 201);
+  const leadershipSource = (await leadershipSourceResponse.json()) as {
+    id: string;
+  };
+  createdMessageIds.push(leadershipSource.id);
+
+  const restrictedForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${leadershipSource.id}/forward`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ targetRoomId: customRoom.id }),
+    },
+  );
+  assert.equal(restrictedForwardResponse.status, 201);
+  const restrictedForward = (await restrictedForwardResponse.json()) as {
+    id: string;
+    forwardedFrom: { isAccessRestricted: boolean } | null;
+  };
+  createdMessageIds.push(restrictedForward.id);
+  assert.equal(restrictedForward.forwardedFrom?.isAccessRestricted, false);
+
+  const managerCustomMessagesAfterRestrictedForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    { headers: { Cookie: managerOneCookie } },
+  );
+  assert.equal(managerCustomMessagesAfterRestrictedForwardResponse.status, 200);
+  const managerCustomMessagesAfterRestrictedForward =
+    (await managerCustomMessagesAfterRestrictedForwardResponse.json()) as Array<{
+      id: string;
+      forwardedFrom: {
+        text: string | null;
+        author: { id: string } | null;
+        isAccessRestricted: boolean;
+      } | null;
+    }>;
+  const managerRestrictedForward =
+    managerCustomMessagesAfterRestrictedForward.find(
+      (message) => message.id === restrictedForward.id,
+    );
+  assert.equal(
+    managerRestrictedForward?.forwardedFrom?.isAccessRestricted,
+    true,
+  );
+  assert.equal(managerRestrictedForward?.forwardedFrom?.text, null);
+  assert.equal(managerRestrictedForward?.forwardedFrom?.author, null);
+
+  const attachmentOnlyForm = new FormData();
+  attachmentOnlyForm.append(
+    'files',
+    new Blob(['attachment-only forward'], { type: 'text/plain' }),
+    'attachment-only-forward.txt',
+  );
+  const attachmentOnlyMessageResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+      body: attachmentOnlyForm,
+    },
+  );
+  assert.equal(attachmentOnlyMessageResponse.status, 201);
+  const attachmentOnlyMessage =
+    (await attachmentOnlyMessageResponse.json()) as {
+      id: string;
+      attachments: Array<{ id: string }>;
+    };
+  createdMessageIds.push(attachmentOnlyMessage.id);
+  createdFileIds.push(
+    ...attachmentOnlyMessage.attachments.map((attachment) => attachment.id),
+  );
+
+  const attachmentOnlyForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${attachmentOnlyMessage.id}/forward`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ targetRoomId: objectsRoom.id }),
+    },
+  );
+  assert.equal(attachmentOnlyForwardResponse.status, 201);
+  const attachmentOnlyForward =
+    (await attachmentOnlyForwardResponse.json()) as {
+      id: string;
+      text: string | null;
+      attachments: Array<{ id: string }>;
+    };
+  createdMessageIds.push(attachmentOnlyForward.id);
+  assert.equal(attachmentOnlyForward.text, null);
+  assert.deepEqual(
+    attachmentOnlyForward.attachments.map((attachment) => attachment.id),
+    attachmentOnlyMessage.attachments.map((attachment) => attachment.id),
+  );
 
   const forbiddenForwardResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/forward`,
@@ -1119,6 +1260,60 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
   );
   assert.equal(ordinaryMemberDeleteResponse.status, 403);
+
+  const textAndAttachmentForm = new FormData();
+  textAndAttachmentForm.set('text', 'Text and attachment forward source');
+  textAndAttachmentForm.append(
+    'files',
+    new Blob(['text and attachment forward'], { type: 'text/plain' }),
+    'text-and-attachment-forward.txt',
+  );
+  const textAndAttachmentSourceResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+      body: textAndAttachmentForm,
+    },
+  );
+  assert.equal(textAndAttachmentSourceResponse.status, 201);
+  const textAndAttachmentSource =
+    (await textAndAttachmentSourceResponse.json()) as {
+      id: string;
+      attachments: Array<{ id: string }>;
+    };
+  createdMessageIds.push(textAndAttachmentSource.id);
+  createdFileIds.push(
+    ...textAndAttachmentSource.attachments.map((attachment) => attachment.id),
+  );
+
+  const textAndAttachmentForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${textAndAttachmentSource.id}/forward`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ targetRoomId: objectsRoom.id }),
+    },
+  );
+  assert.equal(textAndAttachmentForwardResponse.status, 201);
+  const textAndAttachmentForward =
+    (await textAndAttachmentForwardResponse.json()) as {
+      id: string;
+      text: string | null;
+      attachments: Array<{ id: string }>;
+    };
+  createdMessageIds.push(textAndAttachmentForward.id);
+  assert.equal(
+    textAndAttachmentForward.text,
+    'Text and attachment forward source',
+  );
+  assert.deepEqual(
+    textAndAttachmentForward.attachments.map((attachment) => attachment.id),
+    textAndAttachmentSource.attachments.map((attachment) => attachment.id),
+  );
 
   const attachedDeleteForm = new FormData();
   attachedDeleteForm.set('text', 'Message with attachment to delete');

@@ -55,6 +55,7 @@ export interface ChatMessage {
     author: ChatUserSummary | null;
     createdAt: string;
     isDeleted: boolean;
+    isAccessRestricted: boolean;
   } | null;
   forwardedFrom: {
     id: string;
@@ -62,6 +63,7 @@ export interface ChatMessage {
     author: ChatUserSummary | null;
     createdAt: string;
     isDeleted: boolean;
+    isAccessRestricted: boolean;
   } | null;
   reactionCounts: Record<string, number>;
   myReactions: string[];

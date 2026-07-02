@@ -1101,37 +1101,60 @@ export class ChatsService implements OnModuleInit {
       throw new ForbiddenException('Only user messages can be forwarded');
     }
 
-    if (!sourceMessage.text?.trim()) {
-      throw new BadRequestException(
-        'Forwarding attachment-only messages is not supported yet',
-      );
-    }
-
     const targetRoom = await this.getRoomRecord(dto.targetRoomId);
     await this.assertCanWriteRoom(currentUser, targetRoom);
-
-    const forwardedMessage = await this.prisma.chatMessage.create({
-      data: {
-        chatRoomId: targetRoom.id,
-        authorUserId: currentUser.id,
-        messageType: 'user',
-        text: sourceMessage.text,
-        forwardedFromMessageId: sourceMessage.id,
+    const sourceAttachments = await this.prisma.fileAttachment.findMany({
+      where: {
+        entityType: CHAT_MESSAGE_FILE_ENTITY_TYPE,
+        entityId: sourceMessage.id,
+        file: { deletedAt: null },
       },
-      include: {
-        author: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
-          },
-        },
-      },
+      orderBy: { createdAt: 'asc' },
     });
+
+    const forwardedMessage = await this.prisma.$transaction(
+      async (transaction) => {
+        const created = await transaction.chatMessage.create({
+          data: {
+            chatRoomId: targetRoom.id,
+            authorUserId: currentUser.id,
+            messageType: 'user',
+            text: sourceMessage.text,
+            forwardedFromMessageId: sourceMessage.id,
+          },
+          include: {
+            author: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+              },
+            },
+          },
+        });
+
+        for (const attachment of sourceAttachments) {
+          await transaction.fileAttachment.create({
+            data: {
+              fileId: attachment.fileId,
+              entityType: CHAT_MESSAGE_FILE_ENTITY_TYPE,
+              entityId: created.id,
+              fieldCode: attachment.fieldCode,
+              uploadedByUserId: currentUser.id,
+            },
+          });
+        }
+
+        return created;
+      },
+    );
 
     await this.updateRoomLastMessage(
       targetRoom.id,
-      this.buildMessagePreview(forwardedMessage.text, []),
+      this.buildMessagePreviewFromAttachmentCount(
+        forwardedMessage.text,
+        sourceAttachments.length,
+      ),
     );
     await this.revealHiddenActiveParticipants(targetRoom.id);
 
@@ -1712,8 +1735,12 @@ export class ChatsService implements OnModuleInit {
       editedAt: message.editedAt?.toISOString() ?? null,
       deletedAt: message.deletedAt?.toISOString() ?? null,
       isDeleted,
-      replyTo: await this.loadMessageReferencePreview(message.replyToMessageId),
+      replyTo: await this.loadMessageReferencePreview(
+        currentUser,
+        message.replyToMessageId,
+      ),
       forwardedFrom: await this.loadMessageReferencePreview(
+        currentUser,
         message.forwardedFromMessageId,
       ),
       reactionCounts,
@@ -1809,6 +1836,7 @@ export class ChatsService implements OnModuleInit {
   }
 
   private async loadMessageReferencePreview(
+    currentUser: CurrentAuthUser,
     messageId: string | null,
   ): Promise<ChatMessageResponseDto['replyTo']> {
     if (!messageId) {
@@ -1818,6 +1846,7 @@ export class ChatsService implements OnModuleInit {
     const message = await this.prisma.chatMessage.findUnique({
       where: { id: messageId },
       include: {
+        chatRoom: true,
         author: {
           select: {
             id: true,
@@ -1832,6 +1861,31 @@ export class ChatsService implements OnModuleInit {
       return null;
     }
 
+    const hasRoomAccess =
+      currentUser.id !== '' &&
+      (await this.canAccessRoom(currentUser, message.chatRoom));
+    const participant = hasRoomAccess
+      ? await this.ensureParticipantForAccessibleRoom(
+          currentUser,
+          message.chatRoom,
+        )
+      : null;
+    const isAccessRestricted =
+      !participant ||
+      participant.leftAt !== null ||
+      message.createdAt < participant.joinedAt;
+
+    if (isAccessRestricted) {
+      return {
+        id: message.id,
+        text: null,
+        author: null,
+        createdAt: message.createdAt.toISOString(),
+        isDeleted: false,
+        isAccessRestricted: true,
+      };
+    }
+
     return {
       id: message.id,
       text: message.deletedAt ? 'Сообщение удалено' : message.text,
@@ -1844,6 +1898,7 @@ export class ChatsService implements OnModuleInit {
         : null,
       createdAt: message.createdAt.toISOString(),
       isDeleted: message.deletedAt !== null,
+      isAccessRestricted: false,
     };
   }
 
@@ -1941,12 +1996,21 @@ export class ChatsService implements OnModuleInit {
     text: string | null,
     files: UploadedFilePayload[],
   ): string {
+    return this.buildMessagePreviewFromAttachmentCount(text, files.length);
+  }
+
+  private buildMessagePreviewFromAttachmentCount(
+    text: string | null,
+    attachmentCount: number,
+  ): string {
     if (text) {
       return text.length > 160 ? `${text.slice(0, 157)}...` : text;
     }
 
-    if (files.length > 0) {
-      return files.length === 1 ? 'Вложение' : `Вложения: ${files.length}`;
+    if (attachmentCount > 0) {
+      return attachmentCount === 1
+        ? 'Вложение'
+        : `Вложения: ${attachmentCount}`;
     }
 
     return 'Сообщение';

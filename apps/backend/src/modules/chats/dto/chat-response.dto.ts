@@ -42,6 +42,7 @@ export class ChatMessageReplyPreviewDto {
   author!: ChatUserSummaryDto | null;
   createdAt!: string;
   isDeleted!: boolean;
+  isAccessRestricted!: boolean;
 }
 
 export class ChatMessageResponseDto {
