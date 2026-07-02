@@ -29,7 +29,6 @@ import { SendChatMessageDto } from './dto/send-chat-message.dto';
 import { ChatSearchResponseDto } from './dto/chat-search-response.dto';
 import { ChatRealtimeService } from './chat-realtime.service';
 import {
-  CHAT_MESSAGE_EDIT_WINDOW_MS,
   CHAT_MESSAGE_FILE_ENTITY_TYPE,
   DEFAULT_CHAT_ROOMS,
 } from './constants/chat.constants';
@@ -939,32 +938,48 @@ export class ChatsService implements OnModuleInit {
       throw new ForbiddenException('Only message author can edit this message');
     }
 
-    if (Date.now() - message.createdAt.getTime() > CHAT_MESSAGE_EDIT_WINDOW_MS) {
-      throw new ForbiddenException('Message edit window has expired');
-    }
+    const newText = dto.text.trim();
+    const updated = await this.prisma.$transaction(async (transaction) => {
+      await transaction.chatMessageEditHistory.create({
+        data: {
+          chatMessageId: message.id,
+          editedByUserId: currentUser.id,
+          oldText: message.text,
+          newText,
+        },
+      });
 
-    const updated = await this.prisma.chatMessage.update({
-      where: { id: message.id },
-      data: {
-        text: dto.text.trim(),
-        editedAt: new Date(),
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
+      return transaction.chatMessage.update({
+        where: { id: message.id },
+        data: {
+          text: newText,
+          editedAt: new Date(),
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
           },
         },
-      },
+      });
     });
 
-    if (message.chatRoom.lastMessageAt?.getTime() === message.createdAt.getTime()) {
-      await this.updateRoomLastMessage(
-        message.chatRoomId,
-        this.buildMessagePreview(updated.text, []),
-      );
+    const latestMessage = await this.prisma.chatMessage.findFirst({
+      where: { chatRoomId: message.chatRoomId },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
+
+    if (latestMessage?.id === message.id) {
+      await this.prisma.chatRoom.update({
+        where: { id: message.chatRoomId },
+        data: {
+          lastMessagePreview: this.buildMessagePreview(updated.text, []),
+        },
+      });
     }
 
     const mapped = await this.mapMessage(currentUser, updated);
@@ -1715,9 +1730,7 @@ export class ChatsService implements OnModuleInit {
         canEdit:
           !isDeleted &&
           message.messageType === 'user' &&
-          message.authorUserId === currentUser.id &&
-          Date.now() - message.createdAt.getTime() <=
-            CHAT_MESSAGE_EDIT_WINDOW_MS,
+          message.authorUserId === currentUser.id,
         canDelete:
           !isDeleted &&
           message.messageType === 'user' &&

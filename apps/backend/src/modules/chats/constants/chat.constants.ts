@@ -4,8 +4,6 @@ export const CHAT_MESSAGE_FILE_ENTITY_TYPE = 'chat_message' as const;
 
 export const CHAT_REDIS_CHANNEL = 'service_ops:chat_events';
 
-export const CHAT_MESSAGE_EDIT_WINDOW_MS = 30 * 60 * 1000;
-
 export const DEFAULT_CHAT_ROOMS: Array<{
   code: ChatRoomCode;
   title: string;

@@ -186,6 +186,14 @@ test('chats support default visibility, attachments, unread, custom join-point a
         },
       });
 
+      await prisma.chatMessageEditHistory.deleteMany({
+        where: {
+          chatMessageId: {
+            in: createdMessageIds,
+          },
+        },
+      });
+
       await prisma.chatMessage.deleteMany({
         where: {
           id: {
@@ -1084,7 +1092,24 @@ test('chats support default visibility, attachments, unread, custom join-point a
       body: JSON.stringify({ text: 'Too late' }),
     },
   );
-  assert.equal(lateEditResponse.status, 403);
+  assert.equal(lateEditResponse.status, 200);
+  const lateEditedMessage = (await lateEditResponse.json()) as {
+    text: string;
+    editedAt: string | null;
+  };
+  assert.equal(lateEditedMessage.text, 'Too late');
+  assert.ok(lateEditedMessage.editedAt);
+
+  const editHistory = await prisma.chatMessageEditHistory.findMany({
+    where: { chatMessageId: newCustomMessage.id },
+    orderBy: { createdAt: 'asc' },
+  });
+  assert.equal(editHistory.length, 2);
+  assert.equal(editHistory[0]?.oldText, 'Message after manager2 join');
+  assert.equal(editHistory[0]?.newText, 'Edited custom message');
+  assert.equal(editHistory[1]?.oldText, 'Edited custom message');
+  assert.equal(editHistory[1]?.newText, 'Too late');
+  assert.equal(editHistory[1]?.editedByUserId, founderUser.id);
 
   const ordinaryMemberDeleteResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/delete`,
