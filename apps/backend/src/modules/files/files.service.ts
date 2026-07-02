@@ -947,6 +947,10 @@ export class FilesService {
       throw new NotFoundException('Attachment target chat message not found');
     }
 
+    if (message.deletedAt || message.chatRoom.deletedAt) {
+      return false;
+    }
+
     if (mode === 'write') {
       return (
         message.authorUserId === currentUser.id ||

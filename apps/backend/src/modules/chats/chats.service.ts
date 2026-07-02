@@ -1349,6 +1349,10 @@ export class ChatsService implements OnModuleInit {
       throw new NotFoundException('Chat attachment target message not found');
     }
 
+    if (message.deletedAt) {
+      return false;
+    }
+
     if (!(await this.canAccessRoom(currentUser, message.chatRoom))) {
       return false;
     }

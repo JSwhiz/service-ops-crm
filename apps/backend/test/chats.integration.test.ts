@@ -1144,6 +1144,14 @@ test('chats support default visibility, attachments, unread, custom join-point a
   createdFileIds.push(...attachedDeleteMessage.attachments.map((file) => file.id));
   assert.equal(attachedDeleteMessage.attachments.length, 1);
 
+  const attachedFileId = attachedDeleteMessage.attachments[0]?.id;
+  assert.ok(attachedFileId);
+  const attachmentBeforeDeleteResponse = await fetch(
+    `${baseUrl}/api/v1/files/${attachedFileId}/content`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(attachmentBeforeDeleteResponse.status, 200);
+
   const authorDeleteResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}/delete`,
     {
@@ -1167,6 +1175,12 @@ test('chats support default visibility, attachments, unread, custom join-point a
     canEdit: false,
     canDelete: false,
   });
+
+  const attachmentAfterDeleteResponse = await fetch(
+    `${baseUrl}/api/v1/files/${attachedFileId}/content`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(attachmentAfterDeleteResponse.status, 403);
 
   const deletedForwardResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}/forward`,
