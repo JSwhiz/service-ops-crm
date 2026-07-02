@@ -1515,6 +1515,8 @@ test('chats support default visibility, attachments, unread, custom join-point a
     isDeleted: boolean;
     deletedAt: string | null;
     text: string | null;
+    deletedBy: { id: string } | null;
+    deletedByKind: 'author' | 'manager' | null;
     attachments: unknown[];
     capabilities: {
       canEdit: boolean;
@@ -1526,7 +1528,9 @@ test('chats support default visibility, attachments, unread, custom join-point a
   };
   assert.equal(deletedMessage.isDeleted, true);
   assert.ok(deletedMessage.deletedAt);
-  assert.equal(deletedMessage.text, 'Сообщение удалено');
+  assert.equal(deletedMessage.text, 'Сообщение удалено автором');
+  assert.equal(deletedMessage.deletedBy?.id, founderUser.id);
+  assert.equal(deletedMessage.deletedByKind, 'author');
   assert.deepEqual(deletedMessage.attachments, []);
   assert.deepEqual(deletedMessage.capabilities, {
     canEdit: false,
@@ -1621,7 +1625,10 @@ test('chats support default visibility, attachments, unread, custom join-point a
       lastMessagePreview: string | null;
     }>
   ).find((room) => room.id === customRoom.id);
-  assert.equal(roomAfterAuthorDelete?.lastMessagePreview, 'Сообщение удалено');
+  assert.equal(
+    roomAfterAuthorDelete?.lastMessagePreview,
+    'Сообщение удалено автором',
+  );
 
   const memberMessageResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
@@ -1647,8 +1654,19 @@ test('chats support default visibility, attachments, unread, custom join-point a
   );
   assert.equal(roomManagerDeleteResponse.status, 201);
   const roomManagerDeletedMessage =
-    (await roomManagerDeleteResponse.json()) as { isDeleted: boolean };
+    (await roomManagerDeleteResponse.json()) as {
+      isDeleted: boolean;
+      text: string | null;
+      deletedBy: { id: string } | null;
+      deletedByKind: 'author' | 'manager' | null;
+    };
   assert.equal(roomManagerDeletedMessage.isDeleted, true);
+  assert.equal(
+    roomManagerDeletedMessage.text,
+    'Сообщение удалено администратором',
+  );
+  assert.equal(roomManagerDeletedMessage.deletedBy?.id, founderUser.id);
+  assert.equal(roomManagerDeletedMessage.deletedByKind, 'manager');
 
   const leaveDirectResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${directRoom.id}/leave`,

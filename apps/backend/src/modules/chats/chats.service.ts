@@ -94,6 +94,7 @@ type ChatMessageRecord = {
   editedAt: Date | null;
   deletedAt: Date | null;
   deletedByUserId: string | null;
+  deletedByKind: string | null;
   deleteReason: string | null;
   replyToMessageId: string | null;
   forwardedFromMessageId: string | null;
@@ -1214,6 +1215,8 @@ export class ChatsService implements OnModuleInit {
           data: {
             deletedAt: new Date(),
             deletedByUserId: currentUser.id,
+            deletedByKind:
+              message.authorUserId === currentUser.id ? 'author' : 'manager',
           },
           include: {
             author: {
@@ -1233,9 +1236,13 @@ export class ChatsService implements OnModuleInit {
     });
 
     if (latestMessage?.id === message.id) {
+      const deletedPreview =
+        updated.deletedByKind === 'author'
+          ? 'Сообщение удалено автором'
+          : 'Сообщение удалено администратором';
       await this.prisma.chatRoom.update({
         where: { id: message.chatRoomId },
-        data: { lastMessagePreview: 'Сообщение удалено' },
+        data: { lastMessagePreview: deletedPreview },
       });
     }
 
@@ -1906,18 +1913,40 @@ export class ChatsService implements OnModuleInit {
       },
       {},
     );
+    const deletedBy = message.deletedByUserId
+      ? await this.prisma.user.findUnique({
+          where: { id: message.deletedByUserId },
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        })
+      : null;
+    const deletedByKind =
+      message.deletedByKind === 'author' || message.deletedByKind === 'manager'
+        ? message.deletedByKind
+        : null;
+    const deletedText =
+      deletedByKind === 'author'
+        ? 'Сообщение удалено автором'
+        : deletedByKind === 'manager'
+          ? 'Сообщение удалено администратором'
+          : 'Сообщение удалено';
 
     return {
       id: message.id,
       chatRoomId: message.chatRoomId,
       messageType: message.messageType,
-      text: isDeleted ? 'Сообщение удалено' : message.text,
+      text: isDeleted ? deletedText : message.text,
       metadata: this.mapJsonObject(message.metadata),
       createdAt: message.createdAt.toISOString(),
       updatedAt: message.updatedAt.toISOString(),
       editedAt: message.editedAt?.toISOString() ?? null,
       deletedAt: message.deletedAt?.toISOString() ?? null,
       isDeleted,
+      deletedBy,
+      deletedByKind,
       replyTo: await this.loadMessageReferencePreview(
         currentUser,
         message.replyToMessageId,

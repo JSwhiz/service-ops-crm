@@ -56,6 +56,8 @@ export class ChatMessageResponseDto {
   editedAt!: string | null;
   deletedAt!: string | null;
   isDeleted!: boolean;
+  deletedBy!: ChatUserSummaryDto | null;
+  deletedByKind!: 'author' | 'manager' | null;
   replyTo!: ChatMessageReplyPreviewDto | null;
   forwardedFrom!: ChatMessageReplyPreviewDto | null;
   reactionCounts!: Record<string, number>;

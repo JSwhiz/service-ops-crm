@@ -49,6 +49,8 @@ export interface ChatMessage {
   editedAt: string | null;
   deletedAt: string | null;
   isDeleted: boolean;
+  deletedBy: ChatUserSummary | null;
+  deletedByKind: 'author' | 'manager' | null;
   replyTo: {
     id: string;
     text: string | null;

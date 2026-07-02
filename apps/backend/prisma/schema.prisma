@@ -283,6 +283,7 @@ model ChatMessage {
   editedAt      DateTime?
   deletedAt     DateTime?
   deletedByUserId String?
+  deletedByKind String?
   deleteReason  String?
   replyToMessageId String?
   forwardedFromMessageId String?
