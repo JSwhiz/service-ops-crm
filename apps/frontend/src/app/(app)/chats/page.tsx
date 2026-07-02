@@ -1931,17 +1931,21 @@ export default function ChatsPage(): React.JSX.Element {
                                         Удалить
                                       </button>
                                     ) : null}
-                                    <button
-                                      type="button"
-                                      className="quiet-button"
-                                      onClick={() => {
-                                        setReplyingTo(message);
-                                        composerFormRef.current?.querySelector('textarea')?.focus();
-                                      }}
-                                    >
-                                      Ответить
-                                    </button>
-                                    {message.messageType === 'user' ? (
+                                    {message.capabilities.canReply ? (
+                                      <button
+                                        type="button"
+                                        className="quiet-button"
+                                        onClick={() => {
+                                          setReplyingTo(message);
+                                          composerFormRef.current
+                                            ?.querySelector('textarea')
+                                            ?.focus();
+                                        }}
+                                      >
+                                        Ответить
+                                      </button>
+                                    ) : null}
+                                    {message.capabilities.canForward ? (
                                       <button
                                         type="button"
                                         className="quiet-button"
@@ -1955,18 +1959,22 @@ export default function ChatsPage(): React.JSX.Element {
                                         Переслать
                                       </button>
                                     ) : null}
-                                    <button
-                                      type="button"
-                                      className={`chat-reaction-button ${
-                                        message.myReactions.includes('heart')
-                                          ? 'is-active'
-                                          : ''
-                                      }`}
-                                      onClick={() => void handleToggleHeart(message)}
-                                      aria-label="Поставить реакцию сердце"
-                                    >
-                                      ♥ {message.reactionCounts.heart ?? 0}
-                                    </button>
+                                    {message.capabilities.canReact ? (
+                                      <button
+                                        type="button"
+                                        className={`chat-reaction-button ${
+                                          message.myReactions.includes('heart')
+                                            ? 'is-active'
+                                            : ''
+                                        }`}
+                                        onClick={() =>
+                                          void handleToggleHeart(message)
+                                        }
+                                        aria-label="Поставить реакцию сердце"
+                                      >
+                                        ♥ {message.reactionCounts.heart ?? 0}
+                                      </button>
+                                    ) : null}
                                   </div>
                                 ) : null}
                               </>

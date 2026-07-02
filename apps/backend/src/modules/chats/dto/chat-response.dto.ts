@@ -65,6 +65,9 @@ export class ChatMessageResponseDto {
   capabilities!: {
     canEdit: boolean;
     canDelete: boolean;
+    canReply: boolean;
+    canForward: boolean;
+    canReact: boolean;
   };
 }
 

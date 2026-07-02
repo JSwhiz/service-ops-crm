@@ -1022,6 +1022,8 @@ export class ChatsService implements OnModuleInit {
         select: {
           chatRoomId: true,
           createdAt: true,
+          deletedAt: true,
+          messageType: true,
         },
       });
 
@@ -1031,6 +1033,14 @@ export class ChatsService implements OnModuleInit {
 
       if (replyTarget.createdAt < participant.joinedAt) {
         throw new ForbiddenException('Reply target is not available');
+      }
+
+      if (replyTarget.deletedAt) {
+        throw new ForbiddenException('Deleted message cannot be replied to');
+      }
+
+      if (replyTarget.messageType !== 'user') {
+        throw new ForbiddenException('System message cannot be replied to');
       }
     }
 
@@ -1371,6 +1381,10 @@ export class ChatsService implements OnModuleInit {
 
     if (message.deletedAt) {
       throw new ForbiddenException('Deleted message cannot receive reactions');
+    }
+
+    if (message.messageType !== 'user') {
+      throw new ForbiddenException('System message cannot receive reactions');
     }
 
     const uniqueKey = {
@@ -1935,6 +1949,12 @@ export class ChatsService implements OnModuleInit {
           !isDeleted &&
           message.messageType === 'user' &&
           (message.authorUserId === currentUser.id || canManageRoom),
+        canReply: !isDeleted && message.messageType === 'user',
+        canForward:
+          !isDeleted &&
+          message.messageType === 'user' &&
+          (!!message.text?.trim() || attachments.length > 0),
+        canReact: !isDeleted && message.messageType === 'user',
       },
     };
   }

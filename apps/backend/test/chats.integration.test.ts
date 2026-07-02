@@ -702,6 +702,65 @@ test('chats support default visibility, attachments, unread, custom join-point a
     true,
   );
 
+  const systemMessage = await prisma.chatMessage.create({
+    data: {
+      chatRoomId: customRoom.id,
+      authorUserId: null,
+      messageType: 'system',
+      text: 'System action rules fixture',
+    },
+  });
+  createdMessageIds.push(systemMessage.id);
+
+  const systemReplyResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: 'Reply to system is forbidden',
+        replyToMessageId: systemMessage.id,
+      }),
+    },
+  );
+  assert.equal(systemReplyResponse.status, 403);
+
+  const systemReactionResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${systemMessage.id}/reactions/heart`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(systemReactionResponse.status, 403);
+
+  const systemMessageListResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    { headers: { Cookie: founderCookie } },
+  );
+  const systemMessageFromApi = (
+    (await systemMessageListResponse.json()) as Array<{
+      id: string;
+      capabilities: {
+        canEdit: boolean;
+        canDelete: boolean;
+        canReply: boolean;
+        canForward: boolean;
+        canReact: boolean;
+      };
+    }>
+  ).find((message) => message.id === systemMessage.id);
+  assert.deepEqual(systemMessageFromApi?.capabilities, {
+    canEdit: false,
+    canDelete: false,
+    canReply: false,
+    canForward: false,
+    canReact: false,
+  });
+
   const paginationRoomResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/group`,
     {
@@ -1457,7 +1516,13 @@ test('chats support default visibility, attachments, unread, custom join-point a
     deletedAt: string | null;
     text: string | null;
     attachments: unknown[];
-    capabilities: { canEdit: boolean; canDelete: boolean };
+    capabilities: {
+      canEdit: boolean;
+      canDelete: boolean;
+      canReply: boolean;
+      canForward: boolean;
+      canReact: boolean;
+    };
   };
   assert.equal(deletedMessage.isDeleted, true);
   assert.ok(deletedMessage.deletedAt);
@@ -1466,6 +1531,9 @@ test('chats support default visibility, attachments, unread, custom join-point a
   assert.deepEqual(deletedMessage.capabilities, {
     canEdit: false,
     canDelete: false,
+    canReply: false,
+    canForward: false,
+    canReact: false,
   });
 
   const attachmentAfterDeleteResponse = await fetch(
@@ -1486,6 +1554,22 @@ test('chats support default visibility, attachments, unread, custom join-point a
     },
   );
   assert.equal(deletedForwardResponse.status, 403);
+
+  const deletedReplyResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: 'Reply to deleted is forbidden',
+        replyToMessageId: attachedDeleteMessage.id,
+      }),
+    },
+  );
+  assert.equal(deletedReplyResponse.status, 403);
 
   const deletedReactionResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}/reactions/heart`,
