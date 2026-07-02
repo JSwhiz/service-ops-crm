@@ -441,6 +441,19 @@ test('chats support default visibility, attachments, unread, custom join-point a
     false,
   );
 
+  const hiddenRoomSearchResponse = await fetch(
+    `${baseUrl}/api/v1/chats/search?q=manager2`,
+    { headers: { Cookie: managerOneCookie } },
+  );
+  assert.equal(hiddenRoomSearchResponse.status, 200);
+  const hiddenRoomSearch = (await hiddenRoomSearchResponse.json()) as {
+    rooms: Array<{ id: string }>;
+  };
+  assert.equal(
+    hiddenRoomSearch.rooms.some((room) => room.id === directRoom.id),
+    false,
+  );
+
   const managerOneArchivedRoomsResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms?view=archived`,
     {
@@ -748,6 +761,33 @@ test('chats support default visibility, attachments, unread, custom join-point a
     paginationMessageIds.slice(0, 5),
   );
 
+  const aroundMessageId = paginationMessageIds[20];
+  assert.ok(aroundMessageId);
+  const aroundMessagesResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${paginationRoom.id}/messages/window?around=${aroundMessageId}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(aroundMessagesResponse.status, 200);
+  const aroundMessages = (await aroundMessagesResponse.json()) as {
+    messages: Array<{ id: string }>;
+    hasOlder: boolean;
+    hasNewer: boolean;
+    anchorMessageId: string | null;
+  };
+  assert.equal(aroundMessages.anchorMessageId, aroundMessageId);
+  assert.equal(
+    aroundMessages.messages.some((message) => message.id === aroundMessageId),
+    true,
+  );
+  assert.equal(aroundMessages.hasOlder, false);
+  assert.equal(aroundMessages.hasNewer, true);
+
+  const inaccessibleAroundResponse = await fetch(
+    `${baseUrl}/api/v1/chats/rooms/${paginationRoom.id}/messages/window?around=${aroundMessageId}`,
+    { headers: { Cookie: managerTwoCookie } },
+  );
+  assert.equal(inaccessibleAroundResponse.status, 403);
+
   const creatorRenameResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}`,
     {
@@ -859,6 +899,19 @@ test('chats support default visibility, attachments, unread, custom join-point a
     messages: Array<{ id: string }>;
   };
   assert.equal(roomSearch.rooms.some((room) => room.id === customRoom.id), true);
+
+  const participantSearchResponse = await fetch(
+    `${baseUrl}/api/v1/chats/search?q=manager1`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(participantSearchResponse.status, 200);
+  const participantSearch = (await participantSearchResponse.json()) as {
+    rooms: Array<{ id: string }>;
+  };
+  assert.equal(
+    participantSearch.rooms.some((room) => room.id === customRoom.id),
+    true,
+  );
 
   const inaccessibleRoomSearchResponse = await fetch(
     `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent('Руководство')}`,
@@ -1507,6 +1560,26 @@ test('chats support default visibility, attachments, unread, custom join-point a
     (await managerTwoRoomsAfterLeaveResponse.json()) as Array<{ id: string }>;
   assert.equal(
     managerTwoRoomsAfterLeave.some((room) => room.id === customRoom.id),
+    false,
+  );
+
+  const leftRoomSearchResponse = await fetch(
+    `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent(
+      'managed by global manager',
+    )}`,
+    { headers: { Cookie: managerTwoCookie } },
+  );
+  assert.equal(leftRoomSearchResponse.status, 200);
+  const leftRoomSearch = (await leftRoomSearchResponse.json()) as {
+    rooms: Array<{ id: string }>;
+    messages: Array<{ roomId: string }>;
+  };
+  assert.equal(
+    leftRoomSearch.rooms.some((room) => room.id === customRoom.id),
+    false,
+  );
+  assert.equal(
+    leftRoomSearch.messages.some((message) => message.roomId === customRoom.id),
     false,
   );
 

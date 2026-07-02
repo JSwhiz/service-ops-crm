@@ -16,6 +16,7 @@ import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
 import { CloseChatRoomDto } from './dto/close-chat-room.dto';
 import {
   ChatMessageResponseDto,
+  ChatMessageWindowResponseDto,
   ChatRoomParticipantResponseDto,
   ChatRoomResponseDto,
 } from './dto/chat-response.dto';
@@ -179,11 +180,48 @@ export class ChatsService implements OnModuleInit {
 
     const normalizedQuery = query.toLocaleLowerCase('ru-RU');
     const visibleRooms = await this.listRooms(currentUser, 'active');
+    const visibleRoomIds = visibleRooms.map((room) => room.id);
+    const currentParticipants = visibleRoomIds.length
+      ? await this.prisma.chatRoomParticipant.findMany({
+          where: {
+            chatRoomId: { in: visibleRoomIds },
+            userId: currentUser.id,
+            leftAt: null,
+            hiddenAt: null,
+          },
+          select: {
+            chatRoomId: true,
+            joinedAt: true,
+          },
+        })
+      : [];
+    const participantMatches = visibleRoomIds.length
+      ? await this.prisma.chatRoomParticipant.findMany({
+          where: {
+            chatRoomId: { in: visibleRoomIds },
+            leftAt: null,
+            chatRoom: { roomType: { in: ['direct', 'group'] } },
+            user: {
+              isActive: true,
+              deletedAt: null,
+              OR: [
+                { fullName: { contains: query, mode: 'insensitive' } },
+                { login: { contains: query, mode: 'insensitive' } },
+              ],
+            },
+          },
+          select: { chatRoomId: true },
+        })
+      : [];
+    const participantMatchedRoomIds = new Set(
+      participantMatches.map((participant) => participant.chatRoomId),
+    );
     const rooms = visibleRooms
-      .filter((room) =>
-        `${room.displayTitle} ${room.title}`
-          .toLocaleLowerCase('ru-RU')
-          .includes(normalizedQuery),
+      .filter(
+        (room) =>
+          `${room.displayTitle} ${room.title}`
+            .toLocaleLowerCase('ru-RU')
+            .includes(normalizedQuery) || participantMatchedRoomIds.has(room.id),
       )
       .slice(0, 20)
       .map((room) => ({
@@ -194,15 +232,18 @@ export class ChatsService implements OnModuleInit {
         lastMessagePreview: room.lastMessagePreview,
       }));
 
-    const candidates = await this.prisma.chatMessage.findMany({
+    const accessClauses = currentParticipants.map((participant) => ({
+      chatRoomId: participant.chatRoomId,
+      createdAt: { gte: participant.joinedAt },
+    }));
+    const messages = accessClauses.length
+      ? await this.prisma.chatMessage.findMany({
       where: {
+        OR: accessClauses,
         deletedAt: null,
         text: {
           contains: query,
           mode: 'insensitive',
-        },
-        chatRoom: {
-          deletedAt: null,
         },
       },
       include: {
@@ -216,37 +257,14 @@ export class ChatsService implements OnModuleInit {
         },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 100,
-    });
-    const messages: ChatSearchResponseDto['messages'] = [];
-
-    for (const message of candidates) {
-      if (messages.length >= 20) {
-        break;
-      }
-
-      if (!(await this.canAccessRoom(currentUser, message.chatRoom))) {
-        continue;
-      }
-
-      const participant = await this.ensureParticipantForAccessibleRoom(
-        currentUser,
-        message.chatRoom,
-      );
-
-      if (
-        participant.hiddenAt ||
-        participant.leftAt ||
-        message.createdAt < participant.joinedAt ||
-        !message.text
-      ) {
-        continue;
-      }
-
-      messages.push({
+      take: 20,
+    })
+      : [];
+    const messageResults = await Promise.all(
+      messages.map(async (message) => ({
         id: message.id,
         roomId: message.chatRoomId,
-        text: message.text,
+        text: message.text ?? '',
         createdAt: message.createdAt.toISOString(),
         author: message.author
           ? {
@@ -263,10 +281,10 @@ export class ChatsService implements OnModuleInit {
             message.chatRoom,
           ),
         },
-      });
-    }
+      })),
+    );
 
-    return { rooms, messages };
+    return { rooms, messages: messageResults };
   }
 
   async getRoomByCode(
@@ -829,6 +847,99 @@ export class ChatsService implements OnModuleInit {
     return Promise.all(
       messages.map((message) => this.mapMessage(currentUser, message)),
     );
+  }
+
+  async listMessagesAround(
+    currentUser: CurrentAuthUser,
+    roomId: string,
+    options: {
+      around: string;
+      limitBefore?: string;
+      limitAfter?: string;
+    },
+  ): Promise<ChatMessageWindowResponseDto> {
+    const room = await this.getRoomRecord(roomId);
+    const participant = await this.assertCanReadRoom(currentUser, room);
+    const anchor = await this.prisma.chatMessage.findFirst({
+      where: {
+        id: options.around,
+        chatRoomId: room.id,
+        createdAt: { gte: participant.joinedAt },
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (!anchor) {
+      throw new ForbiddenException('Chat message is not available');
+    }
+
+    const limitBefore = this.parseMessageWindowLimit(options.limitBefore, 25);
+    const limitAfter = this.parseMessageWindowLimit(options.limitAfter, 24);
+    const older = await this.prisma.chatMessage.findMany({
+      where: {
+        chatRoomId: room.id,
+        createdAt: { gte: participant.joinedAt },
+        OR: [
+          { createdAt: { lt: anchor.createdAt } },
+          { createdAt: anchor.createdAt, id: { lt: anchor.id } },
+        ],
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limitBefore + 1,
+    });
+    const newer = await this.prisma.chatMessage.findMany({
+      where: {
+        chatRoomId: room.id,
+        OR: [
+          { createdAt: { gt: anchor.createdAt } },
+          { createdAt: anchor.createdAt, id: { gt: anchor.id } },
+        ],
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: limitAfter + 1,
+    });
+    const hasOlder = older.length > limitBefore;
+    const hasNewer = newer.length > limitAfter;
+    const windowMessages = [
+      ...older.slice(0, limitBefore).reverse(),
+      anchor,
+      ...newer.slice(0, limitAfter),
+    ];
+
+    return {
+      messages: await Promise.all(
+        windowMessages.map((message) => this.mapMessage(currentUser, message)),
+      ),
+      hasOlder,
+      hasNewer,
+      anchorMessageId: anchor.id,
+    };
   }
 
   async sendMessage(
@@ -1997,6 +2108,14 @@ export class ChatsService implements OnModuleInit {
     files: UploadedFilePayload[],
   ): string {
     return this.buildMessagePreviewFromAttachmentCount(text, files.length);
+  }
+
+  private parseMessageWindowLimit(
+    rawValue: string | undefined,
+    fallback: number,
+  ): number {
+    const parsed = Number.parseInt(rawValue ?? '', 10);
+    return Number.isFinite(parsed) ? Math.min(50, Math.max(1, parsed)) : fallback;
   }
 
   private buildMessagePreviewFromAttachmentCount(

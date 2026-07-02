@@ -1411,6 +1411,20 @@ tbody tr:hover {
   background: #f8fbff;
 }
 
+.chat-message--highlighted {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.16);
+}
+
+.chat-latest-messages-button {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 3;
+  box-shadow: var(--shadow-md);
+}
+
 .chat-message--system {
   align-self: center;
   width: min(88%, 720px);

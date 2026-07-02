@@ -67,3 +67,10 @@ export class ChatMessageResponseDto {
     canDelete: boolean;
   };
 }
+
+export class ChatMessageWindowResponseDto {
+  messages!: ChatMessageResponseDto[];
+  hasOlder!: boolean;
+  hasNewer!: boolean;
+  anchorMessageId!: string | null;
+}

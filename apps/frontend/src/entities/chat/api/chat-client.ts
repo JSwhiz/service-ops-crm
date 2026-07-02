@@ -3,6 +3,7 @@ import { appConfig } from '@/shared/config/app-config';
 
 import type {
   ChatMessage,
+  ChatMessageWindow,
   ChatRoom,
   ChatRoomCode,
   ChatRoomParticipant,
@@ -147,6 +148,18 @@ export async function listChatMessages(
   }`, {
     method: 'GET',
   });
+}
+
+export async function listChatMessagesAround(
+  roomId: string,
+  messageId: string,
+): Promise<ChatMessageWindow> {
+  const searchParams = new URLSearchParams({ around: messageId });
+
+  return fetcher<ChatMessageWindow>(
+    `/chats/rooms/${roomId}/messages/window?${searchParams.toString()}`,
+    { method: 'GET' },
+  );
 }
 
 export async function sendChatMessage(params: {

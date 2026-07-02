@@ -20,6 +20,7 @@ import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
 import { CloseChatRoomDto } from './dto/close-chat-room.dto';
 import {
   ChatMessageResponseDto,
+  ChatMessageWindowResponseDto,
   ChatRoomParticipantResponseDto,
   ChatRoomResponseDto,
 } from './dto/chat-response.dto';
@@ -160,6 +161,21 @@ export class ChatsController {
     @Query('limit') limit?: string,
   ): Promise<ChatMessageResponseDto[]> {
     return this.chatsService.listMessages(user, roomId, { before, limit });
+  }
+
+  @Get('rooms/:roomId/messages/window')
+  listMessagesAround(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('roomId') roomId: string,
+    @Query('around') around: string,
+    @Query('limitBefore') limitBefore?: string,
+    @Query('limitAfter') limitAfter?: string,
+  ): Promise<ChatMessageWindowResponseDto> {
+    return this.chatsService.listMessagesAround(user, roomId, {
+      around,
+      limitBefore,
+      limitAfter,
+    });
   }
 
   @Post('rooms/:roomId/messages')

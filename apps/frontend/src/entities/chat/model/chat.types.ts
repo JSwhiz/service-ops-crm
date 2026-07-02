@@ -96,3 +96,10 @@ export interface ChatSearchResponse {
     };
   }>;
 }
+
+export interface ChatMessageWindow {
+  messages: ChatMessage[];
+  hasOlder: boolean;
+  hasNewer: boolean;
+  anchorMessageId: string | null;
+}

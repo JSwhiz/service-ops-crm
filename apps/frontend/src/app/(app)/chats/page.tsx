@@ -22,6 +22,7 @@ import {
   leaveChatRoom,
   listChatRoomParticipants,
   listChatMessages,
+  listChatMessagesAround,
   listChatRooms,
   markChatRoomRead,
   renameChatRoom,
@@ -322,6 +323,7 @@ export default function ChatsPage(): React.JSX.Element {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
   const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [hasNewerMessages, setHasNewerMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const [isRoomSettingsOpen, setIsRoomSettingsOpen] = useState(false);
@@ -343,6 +345,9 @@ export default function ChatsPage(): React.JSX.Element {
     messages: [],
   });
   const [isSearching, setIsSearching] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
@@ -355,6 +360,11 @@ export default function ChatsPage(): React.JSX.Element {
   const openingRoomSnapshotRef = useRef<ChatRoom | null>(null);
   const isInitialScrollPendingRef = useRef(false);
   const isLoadingOlderMessagesRef = useRef(false);
+  const pendingSearchMessageRef = useRef<{
+    roomId: string;
+    messageId: string;
+  } | null>(null);
+  const highlightTimeoutRef = useRef<number | null>(null);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) ?? null,
@@ -568,6 +578,7 @@ export default function ChatsPage(): React.JSX.Element {
       const nextMessages = await listChatMessages(roomId, { limit: 50 });
       setMessages(nextMessages);
       setHasOlderMessages(nextMessages.length === 50);
+      setHasNewerMessages(false);
 
       if (options?.scheduleInitial) {
         const roomSnapshot =
@@ -589,6 +600,74 @@ export default function ChatsPage(): React.JSX.Element {
       }
 
       return nextMessages;
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const loadSearchMessageWindow = async (
+    roomId: string,
+    messageId: string,
+  ): Promise<void> => {
+    setIsLoadingMessages(true);
+
+    try {
+      const windowResult = await listChatMessagesAround(roomId, messageId);
+
+      if (activeRoomIdRef.current !== roomId) {
+        return;
+      }
+
+      setMessages(windowResult.messages);
+      setHasOlderMessages(windowResult.hasOlder);
+      setHasNewerMessages(windowResult.hasNewer);
+      setInitialUnreadMessageId(null);
+      const anchorMessageId = windowResult.anchorMessageId ?? messageId;
+      scheduleInitialScroll(
+        {
+          messageId: anchorMessageId,
+          target: 'message',
+          unreadMessageId: null,
+        },
+        `${roomId}:search:${anchorMessageId}:${windowResult.messages.length}`,
+      );
+      setHighlightedMessageId(anchorMessageId);
+
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+
+      highlightTimeoutRef.current = window.setTimeout(() => {
+        setHighlightedMessageId(null);
+        highlightTimeoutRef.current = null;
+      }, 3000);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const loadLatestMessages = async (): Promise<void> => {
+    const roomId = activeRoomIdRef.current;
+
+    if (!roomId) {
+      return;
+    }
+
+    setIsLoadingMessages(true);
+    setError(null);
+
+    try {
+      const latestMessages = await listChatMessages(roomId, { limit: 50 });
+      setMessages(latestMessages);
+      setHasOlderMessages(latestMessages.length === 50);
+      setHasNewerMessages(false);
+      setHighlightedMessageId(null);
+      setInitialUnreadMessageId(null);
+      pendingScrollToBottomRef.current = true;
+    } catch (loadError) {
+      setError(
+        getErrorMessage(loadError, 'Не удалось загрузить последние сообщения.'),
+      );
     } finally {
       setIsLoadingMessages(false);
     }
@@ -770,6 +849,15 @@ export default function ChatsPage(): React.JSX.Element {
 
   useEffect(() => () => clearInitialScrollTimers(), [clearInitialScrollTimers]);
 
+  useEffect(
+    () => () => {
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!canManageChats && !canCreateDirectChat && !canCreateGroupChat) {
       return;
@@ -795,6 +883,7 @@ export default function ChatsPage(): React.JSX.Element {
     pendingScrollToBottomRef.current = false;
     setInitialUnreadMessageId(null);
     setHasNewMessagesBelow(false);
+    setHasNewerMessages(false);
     setIsRoomSettingsOpen(false);
     setIsParticipantsPanelOpen(false);
     setRoomParticipants([]);
@@ -804,6 +893,23 @@ export default function ChatsPage(): React.JSX.Element {
         : rooms.find((room) => room.id === activeRoomId) ?? null;
 
     openingRoomSnapshotRef.current = roomSnapshot;
+
+    const pendingSearchMessage = pendingSearchMessageRef.current;
+
+    if (pendingSearchMessage?.roomId === activeRoomId) {
+      pendingSearchMessageRef.current = null;
+      void loadSearchMessageWindow(
+        activeRoomId,
+        pendingSearchMessage.messageId,
+      ).catch((loadError) => {
+        setError(
+          getErrorMessage(loadError, 'Не удалось открыть найденное сообщение.'),
+        );
+        setMessages([]);
+        isInitialScrollPendingRef.current = false;
+      });
+      return;
+    }
 
     void loadMessages(activeRoomId, {
       scheduleInitial: true,
@@ -1332,11 +1438,33 @@ export default function ChatsPage(): React.JSX.Element {
     isRoomListOpen ? ' chat-layout--room-list-open' : ''
   }`;
   const selectRoom = (roomId: string): void => {
+    pendingSearchMessageRef.current = null;
+    setHighlightedMessageId(null);
     openingRoomSnapshotRef.current =
       rooms.find((room) => room.id === roomId) ?? null;
     initialScrollRunIdRef.current = null;
     setActiveRoomId(roomId);
     setIsRoomListOpen(false);
+  };
+
+  const openSearchMessage = (roomId: string, messageId: string): void => {
+    setSearchQuery('');
+    setIsRoomListOpen(false);
+
+    if (activeRoomIdRef.current === roomId) {
+      void loadSearchMessageWindow(roomId, messageId).catch((loadError) => {
+        setError(
+          getErrorMessage(loadError, 'Не удалось открыть найденное сообщение.'),
+        );
+      });
+      return;
+    }
+
+    pendingSearchMessageRef.current = { roomId, messageId };
+    openingRoomSnapshotRef.current =
+      rooms.find((room) => room.id === roomId) ?? null;
+    initialScrollRunIdRef.current = null;
+    setActiveRoomId(roomId);
   };
 
   const openParticipantsPanel = (): void => {
@@ -1441,12 +1569,17 @@ export default function ChatsPage(): React.JSX.Element {
                             <button
                               key={message.id}
                               type="button"
-                              onClick={() => {
-                                selectRoom(message.roomId);
-                                setSearchQuery('');
-                              }}
+                              onClick={() =>
+                                openSearchMessage(message.roomId, message.id)
+                              }
                             >
                               <span>{message.room.displayTitle || message.room.title}</span>
+                              <small>
+                                {message.author
+                                  ? getUserDisplayName(message.author)
+                                  : 'Система'}{' '}
+                                · {formatDateTime(message.createdAt)}
+                              </small>
                               <small>{message.text}</small>
                             </button>
                           ))}
@@ -1654,6 +1787,10 @@ export default function ChatsPage(): React.JSX.Element {
                                 : isOwn
                                   ? 'chat-message--own'
                                   : ''
+                            }${
+                              highlightedMessageId === message.id
+                                ? ' chat-message--highlighted'
+                                : ''
                             }`}
                           >
                             <div className="chat-message__meta">
@@ -1818,6 +1955,15 @@ export default function ChatsPage(): React.JSX.Element {
                       onClick={() => scrollMessagesToBottom('smooth')}
                     >
                       Новые сообщения ниже
+                    </button>
+                  ) : null}
+                  {hasNewerMessages ? (
+                    <button
+                      type="button"
+                      className="chat-latest-messages-button"
+                      onClick={() => void loadLatestMessages()}
+                    >
+                      К последним сообщениям
                     </button>
                   ) : null}
                 </div>
