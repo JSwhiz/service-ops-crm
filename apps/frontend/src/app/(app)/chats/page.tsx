@@ -18,6 +18,7 @@ import {
   deleteChatMessage,
   editChatMessage,
   forwardChatMessage,
+  getChatMessage,
   hideChatRoom,
   leaveChatRoom,
   listChatRoomParticipants,
@@ -55,6 +56,16 @@ type RealtimePayload = {
   roomId?: string;
   payload?: unknown;
 };
+
+function getRealtimeMessageId(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object' || !('messageId' in payload)) {
+    return null;
+  }
+
+  const messageId = (payload as { messageId?: unknown }).messageId;
+
+  return typeof messageId === 'string' && messageId ? messageId : null;
+}
 
 type InitialScrollTarget = {
   messageId: string;
@@ -1097,45 +1108,45 @@ export default function ChatsPage(): React.JSX.Element {
           const isMessageCreated = payload.type === 'chat.message_created';
           const isMessageUpdated = payload.type === 'chat.message_updated';
 
-          if (
-            (isMessageCreated || isMessageUpdated) &&
-            payload.payload &&
-            typeof payload.payload === 'object'
-          ) {
-            const incomingMessage = payload.payload as ChatMessage;
+          const messageId = getRealtimeMessageId(payload.payload);
 
-            if (isMessageCreated && !isLatestWindowRef.current) {
-              setHasNewerMessages(true);
-              setHasNewMessagesBelow(true);
-              return;
-            }
-
-            if (isMessageCreated) {
-              const shouldStickToBottom = messageListRef.current
-                ? isAtBottom(messageListRef.current)
-                : true;
-
-              pendingScrollToBottomRef.current = shouldStickToBottom;
-              setHasNewMessagesBelow(!shouldStickToBottom);
-            }
-
-            setMessages((current) => {
-              const exists = current.some((message) => message.id === incomingMessage.id);
-
-              if (isMessageUpdated) {
-                return current.map((message) =>
-                  message.id === incomingMessage.id
-                    ? {
-                        ...incomingMessage,
-                        capabilities: message.capabilities,
-                        myReactions: message.myReactions,
-                      }
-                    : message,
-                );
+          if ((isMessageCreated || isMessageUpdated) && messageId) {
+            void getChatMessage(messageId).then((incomingMessage) => {
+              if (payload.roomId !== activeRoomIdRef.current) {
+                return;
               }
 
-              return exists ? current : [...current, incomingMessage];
-            });
+              if (isMessageCreated && !isLatestWindowRef.current) {
+                setHasNewerMessages(true);
+                setHasNewMessagesBelow(true);
+                return;
+              }
+
+              if (isMessageCreated) {
+                const shouldStickToBottom = messageListRef.current
+                  ? isAtBottom(messageListRef.current)
+                  : true;
+
+                pendingScrollToBottomRef.current = shouldStickToBottom;
+                setHasNewMessagesBelow(!shouldStickToBottom);
+              }
+
+              setMessages((current) => {
+                const exists = current.some(
+                  (message) => message.id === incomingMessage.id,
+                );
+
+                if (isMessageUpdated) {
+                  return current.map((message) =>
+                    message.id === incomingMessage.id
+                      ? incomingMessage
+                      : message,
+                  );
+                }
+
+                return exists ? current : [...current, incomingMessage];
+              });
+            }).catch(() => undefined);
           }
         }
       } catch {
@@ -1383,7 +1394,12 @@ export default function ChatsPage(): React.JSX.Element {
   };
 
   const handleDeleteMessage = async (message: ChatMessage): Promise<void> => {
-    if (!window.confirm('Удалить сообщение?')) {
+    const isOwnMessage = message.author?.id === user?.id;
+    const confirmation = isOwnMessage
+      ? 'Удалить сообщение для всех участников чата?'
+      : 'Удалить чужое сообщение для всех участников как администратор?';
+
+    if (!window.confirm(confirmation)) {
       return;
     }
 
@@ -1875,19 +1891,24 @@ export default function ChatsPage(): React.JSX.Element {
                                 {message.replyTo ? (
                                   <div className="chat-reply-preview">
                                     <strong>
-                                      {message.replyTo.author
+                                      {message.replyTo.isAccessRestricted
+                                        ? 'Недоступное сообщение'
+                                        : message.replyTo.author
                                         ? getUserDisplayName(message.replyTo.author)
                                         : 'Система'}
                                     </strong>
-                                    <span>
-                                      {message.replyTo.text || 'Сообщение без текста'}
-                                    </span>
+                                    {!message.replyTo.isAccessRestricted ? (
+                                      <span>
+                                        {message.replyTo.text ||
+                                          'Сообщение без текста'}
+                                      </span>
+                                    ) : null}
                                   </div>
                                 ) : null}
                                 {message.forwardedFrom ? (
                                   <div className="chat-forwarded-label">
                                     {message.forwardedFrom.isAccessRestricted
-                                      ? 'Переслано'
+                                      ? 'Исходное сообщение недоступно'
                                       : `Переслано · ${
                                           message.forwardedFrom.author
                                             ? getUserDisplayName(

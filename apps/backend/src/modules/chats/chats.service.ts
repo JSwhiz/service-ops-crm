@@ -1024,6 +1024,40 @@ export class ChatsService implements OnModuleInit {
     };
   }
 
+  async getMessage(
+    currentUser: CurrentAuthUser,
+    messageId: string,
+  ): Promise<ChatMessageResponseDto> {
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: messageId },
+      include: {
+        chatRoom: true,
+        author: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Chat message not found');
+    }
+
+    const participant = await this.assertCanReadRoom(
+      currentUser,
+      message.chatRoom,
+    );
+
+    if (message.createdAt < participant.joinedAt) {
+      throw new ForbiddenException('Chat message is not available');
+    }
+
+    return this.mapMessage(currentUser, message);
+  }
+
   async sendMessage(
     currentUser: CurrentAuthUser,
     roomId: string,
@@ -1102,7 +1136,7 @@ export class ChatsService implements OnModuleInit {
     await this.revealHiddenActiveParticipants(room.id);
 
     const mapped = await this.mapMessage(currentUser, message);
-    await this.publishMessageEvent(room.id, 'chat.message_created', mapped);
+    await this.publishMessageEvent(room.id, 'chat.message_created', message.id);
 
     return mapped;
   }
@@ -1189,7 +1223,7 @@ export class ChatsService implements OnModuleInit {
     await this.publishMessageEvent(
       message.chatRoomId,
       'chat.message_updated',
-      mapped,
+      updated.id,
     );
 
     return mapped;
@@ -1273,7 +1307,7 @@ export class ChatsService implements OnModuleInit {
     await this.publishMessageEvent(
       message.chatRoomId,
       'chat.message_updated',
-      mapped,
+      updated.id,
     );
 
     return mapped;
@@ -1371,7 +1405,7 @@ export class ChatsService implements OnModuleInit {
     await this.publishMessageEvent(
       targetRoom.id,
       'chat.message_created',
-      mapped,
+      forwardedMessage.id,
     );
 
     return mapped;
@@ -1442,11 +1476,10 @@ export class ChatsService implements OnModuleInit {
     }
 
     const mapped = await this.mapMessage(currentUser, message);
-    const broadcast = await this.mapMessageForBroadcast(message);
     await this.publishMessageEvent(
       message.chatRoomId,
       'chat.message_updated',
-      broadcast,
+      message.id,
     );
 
     return mapped;
@@ -1558,15 +1591,11 @@ export class ChatsService implements OnModuleInit {
       newValues: auditNewValues,
     });
 
-    const recipientUserIds = await this.loadRecipientUserIds(room);
-    const mapped = await this.mapMessageForBroadcast(message);
-
-    await this.realtimeService.publish({
-      type: 'chat.message_created',
-      roomId: room.id,
-      recipientUserIds,
-      payload: mapped as unknown as Record<string, unknown>,
-    });
+    await this.publishMessageEvent(
+      room.id,
+      'chat.message_created',
+      message.id,
+    );
   }
 
   async canAccessChatMessage(
@@ -2162,23 +2191,6 @@ export class ChatsService implements OnModuleInit {
     };
   }
 
-  private async mapMessageForBroadcast(
-    message: ChatMessageRecord,
-  ): Promise<ChatMessageResponseDto> {
-    return this.mapMessage(
-      {
-        id: '',
-        login: '',
-        fullName: '',
-        roleCode: 'unknown',
-        roleCodes: [],
-        permissionCodes: [],
-        isActive: true,
-      },
-      message,
-    );
-  }
-
   private async loadMessageAttachments(
     messageId: string,
   ): Promise<FileResponseDto[]> {
@@ -2305,7 +2317,7 @@ export class ChatsService implements OnModuleInit {
   private async publishMessageEvent(
     roomId: string,
     type: 'chat.message_created' | 'chat.message_updated',
-    message: ChatMessageResponseDto,
+    messageId: string,
   ): Promise<void> {
     const room = await this.getRoomRecord(roomId);
     const recipientUserIds = await this.loadRecipientUserIds(room);
@@ -2314,7 +2326,7 @@ export class ChatsService implements OnModuleInit {
       type,
       roomId,
       recipientUserIds,
-      payload: message as unknown as Record<string, unknown>,
+      payload: { messageId },
     });
 
     await this.publishRoomUpdate(room);

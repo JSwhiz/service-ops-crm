@@ -186,6 +186,14 @@ export class ChatsController {
     return this.chatsService.listUnreadMessagesWindow(user, roomId);
   }
 
+  @Get('messages/:messageId')
+  getMessage(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('messageId') messageId: string,
+  ): Promise<ChatMessageResponseDto> {
+    return this.chatsService.getMessage(user, messageId);
+  }
+
   @Post('rooms/:roomId/messages')
   @UseInterceptors(
     FilesInterceptor('files', 10, {

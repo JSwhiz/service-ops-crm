@@ -171,6 +171,12 @@ export async function listUnreadChatMessages(
   );
 }
 
+export async function getChatMessage(messageId: string): Promise<ChatMessage> {
+  return fetcher<ChatMessage>(`/chats/messages/${messageId}`, {
+    method: 'GET',
+  });
+}
+
 export async function sendChatMessage(params: {
   roomId: string;
   text?: string;

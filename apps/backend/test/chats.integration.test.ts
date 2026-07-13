@@ -6,6 +6,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { PrismaClient } from '@prisma/client';
 
 import { hashPassword } from '../src/modules/auth/utils/password-hash.util';
+import {
+  ChatRealtimeService,
+  type ChatRealtimeEvent,
+} from '../src/modules/chats/chat-realtime.service';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
@@ -13,6 +17,11 @@ import { createTestApp } from './helpers/create-test-app';
 test('chats support production messaging, access, unread and lifecycle flows', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
+  const realtimeService = app.get(ChatRealtimeService);
+  const realtimeEvents: ChatRealtimeEvent[] = [];
+  realtimeService.publish = async (event: ChatRealtimeEvent): Promise<void> => {
+    realtimeEvents.push(event);
+  };
 
   const [founderUser, managerOne, managerTwo] = await Promise.all([
     prisma.user.findUniqueOrThrow({
@@ -1118,6 +1127,12 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   assert.equal(replyMessage.replyTo?.author?.id, founderUser.id);
   assert.equal(replyMessage.replyTo?.isDeleted, false);
 
+  const unavailableMessageResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${oldCustomMessage.id}`,
+    { headers: { Cookie: managerTwoCookie } },
+  );
+  assert.equal(unavailableMessageResponse.status, 403);
+
   const crossRoomReplyResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
     {
@@ -1222,6 +1237,16 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   };
   createdMessageIds.push(restrictedForward.id);
   assert.equal(restrictedForward.forwardedFrom?.isAccessRestricted, false);
+  const restrictedForwardRealtime = [...realtimeEvents].reverse().find(
+    (event) =>
+      event.type === 'chat.message_created' &&
+      event.roomId === customRoom.id &&
+      event.payload.messageId === restrictedForward.id,
+  );
+  assert.ok(restrictedForwardRealtime);
+  assert.deepEqual(restrictedForwardRealtime.payload, {
+    messageId: restrictedForward.id,
+  });
 
   const managerCustomMessagesAfterRestrictedForwardResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${customRoom.id}/messages`,
@@ -1247,6 +1272,58 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   );
   assert.equal(managerRestrictedForward?.forwardedFrom?.text, null);
   assert.equal(managerRestrictedForward?.forwardedFrom?.author, null);
+
+  const founderRestrictedForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${restrictedForward.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(founderRestrictedForwardResponse.status, 200);
+  const founderRestrictedForward =
+    (await founderRestrictedForwardResponse.json()) as {
+      forwardedFrom: {
+        text: string | null;
+        author: { id: string } | null;
+        isAccessRestricted: boolean;
+      } | null;
+    };
+  assert.equal(
+    founderRestrictedForward.forwardedFrom?.isAccessRestricted,
+    false,
+  );
+  assert.equal(
+    founderRestrictedForward.forwardedFrom?.text,
+    'Restricted leadership source',
+  );
+  assert.equal(
+    founderRestrictedForward.forwardedFrom?.author?.id,
+    founderUser.id,
+  );
+
+  const managerRestrictedForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${restrictedForward.id}`,
+    { headers: { Cookie: managerOneCookie } },
+  );
+  assert.equal(managerRestrictedForwardResponse.status, 200);
+  const managerRestrictedForwardFromEndpoint =
+    (await managerRestrictedForwardResponse.json()) as {
+      forwardedFrom: {
+        text: string | null;
+        author: { id: string } | null;
+        isAccessRestricted: boolean;
+      } | null;
+    };
+  assert.equal(
+    managerRestrictedForwardFromEndpoint.forwardedFrom?.isAccessRestricted,
+    true,
+  );
+  assert.equal(
+    managerRestrictedForwardFromEndpoint.forwardedFrom?.text,
+    null,
+  );
+  assert.equal(
+    managerRestrictedForwardFromEndpoint.forwardedFrom?.author,
+    null,
+  );
 
   const attachmentOnlyForm = new FormData();
   attachmentOnlyForm.append(
@@ -1356,6 +1433,66 @@ test('chats support production messaging, access, unread and lifecycle flows', a
     };
   assert.equal(founderHeartToggledOff.reactionCounts.heart, 1);
   assert.deepEqual(founderHeartToggledOff.myReactions, []);
+
+  const heartRealtimeEvent = [...realtimeEvents].reverse().find(
+    (event) =>
+      event.type === 'chat.message_updated' &&
+      event.payload.messageId === newCustomMessage.id,
+  );
+  assert.ok(heartRealtimeEvent);
+  assert.deepEqual(heartRealtimeEvent.payload, {
+    messageId: newCustomMessage.id,
+  });
+
+  const [founderMessageViewResponse, managerMessageViewResponse] =
+    await Promise.all([
+      fetch(`${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}`, {
+        headers: { Cookie: founderCookie },
+      }),
+      fetch(`${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}`, {
+        headers: { Cookie: managerOneCookie },
+      }),
+    ]);
+  assert.equal(founderMessageViewResponse.status, 200);
+  assert.equal(managerMessageViewResponse.status, 200);
+  const founderMessageView = (await founderMessageViewResponse.json()) as {
+    myReactions: string[];
+    replyTo: unknown;
+    forwardedFrom: unknown;
+    capabilities: {
+      canEdit: boolean;
+      canDelete: boolean;
+      canReply: boolean;
+      canForward: boolean;
+      canReact: boolean;
+    };
+  };
+  const managerMessageView = (await managerMessageViewResponse.json()) as {
+    myReactions: string[];
+    capabilities: {
+      canEdit: boolean;
+      canDelete: boolean;
+      canReply: boolean;
+      canForward: boolean;
+      canReact: boolean;
+    };
+  };
+  assert.deepEqual(founderMessageView.myReactions, []);
+  assert.deepEqual(managerMessageView.myReactions, ['heart']);
+  assert.deepEqual(founderMessageView.capabilities, {
+    canEdit: true,
+    canDelete: true,
+    canReply: true,
+    canForward: true,
+    canReact: true,
+  });
+  assert.deepEqual(managerMessageView.capabilities, {
+    canEdit: false,
+    canDelete: false,
+    canReply: true,
+    canForward: true,
+    canReact: true,
+  });
 
   const editResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}`,
@@ -1645,6 +1782,18 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   const memberMessage = (await memberMessageResponse.json()) as { id: string };
   createdMessageIds.push(memberMessage.id);
 
+  const roomManagerMessageViewResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${memberMessage.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(roomManagerMessageViewResponse.status, 200);
+  const roomManagerMessageView =
+    (await roomManagerMessageViewResponse.json()) as {
+      capabilities: { canEdit: boolean; canDelete: boolean };
+    };
+  assert.equal(roomManagerMessageView.capabilities.canEdit, false);
+  assert.equal(roomManagerMessageView.capabilities.canDelete, true);
+
   const roomManagerDeleteResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${memberMessage.id}/delete`,
     {
@@ -1667,6 +1816,15 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   );
   assert.equal(roomManagerDeletedMessage.deletedBy?.id, founderUser.id);
   assert.equal(roomManagerDeletedMessage.deletedByKind, 'manager');
+  const managerDeleteRealtime = [...realtimeEvents].reverse().find(
+    (event) =>
+      event.type === 'chat.message_updated' &&
+      event.payload.messageId === memberMessage.id,
+  );
+  assert.ok(managerDeleteRealtime);
+  assert.deepEqual(managerDeleteRealtime.payload, {
+    messageId: memberMessage.id,
+  });
 
   const leaveDirectResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms/${directRoom.id}/leave`,
