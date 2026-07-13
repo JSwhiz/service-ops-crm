@@ -4,6 +4,9 @@ import React, { useEffect, useState } from 'react';
 
 import type { UpdateObjectPayload } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { listObjectResponsibleCandidates } from '@/entities/user/api/user-client';
+import type { SystemUserOption } from '@/entities/user/model/user.types';
+import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
 
 interface ObjectEditFormProps {
   item: ServiceObject;
@@ -20,6 +23,7 @@ export function ObjectEditForm({
     name: item.name,
     internalName: item.internalName ?? '',
     address: item.address,
+    responsibleUserId: item.responsible?.id ?? '',
     seasonMode: item.seasonMode ?? '',
     dailyRate: String(item.dailyRate),
     notes: item.notes ?? '',
@@ -28,17 +32,58 @@ export function ObjectEditForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [responsibleCandidates, setResponsibleCandidates] = useState<
+    SystemUserOption[]
+  >([]);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
+  const [isCandidatesLoading, setIsCandidatesLoading] = useState(true);
 
   useEffect(() => {
     setForm({
       name: item.name,
       internalName: item.internalName ?? '',
       address: item.address,
+      responsibleUserId: item.responsible?.id ?? '',
       seasonMode: item.seasonMode ?? '',
       dailyRate: String(item.dailyRate),
       notes: item.notes ?? '',
     });
   }, [item]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCandidates = async (): Promise<void> => {
+      setIsCandidatesLoading(true);
+      setCandidatesError(null);
+
+      try {
+        const candidates = await listObjectResponsibleCandidates(item.id);
+
+        if (!cancelled) {
+          setResponsibleCandidates(candidates);
+        }
+      } catch (caughtError) {
+        if (!cancelled) {
+          setCandidatesError(
+            caughtError instanceof Error && caughtError.message
+              ? caughtError.message
+              : 'Не удалось загрузить ответственных.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsCandidatesLoading(false);
+        }
+      }
+    };
+
+    void loadCandidates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id]);
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
@@ -46,6 +91,12 @@ export function ObjectEditForm({
     event.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (!form.responsibleUserId) {
+      setError('Выберите ответственного за объект.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -55,6 +106,7 @@ export function ObjectEditForm({
         address: form.address.trim(),
         seasonMode: form.seasonMode || null,
         notes: form.notes.trim() || undefined,
+        responsibleUserId: form.responsibleUserId,
       };
 
       if (canEditDailyRate) {
@@ -130,6 +182,25 @@ export function ObjectEditForm({
           />
         </label>
 
+        <div style={{ gridColumn: '1 / -1' }}>
+          {isCandidatesLoading ? (
+            <div className="page-muted">Загрузка ответственных...</div>
+          ) : candidatesError ? (
+            <div style={{ color: '#b91c1c' }}>{candidatesError}</div>
+          ) : (
+            <UserSearchSelect
+              label="Ответственный"
+              options={responsibleCandidates}
+              value={form.responsibleUserId}
+              onChange={(responsibleUserId) =>
+                setForm((prev) => ({ ...prev, responsibleUserId }))
+              }
+              disabled={isSubmitting}
+              required
+            />
+          )}
+        </div>
+
         <label>
           <div style={{ marginBottom: 6 }}>Сезон</div>
           <select
@@ -187,7 +258,12 @@ export function ObjectEditForm({
       {success ? <div style={{ color: '#15803d' }}>{success}</div> : null}
 
       <div>
-        <button type="submit" disabled={isSubmitting}>
+        <button
+          type="submit"
+          disabled={
+            isSubmitting || isCandidatesLoading || !form.responsibleUserId
+          }
+        >
           {isSubmitting ? 'Сохраняем...' : 'Сохранить изменения'}
         </button>
       </div>

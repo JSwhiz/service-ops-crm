@@ -1,5 +1,6 @@
 export interface ObjectAssignedUser {
   userId: string;
+  login: string;
   fullName: string;
   roleCode: string;
 }
@@ -54,6 +55,11 @@ export interface ServiceObject {
   updatedAt: string;
   managers: ObjectAssignedUser[];
   responsibles: ObjectAssignedUser[];
+  responsible: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
   capabilities: {
     canEdit: boolean;
     canEditDailyRate: boolean;

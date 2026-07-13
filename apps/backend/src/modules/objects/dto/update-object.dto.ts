@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export class UpdateObjectDto {
   @IsOptional()
@@ -31,4 +31,8 @@ export class UpdateObjectDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  responsibleUserId?: string;
 }

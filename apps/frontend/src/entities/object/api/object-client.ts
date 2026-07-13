@@ -20,6 +20,7 @@ export interface CreateObjectPayload {
   dailyRate: number;
   notes?: string;
   managerUserIds?: string[];
+  responsibleUserId: string;
 }
 
 export interface UpdateObjectPayload {
@@ -30,6 +31,7 @@ export interface UpdateObjectPayload {
   seasonMode?: string | null;
   dailyRate?: number;
   notes?: string;
+  responsibleUserId?: string;
 }
 
 export interface ChangeObjectStatusPayload {

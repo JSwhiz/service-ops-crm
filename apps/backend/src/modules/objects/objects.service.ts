@@ -24,7 +24,6 @@ import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
 import {
   canBeObjectManager,
-  canBeObjectResponsible,
   canCreateObject,
   canEditObject,
   canEditObjectDailyRate,
@@ -190,6 +189,10 @@ export class ObjectsService {
       throw new ForbiddenException('Object creation denied');
     }
 
+    const responsibleUser = await this.getAssignableResponsibleUser(
+      payload.responsibleUserId,
+    );
+
     const managerUserIds = Array.from(
       new Set((payload.managerUserIds ?? []).filter(Boolean)),
     ).filter((userId) => userId !== currentUser.id);
@@ -242,7 +245,7 @@ export class ObjectsService {
       await tx.objectAssignment.create({
         data: {
           objectId: object.id,
-          userId: currentUser.id,
+          userId: responsibleUser.id,
           assignmentRoleCode: 'responsible',
           isActive: true,
         },
@@ -294,7 +297,7 @@ export class ObjectsService {
         seasonMode: created.seasonMode,
         dailyRate: created.dailyRate,
         managerUserIds,
-        responsibleUserId: currentUser.id,
+        responsibleUserId: responsibleUser.id,
       } as Prisma.InputJsonObject,
     });
 
@@ -343,6 +346,17 @@ export class ObjectsService {
       throw new BadRequestException(
         'Object status change must go through approval request flow',
       );
+    }
+
+    const currentResponsible = existing.assignments.find(
+      (assignment) => assignment.assignmentRoleCode === 'responsible',
+    );
+    const selectedResponsible = payload.responsibleUserId
+      ? await this.getAssignableResponsibleUser(payload.responsibleUserId)
+      : null;
+
+    if (!selectedResponsible && !currentResponsible) {
+      throw new BadRequestException('Object responsible is required');
     }
 
     const changes: ObjectUpdateChangeSet = {};
@@ -398,31 +412,73 @@ export class ObjectsService {
       };
     }
 
-    const updated = (await this.prisma.object.update({
-      where: { id },
-      data: {
-        ...(payload.name !== undefined ? { name: payload.name } : {}),
-        ...(payload.internalName !== undefined
-          ? { internalName: payload.internalName }
-          : {}),
-        ...(payload.address !== undefined ? { address: payload.address } : {}),
-        ...(payload.status !== undefined ? { status: payload.status } : {}),
-        ...(payload.seasonMode !== undefined
-          ? { seasonMode: payload.seasonMode }
-          : {}),
-        ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
-        ...(payload.dailyRate !== undefined
-          ? { dailyRate: payload.dailyRate }
-          : {}),
-      },
-      include: {
-        assignments: {
-          where: { isActive: true },
-          include: {
-            user: true,
+    if (
+      selectedResponsible &&
+      selectedResponsible.id !== currentResponsible?.user.id
+    ) {
+      changes.responsibleUserId = {
+        oldValue: currentResponsible?.user.id ?? null,
+        newValue: selectedResponsible.id,
+      };
+    }
+
+    const updated = (await this.prisma.$transaction(async (tx) => {
+      await tx.object.update({
+        where: { id },
+        data: {
+          ...(payload.name !== undefined ? { name: payload.name } : {}),
+          ...(payload.internalName !== undefined
+            ? { internalName: payload.internalName }
+            : {}),
+          ...(payload.address !== undefined ? { address: payload.address } : {}),
+          ...(payload.status !== undefined ? { status: payload.status } : {}),
+          ...(payload.seasonMode !== undefined
+            ? { seasonMode: payload.seasonMode }
+            : {}),
+          ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+          ...(payload.dailyRate !== undefined
+            ? { dailyRate: payload.dailyRate }
+            : {}),
+        },
+      });
+
+      if (selectedResponsible) {
+        await tx.objectAssignment.updateMany({
+          where: {
+            objectId: id,
+            assignmentRoleCode: 'responsible',
+            isActive: true,
+            userId: { not: selectedResponsible.id },
+          },
+          data: { isActive: false },
+        });
+        await tx.objectAssignment.upsert({
+          where: {
+            objectId_userId_assignmentRoleCode: {
+              objectId: id,
+              userId: selectedResponsible.id,
+              assignmentRoleCode: 'responsible',
+            },
+          },
+          update: { isActive: true },
+          create: {
+            objectId: id,
+            userId: selectedResponsible.id,
+            assignmentRoleCode: 'responsible',
+            isActive: true,
+          },
+        });
+      }
+
+      return tx.object.findUniqueOrThrow({
+        where: { id },
+        include: {
+          assignments: {
+            where: { isActive: true },
+            include: { user: true },
           },
         },
-      },
+      });
     })) as ObjectView;
 
     if (Object.keys(changes).length > 0) {
@@ -630,48 +686,36 @@ export class ObjectsService {
 
     await this.getObjectById(currentUser, objectId);
 
-    const user = await this.prisma.user.findFirst({
-      where: {
-        id: userId,
-        isActive: true,
-        deletedAt: null,
-      },
-      include: {
-        roles: {
-          include: {
-            role: true,
+    const user = await this.getAssignableResponsibleUser(userId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.objectAssignment.updateMany({
+        where: {
+          objectId,
+          assignmentRoleCode: 'responsible',
+          isActive: true,
+          userId: { not: user.id },
+        },
+        data: { isActive: false },
+      });
+      await tx.objectAssignment.upsert({
+        where: {
+          objectId_userId_assignmentRoleCode: {
+            objectId,
+            userId: user.id,
+            assignmentRoleCode: 'responsible',
           },
         },
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('Selected user not found');
-    }
-
-    const targetRoleCodes = user.roles.map((item) => item.role.code);
-
-    if (!canBeObjectResponsible(targetRoleCodes)) {
-      throw new ForbiddenException('Selected user cannot be object responsible');
-    }
-
-    await this.prisma.objectAssignment.upsert({
-      where: {
-        objectId_userId_assignmentRoleCode: {
-          objectId,
-          userId,
-          assignmentRoleCode: 'responsible',
+        update: {
+          isActive: true,
         },
-      },
-      update: {
-        isActive: true,
-      },
-      create: {
-        objectId,
-        userId,
-        assignmentRoleCode: 'responsible',
-        isActive: true,
-      },
+        create: {
+          objectId,
+          userId: user.id,
+          assignmentRoleCode: 'responsible',
+          isActive: true,
+        },
+      });
     });
 
     await this.auditService.writeObjectAuditLog({
@@ -858,6 +902,31 @@ export class ObjectsService {
     } as Prisma.InputJsonObject;
   }
 
+  private async getAssignableResponsibleUser(userId: string): Promise<{
+    id: string;
+    login: string;
+    fullName: string;
+  }> {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        login: true,
+        fullName: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Selected responsible is not available');
+    }
+
+    return user;
+  }
+
   private async getEditableObject(
     currentUser: CurrentAuthUser,
     id: string,
@@ -1012,10 +1081,14 @@ export class ObjectsService {
   ): ObjectResponseDto {
     const mappedAssignments = item.assignments.map((assignment) => ({
       userId: assignment.user.id,
+      login: assignment.user.login,
       fullName: assignment.user.fullName,
       roleCode: assignment.assignmentRoleCode,
     }));
     const roleCodes = this.getRoleCodes(currentUser);
+    const responsible = mappedAssignments.find(
+      (assignment) => assignment.roleCode === 'responsible',
+    );
 
     return {
       id: item.id,
@@ -1034,6 +1107,13 @@ export class ObjectsService {
       responsibles: mappedAssignments.filter(
         (assignment) => assignment.roleCode === 'responsible',
       ),
+      responsible: responsible
+        ? {
+            id: responsible.userId,
+            login: responsible.login,
+            fullName: responsible.fullName,
+          }
+        : null,
       capabilities: buildObjectCapabilities({
         currentUserId: currentUser.id,
         roleCodes,

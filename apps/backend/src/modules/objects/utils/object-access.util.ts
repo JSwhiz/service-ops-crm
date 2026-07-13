@@ -64,10 +64,6 @@ export function canManageObjectResponsibles(roleCodes: string[]): boolean {
   return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
 }
 
-export function canBeObjectResponsible(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
-}
-
 export function canBeObjectManager(roleCodes: string[]): boolean {
   return hasAnyRole(roleCodes, OBJECT_MANAGER_ROLE_CODES);
 }

@@ -11,14 +11,21 @@ export class ObjectResponseDto {
   updatedAt!: string;
   managers!: Array<{
     userId: string;
+    login: string;
     fullName: string;
     roleCode: string;
   }>;
   responsibles!: Array<{
     userId: string;
+    login: string;
     fullName: string;
     roleCode: string;
   }>;
+  responsible!: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
   capabilities!: {
     canEdit: boolean;
     canEditDailyRate: boolean;

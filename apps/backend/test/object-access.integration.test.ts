@@ -169,6 +169,10 @@ test('object seasonality is optional and accepts only canonical values', async (
     login: 'founder',
     password: 'founder123',
   });
+  const founder = await prisma.user.findUniqueOrThrow({
+    where: { login: 'founder' },
+    select: { id: true },
+  });
 
   const create = async (seasonMode?: unknown) => {
     const marker = randomUUID().slice(0, 8);
@@ -178,6 +182,7 @@ test('object seasonality is optional and accepts only canonical values', async (
       address: `Москва, сезонный тест ${marker}`,
       status: 'active',
       dailyRate: 0,
+      responsibleUserId: founder.id,
     };
 
     if (seasonMode !== undefined) {
@@ -267,5 +272,165 @@ test('object seasonality is optional and accepts only canonical values', async (
   assert.equal(
     ((await emptyToNull.json()) as { seasonMode: string | null }).seasonMode,
     null,
+  );
+});
+
+test('object creation and editing enforce one active responsible assignment', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const chatsService = app.get(ChatsService);
+  const createdObjectIds: string[] = [];
+  const temporaryUserIds: string[] = [];
+
+  t.mock.method(chatsService, 'createSystemMessage', async () => undefined);
+  t.after(async () => {
+    await prisma.object.deleteMany({
+      where: { id: { in: createdObjectIds } },
+    });
+    await prisma.user.deleteMany({
+      where: { id: { in: temporaryUserIds } },
+    });
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const [founder, manager] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { login: 'founder' },
+      select: { id: true },
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: { login: 'manager2' },
+      select: { id: true },
+    }),
+  ]);
+  const inactiveUserId = randomUUID();
+  const deletedUserId = randomUUID();
+  temporaryUserIds.push(inactiveUserId, deletedUserId);
+  await prisma.user.createMany({
+    data: [
+      {
+        id: inactiveUserId,
+        login: `inactive_${inactiveUserId.slice(0, 8)}`,
+        fullName: 'Неактивный ответственный',
+        isActive: false,
+      },
+      {
+        id: deletedUserId,
+        login: `deleted_${deletedUserId.slice(0, 8)}`,
+        fullName: 'Удаленный ответственный',
+        isActive: true,
+        deletedAt: new Date(),
+      },
+    ],
+  });
+
+  const founderCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'founder',
+    password: 'founder123',
+  });
+  const marker = randomUUID().slice(0, 8);
+  const createBody = {
+    name: `Responsible object ${marker}`,
+    internalName: `RESP-${marker}`,
+    address: `Москва, ответственный тест ${marker}`,
+    status: 'active',
+    seasonMode: null,
+    dailyRate: 0,
+  };
+
+  const createWith = (responsibleUserId?: string) =>
+    fetch(`${baseUrl}/api/v1/objects`, {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...createBody,
+        name: `${createBody.name} ${responsibleUserId ?? 'missing'}`,
+        ...(responsibleUserId ? { responsibleUserId } : {}),
+      }),
+    });
+
+  assert.equal((await createWith()).status, 400);
+  assert.equal((await createWith(randomUUID())).status, 400);
+  assert.equal((await createWith(inactiveUserId)).status, 400);
+  assert.equal((await createWith(deletedUserId)).status, 400);
+
+  const createdResponse = await createWith(manager.id);
+  assert.equal(createdResponse.status, 201);
+  const created = (await createdResponse.json()) as {
+    id: string;
+    responsible: { id: string; login: string; fullName: string } | null;
+    responsibles: Array<{ userId: string }>;
+  };
+  createdObjectIds.push(created.id);
+  assert.equal(created.responsible?.id, manager.id);
+  assert.equal(created.responsibles.length, 1);
+
+  const changedResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${created.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ responsibleUserId: founder.id }),
+    },
+  );
+  assert.equal(changedResponse.status, 200);
+  const changed = (await changedResponse.json()) as {
+    responsible: { id: string } | null;
+    responsibles: Array<{ userId: string }>;
+  };
+  assert.equal(changed.responsible?.id, founder.id);
+  assert.deepEqual(changed.responsibles.map((item) => item.userId), [founder.id]);
+
+  const legacyObject = await prisma.object.create({
+    data: {
+      name: `Legacy object ${marker}`,
+      internalName: `LEGACY-${marker}`,
+      address: 'Москва, старый объект',
+      status: 'active',
+      seasonMode: null,
+      dailyRate: 0,
+      createdByUserId: founder.id,
+    },
+    select: { id: true },
+  });
+  createdObjectIds.push(legacyObject.id);
+
+  const legacyRead = await fetch(
+    `${baseUrl}/api/v1/objects/${legacyObject.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(legacyRead.status, 200);
+  assert.equal(
+    ((await legacyRead.json()) as { responsible: unknown }).responsible,
+    null,
+  );
+
+  const repairedResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${legacyObject.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        responsibleUserId: manager.id,
+        notes: 'Ответственный назначен при первом редактировании',
+      }),
+    },
+  );
+  assert.equal(repairedResponse.status, 200);
+  assert.equal(
+    ((await repairedResponse.json()) as { responsible: { id: string } | null })
+      .responsible?.id,
+    manager.id,
   );
 });

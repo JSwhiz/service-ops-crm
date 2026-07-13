@@ -7,7 +7,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   canBeObjectManager,
-  canBeObjectResponsible,
   canCreateObject,
   canManageObjectResponsibles,
 } from '../objects/utils/object-access.util';
@@ -121,11 +120,7 @@ export class UsersAccessService {
 
     const users = await this.getActiveUsersWithRoles();
 
-    return users
-      .filter((user) =>
-        canBeObjectResponsible(user.roles.map((item) => item.role.code)),
-      )
-      .map((user) => this.mapUser(user));
+    return users.map((user) => this.mapUser(user));
   }
 
   private async listTaskAssigneeCandidates(

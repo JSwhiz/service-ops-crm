@@ -46,4 +46,7 @@ export class CreateObjectDto {
   @ArrayUnique()
   @IsUUID('4', { each: true })
   managerUserIds?: string[];
+
+  @IsUUID('4')
+  responsibleUserId!: string;
 }

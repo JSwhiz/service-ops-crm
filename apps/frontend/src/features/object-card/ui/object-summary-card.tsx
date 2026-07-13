@@ -4,6 +4,10 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 
 interface ObjectSummaryCardProps {
   item: ServiceObject;
@@ -77,6 +81,18 @@ export function ObjectSummaryCard({
         <div className="detail-field">
           <div className="detail-label">Сезон</div>
           <div className="detail-value">{getSeasonLabel(item.seasonMode)}</div>
+        </div>
+
+        <div className="detail-field">
+          <div className="detail-label">Ответственный</div>
+          <div className="detail-value">
+            {item.responsible ? getUserDisplayName(item.responsible) : 'Не назначен'}
+            {item.responsible && getUserSecondaryLabel(item.responsible) ? (
+              <span className="identity-secondary">
+                {getUserSecondaryLabel(item.responsible)}
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div className="detail-field">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { createObject } from '@/entities/object/api/object-client';
@@ -14,6 +14,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
 
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
@@ -29,7 +30,11 @@ export default function NewObjectPage(): React.JSX.Element {
     notes: '',
   });
 
-  const [users, setUsers] = useState<SystemUserOption[]>([]);
+  const [responsibleCandidates, setResponsibleCandidates] = useState<
+    SystemUserOption[]
+  >([]);
+  const [managerUsers, setManagerUsers] = useState<SystemUserOption[]>([]);
+  const [responsibleUserId, setResponsibleUserId] = useState('');
   const [managerUserIds, setManagerUserIds] = useState<string[]>([]);
   const [isUsersLoading, setIsUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
@@ -42,7 +47,8 @@ export default function NewObjectPage(): React.JSX.Element {
   useEffect(() => {
     const loadUsers = async (): Promise<void> => {
       if (!allowCreateObject) {
-        setUsers([]);
+        setResponsibleCandidates([]);
+        setManagerUsers([]);
         setUsersError(null);
         setIsUsersLoading(false);
         return;
@@ -52,10 +58,12 @@ export default function NewObjectPage(): React.JSX.Element {
       setUsersError(null);
 
       try {
-        const response = await listSystemUsers({
-          purpose: 'object_manager',
-        });
-        setUsers(response);
+        const [responsibles, managers] = await Promise.all([
+          listSystemUsers({ purpose: 'object_responsible' }),
+          listSystemUsers({ purpose: 'object_manager' }),
+        ]);
+        setResponsibleCandidates(responsibles);
+        setManagerUsers(managers);
       } catch (caughtError) {
         if (caughtError instanceof Error && caughtError.message) {
           setUsersError(caughtError.message);
@@ -70,9 +78,9 @@ export default function NewObjectPage(): React.JSX.Element {
     void loadUsers();
   }, [allowCreateObject]);
 
-  const managerCandidates = useMemo(() => {
-    return users.filter((candidate) => candidate.id !== user?.id);
-  }, [users, user?.id]);
+  const managerCandidates = managerUsers.filter(
+    (candidate) => candidate.id !== user?.id,
+  );
 
   const toggleManager = (userId: string): void => {
     setManagerUserIds((prev) =>
@@ -93,6 +101,11 @@ export default function NewObjectPage(): React.JSX.Element {
       return;
     }
 
+    if (!responsibleUserId) {
+      setError('Выберите ответственного за объект.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -105,6 +118,7 @@ export default function NewObjectPage(): React.JSX.Element {
         dailyRate: Number(form.dailyRate) || 0,
         notes: form.notes.trim() || undefined,
         managerUserIds,
+        responsibleUserId,
       });
 
       router.push('/objects');
@@ -131,8 +145,8 @@ export default function NewObjectPage(): React.JSX.Element {
         <div style={{ fontWeight: 600, fontSize: 18 }}>Новый объект</div>
 
         <div className="page-muted">
-          Создатель объекта автоматически становится ответственным.
-          Сотрудники объекта здесь не назначаются — их потом добавляет менеджер в карточке объекта.
+          Назначьте одного ответственного системного пользователя. Сотрудники объекта
+          добавляются отдельно в карточке объекта.
         </div>
 
         <div
@@ -243,6 +257,21 @@ export default function NewObjectPage(): React.JSX.Element {
           </label>
         </div>
 
+        {isUsersLoading ? (
+          <div className="page-muted">Загрузка пользователей...</div>
+        ) : usersError ? (
+          <div style={{ color: '#b91c1c' }}>{usersError}</div>
+        ) : (
+          <UserSearchSelect
+            label="Ответственный"
+            options={responsibleCandidates}
+            value={responsibleUserId}
+            onChange={setResponsibleUserId}
+            disabled={isSubmitting}
+            required
+          />
+        )}
+
         <div>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>Менеджеры объекта</div>
 
@@ -288,7 +317,15 @@ export default function NewObjectPage(): React.JSX.Element {
         {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <button type="submit" disabled={isSubmitting || !allowCreateObject}>
+          <button
+            type="submit"
+            disabled={
+              isSubmitting ||
+              isUsersLoading ||
+              !allowCreateObject ||
+              !responsibleUserId
+            }
+          >
             {isSubmitting ? 'Создаем...' : 'Создать объект'}
           </button>
 
