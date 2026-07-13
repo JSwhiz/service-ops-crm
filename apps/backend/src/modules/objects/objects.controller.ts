@@ -19,6 +19,7 @@ import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
 import { ObjectAuditLogResponseDto } from './dto/object-audit-log-response.dto';
+import { ObjectListResponseDto } from './dto/object-list-response.dto';
 import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
 import { ObjectsService } from './objects.service';
@@ -41,7 +42,7 @@ export class ObjectsController {
   listObjects(
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListObjectsQueryDto,
-  ): Promise<ObjectResponseDto[]> {
+  ): Promise<ObjectResponseDto[] | ObjectListResponseDto> {
     return this.objectsService.listObjects(user, query);
   }
 

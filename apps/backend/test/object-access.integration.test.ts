@@ -434,3 +434,183 @@ test('object creation and editing enforce one active responsible assignment', as
     manager.id,
   );
 });
+
+test('object registry search paginates after access filtering', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const marker = randomUUID().slice(0, 8);
+  const objectIds: [string, string] = [randomUUID(), randomUUID()];
+  const responsibleUserId = randomUUID();
+  const managerUserId = randomUUID();
+
+  t.after(async () => {
+    await prisma.object.deleteMany({ where: { id: { in: objectIds } } });
+    await prisma.user.deleteMany({
+      where: { id: { in: [responsibleUserId, managerUserId] } },
+    });
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const [founder, scopedManager] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { login: 'founder' },
+      select: { id: true },
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: { login: 'manager1' },
+      select: { id: true },
+    }),
+  ]);
+  await prisma.user.createMany({
+    data: [
+      {
+        id: responsibleUserId,
+        login: `registry_responsible_${marker}`,
+        fullName: `Ответственный Реестра ${marker}`,
+        isActive: true,
+      },
+      {
+        id: managerUserId,
+        login: `registry_manager_${marker}`,
+        fullName: `Менеджер Реестра ${marker}`,
+        isActive: true,
+      },
+    ],
+  });
+  await prisma.object.createMany({
+    data: [
+      {
+        id: objectIds[0],
+        name: `A Объект ${marker}`,
+        internalName: `INTERNAL-A-${marker}`,
+        address: `Адрес A ${marker}`,
+        status: 'active',
+        seasonMode: null,
+        dailyRate: 0,
+        createdByUserId: founder.id,
+      },
+      {
+        id: objectIds[1],
+        name: `B Объект ${marker}`,
+        internalName: `INTERNAL-B-${marker}`,
+        address: `Адрес B ${marker}`,
+        status: 'frozen',
+        seasonMode: 'winter',
+        dailyRate: 0,
+        createdByUserId: founder.id,
+      },
+    ],
+  });
+  await prisma.objectAssignment.createMany({
+    data: [
+      {
+        objectId: objectIds[0],
+        userId: responsibleUserId,
+        assignmentRoleCode: 'responsible',
+      },
+      {
+        objectId: objectIds[1],
+        userId: responsibleUserId,
+        assignmentRoleCode: 'responsible',
+      },
+      {
+        objectId: objectIds[0],
+        userId: managerUserId,
+        assignmentRoleCode: 'manager',
+      },
+      {
+        objectId: objectIds[0],
+        userId: scopedManager.id,
+        assignmentRoleCode: 'manager',
+      },
+    ],
+  });
+
+  const [founderCookie, managerCookie] = await Promise.all([
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'founder',
+      password: 'founder123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'manager1',
+      password: 'manager123',
+    }),
+  ]);
+  const requestPage = async (cookie: string, query: string) => {
+    const response = await fetch(`${baseUrl}/api/v1/objects?${query}`, {
+      headers: { Cookie: cookie },
+    });
+    const payload = response.ok
+      ? ((await response.json()) as {
+          items: Array<{
+            id: string;
+            name: string;
+            seasonMode: string | null;
+            responsible: { id: string } | null;
+          }>;
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        })
+      : null;
+    return { response, payload };
+  };
+
+  const firstPage = await requestPage(
+    founderCookie,
+    `q=${marker.toUpperCase()}&page=1&limit=1&sortBy=name&sortDirection=asc`,
+  );
+  assert.equal(firstPage.response.status, 200);
+  assert.equal(firstPage.payload?.total, 2);
+  assert.equal(firstPage.payload?.totalPages, 2);
+  assert.equal(firstPage.payload?.items[0]?.id, objectIds[0]);
+  assert.equal(firstPage.payload?.items[0]?.seasonMode, null);
+  assert.equal(firstPage.payload?.items[0]?.responsible?.id, responsibleUserId);
+
+  const secondPage = await requestPage(
+    founderCookie,
+    `q=${marker}&page=2&limit=1&sortBy=name&sortDirection=asc`,
+  );
+  assert.equal(secondPage.payload?.items[0]?.id, objectIds[1]);
+
+  for (const query of [
+    `q=${encodeURIComponent(`INTERNAL-A-${marker}`)}`,
+    `q=${encodeURIComponent(`Адрес B ${marker}`)}`,
+    `q=registry_responsible_${marker}`,
+    `q=${encodeURIComponent(`Менеджер Реестра ${marker}`)}`,
+  ]) {
+    const searchResult = await requestPage(
+      founderCookie,
+      `${query}&page=1&limit=20&sortBy=updatedAt&sortDirection=desc`,
+    );
+    assert.equal(searchResult.response.status, 200);
+    assert.ok((searchResult.payload?.total ?? 0) >= 1);
+  }
+
+  const scopedResult = await requestPage(
+    managerCookie,
+    `q=${marker}&page=1&limit=20&sortBy=name&sortDirection=asc`,
+  );
+  assert.equal(scopedResult.payload?.total, 1);
+  assert.deepEqual(
+    scopedResult.payload?.items.map((item) => item.id),
+    [objectIds[0]],
+  );
+
+  const emptyQuery = await requestPage(
+    founderCookie,
+    'q=&page=1&limit=100&sortBy=updatedAt&sortDirection=desc',
+  );
+  assert.equal(emptyQuery.response.status, 200);
+  assert.ok((emptyQuery.payload?.total ?? 0) >= 2);
+
+  const invalidSort = await fetch(
+    `${baseUrl}/api/v1/objects?q=${marker}&page=1&sortBy=unsafe`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(invalidSort.status, 400);
+});

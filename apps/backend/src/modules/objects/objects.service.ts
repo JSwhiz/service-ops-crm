@@ -20,6 +20,7 @@ import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
 import { ObjectAuditLogResponseDto } from './dto/object-audit-log-response.dto';
+import { ObjectListResponseDto } from './dto/object-list-response.dto';
 import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
 import {
@@ -92,40 +93,103 @@ export class ObjectsService {
   async listObjects(
     currentUser: CurrentAuthUser,
     query?: ListObjectsQueryDto,
-  ): Promise<ObjectResponseDto[]> {
-    const objects = (await this.prisma.object.findMany({
-      where: {
-        ...(await this.buildVisibilityWhere(currentUser)),
-        ...(query?.status ? { status: query.status } : {}),
-        ...(query?.search
-          ? {
-              OR: [
-                { name: { contains: query.search, mode: 'insensitive' } },
-                {
-                  internalName: {
-                    contains: query.search,
-                    mode: 'insensitive',
-                  },
+  ): Promise<ObjectResponseDto[] | ObjectListResponseDto> {
+    const search = (query?.q ?? query?.search ?? '').trim();
+    const filters: Prisma.ObjectWhereInput[] = [
+      await this.buildVisibilityWhere(currentUser),
+    ];
+
+    if (query?.status) {
+      filters.push({ status: query.status });
+    }
+
+    if (search) {
+      filters.push({
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          {
+            internalName: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          { address: { contains: search, mode: 'insensitive' } },
+          {
+            assignments: {
+              some: {
+                isActive: true,
+                assignmentRoleCode: { in: ['responsible', 'manager'] },
+                user: {
+                  isActive: true,
+                  deletedAt: null,
+                  OR: [
+                    { fullName: { contains: search, mode: 'insensitive' } },
+                    { login: { contains: search, mode: 'insensitive' } },
+                  ],
                 },
-                { address: { contains: query.search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        assignments: {
-          where: { isActive: true },
-          include: {
-            user: true,
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    const where: Prisma.ObjectWhereInput = { AND: filters };
+    const shouldPaginate =
+      query?.q !== undefined ||
+      query?.page !== undefined ||
+      query?.limit !== undefined ||
+      query?.sortBy !== undefined ||
+      query?.sortDirection !== undefined;
+
+    if (!shouldPaginate) {
+      const objects = (await this.prisma.object.findMany({
+        where,
+        include: {
+          assignments: {
+            where: { isActive: true },
+            include: { user: true },
           },
         },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })) as ObjectView[];
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      })) as ObjectView[];
 
-    return objects.map((item) => this.mapObject(item, currentUser));
+      return objects.map((item) => this.mapObject(item, currentUser));
+    }
+
+    const page = query?.page ?? 1;
+    const limit = query?.limit ?? 20;
+    const sortBy = query?.sortBy ?? 'updatedAt';
+    const sortDirection = query?.sortDirection ?? 'desc';
+    const orderBy = [
+      { [sortBy]: sortDirection },
+      { id: 'asc' },
+    ] as Prisma.ObjectOrderByWithRelationInput[];
+    const [total, objects] = await this.prisma.$transaction([
+      this.prisma.object.count({ where }),
+      this.prisma.object.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy,
+        include: {
+          assignments: {
+            where: { isActive: true },
+            include: { user: true },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      items: (objects as ObjectView[]).map((item) =>
+        this.mapObject(item, currentUser),
+      ),
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
   }
 
   async getObjectById(

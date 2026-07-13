@@ -661,6 +661,82 @@ tbody tr:hover {
   }
 }
 
+.object-table-scroll {
+  overflow-x: auto;
+  padding: 0;
+}
+
+.object-registry-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: collapse;
+}
+
+.object-registry-table th,
+.object-registry-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.object-registry-table th {
+  background: #f8fafc;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.object-registry-row {
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.object-registry-row:hover,
+.object-registry-row:focus-visible {
+  background: #f8fafc;
+  outline: none;
+}
+
+.object-table-sort {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.object-table-sort:hover {
+  background: transparent;
+  color: var(--text);
+  transform: none;
+}
+
+.object-registry-pagination {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .object-table-scroll {
+    margin-inline: -4px;
+  }
+
+  .object-registry-table th,
+  .object-registry-table td {
+    padding: 10px 12px;
+  }
+}
+
 .timesheet-card {
   background: #ffffff;
   border: 1px solid #e5e7eb;

@@ -11,6 +11,30 @@ export interface ListObjectsParams {
   status?: string;
 }
 
+export type ObjectSortField =
+  | 'name'
+  | 'internalName'
+  | 'status'
+  | 'updatedAt'
+  | 'createdAt';
+
+export interface ListObjectsPageParams {
+  q?: string;
+  status?: string;
+  page: number;
+  limit: number;
+  sortBy: ObjectSortField;
+  sortDirection: 'asc' | 'desc';
+}
+
+export interface ObjectListPage {
+  items: ServiceObject[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface CreateObjectPayload {
   name: string;
   internalName: string;
@@ -62,6 +86,29 @@ export async function listObjects(
   params?: ListObjectsParams,
 ): Promise<ServiceObject[]> {
   return fetcher<ServiceObject[]>(`/objects${buildObjectsQuery(params)}`, {
+    method: 'GET',
+  });
+}
+
+export async function listObjectsPage(
+  params: ListObjectsPageParams,
+): Promise<ObjectListPage> {
+  const searchParams = new URLSearchParams({
+    page: String(params.page),
+    limit: String(params.limit),
+    sortBy: params.sortBy,
+    sortDirection: params.sortDirection,
+  });
+
+  if (params.q?.trim()) {
+    searchParams.set('q', params.q.trim());
+  }
+
+  if (params.status) {
+    searchParams.set('status', params.status);
+  }
+
+  return fetcher<ObjectListPage>(`/objects?${searchParams.toString()}`, {
     method: 'GET',
   });
 }

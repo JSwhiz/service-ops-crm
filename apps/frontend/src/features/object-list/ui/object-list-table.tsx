@@ -1,8 +1,12 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import React from 'react';
 
+import type {
+  ObjectSortField,
+} from '@/entities/object/api/object-client';
 import type {
   ObjectAssignedUser,
   ServiceObject,
@@ -11,87 +15,130 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 
 interface ObjectListTableProps {
   items: ServiceObject[];
+  sortBy: ObjectSortField;
+  sortDirection: 'asc' | 'desc';
+  onSort: (field: ObjectSortField) => void;
 }
 
 function renderPeople(items: ObjectAssignedUser[]): string {
-  if (!items.length) {
-    return '—';
-  }
-
-  return items.map(getUserDisplayName).join(', ');
+  return items.length ? items.map(getUserDisplayName).join(', ') : '—';
 }
 
 function getStatusLabel(status: string): string {
-  if (status === 'active') {
-    return 'Активный';
-  }
-
-  if (status === 'frozen') {
-    return 'Заморожен';
-  }
-
-  if (status === 'archived') {
-    return 'Архив';
-  }
-
+  if (status === 'active') return 'Активный';
+  if (status === 'frozen') return 'Заморожен';
+  if (status === 'archived') return 'Архив';
   return status;
+}
+
+function getSeasonLabel(seasonMode: string | null): string {
+  if (seasonMode === 'summer') return 'Летний';
+  if (seasonMode === 'winter') return 'Зимний';
+  return 'Без сезонности';
+}
+
+function getAriaSort(
+  field: ObjectSortField,
+  sortBy: ObjectSortField,
+  sortDirection: 'asc' | 'desc',
+): 'ascending' | 'descending' | 'none' {
+  if (field !== sortBy) return 'none';
+  return sortDirection === 'asc' ? 'ascending' : 'descending';
 }
 
 export function ObjectListTable({
   items,
+  sortBy,
+  sortDirection,
+  onSort,
 }: ObjectListTableProps): React.JSX.Element {
+  const router = useRouter();
+
   if (!items.length) {
     return <div className="page-card">Объекты не найдены.</div>;
   }
 
+  const renderSortButton = (
+    field: ObjectSortField,
+    label: string,
+  ): React.JSX.Element => (
+    <button
+      type="button"
+      className="object-table-sort"
+      onClick={() => onSort(field)}
+      aria-label={`Сортировать: ${label}`}
+    >
+      {label}
+      {sortBy === field ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}
+    </button>
+  );
+
   return (
-    <div className="page-card" style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <div className="page-card object-table-scroll">
+      <table className="object-registry-table">
         <thead>
-          <tr style={{ textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
-            <th style={{ padding: '10px 8px' }}>Название</th>
-            <th style={{ padding: '10px 8px' }}>Внутреннее имя</th>
-            <th style={{ padding: '10px 8px' }}>Адрес</th>
-            <th style={{ padding: '10px 8px' }}>Статус</th>
-            <th style={{ padding: '10px 8px' }}>Ответственные</th>
-            <th style={{ padding: '10px 8px' }}>Менеджеры</th>
+          <tr>
+            <th aria-sort={getAriaSort('name', sortBy, sortDirection)}>
+              {renderSortButton('name', 'Название')}
+            </th>
+            <th>Внутреннее название</th>
+            <th>Адрес</th>
+            <th>Статус</th>
+            <th>Сезонность</th>
+            <th>Ответственный</th>
+            <th>Менеджеры</th>
+            <th aria-sort={getAriaSort('updatedAt', sortBy, sortDirection)}>
+              {renderSortButton('updatedAt', 'Обновлён')}
+            </th>
+            <th>Действия</th>
           </tr>
         </thead>
 
         <tbody>
-          {items.map((item) => (
-            <tr
-              key={item.id}
-              style={{ borderBottom: '1px solid #f3f4f6', verticalAlign: 'top' }}
-            >
-              <td style={{ padding: '12px 8px' }}>
-                <Link
-                  href={`/objects/${item.id}`}
-                  style={{ textDecoration: 'none', fontWeight: 600 }}
-                >
-                  {item.name}
-                </Link>
-              </td>
+          {items.map((item) => {
+            const href = `/objects/${item.id}`;
 
-              <td style={{ padding: '12px 8px' }}>{item.internalName ?? '—'}</td>
-
-              <td style={{ padding: '12px 8px' }}>{item.address}</td>
-
-              <td style={{ padding: '12px 8px' }}>
-                <span className="status-pill" data-status={item.status}>
-                  {getStatusLabel(item.status)}
-                </span>
-              </td>
-
-              <td style={{ padding: '12px 8px' }}>
-                {renderPeople(item.responsibles)}
-              </td>
-
-              <td style={{ padding: '12px 8px' }}>
-                {renderPeople(item.managers)}
-              </td>
-            </tr>
-          ))}
+            return (
+              <tr
+                key={item.id}
+                className="object-registry-row"
+                tabIndex={0}
+                onClick={() => router.push(href)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') router.push(href);
+                }}
+                aria-label={`Открыть объект ${item.name}`}
+              >
+                <td>
+                  <strong>{item.name}</strong>
+                </td>
+                <td>{item.internalName ?? '—'}</td>
+                <td>{item.address}</td>
+                <td>
+                  <span className="status-pill" data-status={item.status}>
+                    {getStatusLabel(item.status)}
+                  </span>
+                </td>
+                <td>{getSeasonLabel(item.seasonMode)}</td>
+                <td>
+                  {item.responsible
+                    ? getUserDisplayName(item.responsible)
+                    : 'Не назначен'}
+                </td>
+                <td>{renderPeople(item.managers)}</td>
+                <td>{new Date(item.updatedAt).toLocaleDateString('ru-RU')}</td>
+                <td>
+                  <Link
+                    href={href}
+                    onClick={(event) => event.stopPropagation()}
+                    aria-label={`Открыть карточку ${item.name}`}
+                  >
+                    Открыть
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
