@@ -14,7 +14,7 @@ interface ObjectEditPanelProps {
     internalName?: string;
     address?: string;
     status?: string;
-    seasonMode?: string;
+    seasonMode?: string | null;
     dailyRate?: number;
     notes?: string;
   }) => Promise<void>;
@@ -36,7 +36,7 @@ function buildInitialForm(item: ServiceObject): FormState {
     internalName: item.internalName ?? '',
     address: item.address,
     status: item.status,
-    seasonMode: item.seasonMode,
+    seasonMode: item.seasonMode ?? '',
     dailyRate: String(item.dailyRate),
     notes: item.notes ?? '',
   };
@@ -108,7 +108,7 @@ export function ObjectEditPanel({
       internalName?: string;
       address?: string;
       status?: string;
-      seasonMode?: string;
+      seasonMode?: string | null;
       dailyRate?: number;
       notes?: string;
     } = {};
@@ -117,7 +117,7 @@ export function ObjectEditPanel({
       payload.name = form.name.trim();
       payload.internalName = form.internalName.trim();
       payload.address = form.address.trim();
-      payload.seasonMode = form.seasonMode;
+      payload.seasonMode = form.seasonMode || null;
       payload.notes = form.notes.trim();
     }
 
@@ -199,7 +199,13 @@ export function ObjectEditPanel({
 
           <div>
             <div className="page-muted">Сезон</div>
-            <div>{item.seasonMode}</div>
+            <div>
+              {item.seasonMode === 'summer'
+                ? 'Летний'
+                : item.seasonMode === 'winter'
+                  ? 'Зимний'
+                  : 'Без сезонности'}
+            </div>
           </div>
 
           <div>
@@ -297,6 +303,7 @@ export function ObjectEditPanel({
                 style={{ width: '100%', padding: 10 }}
                 disabled={!allowBaseFieldsEdit || isSubmitting}
               >
+                <option value="">Без сезонности</option>
                 <option value="summer">Летний</option>
                 <option value="winter">Зимний</option>
               </select>

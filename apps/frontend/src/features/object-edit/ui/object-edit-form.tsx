@@ -20,7 +20,7 @@ export function ObjectEditForm({
     name: item.name,
     internalName: item.internalName ?? '',
     address: item.address,
-    seasonMode: item.seasonMode,
+    seasonMode: item.seasonMode ?? '',
     dailyRate: String(item.dailyRate),
     notes: item.notes ?? '',
   });
@@ -34,7 +34,7 @@ export function ObjectEditForm({
       name: item.name,
       internalName: item.internalName ?? '',
       address: item.address,
-      seasonMode: item.seasonMode,
+      seasonMode: item.seasonMode ?? '',
       dailyRate: String(item.dailyRate),
       notes: item.notes ?? '',
     });
@@ -53,7 +53,7 @@ export function ObjectEditForm({
         name: form.name.trim(),
         internalName: form.internalName.trim(),
         address: form.address.trim(),
-        seasonMode: form.seasonMode,
+        seasonMode: form.seasonMode || null,
         notes: form.notes.trim() || undefined,
       };
 
@@ -142,6 +142,7 @@ export function ObjectEditForm({
             }
             style={{ width: '100%', padding: 10 }}
           >
+            <option value="">Без сезонности</option>
             <option value="summer">Летний</option>
             <option value="winter">Зимний</option>
           </select>

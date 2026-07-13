@@ -1,0 +1,3 @@
+ALTER TABLE "objects"
+ALTER COLUMN "seasonMode" DROP DEFAULT,
+ALTER COLUMN "seasonMode" DROP NOT NULL;

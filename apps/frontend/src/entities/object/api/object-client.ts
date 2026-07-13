@@ -16,7 +16,7 @@ export interface CreateObjectPayload {
   internalName: string;
   address: string;
   status: string;
-  seasonMode: string;
+  seasonMode: string | null;
   dailyRate: number;
   notes?: string;
   managerUserIds?: string[];
@@ -27,7 +27,7 @@ export interface UpdateObjectPayload {
   internalName?: string;
   address?: string;
   status?: string;
-  seasonMode?: string;
+  seasonMode?: string | null;
   dailyRate?: number;
   notes?: string;
 }

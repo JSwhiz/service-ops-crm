@@ -47,7 +47,7 @@ export interface ServiceObject {
   internalName: string | null;
   address: string;
   status: string;
-  seasonMode: string;
+  seasonMode: string | null;
   dailyRate: number;
   notes: string | null;
   createdAt: string;

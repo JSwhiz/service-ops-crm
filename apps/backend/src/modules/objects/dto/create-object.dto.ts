@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
@@ -27,9 +28,10 @@ export class CreateObjectDto {
   @IsIn(['active', 'frozen', 'archived'])
   status!: string;
 
-  @IsString()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @IsOptional()
   @IsIn(['summer', 'winter'])
-  seasonMode!: string;
+  seasonMode?: 'summer' | 'winter' | null;
 
   @IsOptional()
   @IsString()

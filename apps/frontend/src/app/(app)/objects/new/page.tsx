@@ -24,7 +24,7 @@ export default function NewObjectPage(): React.JSX.Element {
     internalName: '',
     address: '',
     status: 'active',
-    seasonMode: 'summer',
+    seasonMode: '',
     dailyRate: '0',
     notes: '',
   });
@@ -101,7 +101,7 @@ export default function NewObjectPage(): React.JSX.Element {
         internalName: form.internalName.trim(),
         address: form.address.trim(),
         status: form.status,
-        seasonMode: form.seasonMode,
+        seasonMode: form.seasonMode || null,
         dailyRate: Number(form.dailyRate) || 0,
         notes: form.notes.trim() || undefined,
         managerUserIds,
@@ -208,6 +208,7 @@ export default function NewObjectPage(): React.JSX.Element {
               }
               style={{ width: '100%', padding: 10 }}
             >
+              <option value="">Без сезонности</option>
               <option value="summer">Летний</option>
               <option value="winter">Зимний</option>
             </select>

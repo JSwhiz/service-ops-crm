@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 
 import { PrismaClient } from '@prisma/client';
+
+import { ChatsService } from '../src/modules/chats/chats.service';
 
 import { SEEDED_OBJECT_ID } from './helpers/core-fixtures';
 import { loginAndGetCookieHeader } from './helpers/auth';
@@ -144,4 +147,125 @@ test('responsible can view object core but cannot edit it or manage managers by 
   };
 
   assert.equal(updatedPayload.notes, 'Founder updated object note in integration test');
+});
+
+test('object seasonality is optional and accepts only canonical values', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const chatsService = app.get(ChatsService);
+  const createdObjectIds: string[] = [];
+
+  t.mock.method(chatsService, 'createSystemMessage', async () => undefined);
+  t.after(async () => {
+    await prisma.object.deleteMany({
+      where: { id: { in: createdObjectIds } },
+    });
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const founderCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'founder',
+    password: 'founder123',
+  });
+
+  const create = async (seasonMode?: unknown) => {
+    const marker = randomUUID().slice(0, 8);
+    const body: Record<string, unknown> = {
+      name: `Season object ${marker}`,
+      internalName: `SEASON-${marker}`,
+      address: `Москва, сезонный тест ${marker}`,
+      status: 'active',
+      dailyRate: 0,
+    };
+
+    if (seasonMode !== undefined) {
+      body.seasonMode = seasonMode;
+    }
+
+    const response = await fetch(`${baseUrl}/api/v1/objects`, {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (response.ok) {
+      const payload = (await response.json()) as {
+        id: string;
+        seasonMode: string | null;
+      };
+      createdObjectIds.push(payload.id);
+      return { response, payload };
+    }
+
+    return { response, payload: null };
+  };
+
+  const [withoutSeason, summer, winter, invalid] = await Promise.all([
+    create(),
+    create('summer'),
+    create('winter'),
+    create('all_year'),
+  ]);
+
+  assert.equal(withoutSeason.response.status, 201);
+  assert.equal(withoutSeason.payload?.seasonMode, null);
+  assert.equal(summer.payload?.seasonMode, 'summer');
+  assert.equal(winter.payload?.seasonMode, 'winter');
+  assert.equal(invalid.response.status, 400);
+
+  const summerToNull = await fetch(
+    `${baseUrl}/api/v1/objects/${summer.payload?.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ seasonMode: null }),
+    },
+  );
+  assert.equal(summerToNull.status, 200);
+  assert.equal(
+    ((await summerToNull.json()) as { seasonMode: string | null }).seasonMode,
+    null,
+  );
+
+  const nullToWinter = await fetch(
+    `${baseUrl}/api/v1/objects/${withoutSeason.payload?.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ seasonMode: 'winter' }),
+    },
+  );
+  assert.equal(nullToWinter.status, 200);
+  assert.equal(
+    ((await nullToWinter.json()) as { seasonMode: string | null }).seasonMode,
+    'winter',
+  );
+
+  const emptyToNull = await fetch(
+    `${baseUrl}/api/v1/objects/${winter.payload?.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ seasonMode: '' }),
+    },
+  );
+  assert.equal(emptyToNull.status, 200);
+  assert.equal(
+    ((await emptyToNull.json()) as { seasonMode: string | null }).seasonMode,
+    null,
+  );
 });

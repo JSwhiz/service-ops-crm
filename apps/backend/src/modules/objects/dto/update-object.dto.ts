@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateObjectDto {
@@ -17,9 +18,10 @@ export class UpdateObjectDto {
   @IsIn(['active', 'archived', 'frozen'])
   status?: string;
 
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsOptional()
   @IsIn(['summer', 'winter'])
-  seasonMode?: string;
+  seasonMode?: 'summer' | 'winter' | null;
 
   @IsOptional()
   @IsInt()

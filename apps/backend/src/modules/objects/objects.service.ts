@@ -63,7 +63,7 @@ interface ObjectView {
   internalName: string | null;
   address: string;
   status: string;
-  seasonMode: string;
+  seasonMode: string | null;
   dailyRate: number;
   notes: string | null;
   createdAt: Date;
@@ -232,7 +232,7 @@ export class ObjectsService {
           internalName: payload.internalName ?? null,
           address: payload.address,
           status: payload.status ?? 'active',
-          seasonMode: payload.seasonMode ?? 'summer',
+          seasonMode: payload.seasonMode ?? null,
           dailyRate: payload.dailyRate ?? 0,
           notes: payload.notes ?? null,
           createdByUserId: currentUser.id,

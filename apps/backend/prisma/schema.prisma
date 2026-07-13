@@ -349,7 +349,7 @@ model Object {
   internalName        String?
   address             String
   status              String
-  seasonMode          String   @default("summer")
+  seasonMode          String?
   dailyRate           Int      @default(0)
   notes               String?
   createdByUserId     String

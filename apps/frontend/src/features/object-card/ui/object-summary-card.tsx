@@ -22,14 +22,14 @@ function getStatusLabel(status: string): string {
   }
 }
 
-function getSeasonLabel(seasonMode: string): string {
+function getSeasonLabel(seasonMode: string | null): string {
   switch (seasonMode) {
     case 'summer':
       return 'Летний';
     case 'winter':
       return 'Зимний';
-    case 'all_year':
-      return 'Круглый год';
+    case null:
+      return 'Без сезонности';
     default:
       return seasonMode;
   }
