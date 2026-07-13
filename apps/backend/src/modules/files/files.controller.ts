@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseGuards,
@@ -17,6 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { FileResponseDto } from './dto/file-response.dto';
+import { FileViewResponseDto } from './dto/file-view-response.dto';
 import { UploadFileBodyDto } from './dto/upload-file-body.dto';
 import { FilesService } from './files.service';
 
@@ -58,18 +60,57 @@ export class FilesController {
   async getContent(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
+    @Query('download') download: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
     const file = await this.filesService.getContentById(user, id);
     const safeFileName = file.originalName.replace(/["\r\n]/g, '_');
 
+    this.setPrivateContentHeaders(response);
     response.setHeader('Content-Type', file.mimeType);
     response.setHeader('Content-Length', String(file.sizeBytes));
     response.setHeader(
       'Content-Disposition',
-      `${file.mimeType.startsWith('image/') ? 'inline' : 'attachment'}; filename="${safeFileName}"`,
+      `${download === '1' ? 'attachment' : file.mimeType.startsWith('image/') ? 'inline' : 'attachment'}; filename="${safeFileName}"`,
     );
     response.send(file.body);
+  }
+
+  @Get(':id/view')
+  getView(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<FileViewResponseDto> {
+    return this.filesService.getViewById(user, id);
+  }
+
+  @Get(':id/thumbnail')
+  async getThumbnail(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    const file = await this.filesService.getThumbnailById(user, id);
+    this.sendInlineContent(response, file, false);
+  }
+
+  @Get(':id/preview/content')
+  async getPreviewContent(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    const file = await this.filesService.getPreviewContentById(user, id);
+    response.setHeader('X-Content-Truncated', file.isTruncated ? '1' : '0');
+    this.sendInlineContent(response, file, true);
+  }
+
+  @Post(':id/preview/retry')
+  retryPreview(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<FileViewResponseDto> {
+    return this.filesService.retryPreview(user, id);
   }
 
   @Get(':id')
@@ -98,5 +139,35 @@ export class FilesController {
     }
 
     return this.filesService.upload(user, body, file);
+  }
+
+  private sendInlineContent(
+    response: Response,
+    file: {
+      body: Buffer;
+      mimeType: string;
+      sizeBytes: number;
+      originalName: string;
+    },
+    sandbox: boolean,
+  ): void {
+    const safeFileName = file.originalName.replace(/["\r\n]/g, '_');
+    this.setPrivateContentHeaders(response);
+    response.setHeader('Content-Type', file.mimeType);
+    response.setHeader('Content-Length', String(file.sizeBytes));
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename="${safeFileName}"`,
+    );
+    response.setHeader(
+      'Content-Security-Policy',
+      sandbox ? "default-src 'none'; sandbox" : "default-src 'none'",
+    );
+    response.send(file.body);
+  }
+
+  private setPrivateContentHeaders(response: Response): void {
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Cache-Control', 'private, max-age=300');
   }
 }

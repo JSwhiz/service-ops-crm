@@ -1083,9 +1083,32 @@ model File {
 
   uploadedBy       User?             @relation("FileUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
   attachments      FileAttachment[]
+  derivatives      FileDerivative[]
 
   @@index([uploadedByUserId])
   @@map("files")
+}
+
+model FileDerivative {
+  id             String   @id @default(uuid())
+  fileId         String
+  derivativeType String
+  status         String
+  objectKey      String?
+  mimeType       String?
+  sizeBytes      Int?
+  width          Int?
+  height         Int?
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, derivativeType])
+  @@index([fileId])
+  @@index([status])
+  @@map("file_derivatives")
 }
 
 model FileAttachment {

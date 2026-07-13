@@ -33,6 +33,13 @@ export default () => ({
     publicBaseUrl:
       process.env.MINIO_PUBLIC_BASE_URL ?? 'http://localhost:9000',
   },
+  filePreview: {
+    officeExecutable: process.env.FILE_PREVIEW_OFFICE_EXECUTABLE ?? 'libreoffice',
+    tempDirectory: process.env.FILE_PREVIEW_TEMP_DIR ?? '/tmp',
+    conversionTimeoutMs: Number(
+      process.env.FILE_PREVIEW_CONVERSION_TIMEOUT_MS ?? '45000',
+    ),
+  },
   bootstrap: {
     firstAdminLogin: process.env.FIRST_ADMIN_LOGIN ?? 'founder',
     firstAdminPassword: process.env.FIRST_ADMIN_PASSWORD ?? 'founder123',

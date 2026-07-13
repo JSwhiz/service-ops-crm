@@ -1374,6 +1374,19 @@ test('chats support production messaging, access, unread and lifecycle flows', a
     attachmentOnlyForward.attachments.map((attachment) => attachment.id),
     attachmentOnlyMessage.attachments.map((attachment) => attachment.id),
   );
+  const deleteAttachmentForwardResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${attachmentOnlyForward.id}/delete`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(deleteAttachmentForwardResponse.status, 201);
+  const originalAttachmentViewAfterForwardDelete = await fetch(
+    `${baseUrl}/api/v1/files/${attachmentOnlyMessage.attachments[0]?.id}/view`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(originalAttachmentViewAfterForwardDelete.status, 200);
 
   const forbiddenForwardResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/forward`,
@@ -1607,6 +1620,19 @@ test('chats support production messaging, access, unread and lifecycle flows', a
     textAndAttachmentForward.attachments.map((attachment) => attachment.id),
     textAndAttachmentSource.attachments.map((attachment) => attachment.id),
   );
+  const deleteAttachmentSourceResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${textAndAttachmentSource.id}/delete`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(deleteAttachmentSourceResponse.status, 201);
+  const forwardedAttachmentViewAfterSourceDelete = await fetch(
+    `${baseUrl}/api/v1/files/${textAndAttachmentForward.attachments[0]?.id}/view`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(forwardedAttachmentViewAfterSourceDelete.status, 200);
 
   const attachedDeleteForm = new FormData();
   attachedDeleteForm.set('text', 'Message with attachment to delete');
@@ -1682,6 +1708,11 @@ test('chats support production messaging, access, unread and lifecycle flows', a
     { headers: { Cookie: founderCookie } },
   );
   assert.equal(attachmentAfterDeleteResponse.status, 403);
+  const attachmentViewAfterDeleteResponse = await fetch(
+    `${baseUrl}/api/v1/files/${attachedFileId}/view`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(attachmentViewAfterDeleteResponse.status, 403);
 
   const deletedForwardResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${attachedDeleteMessage.id}/forward`,

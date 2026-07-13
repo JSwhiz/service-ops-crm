@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
@@ -36,12 +39,23 @@ import {
 } from '../chats/utils/chat-access.util';
 
 import { FileResponseDto } from './dto/file-response.dto';
+import { FileViewResponseDto } from './dto/file-view-response.dto';
 import { UploadFileBodyDto } from './dto/upload-file-body.dto';
 import {
   FileAttachmentEntityType,
   isAllowedFileAttachmentFieldCode,
   isFileAttachmentEntityType,
 } from './constants/file-attachment-policy.constants';
+import {
+  IMAGE_THUMBNAIL_DERIVATIVE,
+  INLINE_IMAGE_MIME_TYPES,
+  INLINE_TEXT_MIME_TYPES,
+  OFFICE_MIME_TYPES,
+  PDF_PREVIEW_DERIVATIVE,
+  getFilePreviewType,
+  type FilePreviewStatus,
+} from './constants/file-preview.constants';
+import { FilePreviewService } from './file-preview.service';
 
 interface CurrentAuthUser {
   id: string;
@@ -59,10 +73,13 @@ interface UploadedFilePayload {
 
 @Injectable()
 export class FilesService {
+  private readonly logger = new Logger(FilesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly auditService: AuditService,
+    private readonly filePreviewService: FilePreviewService,
   ) {}
 
   async upload(
@@ -74,11 +91,12 @@ export class FilesService {
     this.assertValidFieldCode(entityType, body.fieldCode ?? null);
     await this.assertEntityWritable(currentUser, entityType, body.entityId);
 
+    const verifiedMimeType = this.detectMimeType(file.buffer, file.mimetype);
     const objectKey = this.buildObjectKey(entityType, file.originalname);
     const storageResult = await this.storageService.uploadObject({
       objectKey,
       body: file.buffer,
-      contentType: file.mimetype,
+      contentType: verifiedMimeType,
       contentLength: file.size,
     });
 
@@ -88,7 +106,7 @@ export class FilesService {
           bucket: storageResult.bucket,
           objectKey: storageResult.objectKey,
           originalName: file.originalname,
-          mimeType: file.mimetype,
+          mimeType: verifiedMimeType,
           sizeBytes: file.size,
           uploadedByUserId: currentUser.id,
         },
@@ -188,7 +206,128 @@ export class FilesService {
       });
     }
 
+    await this.filePreviewService.ensurePreview(uploadResult.file).catch((error) => {
+      this.logger.warn(
+        `Unable to enqueue preview for file ${uploadResult.file?.id ?? 'unknown'}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    });
+
     return this.mapFile(uploadResult.file);
+  }
+
+  async getViewById(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<FileViewResponseDto> {
+    const file = await this.getReadableFile(currentUser, id);
+    const derivative = await this.filePreviewService.ensurePreview(file);
+
+    return this.mapFileView(file, derivative);
+  }
+
+  async retryPreview(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<FileViewResponseDto> {
+    const file = await this.getReadableFile(currentUser, id);
+    await this.filePreviewService.retryPreview(file);
+
+    return this.getViewById(currentUser, id);
+  }
+
+  async getThumbnailById(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<{
+    body: Buffer;
+    mimeType: string;
+    sizeBytes: number;
+    originalName: string;
+  }> {
+    const file = await this.getReadableFile(currentUser, id);
+    const derivative = file.derivatives.find(
+      (item) => item.derivativeType === IMAGE_THUMBNAIL_DERIVATIVE,
+    );
+
+    if (!derivative || derivative.status !== 'ready' || !derivative.objectKey) {
+      await this.filePreviewService.ensurePreview(file);
+      throw new ConflictException('File thumbnail is not ready');
+    }
+
+    const storedObject = await this.storageService.downloadObject(
+      derivative.objectKey,
+    );
+
+    return {
+      body: storedObject.body,
+      mimeType: derivative.mimeType ?? 'image/webp',
+      sizeBytes: derivative.sizeBytes ?? storedObject.body.length,
+      originalName: `${file.originalName}.webp`,
+    };
+  }
+
+  async getPreviewContentById(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<{
+    body: Buffer;
+    mimeType: string;
+    sizeBytes: number;
+    originalName: string;
+    isTruncated: boolean;
+  }> {
+    const file = await this.getReadableFile(currentUser, id);
+
+    if (
+      INLINE_IMAGE_MIME_TYPES.has(file.mimeType) ||
+      file.mimeType === 'application/pdf'
+    ) {
+      const storedObject = await this.storageService.downloadObject(file.objectKey);
+      return {
+        body: storedObject.body,
+        mimeType: file.mimeType,
+        sizeBytes: storedObject.body.length,
+        originalName: file.originalName,
+        isTruncated: false,
+      };
+    }
+
+    if (INLINE_TEXT_MIME_TYPES.has(file.mimeType)) {
+      const storedObject = await this.storageService.downloadObject(file.objectKey);
+      const maximumPreviewBytes = 512 * 1024;
+      const body = storedObject.body.subarray(0, maximumPreviewBytes);
+      return {
+        body,
+        mimeType: 'text/plain; charset=utf-8',
+        sizeBytes: body.length,
+        originalName: file.originalName,
+        isTruncated: storedObject.body.length > body.length,
+      };
+    }
+
+    if (OFFICE_MIME_TYPES.has(file.mimeType)) {
+      const derivative = file.derivatives.find(
+        (item) => item.derivativeType === PDF_PREVIEW_DERIVATIVE,
+      );
+
+      if (!derivative || derivative.status !== 'ready' || !derivative.objectKey) {
+        await this.filePreviewService.ensurePreview(file);
+        throw new ConflictException('File preview is not ready');
+      }
+
+      const storedObject = await this.storageService.downloadObject(
+        derivative.objectKey,
+      );
+      return {
+        body: storedObject.body,
+        mimeType: 'application/pdf',
+        sizeBytes: derivative.sizeBytes ?? storedObject.body.length,
+        originalName: `${file.originalName}.pdf`,
+        isTruncated: false,
+      };
+    }
+
+    throw new UnsupportedMediaTypeException('File preview is not supported');
   }
 
   async getById(
@@ -307,6 +446,151 @@ export class FilesService {
 
   private buildDownloadUrl(fileId: string): string {
     return `/api/v1/files/${fileId}/content`;
+  }
+
+  private async getReadableFile(currentUser: CurrentAuthUser, id: string) {
+    const file = await this.prisma.file.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        attachments: {
+          orderBy: { createdAt: 'asc' },
+        },
+        derivatives: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+
+    await this.assertFileReadable(currentUser, file.attachments);
+
+    return file;
+  }
+
+  private mapFileView(
+    file: Awaited<ReturnType<FilesService['getReadableFile']>>,
+    derivative: {
+      derivativeType: string;
+      status: string;
+      objectKey: string | null;
+      errorMessage: string | null;
+    } | null,
+  ): FileViewResponseDto {
+    const previewType = getFilePreviewType(file.mimeType);
+    const usesDerivative =
+      INLINE_IMAGE_MIME_TYPES.has(file.mimeType) ||
+      OFFICE_MIME_TYPES.has(file.mimeType);
+    const previewStatus: FilePreviewStatus = usesDerivative
+      ? this.parsePreviewStatus(derivative?.status)
+      : previewType === 'unsupported'
+        ? 'failed'
+        : 'ready';
+    const isReady = previewStatus === 'ready';
+
+    return {
+      id: file.id,
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+      previewType,
+      previewStatus,
+      thumbnailUrl:
+        isReady && INLINE_IMAGE_MIME_TYPES.has(file.mimeType)
+          ? `/api/v1/files/${file.id}/thumbnail`
+          : null,
+      inlineContentUrl:
+        isReady && previewType !== 'unsupported'
+          ? `/api/v1/files/${file.id}/preview/content`
+          : null,
+      downloadUrl: `/api/v1/files/${file.id}/content?download=1`,
+      errorMessage:
+        previewType === 'unsupported'
+          ? 'Предпросмотр недоступен для этого формата'
+          : derivative?.errorMessage ?? null,
+    };
+  }
+
+  private parsePreviewStatus(status: string | undefined): FilePreviewStatus {
+    if (
+      status === 'pending' ||
+      status === 'processing' ||
+      status === 'ready' ||
+      status === 'failed'
+    ) {
+      return status;
+    }
+
+    return 'pending';
+  }
+
+  private detectMimeType(buffer: Buffer, claimedMimeType: string): string {
+    if (buffer.subarray(0, 4).equals(Buffer.from([0x25, 0x50, 0x44, 0x46]))) {
+      return 'application/pdf';
+    }
+
+    if (buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) {
+      return 'image/jpeg';
+    }
+
+    if (
+      buffer
+        .subarray(0, 8)
+        .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    ) {
+      return 'image/png';
+    }
+
+    const header = buffer.subarray(0, 16).toString('ascii');
+
+    if (header.startsWith('GIF87a') || header.startsWith('GIF89a')) {
+      return 'image/gif';
+    }
+
+    if (header.startsWith('RIFF') && header.slice(8, 12) === 'WEBP') {
+      return 'image/webp';
+    }
+
+    if (header.slice(4, 12).includes('ftypavif')) {
+      return 'image/avif';
+    }
+
+    const trimmedText = buffer.subarray(0, 1024).toString('utf8').trimStart();
+    const lowerText = trimmedText.toLowerCase();
+
+    if (lowerText.startsWith('<svg') || lowerText.startsWith('<?xml') && lowerText.includes('<svg')) {
+      return 'image/svg+xml';
+    }
+
+    if (
+      lowerText.startsWith('<!doctype html') ||
+      lowerText.startsWith('<html')
+    ) {
+      return 'text/html';
+    }
+
+    const isZip = buffer.subarray(0, 2).toString('ascii') === 'PK';
+    const isCompoundDocument = buffer
+      .subarray(0, 8)
+      .equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
+
+    if (
+      OFFICE_MIME_TYPES.has(claimedMimeType) &&
+      (isZip || isCompoundDocument)
+    ) {
+      return claimedMimeType;
+    }
+
+    if (
+      INLINE_TEXT_MIME_TYPES.has(claimedMimeType) &&
+      !buffer.subarray(0, 4096).includes(0)
+    ) {
+      return claimedMimeType;
+    }
+
+    return 'application/octet-stream';
   }
 
   private parseEntityType(rawEntityType: string): FileAttachmentEntityType {
@@ -951,13 +1235,6 @@ export class FilesService {
       return false;
     }
 
-    if (mode === 'write') {
-      return (
-        message.authorUserId === currentUser.id ||
-        canManageChats(this.getRoleCodes(currentUser))
-      );
-    }
-
     const canAccessRoom = await this.canAccessChatRoom(
       currentUser,
       message.chatRoom,
@@ -976,14 +1253,31 @@ export class FilesService {
       },
       select: {
         joinedAt: true,
+        leftAt: true,
       },
     });
 
     if (message.chatRoom.visibilityType === 'explicit_members') {
-      return !!participant && message.createdAt >= participant.joinedAt;
+      const canReadMessage =
+        !!participant &&
+        participant.leftAt === null &&
+        message.createdAt >= participant.joinedAt;
+
+      if (!canReadMessage) {
+        return false;
+      }
+    } else if (participant && message.createdAt < participant.joinedAt) {
+      return false;
     }
 
-    return !participant || message.createdAt >= participant.joinedAt;
+    if (mode === 'write') {
+      return (
+        message.authorUserId === currentUser.id ||
+        canManageChats(this.getRoleCodes(currentUser))
+      );
+    }
+
+    return true;
   }
 
   private async canAccessChatRoom(
@@ -1023,10 +1317,11 @@ export class FilesService {
         },
         select: {
           id: true,
+          leftAt: true,
         },
       });
 
-      return !!participant;
+      return !!participant && participant.leftAt === null;
     }
 
     return false;

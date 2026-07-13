@@ -76,6 +76,7 @@ services:
       dockerfile: infra/docker/dev.Dockerfile
       args:
         NODE_IMAGE: ${DEV_NODE_IMAGE:-node:22.22-bookworm}
+        INSTALL_OFFICE: "true"
     container_name: service_ops_backend
     restart: unless-stopped
     working_dir: /workspace
