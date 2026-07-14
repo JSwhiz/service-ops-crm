@@ -15,6 +15,7 @@ const AUTO_CLOSE_BATCH_SIZE = 100;
 export class TaskAutoCloseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TaskAutoCloseService.name);
   private timer: ReturnType<typeof setInterval> | null = null;
+  private activePass: Promise<number> | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -34,6 +35,23 @@ export class TaskAutoCloseService implements OnModuleInit, OnModuleDestroy {
   }
 
   async processDueTasks(now = new Date()): Promise<number> {
+    if (this.activePass) {
+      return 0;
+    }
+
+    const pass = this.processDueTasksBatch(now);
+    this.activePass = pass;
+
+    try {
+      return await pass;
+    } finally {
+      if (this.activePass === pass) {
+        this.activePass = null;
+      }
+    }
+  }
+
+  private async processDueTasksBatch(now: Date): Promise<number> {
     const candidates = await this.prisma.task.findMany({
       where: {
         status: 'pending_auto_close',

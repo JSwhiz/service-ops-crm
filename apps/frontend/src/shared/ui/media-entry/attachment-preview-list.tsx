@@ -9,7 +9,7 @@ import {
   resolveFileApiUrl,
   retryFilePreview,
 } from '@/entities/file/api/file-client';
-import type { AttachedFile, FileView } from '@/entities/file/model/file.types';
+import type { FilePreviewItem, FileView } from '@/entities/file/model/file.types';
 
 const PREVIEW_POLL_ATTEMPTS = 40;
 
@@ -19,12 +19,12 @@ function formatFileSize(size: number): string {
     : `${(size / 1024 / 1024).toFixed(1)} МБ`;
 }
 
-function getFileTypeLabel(file: AttachedFile): string {
+function getFileTypeLabel(file: FilePreviewItem): string {
   const extension = file.originalName.split('.').pop()?.toUpperCase();
   return extension && extension.length <= 5 ? extension : 'FILE';
 }
 
-function AttachmentPreviewCard({ file }: { file: AttachedFile }): React.JSX.Element {
+function AttachmentPreviewCard({ file }: { file: FilePreviewItem }): React.JSX.Element {
   const [view, setView] = useState<FileView | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [pollingRun, setPollingRun] = useState(0);
@@ -186,7 +186,7 @@ export function AttachmentPreviewList({
   files,
   emptyText = 'Вложений пока нет.',
 }: {
-  files: AttachedFile[];
+  files: FilePreviewItem[];
   emptyText?: string;
 }): React.JSX.Element {
   if (files.length === 0) {

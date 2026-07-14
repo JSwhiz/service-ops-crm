@@ -140,6 +140,32 @@ test('task visibility is access-safe for leadership, assignments and explicit us
       headers: { Cookie: cookie },
     });
 
+  for (const assigneeUserIds of [[], [''], ['   ']]) {
+    const invalidAssignees = await createTask(cookies.manager1, {
+      title: `Invalid assignees ${marker}`,
+      priority: 'important_not_urgent',
+      assigneeUserIds,
+      visibilityMode: 'selected',
+    });
+    assert.equal(invalidAssignees.response.status, 400);
+  }
+
+  const invalidAssigneeId = await createTask(cookies.manager1, {
+    title: `Invalid assignee ID ${marker}`,
+    priority: 'important_not_urgent',
+    assigneeUserIds: ['not-a-user-id'],
+    visibilityMode: 'selected',
+  });
+  assert.equal(invalidAssigneeId.response.status, 400);
+
+  const normalizedAssignees = await createTask(cookies.manager1, {
+    title: `Normalized assignees ${marker}`,
+    priority: 'important_not_urgent',
+    assigneeUserIds: [managerOne.id, ` ${managerOne.id} `],
+    visibilityMode: 'selected',
+  });
+  assert.equal(normalizedAssignees.response.status, 201);
+
   const personalTask = await createTask(cookies.hr1, {
     title: `Personal task ${marker}`,
     priority: 'important_not_urgent',
@@ -208,6 +234,25 @@ test('task visibility is access-safe for leadership, assignments and explicit us
 
   assert.equal(hiddenTask.response.status, 201);
   assert.equal((await getTask(cookies.manager2, hiddenTask.payload.id!)).status, 404);
+  assert.equal(
+    (
+      await fetch(
+        `${baseUrl}/api/v1/tasks/${hiddenTask.payload.id}/completions`,
+        { headers: { Cookie: cookies.manager2 } },
+      )
+    ).status,
+    404,
+  );
+
+  const blankAddAssignees = await fetch(
+    `${baseUrl}/api/v1/tasks/${personalTask.payload.id}/assignees`,
+    {
+      method: 'POST',
+      headers: { Cookie: cookies.hr1, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userIds: ['   '] }),
+    },
+  );
+  assert.equal(blankAddAssignees.status, 400);
 
   const hiddenSearch = await fetch(
     `${baseUrl}/api/v1/tasks?q=${encodeURIComponent(`Hidden marker ${marker}`)}&page=1&limit=10`,

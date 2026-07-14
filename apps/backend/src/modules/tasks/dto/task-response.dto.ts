@@ -1,4 +1,4 @@
-import { FileResponseDto } from '../../files/dto/file-response.dto';
+import { TaskCompletionAttachmentDto } from './task-completion-response.dto';
 
 export class TaskResponseDto {
   id!: string;
@@ -52,7 +52,7 @@ export class TaskResponseDto {
       completionText: string | null;
       status: string;
       submittedAt: string;
-      attachments: FileResponseDto[];
+      attachments: TaskCompletionAttachmentDto[];
     } | null;
     completionHistoryCount: number;
   }>;
@@ -75,7 +75,7 @@ export class TaskResponseDto {
       completionText: string | null;
       status: string;
       submittedAt: string;
-      attachments: FileResponseDto[];
+      attachments: TaskCompletionAttachmentDto[];
     } | null;
   } | null;
   capabilities!: {

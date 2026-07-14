@@ -12,6 +12,7 @@ import {
   completeTaskNow,
   confirmTask,
   getTaskById,
+  listTaskCompletions,
   listTaskHistory,
   removeTaskAssignee,
   reopenTask,
@@ -20,6 +21,7 @@ import {
 } from '@/entities/task/api/task-client';
 import type {
   CreateTaskPayload,
+  TaskCompletionListResponse,
   TaskHistoryEvent,
   TaskItem,
   UpdateTaskPayload,
@@ -45,6 +47,13 @@ export default function TaskDetailPage({
   const [taskId, setTaskId] = useState('');
   const [item, setItem] = useState<TaskItem | null>(null);
   const [history, setHistory] = useState<TaskHistoryEvent[]>([]);
+  const [completions, setCompletions] = useState<TaskCompletionListResponse>({
+    items: [],
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [orders, setOrders] = useState<OneTimeOrderItem[]>([]);
   const [candidateUsers, setCandidateUsers] = useState<SystemUserOption[]>([]);
@@ -61,10 +70,38 @@ export default function TaskDetailPage({
     setItem(next);
     setAutoCloseSeconds(next.autoCloseRemainingSeconds);
 
-    const nextHistory = next.capabilities.canViewHistory
-      ? await listTaskHistory(id).catch(() => [])
-      : [];
-    setHistory(nextHistory);
+    if (next.capabilities.canViewHistory) {
+      const [nextHistory, nextCompletions] = await Promise.all([
+        listTaskHistory(id).catch(() => []),
+        listTaskCompletions(id, { page: 1, limit: 10 }).catch(() => ({
+          items: [],
+          page: 1,
+          limit: 10,
+          total: 0,
+          totalPages: 0,
+        })),
+      ]);
+      setHistory(nextHistory);
+      setCompletions(nextCompletions);
+    }
+  };
+
+  const loadCompletionPage = async (page: number): Promise<void> => {
+    setIsActionBusy(true);
+    setError(null);
+    try {
+      setCompletions(
+        await listTaskCompletions(taskId, { page, limit: completions.limit }),
+      );
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Не удалось загрузить историю результатов.',
+      );
+    } finally {
+      setIsActionBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -230,6 +267,77 @@ export default function TaskDetailPage({
 
       {item.capabilities.canViewHistory ? (
         <section className="page-card">
+          <div className="section-header">
+            <div>
+              <div className="section-title">История результатов</div>
+              <div className="section-subtitle">
+                Все завершённые, отменённые и аннулированные попытки по циклам.
+              </div>
+            </div>
+            <strong>{completions.total}</strong>
+          </div>
+          <div className="record-list local-scroll local-scroll--lg">
+            {completions.items.length === 0 ? (
+              <div className="page-muted">Результатов пока нет.</div>
+            ) : (
+              completions.items.map((completion) => (
+                <article className="record-card" key={completion.id}>
+                  <div className="section-header">
+                    <div>
+                      <strong>{getUserDisplayName(completion.assignee)}</strong>
+                      <div className="section-subtitle">
+                        Цикл {completion.workCycle} · попытка {completion.attemptNumber} ·{' '}
+                        {getCompletionStatusLabel(completion.status)}
+                      </div>
+                    </div>
+                    <time>
+                      {formatDateTime(completion.cancelledAt ?? completion.submittedAt)}
+                    </time>
+                  </div>
+                  <div>
+                    {completion.completionText || 'Комментарий не указан.'}
+                  </div>
+                  {completion.cancellationReason ? (
+                    <div className="section-subtitle">
+                      Причина: {completion.cancellationReason}
+                    </div>
+                  ) : null}
+                  <AttachmentPreviewList
+                    files={completion.attachments}
+                    emptyText="Файлы не приложены."
+                  />
+                </article>
+              ))
+            )}
+          </div>
+          {completions.totalPages > 1 ? (
+            <div className="action-row">
+              <button
+                type="button"
+                disabled={isActionBusy || completions.page <= 1}
+                onClick={() => void loadCompletionPage(completions.page - 1)}
+              >
+                Назад
+              </button>
+              <span>
+                Страница {completions.page} из {completions.totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={
+                  isActionBusy || completions.page >= completions.totalPages
+                }
+                onClick={() => void loadCompletionPage(completions.page + 1)}
+              >
+                Далее
+              </button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {item.capabilities.canViewHistory ? (
+        <section className="page-card">
           <div className="section-title">История</div>
           <div className="task-history local-scroll local-scroll--lg">
             {history.length === 0 ? <div className="page-muted">История пока пуста.</div> : history.map((event) => (
@@ -293,6 +401,16 @@ function ReasonAction({ label, dangerous = false, disabled, askReason, onRun }: 
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Moscow' }).format(new Date(value));
+}
+
+function getCompletionStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    submitted: 'отправлен',
+    cancelled: 'отменён',
+    invalidated: 'аннулирован',
+  };
+
+  return labels[status] ?? status;
 }
 
 function getMoscowDateParts(value: string | null): { date: string; time: string } {

@@ -1,12 +1,17 @@
-export interface AttachedFile {
+export interface FilePreviewItem {
   id: string;
-  bucket: string;
-  objectKey: string;
   originalName: string;
   mimeType: string;
   sizeBytes: number;
-  uploadedByUserId: string | null;
   createdAt: string;
+  viewUrl?: string;
+  downloadUrl?: string;
+}
+
+export interface AttachedFile extends FilePreviewItem {
+  bucket: string;
+  objectKey: string;
+  uploadedByUserId: string | null;
   url: string;
   attachments: Array<{
     id: string;

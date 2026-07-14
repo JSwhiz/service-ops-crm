@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import { isUUID } from 'class-validator';
 
 import { AuditService } from '../audit/audit.service';
 import {
@@ -18,9 +19,10 @@ import {
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { canViewObjectByScope } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { FileResponseDto } from '../files/dto/file-response.dto';
+import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
 
 import { CreateTaskDto } from './dto/create-task.dto';
+import { ListTaskCompletionsQueryDto } from './dto/list-task-completions-query.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { SubmitTaskResultDto } from './dto/submit-task-result.dto';
 import {
@@ -29,6 +31,10 @@ import {
   TaskReasonDto,
 } from './dto/task-lifecycle.dto';
 import { TaskHistoryEventResponseDto } from './dto/task-history-response.dto';
+import {
+  TaskCompletionAttachmentDto,
+  TaskCompletionListResponseDto,
+} from './dto/task-completion-response.dto';
 import {
   TaskListResponseDto,
   TaskResponseDto,
@@ -40,6 +46,7 @@ import {
   hasWideTaskAccess,
 } from './utils/task-access.util';
 import { parseTaskDeadline } from './utils/task-deadline.util';
+import { normalizeTaskUserIds } from './utils/task-user-ids.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -223,8 +230,8 @@ export class TasksService {
     }
 
     const roleCodes = this.getRoleCodes(currentUser);
-    const assigneeUserIds = Array.from(
-      new Set(payload.assigneeUserIds.filter(Boolean)),
+    const assigneeUserIds = this.normalizeRequiredAssigneeUserIds(
+      payload.assigneeUserIds,
     );
     const visibleUserIds = Array.from(
       new Set((payload.visibleUserIds ?? []).filter(Boolean)),
@@ -861,7 +868,7 @@ export class TasksService {
     taskId: string,
     payload: AddTaskAssigneesDto,
   ): Promise<TaskResponseDto> {
-    const userIds = Array.from(new Set(payload.userIds.filter(Boolean)));
+    const userIds = this.normalizeRequiredAssigneeUserIds(payload.userIds);
     await this.assertActiveUsers(userIds, 'task assignees');
 
     await this.prisma.$transaction(async (tx) => {
@@ -999,6 +1006,116 @@ export class TasksService {
           }
         : null,
     }));
+  }
+
+  async listTaskCompletions(
+    currentUser: CurrentAuthUser,
+    taskId: string,
+    query: ListTaskCompletionsQueryDto,
+  ): Promise<TaskCompletionListResponseDto> {
+    const readableTask = await this.prisma.task.findFirst({
+      where: {
+        AND: [{ id: taskId }, this.buildTaskAccessWhere(currentUser)],
+      },
+      select: { id: true },
+    });
+
+    if (!readableTask) {
+      throw new NotFoundException('Task not found');
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const where: Prisma.TaskAssigneeCompletionWhereInput = {
+      status: { not: 'draft' },
+      taskAssignee: {
+        taskId,
+        ...(query.assigneeUserId ? { userId: query.assigneeUserId } : {}),
+      },
+      ...(query.workCycle ? { workCycle: query.workCycle } : {}),
+    };
+    const [completions, total] = await this.prisma.$transaction([
+      this.prisma.taskAssigneeCompletion.findMany({
+        where,
+        select: {
+          id: true,
+          workCycle: true,
+          attemptNumber: true,
+          status: true,
+          completionText: true,
+          submittedAt: true,
+          cancelledAt: true,
+          cancellationReason: true,
+          taskAssignee: {
+            select: {
+              user: {
+                select: {
+                  id: true,
+                  login: true,
+                  fullName: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.taskAssigneeCompletion.count({ where }),
+    ]);
+    const completionIds = completions.map((completion) => completion.id);
+    const attachmentRows = completionIds.length
+      ? await this.prisma.fileAttachment.findMany({
+          where: {
+            entityType: 'task_assignee_completion',
+            entityId: { in: completionIds },
+            file: { deletedAt: null },
+          },
+          select: {
+            entityId: true,
+            file: {
+              select: {
+                id: true,
+                originalName: true,
+                mimeType: true,
+                sizeBytes: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
+    const attachmentsByCompletion = new Map<
+      string,
+      TaskCompletionAttachmentDto[]
+    >();
+
+    for (const row of attachmentRows) {
+      const attachments = attachmentsByCompletion.get(row.entityId) ?? [];
+      attachments.push(mapSafeFileResponse(row.file));
+      attachmentsByCompletion.set(row.entityId, attachments);
+    }
+
+    return {
+      items: completions.map((completion) => ({
+        id: completion.id,
+        workCycle: completion.workCycle,
+        attemptNumber: completion.attemptNumber,
+        status: completion.status,
+        completionText: completion.completionText,
+        submittedAt: completion.submittedAt.toISOString(),
+        cancelledAt: completion.cancelledAt?.toISOString() ?? null,
+        cancellationReason: completion.cancellationReason,
+        assignee: completion.taskAssignee.user,
+        attachments: attachmentsByCompletion.get(completion.id) ?? [],
+      })),
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async applyTaskResultApprovalDecision(
@@ -1762,6 +1879,20 @@ export class TasksService {
     }
   }
 
+  private normalizeRequiredAssigneeUserIds(values: unknown[]): string[] {
+    const userIds = normalizeTaskUserIds(Array.isArray(values) ? values : []);
+
+    if (userIds.length === 0) {
+      throw new BadRequestException('At least one task assignee is required');
+    }
+
+    if (userIds.some((userId) => !isUUID(userId, '4'))) {
+      throw new BadRequestException('Task assignee IDs must be valid UUIDs');
+    }
+
+    return userIds;
+  }
+
   private async loadTaskObject(objectId: string) {
     const object = await this.prisma.object.findFirst({
       where: {
@@ -2011,37 +2142,28 @@ export class TasksService {
         entityId: { in: completionIds },
         file: { deletedAt: null },
       },
-      include: {
+      select: {
+        entityId: true,
         file: {
-          include: { attachments: true },
+          select: {
+            id: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            createdAt: true,
+          },
         },
       },
       orderBy: { createdAt: 'asc' },
     });
-    const filesByCompletion = new Map<string, FileResponseDto[]>();
+    const filesByCompletion = new Map<
+      string,
+      TaskCompletionAttachmentDto[]
+    >();
 
     for (const attachment of attachments) {
       const files = filesByCompletion.get(attachment.entityId) ?? [];
-      const file = attachment.file;
-      files.push({
-        id: file.id,
-        bucket: file.bucket,
-        objectKey: file.objectKey,
-        originalName: file.originalName,
-        mimeType: file.mimeType,
-        sizeBytes: file.sizeBytes,
-        uploadedByUserId: file.uploadedByUserId,
-        createdAt: file.createdAt.toISOString(),
-        url: `/api/v1/files/${file.id}/content`,
-        attachments: file.attachments.map((item) => ({
-          id: item.id,
-          entityType: item.entityType,
-          entityId: item.entityId,
-          fieldCode: item.fieldCode,
-          uploadedByUserId: item.uploadedByUserId,
-          createdAt: item.createdAt.toISOString(),
-        })),
-      });
+      files.push(mapSafeFileResponse(attachment.file));
       filesByCompletion.set(attachment.entityId, files);
     }
 

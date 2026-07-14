@@ -1,4 +1,4 @@
-import type { AttachedFile } from '@/entities/file/model/file.types';
+import type { FilePreviewItem } from '@/entities/file/model/file.types';
 
 export type TaskPriority =
   | 'urgent_important'
@@ -30,7 +30,7 @@ export interface TaskCompletion {
   completionText: string | null;
   status: string;
   submittedAt: string;
-  attachments: AttachedFile[];
+  attachments: FilePreviewItem[];
 }
 
 export interface TaskAssignee extends TaskUser {
@@ -162,4 +162,32 @@ export interface TaskHistoryEvent {
   payload: Record<string, unknown> | null;
   createdAt: string;
   actor: TaskUser | null;
+}
+
+export interface TaskCompletionHistoryItem {
+  id: string;
+  workCycle: number;
+  attemptNumber: number;
+  status: string;
+  completionText: string | null;
+  submittedAt: string;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  assignee: TaskUser;
+  attachments: FilePreviewItem[];
+}
+
+export interface TaskCompletionListResponse {
+  items: TaskCompletionHistoryItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface TaskCompletionListQuery {
+  assigneeUserId?: string;
+  workCycle?: number;
+  page?: number;
+  limit?: number;
 }

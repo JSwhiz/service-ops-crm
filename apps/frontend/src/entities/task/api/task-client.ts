@@ -2,6 +2,8 @@ import { fetcher } from '@/shared/api/fetcher';
 
 import type {
   CreateTaskPayload,
+  TaskCompletionListQuery,
+  TaskCompletionListResponse,
   TaskHistoryEvent,
   TaskItem,
   TaskListQuery,
@@ -128,6 +130,16 @@ export const cancelTask = (id: string, reason: string): Promise<TaskItem> =>
 
 export async function listTaskHistory(id: string): Promise<TaskHistoryEvent[]> {
   return fetcher<TaskHistoryEvent[]>(`/tasks/${id}/history`, { method: 'GET' });
+}
+
+export async function listTaskCompletions(
+  id: string,
+  query: TaskCompletionListQuery = {},
+): Promise<TaskCompletionListResponse> {
+  return fetcher<TaskCompletionListResponse>(
+    `/tasks/${id}/completions${buildTaskQuery(query)}`,
+    { method: 'GET' },
+  );
 }
 
 export async function listTasksByObject(objectId: string): Promise<TaskItem[]> {

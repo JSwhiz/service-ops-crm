@@ -1,15 +1,24 @@
 import {
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsOptional,
   IsString,
+  IsUUID,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+
+import { normalizeTaskUserIds } from '../utils/task-user-ids.util';
 
 export class AddTaskAssigneesDto {
   @IsArray()
+  @Transform(({ value }) =>
+    Array.isArray(value) ? normalizeTaskUserIds(value) : value,
+  )
   @ArrayMinSize(1)
-  @IsString({ each: true })
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
   userIds!: string[];
 }
 

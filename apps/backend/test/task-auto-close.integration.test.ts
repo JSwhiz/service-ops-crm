@@ -134,4 +134,39 @@ test('task auto-close is due-aware, cycle-safe and idempotent', async (t) => {
     }),
     1,
   );
+
+  const workerInternals = worker as unknown as {
+    processDueTasksBatch: (now: Date) => Promise<number>;
+  };
+  const originalBatch = workerInternals.processDueTasksBatch.bind(worker);
+  let releaseBatch!: () => void;
+  let markBatchStarted!: () => void;
+  const batchGate = new Promise<void>((resolve) => {
+    releaseBatch = resolve;
+  });
+  const batchStarted = new Promise<void>((resolve) => {
+    markBatchStarted = resolve;
+  });
+  let activeBatches = 0;
+  let maxActiveBatches = 0;
+
+  workerInternals.processDueTasksBatch = async () => {
+    activeBatches += 1;
+    maxActiveBatches = Math.max(maxActiveBatches, activeBatches);
+    markBatchStarted();
+    await batchGate;
+    activeBatches -= 1;
+    return 0;
+  };
+
+  try {
+    const firstPass = worker.processDueTasks(now);
+    await batchStarted;
+    assert.equal(await worker.processDueTasks(now), 0);
+    releaseBatch();
+    assert.equal(await firstPass, 0);
+    assert.equal(maxActiveBatches, 1);
+  } finally {
+    workerInternals.processDueTasksBatch = originalBatch;
+  }
 });

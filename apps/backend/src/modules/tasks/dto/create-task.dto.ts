@@ -1,15 +1,19 @@
 import {
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsIn,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 import { TASK_PRIORITIES } from '../types/task-status.type';
+import { normalizeTaskUserIds } from '../utils/task-user-ids.util';
 
 export class CreateTaskDto {
   @IsString()
@@ -32,8 +36,12 @@ export class CreateTaskDto {
   oneTimeOrderId?: string;
 
   @IsArray()
+  @Transform(({ value }) =>
+    Array.isArray(value) ? normalizeTaskUserIds(value) : value,
+  )
   @ArrayMinSize(1)
-  @IsString({ each: true })
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
   assigneeUserIds!: string[];
 
   @IsOptional()

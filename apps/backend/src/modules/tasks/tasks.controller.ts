@@ -14,6 +14,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../modules/auth/guards/jwt-auth.guard';
 
 import { CreateTaskDto } from './dto/create-task.dto';
+import { ListTaskCompletionsQueryDto } from './dto/list-task-completions-query.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { SubmitTaskResultDto } from './dto/submit-task-result.dto';
 import {
@@ -22,6 +23,7 @@ import {
   TaskReasonDto,
 } from './dto/task-lifecycle.dto';
 import { TaskHistoryEventResponseDto } from './dto/task-history-response.dto';
+import { TaskCompletionListResponseDto } from './dto/task-completion-response.dto';
 import {
   TaskListResponseDto,
   TaskResponseDto,
@@ -187,6 +189,15 @@ export class TasksController {
     @Param('id') id: string,
   ): Promise<TaskHistoryEventResponseDto[]> {
     return this.tasksService.listTaskHistory(user, id);
+  }
+
+  @Get('tasks/:id/completions')
+  listTaskCompletions(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Query() query: ListTaskCompletionsQueryDto,
+  ): Promise<TaskCompletionListResponseDto> {
+    return this.tasksService.listTaskCompletions(user, id, query);
   }
 
   @Get('objects/:id/tasks')

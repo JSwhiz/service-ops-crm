@@ -294,6 +294,35 @@ test('task lifecycle keeps per-assignee results and one shared confirmation', as
   assert.ok(history.some((event) => event.eventType === 'task.reopened'));
   assert.ok(history.some((event) => event.eventType === 'task.cancelled'));
 
+  const completionHistoryResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${created.id}/completions?page=1&limit=2`,
+    { headers: { Cookie: managerOneCookie } },
+  );
+  assert.equal(completionHistoryResponse.status, 200);
+  const completionHistory = (await completionHistoryResponse.json()) as {
+    items: Array<{ workCycle: number; status: string }>;
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  assert.equal(completionHistory.page, 1);
+  assert.equal(completionHistory.limit, 2);
+  assert.equal(completionHistory.items.length, 2);
+  assert.ok(completionHistory.total > 2);
+  assert.ok(completionHistory.totalPages > 1);
+
+  const firstCycleHistoryResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${created.id}/completions?workCycle=1&page=1&limit=20`,
+    { headers: { Cookie: managerOneCookie } },
+  );
+  assert.equal(firstCycleHistoryResponse.status, 200);
+  const firstCycleHistory = (await firstCycleHistoryResponse.json()) as {
+    items: Array<{ workCycle: number }>;
+  };
+  assert.ok(firstCycleHistory.items.length > 0);
+  assert.ok(firstCycleHistory.items.every((item) => item.workCycle === 1));
+
   const concurrentCreate = await fetch(`${baseUrl}/api/v1/tasks`, {
     method: 'POST',
     headers: {
@@ -485,6 +514,18 @@ test('task deadlines, dual targets and completion file requirements are enforced
     created.id,
   );
   assert.equal(completedWithFile.assignees[0]?.currentCompletion?.attachments.length, 1);
+  const currentAttachment = completedWithFile.assignees[0]?.currentCompletion
+    ?.attachments[0] as Record<string, unknown> | undefined;
+  assert.ok(currentAttachment);
+  assert.deepEqual(Object.keys(currentAttachment).sort(), [
+    'createdAt',
+    'downloadUrl',
+    'id',
+    'mimeType',
+    'originalName',
+    'sizeBytes',
+    'viewUrl',
+  ]);
 
   const undoResponse = await fetch(
     `${baseUrl}/api/v1/tasks/${created.id}/assignees/me/undo-completion`,
@@ -529,6 +570,27 @@ test('task deadlines, dual targets and completion file requirements are enforced
     ((await finishWithoutReport.json()) as TaskPayload).status,
     'pending_auto_close',
   );
+
+  const completionHistoryResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${created.id}/completions?page=1&limit=100`,
+    { headers: { Cookie: managerCookie } },
+  );
+  assert.equal(completionHistoryResponse.status, 200);
+  const completionHistory = (await completionHistoryResponse.json()) as {
+    items: Array<{
+      id: string;
+      status: string;
+      attachments: Array<Record<string, unknown>>;
+    }>;
+  };
+  const cancelledCompletion = completionHistory.items.find(
+    (completion) => completion.id === draft.id,
+  );
+  assert.equal(cancelledCompletion?.status, 'cancelled');
+  assert.equal(cancelledCompletion.attachments.length, 1);
+  assert.equal('bucket' in cancelledCompletion.attachments[0]!, false);
+  assert.equal('objectKey' in cancelledCompletion.attachments[0]!, false);
+  assert.equal('attachments' in cancelledCompletion.attachments[0]!, false);
 
   const completeNow = await fetch(
     `${baseUrl}/api/v1/tasks/${created.id}/complete-now`,
