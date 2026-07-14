@@ -48,6 +48,26 @@ async function main(): Promise<void> {
     },
   });
 
+  const deputyFounderRole = await prisma.role.upsert({
+    where: { code: 'deputy_founder' },
+    update: {},
+    create: {
+      code: 'deputy_founder',
+      name: 'Заместитель учредителя',
+      description: 'Системная роль заместителя учредителя',
+    },
+  });
+
+  const corporateDirectorRole = await prisma.role.upsert({
+    where: { code: 'corporate_director' },
+    update: {},
+    create: {
+      code: 'corporate_director',
+      name: 'Корпоративный директор',
+      description: 'Системная роль корпоративного директора',
+    },
+  });
+
   const managerRole = await prisma.role.upsert({
     where: { code: 'manager' },
     update: {},
@@ -95,6 +115,10 @@ async function main(): Promise<void> {
     { code: 'approval.resolve_object_change', name: 'Подтверждение чувствительных изменений объекта' },
     { code: 'approval.resolve_inventory_exception', name: 'Подтверждение inventory exception' },
     { code: 'timesheet.manual_correction', name: 'Подтверждение manual timesheet exception' },
+    { code: 'one_time_order.review.edit', name: 'Редактирование отзывов разовых заказов' },
+    { code: 'one_time_order.calendar.approve_availability', name: 'Подтверждение доступности менеджеров разовых заказов' },
+    { code: 'one_time_order.calendar.manage', name: 'Управление календарём разовых заказов' },
+    { code: 'one_time_order.manage_all', name: 'Полное управление разовыми заказами' },
   ];
 
   for (const permission of permissions) {
@@ -106,6 +130,65 @@ async function main(): Promise<void> {
         name: permission.name,
       },
     });
+  }
+
+  const permissionRecords = await prisma.permission.findMany({
+    where: {
+      code: {
+        in: permissions.map((permission) => permission.code),
+      },
+    },
+  });
+  const permissionsByCode = new Map(
+    permissionRecords.map((permission) => [permission.code, permission]),
+  );
+  const leadershipRoles = [
+    founderRole,
+    deputyFounderRole,
+    directorRole,
+    corporateDirectorRole,
+  ];
+  const rolePermissionAssignments = [
+    {
+      roles: leadershipRoles,
+      permissionCodes: [
+        'one_time_order.review.edit',
+        'one_time_order.manage_all',
+      ],
+    },
+    {
+      roles: [...leadershipRoles, hrRole],
+      permissionCodes: [
+        'one_time_order.calendar.approve_availability',
+        'one_time_order.calendar.manage',
+      ],
+    },
+  ];
+
+  for (const assignment of rolePermissionAssignments) {
+    for (const role of assignment.roles) {
+      for (const permissionCode of assignment.permissionCodes) {
+        const permission = permissionsByCode.get(permissionCode);
+
+        if (!permission) {
+          throw new Error(`Permission ${permissionCode} was not created`);
+        }
+
+        await prisma.rolePermission.upsert({
+          where: {
+            roleId_permissionId: {
+              roleId: role.id,
+              permissionId: permission.id,
+            },
+          },
+          update: {},
+          create: {
+            roleId: role.id,
+            permissionId: permission.id,
+          },
+        });
+      }
+    }
   }
 
   const founder = await prisma.user.upsert({

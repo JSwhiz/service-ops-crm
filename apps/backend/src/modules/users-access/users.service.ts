@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { resolveEffectivePermissionCodes } from './utils/effective-permissions.util';
+
 interface UserWithRoles {
   id: string;
   login: string;
@@ -12,6 +14,11 @@ interface UserWithRoles {
     role: {
       code: string;
       name: string;
+      permissions: Array<{
+        permission: {
+          code: string;
+        };
+      }>;
     };
   }>;
   permissions: Array<{
@@ -34,6 +41,15 @@ const authUserSelect = {
         select: {
           code: true,
           name: true,
+          permissions: {
+            select: {
+              permission: {
+                select: {
+                  code: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -114,7 +130,7 @@ export class UsersService {
       fullName: user.fullName,
       isActive: user.isActive,
       roleCodes: user.roles.map((item) => item.role.code),
-      permissionCodes: user.permissions.map((item) => item.permission.code),
+      permissionCodes: resolveEffectivePermissionCodes(user),
     };
   }
 }

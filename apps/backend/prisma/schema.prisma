@@ -92,7 +92,8 @@ model Role {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users UserRole[]
+  users       UserRole[]
+  permissions RolePermission[]
 
   @@map("roles")
 }
@@ -106,6 +107,7 @@ model Permission {
   updatedAt   DateTime @updatedAt
 
   users UserPermission[]
+  roles RolePermission[]
 
   @@map("permissions")
 }
@@ -165,6 +167,21 @@ model UserPermission {
   @@index([userId])
   @@index([permissionId])
   @@map("user_permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 model UserVisibilityGroup {
