@@ -9,17 +9,13 @@ import {
   canBeObjectManager,
   canCreateObject,
   canManageObjectResponsibles,
+  canViewObjectByScope,
 } from '../objects/utils/object-access.util';
 import {
   canBeOneTimeOrderManager,
-  canCreateTaskOnOneTimeOrder,
   canManageOneTimeOrderManagers,
+  canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
-import {
-  canAssignTaskToUserOnObject,
-  canCreateTaskOnObject,
-  hasWideTaskAccess,
-} from '../tasks/utils/task-access.util';
 
 import { ListSystemUsersQueryDto } from './dto/list-system-users-query.dto';
 import { SystemUserOptionDto } from './dto/system-user-option.dto';
@@ -59,7 +55,17 @@ export class UsersAccessService {
       case 'object_responsible':
         return this.listObjectResponsibleCandidates(currentUser, query.objectId);
       case 'task_assignee':
-        return this.listTaskAssigneeCandidates(currentUser, query.objectId);
+        return this.listTaskAssigneeCandidates(
+          currentUser,
+          query.objectId,
+          query.oneTimeOrderId,
+        );
+      case 'task_visibility':
+        return this.listTaskVisibilityCandidates(
+          currentUser,
+          query.objectId,
+          query.oneTimeOrderId,
+        );
       case 'one_time_order_manager':
         return this.listOneTimeOrderManagerCandidates(
           currentUser,
@@ -126,50 +132,41 @@ export class UsersAccessService {
   private async listTaskAssigneeCandidates(
     currentUser: CurrentAuthUser,
     objectId?: string,
+    oneTimeOrderId?: string,
   ): Promise<SystemUserOptionDto[]> {
-    if (!objectId) {
-      throw new ForbiddenException('Task assignee candidates require object id');
+    await this.assertTaskTargetAccess(currentUser, objectId, oneTimeOrderId);
+
+    return (await this.getActiveUsersWithRoles()).map((user) =>
+      this.mapUser(user),
+    );
+  }
+
+  private async listTaskVisibilityCandidates(
+    currentUser: CurrentAuthUser,
+    objectId?: string,
+    oneTimeOrderId?: string,
+  ): Promise<SystemUserOptionDto[]> {
+    const object = await this.assertTaskTargetAccess(
+      currentUser,
+      objectId,
+      oneTimeOrderId,
+    );
+
+    if (!object) {
+      return (await this.getActiveUsersWithRoles()).map((user) =>
+        this.mapUser(user),
+      );
     }
 
-    const object = await this.getObjectWithAssignments(objectId);
-    const roleCodes = this.getRoleCodes(currentUser);
+    const candidates = new Map<string, UserOptionSource>();
 
-    if (
-      !canCreateTaskOnObject({
-        currentUserId: currentUser.id,
-        roleCodes,
-        object,
-      })
-    ) {
-      throw new ForbiddenException('Task assignee candidate access denied');
-    }
-
-    const objectUsers = object.assignments
-      .filter((assignment) =>
-        canAssignTaskToUserOnObject({
-          userId: assignment.user.id,
-          roleCodes: assignment.user.roles.map((item) => item.role.code),
-          object,
-        }),
-      )
-      .map((assignment) => assignment.user);
-
-    const wideUsers = await this.getActiveUsersWithRoles();
-    const candidateMap = new Map<string, UserOptionSource>();
-
-    for (const user of objectUsers) {
-      candidateMap.set(user.id, user);
-    }
-
-    for (const user of wideUsers) {
-      const userRoleCodes = user.roles.map((item) => item.role.code);
-
-      if (hasWideTaskAccess(userRoleCodes)) {
-        candidateMap.set(user.id, user);
+    for (const assignment of object.assignments) {
+      if (assignment.user.isActive) {
+        candidates.set(assignment.user.id, assignment.user);
       }
     }
 
-    return Array.from(candidateMap.values())
+    return Array.from(candidates.values())
       .sort((left, right) => left.fullName.localeCompare(right.fullName))
       .map((user) => this.mapUser(user));
   }
@@ -199,51 +196,53 @@ export class UsersAccessService {
     currentUser: CurrentAuthUser,
     oneTimeOrderId?: string,
   ): Promise<SystemUserOptionDto[]> {
-    if (!oneTimeOrderId) {
-      throw new ForbiddenException(
-        'One-time order task assignee candidates require order id',
-      );
+    return this.listTaskAssigneeCandidates(
+      currentUser,
+      undefined,
+      oneTimeOrderId,
+    );
+  }
+
+  private async assertTaskTargetAccess(
+    currentUser: CurrentAuthUser,
+    objectId?: string,
+    oneTimeOrderId?: string,
+  ) {
+    if (!currentUser.isActive) {
+      throw new ForbiddenException('Task candidate access denied');
     }
 
-    const order = await this.getOneTimeOrderWithAssignments(oneTimeOrderId);
     const roleCodes = this.getRoleCodes(currentUser);
+    const object = objectId
+      ? await this.getObjectWithAssignments(objectId)
+      : null;
+    const order = oneTimeOrderId
+      ? await this.getOneTimeOrderWithAssignments(oneTimeOrderId)
+      : null;
 
     if (
-      !canCreateTaskOnOneTimeOrder({
+      object &&
+      !canViewObjectByScope({
+        currentUserId: currentUser.id,
+        roleCodes,
+        object,
+      })
+    ) {
+      throw new ForbiddenException('Task candidate access denied');
+    }
+
+    if (
+      order &&
+      !canViewOneTimeOrderByScope({
         currentUserId: currentUser.id,
         roleCodes,
         order,
       })
     ) {
-      throw new ForbiddenException(
-        'One-time order task assignee candidate access denied',
-      );
+      throw new ForbiddenException('Task candidate access denied');
     }
 
-    const candidateMap = new Map<string, UserOptionSource>();
-
-    for (const assignment of order.assignments) {
-      const userRoleCodes = assignment.user.roles.map((item) => item.role.code);
-
-      if (
-        assignment.assignmentRoleCode === 'one_time_manager' &&
-        canBeOneTimeOrderManager(userRoleCodes)
-      ) {
-        candidateMap.set(assignment.user.id, assignment.user);
-      }
-    }
-
-    const wideUsers = await this.getActiveUsersWithRoles();
-
-    for (const user of wideUsers) {
-      if (hasWideTaskAccess(user.roles.map((item) => item.role.code))) {
-        candidateMap.set(user.id, user);
-      }
-    }
-
-    return Array.from(candidateMap.values())
-      .sort((left, right) => left.fullName.localeCompare(right.fullName))
-      .map((user) => this.mapUser(user));
+    return object;
   }
 
   private async listChatParticipantCandidates(
@@ -288,6 +287,10 @@ export class UsersAccessService {
         assignments: {
           where: {
             isActive: true,
+            user: {
+              isActive: true,
+              deletedAt: null,
+            },
           },
           select: {
             userId: true,
@@ -331,6 +334,10 @@ export class UsersAccessService {
         assignments: {
           where: {
             isActive: true,
+            user: {
+              isActive: true,
+              deletedAt: null,
+            },
           },
           select: {
             userId: true,

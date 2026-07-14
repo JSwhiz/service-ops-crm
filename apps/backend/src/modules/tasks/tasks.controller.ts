@@ -15,7 +15,10 @@ import { JwtAuthGuard } from '../../modules/auth/guards/jwt-auth.guard';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { SubmitTaskResultDto } from './dto/submit-task-result.dto';
-import { TaskResponseDto } from './dto/task-response.dto';
+import {
+  TaskListResponseDto,
+  TaskResponseDto,
+} from './dto/task-response.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { TasksService } from './tasks.service';
 
@@ -37,7 +40,7 @@ export class TasksController {
   listTasks(
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListTasksQueryDto,
-  ): Promise<TaskResponseDto[]> {
+  ): Promise<TaskResponseDto[] | TaskListResponseDto> {
     return this.tasksService.listTasks(user, query);
   }
 

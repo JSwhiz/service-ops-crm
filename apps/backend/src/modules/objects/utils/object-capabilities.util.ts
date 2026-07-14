@@ -1,10 +1,9 @@
-import { canCreateTaskOnObject } from '../../tasks/utils/task-access.util';
-
 import {
   canEditObject,
   canEditObjectDailyRate,
   canManageObjectResponsibles,
   canOverrideFrozenObject,
+  hasWideObjectAccess,
 } from './object-access.util';
 
 interface ObjectCapabilityAssignment {
@@ -38,16 +37,11 @@ export function buildObjectCapabilities(params: {
     canChangeStatus: canManageResponsibles,
     canManageResponsibles,
     canManageManagers: canManageResponsibles,
-    canCreateTask: canCreateTaskOnObject({
-      currentUserId: params.currentUserId,
-      roleCodes: params.roleCodes,
-      object: {
-        createdByUserId: params.createdByUserId,
-        assignments: params.assignments.map((assignment) => ({
-          userId: assignment.userId,
-          assignmentRoleCode: assignment.roleCode,
-        })),
-      },
-    }),
+    canCreateTask:
+      hasWideObjectAccess(params.roleCodes) ||
+      params.createdByUserId === params.currentUserId ||
+      params.assignments.some(
+        (assignment) => assignment.userId === params.currentUserId,
+      ),
   };
 }

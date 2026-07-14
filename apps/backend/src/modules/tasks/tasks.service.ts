@@ -13,24 +13,21 @@ import {
   TASK_RESULT_CONFIRMATION_TYPE,
 } from '../approvals/constants/approval.constants';
 import {
-  canAssignTaskToUserOnOneTimeOrder,
-  canCreateTaskOnOneTimeOrder,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
+import { canViewObjectByScope } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { SubmitTaskResultDto } from './dto/submit-task-result.dto';
-import { TaskResponseDto } from './dto/task-response.dto';
+import {
+  TaskListResponseDto,
+  TaskResponseDto,
+} from './dto/task-response.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { TaskStatus } from './types/task-status.type';
-import {
-  OBJECT_TASK_ASSIGNMENT_ROLE_CODES,
-  canAssignTaskToUserOnObject,
-  canCreateTaskOnObject,
-  hasWideTaskAccess,
-} from './utils/task-access.util';
+import { hasWideTaskAccess } from './utils/task-access.util';
 import {
   canSubmitTaskResult,
   getAllowedTaskStatusTransitions,
@@ -75,6 +72,16 @@ interface TaskView {
   status: string;
   objectId: string | null;
   oneTimeOrderId: string | null;
+  dueAt: Date | null;
+  dueTimeSpecified: boolean;
+  requiresConfirmation: boolean;
+  completionRequirement: string;
+  autoCloseAt: Date | null;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
+  cancellationReason: string | null;
+  workCycle: number;
+  visibilityMode: string;
   resultText: string | null;
   submittedAt: Date | null;
   createdAt: Date;
@@ -85,9 +92,14 @@ interface TaskView {
   createdBy: { id: string; login: string; fullName: string };
   submittedBy: { id: string; login: string; fullName: string } | null;
   assignees: Array<{
+    id: string;
     userId: string;
+    isActive: boolean;
     isCompleted: boolean;
     completedAt: Date | null;
+    user: { id: string; login: string; fullName: string };
+  }>;
+  visibilityUsers: Array<{
     user: { id: string; login: string; fullName: string };
   }>;
 }
@@ -102,79 +114,44 @@ export class TasksService {
   async listTasks(
     currentUser: CurrentAuthUser,
     query: ListTasksQueryDto,
-  ): Promise<TaskResponseDto[]> {
-    const wideAccess = hasWideTaskAccess(this.getRoleCodes(currentUser));
+  ): Promise<TaskResponseDto[] | TaskListResponseDto> {
+    const where = this.buildTaskListWhere(currentUser, query);
+    const sortBy = query.sortBy ?? 'createdAt';
+    const sortDirection = query.sortDirection ?? 'desc';
+    const isPaginated = query.page !== undefined || query.limit !== undefined;
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
 
-    const tasks = (await this.prisma.task.findMany({
-      where: {
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.objectId ? { objectId: query.objectId } : {}),
-        ...(query.oneTimeOrderId
-          ? { oneTimeOrderId: query.oneTimeOrderId }
-          : {}),
-        ...(query.search
+    const [tasks, total] = await this.prisma.$transaction([
+      this.prisma.task.findMany({
+        where,
+        include: this.getTaskInclude(),
+        orderBy: [{ [sortBy]: sortDirection }, { id: 'desc' }],
+        ...(isPaginated
           ? {
-              OR: [
-                { title: { contains: query.search, mode: 'insensitive' } },
-                { description: { contains: query.search, mode: 'insensitive' } },
-              ],
+              skip: (page - 1) * limit,
+              take: limit,
             }
           : {}),
-        ...(query.assignedToMe === 'true'
-          ? {
-              assignees: {
-                some: {
-                  userId: currentUser.id,
-                },
-              },
-            }
-          : {}),
-        ...(wideAccess
-          ? {}
-          : {
-              OR: [
-                { createdByUserId: currentUser.id },
-                {
-                  assignees: {
-                    some: {
-                      userId: currentUser.id,
-                    },
-                  },
-                },
-                {
-                  object: {
-                    assignments: {
-                      some: {
-                        userId: currentUser.id,
-                        isActive: true,
-                        assignmentRoleCode: {
-                          in: [...OBJECT_TASK_ASSIGNMENT_ROLE_CODES],
-                        },
-                      },
-                    },
-                  },
-                },
-                {
-                  oneTimeOrder: {
-                    assignments: {
-                      some: {
-                        userId: currentUser.id,
-                        isActive: true,
-                        assignmentRoleCode: 'one_time_manager',
-                      },
-                    },
-                  },
-                },
-              ],
-            }),
-      },
-      include: this.getTaskInclude(),
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })) as TaskView[];
+      }),
+      this.prisma.task.count({ where }),
+    ]);
 
-    return tasks.map((task) => this.mapTask(task, currentUser));
+    const items = (tasks as TaskView[]).map((task) =>
+      this.mapTask(task, currentUser),
+    );
+
+    if (!isPaginated) {
+      return items;
+    }
+
+    return {
+      items,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getTaskById(
@@ -182,16 +159,14 @@ export class TasksService {
     id: string,
   ): Promise<TaskResponseDto> {
     const task = (await this.prisma.task.findFirst({
-      where: { id },
+      where: {
+        AND: [{ id }, this.buildTaskAccessWhere(currentUser)],
+      },
       include: this.getTaskInclude(),
     })) as TaskView | null;
 
     if (!task) {
       throw new NotFoundException('Task not found');
-    }
-
-    if (!this.canViewTask(currentUser, task)) {
-      throw new ForbiddenException('Access to task denied');
     }
 
     return this.mapTask(task, currentUser);
@@ -201,108 +176,42 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     payload: CreateTaskDto,
   ): Promise<TaskResponseDto> {
-    this.assertSingleTarget(payload);
+    if (!currentUser.isActive) {
+      throw new ForbiddenException('Only active users can create tasks');
+    }
 
     const roleCodes = this.getRoleCodes(currentUser);
     const assigneeUserIds = Array.from(
       new Set(payload.assigneeUserIds.filter(Boolean)),
     );
-    const users = await this.loadAssigneeUsers(assigneeUserIds);
+    const visibleUserIds = Array.from(
+      new Set((payload.visibleUserIds ?? []).filter(Boolean)),
+    );
 
-    if (payload.objectId) {
-      const object = await this.prisma.object.findFirst({
-        where: {
-          id: payload.objectId,
-          deletedAt: null,
-        },
-        include: {
-          assignments: {
-            where: {
-              isActive: true,
-            },
-            select: {
-              userId: true,
-              assignmentRoleCode: true,
-              isActive: true,
-            },
-          },
-        },
-      });
+    await this.assertActiveUsers(assigneeUserIds, 'task assignees');
+    await this.assertActiveUsers(visibleUserIds, 'task visibility users');
 
-      if (!object) {
-        throw new NotFoundException('Object for task not found');
-      }
+    const [object, order] = await Promise.all([
+      payload.objectId ? this.loadTaskObject(payload.objectId) : null,
+      payload.oneTimeOrderId
+        ? this.loadTaskOneTimeOrder(payload.oneTimeOrderId)
+        : null,
+    ]);
 
-      if (
-        !canCreateTaskOnObject({
-          currentUserId: currentUser.id,
-          roleCodes,
-          object,
-        })
-      ) {
-        throw new ForbiddenException('Task creation denied for selected object');
-      }
-
-      for (const user of users) {
-        const assigneeRoleCodes = user.roles.map((item) => item.role.code);
-
-        if (
-          !canAssignTaskToUserOnObject({
-            userId: user.id,
-            roleCodes: assigneeRoleCodes,
-            object,
-          })
-        ) {
-          throw new ForbiddenException(
-            'One or more selected assignees are not allowed for this object',
-          );
-        }
-      }
-
-      const task = (await this.prisma.task.create({
-        data: {
-          title: payload.title,
-          description: payload.description ?? null,
-          priority: payload.priority,
-          status: 'assigned',
-          objectId: payload.objectId,
-          createdByUserId: currentUser.id,
-          assignees: {
-            create: assigneeUserIds.map((userId) => ({
-              userId,
-            })),
-          },
-        },
-        include: this.getTaskInclude(),
-      })) as TaskView;
-
-      return this.mapTask(task, currentUser);
-    }
-
-    const order = await this.prisma.oneTimeOrder.findFirst({
-      where: {
-        id: payload.oneTimeOrderId,
-      },
-      include: {
-        assignments: {
-          where: {
-            isActive: true,
-          },
-          select: {
-            userId: true,
-            assignmentRoleCode: true,
-            isActive: true,
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      throw new NotFoundException('One-time order for task not found');
+    if (
+      object &&
+      !canViewObjectByScope({
+        currentUserId: currentUser.id,
+        roleCodes,
+        object,
+      })
+    ) {
+      throw new ForbiddenException('Task creation denied for selected object');
     }
 
     if (
-      !canCreateTaskOnOneTimeOrder({
+      order &&
+      !canViewOneTimeOrderByScope({
         currentUserId: currentUser.id,
         roleCodes,
         order,
@@ -313,18 +222,25 @@ export class TasksService {
       );
     }
 
-    for (const user of users) {
-      const assigneeRoleCodes = user.roles.map((item) => item.role.code);
+    const visibilityMode = payload.visibilityMode ?? (object ? 'scope' : 'selected');
 
-      if (
-        !canAssignTaskToUserOnOneTimeOrder({
-          userId: user.id,
-          roleCodes: assigneeRoleCodes,
-          order,
-        })
-      ) {
-        throw new ForbiddenException(
-          'One or more selected assignees are not allowed for this one-time order',
+    if (!object && visibilityMode === 'scope') {
+      throw new BadRequestException(
+        'Scope visibility requires an object linkage',
+      );
+    }
+
+    if (object && visibilityMode === 'selected') {
+      const objectUserIds = new Set(
+        object.assignments.map((assignment) => assignment.userId),
+      );
+      const invalidVisibleUser = visibleUserIds.find(
+        (userId) => !objectUserIds.has(userId),
+      );
+
+      if (invalidVisibleUser) {
+        throw new BadRequestException(
+          'Selected task visibility users must be active object users',
         );
       }
     }
@@ -334,13 +250,35 @@ export class TasksService {
         title: payload.title,
         description: payload.description ?? null,
         priority: payload.priority,
-        status: 'assigned',
-        oneTimeOrderId: payload.oneTimeOrderId,
+        status: 'in_progress',
+        objectId: payload.objectId ?? null,
+        oneTimeOrderId: payload.oneTimeOrderId ?? null,
         createdByUserId: currentUser.id,
+        requiresConfirmation: payload.requiresConfirmation ?? true,
+        visibilityMode,
         assignees: {
           create: assigneeUserIds.map((userId) => ({
             userId,
           })),
+        },
+        visibilityUsers: {
+          create: visibleUserIds.map((userId) => ({
+            userId,
+            addedByUserId: currentUser.id,
+          })),
+        },
+        historyEvents: {
+          create: {
+            actorUserId: currentUser.id,
+            eventType: 'task.created',
+            payload: {
+              objectId: payload.objectId ?? null,
+              oneTimeOrderId: payload.oneTimeOrderId ?? null,
+              assigneeUserIds,
+              visibilityMode,
+              visibleUserIds,
+            },
+          },
         },
       },
       include: this.getTaskInclude(),
@@ -367,7 +305,7 @@ export class TasksService {
     const wideAccess = hasWideTaskAccess(roleCodes);
     const isCreator = existing.createdByUserId === currentUser.id;
     const isAssignee = existing.assignees.some(
-      (assignee) => assignee.userId === currentUser.id,
+      (assignee) => assignee.userId === currentUser.id && assignee.isActive,
     );
 
     if (!wideAccess && !isCreator && !isAssignee) {
@@ -413,7 +351,7 @@ export class TasksService {
     const roleCodes = this.getRoleCodes(currentUser);
     const wideAccess = hasWideTaskAccess(roleCodes);
     const isAssignee = existing.assignees.some(
-      (assignee) => assignee.userId === currentUser.id,
+      (assignee) => assignee.userId === currentUser.id && assignee.isActive,
     );
 
     if (
@@ -541,14 +479,16 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     objectId: string,
   ): Promise<TaskResponseDto[]> {
-    return this.listTasks(currentUser, { objectId });
+    const result = await this.listTasks(currentUser, { objectId });
+    return Array.isArray(result) ? result : result.items;
   }
 
   async listTasksByOneTimeOrder(
     currentUser: CurrentAuthUser,
     oneTimeOrderId: string,
   ): Promise<TaskResponseDto[]> {
-    return this.listTasks(currentUser, { oneTimeOrderId });
+    const result = await this.listTasks(currentUser, { oneTimeOrderId });
+    return Array.isArray(result) ? result : result.items;
   }
 
   private getTaskInclude() {
@@ -594,50 +534,160 @@ export class TasksService {
           user: true,
         },
       },
+      visibilityUsers: {
+        include: {
+          user: true,
+        },
+        orderBy: {
+          createdAt: 'asc' as const,
+        },
+      },
     };
   }
 
-  private canViewTask(currentUser: CurrentAuthUser, task: TaskView): boolean {
-    const roleCodes = this.getRoleCodes(currentUser);
-
-    if (hasWideTaskAccess(roleCodes)) {
-      return true;
+  private buildTaskAccessWhere(
+    currentUser: CurrentAuthUser,
+  ): Prisma.TaskWhereInput {
+    if (hasWideTaskAccess(this.getRoleCodes(currentUser))) {
+      return {};
     }
 
-    if (task.createdByUserId === currentUser.id) {
-      return true;
-    }
-
-    if (task.assignees.some((assignee) => assignee.userId === currentUser.id)) {
-      return true;
-    }
-
-    if (
-      task.object &&
-      (task.object.createdByUserId === currentUser.id ||
-        task.object.assignments.some(
-          (assignment) => assignment.userId === currentUser.id,
-        ))
-    ) {
-      return true;
-    }
-
-    if (
-      task.oneTimeOrder &&
-      canViewOneTimeOrderByScope({
-        currentUserId: currentUser.id,
-        roleCodes,
-        order: task.oneTimeOrder,
-      })
-    ) {
-      return true;
-    }
-
-    return false;
+    return {
+      OR: [
+        { createdByUserId: currentUser.id },
+        {
+          assignees: {
+            some: {
+              userId: currentUser.id,
+              isActive: true,
+            },
+          },
+        },
+        {
+          visibilityUsers: {
+            some: {
+              userId: currentUser.id,
+            },
+          },
+        },
+        {
+          visibilityMode: 'scope',
+          object: {
+            assignments: {
+              some: {
+                userId: currentUser.id,
+                isActive: true,
+              },
+            },
+          },
+        },
+      ],
+    };
   }
 
-  private async loadAssigneeUsers(userIds: string[]) {
-    const users = await this.prisma.user.findMany({
+  private buildTaskListWhere(
+    currentUser: CurrentAuthUser,
+    query: ListTasksQueryDto,
+  ): Prisma.TaskWhereInput {
+    const clauses: Prisma.TaskWhereInput[] = [
+      this.buildTaskAccessWhere(currentUser),
+    ];
+    const search = (query.q ?? query.search)?.trim();
+
+    if (query.status) {
+      clauses.push({ status: query.status });
+    }
+    if (query.objectId) {
+      clauses.push({ objectId: query.objectId });
+    }
+    if (query.oneTimeOrderId) {
+      clauses.push({ oneTimeOrderId: query.oneTimeOrderId });
+    }
+    if (query.creatorUserId) {
+      clauses.push({ createdByUserId: query.creatorUserId });
+    }
+    if (query.createdByMe === 'true') {
+      clauses.push({ createdByUserId: currentUser.id });
+    }
+    if (query.assigneeUserId || query.assignedToMe === 'true') {
+      clauses.push({
+        assignees: {
+          some: {
+            userId:
+              query.assignedToMe === 'true'
+                ? currentUser.id
+                : query.assigneeUserId,
+            isActive: true,
+          },
+        },
+      });
+    }
+    if (query.myObjects === 'true') {
+      clauses.push({
+        object: {
+          assignments: {
+            some: {
+              userId: currentUser.id,
+              isActive: true,
+            },
+          },
+        },
+      });
+    }
+    if (query.overdue === 'true') {
+      clauses.push({
+        dueAt: { lt: new Date() },
+        status: { notIn: ['completed', 'cancelled', 'closed'] },
+      });
+    }
+    if (search) {
+      clauses.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { object: { name: { contains: search, mode: 'insensitive' } } },
+          {
+            oneTimeOrder: {
+              title: { contains: search, mode: 'insensitive' },
+            },
+          },
+          {
+            createdBy: {
+              OR: [
+                { fullName: { contains: search, mode: 'insensitive' } },
+                { login: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          },
+          {
+            assignees: {
+              some: {
+                isActive: true,
+                user: {
+                  OR: [
+                    { fullName: { contains: search, mode: 'insensitive' } },
+                    { login: { contains: search, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    return { AND: clauses };
+  }
+
+  private async assertActiveUsers(
+    userIds: string[],
+    label: string,
+  ): Promise<void> {
+    if (userIds.length === 0) {
+      return;
+    }
+
+    const usersCount = await this.prisma.user.count({
       where: {
         id: {
           in: userIds,
@@ -645,39 +695,77 @@ export class TasksService {
         deletedAt: null,
         isActive: true,
       },
-      include: {
-        roles: {
-          include: {
-            role: true,
+    });
+
+    if (usersCount !== userIds.length) {
+      throw new NotFoundException(`One or more ${label} not found`);
+    }
+  }
+
+  private async loadTaskObject(objectId: string) {
+    const object = await this.prisma.object.findFirst({
+      where: {
+        id: objectId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        createdByUserId: true,
+        assignments: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            userId: true,
+            isActive: true,
           },
         },
       },
     });
 
-    if (users.length !== userIds.length) {
-      throw new NotFoundException('One or more task assignees not found');
+    if (!object) {
+      throw new NotFoundException('Object for task not found');
     }
 
-    return users;
+    return object;
   }
 
-  private assertSingleTarget(payload: CreateTaskDto): void {
-    const targetCount = Number(Boolean(payload.objectId)) + Number(Boolean(payload.oneTimeOrderId));
+  private async loadTaskOneTimeOrder(oneTimeOrderId: string) {
+    const order = await this.prisma.oneTimeOrder.findUnique({
+      where: { id: oneTimeOrderId },
+      select: {
+        id: true,
+        title: true,
+        createdByUserId: true,
+        assignments: {
+          where: {
+            isActive: true,
+          },
+          select: {
+            userId: true,
+            assignmentRoleCode: true,
+            isActive: true,
+          },
+        },
+      },
+    });
 
-    if (targetCount !== 1) {
-      throw new BadRequestException(
-        'Task must be linked to exactly one target: object or one-time order',
-      );
+    if (!order) {
+      throw new NotFoundException('One-time order for task not found');
     }
+
+    return order;
   }
 
   private mapTask(task: TaskView, currentUser: CurrentAuthUser): TaskResponseDto {
     const roleCodes = this.getRoleCodes(currentUser);
     const isWideAccess = hasWideTaskAccess(roleCodes);
     const isCreator = task.createdBy.id === currentUser.id;
-    const isAssignee = task.assignees.some(
-      (assignee) => assignee.user.id === currentUser.id,
+    const myAssignment = task.assignees.find(
+      (assignee) => assignee.user.id === currentUser.id && assignee.isActive,
     );
+    const isAssignee = Boolean(myAssignment);
     const allowedStatusTransitions = getAllowedTaskStatusTransitions({
       currentStatus: task.status as TaskStatus,
       isWideAccess,
@@ -685,9 +773,30 @@ export class TasksService {
       isAssignee,
     });
 
-    const targetType = task.oneTimeOrder ? 'one_time_order' : 'object';
+    const targetType: TaskResponseDto['targetType'] =
+      task.object && task.oneTimeOrder
+        ? 'both'
+        : task.object
+          ? 'object'
+          : task.oneTimeOrder
+            ? 'one_time_order'
+            : 'none';
     const targetId = task.oneTimeOrder?.id ?? task.object?.id ?? '';
     const targetName = task.oneTimeOrder?.title ?? task.object?.name ?? '—';
+    const activeAssignees = task.assignees.filter(
+      (assignee) => assignee.isActive,
+    );
+    const completedCount = activeAssignees.filter(
+      (assignee) => assignee.isCompleted,
+    ).length;
+    const now = Date.now();
+    const isTerminal = ['completed', 'cancelled', 'closed'].includes(task.status);
+    const isLifecycleManager = isCreator || isWideAccess;
+    const canCompleteMyAssignment = Boolean(
+      myAssignment &&
+        !myAssignment.isCompleted &&
+        task.status === 'in_progress',
+    );
 
     return {
       id: task.id,
@@ -702,6 +811,27 @@ export class TasksService {
       objectName: task.object?.name ?? null,
       oneTimeOrderId: task.oneTimeOrder?.id ?? null,
       oneTimeOrderTitle: task.oneTimeOrder?.title ?? null,
+      object: task.object
+        ? { id: task.object.id, name: task.object.name }
+        : null,
+      oneTimeOrder: task.oneTimeOrder
+        ? { id: task.oneTimeOrder.id, title: task.oneTimeOrder.title }
+        : null,
+      requiresConfirmation: task.requiresConfirmation,
+      completionRequirement: task.completionRequirement,
+      dueAt: task.dueAt?.toISOString() ?? null,
+      dueTimeSpecified: task.dueTimeSpecified,
+      isOverdue: Boolean(
+        task.dueAt && task.dueAt.getTime() < now && !isTerminal,
+      ),
+      autoCloseAt: task.autoCloseAt?.toISOString() ?? null,
+      autoCloseRemainingSeconds: task.autoCloseAt
+        ? Math.max(0, Math.ceil((task.autoCloseAt.getTime() - now) / 1000))
+        : null,
+      workCycle: task.workCycle,
+      completedAt: task.completedAt?.toISOString() ?? null,
+      cancelledAt: task.cancelledAt?.toISOString() ?? null,
+      cancellationReason: task.cancellationReason,
       resultText: task.resultText,
       submittedAt: task.submittedAt ? task.submittedAt.toISOString() : null,
       createdAt: task.createdAt.toISOString(),
@@ -722,19 +852,52 @@ export class TasksService {
         id: assignee.user.id,
         login: assignee.user.login,
         fullName: assignee.user.fullName,
+        isActive: assignee.isActive,
         isCompleted: assignee.isCompleted,
         completedAt: assignee.completedAt
           ? assignee.completedAt.toISOString()
           : null,
       })),
+      completionProgress: {
+        completed: completedCount,
+        total: activeAssignees.length,
+      },
+      visibilityMode: task.visibilityMode,
+      visibleUsers: task.visibilityUsers.map(({ user }) => ({
+        id: user.id,
+        login: user.login,
+        fullName: user.fullName,
+      })),
+      myAssignment: myAssignment
+        ? {
+            assigneeId: myAssignment.id,
+            isCompleted: myAssignment.isCompleted,
+            completedAt: myAssignment.completedAt?.toISOString() ?? null,
+          }
+        : null,
       capabilities: {
-        canSubmitResult: canSubmitTaskResult({
-          currentStatus: task.status as TaskStatus,
-          isWideAccess,
-          isCreator,
-          isAssignee,
-        }),
+        canSubmitResult: canCompleteMyAssignment,
         allowedStatusTransitions,
+        canEdit: isCreator && !isTerminal,
+        canManageAssignees: isCreator && !isTerminal,
+        canCompleteMyAssignment,
+        canUndoMyCompletion: Boolean(
+          myAssignment?.isCompleted && !isTerminal,
+        ),
+        canConfirm:
+          isLifecycleManager && task.status === 'awaiting_confirmation',
+        canCompleteNow:
+          isLifecycleManager && task.status === 'pending_auto_close',
+        canReturnToWork:
+          isLifecycleManager &&
+          ['awaiting_confirmation', 'pending_auto_close'].includes(task.status),
+        canReopen: isLifecycleManager && task.status === 'completed',
+        canCancel:
+          isLifecycleManager &&
+          ['in_progress', 'awaiting_confirmation', 'pending_auto_close'].includes(
+            task.status,
+          ),
+        canViewHistory: true,
       },
     };
   }

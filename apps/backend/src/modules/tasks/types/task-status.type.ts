@@ -1,8 +1,12 @@
 export const TASK_STATUSES = [
-  'assigned',
   'in_progress',
-  'partially_completed',
   'awaiting_confirmation',
+  'pending_auto_close',
+  'completed',
+  'cancelled',
+  // Accepted temporarily by compatibility endpoints until lifecycle migration completes.
+  'assigned',
+  'partially_completed',
   'returned_to_work',
   'closed',
 ] as const;

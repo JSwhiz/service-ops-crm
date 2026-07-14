@@ -1,6 +1,7 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -33,4 +34,17 @@ export class CreateTaskDto {
   @ArrayMinSize(1)
   @IsString({ each: true })
   assigneeUserIds!: string[];
+
+  @IsOptional()
+  @IsIn(['scope', 'selected'])
+  visibilityMode?: 'scope' | 'selected';
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  visibleUserIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  requiresConfirmation?: boolean;
 }
