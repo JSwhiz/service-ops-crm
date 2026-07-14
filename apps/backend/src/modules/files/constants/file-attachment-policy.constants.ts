@@ -20,6 +20,9 @@ export const FILE_ATTACHMENT_POLICY = {
   one_time_order_photo: {
     fieldCodes: [],
   },
+  one_time_order_specification_item: {
+    fieldCodes: [],
+  },
   task: {
     fieldCodes: [],
   },

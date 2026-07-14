@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -19,15 +20,19 @@ import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
+import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
+import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
+import { ReorderOneTimeOrderSpecificationItemsDto } from './dto/reorder-one-time-order-specification-items.dto';
 import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
 import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.dto';
+import { UpdateOneTimeOrderSpecificationItemDto } from './dto/update-one-time-order-specification-item.dto';
 import { buildOneTimeOrderCapabilities, canOpenLinkedObjectCard } from './utils/one-time-order-capabilities.util';
 import {
   formatBusinessDate,
@@ -134,6 +139,33 @@ interface OneTimeOrderPhotoView {
   comment: string | null;
   createdAt: Date;
   updatedAt: Date;
+  createdBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+}
+
+interface OneTimeOrderSpecificationItemView {
+  id: string;
+  oneTimeOrderId: string;
+  title: string;
+  description: string | null;
+  sortOrder: number;
+  requiresAttachment: boolean;
+  isCompleted: boolean;
+  completedAt: Date | null;
+  completedByUserId: string | null;
+  createdByUserId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+  deletedByUserId: string | null;
+  completedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
   createdBy: {
     id: string;
     login: string;
@@ -541,6 +573,313 @@ export class OneTimeOrdersService {
     });
 
     return this.mapOrder(updated, currentUser);
+  }
+
+  async listSpecificationItems(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto[]> {
+    await this.getOrderById(currentUser, id);
+    const items = (await this.prisma.oneTimeOrderSpecificationItem.findMany({
+      where: {
+        oneTimeOrderId: id,
+        deletedAt: null,
+      },
+      include: this.getSpecificationItemInclude(),
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    })) as OneTimeOrderSpecificationItemView[];
+    const attachments = await this.listAttachmentsByEntityIds(
+      'one_time_order_specification_item',
+      items.map((item) => item.id),
+    );
+
+    return items.map((item) =>
+      this.mapSpecificationItem(item, attachments.get(item.id) ?? []),
+    );
+  }
+
+  async createSpecificationItem(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: CreateOneTimeOrderSpecificationItemDto,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    await this.getOrderForSpecificationWrite(currentUser, id);
+    const title = payload.title.trim();
+
+    if (!title) {
+      throw new BadRequestException('Specification item title is required');
+    }
+
+    const item = await this.prisma.$transaction(async (transaction) => {
+      const lastItem = await transaction.oneTimeOrderSpecificationItem.findFirst({
+        where: { oneTimeOrderId: id, deletedAt: null },
+        orderBy: { sortOrder: 'desc' },
+        select: { sortOrder: true },
+      });
+
+      return transaction.oneTimeOrderSpecificationItem.create({
+        data: {
+          oneTimeOrderId: id,
+          title,
+          description: payload.description?.trim() || null,
+          sortOrder: (lastItem?.sortOrder ?? -1) + 1,
+          requiresAttachment: payload.requiresAttachment ?? false,
+          createdByUserId: currentUser.id,
+        },
+        include: this.getSpecificationItemInclude(),
+      });
+    });
+
+    await this.writeSpecificationAudit(
+      id,
+      currentUser.id,
+      'one_time_order.specification_item_created',
+      item.id,
+      null,
+      {
+        title: item.title,
+        description: item.description,
+        requiresAttachment: item.requiresAttachment,
+        sortOrder: item.sortOrder,
+      },
+    );
+
+    return this.mapSpecificationItem(
+      item as OneTimeOrderSpecificationItemView,
+      [],
+    );
+  }
+
+  async updateSpecificationItem(
+    currentUser: CurrentAuthUser,
+    id: string,
+    itemId: string,
+    payload: UpdateOneTimeOrderSpecificationItemDto,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    await this.getOrderForSpecificationWrite(currentUser, id);
+    const existing = await this.getSpecificationItem(id, itemId);
+    const title = payload.title === undefined ? existing.title : payload.title.trim();
+    const description =
+      payload.description === undefined
+        ? existing.description
+        : payload.description?.trim() || null;
+    const requiresAttachment =
+      payload.requiresAttachment ?? existing.requiresAttachment;
+
+    if (!title) {
+      throw new BadRequestException('Specification item title is required');
+    }
+
+    const hasMeaningfulChanges =
+      title !== existing.title ||
+      description !== existing.description ||
+      requiresAttachment !== existing.requiresAttachment;
+
+    if (
+      existing.isCompleted &&
+      hasMeaningfulChanges &&
+      payload.reopenCompleted !== true
+    ) {
+      throw new ConflictException(
+        'Completed specification item must be explicitly reopened before editing',
+      );
+    }
+
+    const updated = (await this.prisma.oneTimeOrderSpecificationItem.update({
+      where: { id: itemId },
+      data: {
+        title,
+        description,
+        requiresAttachment,
+        ...(existing.isCompleted && hasMeaningfulChanges
+          ? {
+              isCompleted: false,
+              completedAt: null,
+              completedByUserId: null,
+            }
+          : {}),
+      },
+      include: this.getSpecificationItemInclude(),
+    })) as OneTimeOrderSpecificationItemView;
+
+    await this.writeSpecificationAudit(
+      id,
+      currentUser.id,
+      'one_time_order.specification_item_updated',
+      itemId,
+      this.specificationAuditValues(existing),
+      this.specificationAuditValues(updated),
+    );
+
+    return this.mapSpecificationItem(
+      updated,
+      await this.listSpecificationItemAttachments(itemId),
+    );
+  }
+
+  async deleteSpecificationItem(
+    currentUser: CurrentAuthUser,
+    id: string,
+    itemId: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    await this.getOrderForSpecificationWrite(currentUser, id);
+    const existing = await this.getSpecificationItem(id, itemId);
+    const deleted = (await this.prisma.oneTimeOrderSpecificationItem.update({
+      where: { id: itemId },
+      data: {
+        deletedAt: new Date(),
+        deletedByUserId: currentUser.id,
+      },
+      include: this.getSpecificationItemInclude(),
+    })) as OneTimeOrderSpecificationItemView;
+
+    await this.writeSpecificationAudit(
+      id,
+      currentUser.id,
+      'one_time_order.specification_item_deleted',
+      itemId,
+      this.specificationAuditValues(existing),
+      null,
+    );
+
+    return this.mapSpecificationItem(
+      deleted,
+      await this.listSpecificationItemAttachments(itemId),
+    );
+  }
+
+  async completeSpecificationItem(
+    currentUser: CurrentAuthUser,
+    id: string,
+    itemId: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    await this.getOrderForSpecificationWrite(currentUser, id);
+    const existing = await this.getSpecificationItem(id, itemId);
+
+    if (existing.requiresAttachment) {
+      const attachmentCount = await this.prisma.fileAttachment.count({
+        where: {
+          entityType: 'one_time_order_specification_item',
+          entityId: itemId,
+          file: { deletedAt: null },
+        },
+      });
+
+      if (attachmentCount === 0) {
+        throw new ConflictException(
+          'Specification item requires at least one attachment',
+        );
+      }
+    }
+
+    const completed = (await this.prisma.oneTimeOrderSpecificationItem.update({
+      where: { id: itemId },
+      data: {
+        isCompleted: true,
+        completedAt: new Date(),
+        completedByUserId: currentUser.id,
+      },
+      include: this.getSpecificationItemInclude(),
+    })) as OneTimeOrderSpecificationItemView;
+
+    await this.writeSpecificationAudit(
+      id,
+      currentUser.id,
+      'one_time_order.specification_item_completed',
+      itemId,
+      this.specificationAuditValues(existing),
+      this.specificationAuditValues(completed),
+    );
+
+    return this.mapSpecificationItem(
+      completed,
+      await this.listSpecificationItemAttachments(itemId),
+    );
+  }
+
+  async reopenSpecificationItem(
+    currentUser: CurrentAuthUser,
+    id: string,
+    itemId: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    await this.getOrderForSpecificationWrite(currentUser, id);
+    const existing = await this.getSpecificationItem(id, itemId);
+    const reopened = (await this.prisma.oneTimeOrderSpecificationItem.update({
+      where: { id: itemId },
+      data: {
+        isCompleted: false,
+        completedAt: null,
+        completedByUserId: null,
+      },
+      include: this.getSpecificationItemInclude(),
+    })) as OneTimeOrderSpecificationItemView;
+
+    await this.writeSpecificationAudit(
+      id,
+      currentUser.id,
+      'one_time_order.specification_item_reopened',
+      itemId,
+      this.specificationAuditValues(existing),
+      this.specificationAuditValues(reopened),
+    );
+
+    return this.mapSpecificationItem(
+      reopened,
+      await this.listSpecificationItemAttachments(itemId),
+    );
+  }
+
+  async reorderSpecificationItems(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: ReorderOneTimeOrderSpecificationItemsDto,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto[]> {
+    await this.getOrderForSpecificationWrite(currentUser, id);
+    const existing = await this.prisma.oneTimeOrderSpecificationItem.findMany({
+      where: { oneTimeOrderId: id, deletedAt: null },
+      select: { id: true, sortOrder: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    const existingIds = existing.map((item) => item.id).sort();
+    const requestedIds = [...payload.itemIds].sort();
+
+    if (
+      existingIds.length !== requestedIds.length ||
+      existingIds.some((itemId, index) => itemId !== requestedIds[index])
+    ) {
+      throw new BadRequestException(
+        'Reorder payload must contain every active specification item exactly once',
+      );
+    }
+
+    await this.prisma.$transaction(async (transaction) => {
+      for (const [index, itemId] of payload.itemIds.entries()) {
+        await transaction.oneTimeOrderSpecificationItem.update({
+          where: { id: itemId },
+          data: { sortOrder: -index - 1 },
+        });
+      }
+
+      for (const [index, itemId] of payload.itemIds.entries()) {
+        await transaction.oneTimeOrderSpecificationItem.update({
+          where: { id: itemId },
+          data: { sortOrder: index },
+        });
+      }
+    });
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.specification_reordered',
+      metadata: {
+        previousOrder: existing.map((item) => item.id),
+        nextOrder: payload.itemIds,
+      },
+    });
+
+    return this.listSpecificationItems(currentUser, id);
   }
 
   async changeStatus(
@@ -985,6 +1324,51 @@ export class OneTimeOrdersService {
     return order;
   }
 
+  private async getOrderForSpecificationWrite(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderView> {
+    const order = await this.getOrderForWrite(currentUser, id);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+      order,
+    });
+
+    if (!capabilities.canManageSpecification) {
+      throw new ForbiddenException('One-time order specification edit denied');
+    }
+
+    if (order.status === 'completed' || order.status === 'cancelled') {
+      throw new ConflictException(
+        'One-time order specification is read-only in the current status',
+      );
+    }
+
+    return order;
+  }
+
+  private async getSpecificationItem(
+    oneTimeOrderId: string,
+    itemId: string,
+  ): Promise<OneTimeOrderSpecificationItemView> {
+    const item = (await this.prisma.oneTimeOrderSpecificationItem.findFirst({
+      where: {
+        id: itemId,
+        oneTimeOrderId,
+        deletedAt: null,
+      },
+      include: this.getSpecificationItemInclude(),
+    })) as OneTimeOrderSpecificationItemView | null;
+
+    if (!item) {
+      throw new NotFoundException('One-time order specification item not found');
+    }
+
+    return item;
+  }
+
   private async getOrderForManagerChange(
     currentUser: CurrentAuthUser,
     id: string,
@@ -1149,6 +1533,25 @@ export class OneTimeOrdersService {
     };
   }
 
+  private getSpecificationItemInclude() {
+    return {
+      completedBy: {
+        select: {
+          id: true,
+          login: true,
+          fullName: true,
+        },
+      },
+      createdBy: {
+        select: {
+          id: true,
+          login: true,
+          fullName: true,
+        },
+      },
+    };
+  }
+
   private mapOrder(
     order: OneTimeOrderView,
     currentUser: CurrentAuthUser,
@@ -1220,6 +1623,83 @@ export class OneTimeOrdersService {
         })),
       capabilities,
     };
+  }
+
+  private mapSpecificationItem(
+    item: OneTimeOrderSpecificationItemView,
+    attachments: FileResponseDto[],
+  ): OneTimeOrderSpecificationItemResponseDto {
+    return {
+      id: item.id,
+      oneTimeOrderId: item.oneTimeOrderId,
+      title: item.title,
+      description: item.description,
+      sortOrder: item.sortOrder,
+      requiresAttachment: item.requiresAttachment,
+      isCompleted: item.isCompleted,
+      completedAt: item.completedAt?.toISOString() ?? null,
+      completedBy: item.completedBy
+        ? {
+            id: item.completedBy.id,
+            login: item.completedBy.login,
+            fullName: item.completedBy.fullName,
+          }
+        : null,
+      createdBy: {
+        id: item.createdBy.id,
+        login: item.createdBy.login,
+        fullName: item.createdBy.fullName,
+      },
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      attachments,
+    };
+  }
+
+  private async listSpecificationItemAttachments(
+    itemId: string,
+  ): Promise<FileResponseDto[]> {
+    const attachments = await this.listAttachmentsByEntityIds(
+      'one_time_order_specification_item',
+      [itemId],
+    );
+
+    return attachments.get(itemId) ?? [];
+  }
+
+  private specificationAuditValues(
+    item: OneTimeOrderSpecificationItemView,
+  ): Record<string, string | number | boolean | null> {
+    return {
+      title: item.title,
+      description: item.description,
+      sortOrder: item.sortOrder,
+      requiresAttachment: item.requiresAttachment,
+      isCompleted: item.isCompleted,
+      completedAt: item.completedAt?.toISOString() ?? null,
+      completedByUserId: item.completedByUserId,
+    };
+  }
+
+  private async writeSpecificationAudit(
+    oneTimeOrderId: string,
+    actorUserId: string,
+    action: string,
+    itemId: string,
+    oldValues: Record<string, string | number | boolean | null> | null,
+    newValues: Record<string, string | number | boolean | null> | null,
+  ): Promise<void> {
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: oneTimeOrderId,
+      actorUserId,
+      action,
+      oldValues,
+      newValues,
+      metadata: {
+        specificationItemId: itemId,
+      },
+    });
   }
 
   private mapComment(item: {

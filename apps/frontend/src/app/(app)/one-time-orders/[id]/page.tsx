@@ -55,6 +55,7 @@ import { OneTimeOrderDailyReportPanel } from '@/features/one-time-order-report/u
 import { OneTimeOrderPhotosPanel } from '@/features/one-time-order-photos/ui/one-time-order-photos-panel';
 import { OneTimeOrderTasksPanel } from '@/features/one-time-order-tasks/ui/one-time-order-tasks-panel';
 import { OneTimeOrderReviewPanel } from '@/features/one-time-order-review/ui/one-time-order-review-panel';
+import { OneTimeOrderSpecificationPanel } from '@/features/one-time-order-specification/ui/one-time-order-specification-panel';
 import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-scope-panel';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
@@ -259,6 +260,11 @@ export default function OneTimeOrderDetailPage({
               setItem(updated);
               await loadAll(item.id);
             }}
+          />
+
+          <OneTimeOrderSpecificationPanel
+            orderId={item.id}
+            canManage={item.capabilities.canManageSpecification}
           />
 
           <div className="page-card">

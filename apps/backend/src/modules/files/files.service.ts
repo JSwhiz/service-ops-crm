@@ -688,6 +688,12 @@ export class FilesService {
           'oneTimeOrderPhoto',
           entityId,
         );
+      case 'one_time_order_specification_item':
+        return this.canAccessOneTimeOrderSpecificationItem(
+          currentUser,
+          entityId,
+          'read',
+        );
       case 'task':
         return this.canAccessTask(currentUser, entityId);
       case 'task_assignee_completion':
@@ -743,6 +749,12 @@ export class FilesService {
         return this.canAccessOneTimeOrderScopedEntity(
           currentUser,
           'oneTimeOrderPhoto',
+          entityId,
+          'write',
+        );
+      case 'one_time_order_specification_item':
+        return this.canAccessOneTimeOrderSpecificationItem(
+          currentUser,
           entityId,
           'write',
         );
@@ -1128,6 +1140,7 @@ export class FilesService {
       return canViewOneTimeOrderByScope({
         currentUserId: currentUser.id,
         roleCodes,
+        permissionCodes: this.getPermissionCodes(currentUser),
         order,
       });
     }
@@ -1135,8 +1148,50 @@ export class FilesService {
     return canEditOneTimeOrderByScope({
       currentUserId: currentUser.id,
       roleCodes,
+      permissionCodes: this.getPermissionCodes(currentUser),
       order,
     });
+  }
+
+  private async canAccessOneTimeOrderSpecificationItem(
+    currentUser: CurrentAuthUser,
+    entityId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const item = await this.prisma.oneTimeOrderSpecificationItem.findFirst({
+      where: {
+        id: entityId,
+        deletedAt: null,
+      },
+      select: {
+        oneTimeOrderId: true,
+        oneTimeOrder: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!item) {
+      throw new NotFoundException(
+        'Attachment target one-time order specification item not found',
+      );
+    }
+
+    if (
+      mode === 'write' &&
+      (item.oneTimeOrder.status === 'completed' ||
+        item.oneTimeOrder.status === 'cancelled')
+    ) {
+      return false;
+    }
+
+    return this.canAccessOneTimeOrder(
+      currentUser,
+      item.oneTimeOrderId,
+      mode,
+    );
   }
 
   private async canAccessOneTimeOrderScopedEntity(

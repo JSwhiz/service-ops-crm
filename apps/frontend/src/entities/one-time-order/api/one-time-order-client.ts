@@ -7,6 +7,7 @@ import type {
   OneTimeOrderHistoryItem,
   OneTimeOrderItem,
   OneTimeOrderPhotoItem,
+  OneTimeOrderSpecificationItem,
   UpdateOneTimeOrderPayload,
 } from '../model/one-time-order.types';
 
@@ -87,6 +88,85 @@ export async function clearOneTimeOrderReview(
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/review`, {
     method: 'DELETE',
   });
+}
+
+export async function listOneTimeOrderSpecificationItems(
+  id: string,
+): Promise<OneTimeOrderSpecificationItem[]> {
+  return fetcher<OneTimeOrderSpecificationItem[]>(
+    `/one-time-orders/${id}/specification-items`,
+    { method: 'GET' },
+  );
+}
+
+export async function createOneTimeOrderSpecificationItem(
+  id: string,
+  payload: {
+    title: string;
+    description?: string;
+    requiresAttachment?: boolean;
+  },
+): Promise<OneTimeOrderSpecificationItem> {
+  return fetcher<OneTimeOrderSpecificationItem>(
+    `/one-time-orders/${id}/specification-items`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function updateOneTimeOrderSpecificationItem(
+  id: string,
+  itemId: string,
+  payload: {
+    title?: string;
+    description?: string | null;
+    requiresAttachment?: boolean;
+    reopenCompleted?: boolean;
+  },
+): Promise<OneTimeOrderSpecificationItem> {
+  return fetcher<OneTimeOrderSpecificationItem>(
+    `/one-time-orders/${id}/specification-items/${itemId}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  );
+}
+
+export async function deleteOneTimeOrderSpecificationItem(
+  id: string,
+  itemId: string,
+): Promise<OneTimeOrderSpecificationItem> {
+  return fetcher<OneTimeOrderSpecificationItem>(
+    `/one-time-orders/${id}/specification-items/${itemId}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function completeOneTimeOrderSpecificationItem(
+  id: string,
+  itemId: string,
+): Promise<OneTimeOrderSpecificationItem> {
+  return fetcher<OneTimeOrderSpecificationItem>(
+    `/one-time-orders/${id}/specification-items/${itemId}/complete`,
+    { method: 'POST' },
+  );
+}
+
+export async function reopenOneTimeOrderSpecificationItem(
+  id: string,
+  itemId: string,
+): Promise<OneTimeOrderSpecificationItem> {
+  return fetcher<OneTimeOrderSpecificationItem>(
+    `/one-time-orders/${id}/specification-items/${itemId}/reopen`,
+    { method: 'POST' },
+  );
+}
+
+export async function reorderOneTimeOrderSpecificationItems(
+  id: string,
+  itemIds: string[],
+): Promise<OneTimeOrderSpecificationItem[]> {
+  return fetcher<OneTimeOrderSpecificationItem[]>(
+    `/one-time-orders/${id}/specification-items/reorder`,
+    { method: 'PATCH', body: JSON.stringify({ itemIds }) },
+  );
 }
 
 export async function changeOneTimeOrderStatus(

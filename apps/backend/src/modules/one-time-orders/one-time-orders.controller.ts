@@ -21,15 +21,19 @@ import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
+import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
+import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
+import { ReorderOneTimeOrderSpecificationItemsDto } from './dto/reorder-one-time-order-specification-items.dto';
 import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
 import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.dto';
+import { UpdateOneTimeOrderSpecificationItemDto } from './dto/update-one-time-order-specification-item.dto';
 import { OneTimeOrdersService } from './one-time-orders.service';
 
 interface CurrentAuthUser {
@@ -95,6 +99,82 @@ export class OneTimeOrdersController {
     @Param('id') id: string,
   ): Promise<OneTimeOrderResponseDto> {
     return this.oneTimeOrdersService.clearReview(user, id);
+  }
+
+  @Get(':id/specification-items')
+  listSpecificationItems(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto[]> {
+    return this.oneTimeOrdersService.listSpecificationItems(user, id);
+  }
+
+  @Post(':id/specification-items')
+  createSpecificationItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: CreateOneTimeOrderSpecificationItemDto,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    return this.oneTimeOrdersService.createSpecificationItem(user, id, payload);
+  }
+
+  @Patch(':id/specification-items/reorder')
+  reorderSpecificationItems(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: ReorderOneTimeOrderSpecificationItemsDto,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto[]> {
+    return this.oneTimeOrdersService.reorderSpecificationItems(
+      user,
+      id,
+      payload,
+    );
+  }
+
+  @Patch(':id/specification-items/:itemId')
+  updateSpecificationItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() payload: UpdateOneTimeOrderSpecificationItemDto,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    return this.oneTimeOrdersService.updateSpecificationItem(
+      user,
+      id,
+      itemId,
+      payload,
+    );
+  }
+
+  @Delete(':id/specification-items/:itemId')
+  deleteSpecificationItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    return this.oneTimeOrdersService.deleteSpecificationItem(user, id, itemId);
+  }
+
+  @Post(':id/specification-items/:itemId/complete')
+  completeSpecificationItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    return this.oneTimeOrdersService.completeSpecificationItem(
+      user,
+      id,
+      itemId,
+    );
+  }
+
+  @Post(':id/specification-items/:itemId/reopen')
+  reopenSpecificationItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    return this.oneTimeOrdersService.reopenSpecificationItem(user, id, itemId);
   }
 
   @Patch(':id/status')

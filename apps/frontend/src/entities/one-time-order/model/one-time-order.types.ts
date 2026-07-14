@@ -125,6 +125,30 @@ export interface OneTimeOrderHistoryItem {
   metadata: Record<string, unknown> | null;
 }
 
+export interface OneTimeOrderSpecificationItem {
+  id: string;
+  oneTimeOrderId: string;
+  title: string;
+  description: string | null;
+  sortOrder: number;
+  requiresAttachment: boolean;
+  isCompleted: boolean;
+  completedAt: string | null;
+  completedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
+  createdBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  attachments: AttachedFile[];
+}
+
 export interface CreateOneTimeOrderPayload {
   title: string;
   executionAddress: string;

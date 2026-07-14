@@ -35,6 +35,9 @@ model User {
   createdObjects              Object[] @relation("ObjectCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
   reviewedOneTimeOrders       OneTimeOrder[] @relation("OneTimeOrderReviewUpdatedBy")
+  createdOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCreatedBy")
+  completedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCompletedBy")
+  deletedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationDeletedBy")
   createdInventoryItems       InventoryItem[] @relation("InventoryItemCreatedBy")
   createdInventoryMovements   InventoryMovement[] @relation("InventoryMovementCreatedBy")
   resolvedInventoryMovementApprovals InventoryMovement[] @relation("InventoryMovementApprovalResolvedBy")
@@ -656,6 +659,7 @@ model OneTimeOrder {
   equipmentMovementsFrom EquipmentMovement[] @relation("EquipmentMovementFromOneTimeOrder")
   equipmentMovementsTo   EquipmentMovement[] @relation("EquipmentMovementToOneTimeOrder")
   tasks             Task[]
+  specificationItems OneTimeOrderSpecificationItem[]
 
   @@index([linkedObjectId])
   @@index([status])
@@ -664,6 +668,34 @@ model OneTimeOrder {
   @@index([executionStartDate])
   @@index([executionEndDate])
   @@map("one_time_orders")
+}
+
+model OneTimeOrderSpecificationItem {
+  id                 String   @id @default(uuid())
+  oneTimeOrderId     String
+  title              String
+  description        String?
+  sortOrder          Int
+  requiresAttachment Boolean  @default(false)
+  isCompleted        Boolean  @default(false)
+  completedAt        DateTime?
+  completedByUserId  String?
+  createdByUserId    String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  deletedAt          DateTime?
+  deletedByUserId    String?
+
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  completedBy  User? @relation("OneTimeOrderSpecificationCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  createdBy    User  @relation("OneTimeOrderSpecificationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  deletedBy    User? @relation("OneTimeOrderSpecificationDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([oneTimeOrderId, sortOrder])
+  @@index([completedByUserId])
+  @@index([createdByUserId])
+  @@index([deletedByUserId])
+  @@map("one_time_order_specification_items")
 }
 
 model OneTimeOrderAssignment {
