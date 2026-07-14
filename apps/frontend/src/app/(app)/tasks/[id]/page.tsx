@@ -2,8 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 
-import { listFilesByEntity } from '@/entities/file/api/file-client';
-import type { AttachedFile } from '@/entities/file/model/file.types';
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listOneTimeOrders } from '@/entities/one-time-order/api/one-time-order-client';
@@ -47,7 +45,6 @@ export default function TaskDetailPage({
   const [taskId, setTaskId] = useState('');
   const [item, setItem] = useState<TaskItem | null>(null);
   const [history, setHistory] = useState<TaskHistoryEvent[]>([]);
-  const [filesByCompletion, setFilesByCompletion] = useState<Record<string, AttachedFile[]>>({});
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [orders, setOrders] = useState<OneTimeOrderItem[]>([]);
   const [candidateUsers, setCandidateUsers] = useState<SystemUserOption[]>([]);
@@ -64,20 +61,10 @@ export default function TaskDetailPage({
     setItem(next);
     setAutoCloseSeconds(next.autoCloseRemainingSeconds);
 
-    const [nextHistory, completionFiles] = await Promise.all([
-      next.capabilities.canViewHistory ? listTaskHistory(id).catch(() => []) : Promise.resolve([]),
-      Promise.all(
-        next.assignees
-          .filter((assignee) => assignee.currentCompletion)
-          .map(async (assignee) => {
-            const completionId = assignee.currentCompletion!.id;
-            const files = await listFilesByEntity('task_assignee_completion', completionId).catch(() => []);
-            return [completionId, files] as const;
-          }),
-      ),
-    ]);
+    const nextHistory = next.capabilities.canViewHistory
+      ? await listTaskHistory(id).catch(() => [])
+      : [];
     setHistory(nextHistory);
-    setFilesByCompletion(Object.fromEntries(completionFiles));
   };
 
   useEffect(() => {
@@ -206,7 +193,7 @@ export default function TaskDetailPage({
                   <div className="task-assignee__result">
                     <div>{assignee.currentCompletion.completionText || 'Комментарий не указан.'}</div>
                     <AttachmentPreviewList
-                      files={filesByCompletion[assignee.currentCompletion.id] ?? []}
+                      files={assignee.currentCompletion.attachments}
                       emptyText="Файлы не приложены."
                     />
                   </div>

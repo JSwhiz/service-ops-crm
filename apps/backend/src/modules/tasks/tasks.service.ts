@@ -18,6 +18,7 @@ import {
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { canViewObjectByScope } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { FileResponseDto } from '../files/dto/file-response.dto';
 
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
@@ -210,7 +211,7 @@ export class TasksService {
       throw new NotFoundException('Task not found');
     }
 
-    return this.mapTask(task, currentUser);
+    return this.attachCompletionFiles(this.mapTask(task, currentUser));
   }
 
   async createTask(
@@ -1850,13 +1851,14 @@ export class TasksService {
         !myAssignment.isCompleted &&
         task.status === 'in_progress',
     );
+    const responseStatus = task.status === 'closed' ? 'completed' : task.status;
 
     return {
       id: task.id,
       title: task.title,
       description: task.description,
       priority: task.priority,
-      status: task.status,
+      status: responseStatus,
       targetType,
       targetId,
       targetName,
@@ -1923,6 +1925,7 @@ export class TasksService {
                 completionText: currentCompletion.completionText,
                 status: currentCompletion.status,
                 submittedAt: currentCompletion.submittedAt.toISOString(),
+                attachments: [],
               }
             : null,
           completionHistoryCount: assignee.completions.filter(
@@ -1958,6 +1961,7 @@ export class TasksService {
                     completionText: currentCompletion.completionText,
                     status: currentCompletion.status,
                     submittedAt: currentCompletion.submittedAt.toISOString(),
+                    attachments: [],
                   }
                 : null,
             };
@@ -1988,6 +1992,71 @@ export class TasksService {
         canViewHistory: true,
       },
     };
+  }
+
+  private async attachCompletionFiles(
+    task: TaskResponseDto,
+  ): Promise<TaskResponseDto> {
+    const completionIds = task.assignees
+      .map((assignee) => assignee.currentCompletion?.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (completionIds.length === 0) {
+      return task;
+    }
+
+    const attachments = await this.prisma.fileAttachment.findMany({
+      where: {
+        entityType: 'task_assignee_completion',
+        entityId: { in: completionIds },
+        file: { deletedAt: null },
+      },
+      include: {
+        file: {
+          include: { attachments: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    const filesByCompletion = new Map<string, FileResponseDto[]>();
+
+    for (const attachment of attachments) {
+      const files = filesByCompletion.get(attachment.entityId) ?? [];
+      const file = attachment.file;
+      files.push({
+        id: file.id,
+        bucket: file.bucket,
+        objectKey: file.objectKey,
+        originalName: file.originalName,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+        uploadedByUserId: file.uploadedByUserId,
+        createdAt: file.createdAt.toISOString(),
+        url: `/api/v1/files/${file.id}/content`,
+        attachments: file.attachments.map((item) => ({
+          id: item.id,
+          entityType: item.entityType,
+          entityId: item.entityId,
+          fieldCode: item.fieldCode,
+          uploadedByUserId: item.uploadedByUserId,
+          createdAt: item.createdAt.toISOString(),
+        })),
+      });
+      filesByCompletion.set(attachment.entityId, files);
+    }
+
+    for (const assignee of task.assignees) {
+      if (assignee.currentCompletion) {
+        assignee.currentCompletion.attachments =
+          filesByCompletion.get(assignee.currentCompletion.id) ?? [];
+      }
+    }
+    if (task.myAssignment?.currentCompletion) {
+      task.myAssignment.currentCompletion.attachments =
+        filesByCompletion.get(task.myAssignment.currentCompletion.id) ?? [];
+    }
+
+    return task;
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

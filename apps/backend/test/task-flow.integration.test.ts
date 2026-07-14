@@ -19,7 +19,23 @@ interface TaskPayload {
     isActive: boolean;
     isCompleted: boolean;
     completionHistoryCount: number;
+    currentCompletion: {
+      id: string;
+      attachments: Array<{ id: string }>;
+    } | null;
   }>;
+}
+
+async function getTaskPayload(
+  baseUrl: string,
+  cookie: string,
+  taskId: string,
+): Promise<TaskPayload> {
+  const response = await fetch(`${baseUrl}/api/v1/tasks/${taskId}`, {
+    headers: { Cookie: cookie },
+  });
+  assert.equal(response.status, 200);
+  return response.json() as Promise<TaskPayload>;
 }
 
 test('task lifecycle keeps per-assignee results and one shared confirmation', async (t) => {
@@ -463,6 +479,12 @@ test('task deadlines, dual targets and completion file requirements are enforced
     ((await completeResponse.json()) as TaskPayload).status,
     'pending_auto_close',
   );
+  const completedWithFile = await getTaskPayload(
+    baseUrl,
+    managerCookie,
+    created.id,
+  );
+  assert.equal(completedWithFile.assignees[0]?.currentCompletion?.attachments.length, 1);
 
   const undoResponse = await fetch(
     `${baseUrl}/api/v1/tasks/${created.id}/assignees/me/undo-completion`,
@@ -529,6 +551,15 @@ test('task deadlines, dual targets and completion file requirements are enforced
   const noDeadline = (await noDeadlineResponse.json()) as TaskPayload;
   createdTaskIds.push(noDeadline.id);
   assert.equal(noDeadline.dueAt, null);
+
+  await prisma.task.update({
+    where: { id: noDeadline.id },
+    data: { status: 'closed' },
+  });
+  assert.equal(
+    (await getTaskPayload(baseUrl, managerCookie, noDeadline.id)).status,
+    'completed',
+  );
 
   const exactTimeResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
     method: 'POST',

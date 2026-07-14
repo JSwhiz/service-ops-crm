@@ -1,3 +1,5 @@
+import { FileResponseDto } from '../../files/dto/file-response.dto';
+
 export class TaskResponseDto {
   id!: string;
   title!: string;
@@ -50,6 +52,7 @@ export class TaskResponseDto {
       completionText: string | null;
       status: string;
       submittedAt: string;
+      attachments: FileResponseDto[];
     } | null;
     completionHistoryCount: number;
   }>;
@@ -72,6 +75,7 @@ export class TaskResponseDto {
       completionText: string | null;
       status: string;
       submittedAt: string;
+      attachments: FileResponseDto[];
     } | null;
   } | null;
   capabilities!: {

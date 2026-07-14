@@ -1,3 +1,5 @@
+import type { AttachedFile } from '@/entities/file/model/file.types';
+
 export type TaskPriority =
   | 'urgent_important'
   | 'urgent_not_important'
@@ -28,6 +30,7 @@ export interface TaskCompletion {
   completionText: string | null;
   status: string;
   submittedAt: string;
+  attachments: AttachedFile[];
 }
 
 export interface TaskAssignee extends TaskUser {

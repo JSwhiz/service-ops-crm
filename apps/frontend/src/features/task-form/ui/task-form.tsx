@@ -38,7 +38,7 @@ const EMPTY_VALUE: TaskFormInitialValue = {
   objectId: '',
   oneTimeOrderId: '',
   assigneeUserIds: [],
-  visibilityMode: 'scope',
+  visibilityMode: 'selected',
   visibleUserIds: [],
   requiresConfirmation: true,
   completionRequirement: 'comment_or_file',
@@ -101,7 +101,14 @@ export function TaskForm({
     field: 'objectId' | 'oneTimeOrderId',
     value: string,
   ): void => {
-    const next = { ...form, [field]: value, visibleUserIds: [] };
+    const next = {
+      ...form,
+      [field]: value,
+      visibleUserIds: [],
+      ...(field === 'objectId'
+        ? { visibilityMode: value ? 'scope' as const : 'selected' as const }
+        : {}),
+    };
     setForm(next);
     onTargetsChange(next.objectId, next.oneTimeOrderId);
   };
