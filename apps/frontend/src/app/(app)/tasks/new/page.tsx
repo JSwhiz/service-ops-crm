@@ -1,137 +1,85 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { listOneTimeOrders } from '@/entities/one-time-order/api/one-time-order-client';
+import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { createTask } from '@/entities/task/api/task-client';
 import { listSystemUsers } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { TaskForm } from '@/features/task-form/ui/task-form';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
-function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return fallback;
-}
-
 export default function NewTaskPage(): React.JSX.Element {
   const router = useRouter();
-
   const [objects, setObjects] = useState<ServiceObject[]>([]);
+  const [orders, setOrders] = useState<OneTimeOrderItem[]>([]);
   const [users, setUsers] = useState<SystemUserOption[]>([]);
-  const [selectedObjectId, setSelectedObjectId] = useState('');
+  const [visibilityUsers, setVisibilityUsers] = useState<SystemUserOption[]>([]);
+  const [targets, setTargets] = useState({ objectId: '', oneTimeOrderId: '' });
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [usersLoading, setUsersLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const load = async (): Promise<void> => {
-      setIsLoading(true);
-      setLoadError(null);
-
-      try {
-        const objectResponse = await listObjects();
-        const creatableObjects = objectResponse.filter(
-          (object) => object.capabilities.canCreateTask,
-        );
-
-        setObjects(creatableObjects);
-        setSelectedObjectId(creatableObjects[0]?.id ?? '');
-      } catch (error) {
-        setLoadError(
-          getErrorMessage(
-            error,
-            'Не удалось загрузить данные для создания задачи.',
-          ),
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    void load();
+    void Promise.all([listObjects(), listOneTimeOrders()])
+      .then(([nextObjects, nextOrders]) => {
+        setObjects(nextObjects);
+        setOrders(nextOrders);
+      })
+      .catch(() => setError('Не удалось загрузить доступные объекты и заказы.'))
+      .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!selectedObjectId) {
-      setUsers([]);
-      return;
-    }
-
     let cancelled = false;
-
-    const loadUsers = async (): Promise<void> => {
-      setUsersLoading(true);
-
-      try {
-        const response = await listSystemUsers({
-          purpose: 'task_assignee',
-          objectId: selectedObjectId,
-        });
-
-        if (!cancelled) {
-          setUsers(response);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setLoadError(
-            getErrorMessage(
-              error,
-              'Не удалось загрузить исполнителей для выбранного объекта.',
-            ),
-          );
-          setUsers([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setUsersLoading(false);
-        }
-      }
+    const targetParams = {
+      ...(targets.objectId ? { objectId: targets.objectId } : {}),
+      ...(targets.oneTimeOrderId ? { oneTimeOrderId: targets.oneTimeOrderId } : {}),
     };
 
-    void loadUsers();
+    void Promise.all([
+      listSystemUsers({ purpose: 'task_assignee', ...targetParams }),
+      listSystemUsers({ purpose: 'task_visibility', ...targetParams }),
+    ])
+      .then(([nextUsers, nextVisibilityUsers]) => {
+        if (!cancelled) {
+          setUsers(nextUsers);
+          setVisibilityUsers(nextVisibilityUsers);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError('Не удалось загрузить доступных пользователей.');
+      });
 
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedObjectId]);
+    return () => { cancelled = true; };
+  }, [targets]);
 
   return (
-    <>
+    <div className="page-stack">
       <PageTitle title="Создать задачу" />
-
-      {isLoading ? (
-        <div className="page-card">Загрузка...</div>
-      ) : loadError ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
-          {loadError}
-        </div>
-      ) : objects.length === 0 ? (
-        <div className="page-card">
-          Для ваших объектов сейчас недоступно создание задач.
-        </div>
-      ) : usersLoading ? (
-        <div className="page-card">Загрузка исполнителей...</div>
+      {isLoading ? <div className="page-card">Загрузка…</div> : error ? (
+        <div className="page-card task-error" role="alert">{error}</div>
       ) : (
-        <TaskForm
-          objects={objects}
-          users={users}
-          selectedObjectId={selectedObjectId}
-          onObjectChange={(objectId) => {
-            setLoadError(null);
-            setSelectedObjectId(objectId);
-          }}
-          onSubmit={async (payload) => {
-            const created = await createTask(payload);
-            router.push(`/tasks/${created.id}`);
-          }}
-        />
+        <div className="page-card">
+          <TaskForm
+            objects={objects}
+            orders={orders}
+            users={users}
+            visibilityUsers={visibilityUsers}
+            onTargetsChange={(objectId, oneTimeOrderId) => {
+              setError(null);
+              setTargets({ objectId, oneTimeOrderId });
+            }}
+            onSubmit={async (payload) => {
+              const created = await createTask(payload);
+              router.push(`/tasks/${created.id}`);
+            }}
+          />
+        </div>
       )}
-    </>
+    </div>
   );
 }

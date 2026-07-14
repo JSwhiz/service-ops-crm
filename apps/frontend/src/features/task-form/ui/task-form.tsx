@@ -3,227 +3,385 @@
 import React, { useMemo, useState } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import type {
+  CreateTaskPayload,
+  TaskCompletionRequirement,
+  TaskPriority,
+} from '@/entities/task/model/task.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
+import { getUserDisplayName, getUserSecondaryLabel } from '@/shared/lib/display-name';
 import {
-  getUserDisplayName,
-  getUserSecondaryLabel,
-} from '@/shared/lib/display-name';
-import { TASK_PRIORITY_OPTIONS } from '@/shared/lib/task-presentation';
+  TASK_COMPLETION_OPTIONS,
+  TASK_PRIORITY_OPTIONS,
+} from '@/shared/lib/task-presentation';
+
+export interface TaskFormInitialValue {
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  objectId: string;
+  oneTimeOrderId: string;
+  assigneeUserIds: string[];
+  visibilityMode: 'scope' | 'selected';
+  visibleUserIds: string[];
+  requiresConfirmation: boolean;
+  completionRequirement: TaskCompletionRequirement;
+  dueDate: string;
+  dueTime: string;
+}
+
+const EMPTY_VALUE: TaskFormInitialValue = {
+  title: '',
+  description: '',
+  priority: 'important_not_urgent',
+  objectId: '',
+  oneTimeOrderId: '',
+  assigneeUserIds: [],
+  visibilityMode: 'scope',
+  visibleUserIds: [],
+  requiresConfirmation: true,
+  completionRequirement: 'comment_or_file',
+  dueDate: '',
+  dueTime: '',
+};
 
 export function TaskForm({
   objects,
+  orders,
   users,
-  selectedObjectId,
-  onObjectChange,
+  visibilityUsers,
+  initialValue,
+  isEdit = false,
+  onTargetsChange,
   onSubmit,
+  onCancel,
 }: {
   objects: ServiceObject[];
+  orders: OneTimeOrderItem[];
   users: SystemUserOption[];
-  selectedObjectId: string;
-  onObjectChange: (objectId: string) => void;
-  onSubmit: (payload: {
-    title: string;
-    description?: string;
-    priority:
-      | 'urgent_important'
-      | 'urgent_not_important'
-      | 'important_not_urgent'
-      | 'not_important_not_urgent';
-    objectId: string;
-    assigneeUserIds: string[];
-  }) => Promise<void>;
+  visibilityUsers: SystemUserOption[];
+  initialValue?: Partial<TaskFormInitialValue>;
+  isEdit?: boolean;
+  onTargetsChange: (objectId: string, oneTimeOrderId: string) => void;
+  onSubmit: (payload: CreateTaskPayload) => Promise<void>;
+  onCancel?: () => void;
 }): React.JSX.Element {
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    priority: 'important_not_urgent',
-    objectId: selectedObjectId,
-    assigneeUserIds: [] as string[],
+  const [form, setForm] = useState<TaskFormInitialValue>({
+    ...EMPTY_VALUE,
+    ...initialValue,
   });
+  const [assigneeSearch, setAssigneeSearch] = useState('');
+  const [visibilitySearch, setVisibilitySearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeUsers = useMemo(
-    () => users.filter((user) => user.isActive),
-    [users],
-  );
+  const filteredUsers = useMemo(() => {
+    const query = assigneeSearch.trim().toLocaleLowerCase('ru-RU');
+    return users.filter(
+      (user) =>
+        user.isActive &&
+        (!query ||
+          user.fullName.toLocaleLowerCase('ru-RU').includes(query) ||
+          user.login.toLocaleLowerCase('ru-RU').includes(query)),
+    );
+  }, [assigneeSearch, users]);
+  const filteredVisibilityUsers = useMemo(() => {
+    const query = visibilitySearch.trim().toLocaleLowerCase('ru-RU');
+    return visibilityUsers.filter(
+      (user) =>
+        user.isActive &&
+        (!query ||
+          user.fullName.toLocaleLowerCase('ru-RU').includes(query) ||
+          user.login.toLocaleLowerCase('ru-RU').includes(query)),
+    );
+  }, [visibilitySearch, visibilityUsers]);
 
-  React.useEffect(() => {
-    setForm((prev) => ({
-      ...prev,
-      objectId: selectedObjectId,
-      assigneeUserIds: [],
-    }));
-  }, [selectedObjectId]);
+  const setTarget = (
+    field: 'objectId' | 'oneTimeOrderId',
+    value: string,
+  ): void => {
+    const next = { ...form, [field]: value, visibleUserIds: [] };
+    setForm(next);
+    onTargetsChange(next.objectId, next.oneTimeOrderId);
+  };
 
-  const handleToggleUser = (userId: string): void => {
-    setForm((prev) => ({
-      ...prev,
-      assigneeUserIds: prev.assigneeUserIds.includes(userId)
-        ? prev.assigneeUserIds.filter((id) => id !== userId)
-        : [...prev.assigneeUserIds, userId],
+  const toggleUser = (
+    field: 'assigneeUserIds' | 'visibleUserIds',
+    userId: string,
+  ): void => {
+    setForm((current) => ({
+      ...current,
+      [field]: current[field].includes(userId)
+        ? current[field].filter((id) => id !== userId)
+        : [...current[field], userId],
     }));
   };
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setError(null);
-    setIsSubmitting(true);
 
+    if (!isEdit && form.assigneeUserIds.length === 0) {
+      setError('Выберите минимум одного исполнителя.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       await onSubmit({
-        title: form.title,
-        description: form.description || undefined,
-        priority: form.priority as
-          | 'urgent_important'
-          | 'urgent_not_important'
-          | 'important_not_urgent'
-          | 'not_important_not_urgent',
-        objectId: form.objectId,
+        title: form.title.trim(),
+        description: form.description.trim() || undefined,
+        priority: form.priority,
+        ...(form.objectId ? { objectId: form.objectId } : {}),
+        ...(form.oneTimeOrderId ? { oneTimeOrderId: form.oneTimeOrderId } : {}),
         assigneeUserIds: form.assigneeUserIds,
+        visibilityMode: form.visibilityMode,
+        ...(form.visibilityMode === 'selected'
+          ? { visibleUserIds: form.visibleUserIds }
+          : {}),
+        requiresConfirmation: form.requiresConfirmation,
+        completionRequirement: form.completionRequirement,
+        dueDate: form.dueDate || null,
+        dueTime: form.dueDate && form.dueTime ? form.dueTime : null,
       });
-    } catch {
-      setError('Не удалось создать задачу.');
+    } catch (caught) {
+      setError(
+        caught instanceof Error && caught.message
+          ? caught.message
+          : 'Не удалось сохранить задачу.',
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <form className="page-card" onSubmit={handleSubmit}>
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        }}
-      >
-        <label>
-          <div style={{ marginBottom: 6 }}>Название</div>
+    <form className="task-form" onSubmit={(event) => void submit(event)}>
+      <div className="task-form__grid">
+        <label className="task-field task-field--wide">
+          <span>Название</span>
           <input
             value={form.title}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, title: event.target.value }))
-            }
-            style={{ width: '100%', padding: 10 }}
+            minLength={2}
             required
+            autoFocus={!isEdit}
+            onChange={(event) => setForm({ ...form, title: event.target.value })}
           />
         </label>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Объект</div>
-          <select
-            value={form.objectId}
-            onChange={(event) => {
-              const nextObjectId = event.target.value;
-
-              setForm((prev) => ({
-                ...prev,
-                objectId: nextObjectId,
-                assigneeUserIds: [],
-              }));
-              onObjectChange(nextObjectId);
-            }}
-            style={{ width: '100%', padding: 10 }}
-            required
-          >
-            {objects.map((object) => (
-              <option key={object.id} value={object.id}>
-                {object.name} {object.internalName ? `(${object.internalName})` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          <div style={{ marginBottom: 6 }}>Приоритет</div>
+        <label className="task-field">
+          <span>Приоритет</span>
           <select
             value={form.priority}
             onChange={(event) =>
-              setForm((prev) => ({ ...prev, priority: event.target.value }))
+              setForm({ ...form, priority: event.target.value as TaskPriority })
             }
-            style={{ width: '100%', padding: 10 }}
           >
             {TASK_PRIORITY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
+              <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
         </label>
 
-        <label style={{ gridColumn: '1 / -1' }}>
-          <div style={{ marginBottom: 6 }}>Описание</div>
-          <textarea
-            value={form.description}
+        <label className="task-field">
+          <span>Требования к отчёту</span>
+          <select
+            value={form.completionRequirement}
             onChange={(event) =>
-              setForm((prev) => ({ ...prev, description: event.target.value }))
+              setForm({
+                ...form,
+                completionRequirement: event.target.value as TaskCompletionRequirement,
+              })
             }
-            rows={5}
-            style={{ width: '100%', padding: 10, resize: 'vertical' }}
+          >
+            {TASK_COMPLETION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="task-field task-field--wide">
+          <span>Описание</span>
+          <textarea
+            rows={4}
+            value={form.description}
+            onChange={(event) => setForm({ ...form, description: event.target.value })}
           />
         </label>
 
-        <div style={{ gridColumn: '1 / -1' }}>
-          <div style={{ marginBottom: 8 }}>Исполнители</div>
-          {activeUsers.length === 0 ? (
-            <div className="page-muted">
-              Для выбранного объекта нет доступных исполнителей.
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gap: 8,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              }}
-            >
-              {activeUsers.map((user) => (
-                <label
-                  key={user.id}
-                  style={{
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'center',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 10,
-                    padding: 10,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.assigneeUserIds.includes(user.id)}
-                    onChange={() => handleToggleUser(user.id)}
-                  />
-                  <span>
-                    {getUserDisplayName(user)}
-                    {getUserSecondaryLabel(user) ? (
-                      <span className="identity-secondary">
-                        {getUserSecondaryLabel(user)}
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
+        <label className="task-field">
+          <span>Объект (необязательно)</span>
+          <select value={form.objectId} onChange={(event) => setTarget('objectId', event.target.value)}>
+            <option value="">Без объекта</option>
+            {objects.map((object) => (
+              <option key={object.id} value={object.id}>{object.name}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="task-field">
+          <span>Разовый заказ (необязательно)</span>
+          <select
+            value={form.oneTimeOrderId}
+            onChange={(event) => setTarget('oneTimeOrderId', event.target.value)}
+          >
+            <option value="">Без разового заказа</option>
+            {orders.map((order) => (
+              <option key={order.id} value={order.id}>{order.title}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
-      {error ? (
-        <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>
+      <fieldset className="task-form__section">
+        <legend>Срок</legend>
+        <label className="task-check">
+          <input
+            type="checkbox"
+            checked={Boolean(form.dueDate)}
+            onChange={(event) =>
+              setForm({ ...form, dueDate: event.target.checked ? form.dueDate || new Date().toISOString().slice(0, 10) : '', dueTime: '' })
+            }
+          />
+          Установить срок
+        </label>
+        {form.dueDate ? (
+          <div className="task-form__inline">
+            <input
+              type="date"
+              aria-label="Дата срока"
+              value={form.dueDate}
+              onChange={(event) => setForm({ ...form, dueDate: event.target.value })}
+            />
+            <label className="task-check">
+              <input
+                type="checkbox"
+                checked={Boolean(form.dueTime)}
+                onChange={(event) => setForm({ ...form, dueTime: event.target.checked ? '18:00' : '' })}
+              />
+              Указать точное время
+            </label>
+            {form.dueTime ? (
+              <input
+                type="time"
+                aria-label="Точное время срока"
+                value={form.dueTime}
+                onChange={(event) => setForm({ ...form, dueTime: event.target.value })}
+              />
+            ) : null}
+          </div>
+        ) : <div className="page-muted">Без срока</div>}
+      </fieldset>
+
+      {!isEdit ? (
+        <UserChecklist
+          title="Исполнители"
+          hint="Можно выбрать одного или нескольких активных пользователей."
+          search={assigneeSearch}
+          onSearch={setAssigneeSearch}
+          users={filteredUsers}
+          selectedIds={form.assigneeUserIds}
+          onToggle={(id) => toggleUser('assigneeUserIds', id)}
+        />
       ) : null}
 
-      <div style={{ marginTop: 16 }}>
-        <button
-          type="submit"
-          disabled={isSubmitting || form.assigneeUserIds.length === 0}
-        >
-          {isSubmitting ? 'Создаем...' : 'Создать задачу'}
+      <fieldset className="task-form__section">
+        <legend>Видимость</legend>
+        <label className="task-radio">
+          <input
+            type="radio"
+            name="visibility"
+            checked={form.visibilityMode === 'scope'}
+            onChange={() => setForm({ ...form, visibilityMode: 'scope', visibleUserIds: [] })}
+          />
+          {form.objectId ? 'Все системные пользователи объекта' : 'Только участники задачи'}
+        </label>
+        <label className="task-radio">
+          <input
+            type="radio"
+            name="visibility"
+            checked={form.visibilityMode === 'selected'}
+            onChange={() => setForm({ ...form, visibilityMode: 'selected' })}
+          />
+          {form.objectId ? 'Только выбранные пользователи объекта' : 'Участники и выбранные пользователи'}
+        </label>
+        <div className="section-subtitle">Создатель, исполнители и руководство видят задачу всегда.</div>
+        {form.visibilityMode === 'selected' ? (
+          <UserChecklist
+            title="Дополнительная видимость"
+            search={visibilitySearch}
+            onSearch={setVisibilitySearch}
+            users={filteredVisibilityUsers}
+            selectedIds={form.visibleUserIds}
+            onToggle={(id) => toggleUser('visibleUserIds', id)}
+          />
+        ) : null}
+      </fieldset>
+
+      <label className="task-check task-form__confirmation">
+        <input
+          type="checkbox"
+          checked={form.requiresConfirmation}
+          onChange={(event) => setForm({ ...form, requiresConfirmation: event.target.checked })}
+        />
+        Требуется подтверждение результата
+      </label>
+
+      {error ? <div className="task-form__error" role="alert">{error}</div> : null}
+      <div className="action-row">
+        <button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Сохраняем…' : isEdit ? 'Сохранить изменения' : 'Создать задачу'}
         </button>
+        {onCancel ? <button type="button" onClick={onCancel}>Отмена</button> : null}
       </div>
     </form>
+  );
+}
+
+function UserChecklist({
+  title,
+  hint,
+  search,
+  onSearch,
+  users,
+  selectedIds,
+  onToggle,
+}: {
+  title: string;
+  hint?: string;
+  search: string;
+  onSearch: (value: string) => void;
+  users: SystemUserOption[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+}): React.JSX.Element {
+  return (
+    <fieldset className="task-form__section">
+      <legend>{title}</legend>
+      {hint ? <div className="section-subtitle">{hint}</div> : null}
+      <input
+        type="search"
+        value={search}
+        onChange={(event) => onSearch(event.target.value)}
+        placeholder="Найти по ФИО или логину"
+        aria-label={`Поиск: ${title}`}
+      />
+      <div className="task-user-grid local-scroll local-scroll--sm">
+        {users.length === 0 ? <div className="page-muted">Пользователи не найдены.</div> : users.map((user) => (
+          <label key={user.id} className="task-user-option">
+            <input
+              type="checkbox"
+              checked={selectedIds.includes(user.id)}
+              onChange={() => onToggle(user.id)}
+            />
+            <span>
+              {getUserDisplayName(user)}
+              {getUserSecondaryLabel(user) ? <small>{getUserSecondaryLabel(user)}</small> : null}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

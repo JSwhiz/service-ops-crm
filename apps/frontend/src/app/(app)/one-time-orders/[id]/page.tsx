@@ -414,6 +414,9 @@ export default function OneTimeOrderDetailPage({
               await createTask({
                 ...payload,
                 oneTimeOrderId: item.id,
+                visibilityMode: 'scope',
+                requiresConfirmation: true,
+                completionRequirement: 'comment_or_file',
               });
               await loadAll(item.id);
             }}
