@@ -18,7 +18,7 @@ import {
   deleteChatMessage,
   editChatMessage,
   forwardChatMessage,
-  getChatMessage,
+  getChatMessageWithRetry,
   hideChatRoom,
   leaveChatRoom,
   listChatRoomParticipants,
@@ -383,6 +383,11 @@ export default function ChatsPage(): React.JSX.Element {
     messageId: string;
   } | null>(null);
   const highlightTimeoutRef = useRef<number | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const realtimeMessageRequestsRef = useRef(
+    new Map<string, Promise<ChatMessage>>(),
+  );
+  const realtimeRefreshPromiseRef = useRef<Promise<void> | null>(null);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) ?? null,
@@ -390,6 +395,10 @@ export default function ChatsPage(): React.JSX.Element {
   );
 
   const latestMessageId = messages.at(-1)?.id ?? null;
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const clearInitialScrollTimers = useCallback((): void => {
     for (const timeoutId of initialScrollTimeoutsRef.current) {
@@ -706,6 +715,71 @@ export default function ChatsPage(): React.JSX.Element {
     } finally {
       setIsLoadingMessages(false);
     }
+  };
+
+  const refreshActiveMessageWindow = (): Promise<void> => {
+    if (realtimeRefreshPromiseRef.current) {
+      return realtimeRefreshPromiseRef.current;
+    }
+
+    const roomId = activeRoomIdRef.current;
+
+    if (!roomId) {
+      return Promise.resolve();
+    }
+
+    const refreshPromise = (async (): Promise<void> => {
+      const currentMessages = messagesRef.current;
+
+      if (isLatestWindowRef.current) {
+        const nextMessages = await listChatMessages(roomId, { limit: 50 });
+
+        if (activeRoomIdRef.current !== roomId) {
+          return;
+        }
+
+        setMessages(nextMessages);
+        setHasOlderMessages(nextMessages.length === 50);
+        setHasNewerMessages(false);
+        return;
+      }
+
+      const anchorMessage = currentMessages[Math.floor(currentMessages.length / 2)];
+
+      if (!anchorMessage) {
+        return;
+      }
+
+      const nextWindow = await listChatMessagesAround(roomId, anchorMessage.id);
+
+      if (activeRoomIdRef.current !== roomId) {
+        return;
+      }
+
+      setMessages(nextWindow.messages);
+      setHasOlderMessages(nextWindow.hasOlder);
+      setHasNewerMessages(nextWindow.hasNewer);
+      isLatestWindowRef.current = nextWindow.isLatestWindow;
+    })().finally(() => {
+      realtimeRefreshPromiseRef.current = null;
+    });
+
+    realtimeRefreshPromiseRef.current = refreshPromise;
+    return refreshPromise;
+  };
+
+  const loadRealtimeMessage = (messageId: string): Promise<ChatMessage> => {
+    const existingRequest = realtimeMessageRequestsRef.current.get(messageId);
+
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    const request = getChatMessageWithRetry(messageId).finally(() => {
+      realtimeMessageRequestsRef.current.delete(messageId);
+    });
+    realtimeMessageRequestsRef.current.set(messageId, request);
+    return request;
   };
 
   const loadOlderMessages = async (): Promise<void> => {
@@ -1111,7 +1185,7 @@ export default function ChatsPage(): React.JSX.Element {
           const messageId = getRealtimeMessageId(payload.payload);
 
           if ((isMessageCreated || isMessageUpdated) && messageId) {
-            void getChatMessage(messageId).then((incomingMessage) => {
+            void loadRealtimeMessage(messageId).then((incomingMessage) => {
               if (payload.roomId !== activeRoomIdRef.current) {
                 return;
               }
@@ -1146,7 +1220,9 @@ export default function ChatsPage(): React.JSX.Element {
 
                 return exists ? current : [...current, incomingMessage];
               });
-            }).catch(() => undefined);
+            }).catch(() => {
+              void refreshActiveMessageWindow().catch(() => undefined);
+            });
           }
         }
       } catch {

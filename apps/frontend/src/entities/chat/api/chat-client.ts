@@ -177,6 +177,37 @@ export async function getChatMessage(messageId: string): Promise<ChatMessage> {
   });
 }
 
+const CHAT_REALTIME_RETRY_DELAYS_MS = [120, 360] as const;
+
+export async function getChatMessageWithRetry(
+  messageId: string,
+): Promise<ChatMessage> {
+  let lastError: unknown;
+
+  for (
+    let attempt = 0;
+    attempt <= CHAT_REALTIME_RETRY_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    try {
+      return await getChatMessage(messageId);
+    } catch (error) {
+      lastError = error;
+      const delayMs = CHAT_REALTIME_RETRY_DELAYS_MS[attempt];
+
+      if (delayMs === undefined) {
+        break;
+      }
+
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, delayMs);
+      });
+    }
+  }
+
+  throw lastError;
+}
+
 export async function sendChatMessage(params: {
   roomId: string;
   text?: string;
