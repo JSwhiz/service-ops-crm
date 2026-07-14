@@ -31,36 +31,64 @@ test('responsible can view object core but cannot edit it or manage managers by 
       notes: true,
     },
   });
-
-  await prisma.objectAssignment.upsert({
+  const activeResponsiblesBefore = await prisma.objectAssignment.findMany({
     where: {
-      objectId_userId_assignmentRoleCode: {
-        objectId: SEEDED_OBJECT_ID,
-        userId: managerTwo.id,
-        assignmentRoleCode: 'responsible',
-      },
-    },
-    update: {
-      isActive: true,
-    },
-    create: {
       objectId: SEEDED_OBJECT_ID,
-      userId: managerTwo.id,
       assignmentRoleCode: 'responsible',
       isActive: true,
     },
+    select: { id: true },
   });
 
-  t.after(async () => {
-    await prisma.objectAssignment.updateMany({
+  await prisma.$transaction(async (tx) => {
+    await tx.objectAssignment.updateMany({
       where: {
+        objectId: SEEDED_OBJECT_ID,
+        assignmentRoleCode: 'responsible',
+        isActive: true,
+      },
+      data: { isActive: false },
+    });
+    await tx.objectAssignment.upsert({
+      where: {
+        objectId_userId_assignmentRoleCode: {
+          objectId: SEEDED_OBJECT_ID,
+          userId: managerTwo.id,
+          assignmentRoleCode: 'responsible',
+        },
+      },
+      update: {
+        isActive: true,
+      },
+      create: {
         objectId: SEEDED_OBJECT_ID,
         userId: managerTwo.id,
         assignmentRoleCode: 'responsible',
+        isActive: true,
       },
-      data: {
-        isActive: false,
-      },
+    });
+  });
+
+  t.after(async () => {
+    await prisma.$transaction(async (tx) => {
+      await tx.objectAssignment.updateMany({
+        where: {
+          objectId: SEEDED_OBJECT_ID,
+          assignmentRoleCode: 'responsible',
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+        },
+      });
+      await tx.objectAssignment.updateMany({
+        where: {
+          id: { in: activeResponsiblesBefore.map((item) => item.id) },
+        },
+        data: {
+          isActive: true,
+        },
+      });
     });
 
     await prisma.object.update({
@@ -388,6 +416,70 @@ test('object creation and editing enforce one active responsible assignment', as
   };
   assert.equal(changed.responsible?.id, founder.id);
   assert.deepEqual(changed.responsibles.map((item) => item.userId), [founder.id]);
+
+  await assert.rejects(
+    prisma.objectAssignment.create({
+      data: {
+        objectId: created.id,
+        userId: deletedUserId,
+        assignmentRoleCode: 'responsible',
+        isActive: true,
+      },
+    }),
+    (error: unknown) =>
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'P2002',
+  );
+
+  const replaceResponsible = (userId: string) =>
+    fetch(`${baseUrl}/api/v1/objects/${created.id}/responsibles`, {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId }),
+    });
+  const concurrentChanges = await Promise.all([
+    replaceResponsible(manager.id),
+    replaceResponsible(founder.id),
+  ]);
+  assert.deepEqual(
+    concurrentChanges.map((response) => response.status),
+    [201, 201],
+  );
+  const activeResponsibles = await prisma.objectAssignment.findMany({
+    where: {
+      objectId: created.id,
+      assignmentRoleCode: 'responsible',
+      isActive: true,
+    },
+  });
+  assert.equal(activeResponsibles.length, 1);
+
+  const deterministicRead = await fetch(
+    `${baseUrl}/api/v1/objects/${created.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(deterministicRead.status, 200);
+  assert.equal(
+    ((await deterministicRead.json()) as { responsibles: unknown[] })
+      .responsibles.length,
+    1,
+  );
+
+  const responsibleIndexes = await prisma.$queryRaw<
+    Array<{ indexname: string }>
+  >`
+    SELECT "indexname"
+    FROM "pg_indexes"
+    WHERE "schemaname" = current_schema()
+      AND "tablename" = 'object_assignments'
+      AND "indexname" = 'object_assignments_one_active_responsible_idx'
+  `;
+  assert.equal(responsibleIndexes.length, 1);
 
   const legacyObject = await prisma.object.create({
     data: {

@@ -393,6 +393,8 @@ model ObjectAssignment {
   object Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /// A PostgreSQL partial unique index guarantees one active `responsible`
+  /// assignment per object; see migration 20260714100000_object_one_responsible.
   @@index([objectId])
   @@index([userId])
   @@index([assignmentRoleCode])

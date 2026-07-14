@@ -543,7 +543,9 @@ export class ObjectsService {
           },
         },
       });
-    })) as ObjectView;
+    }).catch((error: unknown) =>
+      this.rethrowResponsibleAssignmentError(error),
+    )) as ObjectView;
 
     if (Object.keys(changes).length > 0) {
       await this.auditService.writeObjectAuditLog({
@@ -752,35 +754,46 @@ export class ObjectsService {
 
     const user = await this.getAssignableResponsibleUser(userId);
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.objectAssignment.updateMany({
-        where: {
-          objectId,
-          assignmentRoleCode: 'responsible',
-          isActive: true,
-          userId: { not: user.id },
-        },
-        data: { isActive: false },
-      });
-      await tx.objectAssignment.upsert({
-        where: {
-          objectId_userId_assignmentRoleCode: {
+    await this.prisma
+      .$transaction(async (tx) => {
+        await tx.$queryRaw`
+          SELECT "id"
+          FROM "objects"
+          WHERE "id" = ${objectId}
+          FOR UPDATE
+        `;
+
+        await tx.objectAssignment.updateMany({
+          where: {
+            objectId,
+            assignmentRoleCode: 'responsible',
+            isActive: true,
+            userId: { not: user.id },
+          },
+          data: { isActive: false },
+        });
+        await tx.objectAssignment.upsert({
+          where: {
+            objectId_userId_assignmentRoleCode: {
+              objectId,
+              userId: user.id,
+              assignmentRoleCode: 'responsible',
+            },
+          },
+          update: {
+            isActive: true,
+          },
+          create: {
             objectId,
             userId: user.id,
             assignmentRoleCode: 'responsible',
+            isActive: true,
           },
-        },
-        update: {
-          isActive: true,
-        },
-        create: {
-          objectId,
-          userId: user.id,
-          assignmentRoleCode: 'responsible',
-          isActive: true,
-        },
-      });
-    });
+        });
+      })
+      .catch((error: unknown) =>
+        this.rethrowResponsibleAssignmentError(error),
+      );
 
     await this.auditService.writeObjectAuditLog({
       objectId,
@@ -1186,5 +1199,18 @@ export class ObjectsService {
         assignments: mappedAssignments,
       }),
     };
+  }
+
+  private rethrowResponsibleAssignmentError(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ConflictException(
+        'Object already has another active responsible; reload and retry',
+      );
+    }
+
+    throw error;
   }
 }
