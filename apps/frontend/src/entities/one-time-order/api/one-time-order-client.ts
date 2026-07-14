@@ -71,6 +71,24 @@ export async function updateOneTimeOrder(
   });
 }
 
+export async function updateOneTimeOrderReview(
+  id: string,
+  payload: { reviewText: string | null; reviewRating: number | null },
+): Promise<OneTimeOrderItem> {
+  return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/review`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function clearOneTimeOrderReview(
+  id: string,
+): Promise<OneTimeOrderItem> {
+  return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/review`, {
+    method: 'DELETE',
+  });
+}
+
 export async function changeOneTimeOrderStatus(
   id: string,
   status: string,

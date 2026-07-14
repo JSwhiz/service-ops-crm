@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -26,6 +27,7 @@ import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-respons
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
 import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
+import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.dto';
 import { buildOneTimeOrderCapabilities, canOpenLinkedObjectCard } from './utils/one-time-order-capabilities.util';
 import {
   formatBusinessDate,
@@ -80,6 +82,10 @@ interface OneTimeOrderView {
   agreedSum: number | null;
   financialNotes: string | null;
   expenseNotes: string | null;
+  reviewText: string | null;
+  reviewRating: number | null;
+  reviewUpdatedAt: Date | null;
+  reviewUpdatedByUserId: string | null;
   createdByUserId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -88,6 +94,11 @@ interface OneTimeOrderView {
     login: string;
     fullName: string;
   };
+  reviewUpdatedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
   linkedObject:
     | {
         id: string;
@@ -444,6 +455,90 @@ export class OneTimeOrdersService {
         },
       });
     }
+
+    return this.mapOrder(updated, currentUser);
+  }
+
+  async updateReview(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: UpdateOneTimeOrderReviewDto,
+  ): Promise<OneTimeOrderResponseDto> {
+    const existing = await this.getOrderForReviewChange(currentUser, id);
+    const reviewText = payload.reviewText?.trim() || null;
+    const reviewRating = payload.reviewRating ?? null;
+
+    if (reviewText === null && reviewRating === null) {
+      throw new BadRequestException(
+        'Review text or rating must be provided; use DELETE to clear review',
+      );
+    }
+
+    const updated = (await this.prisma.oneTimeOrder.update({
+      where: { id },
+      data: {
+        reviewText,
+        reviewRating,
+        reviewUpdatedAt: new Date(),
+        reviewUpdatedByUserId: currentUser.id,
+      },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView;
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.review_updated',
+      oldValues: {
+        reviewText: existing.reviewText,
+        reviewRating: existing.reviewRating,
+      },
+      newValues: {
+        reviewText: updated.reviewText,
+        reviewRating: updated.reviewRating,
+      },
+      metadata: {
+        actorUserId: currentUser.id,
+      },
+    });
+
+    return this.mapOrder(updated, currentUser);
+  }
+
+  async clearReview(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderResponseDto> {
+    const existing = await this.getOrderForReviewChange(currentUser, id);
+    const updated = (await this.prisma.oneTimeOrder.update({
+      where: { id },
+      data: {
+        reviewText: null,
+        reviewRating: null,
+        reviewUpdatedAt: null,
+        reviewUpdatedByUserId: null,
+      },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView;
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.review_cleared',
+      oldValues: {
+        reviewText: existing.reviewText,
+        reviewRating: existing.reviewRating,
+      },
+      newValues: {
+        reviewText: null,
+        reviewRating: null,
+      },
+      metadata: {
+        actorUserId: currentUser.id,
+      },
+    });
 
     return this.mapOrder(updated, currentUser);
   }
@@ -860,6 +955,36 @@ export class OneTimeOrdersService {
     return order;
   }
 
+  private async getOrderForReviewChange(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderView> {
+    const order = (await this.prisma.oneTimeOrder.findFirst({
+      where: {
+        id,
+        ...(await this.buildVisibilityWhere(currentUser)),
+      },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView | null;
+
+    if (!order) {
+      throw new NotFoundException('One-time order not found');
+    }
+
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+      order,
+    });
+
+    if (!capabilities.canEditReview) {
+      throw new ForbiddenException('One-time order review edit denied');
+    }
+
+    return order;
+  }
+
   private async getOrderForManagerChange(
     currentUser: CurrentAuthUser,
     id: string,
@@ -982,6 +1107,13 @@ export class OneTimeOrdersService {
           fullName: true,
         },
       },
+      reviewUpdatedBy: {
+        select: {
+          id: true,
+          login: true,
+          fullName: true,
+        },
+      },
       linkedObject: {
         select: {
           id: true,
@@ -1051,6 +1183,16 @@ export class OneTimeOrdersService {
       agreedSum: order.agreedSum,
       financialNotes: order.financialNotes,
       expenseNotes: order.expenseNotes,
+      reviewText: order.reviewText,
+      reviewRating: order.reviewRating,
+      reviewUpdatedAt: order.reviewUpdatedAt?.toISOString() ?? null,
+      reviewUpdatedBy: order.reviewUpdatedBy
+        ? {
+            id: order.reviewUpdatedBy.id,
+            login: order.reviewUpdatedBy.login,
+            fullName: order.reviewUpdatedBy.fullName,
+          }
+        : null,
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
       createdBy: {

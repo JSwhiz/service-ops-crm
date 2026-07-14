@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   assignOneTimeOrderManager,
   changeOneTimeOrderStatus,
+  clearOneTimeOrderReview,
   createOneTimeOrderPhoto,
   createOneTimeOrderComment,
   getOneTimeOrderById,
@@ -16,6 +17,7 @@ import {
   removeOneTimeOrderManager,
   upsertTodayOneTimeOrderDailyReport,
   updateOneTimeOrder,
+  updateOneTimeOrderReview,
 } from '@/entities/one-time-order/api/one-time-order-client';
 import type {
   OneTimeOrderCommentItem,
@@ -52,6 +54,7 @@ import { OneTimeOrderFilesPanel } from '@/features/one-time-order-files/ui/one-t
 import { OneTimeOrderDailyReportPanel } from '@/features/one-time-order-report/ui/one-time-order-daily-report-panel';
 import { OneTimeOrderPhotosPanel } from '@/features/one-time-order-photos/ui/one-time-order-photos-panel';
 import { OneTimeOrderTasksPanel } from '@/features/one-time-order-tasks/ui/one-time-order-tasks-panel';
+import { OneTimeOrderReviewPanel } from '@/features/one-time-order-review/ui/one-time-order-review-panel';
 import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-scope-panel';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
@@ -243,6 +246,20 @@ export default function OneTimeOrderDetailPage({
       ) : item ? (
         <div className="page-stack">
           <OneTimeOrderSummaryCard item={item} />
+
+          <OneTimeOrderReviewPanel
+            item={item}
+            onSave={async (payload) => {
+              const updated = await updateOneTimeOrderReview(item.id, payload);
+              setItem(updated);
+              await loadAll(item.id);
+            }}
+            onClear={async () => {
+              const updated = await clearOneTimeOrderReview(item.id);
+              setItem(updated);
+              await loadAll(item.id);
+            }}
+          />
 
           <div className="page-card">
             <div className="section-header" style={{ paddingBottom: 0 }}>

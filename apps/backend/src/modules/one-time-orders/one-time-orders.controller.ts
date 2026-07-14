@@ -29,6 +29,7 @@ import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-respons
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
 import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
+import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.dto';
 import { OneTimeOrdersService } from './one-time-orders.service';
 
 interface CurrentAuthUser {
@@ -77,6 +78,23 @@ export class OneTimeOrdersController {
     @Body() payload: UpdateOneTimeOrderDto,
   ): Promise<OneTimeOrderResponseDto> {
     return this.oneTimeOrdersService.updateOrder(user, id, payload);
+  }
+
+  @Patch(':id/review')
+  updateReview(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: UpdateOneTimeOrderReviewDto,
+  ): Promise<OneTimeOrderResponseDto> {
+    return this.oneTimeOrdersService.updateReview(user, id, payload);
+  }
+
+  @Delete(':id/review')
+  clearReview(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<OneTimeOrderResponseDto> {
+    return this.oneTimeOrdersService.clearReview(user, id);
   }
 
   @Patch(':id/status')

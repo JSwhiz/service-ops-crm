@@ -34,6 +34,7 @@ export function OneTimeOrderListTable({
             <th style={thStyle}>Контакт</th>
             <th style={thStyle}>Дата</th>
             <th style={thStyle}>Сумма</th>
+            <th style={thStyle}>Отзыв</th>
             <th style={thStyle}>Менеджеры</th>
           </tr>
         </thead>
@@ -65,6 +66,18 @@ export function OneTimeOrderListTable({
                 {item.agreedSum !== null
                   ? `${item.agreedSum.toLocaleString('ru-RU')} ₽`
                   : '—'}
+              </td>
+              <td style={{ ...tdStyle, maxWidth: 240 }}>
+                <div>
+                  {item.reviewRating ? '★'.repeat(item.reviewRating) : '—'}
+                </div>
+                {item.reviewText ? (
+                  <div className="page-muted" title={item.reviewText}>
+                    {item.reviewText.length > 80
+                      ? `${item.reviewText.slice(0, 80)}…`
+                      : item.reviewText}
+                  </div>
+                ) : null}
               </td>
               <td style={tdStyle}>
                 {item.managers.map(getUserDisplayName).join(', ') || '—'}

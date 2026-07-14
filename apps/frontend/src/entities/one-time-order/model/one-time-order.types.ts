@@ -21,6 +21,14 @@ export interface OneTimeOrderItem {
   agreedSum: number | null;
   financialNotes: string | null;
   expenseNotes: string | null;
+  reviewText: string | null;
+  reviewRating: number | null;
+  reviewUpdatedAt: string | null;
+  reviewUpdatedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   createdBy: {

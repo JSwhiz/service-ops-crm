@@ -34,6 +34,7 @@ model User {
   auditEvents                 AuditEvent[] @relation("AuditActor")
   createdObjects              Object[] @relation("ObjectCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
+  reviewedOneTimeOrders       OneTimeOrder[] @relation("OneTimeOrderReviewUpdatedBy")
   createdInventoryItems       InventoryItem[] @relation("InventoryItemCreatedBy")
   createdInventoryMovements   InventoryMovement[] @relation("InventoryMovementCreatedBy")
   resolvedInventoryMovementApprovals InventoryMovement[] @relation("InventoryMovementApprovalResolvedBy")
@@ -635,12 +636,17 @@ model OneTimeOrder {
   agreedSum         Int?
   financialNotes    String?
   expenseNotes      String?
+  reviewText        String?
+  reviewRating      Int?
+  reviewUpdatedAt   DateTime?
+  reviewUpdatedByUserId String?
   createdByUserId   String
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   linkedObject      Object?                @relation(fields: [linkedObjectId], references: [id], onDelete: SetNull)
   createdBy         User                   @relation("OneTimeOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  reviewUpdatedBy   User?                  @relation("OneTimeOrderReviewUpdatedBy", fields: [reviewUpdatedByUserId], references: [id], onDelete: SetNull)
   assignments       OneTimeOrderAssignment[]
   comments          OneTimeOrderComment[]
   dailyReports      OneTimeOrderDailyReport[]
@@ -654,6 +660,7 @@ model OneTimeOrder {
   @@index([linkedObjectId])
   @@index([status])
   @@index([createdByUserId])
+  @@index([reviewUpdatedByUserId])
   @@index([executionStartDate])
   @@index([executionEndDate])
   @@map("one_time_orders")
