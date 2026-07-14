@@ -11,10 +11,7 @@ import { buildAccountabilityGlobalCapabilities } from '../accountability/utils/a
 import { buildInventoryGlobalCapabilities } from '../inventory/utils/inventory-capabilities.util';
 import { buildEquipmentGlobalCapabilities } from '../equipment/utils/equipment-capabilities.util';
 import { buildChatGlobalCapabilities } from '../chats/utils/chat-capabilities.util';
-import {
-  canAccessOneTimeOrders,
-  canCreateOneTimeOrder,
-} from '../one-time-orders/utils/one-time-order-access.util';
+import { buildOneTimeOrderGlobalCapabilities } from '../one-time-orders/utils/one-time-order-capabilities.util';
 import { canCreateObject } from '../objects/utils/object-access.util';
 import { UsersService } from '../users-access/users.service';
 
@@ -198,6 +195,10 @@ export class AuthService {
       user.roleCodes,
     );
     const chatCapabilities = buildChatGlobalCapabilities(user.roleCodes);
+    const oneTimeOrderCapabilities = buildOneTimeOrderGlobalCapabilities({
+      roleCodes: user.roleCodes,
+      permissionCodes: user.permissionCodes,
+    });
 
     return {
       id: user.id,
@@ -219,8 +220,18 @@ export class AuthService {
         canResolveTimesheetApproval:
           approvalCapabilities.canResolveTimesheetApproval,
         canCreateObject: canCreateObject(user.roleCodes),
-        canAccessOneTimeOrders: canAccessOneTimeOrders(user.roleCodes),
-        canCreateOneTimeOrder: canCreateOneTimeOrder(user.roleCodes),
+        canAccessOneTimeOrders:
+          oneTimeOrderCapabilities.canAccessOneTimeOrders,
+        canCreateOneTimeOrder:
+          oneTimeOrderCapabilities.canCreateOneTimeOrder,
+        canViewOneTimeOrderCalendar:
+          oneTimeOrderCapabilities.canViewOneTimeOrderCalendar,
+        canManageOwnOneTimeOrderAvailability:
+          oneTimeOrderCapabilities.canManageOwnOneTimeOrderAvailability,
+        canManageAnyOneTimeOrderAvailability:
+          oneTimeOrderCapabilities.canManageAnyOneTimeOrderAvailability,
+        canApproveOneTimeOrderAvailability:
+          oneTimeOrderCapabilities.canApproveOneTimeOrderAvailability,
         canAccessEmployeesHr: canViewEmployeesHr(user.roleCodes),
         canManageEmployeesHr: canManageEmployeesHr(user.roleCodes),
         canAccessAccountability:

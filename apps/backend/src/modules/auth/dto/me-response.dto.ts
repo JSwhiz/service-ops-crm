@@ -15,6 +15,10 @@ export class MeResponseDto {
     canCreateObject: boolean;
     canAccessOneTimeOrders: boolean;
     canCreateOneTimeOrder: boolean;
+    canViewOneTimeOrderCalendar: boolean;
+    canManageOwnOneTimeOrderAvailability: boolean;
+    canManageAnyOneTimeOrderAvailability: boolean;
+    canApproveOneTimeOrderAvailability: boolean;
     canAccessEmployeesHr: boolean;
     canManageEmployeesHr: boolean;
     canAccessAccountability: boolean;

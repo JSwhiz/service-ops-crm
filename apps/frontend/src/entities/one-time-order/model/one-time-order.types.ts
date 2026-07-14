@@ -36,12 +36,23 @@ export interface OneTimeOrderItem {
   managers: OneTimeOrderManager[];
   capabilities: {
     canEdit: boolean;
+    canEditOperationalFields: boolean;
+    canEditFinancialFields: boolean;
     canChangeLinkedObject: boolean;
     canChangeStatus: boolean;
     canManageManagers: boolean;
+    canManageSpecification: boolean;
+    canUploadPhotos: boolean;
+    canDeletePhotos: boolean;
+    canRestorePhotos: boolean;
     canComment: boolean;
     canAttachFiles: boolean;
     canCreateTask: boolean;
+    canEditReview: boolean;
+    canViewCalendar: boolean;
+    canManageOwnAvailability: boolean;
+    canManageAnyAvailability: boolean;
+    canApproveAvailability: boolean;
   };
 }
 

@@ -45,6 +45,7 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
@@ -222,7 +223,7 @@ export class OneTimeOrdersService {
   ): Promise<OneTimeOrderResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canCreateOneTimeOrder(roleCodes)) {
+    if (!canCreateOneTimeOrder(roleCodes, this.getPermissionCodes(currentUser))) {
       throw new ForbiddenException('One-time order creation denied');
     }
 
@@ -315,8 +316,33 @@ export class OneTimeOrdersService {
     const capabilities = buildOneTimeOrderCapabilities({
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
       order: existing,
     });
+
+    const hasOperationalUpdate = [
+      payload.title,
+      payload.executionAddress,
+      payload.description,
+      payload.executionDate,
+      payload.executionStartDate,
+      payload.executionEndDate,
+      payload.contactName,
+      payload.contactPhone,
+    ].some((value) => value !== undefined);
+    const hasFinancialUpdate = [
+      payload.agreedSum,
+      payload.financialNotes,
+      payload.expenseNotes,
+    ].some((value) => value !== undefined);
+
+    if (hasOperationalUpdate && !capabilities.canEditOperationalFields) {
+      throw new ForbiddenException('One-time order operational edit denied');
+    }
+
+    if (hasFinancialUpdate && !capabilities.canEditFinancialFields) {
+      throw new ForbiddenException('One-time order financial edit denied');
+    }
 
     const isLinkedObjectChanging =
       payload.linkedObjectId !== undefined &&
@@ -428,6 +454,16 @@ export class OneTimeOrdersService {
     payload: ChangeOneTimeOrderStatusDto,
   ): Promise<OneTimeOrderResponseDto> {
     const existing = await this.getOrderForWrite(currentUser, id);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+      order: existing,
+    });
+
+    if (!capabilities.canChangeStatus) {
+      throw new ForbiddenException('One-time order status change denied');
+    }
 
     if (existing.status === payload.status) {
       return this.mapOrder(existing, currentUser);
@@ -576,6 +612,7 @@ export class OneTimeOrdersService {
     const capabilities = buildOneTimeOrderCapabilities({
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
       order,
     });
 
@@ -812,6 +849,7 @@ export class OneTimeOrdersService {
     const capabilities = buildOneTimeOrderCapabilities({
       currentUserId: currentUser.id,
       roleCodes,
+      permissionCodes: this.getPermissionCodes(currentUser),
       order,
     });
 
@@ -835,7 +873,14 @@ export class OneTimeOrdersService {
       throw new NotFoundException('One-time order not found');
     }
 
-    if (!canManageOneTimeOrderManagers(this.getRoleCodes(currentUser))) {
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+      order,
+    });
+
+    if (!capabilities.canManageManagers) {
       throw new ForbiddenException('One-time order manager management denied');
     }
 
@@ -845,7 +890,13 @@ export class OneTimeOrdersService {
   private async buildVisibilityWhere(currentUser: CurrentAuthUser) {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (hasWideOneTimeOrderAccess(roleCodes)) {
+    if (
+      hasWideOneTimeOrderAccess(roleCodes) ||
+      canManageOneTimeOrderManagers(
+        roleCodes,
+        this.getPermissionCodes(currentUser),
+      )
+    ) {
       return {};
     }
 
@@ -974,6 +1025,7 @@ export class OneTimeOrdersService {
     const capabilities = buildOneTimeOrderCapabilities({
       currentUserId: currentUser.id,
       roleCodes,
+      permissionCodes: this.getPermissionCodes(currentUser),
       order,
     });
 
@@ -1172,6 +1224,10 @@ export class OneTimeOrdersService {
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private getPermissionCodes(currentUser: CurrentAuthUser): string[] {
+    return currentUser.permissionCodes ?? [];
   }
 
   private startOfToday(): Date {

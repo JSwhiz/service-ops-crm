@@ -292,12 +292,15 @@ export default function OneTimeOrderDetailPage({
             </div>
           ) : null}
 
-          {item.capabilities.canEdit && editableInitialValue ? (
+          {item.capabilities.canEditOperationalFields && editableInitialValue ? (
             <OneTimeOrderForm
               objects={objectOptions}
               managerOptions={[]}
               initialValue={editableInitialValue}
               canSelectLinkedObject={canSelectLinkedObject}
+              canEditFinancialFields={
+                item.capabilities.canEditFinancialFields
+              }
               includeManagers={false}
               allowStatusEdit={false}
               submitLabel="Сохранить изменения"

@@ -17,6 +17,15 @@ export const WIDE_ONE_TIME_ORDER_VIEW_ROLE_CODES = [
 
 export const ONE_TIME_ORDER_MANAGEMENT_ROLE_CODES = LEADERSHIP_OBJECT_ROLE_CODES;
 
+export const ONE_TIME_ORDER_REVIEW_EDIT_PERMISSION =
+  'one_time_order.review.edit';
+export const ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION =
+  'one_time_order.calendar.approve_availability';
+export const ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION =
+  'one_time_order.calendar.manage';
+export const ONE_TIME_ORDER_MANAGE_ALL_PERMISSION =
+  'one_time_order.manage_all';
+
 function hasAnyRole(
   roleCodes: string[],
   allowed: readonly string[],
@@ -24,7 +33,7 @@ function hasAnyRole(
   return roleCodes.some((roleCode) => allowed.includes(roleCode as never));
 }
 
-function hasActiveOrderAssignment(
+export function hasActiveOneTimeOrderAssignment(
   order: {
     assignments: Array<{
       userId: string;
@@ -48,25 +57,49 @@ export function hasWideOneTimeOrderAccess(roleCodes: string[]): boolean {
   return hasAnyRole(roleCodes, WIDE_ONE_TIME_ORDER_VIEW_ROLE_CODES);
 }
 
-export function hasOneTimeOrderManagementAccess(
-  roleCodes: string[],
+export function hasOneTimeOrderPermission(
+  permissionCodes: string[] | undefined,
+  permissionCode: string,
 ): boolean {
-  return hasAnyRole(roleCodes, ONE_TIME_ORDER_MANAGEMENT_ROLE_CODES);
+  return (permissionCodes ?? []).includes(permissionCode);
 }
 
-export function canAccessOneTimeOrders(roleCodes: string[]): boolean {
+export function hasOneTimeOrderManagementAccess(
+  roleCodes: string[],
+  permissionCodes?: string[],
+): boolean {
   return (
+    hasAnyRole(roleCodes, ONE_TIME_ORDER_MANAGEMENT_ROLE_CODES) ||
+    hasOneTimeOrderPermission(
+      permissionCodes,
+      ONE_TIME_ORDER_MANAGE_ALL_PERMISSION,
+    )
+  );
+}
+
+export function canAccessOneTimeOrders(
+  roleCodes: string[],
+  permissionCodes?: string[],
+): boolean {
+  return (
+    hasOneTimeOrderManagementAccess(roleCodes, permissionCodes) ||
     hasWideOneTimeOrderAccess(roleCodes) ||
     hasAnyRole(roleCodes, ONE_TIME_ORDER_MANAGER_ROLE_CODES)
   );
 }
 
-export function canCreateOneTimeOrder(roleCodes: string[]): boolean {
-  return hasOneTimeOrderManagementAccess(roleCodes);
+export function canCreateOneTimeOrder(
+  roleCodes: string[],
+  permissionCodes?: string[],
+): boolean {
+  return hasOneTimeOrderManagementAccess(roleCodes, permissionCodes);
 }
 
-export function canManageOneTimeOrderManagers(roleCodes: string[]): boolean {
-  return hasOneTimeOrderManagementAccess(roleCodes);
+export function canManageOneTimeOrderManagers(
+  roleCodes: string[],
+  permissionCodes?: string[],
+): boolean {
+  return hasOneTimeOrderManagementAccess(roleCodes, permissionCodes);
 }
 
 export function canBeOneTimeOrderManager(roleCodes: string[]): boolean {
@@ -76,6 +109,7 @@ export function canBeOneTimeOrderManager(roleCodes: string[]): boolean {
 export function canViewOneTimeOrderByScope(params: {
   currentUserId: string;
   roleCodes: string[];
+  permissionCodes?: string[];
   order: {
     createdByUserId: string;
     assignments: Array<{
@@ -85,7 +119,10 @@ export function canViewOneTimeOrderByScope(params: {
     }>;
   };
 }): boolean {
-  if (hasWideOneTimeOrderAccess(params.roleCodes)) {
+  if (
+    hasWideOneTimeOrderAccess(params.roleCodes) ||
+    hasOneTimeOrderManagementAccess(params.roleCodes, params.permissionCodes)
+  ) {
     return true;
   }
 
@@ -93,12 +130,13 @@ export function canViewOneTimeOrderByScope(params: {
     return true;
   }
 
-  return hasActiveOrderAssignment(params.order, params.currentUserId);
+  return hasActiveOneTimeOrderAssignment(params.order, params.currentUserId);
 }
 
 export function canEditOneTimeOrderByScope(params: {
   currentUserId: string;
   roleCodes: string[];
+  permissionCodes?: string[];
   order: {
     createdByUserId: string;
     assignments: Array<{
@@ -109,15 +147,19 @@ export function canEditOneTimeOrderByScope(params: {
   };
 }): boolean {
   return (
-    hasOneTimeOrderManagementAccess(params.roleCodes) ||
+    hasOneTimeOrderManagementAccess(
+      params.roleCodes,
+      params.permissionCodes,
+    ) ||
     params.order.createdByUserId === params.currentUserId ||
-    hasActiveOrderAssignment(params.order, params.currentUserId)
+    hasActiveOneTimeOrderAssignment(params.order, params.currentUserId)
   );
 }
 
 export function canCreateTaskOnOneTimeOrder(params: {
   currentUserId: string;
   roleCodes: string[];
+  permissionCodes?: string[];
   order: {
     createdByUserId: string;
     assignments: Array<{
@@ -143,6 +185,6 @@ export function canAssignTaskToUserOnOneTimeOrder(params: {
 }): boolean {
   return (
     hasWideOneTimeOrderAccess(params.roleCodes) ||
-    hasActiveOrderAssignment(params.order, params.userId)
+    hasActiveOneTimeOrderAssignment(params.order, params.userId)
   );
 }

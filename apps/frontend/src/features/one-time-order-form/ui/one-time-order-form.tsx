@@ -34,6 +34,7 @@ export function OneTimeOrderForm({
   managerOptions,
   initialValue,
   canSelectLinkedObject,
+  canEditFinancialFields = true,
   includeManagers,
   allowStatusEdit,
   submitLabel,
@@ -43,6 +44,7 @@ export function OneTimeOrderForm({
   managerOptions: SystemUserOption[];
   initialValue?: Partial<CreateOneTimeOrderPayload>;
   canSelectLinkedObject: boolean;
+  canEditFinancialFields?: boolean;
   includeManagers: boolean;
   allowStatusEdit: boolean;
   submitLabel: string;
@@ -109,9 +111,13 @@ export function OneTimeOrderForm({
               : form.executionEndDate || null,
         contactName: form.contactName,
         contactPhone: form.contactPhone || undefined,
-        agreedSum: form.agreedSum ? Number(form.agreedSum) : undefined,
-        financialNotes: form.financialNotes || undefined,
-        expenseNotes: form.expenseNotes || undefined,
+        ...(canEditFinancialFields
+          ? {
+              agreedSum: form.agreedSum ? Number(form.agreedSum) : undefined,
+              financialNotes: form.financialNotes || undefined,
+              expenseNotes: form.expenseNotes || undefined,
+            }
+          : {}),
         ...(canSelectLinkedObject
           ? {
               linkedObjectId: form.linkedObjectId || null,
@@ -307,18 +313,20 @@ export function OneTimeOrderForm({
           />
         </label>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Согласованная сумма</div>
-          <input
-            type="number"
-            min={0}
-            value={form.agreedSum}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, agreedSum: event.target.value }))
-            }
-            style={{ width: '100%', padding: 10 }}
-          />
-        </label>
+        {canEditFinancialFields ? (
+          <label>
+            <div style={{ marginBottom: 6 }}>Согласованная сумма</div>
+            <input
+              type="number"
+              min={0}
+              value={form.agreedSum}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, agreedSum: event.target.value }))
+              }
+              style={{ width: '100%', padding: 10 }}
+            />
+          </label>
+        ) : null}
 
         <label style={{ gridColumn: '1 / -1' }}>
           <div style={{ marginBottom: 6 }}>Описание</div>
@@ -332,35 +340,39 @@ export function OneTimeOrderForm({
           />
         </label>
 
-        <label style={{ gridColumn: '1 / -1' }}>
-          <div style={{ marginBottom: 6 }}>Финансовые заметки</div>
-          <textarea
-            value={form.financialNotes}
-            onChange={(event) =>
-              setForm((prev) => ({
-                ...prev,
-                financialNotes: event.target.value,
-              }))
-            }
-            rows={3}
-            style={{ width: '100%', padding: 10, resize: 'vertical' }}
-          />
-        </label>
+        {canEditFinancialFields ? (
+          <>
+            <label style={{ gridColumn: '1 / -1' }}>
+              <div style={{ marginBottom: 6 }}>Финансовые заметки</div>
+              <textarea
+                value={form.financialNotes}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    financialNotes: event.target.value,
+                  }))
+                }
+                rows={3}
+                style={{ width: '100%', padding: 10, resize: 'vertical' }}
+              />
+            </label>
 
-        <label style={{ gridColumn: '1 / -1' }}>
-          <div style={{ marginBottom: 6 }}>Расходные заметки</div>
-          <textarea
-            value={form.expenseNotes}
-            onChange={(event) =>
-              setForm((prev) => ({
-                ...prev,
-                expenseNotes: event.target.value,
-              }))
-            }
-            rows={3}
-            style={{ width: '100%', padding: 10, resize: 'vertical' }}
-          />
-        </label>
+            <label style={{ gridColumn: '1 / -1' }}>
+              <div style={{ marginBottom: 6 }}>Расходные заметки</div>
+              <textarea
+                value={form.expenseNotes}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    expenseNotes: event.target.value,
+                  }))
+                }
+                rows={3}
+                style={{ width: '100%', padding: 10, resize: 'vertical' }}
+              />
+            </label>
+          </>
+        ) : null}
 
         {includeManagers ? (
           <div style={{ gridColumn: '1 / -1' }}>

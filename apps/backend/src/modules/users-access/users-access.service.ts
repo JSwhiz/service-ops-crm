@@ -26,6 +26,7 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
@@ -175,11 +176,18 @@ export class UsersAccessService {
     currentUser: CurrentAuthUser,
     oneTimeOrderId?: string,
   ): Promise<SystemUserOptionDto[]> {
-    if (oneTimeOrderId) {
-      await this.getOneTimeOrderWithAssignments(oneTimeOrderId);
-    }
+    const order = oneTimeOrderId
+      ? await this.getOneTimeOrderWithAssignments(oneTimeOrderId)
+      : null;
+    const isCreator = order?.createdByUserId === currentUser.id;
 
-    if (!canManageOneTimeOrderManagers(this.getRoleCodes(currentUser))) {
+    if (
+      !isCreator &&
+      !canManageOneTimeOrderManagers(
+        this.getRoleCodes(currentUser),
+        this.getPermissionCodes(currentUser),
+      )
+    ) {
       throw new ForbiddenException('One-time order manager candidate access denied');
     }
 
@@ -236,6 +244,7 @@ export class UsersAccessService {
       !canViewOneTimeOrderByScope({
         currentUserId: currentUser.id,
         roleCodes,
+        permissionCodes: this.getPermissionCodes(currentUser),
         order,
       })
     ) {
@@ -391,5 +400,9 @@ export class UsersAccessService {
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private getPermissionCodes(currentUser: CurrentAuthUser): string[] {
+    return currentUser.permissionCodes ?? [];
   }
 }
