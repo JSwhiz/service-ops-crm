@@ -5,6 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { FileDerivative } from '@prisma/client';
 import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -41,6 +42,8 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
   private readonly officeExecutable: string;
   private readonly tempDirectory: string;
   private readonly conversionTimeoutMs: number;
+  private readonly staleThresholdMs: number;
+  private readonly maxAttempts: number;
   private stopped = false;
   private workerClient: ReturnType<RedisService['getClient']> | null = null;
 
@@ -58,6 +61,12 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
     this.conversionTimeoutMs =
       this.configService.get<number>('filePreview.conversionTimeoutMs') ??
       45_000;
+    this.staleThresholdMs =
+      this.configService.get<number>('filePreview.staleThresholdMs') ?? 180_000;
+    this.maxAttempts = Math.max(
+      1,
+      this.configService.get<number>('filePreview.maxAttempts') ?? 3,
+    );
     sharp.cache({ memory: 32, files: 0, items: 64 });
     sharp.concurrency(2);
   }
@@ -65,6 +74,7 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {
     this.workerClient = this.redisService.getClient().duplicate();
     await this.workerClient.connect();
+    await this.recoverPreviewJobs();
     void this.runWorkerLoop();
   }
 
@@ -92,7 +102,7 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       return null;
     }
 
-    const derivative = await this.prisma.fileDerivative.upsert({
+    let derivative = await this.prisma.fileDerivative.upsert({
       where: {
         fileId_derivativeType: {
           fileId: file.id,
@@ -107,7 +117,12 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    if (derivative.status === 'pending') {
+    derivative = await this.recoverStaleDerivative(derivative);
+
+    if (
+      derivative.status === 'pending' &&
+      derivative.attemptCount < this.maxAttempts
+    ) {
       await this.enqueue({ fileId: file.id, derivativeType });
     }
 
@@ -136,18 +151,147 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    if (derivative.status === 'ready' || derivative.status === 'processing') {
+    if (
+      derivative.status === 'ready' ||
+      (derivative.status === 'processing' && !this.isStale(derivative))
+    ) {
       return;
     }
 
-    await this.prisma.fileDerivative.update({
-      where: { id: derivative.id },
+    const reset = await this.prisma.fileDerivative.updateMany({
+      where: {
+        id: derivative.id,
+        status: { in: ['failed', 'pending', 'processing'] },
+      },
       data: {
         status: 'pending',
         errorMessage: null,
+        processingStartedAt: null,
+        attemptCount: 0,
+        lastAttemptAt: null,
       },
     });
-    await this.enqueue({ fileId: file.id, derivativeType }, true);
+
+    if (reset.count === 1) {
+      await this.enqueue({ fileId: file.id, derivativeType }, true);
+    }
+  }
+
+  private async recoverPreviewJobs(): Promise<void> {
+    const staleBefore = this.getStaleBefore();
+    const exhausted = await this.prisma.fileDerivative.updateMany({
+      where: {
+        attemptCount: { gte: this.maxAttempts },
+        OR: [
+          { status: 'pending' },
+          {
+            status: 'processing',
+            processingStartedAt: { lte: staleBefore },
+          },
+        ],
+      },
+      data: {
+        status: 'failed',
+        processingStartedAt: null,
+        errorMessage: 'Preview retry limit reached',
+      },
+    });
+
+    if (exhausted.count > 0) {
+      this.logger.warn(
+        `Marked ${exhausted.count} exhausted preview jobs as failed`,
+      );
+    }
+
+    const recoverable = await this.prisma.fileDerivative.findMany({
+      where: {
+        attemptCount: { lt: this.maxAttempts },
+        OR: [
+          { status: 'pending' },
+          {
+            status: 'processing',
+            processingStartedAt: { lte: staleBefore },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        fileId: true,
+        derivativeType: true,
+        status: true,
+      },
+    });
+
+    for (const derivative of recoverable) {
+      if (derivative.status === 'processing') {
+        const released = await this.prisma.fileDerivative.updateMany({
+          where: {
+            id: derivative.id,
+            status: 'processing',
+            processingStartedAt: { lte: staleBefore },
+            attemptCount: { lt: this.maxAttempts },
+          },
+          data: {
+            status: 'pending',
+            processingStartedAt: null,
+            errorMessage: 'Recovered after interrupted processing',
+          },
+        });
+
+        if (released.count === 0) {
+          continue;
+        }
+      }
+
+      await this.enqueue(
+        {
+          fileId: derivative.fileId,
+          derivativeType: derivative.derivativeType as FileDerivativeType,
+        },
+        true,
+      );
+    }
+  }
+
+  private async recoverStaleDerivative(
+    derivative: FileDerivative,
+  ): Promise<FileDerivative> {
+    if (derivative.status !== 'processing' || !this.isStale(derivative)) {
+      return derivative;
+    }
+
+    if (derivative.attemptCount >= this.maxAttempts) {
+      return this.prisma.fileDerivative.update({
+        where: { id: derivative.id },
+        data: {
+          status: 'failed',
+          processingStartedAt: null,
+          errorMessage: 'Preview retry limit reached',
+        },
+      });
+    }
+
+    return this.prisma.fileDerivative.update({
+      where: { id: derivative.id },
+      data: {
+        status: 'pending',
+        processingStartedAt: null,
+        errorMessage: 'Recovered after interrupted processing',
+      },
+    });
+  }
+
+  private isStale(derivative: {
+    processingStartedAt: Date | null;
+  }): boolean {
+    return (
+      derivative.processingStartedAt !== null &&
+      derivative.processingStartedAt.getTime() <= this.getStaleBefore().getTime()
+    );
+  }
+
+  private getStaleBefore(): Date {
+    return new Date(Date.now() - this.staleThresholdMs);
   }
 
   private async enqueue(job: PreviewJob, force = false): Promise<void> {
@@ -204,6 +348,9 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       data: {
         status: 'processing',
         errorMessage: null,
+        processingStartedAt: new Date(),
+        lastAttemptAt: new Date(),
+        attemptCount: { increment: 1 },
       },
     });
 
@@ -241,6 +388,7 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
         },
         data: {
           status: 'failed',
+          processingStartedAt: null,
           errorMessage: this.getErrorMessage(error).slice(0, 1000),
         },
       });
@@ -283,6 +431,7 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
       },
       data: {
         status: 'ready',
+        processingStartedAt: null,
         objectKey,
         mimeType: 'image/webp',
         sizeBytes: result.data.length,
@@ -334,6 +483,7 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
         },
         data: {
           status: 'ready',
+          processingStartedAt: null,
           objectKey,
           mimeType: 'application/pdf',
           sizeBytes: pdf.length,

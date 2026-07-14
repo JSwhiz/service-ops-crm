@@ -7,10 +7,11 @@ import {
   buildFileViewerUrl,
   getFileView,
   resolveFileApiUrl,
+  retryFilePreview,
 } from '@/entities/file/api/file-client';
 import type { AttachedFile, FileView } from '@/entities/file/model/file.types';
 
-const PREVIEW_POLL_ATTEMPTS = 12;
+const PREVIEW_POLL_ATTEMPTS = 40;
 
 function formatFileSize(size: number): string {
   return size < 1024 * 1024
@@ -26,6 +27,8 @@ function getFileTypeLabel(file: AttachedFile): string {
 function AttachmentPreviewCard({ file }: { file: AttachedFile }): React.JSX.Element {
   const [view, setView] = useState<FileView | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [pollingRun, setPollingRun] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +70,21 @@ function AttachmentPreviewCard({ file }: { file: AttachedFile }): React.JSX.Elem
         window.clearTimeout(timeoutId);
       }
     };
-  }, [file.id]);
+  }, [file.id, pollingRun]);
+
+  const handleRetry = async (): Promise<void> => {
+    setIsRetrying(true);
+    setLoadFailed(false);
+
+    try {
+      setView(await retryFilePreview(file.id));
+      setPollingRun((current) => current + 1);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const viewerUrl = buildFileViewerUrl(file.id);
   const downloadUrl = buildFileDownloadUrl(file.id);
@@ -104,6 +121,15 @@ function AttachmentPreviewCard({ file }: { file: AttachedFile }): React.JSX.Elem
         >
           Скачать
         </a>
+        {view?.previewStatus === 'failed' && view.previewType !== 'unsupported' ? (
+          <button
+            type="button"
+            disabled={isRetrying}
+            onClick={() => void handleRetry()}
+          >
+            {isRetrying ? 'Повторяем…' : 'Повторить'}
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -142,6 +168,15 @@ function AttachmentPreviewCard({ file }: { file: AttachedFile }): React.JSX.Elem
           Открыть
         </a>
         <a href={downloadUrl}>Скачать</a>
+        {view?.previewStatus === 'failed' && view.previewType !== 'unsupported' ? (
+          <button
+            type="button"
+            disabled={isRetrying}
+            onClick={() => void handleRetry()}
+          >
+            {isRetrying ? 'Повторяем…' : 'Повторить'}
+          </button>
+        ) : null}
       </span>
     </div>
   );

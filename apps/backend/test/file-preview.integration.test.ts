@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -203,6 +204,107 @@ test('file previews are private, inline-safe and derivative-backed', async (t) =
     1,
   );
 
+  const activeProcessingStartedAt = new Date();
+  await prisma.fileDerivative.update({
+    where: {
+      fileId_derivativeType: {
+        fileId: office.id,
+        derivativeType: 'preview_pdf',
+      },
+    },
+    data: {
+      status: 'processing',
+      processingStartedAt: activeProcessingStartedAt,
+      attemptCount: 1,
+      lastAttemptAt: activeProcessingStartedAt,
+      errorMessage: null,
+    },
+  });
+  const duplicateRetryResponse = await fetch(
+    `${baseUrl}/api/v1/files/${office.id}/preview/retry`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(duplicateRetryResponse.status, 201);
+  assert.equal(
+    ((await duplicateRetryResponse.json()) as { previewStatus: string })
+      .previewStatus,
+    'processing',
+  );
+  const activeDerivative = await prisma.fileDerivative.findFirstOrThrow({
+    where: { fileId: office.id },
+  });
+  assert.equal(activeDerivative.status, 'processing');
+  assert.equal(activeDerivative.attemptCount, 1);
+
+  await prisma.fileDerivative.update({
+    where: { id: activeDerivative.id },
+    data: {
+      status: 'processing',
+      processingStartedAt: new Date(Date.now() - 10 * 60_000),
+      attemptCount: 2,
+    },
+  });
+  const staleViewResponse = await fetch(
+    `${baseUrl}/api/v1/files/${office.id}/view`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(staleViewResponse.status, 200);
+  assert.equal(
+    ((await staleViewResponse.json()) as { previewStatus: string })
+      .previewStatus,
+    'pending',
+  );
+  await waitForStatus(office.id, ['failed']);
+  const retriedStaleDerivative =
+    await prisma.fileDerivative.findUniqueOrThrow({
+      where: { id: activeDerivative.id },
+    });
+  assert.equal(retriedStaleDerivative.attemptCount, 3);
+  assert.equal(retriedStaleDerivative.processingStartedAt, null);
+  assert.ok(retriedStaleDerivative.lastAttemptAt);
+
+  await prisma.fileDerivative.update({
+    where: { id: activeDerivative.id },
+    data: {
+      status: 'processing',
+      processingStartedAt: new Date(Date.now() - 10 * 60_000),
+      attemptCount: 3,
+      errorMessage: null,
+    },
+  });
+  const exhaustedViewResponse = await fetch(
+    `${baseUrl}/api/v1/files/${office.id}/view`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(exhaustedViewResponse.status, 200);
+  const exhaustedView = (await exhaustedViewResponse.json()) as {
+    previewStatus: string;
+    errorMessage: string | null;
+  };
+  assert.equal(exhaustedView.previewStatus, 'failed');
+  assert.match(exhaustedView.errorMessage ?? '', /retry limit/i);
+
+  const manualRetryResponse = await fetch(
+    `${baseUrl}/api/v1/files/${office.id}/preview/retry`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie },
+    },
+  );
+  assert.equal(manualRetryResponse.status, 201);
+  await waitForStatus(office.id, ['failed']);
+  assert.equal(
+    (
+      await prisma.fileDerivative.findUniqueOrThrow({
+        where: { id: activeDerivative.id },
+      })
+    ).attemptCount,
+    1,
+  );
+
   const derivativeObjectKey = `derivatives/${office.id}/test-preview.pdf`;
   const derivativePdf = Buffer.from('%PDF-1.4\ntest derivative\n%%EOF\n');
   await storage.uploadObject({
@@ -251,4 +353,69 @@ test('file previews are private, inline-safe and derivative-backed', async (t) =
     { headers: { Cookie: founderCookie } },
   );
   assert.equal(svgPreviewResponse.status, 415);
+});
+
+test('file preview worker recovers stale jobs on startup', async (t) => {
+  const prisma = new PrismaClient();
+  const fileIds: [string, string] = [randomUUID(), randomUUID()];
+  const staleAt = new Date(Date.now() - 10 * 60_000);
+
+  await prisma.file.createMany({
+    data: fileIds.map((id) => ({
+      id,
+      bucket: 'service-ops-files',
+      objectKey: `tests/missing-preview-source-${id}`,
+      originalName: 'missing.docx',
+      mimeType:
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      sizeBytes: 1,
+    })),
+  });
+  await prisma.fileDerivative.createMany({
+    data: [
+      {
+        fileId: fileIds[0],
+        derivativeType: 'preview_pdf',
+        status: 'processing',
+        processingStartedAt: staleAt,
+        attemptCount: 1,
+      },
+      {
+        fileId: fileIds[1],
+        derivativeType: 'preview_pdf',
+        status: 'processing',
+        processingStartedAt: staleAt,
+        attemptCount: 3,
+      },
+    ],
+  });
+
+  const { app } = await createTestApp();
+
+  t.after(async () => {
+    await app.close();
+    await prisma.file.deleteMany({ where: { id: { in: fileIds } } });
+    await prisma.$disconnect();
+  });
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const derivatives = await prisma.fileDerivative.findMany({
+      where: { fileId: { in: fileIds } },
+      orderBy: { fileId: 'asc' },
+    });
+
+    if (derivatives.every((item) => item.status === 'failed')) {
+      const recovered = derivatives.find((item) => item.fileId === fileIds[0]);
+      const exhausted = derivatives.find((item) => item.fileId === fileIds[1]);
+      assert.equal(recovered?.attemptCount, 2);
+      assert.equal(recovered?.processingStartedAt, null);
+      assert.equal(exhausted?.attemptCount, 3);
+      assert.match(exhausted?.errorMessage ?? '', /retry limit/i);
+      return;
+    }
+
+    await delay(100);
+  }
+
+  assert.fail('Startup recovery did not finish stale preview jobs');
 });

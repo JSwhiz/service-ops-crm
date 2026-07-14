@@ -10,7 +10,7 @@ import {
 } from '@/entities/file/api/file-client';
 import type { FileView } from '@/entities/file/model/file.types';
 
-const VIEW_POLL_ATTEMPTS = 30;
+const VIEW_POLL_ATTEMPTS = 40;
 
 function formatFileSize(size: number): string {
   return size < 1024 * 1024
@@ -27,6 +27,7 @@ export default function FileViewerPage(): React.JSX.Element {
   const [textTruncated, setTextTruncated] = useState(false);
   const [showOriginalSize, setShowOriginalSize] = useState(false);
   const [pollTimedOut, setPollTimedOut] = useState(false);
+  const [pollingRun, setPollingRun] = useState(0);
 
   const loadView = useCallback(async (): Promise<FileView> => {
     const nextView = await getFileView(fileId);
@@ -80,7 +81,7 @@ export default function FileViewerPage(): React.JSX.Element {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [loadView]);
+  }, [loadView, pollingRun]);
 
   useEffect(() => {
     if (
@@ -133,6 +134,7 @@ export default function FileViewerPage(): React.JSX.Element {
 
     try {
       setView(await retryFilePreview(fileId));
+      setPollingRun((current) => current + 1);
     } catch (retryError) {
       setError(
         retryError instanceof Error
@@ -186,7 +188,13 @@ export default function FileViewerPage(): React.JSX.Element {
           <div className="file-viewer-state">
             <strong>Предпросмотр документа формируется…</strong>
             {pollTimedOut ? (
-              <button type="button" onClick={() => void loadView()}>
+              <button
+                type="button"
+                onClick={() => {
+                  setPollTimedOut(false);
+                  setPollingRun((current) => current + 1);
+                }}
+              >
                 Обновить статус
               </button>
             ) : (

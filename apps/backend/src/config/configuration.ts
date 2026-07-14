@@ -39,6 +39,10 @@ export default () => ({
     conversionTimeoutMs: Number(
       process.env.FILE_PREVIEW_CONVERSION_TIMEOUT_MS ?? '45000',
     ),
+    staleThresholdMs: Number(
+      process.env.FILE_PREVIEW_STALE_THRESHOLD_MS ?? '180000',
+    ),
+    maxAttempts: Number(process.env.FILE_PREVIEW_MAX_ATTEMPTS ?? '3'),
   },
   bootstrap: {
     firstAdminLogin: process.env.FIRST_ADMIN_LOGIN ?? 'founder',
