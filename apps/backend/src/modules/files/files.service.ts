@@ -683,11 +683,7 @@ export class FilesService {
           entityId,
         );
       case 'one_time_order_photo':
-        return this.canAccessOneTimeOrderScopedEntity(
-          currentUser,
-          'oneTimeOrderPhoto',
-          entityId,
-        );
+        return this.canAccessOneTimeOrderPhoto(currentUser, entityId, 'read');
       case 'one_time_order_specification_item':
         return this.canAccessOneTimeOrderSpecificationItem(
           currentUser,
@@ -746,12 +742,7 @@ export class FilesService {
           'write',
         );
       case 'one_time_order_photo':
-        return this.canAccessOneTimeOrderScopedEntity(
-          currentUser,
-          'oneTimeOrderPhoto',
-          entityId,
-          'write',
-        );
+        return this.canAccessOneTimeOrderPhoto(currentUser, entityId, 'write');
       case 'one_time_order_specification_item':
         return this.canAccessOneTimeOrderSpecificationItem(
           currentUser,
@@ -1194,12 +1185,39 @@ export class FilesService {
     );
   }
 
+  private async canAccessOneTimeOrderPhoto(
+    currentUser: CurrentAuthUser,
+    entityId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const photo = await this.prisma.oneTimeOrderPhoto.findFirst({
+      where: { id: entityId },
+      select: {
+        oneTimeOrderId: true,
+        deletedAt: true,
+      },
+    });
+
+    if (!photo) {
+      throw new NotFoundException('Attachment target one-time order photo not found');
+    }
+
+    if (photo.deletedAt) {
+      return false;
+    }
+
+    return this.canAccessOneTimeOrder(
+      currentUser,
+      photo.oneTimeOrderId,
+      mode,
+    );
+  }
+
   private async canAccessOneTimeOrderScopedEntity(
     currentUser: CurrentAuthUser,
     modelName:
       | 'oneTimeOrderComment'
-      | 'oneTimeOrderDailyReport'
-      | 'oneTimeOrderPhoto',
+      | 'oneTimeOrderDailyReport',
     entityId: string,
     mode: 'read' | 'write' = 'read',
   ): Promise<boolean> {
@@ -1208,9 +1226,6 @@ export class FilesService {
         findFirst(args: unknown): Promise<{ oneTimeOrderId: string } | null>;
       };
       oneTimeOrderDailyReport: {
-        findFirst(args: unknown): Promise<{ oneTimeOrderId: string } | null>;
-      };
-      oneTimeOrderPhoto: {
         findFirst(args: unknown): Promise<{ oneTimeOrderId: string } | null>;
       };
     })[modelName];

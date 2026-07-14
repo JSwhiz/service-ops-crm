@@ -22,6 +22,7 @@ import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-commen
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
 import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
+import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
@@ -233,8 +234,13 @@ export class OneTimeOrdersController {
   listPhotos(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
+    @Query('includeDeleted') includeDeleted?: string,
   ): Promise<OneTimeOrderPhotoResponseDto[]> {
-    return this.oneTimeOrdersService.listPhotos(user, id);
+    return this.oneTimeOrdersService.listPhotos(
+      user,
+      id,
+      includeDeleted === 'true',
+    );
   }
 
   @Post(':id/photos')
@@ -244,6 +250,25 @@ export class OneTimeOrdersController {
     @Body() payload: CreateOneTimeOrderPhotoDto,
   ): Promise<OneTimeOrderPhotoResponseDto> {
     return this.oneTimeOrdersService.createPhoto(user, id, payload);
+  }
+
+  @Delete(':id/photos/:photoId')
+  deletePhoto(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('photoId') photoId: string,
+    @Body() payload: DeleteOneTimeOrderPhotoDto,
+  ): Promise<OneTimeOrderPhotoResponseDto> {
+    return this.oneTimeOrdersService.deletePhoto(user, id, photoId, payload);
+  }
+
+  @Post(':id/photos/:photoId/restore')
+  restorePhoto(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('photoId') photoId: string,
+  ): Promise<OneTimeOrderPhotoResponseDto> {
+    return this.oneTimeOrdersService.restorePhoto(user, id, photoId);
   }
 
   @Post(':id/comments')

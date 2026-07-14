@@ -60,6 +60,8 @@ model User {
   updatedDailyReports         ObjectDailyReport[] @relation("ObjectDailyReportUpdatedBy")
   updatedOneTimeOrderDailyReports OneTimeOrderDailyReport[] @relation("OneTimeOrderDailyReportUpdatedBy")
   createdOneTimeOrderPhotos   OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoCreatedBy")
+  deletedOneTimeOrderPhotos   OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoDeletedBy")
+  restoredOneTimeOrderPhotos  OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoRestoredBy")
   createdTasks                Task[] @relation("TaskCreatedBy")
   taskAssignments             TaskAssignee[]
   submittedTaskResults        Task[] @relation("TaskSubmittedBy")
@@ -751,18 +753,28 @@ model OneTimeOrderDailyReport {
 }
 
 model OneTimeOrderPhoto {
-  id                String   @id @default(uuid())
-  oneTimeOrderId    String
-  photoCategory     String
-  comment           String?
-  createdByUserId   String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  oneTimeOrderId     String
+  photoCategory      String
+  comment            String?
+  createdByUserId    String
+  deletedAt          DateTime?
+  deletedByUserId    String?
+  deleteReason       String?
+  restoredAt         DateTime?
+  restoredByUserId   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
   createdBy    User         @relation("OneTimeOrderPhotoCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  deletedBy    User?        @relation("OneTimeOrderPhotoDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  restoredBy   User?        @relation("OneTimeOrderPhotoRestoredBy", fields: [restoredByUserId], references: [id], onDelete: SetNull)
 
   @@index([oneTimeOrderId, createdAt])
+  @@index([oneTimeOrderId, deletedAt])
+  @@index([deletedByUserId])
+  @@index([restoredByUserId])
   @@index([photoCategory])
   @@map("one_time_order_photos")
 }

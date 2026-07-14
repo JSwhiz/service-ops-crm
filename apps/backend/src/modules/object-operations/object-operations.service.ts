@@ -503,7 +503,11 @@ export class ObjectOperationsService {
           select: {
             comments: true,
             dailyReports: true,
-            photos: true,
+            photos: {
+              where: {
+                deletedAt: null,
+              },
+            },
             tasks: true,
           },
         },

@@ -16,6 +16,8 @@ export function OneTimeOrderPhotosPanel({
   items,
   canCreate,
   onCreate,
+  onDelete,
+  onRestore,
 }: {
   items: OneTimeOrderPhotoItem[];
   canCreate: boolean;
@@ -24,12 +26,17 @@ export function OneTimeOrderPhotosPanel({
     comment?: string;
     files: File[];
   }) => Promise<void>;
+  onDelete: (photoId: string, reason?: string) => Promise<void>;
+  onRestore: (photoId: string) => Promise<void>;
 }): React.JSX.Element {
   const [category, setCategory] = useState('before');
   const [comment, setComment] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [busyPhotoId, setBusyPhotoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const activeItems = items.filter((item) => !item.deletedAt);
+  const deletedItems = items.filter((item) => !!item.deletedAt);
 
   return (
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>
@@ -128,11 +135,11 @@ export function OneTimeOrderPhotosPanel({
         </form>
       ) : null}
 
-      {items.length === 0 ? (
+      {activeItems.length === 0 ? (
         <div className="page-muted">Фотографии заказа пока не загружены.</div>
       ) : (
         <div className="record-list local-scroll">
-          {items.map((item) => (
+          {activeItems.map((item) => (
             <article
               key={item.id}
               className="record-card"
@@ -161,10 +168,100 @@ export function OneTimeOrderPhotosPanel({
                 files={item.attachments}
                 emptyText="Фотографии в записи не найдены."
               />
+              {item.capabilities.canDelete ? (
+                <div className="action-row">
+                  <button
+                    type="button"
+                    disabled={busyPhotoId === item.id}
+                    onClick={async () => {
+                      if (!window.confirm('Удалить фото из карточки заказа?')) {
+                        return;
+                      }
+
+                      const reason = window.prompt(
+                        'Причина удаления (необязательно)',
+                        '',
+                      );
+
+                      if (reason === null) {
+                        return;
+                      }
+
+                      setError(null);
+                      setBusyPhotoId(item.id);
+                      try {
+                        await onDelete(item.id, reason.trim() || undefined);
+                      } catch {
+                        setError('Не удалось удалить фото заказа.');
+                      } finally {
+                        setBusyPhotoId(null);
+                      }
+                    }}
+                  >
+                    {busyPhotoId === item.id ? 'Удаляем...' : 'Удалить'}
+                  </button>
+                </div>
+              ) : null}
             </article>
           ))}
         </div>
       )}
+
+      {deletedItems.length > 0 ? (
+        <details>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+            Удалённые фото ({deletedItems.length})
+          </summary>
+          <div className="record-list local-scroll" style={{ marginTop: 12 }}>
+            {deletedItems.map((item) => (
+              <article
+                key={item.id}
+                className="record-card"
+                style={{ display: 'grid', gap: 8 }}
+              >
+                <div style={{ fontWeight: 600 }}>
+                  {getMediaCategoryLabel(item.category)}
+                </div>
+                <div className="page-muted">
+                  Удалено{' '}
+                  {item.deletedAt
+                    ? new Date(item.deletedAt).toLocaleString('ru-RU')
+                    : ''}
+                  {item.deletedBy
+                    ? ` · ${getUserDisplayName(item.deletedBy)}`
+                    : ''}
+                </div>
+                {item.deleteReason ? (
+                  <div>Причина: {item.deleteReason}</div>
+                ) : null}
+                {item.capabilities.canRestore ? (
+                  <div className="action-row">
+                    <button
+                      type="button"
+                      disabled={busyPhotoId === item.id}
+                      onClick={async () => {
+                        setError(null);
+                        setBusyPhotoId(item.id);
+                        try {
+                          await onRestore(item.id);
+                        } catch {
+                          setError('Не удалось восстановить фото заказа.');
+                        } finally {
+                          setBusyPhotoId(null);
+                        }
+                      }}
+                    >
+                      {busyPhotoId === item.id
+                        ? 'Восстанавливаем...'
+                        : 'Восстановить'}
+                    </button>
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

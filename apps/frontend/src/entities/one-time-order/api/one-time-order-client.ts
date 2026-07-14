@@ -255,10 +255,15 @@ export async function upsertTodayOneTimeOrderDailyReport(
 
 export async function listOneTimeOrderPhotos(
   id: string,
+  options?: { includeDeleted?: boolean },
 ): Promise<OneTimeOrderPhotoItem[]> {
-  return fetcher<OneTimeOrderPhotoItem[]>(`/one-time-orders/${id}/photos`, {
-    method: 'GET',
-  });
+  const query = options?.includeDeleted ? '?includeDeleted=true' : '';
+  return fetcher<OneTimeOrderPhotoItem[]>(
+    `/one-time-orders/${id}/photos${query}`,
+    {
+      method: 'GET',
+    },
+  );
 }
 
 export async function createOneTimeOrderPhoto(
@@ -272,4 +277,28 @@ export async function createOneTimeOrderPhoto(
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function deleteOneTimeOrderPhoto(
+  id: string,
+  photoId: string,
+  reason?: string,
+): Promise<OneTimeOrderPhotoItem> {
+  return fetcher<OneTimeOrderPhotoItem>(
+    `/one-time-orders/${id}/photos/${photoId}`,
+    {
+      method: 'DELETE',
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+export async function restoreOneTimeOrderPhoto(
+  id: string,
+  photoId: string,
+): Promise<OneTimeOrderPhotoItem> {
+  return fetcher<OneTimeOrderPhotoItem>(
+    `/one-time-orders/${id}/photos/${photoId}/restore`,
+    { method: 'POST' },
+  );
 }

@@ -21,6 +21,7 @@ import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-commen
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
 import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
+import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
@@ -139,11 +140,26 @@ interface OneTimeOrderPhotoView {
   comment: string | null;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
+  deletedByUserId: string | null;
+  deleteReason: string | null;
+  restoredAt: Date | null;
+  restoredByUserId: string | null;
   createdBy: {
     id: string;
     login: string;
     fullName: string;
   };
+  deletedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
+  restoredBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
 }
 
 interface OneTimeOrderSpecificationItemView {
@@ -1156,15 +1172,21 @@ export class OneTimeOrdersService {
   async listPhotos(
     currentUser: CurrentAuthUser,
     id: string,
+    includeDeleted = false,
   ): Promise<OneTimeOrderPhotoResponseDto[]> {
-    await this.getOrderById(currentUser, id);
+    const order = await this.getOrderById(currentUser, id);
+    const canIncludeDeleted =
+      includeDeleted && order.capabilities.canRestorePhotos;
 
     const items = (await this.prisma.oneTimeOrderPhoto.findMany({
       where: {
         oneTimeOrderId: id,
+        ...(!canIncludeDeleted ? { deletedAt: null } : {}),
       },
       include: {
         createdBy: true,
+        deletedBy: true,
+        restoredBy: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -1174,11 +1196,19 @@ export class OneTimeOrdersService {
 
     const attachmentsMap = await this.listAttachmentsByEntityIds(
       'one_time_order_photo',
-      items.map((item) => item.id),
+      items.filter((item) => !item.deletedAt).map((item) => item.id),
     );
 
     return items.map((item) =>
-      this.mapPhoto(item, attachmentsMap.get(item.id) ?? []),
+      this.mapPhoto(item, attachmentsMap.get(item.id) ?? [], {
+        canDelete:
+          !item.deletedAt &&
+          (order.capabilities.canDeletePhotos ||
+            (item.createdBy.id === currentUser.id &&
+              order.capabilities.canUploadPhotos)),
+        canRestore:
+          !!item.deletedAt && order.capabilities.canRestorePhotos,
+      }),
     );
   }
 
@@ -1187,7 +1217,17 @@ export class OneTimeOrdersService {
     id: string,
     payload: CreateOneTimeOrderPhotoDto,
   ): Promise<OneTimeOrderPhotoResponseDto> {
-    await this.getOrderForWrite(currentUser, id);
+    const order = await this.getOrderForWrite(currentUser, id);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+      order,
+    });
+
+    if (!capabilities.canUploadPhotos) {
+      throw new ForbiddenException('One-time order photo upload denied');
+    }
 
     const item = (await this.prisma.oneTimeOrderPhoto.create({
       data: {
@@ -1198,6 +1238,8 @@ export class OneTimeOrdersService {
       },
       include: {
         createdBy: true,
+        deletedBy: true,
+        restoredBy: true,
       },
     })) as OneTimeOrderPhotoView;
 
@@ -1212,7 +1254,133 @@ export class OneTimeOrdersService {
       },
     });
 
-    return this.mapPhoto(item, []);
+    return this.mapPhoto(item, [], {
+      canDelete: capabilities.canDeletePhotos || item.createdBy.id === currentUser.id,
+      canRestore: false,
+    });
+  }
+
+  async deletePhoto(
+    currentUser: CurrentAuthUser,
+    id: string,
+    photoId: string,
+    payload: DeleteOneTimeOrderPhotoDto,
+  ): Promise<OneTimeOrderPhotoResponseDto> {
+    const order = await this.getOrderForWrite(currentUser, id);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+      order,
+    });
+    const existing = await this.getPhoto(id, photoId);
+    const canDelete =
+      capabilities.canDeletePhotos ||
+      (existing.createdBy.id === currentUser.id && capabilities.canUploadPhotos);
+
+    if (!canDelete) {
+      throw new ForbiddenException('One-time order photo delete denied');
+    }
+
+    if (existing.deletedAt) {
+      return this.mapPhoto(existing, [], {
+        canDelete: false,
+        canRestore: capabilities.canRestorePhotos,
+      });
+    }
+
+    const deleteReason = payload.reason?.trim() || null;
+    const item = (await this.prisma.oneTimeOrderPhoto.update({
+      where: { id: photoId },
+      data: {
+        deletedAt: new Date(),
+        deletedByUserId: currentUser.id,
+        deleteReason,
+        restoredAt: null,
+        restoredByUserId: null,
+      },
+      include: {
+        createdBy: true,
+        deletedBy: true,
+        restoredBy: true,
+      },
+    })) as OneTimeOrderPhotoView;
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.photo_deleted',
+      metadata: {
+        photoId,
+        deleteReason,
+      },
+    });
+
+    return this.mapPhoto(item, [], {
+      canDelete: false,
+      canRestore: capabilities.canRestorePhotos,
+    });
+  }
+
+  async restorePhoto(
+    currentUser: CurrentAuthUser,
+    id: string,
+    photoId: string,
+  ): Promise<OneTimeOrderPhotoResponseDto> {
+    const order = await this.getOrderForWrite(currentUser, id);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+      order,
+    });
+
+    if (!capabilities.canRestorePhotos) {
+      throw new ForbiddenException('One-time order photo restore denied');
+    }
+
+    const existing = await this.getPhoto(id, photoId);
+
+    if (!existing.deletedAt) {
+      const attachments = await this.getPhotoAttachments(photoId);
+      return this.mapPhoto(existing, attachments, {
+        canDelete: capabilities.canDeletePhotos,
+        canRestore: false,
+      });
+    }
+
+    const item = (await this.prisma.oneTimeOrderPhoto.update({
+      where: { id: photoId },
+      data: {
+        deletedAt: null,
+        deletedByUserId: null,
+        deleteReason: null,
+        restoredAt: new Date(),
+        restoredByUserId: currentUser.id,
+      },
+      include: {
+        createdBy: true,
+        deletedBy: true,
+        restoredBy: true,
+      },
+    })) as OneTimeOrderPhotoView;
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.photo_restored',
+      metadata: {
+        photoId,
+        previousDeleteReason: existing.deleteReason,
+      },
+    });
+
+    return this.mapPhoto(item, await this.getPhotoAttachments(photoId), {
+      canDelete: capabilities.canDeletePhotos,
+      canRestore: false,
+    });
   }
 
   async listHistory(
@@ -1292,6 +1460,36 @@ export class OneTimeOrdersService {
     }
 
     return order;
+  }
+
+  private async getPhoto(
+    oneTimeOrderId: string,
+    photoId: string,
+  ): Promise<OneTimeOrderPhotoView> {
+    const item = (await this.prisma.oneTimeOrderPhoto.findFirst({
+      where: {
+        id: photoId,
+        oneTimeOrderId,
+      },
+      include: {
+        createdBy: true,
+        deletedBy: true,
+        restoredBy: true,
+      },
+    })) as OneTimeOrderPhotoView | null;
+
+    if (!item) {
+      throw new NotFoundException('One-time order photo not found');
+    }
+
+    return item;
+  }
+
+  private async getPhotoAttachments(photoId: string): Promise<FileResponseDto[]> {
+    const map = await this.listAttachmentsByEntityIds('one_time_order_photo', [
+      photoId,
+    ]);
+    return map.get(photoId) ?? [];
   }
 
   private async getOrderForReviewChange(
@@ -1754,6 +1952,10 @@ export class OneTimeOrdersService {
   private mapPhoto(
     item: OneTimeOrderPhotoView,
     attachments: FileResponseDto[],
+    capabilities: {
+      canDelete: boolean;
+      canRestore: boolean;
+    },
   ): OneTimeOrderPhotoResponseDto {
     return {
       id: item.id,
@@ -1767,7 +1969,25 @@ export class OneTimeOrdersService {
         login: item.createdBy.login,
         fullName: item.createdBy.fullName,
       },
-      attachments,
+      deletedAt: item.deletedAt?.toISOString() ?? null,
+      deletedBy: item.deletedBy
+        ? {
+            id: item.deletedBy.id,
+            login: item.deletedBy.login,
+            fullName: item.deletedBy.fullName,
+          }
+        : null,
+      deleteReason: item.deleteReason,
+      restoredAt: item.restoredAt?.toISOString() ?? null,
+      restoredBy: item.restoredBy
+        ? {
+            id: item.restoredBy.id,
+            login: item.restoredBy.login,
+            fullName: item.restoredBy.fullName,
+          }
+        : null,
+      capabilities,
+      attachments: item.deletedAt ? [] : attachments,
     };
   }
 

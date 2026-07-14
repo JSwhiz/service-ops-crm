@@ -9,12 +9,14 @@ import {
   clearOneTimeOrderReview,
   createOneTimeOrderPhoto,
   createOneTimeOrderComment,
+  deleteOneTimeOrderPhoto,
   getOneTimeOrderById,
   getTodayOneTimeOrderDailyReport,
   listOneTimeOrderComments,
   listOneTimeOrderHistory,
   listOneTimeOrderPhotos,
   removeOneTimeOrderManager,
+  restoreOneTimeOrderPhoto,
   upsertTodayOneTimeOrderDailyReport,
   updateOneTimeOrder,
   updateOneTimeOrderReview,
@@ -178,7 +180,9 @@ export default function OneTimeOrderDetailPage({
           setFiles(response);
         }
       }),
-      listOneTimeOrderPhotos(id).then((response) => {
+      listOneTimeOrderPhotos(id, {
+        includeDeleted: order.capabilities.canRestorePhotos,
+      }).then((response) => {
         if (!cancelled) {
           setPhotos(response);
         }
@@ -395,7 +399,7 @@ export default function OneTimeOrderDetailPage({
 
           <OneTimeOrderPhotosPanel
             items={photos}
-            canCreate={item.capabilities.canAttachFiles}
+            canCreate={item.capabilities.canUploadPhotos}
             onCreate={async (payload) => {
               const created = await createOneTimeOrderPhoto(item.id, {
                 category: payload.category,
@@ -412,6 +416,14 @@ export default function OneTimeOrderDetailPage({
                 ),
               );
 
+              await loadAll(item.id);
+            }}
+            onDelete={async (photoId, reason) => {
+              await deleteOneTimeOrderPhoto(item.id, photoId, reason);
+              await loadAll(item.id);
+            }}
+            onRestore={async (photoId) => {
+              await restoreOneTimeOrderPhoto(item.id, photoId);
               await loadAll(item.id);
             }}
           />
