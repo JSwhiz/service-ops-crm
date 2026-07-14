@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -16,10 +17,17 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { SubmitTaskResultDto } from './dto/submit-task-result.dto';
 import {
+  AddTaskAssigneesDto,
+  CompleteTaskAssignmentDto,
+  TaskReasonDto,
+} from './dto/task-lifecycle.dto';
+import { TaskHistoryEventResponseDto } from './dto/task-history-response.dto';
+import {
   TaskListResponseDto,
   TaskResponseDto,
 } from './dto/task-response.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
 import { TasksService } from './tasks.service';
 
 interface CurrentAuthUser {
@@ -69,6 +77,15 @@ export class TasksController {
     return this.tasksService.updateStatus(user, id, payload);
   }
 
+  @Patch('tasks/:id')
+  updateTask(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: UpdateTaskDto,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.updateTask(user, id, payload);
+  }
+
   @Post('tasks/:id/result')
   submitTaskResult(
     @CurrentUser() user: CurrentAuthUser,
@@ -76,6 +93,100 @@ export class TasksController {
     @Body() payload: SubmitTaskResultDto,
   ): Promise<TaskResponseDto> {
     return this.tasksService.submitResult(user, id, payload);
+  }
+
+  @Post('tasks/:id/assignees')
+  addAssignees(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: AddTaskAssigneesDto,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.addAssignees(user, id, payload);
+  }
+
+  @Delete('tasks/:id/assignees/:userId')
+  removeAssignee(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.removeAssignee(user, id, userId);
+  }
+
+  @Post('tasks/:id/assignees/me/completion-draft')
+  createCompletionDraft(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<{ id: string; workCycle: number }> {
+    return this.tasksService.createCompletionDraft(user, id);
+  }
+
+  @Post('tasks/:id/assignees/me/complete')
+  completeMyAssignment(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: CompleteTaskAssignmentDto,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.completeMyAssignment(user, id, payload);
+  }
+
+  @Post('tasks/:id/assignees/me/undo-completion')
+  undoMyCompletion(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.undoMyCompletion(user, id);
+  }
+
+  @Post('tasks/:id/confirm')
+  confirmTask(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.confirmTask(user, id);
+  }
+
+  @Post('tasks/:id/complete-now')
+  completeTaskNow(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.completeTaskNow(user, id);
+  }
+
+  @Post('tasks/:id/return-to-work')
+  returnTaskToWork(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: TaskReasonDto,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.returnTaskToWork(user, id, payload);
+  }
+
+  @Post('tasks/:id/reopen')
+  reopenTask(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: TaskReasonDto,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.reopenTask(user, id, payload);
+  }
+
+  @Post('tasks/:id/cancel')
+  cancelTask(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: TaskReasonDto,
+  ): Promise<TaskResponseDto> {
+    return this.tasksService.cancelTask(user, id, payload);
+  }
+
+  @Get('tasks/:id/history')
+  listTaskHistory(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<TaskHistoryEventResponseDto[]> {
+    return this.tasksService.listTaskHistory(user, id);
   }
 
   @Get('objects/:id/tasks')

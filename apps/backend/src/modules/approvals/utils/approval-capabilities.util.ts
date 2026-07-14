@@ -15,7 +15,6 @@ import {
   TASK_RESULT_CONFIRMATION_TYPE,
 } from '../constants/approval.constants';
 
-const TASK_RESULT_PERMISSION = 'approval.resolve_task_result';
 const OBJECT_CHANGE_PERMISSION = 'approval.resolve_object_change';
 const INVENTORY_EXCEPTION_PERMISSION = 'approval.resolve_inventory_exception';
 const TIMESHEET_EXCEPTION_PERMISSION = 'timesheet.manual_correction';
@@ -47,9 +46,7 @@ export function buildApprovalGlobalCapabilities(params: {
   roleCodes: string[];
   permissionCodes?: string[];
 }): ApprovalGlobalCapabilities {
-  const canResolveTaskResultApproval =
-    hasWideTaskAccess(params.roleCodes) ||
-    hasPermission(params.permissionCodes, TASK_RESULT_PERMISSION);
+  const canResolveTaskResultApproval = hasWideTaskAccess(params.roleCodes);
   const canResolveInventoryApproval =
     hasAnyRole(params.roleCodes, LEADERSHIP_OBJECT_ROLE_CODES) ||
     hasPermission(params.permissionCodes, INVENTORY_EXCEPTION_PERMISSION);
@@ -80,10 +77,7 @@ export function canResolveApprovalType(params: {
 }): boolean {
   switch (params.approvalType) {
     case TASK_RESULT_CONFIRMATION_TYPE:
-      return (
-        hasWideTaskAccess(params.roleCodes) ||
-        hasPermission(params.permissionCodes, TASK_RESULT_PERMISSION)
-      );
+      return hasWideTaskAccess(params.roleCodes);
     case INVENTORY_EXCEPTION_CONFIRMATION_TYPE:
       return (
         canResolveInventoryMissingPhotoApproval(params.roleCodes) ||

@@ -23,6 +23,9 @@ export const FILE_ATTACHMENT_POLICY = {
   task: {
     fieldCodes: [],
   },
+  task_assignee_completion: {
+    fieldCodes: [],
+  },
   one_time_order: {
     fieldCodes: [],
   },

@@ -45,6 +45,13 @@ export class TaskResponseDto {
     isActive: boolean;
     isCompleted: boolean;
     completedAt: string | null;
+    currentCompletion: {
+      id: string;
+      completionText: string | null;
+      status: string;
+      submittedAt: string;
+    } | null;
+    completionHistoryCount: number;
   }>;
   completionProgress!: {
     completed: number;
@@ -60,6 +67,12 @@ export class TaskResponseDto {
     assigneeId: string;
     isCompleted: boolean;
     completedAt: string | null;
+    currentCompletion: {
+      id: string;
+      completionText: string | null;
+      status: string;
+      submittedAt: string;
+    } | null;
   } | null;
   capabilities!: {
     canSubmitResult: boolean;

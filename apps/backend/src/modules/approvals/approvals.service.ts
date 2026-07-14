@@ -13,7 +13,6 @@ import { EquipmentService } from '../equipment/equipment.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ObjectsService } from '../objects/objects.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { TaskStatus } from '../tasks/types/task-status.type';
 import { TasksService } from '../tasks/tasks.service';
 import { TimesheetsService } from '../timesheets/timesheets.service';
 
@@ -434,7 +433,8 @@ export class ApprovalsService {
       case TASK_RESULT_CONFIRMATION_TYPE:
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
-          nextStatus: 'closed',
+          decision: 'approve',
+          actorUserId: currentUser.id,
         });
         return;
       case INVENTORY_EXCEPTION_CONFIRMATION_TYPE:
@@ -496,7 +496,9 @@ export class ApprovalsService {
       case TASK_RESULT_CONFIRMATION_TYPE:
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
-          nextStatus: 'returned_to_work',
+          decision: 'reject',
+          actorUserId: currentUser.id,
+          reason: comment,
         });
         return;
       case ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE:
@@ -549,14 +551,11 @@ export class ApprovalsService {
 
     switch (request.approvalType) {
       case TASK_RESULT_CONFIRMATION_TYPE: {
-        const payloadSnapshot = this.normalizePayloadSnapshot(request.payloadSnapshot);
-        const fallbackStatus = this.parseTaskStatus(
-          payloadSnapshot.returnStatusOnCancel,
-        );
-
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
-          nextStatus: fallbackStatus ?? 'in_progress',
+          decision: 'cancel',
+          actorUserId: currentUser.id,
+          reason: comment ?? 'Approval request cancelled',
         });
         return;
       }
@@ -681,15 +680,6 @@ export class ApprovalsService {
     }
 
     return value;
-  }
-
-  private parseTaskStatus(value: unknown): TaskStatus | null {
-    return typeof value === 'string' &&
-      ['assigned', 'in_progress', 'partially_completed', 'returned_to_work', 'awaiting_confirmation', 'closed'].includes(
-        value,
-      )
-      ? (value as TaskStatus)
-      : null;
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

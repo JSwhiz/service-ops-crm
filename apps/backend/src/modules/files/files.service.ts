@@ -31,7 +31,7 @@ import {
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { hasWideTaskAccess } from '../tasks/utils/task-access.util';
+import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import {
   canManageChats,
   hasOperationalChatRole,
@@ -690,6 +690,8 @@ export class FilesService {
         );
       case 'task':
         return this.canAccessTask(currentUser, entityId);
+      case 'task_assignee_completion':
+        return this.canAccessTaskCompletion(currentUser, entityId, 'read');
       case 'one_time_order':
         return this.canAccessOneTimeOrder(currentUser, entityId, 'read');
       case 'inventory_movement':
@@ -746,6 +748,8 @@ export class FilesService {
         );
       case 'task':
         return this.canAccessTask(currentUser, entityId);
+      case 'task_assignee_completion':
+        return this.canAccessTaskCompletion(currentUser, entityId, 'write');
       case 'one_time_order':
         return this.canAccessOneTimeOrder(currentUser, entityId, 'write');
       case 'inventory_movement':
@@ -861,68 +865,72 @@ export class FilesService {
   ): Promise<boolean> {
     const task = await this.prisma.task.findFirst({
       where: {
-        id: taskId,
+        AND: [
+          { id: taskId },
+          buildTaskAccessWhere({
+            currentUserId: currentUser.id,
+            roleCodes: this.getRoleCodes(currentUser),
+          }),
+        ],
       },
+      select: { id: true },
+    });
+
+    if (!task) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private async canAccessTaskCompletion(
+    currentUser: CurrentAuthUser,
+    completionId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const completion = await this.prisma.taskAssigneeCompletion.findUnique({
+      where: { id: completionId },
       select: {
-        createdByUserId: true,
-        object: {
-          select: {
-            createdByUserId: true,
-            assignments: {
-              where: {
-                isActive: true,
-              },
-              select: {
-                userId: true,
-                assignmentRoleCode: true,
-              },
-            },
-          },
-        },
-        oneTimeOrder: {
-          select: {
-            createdByUserId: true,
-            assignments: {
-              where: {
-                isActive: true,
-              },
-              select: {
-                userId: true,
-                assignmentRoleCode: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-        assignees: {
+        status: true,
+        workCycle: true,
+        taskAssignee: {
           select: {
             userId: true,
+            isActive: true,
+            task: {
+              select: {
+                id: true,
+                status: true,
+                workCycle: true,
+              },
+            },
           },
         },
       },
     });
 
-    if (!task) {
-      throw new NotFoundException('Attachment target task not found');
+    if (!completion) {
+      throw new NotFoundException('Task completion not found');
     }
 
-    const roleCodes = this.getRoleCodes(currentUser);
+    if (mode === 'read') {
+      return this.canAccessTask(currentUser, completion.taskAssignee.task.id);
+    }
+
+    const attachmentCount = await this.prisma.fileAttachment.count({
+      where: {
+        entityType: 'task_assignee_completion',
+        entityId: completionId,
+      },
+    });
 
     return (
-      hasWideTaskAccess(roleCodes) ||
-      task.createdByUserId === currentUser.id ||
-      task.assignees.some((assignee) => assignee.userId === currentUser.id) ||
-      (!!task.object &&
-        (task.object.createdByUserId === currentUser.id ||
-          task.object.assignments.some(
-            (assignment) => assignment.userId === currentUser.id,
-          ))) ||
-      (!!task.oneTimeOrder &&
-        canViewOneTimeOrderByScope({
-          currentUserId: currentUser.id,
-          roleCodes,
-          order: task.oneTimeOrder,
-        }))
+      completion.status === 'draft' &&
+      completion.workCycle === completion.taskAssignee.task.workCycle &&
+      completion.taskAssignee.isActive &&
+      completion.taskAssignee.userId === currentUser.id &&
+      completion.taskAssignee.task.status === 'in_progress' &&
+      attachmentCount < 10
     );
   }
 
