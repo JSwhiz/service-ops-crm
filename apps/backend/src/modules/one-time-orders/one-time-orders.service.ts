@@ -28,6 +28,11 @@ import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-da
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
 import { buildOneTimeOrderCapabilities, canOpenLinkedObjectCard } from './utils/one-time-order-capabilities.util';
 import {
+  formatBusinessDate,
+  getOneTimeOrderDurationDays,
+  normalizeOneTimeOrderDateRange,
+} from './utils/one-time-order-date-range.util';
+import {
   canBeOneTimeOrderManager,
   canCreateOneTimeOrder,
   canManageOneTimeOrderManagers,
@@ -67,6 +72,8 @@ interface OneTimeOrderView {
   status: string;
   description: string | null;
   executionDate: Date | null;
+  executionStartDate: Date | null;
+  executionEndDate: Date | null;
   contactName: string;
   contactPhone: string | null;
   agreedSum: number | null;
@@ -220,6 +227,11 @@ export class OneTimeOrdersService {
     }
 
     await this.ensureLinkedObjectExists(payload.linkedObjectId ?? null);
+    const dateRange = normalizeOneTimeOrderDateRange({
+      executionStartDate: payload.executionStartDate,
+      executionEndDate: payload.executionEndDate,
+      executionDate: payload.executionDate,
+    });
     const managerUserIds = Array.from(
       new Set((payload.managerUserIds ?? []).filter(Boolean)),
     );
@@ -233,7 +245,9 @@ export class OneTimeOrdersService {
           linkedObjectId: payload.linkedObjectId ?? null,
           status: payload.status ?? 'new',
           description: payload.description?.trim() || null,
-          executionDate: payload.executionDate ? new Date(payload.executionDate) : null,
+          executionDate: dateRange.executionStartDate,
+          executionStartDate: dateRange.executionStartDate,
+          executionEndDate: dateRange.executionEndDate,
           contactName: payload.contactName.trim(),
           contactPhone: payload.contactPhone?.trim() || null,
           agreedSum: payload.agreedSum ?? null,
@@ -314,6 +328,18 @@ export class OneTimeOrdersService {
 
     await this.ensureLinkedObjectExists(payload.linkedObjectId ?? undefined);
 
+    const hasDateRangeUpdate =
+      payload.executionStartDate !== undefined ||
+      payload.executionEndDate !== undefined ||
+      payload.executionDate !== undefined;
+    const dateRange = hasDateRangeUpdate
+      ? normalizeOneTimeOrderDateRange({
+          executionStartDate: payload.executionStartDate,
+          executionEndDate: payload.executionEndDate,
+          executionDate: payload.executionDate,
+        })
+      : null;
+
     const nextValues = {
       title: payload.title?.trim(),
       executionAddress: payload.executionAddress?.trim(),
@@ -321,12 +347,9 @@ export class OneTimeOrdersService {
         payload.linkedObjectId === undefined ? undefined : payload.linkedObjectId,
       description:
         payload.description === undefined ? undefined : payload.description?.trim() || null,
-      executionDate:
-        payload.executionDate === undefined
-          ? undefined
-          : payload.executionDate
-            ? new Date(payload.executionDate)
-            : null,
+      executionDate: dateRange?.executionStartDate,
+      executionStartDate: dateRange?.executionStartDate,
+      executionEndDate: dateRange?.executionEndDate,
       contactName: payload.contactName?.trim(),
       contactPhone:
         payload.contactPhone === undefined ? undefined : payload.contactPhone?.trim() || null,
@@ -356,6 +379,12 @@ export class OneTimeOrdersService {
           : {}),
         ...(nextValues.executionDate !== undefined
           ? { executionDate: nextValues.executionDate }
+          : {}),
+        ...(nextValues.executionStartDate !== undefined
+          ? { executionStartDate: nextValues.executionStartDate }
+          : {}),
+        ...(nextValues.executionEndDate !== undefined
+          ? { executionEndDate: nextValues.executionEndDate }
           : {}),
         ...(nextValues.contactName !== undefined
           ? { contactName: nextValues.contactName }
@@ -948,13 +977,23 @@ export class OneTimeOrdersService {
       order,
     });
 
+    const executionStartDate =
+      order.executionStartDate ?? order.executionDate;
+    const executionEndDate = order.executionEndDate ?? executionStartDate;
+
     return {
       id: order.id,
       title: order.title,
       executionAddress: order.executionAddress,
       status: order.status,
       description: order.description,
-      executionDate: order.executionDate?.toISOString() ?? null,
+      executionDate: formatBusinessDate(executionStartDate),
+      executionStartDate: formatBusinessDate(executionStartDate),
+      executionEndDate: formatBusinessDate(executionEndDate),
+      durationDays: getOneTimeOrderDurationDays(
+        executionStartDate,
+        executionEndDate,
+      ),
       contactName: order.contactName,
       contactPhone: order.contactPhone,
       agreedSum: order.agreedSum,
@@ -1109,14 +1148,19 @@ export class OneTimeOrdersService {
       }
     }
 
-    const previousExecutionDate = previous.executionDate?.toISOString() ?? null;
-    const nextExecutionDate = next.executionDate?.toISOString() ?? null;
+    for (const field of [
+      'executionStartDate',
+      'executionEndDate',
+    ] as const) {
+      const previousDate = formatBusinessDate(previous[field]);
+      const nextDate = formatBusinessDate(next[field]);
 
-    if (previousExecutionDate !== nextExecutionDate) {
-      changes.executionDate = {
-        oldValue: previousExecutionDate,
-        newValue: nextExecutionDate,
-      };
+      if (previousDate !== nextDate) {
+        changes[field] = {
+          oldValue: previousDate,
+          newValue: nextDate,
+        };
+      }
     }
 
     return changes;

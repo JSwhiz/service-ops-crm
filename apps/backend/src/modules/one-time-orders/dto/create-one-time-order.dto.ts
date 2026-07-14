@@ -8,6 +8,7 @@ import {
   IsString,
   Min,
   MinLength,
+  Matches,
 } from 'class-validator';
 
 import { ONE_TIME_ORDER_STATUSES } from '../types/one-time-order-status.type';
@@ -36,6 +37,14 @@ export class CreateOneTimeOrderDto {
   @IsOptional()
   @IsDateString()
   executionDate?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  executionStartDate?: string | null;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  executionEndDate?: string | null;
 
   @IsString()
   @MinLength(2)

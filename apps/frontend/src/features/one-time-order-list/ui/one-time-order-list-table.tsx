@@ -56,9 +56,10 @@ export function OneTimeOrderListTable({
                 {item.contactPhone ? ` (${item.contactPhone})` : ''}
               </td>
               <td style={tdStyle}>
-                {item.executionDate
-                  ? new Date(item.executionDate).toLocaleDateString('ru-RU')
-                  : '—'}
+                {formatExecutionRange(
+                  item.executionStartDate,
+                  item.executionEndDate,
+                )}
               </td>
               <td style={tdStyle}>
                 {item.agreedSum !== null
@@ -82,6 +83,39 @@ const thStyle: React.CSSProperties = {
   borderBottom: '1px solid #e5e7eb',
   fontSize: 14,
 };
+
+function formatExecutionRange(
+  startDate: string | null,
+  endDate: string | null,
+): string {
+  if (!startDate) {
+    return 'Без даты';
+  }
+
+  if (!endDate || endDate === startDate) {
+    return formatBusinessDate(startDate);
+  }
+
+  const [startYear, startMonth, startDay] = startDate.split('-');
+  const [endYear, endMonth] = endDate.split('-');
+
+  if (startYear === endYear && startMonth === endMonth) {
+    return `${Number(startDay)}–${formatBusinessDate(endDate)}`;
+  }
+
+  return `${formatBusinessDate(startDate)} – ${formatBusinessDate(endDate)}`;
+}
+
+function formatBusinessDate(value: string): string {
+  const [year, month, day] = value.split('-').map(Number);
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year!, month! - 1, day!)));
+}
 
 const tdStyle: React.CSSProperties = {
   padding: '12px 10px',

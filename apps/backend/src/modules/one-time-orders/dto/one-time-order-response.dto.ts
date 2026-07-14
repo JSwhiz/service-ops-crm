@@ -5,6 +5,9 @@ export class OneTimeOrderResponseDto {
   status!: string;
   description!: string | null;
   executionDate!: string | null;
+  executionStartDate!: string | null;
+  executionEndDate!: string | null;
+  durationDays!: number | null;
   contactName!: string;
   contactPhone!: string | null;
   agreedSum!: number | null;

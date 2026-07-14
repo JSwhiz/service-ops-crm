@@ -628,6 +628,8 @@ model OneTimeOrder {
   status            String
   description       String?
   executionDate     DateTime?
+  executionStartDate DateTime? @db.Date
+  executionEndDate   DateTime? @db.Date
   contactName       String
   contactPhone      String?
   agreedSum         Int?
@@ -652,6 +654,8 @@ model OneTimeOrder {
   @@index([linkedObjectId])
   @@index([status])
   @@index([createdByUserId])
+  @@index([executionStartDate])
+  @@index([executionEndDate])
   @@map("one_time_orders")
 }
 

@@ -5,6 +5,7 @@ import {
   IsString,
   Min,
   MinLength,
+  Matches,
 } from 'class-validator';
 
 export class UpdateOneTimeOrderDto {
@@ -29,6 +30,14 @@ export class UpdateOneTimeOrderDto {
   @IsOptional()
   @IsDateString()
   executionDate?: string | null;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  executionStartDate?: string | null;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  executionEndDate?: string | null;
 
   @IsOptional()
   @IsString()

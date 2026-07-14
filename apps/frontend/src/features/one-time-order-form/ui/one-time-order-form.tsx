@@ -19,7 +19,8 @@ type OneTimeOrderFormPayload = {
   linkedObjectId?: string | null;
   status?: string;
   description?: string;
-  executionDate?: string;
+  executionStartDate?: string | null;
+  executionEndDate?: string | null;
   contactName: string;
   contactPhone?: string;
   agreedSum?: number;
@@ -47,13 +48,22 @@ export function OneTimeOrderForm({
   submitLabel: string;
   onSubmit: (payload: OneTimeOrderFormPayload) => Promise<void>;
 }): React.JSX.Element {
+  const initialStartDate =
+    initialValue?.executionStartDate ?? initialValue?.executionDate ?? '';
+  const initialEndDate = initialValue?.executionEndDate ?? initialStartDate;
   const [form, setForm] = useState({
     title: initialValue?.title ?? '',
     executionAddress: initialValue?.executionAddress ?? '',
     linkedObjectId: initialValue?.linkedObjectId ?? '',
     status: initialValue?.status ?? 'new',
     description: initialValue?.description ?? '',
-    executionDate: initialValue?.executionDate ?? '',
+    dateMode: !initialStartDate
+      ? ('none' as const)
+      : initialEndDate !== initialStartDate
+        ? ('range' as const)
+        : ('single' as const),
+    executionStartDate: initialStartDate,
+    executionEndDate: initialEndDate,
     contactName: initialValue?.contactName ?? '',
     contactPhone: initialValue?.contactPhone ?? '',
     agreedSum:
@@ -89,7 +99,14 @@ export function OneTimeOrderForm({
         executionAddress: form.executionAddress,
         ...(allowStatusEdit ? { status: form.status } : {}),
         description: form.description || undefined,
-        executionDate: form.executionDate || undefined,
+        executionStartDate:
+          form.dateMode === 'none' ? null : form.executionStartDate || null,
+        executionEndDate:
+          form.dateMode === 'none'
+            ? null
+            : form.dateMode === 'single'
+              ? form.executionStartDate || null
+              : form.executionEndDate || null,
         contactName: form.contactName,
         contactPhone: form.contactPhone || undefined,
         agreedSum: form.agreedSum ? Number(form.agreedSum) : undefined,
@@ -168,17 +185,81 @@ export function OneTimeOrderForm({
           </label>
         ) : null}
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Дата исполнения</div>
-          <input
-            type="date"
-            value={form.executionDate ? form.executionDate.slice(0, 10) : ''}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, executionDate: event.target.value }))
-            }
-            style={{ width: '100%', padding: 10 }}
-          />
-        </label>
+        <fieldset style={{ gridColumn: '1 / -1' }}>
+          <legend>Дата выполнения</legend>
+          <div className="action-row">
+            {[
+              { value: 'none', label: 'Без даты' },
+              { value: 'single', label: 'Один день' },
+              { value: 'range', label: 'Несколько дней' },
+            ].map((option) => (
+              <label key={option.value}>
+                <input
+                  type="radio"
+                  name="one-time-order-date-mode"
+                  value={option.value}
+                  checked={form.dateMode === option.value}
+                  onChange={() =>
+                    setForm((prev) => ({
+                      ...prev,
+                      dateMode: option.value as 'none' | 'single' | 'range',
+                    }))
+                  }
+                />{' '}
+                {option.label}
+              </label>
+            ))}
+          </div>
+          {form.dateMode !== 'none' ? (
+            <div
+              style={{
+                display: 'grid',
+                gap: 12,
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                marginTop: 12,
+              }}
+            >
+              <label>
+                <div style={{ marginBottom: 6 }}>
+                  {form.dateMode === 'range' ? 'Дата начала' : 'Дата'}
+                </div>
+                <input
+                  type="date"
+                  value={form.executionStartDate.slice(0, 10)}
+                  onChange={(event) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      executionStartDate: event.target.value,
+                      ...(prev.dateMode === 'single'
+                        ? { executionEndDate: event.target.value }
+                        : {}),
+                    }))
+                  }
+                  style={{ width: '100%', padding: 10 }}
+                  required
+                />
+              </label>
+              {form.dateMode === 'range' ? (
+                <label>
+                  <div style={{ marginBottom: 6 }}>Дата окончания</div>
+                  <input
+                    type="date"
+                    value={form.executionEndDate.slice(0, 10)}
+                    min={form.executionStartDate.slice(0, 10)}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        executionEndDate: event.target.value,
+                      }))
+                    }
+                    style={{ width: '100%', padding: 10 }}
+                    required
+                  />
+                </label>
+              ) : null}
+            </div>
+          ) : null}
+        </fieldset>
 
         {canSelectLinkedObject ? (
           <label>

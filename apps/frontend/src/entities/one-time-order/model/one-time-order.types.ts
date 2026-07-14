@@ -13,6 +13,9 @@ export interface OneTimeOrderItem {
   status: string;
   description: string | null;
   executionDate: string | null;
+  executionStartDate: string | null;
+  executionEndDate: string | null;
+  durationDays: number | null;
   contactName: string;
   contactPhone: string | null;
   agreedSum: number | null;
@@ -110,6 +113,8 @@ export interface CreateOneTimeOrderPayload {
   status?: string;
   description?: string;
   executionDate?: string;
+  executionStartDate?: string | null;
+  executionEndDate?: string | null;
   contactName: string;
   contactPhone?: string;
   agreedSum?: number;
@@ -124,6 +129,8 @@ export interface UpdateOneTimeOrderPayload {
   linkedObjectId?: string | null;
   description?: string | null;
   executionDate?: string | null;
+  executionStartDate?: string | null;
+  executionEndDate?: string | null;
   contactName?: string;
   contactPhone?: string | null;
   agreedSum?: number | null;
