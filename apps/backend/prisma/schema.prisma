@@ -59,6 +59,13 @@ model User {
   createdTasks                Task[] @relation("TaskCreatedBy")
   taskAssignments             TaskAssignee[]
   submittedTaskResults        Task[] @relation("TaskSubmittedBy")
+  completedTasks              Task[] @relation("TaskCompletedBy")
+  cancelledTasks              Task[] @relation("TaskCancelledBy")
+  removedTaskAssignments      TaskAssignee[] @relation("TaskAssigneeRemovedBy")
+  cancelledTaskCompletions    TaskAssigneeCompletion[] @relation("TaskAssigneeCompletionCancelledBy")
+  taskVisibilityMemberships   TaskVisibilityUser[] @relation("TaskVisibilityUser")
+  addedTaskVisibilityUsers    TaskVisibilityUser[] @relation("TaskVisibilityAddedBy")
+  taskHistoryEvents           TaskHistoryEvent[] @relation("TaskHistoryActor")
   createdAttendanceFacts      ObjectAttendanceFact[] @relation("ObjectAttendanceFactCreatedBy")
   createdTimesheetMonths      TimesheetMonth[] @relation("TimesheetMonthCreatedBy")
   createdTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryCreatedBy")
@@ -701,49 +708,132 @@ model OneTimeOrderPhoto {
 }
 
 model Task {
-  id                String   @id @default(uuid())
-  title             String
-  description       String?
-  priority          String
-  status            String
-  objectId          String?
-  oneTimeOrderId    String?
-  createdByUserId   String
-  resultText        String?
-  submittedByUserId String?
-  submittedAt       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                    String   @id @default(uuid())
+  title                 String
+  description           String?
+  priority              String
+  status                String
+  objectId              String?
+  oneTimeOrderId        String?
+  createdByUserId       String
+  dueAt                 DateTime?
+  dueTimeSpecified      Boolean  @default(false)
+  requiresConfirmation  Boolean  @default(true)
+  completionRequirement String   @default("comment_or_file")
+  autoCloseAt           DateTime?
+  completedAt           DateTime?
+  completedByUserId     String?
+  completedByKind       String?
+  cancelledAt           DateTime?
+  cancelledByUserId     String?
+  cancellationReason    String?
+  workCycle             Int      @default(1)
+  visibilityMode        String   @default("scope")
+  resultText            String?
+  submittedByUserId     String?
+  submittedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
-  object      Object?        @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  oneTimeOrder OneTimeOrder? @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
-  createdBy   User           @relation("TaskCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  submittedBy User?          @relation("TaskSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
-  assignees   TaskAssignee[]
+  object          Object?              @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  oneTimeOrder    OneTimeOrder?        @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  createdBy       User                 @relation("TaskCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  submittedBy     User?                @relation("TaskSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  completedBy     User?                @relation("TaskCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  cancelledBy     User?                @relation("TaskCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  assignees       TaskAssignee[]
+  visibilityUsers TaskVisibilityUser[]
+  historyEvents   TaskHistoryEvent[]
 
   @@index([objectId])
   @@index([oneTimeOrderId])
   @@index([status])
   @@index([createdByUserId])
+  @@index([dueAt])
+  @@index([autoCloseAt])
   @@map("tasks")
 }
 
 model TaskAssignee {
-  id          String   @id @default(uuid())
-  taskId      String
-  userId      String
-  isCompleted Boolean  @default(false)
-  completedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(uuid())
+  taskId          String
+  userId          String
+  isActive        Boolean  @default(true)
+  removedAt       DateTime?
+  removedByUserId String?
+  isCompleted     Boolean  @default(false)
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task                     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  removedBy   User?                    @relation("TaskAssigneeRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)
+  completions TaskAssigneeCompletion[]
 
   @@unique([taskId, userId])
   @@index([taskId])
   @@index([userId])
+  @@index([taskId, isActive])
   @@map("task_assignees")
+}
+
+model TaskAssigneeCompletion {
+  id                 String   @id @default(uuid())
+  taskAssigneeId     String
+  workCycle          Int
+  attemptNumber      Int
+  completionText     String?
+  status             String
+  source             String   @default("user")
+  submittedAt        DateTime @default(now())
+  cancelledAt        DateTime?
+  cancelledByUserId  String?
+  cancellationReason String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  taskAssignee TaskAssignee @relation(fields: [taskAssigneeId], references: [id], onDelete: Cascade)
+  cancelledBy  User?        @relation("TaskAssigneeCompletionCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([taskAssigneeId, workCycle, attemptNumber], map: "task_completion_assignment_cycle_attempt_key")
+  @@index([taskAssigneeId, workCycle], map: "task_completion_assignment_cycle_idx")
+  @@index([status])
+  @@map("task_assignee_completions")
+}
+
+model TaskVisibilityUser {
+  id            String   @id @default(uuid())
+  taskId        String
+  userId        String
+  addedByUserId String
+  createdAt     DateTime @default(now())
+
+  task    Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User @relation("TaskVisibilityUser", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy User @relation("TaskVisibilityAddedBy", fields: [addedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([taskId, userId])
+  @@index([taskId])
+  @@index([userId])
+  @@map("task_visibility_users")
+}
+
+model TaskHistoryEvent {
+  id          String   @id @default(uuid())
+  taskId      String
+  actorUserId String?
+  eventType   String
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor User? @relation("TaskHistoryActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+  @@index([actorUserId])
+  @@index([eventType])
+  @@map("task_history_events")
 }
 
 model InventoryItem {
