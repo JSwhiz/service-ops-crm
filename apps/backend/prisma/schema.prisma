@@ -62,6 +62,10 @@ model User {
   createdOneTimeOrderPhotos   OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoCreatedBy")
   deletedOneTimeOrderPhotos   OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoDeletedBy")
   restoredOneTimeOrderPhotos  OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoRestoredBy")
+  oneTimeManagerAvailabilityEntries OneTimeManagerAvailability[] @relation("OneTimeManagerAvailabilityUser")
+  requestedOneTimeManagerAvailabilityEntries OneTimeManagerAvailability[] @relation("OneTimeManagerAvailabilityRequestedBy")
+  resolvedOneTimeManagerAvailabilityEntries OneTimeManagerAvailability[] @relation("OneTimeManagerAvailabilityResolvedBy")
+  cancelledOneTimeManagerAvailabilityEntries OneTimeManagerAvailability[] @relation("OneTimeManagerAvailabilityCancelledBy")
   createdTasks                Task[] @relation("TaskCreatedBy")
   taskAssignments             TaskAssignee[]
   submittedTaskResults        Task[] @relation("TaskSubmittedBy")
@@ -717,6 +721,36 @@ model OneTimeOrderAssignment {
   @@index([assignmentRoleCode])
   @@unique([oneTimeOrderId, userId, assignmentRoleCode])
   @@map("one_time_order_assignments")
+}
+
+model OneTimeManagerAvailability {
+  id                String   @id @default(uuid())
+  userId            String
+  entryType         String
+  startDate         DateTime @db.Date
+  endDate           DateTime @db.Date
+  status            String
+  requestComment    String?
+  resolutionComment String?
+  requestedByUserId String
+  resolvedByUserId  String?
+  resolvedAt        DateTime?
+  cancelledAt       DateTime?
+  cancelledByUserId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user        User  @relation("OneTimeManagerAvailabilityUser", fields: [userId], references: [id], onDelete: Cascade)
+  requestedBy User  @relation("OneTimeManagerAvailabilityRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  resolvedBy  User? @relation("OneTimeManagerAvailabilityResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  cancelledBy User? @relation("OneTimeManagerAvailabilityCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+
+  @@index([userId, startDate, endDate])
+  @@index([status, startDate])
+  @@index([requestedByUserId])
+  @@index([resolvedByUserId])
+  @@index([cancelledByUserId])
+  @@map("one_time_manager_availability")
 }
 
 model OneTimeOrderComment {

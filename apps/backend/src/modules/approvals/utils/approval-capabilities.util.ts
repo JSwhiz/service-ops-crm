@@ -1,6 +1,10 @@
 import { canApproveAccountabilityClosure } from '../../accountability/utils/accountability-access.util';
 import { canResolveInventoryMissingPhotoApproval } from '../../inventory/utils/inventory-access.util';
 import { canEditObject, LEADERSHIP_OBJECT_ROLE_CODES } from '../../objects/utils/object-access.util';
+import {
+  hasOneTimeOrderPermission,
+  ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
+} from '../../one-time-orders/utils/one-time-order-access.util';
 import { hasWideTaskAccess } from '../../tasks/utils/task-access.util';
 import { canManuallyCorrectTimesheet } from '../../timesheets/utils/timesheet-access.util';
 
@@ -11,6 +15,7 @@ import {
   INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
   INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
   MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+  ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
   OBJECT_CHANGE_CONFIRMATION_TYPE,
   TASK_RESULT_CONFIRMATION_TYPE,
 } from '../constants/approval.constants';
@@ -101,6 +106,11 @@ export function canResolveApprovalType(params: {
         canManuallyCorrectTimesheet(params.roleCodes) ||
         hasPermission(params.permissionCodes, TIMESHEET_EXCEPTION_PERMISSION)
       );
+    case ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE:
+      return hasOneTimeOrderPermission(
+        params.permissionCodes,
+        ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
+      );
     default:
       return false;
   }
@@ -118,6 +128,7 @@ export function getResolvableApprovalTypes(params: {
     OBJECT_CHANGE_CONFIRMATION_TYPE,
     EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
     MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+    ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
   ];
 
   return approvalTypes.filter((approvalType) =>

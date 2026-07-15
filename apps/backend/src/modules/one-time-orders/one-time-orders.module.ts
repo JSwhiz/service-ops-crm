@@ -8,11 +8,12 @@ import { TasksModule } from '../tasks/tasks.module';
 
 import { OneTimeOrdersController } from './one-time-orders.controller';
 import { OneTimeOrdersService } from './one-time-orders.service';
+import { OneTimeManagerAvailabilityService } from './one-time-manager-availability.service';
 
 @Module({
   imports: [PrismaModule, AuditModule, TasksModule, EquipmentModule, ChatsModule],
   controllers: [OneTimeOrdersController],
-  providers: [OneTimeOrdersService],
-  exports: [OneTimeOrdersService],
+  providers: [OneTimeOrdersService, OneTimeManagerAvailabilityService],
+  exports: [OneTimeOrdersService, OneTimeManagerAvailabilityService],
 })
 export class OneTimeOrdersModule {}

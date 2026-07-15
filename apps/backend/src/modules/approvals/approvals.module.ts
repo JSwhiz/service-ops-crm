@@ -5,6 +5,7 @@ import { AuditModule } from '../audit/audit.module';
 import { EquipmentModule } from '../equipment/equipment.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { ObjectsModule } from '../objects/objects.module';
+import { OneTimeOrdersModule } from '../one-time-orders/one-time-orders.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TasksModule } from '../tasks/tasks.module';
 import { TimesheetsModule } from '../timesheets/timesheets.module';
@@ -20,6 +21,7 @@ import { ApprovalsService } from './approvals.service';
     InventoryModule,
     EquipmentModule,
     ObjectsModule,
+    OneTimeOrdersModule,
     TimesheetsModule,
     AccountabilityModule,
   ],

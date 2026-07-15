@@ -36,6 +36,10 @@ export const APPROVAL_TYPE_OPTIONS = [
     value: 'manual_timesheet_exception_confirmation',
     label: 'Исключение табеля',
   },
+  {
+    value: 'one_time_manager_availability',
+    label: 'Доступность менеджера',
+  },
 ] as const;
 
 const APPROVAL_STATUS_LABELS: Record<string, string> = {
@@ -55,6 +59,7 @@ const APPROVAL_TYPE_LABELS: Record<string, string> = {
   object_change_confirmation: 'Изменение объекта',
   accountability_closure_confirmation: 'Сверка подотчета',
   manual_timesheet_exception_confirmation: 'Исключение табеля',
+  one_time_manager_availability: 'Доступность менеджера',
 };
 
 export function getApprovalStatusLabel(status: string): string {

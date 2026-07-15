@@ -12,6 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import { EquipmentService } from '../equipment/equipment.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ObjectsService } from '../objects/objects.service';
+import { OneTimeManagerAvailabilityService } from '../one-time-orders/one-time-manager-availability.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TasksService } from '../tasks/tasks.service';
 import { TimesheetsService } from '../timesheets/timesheets.service';
@@ -23,6 +24,7 @@ import {
   INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
   INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
   MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
+  ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
   OBJECT_CHANGE_CONFIRMATION_TYPE,
   TASK_RESULT_CONFIRMATION_TYPE,
 } from './constants/approval.constants';
@@ -91,6 +93,7 @@ export class ApprovalsService {
     private readonly objectsService: ObjectsService,
     private readonly timesheetsService: TimesheetsService,
     private readonly accountabilityService: AccountabilityService,
+    private readonly oneTimeManagerAvailabilityService: OneTimeManagerAvailabilityService,
   ) {}
 
   async listRequests(
@@ -144,7 +147,7 @@ export class ApprovalsService {
     const approved = await this.prisma.$transaction(async (tx) => {
       const request = await this.loadRequestForUpdate(tx, requestId);
       this.assertCanApprove(currentUser, request);
-      await this.applyApprovalBusinessEffect(tx, request, currentUser);
+      await this.applyApprovalBusinessEffect(tx, request, currentUser, comment);
 
       return (await tx.approvalRequest.update({
         where: {
@@ -417,6 +420,7 @@ export class ApprovalsService {
         MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
         INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
         EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+        ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
       ].includes(request.approvalType as ApprovalType) ||
       request.createdByUserId !== currentUser.id
     ) {
@@ -428,6 +432,7 @@ export class ApprovalsService {
     tx: Prisma.TransactionClient,
     request: ApprovalRequestRecord,
     currentUser: CurrentAuthUser,
+    comment: string | null,
   ): Promise<void> {
     switch (request.approvalType) {
       case TASK_RESULT_CONFIRMATION_TYPE:
@@ -479,6 +484,14 @@ export class ApprovalsService {
           exceptionId: request.sourceEntityId,
           decision: 'approve',
           actorUserId: currentUser.id,
+        });
+        return;
+      case ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE:
+        await this.oneTimeManagerAvailabilityService.applyApprovalDecision(tx, {
+          availabilityId: request.sourceEntityId,
+          decision: 'approve',
+          actorUserId: currentUser.id,
+          comment,
         });
         return;
       default:
@@ -535,6 +548,14 @@ export class ApprovalsService {
           actorUserId: currentUser.id,
         });
         return;
+      case ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE:
+        await this.oneTimeManagerAvailabilityService.applyApprovalDecision(tx, {
+          availabilityId: request.sourceEntityId,
+          decision: 'reject',
+          actorUserId: currentUser.id,
+          comment,
+        });
+        return;
       default:
         throw new BadRequestException('Approval reject path is not wired yet');
     }
@@ -585,6 +606,14 @@ export class ApprovalsService {
           decision: 'cancel',
         });
         return;
+      case ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE:
+        await this.oneTimeManagerAvailabilityService.applyApprovalDecision(tx, {
+          availabilityId: request.sourceEntityId,
+          decision: 'cancel',
+          actorUserId: currentUser.id,
+          comment,
+        });
+        return;
       default:
         throw new BadRequestException('Approval cancellation is not wired yet');
     }
@@ -612,6 +641,7 @@ export class ApprovalsService {
         MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
         INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
         EQUIPMENT_WRITEOFF_CONFIRMATION_TYPE,
+        ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
       ].includes(request.approvalType as ApprovalType) &&
       request.createdByUserId === currentUser.id;
 

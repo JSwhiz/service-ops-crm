@@ -17,6 +17,10 @@ import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.d
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
+import {
+  CreateOneTimeManagerAvailabilityDirectDto,
+  CreateOneTimeManagerAvailabilityRequestDto,
+} from './dto/create-one-time-manager-availability.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
@@ -28,15 +32,22 @@ import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
 import { OneTimeOrderListResponseDto } from './dto/one-time-order-list-response.dto';
+import { OneTimeManagerAvailabilityResponseDto } from './dto/one-time-manager-availability-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
 import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
 import { ReorderOneTimeOrderSpecificationItemsDto } from './dto/reorder-one-time-order-specification-items.dto';
+import {
+  ApproveOneTimeManagerAvailabilityDto,
+  RejectOneTimeManagerAvailabilityDto,
+} from './dto/resolve-one-time-manager-availability.dto';
 import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
+import { UpdateOneTimeManagerAvailabilityDto } from './dto/update-one-time-manager-availability.dto';
 import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.dto';
 import { UpdateOneTimeOrderSpecificationItemDto } from './dto/update-one-time-order-specification-item.dto';
 import { OneTimeOrdersService } from './one-time-orders.service';
+import { OneTimeManagerAvailabilityService } from './one-time-manager-availability.service';
 
 interface CurrentAuthUser {
   id: string;
@@ -51,7 +62,80 @@ interface CurrentAuthUser {
 @UseGuards(JwtAuthGuard)
 @Controller('one-time-orders')
 export class OneTimeOrdersController {
-  constructor(private readonly oneTimeOrdersService: OneTimeOrdersService) {}
+  constructor(
+    private readonly oneTimeOrdersService: OneTimeOrdersService,
+    private readonly oneTimeManagerAvailabilityService: OneTimeManagerAvailabilityService,
+  ) {}
+
+  @Post('calendar/availability-requests')
+  createOwnAvailabilityRequest(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() payload: CreateOneTimeManagerAvailabilityRequestDto,
+  ): Promise<OneTimeManagerAvailabilityResponseDto> {
+    return this.oneTimeManagerAvailabilityService.createOwnRequest(user, payload);
+  }
+
+  @Get('calendar/availability-requests/me')
+  listOwnAvailabilityRequests(
+    @CurrentUser() user: CurrentAuthUser,
+  ): Promise<OneTimeManagerAvailabilityResponseDto[]> {
+    return this.oneTimeManagerAvailabilityService.listOwnRequests(user);
+  }
+
+  @Post('calendar/availability/direct')
+  createDirectAvailability(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() payload: CreateOneTimeManagerAvailabilityDirectDto,
+  ): Promise<OneTimeManagerAvailabilityResponseDto> {
+    return this.oneTimeManagerAvailabilityService.createDirect(user, payload);
+  }
+
+  @Post('calendar/availability/:id/approve')
+  approveAvailability(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: ApproveOneTimeManagerAvailabilityDto,
+  ): Promise<OneTimeManagerAvailabilityResponseDto> {
+    return this.oneTimeManagerAvailabilityService.approveAvailability(
+      user,
+      id,
+      payload,
+    );
+  }
+
+  @Post('calendar/availability/:id/reject')
+  rejectAvailability(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: RejectOneTimeManagerAvailabilityDto,
+  ): Promise<OneTimeManagerAvailabilityResponseDto> {
+    return this.oneTimeManagerAvailabilityService.rejectAvailability(
+      user,
+      id,
+      payload,
+    );
+  }
+
+  @Post('calendar/availability/:id/cancel')
+  cancelAvailability(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<OneTimeManagerAvailabilityResponseDto> {
+    return this.oneTimeManagerAvailabilityService.cancelAvailability(user, id);
+  }
+
+  @Patch('calendar/availability/:id')
+  updateAvailability(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: UpdateOneTimeManagerAvailabilityDto,
+  ): Promise<OneTimeManagerAvailabilityResponseDto> {
+    return this.oneTimeManagerAvailabilityService.updateApprovedAvailability(
+      user,
+      id,
+      payload,
+    );
+  }
 
   @Get()
   listOrders(

@@ -17,6 +17,7 @@ export const APPROVAL_TYPES = [
   'object_change_confirmation',
   'accountability_closure_confirmation',
   'manual_timesheet_exception_confirmation',
+  'one_time_manager_availability',
 ] as const;
 
 export type ApprovalType = (typeof APPROVAL_TYPES)[number];
@@ -28,6 +29,7 @@ export const APPROVAL_SOURCE_ENTITY_TYPES = [
   'object',
   'accountability_closure',
   'timesheet_exception',
+  'one_time_manager_availability',
 ] as const;
 
 export type ApprovalSourceEntityType =
@@ -47,6 +49,8 @@ export const ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE: ApprovalType =
   'accountability_closure_confirmation';
 export const MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE: ApprovalType =
   'manual_timesheet_exception_confirmation';
+export const ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE: ApprovalType =
+  'one_time_manager_availability';
 
 export const TASK_APPROVAL_SOURCE_ENTITY_TYPE: ApprovalSourceEntityType = 'task';
 export const INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE: ApprovalSourceEntityType =
@@ -59,6 +63,8 @@ export const ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE: ApprovalSourceE
   'accountability_closure';
 export const TIMESHEET_EXCEPTION_APPROVAL_SOURCE_ENTITY_TYPE: ApprovalSourceEntityType =
   'timesheet_exception';
+export const ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_SOURCE_ENTITY_TYPE: ApprovalSourceEntityType =
+  'one_time_manager_availability';
 
 export const LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE =
   'inventory_without_photo_confirmation';
