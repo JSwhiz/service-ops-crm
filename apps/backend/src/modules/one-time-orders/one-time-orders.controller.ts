@@ -27,11 +27,13 @@ import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dt
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
 import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
 import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dto';
+import { ListOneTimeOrderCalendarQueryDto } from './dto/list-one-time-order-calendar-query.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
 import { OneTimeOrderListResponseDto } from './dto/one-time-order-list-response.dto';
+import { OneTimeOrderCalendarResponseDto } from './dto/one-time-order-calendar-response.dto';
 import { OneTimeManagerAvailabilityResponseDto } from './dto/one-time-manager-availability-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
@@ -47,6 +49,7 @@ import { UpdateOneTimeManagerAvailabilityDto } from './dto/update-one-time-manag
 import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.dto';
 import { UpdateOneTimeOrderSpecificationItemDto } from './dto/update-one-time-order-specification-item.dto';
 import { OneTimeOrdersService } from './one-time-orders.service';
+import { OneTimeOrderCalendarService } from './one-time-order-calendar.service';
 import { OneTimeManagerAvailabilityService } from './one-time-manager-availability.service';
 
 interface CurrentAuthUser {
@@ -65,7 +68,16 @@ export class OneTimeOrdersController {
   constructor(
     private readonly oneTimeOrdersService: OneTimeOrdersService,
     private readonly oneTimeManagerAvailabilityService: OneTimeManagerAvailabilityService,
+    private readonly oneTimeOrderCalendarService: OneTimeOrderCalendarService,
   ) {}
+
+  @Get('calendar')
+  getCalendar(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListOneTimeOrderCalendarQueryDto,
+  ): Promise<OneTimeOrderCalendarResponseDto> {
+    return this.oneTimeOrderCalendarService.getCalendar(user, query);
+  }
 
   @Post('calendar/availability-requests')
   createOwnAvailabilityRequest(
