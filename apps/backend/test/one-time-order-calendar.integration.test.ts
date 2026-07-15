@@ -11,9 +11,14 @@ interface CalendarDay {
   availability: { entryType: string } | null;
   pendingOwnRequest: { entryType: string } | null;
   orders: Array<{
-    id: string;
-    status: string;
-    managers: Array<{ id: string; fullName: string }>;
+    detailsRestricted: boolean;
+    relatedOrder: {
+      id: string;
+      title: string;
+      status: string;
+      executionAddress: string;
+      managers: Array<{ id: string; fullName: string }>;
+    } | null;
   }>;
   conflictLevel: string;
 }
@@ -85,6 +90,13 @@ test('one-time order calendar expands ranges and protects pending availability',
       start: '2032-07-05',
       end: '2032-07-05',
       managers: [inactiveManager.id],
+    },
+    {
+      title: `${marker}-manager-two-private`,
+      status: 'planned',
+      start: '2032-07-11',
+      end: '2032-07-11',
+      managers: [managerTwo.id],
     },
   ];
   const orders = await Promise.all(
@@ -201,7 +213,9 @@ test('one-time order calendar expands ranges and protects pending availability',
   assert.equal(julyEleventh.orders.length, 3);
   assert.ok(
     julyEleventh.orders.some((order) =>
-      order.managers.some((manager) => manager.id === managerTwo.id),
+      order.relatedOrder?.managers.some(
+        (manager) => manager.id === managerTwo.id,
+      ),
     ),
   );
   assert.equal(julyEleventh.availability?.entryType, 'vacation');
@@ -224,9 +238,8 @@ test('one-time order calendar expands ranges and protects pending availability',
   );
   const historicalRow = leadershipCalendar.managers.find(
     (row) => row.user.id === inactiveManager.id,
-  )!;
-  assert.equal(historicalRow.isActive, false);
-  assert.equal(historicalRow.orderCount, 1);
+  );
+  assert.equal(historicalRow, undefined);
 
   const ordinaryCalendar = await getCalendar(managerCookie);
   const ordinaryOwnRow = ordinaryCalendar.managers.find(
@@ -250,6 +263,18 @@ test('one-time order calendar expands ranges and protects pending availability',
   assert.equal(
     ordinaryOwnRow.days.find((day) => day.date === '2032-07-11')?.orders.length,
     2,
+  );
+  const restrictedOrder = ordinaryOtherRow.days
+    .find((day) => day.date === '2032-07-11')
+    ?.orders.find((order) => order.detailsRestricted);
+  assert.deepEqual(restrictedOrder, {
+    type: 'existing_order',
+    detailsRestricted: true,
+    relatedOrder: null,
+  });
+  assert.equal(
+    JSON.stringify(restrictedOrder).includes(`${marker}-manager-two-private`),
+    false,
   );
 
   const filteredCalendar = await getCalendar(

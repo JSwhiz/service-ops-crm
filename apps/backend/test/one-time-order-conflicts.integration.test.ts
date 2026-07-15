@@ -12,7 +12,8 @@ interface ConflictResponse {
     date: string;
     user: { id: string };
     type: string;
-    relatedOrder?: { id: string };
+    relatedOrder: { id: string } | null;
+    detailsRestricted: boolean;
   }>;
 }
 
@@ -90,6 +91,24 @@ test('one-time order schedule conflicts require an explicit override', async (t)
       },
     },
   });
+  const ordinaryOwnedTarget = await prisma.oneTimeOrder.create({
+    data: {
+      title: `${marker}-ordinary-owned`,
+      executionAddress: 'Москва',
+      status: 'planned',
+      executionStartDate: new Date('2040-04-20T00:00:00.000Z'),
+      executionEndDate: new Date('2040-04-20T00:00:00.000Z'),
+      contactName: 'Контакт',
+      createdByUserId: managerTwo.id,
+      assignments: {
+        create: {
+          userId: managerOne.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+      },
+    },
+  });
   const availabilityEntries = await Promise.all([
     prisma.oneTimeManagerAvailability.create({
       data: {
@@ -136,7 +155,7 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     await prisma.$disconnect();
   });
 
-  const [founderCookie, managerCookie] = await Promise.all([
+  const [founderCookie, managerCookie, managerTwoCookie, hrCookie] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
@@ -146,6 +165,16 @@ test('one-time order schedule conflicts require an explicit override', async (t)
       baseUrl,
       login: 'manager1',
       password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'manager2',
+      password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'hr1',
+      password: 'hr123',
     }),
   ]);
   const jsonRequest = (path: string, method: string, cookie: string, body: unknown) =>
@@ -191,10 +220,22 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     ),
   );
 
+  const forbiddenEnumeration = await jsonRequest(
+    '/calendar/check-conflicts',
+    'POST',
+    managerCookie,
+    {
+      executionStartDate: '2040-04-11',
+      executionEndDate: '2040-04-11',
+      managerUserIds: [managerOne.id, managerTwo.id],
+    },
+  );
+  assert.equal(forbiddenEnumeration.status, 403);
+
   const ordinaryCheck = await checkConflicts(managerCookie, {
     executionStartDate: '2040-04-11',
     executionEndDate: '2040-04-11',
-    managerUserIds: [managerOne.id, managerTwo.id],
+    managerUserIds: [managerOne.id],
   });
   assert.equal(
     ordinaryCheck.conflicts.some(
@@ -202,6 +243,22 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     ),
     false,
   );
+  assert.ok(
+    ordinaryCheck.conflicts.some(
+      (conflict) => conflict.relatedOrder?.id === existingOrder.id,
+    ),
+  );
+
+  const redactedCheck = await checkConflicts(hrCookie, {
+    executionStartDate: '2040-04-11',
+    executionEndDate: '2040-04-11',
+    managerUserIds: [managerOne.id],
+  });
+  const redactedConflict = redactedCheck.conflicts.find(
+    (conflict) => conflict.type === 'existing_order',
+  );
+  assert.equal(redactedConflict?.relatedOrder, null);
+  assert.equal(redactedConflict?.detailsRestricted, true);
 
   const pendingOnly = await checkConflicts(founderCookie, {
     executionStartDate: '2040-04-11',
@@ -276,6 +333,25 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     },
   );
   assert.equal(confirmedUpdate.status, 200);
+
+  const blockedRedactedUpdate = await jsonRequest(
+    `/${ordinaryOwnedTarget.id}`,
+    'PATCH',
+    managerTwoCookie,
+    {
+      executionStartDate: '2040-04-11',
+      executionEndDate: '2040-04-11',
+    },
+  );
+  assert.equal(blockedRedactedUpdate.status, 409);
+  const blockedRedactedBody = (await blockedRedactedUpdate.json()) as {
+    error: ConflictResponse;
+  };
+  const blockedRedactedConflict = blockedRedactedBody.error.conflicts.find(
+    (conflict) => conflict.type === 'existing_order',
+  );
+  assert.equal(blockedRedactedConflict?.relatedOrder, null);
+  assert.equal(blockedRedactedConflict?.detailsRestricted, true);
 
   const blockedAssignment = await jsonRequest(
     `/${assignmentTarget.id}/managers`,

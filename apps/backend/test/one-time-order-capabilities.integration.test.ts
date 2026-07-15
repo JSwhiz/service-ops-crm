@@ -198,16 +198,7 @@ test('one-time order capabilities separate operational, financial and calendar a
   assert.equal(inactiveManager.response.status, 404);
 
   const ordinaryReader = await getOrder(cookies.deputy1);
-  assert.equal(ordinaryReader.response.status, 200);
-  assert.equal(
-    ordinaryReader.payload?.capabilities.canEditOperationalFields,
-    false,
-  );
-  assert.equal(
-    ordinaryReader.payload?.capabilities.canEditFinancialFields,
-    false,
-  );
-  assert.equal(ordinaryReader.payload?.capabilities.canViewCalendar, true);
+  assert.equal(ordinaryReader.response.status, 404);
 
   const hrMeResponse = await fetch(`${baseUrl}/api/v1/auth/me`, {
     headers: { Cookie: cookies.hr1 },

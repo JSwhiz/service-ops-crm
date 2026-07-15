@@ -541,16 +541,25 @@ function CalendarDayContent({
       {day.pendingOwnRequest ? (
         <span className="one-time-calendar__pending">Ожидает согласования</span>
       ) : null}
-      {day.orders.slice(0, 2).map((order) => (
-        <Link
-          key={order.id}
-          href={`/one-time-orders/${order.id}`}
-          title={`${order.title} · ${order.executionAddress}`}
-          onClick={(event) => event.stopPropagation()}
-        >
-          {order.title}
-        </Link>
-      ))}
+      {day.orders.slice(0, 2).map((order, index) =>
+        order.relatedOrder ? (
+          <Link
+            key={order.relatedOrder.id}
+            href={`/one-time-orders/${order.relatedOrder.id}`}
+            title={`${order.relatedOrder.title} · ${order.relatedOrder.executionAddress}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {order.relatedOrder.title}
+          </Link>
+        ) : (
+          <span
+            className="one-time-calendar__restricted-order"
+            key={`restricted-${index}`}
+          >
+            Занят
+          </span>
+        ),
+      )}
       {day.orders.length > 2 ? (
         <span className="one-time-calendar__more">Еще {day.orders.length - 2}</span>
       ) : null}
@@ -676,19 +685,36 @@ function DayDetailsModal({
         <div className="calendar-modal__section">
           <strong>Заказы: {day.orders.length}</strong>
           {day.orders.length === 0 ? <span className="page-muted">Нет заказов</span> : null}
-          {day.orders.map((order) => (
-            <Link className="calendar-modal__order" key={order.id} href={`/one-time-orders/${order.id}`}>
-              <strong>{order.title}</strong>
-              <span>{order.executionAddress}</span>
-              <span>
-                {formatDate(order.executionStartDate)} — {formatDate(order.executionEndDate)}
-              </span>
-              <span>{getOneTimeOrderStatusLabel(order.status)}</span>
-              <span>
-                {order.managers.map((managerItem) => getUserDisplayName(managerItem)).join(', ')}
-              </span>
-            </Link>
-          ))}
+          {day.orders.map((order, index) =>
+            order.relatedOrder ? (
+              <Link
+                className="calendar-modal__order"
+                key={order.relatedOrder.id}
+                href={`/one-time-orders/${order.relatedOrder.id}`}
+              >
+                <strong>{order.relatedOrder.title}</strong>
+                <span>{order.relatedOrder.executionAddress}</span>
+                <span>
+                  {formatDate(order.relatedOrder.executionStartDate)} —{' '}
+                  {formatDate(order.relatedOrder.executionEndDate)}
+                </span>
+                <span>{getOneTimeOrderStatusLabel(order.relatedOrder.status)}</span>
+                <span>
+                  {order.relatedOrder.managers
+                    .map((managerItem) => getUserDisplayName(managerItem))
+                    .join(', ')}
+                </span>
+              </Link>
+            ) : (
+              <div
+                className="calendar-modal__order calendar-modal__order--restricted"
+                key={`restricted-${index}`}
+              >
+                <strong>Занят</strong>
+                <span>Детали заказа ограничены</span>
+              </div>
+            ),
+          )}
         </div>
 
         <div className="action-row">

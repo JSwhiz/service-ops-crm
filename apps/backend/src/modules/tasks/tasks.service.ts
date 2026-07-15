@@ -15,6 +15,7 @@ import {
   TASK_RESULT_CONFIRMATION_TYPE,
 } from '../approvals/constants/approval.constants';
 import {
+  buildOneTimeOrderAccessWhere,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { canViewObjectByScope } from '../objects/utils/object-access.util';
@@ -54,6 +55,7 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
@@ -1756,10 +1758,26 @@ export class TasksService {
   private buildTaskAccessWhere(
     currentUser: CurrentAuthUser,
   ): Prisma.TaskWhereInput {
-    return buildTaskAccessWhere({
-      currentUserId: currentUser.id,
-      roleCodes: this.getRoleCodes(currentUser),
-    });
+    return {
+      AND: [
+        buildTaskAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+        }),
+        {
+          OR: [
+            { oneTimeOrderId: null },
+            {
+              oneTimeOrder: buildOneTimeOrderAccessWhere({
+                currentUserId: currentUser.id,
+                roleCodes: this.getRoleCodes(currentUser),
+                permissionCodes: currentUser.permissionCodes,
+              }),
+            },
+          ],
+        },
+      ],
+    };
   }
 
   private buildTaskListWhere(

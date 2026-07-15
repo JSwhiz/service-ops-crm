@@ -20,7 +20,10 @@ import {
   hasWideObjectAccess,
 } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { canViewOneTimeOrderByScope } from '../one-time-orders/utils/one-time-order-access.util';
+import {
+  buildOneTimeOrderAccessWhere,
+  canViewOneTimeOrderByScope,
+} from '../one-time-orders/utils/one-time-order-access.util';
 
 import { CreateObjectInventoryIssueDto } from './dto/create-object-inventory-issue.dto';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
@@ -60,6 +63,7 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
@@ -1101,6 +1105,11 @@ export class InventoryService {
     this.assertInventoryVisible(currentUser);
 
     return this.prisma.oneTimeOrder.findMany({
+      where: buildOneTimeOrderAccessWhere({
+        currentUserId: currentUser.id,
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: currentUser.permissionCodes,
+      }),
       select: {
         id: true,
         title: true,
@@ -2024,6 +2033,14 @@ export class InventoryService {
       !hasEvidence &&
       !movement.approvalBridgeResolvedAt &&
       movement.approvalBridgeType === 'inventory_without_photo_confirmation';
+    const canViewRelatedOrder = movement.relatedOneTimeOrder
+      ? canViewOneTimeOrderByScope({
+          currentUserId: currentUser.id,
+          roleCodes,
+          permissionCodes: currentUser.permissionCodes,
+          order: movement.relatedOneTimeOrder,
+        })
+      : false;
 
     return {
       id: movement.id,
@@ -2051,16 +2068,12 @@ export class InventoryService {
             }),
           }
         : null,
-      relatedOneTimeOrder: movement.relatedOneTimeOrder
+      relatedOneTimeOrder: movement.relatedOneTimeOrder && canViewRelatedOrder
         ? {
             id: movement.relatedOneTimeOrder.id,
             title: movement.relatedOneTimeOrder.title,
             status: movement.relatedOneTimeOrder.status,
-            canOpenOrderCard: canViewOneTimeOrderByScope({
-              currentUserId: currentUser.id,
-              roleCodes,
-              order: movement.relatedOneTimeOrder,
-            }),
+            canOpenOrderCard: true,
           }
         : null,
       attachments,

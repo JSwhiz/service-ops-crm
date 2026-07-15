@@ -56,6 +56,7 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
@@ -980,16 +981,19 @@ export class EquipmentService {
             }),
           }
         : null,
-      currentOneTimeOrder: unit.currentOneTimeOrder
+      currentOneTimeOrder:
+        unit.currentOneTimeOrder &&
+        canViewOneTimeOrderByScope({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: currentUser.permissionCodes,
+          order: unit.currentOneTimeOrder,
+        })
         ? {
             id: unit.currentOneTimeOrder.id,
             title: unit.currentOneTimeOrder.title,
             status: unit.currentOneTimeOrder.status,
-            canOpenOrderCard: canViewOneTimeOrderByScope({
-              currentUserId: currentUser.id,
-              roleCodes: this.getRoleCodes(currentUser),
-              order: unit.currentOneTimeOrder,
-            }),
+            canOpenOrderCard: true,
           }
         : null,
       catalogItem: this.mapCatalogItem(unit.catalogItem),
@@ -1036,16 +1040,18 @@ export class EquipmentService {
           }
         : null;
     const mapOrder = (order: OrderScope | null) =>
-      order
+      order &&
+      canViewOneTimeOrderByScope({
+        currentUserId: currentUser.id,
+        roleCodes,
+        permissionCodes: currentUser.permissionCodes,
+        order,
+      })
         ? {
             id: order.id,
             title: order.title,
             status: order.status,
-            canOpenOrderCard: canViewOneTimeOrderByScope({
-              currentUserId: currentUser.id,
-              roleCodes,
-              order,
-            }),
+            canOpenOrderCard: true,
           }
         : null;
 

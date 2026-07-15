@@ -294,7 +294,7 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
     },
   );
 
-  assert.equal(forbiddenEditResponse.status, 403);
+  assert.equal(forbiddenEditResponse.status, 404);
 
   const commentResponse = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${orderId}/comments`,

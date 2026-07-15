@@ -13,6 +13,7 @@ import {
   OneTimeOrderCalendarResponseDto,
 } from './dto/one-time-order-calendar-response.dto';
 import {
+  buildOneTimeOrderAccessWhere,
   canAccessOneTimeOrders,
   canBeOneTimeOrderManager,
   hasOneTimeOrderPermission,
@@ -51,9 +52,13 @@ export class OneTimeOrderCalendarService {
     await this.assertCanViewCalendar(currentUser);
     const { monthStart, monthEnd, daysInMonth } = this.parseMonth(query.month);
     const elevatedPendingAccess = this.hasElevatedCalendarAccess(currentUser);
-    const orderStatusWhere = query.status
-      ? { status: query.status }
-      : query.includeCancelled
+    const accessWhere = buildOneTimeOrderAccessWhere({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: currentUser.permissionCodes,
+    });
+    const orderStatusWhere =
+      query.includeCancelled || query.status === 'cancelled'
         ? {}
         : { status: { not: 'cancelled' } };
 
@@ -83,6 +88,7 @@ export class OneTimeOrderCalendarService {
           assignments: {
             some: {
               assignmentRoleCode: 'one_time_manager',
+              isActive: true,
               ...(query.managerUserId ? { userId: query.managerUserId } : {}),
             },
           },
@@ -96,7 +102,11 @@ export class OneTimeOrderCalendarService {
           executionAddress: true,
           linkedObject: { select: { id: true, name: true } },
           assignments: {
-            where: { assignmentRoleCode: 'one_time_manager' },
+            where: {
+              assignmentRoleCode: 'one_time_manager',
+              isActive: true,
+              user: { isActive: true, deletedAt: null },
+            },
             select: {
               userId: true,
               user: {
@@ -114,6 +124,22 @@ export class OneTimeOrderCalendarService {
         orderBy: [{ executionStartDate: 'asc' }, { id: 'asc' }],
       }),
     ]);
+
+    const accessibleOrderIds = new Set(
+      orders.length === 0
+        ? []
+        : (
+            await this.prisma.oneTimeOrder.findMany({
+              where: {
+                AND: [
+                  { id: { in: orders.map((order) => order.id) } },
+                  accessWhere,
+                ],
+              },
+              select: { id: true },
+            })
+          ).map((order) => order.id),
+    );
 
     const managers = new Map<string, CalendarManager>();
     for (const user of eligibleUsers) managers.set(user.id, user);
@@ -164,7 +190,13 @@ export class OneTimeOrderCalendarService {
             order.assignments.some(
               (assignment) => assignment.userId === manager.id,
             ),
-          );
+          ).filter((order) => {
+            if (!accessibleOrderIds.has(order.id)) {
+              return order.status !== 'cancelled';
+            }
+            if (query.status) return order.status === query.status;
+            return query.includeCancelled || order.status !== 'cancelled';
+          });
           const managerAvailability = availabilityEntries.filter(
             (entry) => entry.userId === manager.id,
           );
@@ -175,7 +207,9 @@ export class OneTimeOrderCalendarService {
                   formatAvailabilityDate(order.executionStartDate!) <= date &&
                   formatAvailabilityDate(order.executionEndDate!) >= date,
               )
-              .map((order) => this.mapOrder(order));
+              .map((order) =>
+                this.mapOrder(order, accessibleOrderIds.has(order.id)),
+              );
             const approved = managerAvailability.find(
               (entry) =>
                 entry.status === 'approved' &&
@@ -188,8 +222,11 @@ export class OneTimeOrderCalendarService {
                 formatAvailabilityDate(entry.startDate) <= date &&
                 formatAvailabilityDate(entry.endDate) >= date,
             );
-            const activeOrderCount = dayOrders.filter(
-              (order) => order.status !== 'cancelled',
+            const activeOrderCount = managerOrders.filter(
+              (order) =>
+                order.status !== 'cancelled' &&
+                formatAvailabilityDate(order.executionStartDate!) <= date &&
+                formatAvailabilityDate(order.executionEndDate!) >= date,
             ).length;
 
             return {
@@ -203,9 +240,7 @@ export class OneTimeOrderCalendarService {
               ),
             };
           });
-          const workedDays = days.filter((day) =>
-            day.orders.some((order) => order.status !== 'cancelled'),
-          ).length;
+          const workedDays = days.filter((day) => day.orders.length > 0).length;
 
           return {
             user: {
@@ -217,10 +252,12 @@ export class OneTimeOrderCalendarService {
             workedDays,
             orderCount: managerOrders.length,
             completedOrderCount: managerOrders.filter(
-              (order) => order.status === 'completed',
+              (order) =>
+                accessibleOrderIds.has(order.id) && order.status === 'completed',
             ).length,
             cancelledOrderCount: managerOrders.filter(
-              (order) => order.status === 'cancelled',
+              (order) =>
+                accessibleOrderIds.has(order.id) && order.status === 'cancelled',
             ).length,
             days,
           };
@@ -288,17 +325,35 @@ export class OneTimeOrderCalendarService {
     assignments: Array<{
       user: { id: string; login: string; fullName: string };
     }>;
-  }): CalendarOrderDto {
+  }, canViewDetails: boolean): CalendarOrderDto {
+    if (!canViewDetails) {
+      return {
+        type: 'existing_order',
+        detailsRestricted: true,
+        relatedOrder: null,
+      };
+    }
+
     return {
-      id: order.id,
-      title: order.title,
-      status: order.status,
-      executionStartDate: formatAvailabilityDate(order.executionStartDate!),
-      executionEndDate: formatAvailabilityDate(order.executionEndDate!),
-      executionAddress: order.executionAddress,
-      linkedObject: order.linkedObject,
-      managers: order.assignments.map((assignment) => assignment.user),
+      type: 'existing_order',
+      detailsRestricted: false,
+      relatedOrder: {
+        id: order.id,
+        title: order.title,
+        status: order.status,
+        executionStartDate: formatAvailabilityDate(order.executionStartDate!),
+        executionEndDate: formatAvailabilityDate(order.executionEndDate!),
+        executionAddress: order.executionAddress,
+        linkedObject: order.linkedObject,
+        managers: order.assignments.map((assignment) => assignment.user),
+      },
     };
+  }
+
+  private getRoleCodes(currentUser: CurrentAuthUser): string[] {
+    return currentUser.roleCodes?.length
+      ? currentUser.roleCodes
+      : [currentUser.roleCode];
   }
 
   private mapAvailability(entry: {

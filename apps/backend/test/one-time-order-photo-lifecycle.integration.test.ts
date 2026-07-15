@@ -146,7 +146,7 @@ test('one-time order photos support scoped soft delete, restore and file access'
     headers: { Cookie: outsiderCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ reason: 'Недоступно' }),
   });
-  assert.equal(outsiderDenied.status, 403);
+  assert.equal(outsiderDenied.status, 404);
 
   const managerDelete = await fetch(photoUrl(managerPhoto.id), {
     method: 'DELETE',

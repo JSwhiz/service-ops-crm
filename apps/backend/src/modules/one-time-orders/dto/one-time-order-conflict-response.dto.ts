@@ -9,13 +9,14 @@ export interface OneTimeOrderScheduleConflictDto {
   date: string;
   user: { id: string; login: string; fullName: string };
   type: OneTimeOrderScheduleConflictType;
-  relatedOrder?: {
+  relatedOrder: {
     id: string;
     title: string;
     status: string;
     executionStartDate: string;
     executionEndDate: string;
-  };
+  } | null;
+  detailsRestricted: boolean;
 }
 
 export class OneTimeOrderConflictResponseDto {

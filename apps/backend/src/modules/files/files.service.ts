@@ -26,6 +26,7 @@ import {
 import { canReviewAccountability } from '../accountability/utils/accountability-access.util';
 import { canAccessEquipment } from '../equipment/utils/equipment-access.util';
 import {
+  buildOneTimeOrderAccessWhere,
   canEditOneTimeOrderByScope,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
@@ -1102,9 +1103,21 @@ export class FilesService {
     oneTimeOrderId: string,
     mode: 'read' | 'write',
   ): Promise<boolean> {
+    const roleCodes = this.getRoleCodes(currentUser);
     const order = await this.prisma.oneTimeOrder.findFirst({
       where: {
-        id: oneTimeOrderId,
+        AND: [
+          { id: oneTimeOrderId },
+          ...(mode === 'read'
+            ? [
+                buildOneTimeOrderAccessWhere({
+                  currentUserId: currentUser.id,
+                  roleCodes,
+                  permissionCodes: this.getPermissionCodes(currentUser),
+                }),
+              ]
+            : []),
+        ],
       },
       select: {
         createdByUserId: true,
@@ -1122,18 +1135,11 @@ export class FilesService {
     });
 
     if (!order) {
-      throw new NotFoundException('Attachment target one-time order not found');
+      return false;
     }
 
-    const roleCodes = this.getRoleCodes(currentUser);
-
     if (mode === 'read') {
-      return canViewOneTimeOrderByScope({
-        currentUserId: currentUser.id,
-        roleCodes,
-        permissionCodes: this.getPermissionCodes(currentUser),
-        order,
-      });
+      return true;
     }
 
     return canEditOneTimeOrderByScope({

@@ -16,6 +16,7 @@ import { InventoryMovementResponseDto } from '../inventory/dto/inventory-movemen
 import { ObjectInventoryResponseDto } from '../inventory/dto/object-inventory-response.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import {
+  buildOneTimeOrderAccessWhere,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import {
@@ -51,6 +52,7 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
@@ -479,7 +481,14 @@ export class ObjectOperationsService {
 
     const orders = (await this.prisma.oneTimeOrder.findMany({
       where: {
-        linkedObjectId: objectId,
+        AND: [
+          { linkedObjectId: objectId },
+          buildOneTimeOrderAccessWhere({
+            currentUserId: currentUser.id,
+            roleCodes: this.getRoleCodes(currentUser),
+            permissionCodes: currentUser.permissionCodes,
+          }),
+        ],
       },
       include: {
         assignments: {

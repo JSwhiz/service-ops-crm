@@ -258,14 +258,18 @@ export interface OneTimeOrderCalendarAvailability {
 }
 
 export interface OneTimeOrderCalendarOrder {
-  id: string;
-  title: string;
-  status: string;
-  executionStartDate: string;
-  executionEndDate: string;
-  executionAddress: string;
-  linkedObject: { id: string; name: string } | null;
-  managers: Array<{ id: string; login: string; fullName: string }>;
+  type: 'existing_order';
+  detailsRestricted: boolean;
+  relatedOrder: {
+    id: string;
+    title: string;
+    status: string;
+    executionStartDate: string;
+    executionEndDate: string;
+    executionAddress: string;
+    linkedObject: { id: string; name: string } | null;
+    managers: Array<{ id: string; login: string; fullName: string }>;
+  } | null;
 }
 
 export interface OneTimeOrderCalendarDay {
@@ -329,12 +333,13 @@ export interface OneTimeOrderConflictResponse {
       | 'vacation'
       | 'sick_leave'
       | 'pending_availability_request';
-    relatedOrder?: {
+    relatedOrder: {
       id: string;
       title: string;
       status: string;
       executionStartDate: string;
       executionEndDate: string;
-    };
+    } | null;
+    detailsRestricted: boolean;
   }>;
 }

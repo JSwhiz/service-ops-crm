@@ -49,10 +49,10 @@ import {
   normalizeOneTimeOrderDateRange,
 } from './utils/one-time-order-date-range.util';
 import {
+  buildOneTimeOrderAccessWhere,
   canBeOneTimeOrderManager,
   canCreateOneTimeOrder,
   canManageOneTimeOrderManagers,
-  hasWideOneTimeOrderAccess,
 } from './utils/one-time-order-access.util';
 
 interface CurrentAuthUser {
@@ -260,7 +260,11 @@ export class OneTimeOrdersService {
     const sortDirection = query.sortDirection ?? 'desc';
     const search = (query.q ?? query.search)?.trim();
     const clauses: Prisma.OneTimeOrderWhereInput[] = [
-      await this.buildVisibilityWhere(currentUser),
+      buildOneTimeOrderAccessWhere({
+        currentUserId: currentUser.id,
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: this.getPermissionCodes(currentUser),
+      }),
     ];
 
     if (query.status) clauses.push({ status: query.status });
@@ -390,7 +394,11 @@ export class OneTimeOrdersService {
     const order = (await this.prisma.oneTimeOrder.findFirst({
       where: {
         id,
-        ...(await this.buildVisibilityWhere(currentUser)),
+        ...buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        }),
       },
       include: this.getOrderInclude(),
     })) as OneTimeOrderView | null;
@@ -1718,7 +1726,14 @@ export class OneTimeOrdersService {
     id: string,
   ): Promise<OneTimeOrderView> {
     const order = (await this.prisma.oneTimeOrder.findFirst({
-      where: { id },
+      where: {
+        id,
+        ...buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        }),
+      },
       include: this.getOrderInclude(),
     })) as OneTimeOrderView | null;
 
@@ -1778,7 +1793,11 @@ export class OneTimeOrdersService {
     const order = (await this.prisma.oneTimeOrder.findFirst({
       where: {
         id,
-        ...(await this.buildVisibilityWhere(currentUser)),
+        ...buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        }),
       },
       include: this.getOrderInclude(),
     })) as OneTimeOrderView | null;
@@ -1851,7 +1870,14 @@ export class OneTimeOrdersService {
     id: string,
   ): Promise<OneTimeOrderView> {
     const order = (await this.prisma.oneTimeOrder.findFirst({
-      where: { id },
+      where: {
+        id,
+        ...buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        }),
+      },
       include: this.getOrderInclude(),
     })) as OneTimeOrderView | null;
 
@@ -1871,35 +1897,6 @@ export class OneTimeOrdersService {
     }
 
     return order;
-  }
-
-  private async buildVisibilityWhere(currentUser: CurrentAuthUser) {
-    const roleCodes = this.getRoleCodes(currentUser);
-
-    if (
-      hasWideOneTimeOrderAccess(roleCodes) ||
-      canManageOneTimeOrderManagers(
-        roleCodes,
-        this.getPermissionCodes(currentUser),
-      )
-    ) {
-      return {};
-    }
-
-    return {
-      OR: [
-        { createdByUserId: currentUser.id },
-        {
-          assignments: {
-            some: {
-              userId: currentUser.id,
-              isActive: true,
-              assignmentRoleCode: 'one_time_manager',
-            },
-          },
-        },
-      ],
-    };
   }
 
   private async ensureLinkedObjectExists(

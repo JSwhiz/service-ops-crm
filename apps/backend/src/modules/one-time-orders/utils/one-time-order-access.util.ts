@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client';
+
 import { LEADERSHIP_OBJECT_ROLE_CODES } from '../../objects/utils/object-access.util';
 
 export const ONE_TIME_ORDER_MANAGER_ROLE_CODES = [
@@ -12,7 +14,6 @@ export const ONE_TIME_ORDER_ASSIGNMENT_ROLE_CODES = [
 
 export const WIDE_ONE_TIME_ORDER_VIEW_ROLE_CODES = [
   ...LEADERSHIP_OBJECT_ROLE_CODES,
-  'deputy_director',
 ] as const;
 
 export const ONE_TIME_ORDER_MANAGEMENT_ROLE_CODES = LEADERSHIP_OBJECT_ROLE_CODES;
@@ -75,6 +76,37 @@ export function hasOneTimeOrderManagementAccess(
       ONE_TIME_ORDER_MANAGE_ALL_PERMISSION,
     )
   );
+}
+
+export function buildOneTimeOrderAccessWhere(params: {
+  currentUserId: string;
+  roleCodes: string[];
+  permissionCodes?: string[];
+}): Prisma.OneTimeOrderWhereInput {
+  if (
+    hasWideOneTimeOrderAccess(params.roleCodes) ||
+    hasOneTimeOrderManagementAccess(
+      params.roleCodes,
+      params.permissionCodes,
+    )
+  ) {
+    return {};
+  }
+
+  return {
+    OR: [
+      { createdByUserId: params.currentUserId },
+      {
+        assignments: {
+          some: {
+            userId: params.currentUserId,
+            assignmentRoleCode: 'one_time_manager',
+            isActive: true,
+          },
+        },
+      },
+    ],
+  };
 }
 
 export function canAccessOneTimeOrders(

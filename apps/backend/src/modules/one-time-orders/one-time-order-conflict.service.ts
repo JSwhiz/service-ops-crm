@@ -9,8 +9,10 @@ import {
   OneTimeOrderScheduleConflictDto,
 } from './dto/one-time-order-conflict-response.dto';
 import {
+  buildOneTimeOrderAccessWhere,
   canAccessOneTimeOrders,
   canBeOneTimeOrderManager,
+  hasOneTimeOrderManagementAccess,
   hasOneTimeOrderPermission,
   ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
   ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION,
@@ -44,6 +46,12 @@ export class OneTimeOrderConflictService {
     await this.assertCanCheck(currentUser);
     const db = options?.db ?? this.prisma;
     const managerUserIds = [...new Set(payload.managerUserIds)].sort();
+    await this.assertCanCheckManagers(
+      currentUser,
+      managerUserIds,
+      payload.excludeOrderId,
+      db,
+    );
     const range = normalizeOneTimeOrderDateRange({
       executionStartDate: payload.executionStartDate,
       executionEndDate: payload.executionEndDate,
@@ -154,6 +162,25 @@ export class OneTimeOrderConflictService {
         { id: user.id, login: user.login, fullName: user.fullName },
       ]),
     );
+    const accessibleOrderIds = new Set(
+      orders.length === 0
+        ? []
+        : (
+            await db.oneTimeOrder.findMany({
+              where: {
+                AND: [
+                  { id: { in: orders.map((order) => order.id) } },
+                  buildOneTimeOrderAccessWhere({
+                    currentUserId: currentUser.id,
+                    roleCodes: this.getRoleCodes(currentUser),
+                    permissionCodes: currentUser.permissionCodes,
+                  }),
+                ],
+              },
+              select: { id: true },
+            })
+          ).map((order) => order.id),
+    );
     const conflicts: OneTimeOrderScheduleConflictDto[] = [];
 
     for (const order of orders) {
@@ -169,13 +196,16 @@ export class OneTimeOrderConflictService {
             date,
             user: usersById.get(assignment.userId)!,
             type: 'existing_order',
-            relatedOrder: {
-              id: order.id,
-              title: order.title,
-              status: order.status,
-              executionStartDate: formatBusinessDate(order.executionStartDate)!,
-              executionEndDate: formatBusinessDate(order.executionEndDate)!,
-            },
+            relatedOrder: accessibleOrderIds.has(order.id)
+              ? {
+                  id: order.id,
+                  title: order.title,
+                  status: order.status,
+                  executionStartDate: formatBusinessDate(order.executionStartDate)!,
+                  executionEndDate: formatBusinessDate(order.executionEndDate)!,
+                }
+              : null,
+            detailsRestricted: !accessibleOrderIds.has(order.id),
           });
         }
       }
@@ -196,6 +226,8 @@ export class OneTimeOrderConflictService {
           date,
           user: usersById.get(entry.userId)!,
           type,
+          relatedOrder: null,
+          detailsRestricted: false,
         });
       }
     }
@@ -245,6 +277,46 @@ export class OneTimeOrderConflictService {
         ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
       )
     );
+  }
+
+  private async assertCanCheckManagers(
+    currentUser: CurrentAuthUser,
+    managerUserIds: string[],
+    targetOrderId: string | undefined,
+    db: DatabaseClient,
+  ): Promise<void> {
+    const roleCodes = this.getRoleCodes(currentUser);
+    const canCheckAny =
+      hasOneTimeOrderManagementAccess(
+        roleCodes,
+        currentUser.permissionCodes,
+      ) || this.hasElevatedAccess(currentUser);
+
+    if (canCheckAny || managerUserIds.every((id) => id === currentUser.id)) {
+      return;
+    }
+
+    const ownedTarget = targetOrderId
+      ? await db.oneTimeOrder.findFirst({
+          where: {
+            id: targetOrderId,
+            createdByUserId: currentUser.id,
+          },
+          select: { id: true },
+        })
+      : null;
+
+    if (ownedTarget) return;
+
+    throw new ForbiddenException(
+      'Schedule conflict check is limited to assignable managers',
+    );
+  }
+
+  private getRoleCodes(currentUser: CurrentAuthUser): string[] {
+    return currentUser.roleCodes?.length
+      ? currentUser.roleCodes
+      : [currentUser.roleCode];
   }
 
   private listOverlapDates(

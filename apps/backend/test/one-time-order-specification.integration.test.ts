@@ -74,7 +74,7 @@ test('one-time order specification supports checklist lifecycle, attachments and
     headers: { Cookie: deputyCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ title: 'Недоступный пункт' }),
   });
-  assert.equal(deniedCreate.status, 403);
+  assert.equal(deniedCreate.status, 404);
 
   const createResponse = await fetch(itemsUrl, {
     method: 'POST',

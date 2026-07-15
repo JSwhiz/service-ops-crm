@@ -124,6 +124,65 @@ test('one-time order registry is paginated, searchable and access-safe', async (
       },
     },
   });
+  const inactiveAssignmentOrder = await prisma.oneTimeOrder.create({
+    data: {
+      title: `${marker}-inactive-assignment`,
+      executionAddress: 'Тула',
+      status: 'planned',
+      contactName: 'Скрытый контакт',
+      createdByUserId: founder.id,
+      assignments: {
+        create: {
+          userId: reader.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: false,
+        },
+      },
+    },
+  });
+  const hiddenComment = await prisma.oneTimeOrderComment.create({
+    data: {
+      oneTimeOrderId: inactiveAssignmentOrder.id,
+      content: 'Скрытый комментарий',
+      createdByUserId: founder.id,
+    },
+  });
+  const hiddenFiles = await Promise.all([
+    prisma.file.create({
+      data: {
+        bucket: 'test-private',
+        objectKey: `${marker}/order.txt`,
+        originalName: 'order.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 5,
+        uploadedByUserId: founder.id,
+        attachments: {
+          create: {
+            entityType: 'one_time_order',
+            entityId: inactiveAssignmentOrder.id,
+            uploadedByUserId: founder.id,
+          },
+        },
+      },
+    }),
+    prisma.file.create({
+      data: {
+        bucket: 'test-private',
+        objectKey: `${marker}/comment.txt`,
+        originalName: 'comment.txt',
+        mimeType: 'text/plain',
+        sizeBytes: 7,
+        uploadedByUserId: founder.id,
+        attachments: {
+          create: {
+            entityType: 'one_time_order_comment',
+            entityId: hiddenComment.id,
+            uploadedByUserId: founder.id,
+          },
+        },
+      },
+    }),
+  ]);
   const tasks = await Promise.all(
     [manager.id, reader.id].map((userId, index) =>
       prisma.task.create({
@@ -145,15 +204,27 @@ test('one-time order registry is paginated, searchable and access-safe', async (
 
   t.after(async () => {
     await prisma.task.deleteMany({ where: { id: { in: tasks.map((task) => task.id) } } });
+    await prisma.file.deleteMany({
+      where: { id: { in: hiddenFiles.map((file) => file.id) } },
+    });
     await prisma.oneTimeOrder.deleteMany({
-      where: { id: { in: [firstOrder.id, secondOrder.id, thirdOrder.id] } },
+      where: {
+        id: {
+          in: [
+            firstOrder.id,
+            secondOrder.id,
+            thirdOrder.id,
+            inactiveAssignmentOrder.id,
+          ],
+        },
+      },
     });
     await prisma.object.delete({ where: { id: object.id } });
     await app.close();
     await prisma.$disconnect();
   });
 
-  const [founderCookie, readerCookie] = await Promise.all([
+  const [founderCookie, readerCookie, deputyCookie] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
@@ -163,6 +234,11 @@ test('one-time order registry is paginated, searchable and access-safe', async (
       baseUrl,
       login: 'manager2',
       password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'deputy1',
+      password: 'deputy123',
     }),
   ]);
   const list = async (query: string, cookie = founderCookie) => {
@@ -176,8 +252,8 @@ test('one-time order registry is paginated, searchable and access-safe', async (
   const firstPage = await list(`q=${marker}&page=1&limit=1&sortBy=title&sortDirection=asc`);
   assert.equal(firstPage.page, 1);
   assert.equal(firstPage.limit, 1);
-  assert.equal(firstPage.total, 3);
-  assert.equal(firstPage.totalPages, 3);
+  assert.equal(firstPage.total, 4);
+  assert.equal(firstPage.totalPages, 4);
   assert.equal(firstPage.items[0]?.id, firstOrder.id);
 
   const overlap = await list(
@@ -213,5 +289,18 @@ test('one-time order registry is paginated, searchable and access-safe', async (
 
   const readerResult = await list(`q=${marker}&limit=20`, readerCookie);
   assert.deepEqual(readerResult.items.map((item) => item.id), [firstOrder.id]);
+  assert.equal(readerResult.total, readerResult.items.length);
   assert.equal(readerResult.items[0]?.accessibleTaskCount, 1);
+
+  const deputyResult = await list(`q=${marker}&limit=20`, deputyCookie);
+  assert.deepEqual(deputyResult.items, []);
+  assert.equal(deputyResult.total, 0);
+
+  for (const hiddenFile of hiddenFiles) {
+    const fileResponse = await fetch(
+      `${baseUrl}/api/v1/files/${hiddenFile.id}`,
+      { headers: { Cookie: deputyCookie } },
+    );
+    assert.equal(fileResponse.status, 403);
+  }
 });
