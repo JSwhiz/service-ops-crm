@@ -15,11 +15,13 @@ export function OneTimeOrderTasksPanel({
   items,
   assigneeOptions,
   canCreateTask,
+  linkedObject,
   onCreate,
 }: {
   items: TaskItem[];
   assigneeOptions: SystemUserOption[];
   canCreateTask: boolean;
+  linkedObject: { id: string; name: string } | null;
   onCreate: (payload: {
     title: string;
     description?: string;
@@ -67,6 +69,14 @@ export function OneTimeOrderTasksPanel({
           className="page-card"
           onSubmit={async (event) => {
             event.preventDefault();
+
+            const targetLabel = linkedObject
+              ? `заказом и объектом «${linkedObject.name}»`
+              : 'заказом';
+            if (!window.confirm(`Создать задачу со связью с ${targetLabel}?`)) {
+              return;
+            }
+
             setIsSubmitting(true);
 
             try {
@@ -101,6 +111,13 @@ export function OneTimeOrderTasksPanel({
               gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             }}
           >
+            <div
+              className="page-muted"
+              style={{ gridColumn: '1 / -1' }}
+            >
+              Связи: текущий разовый заказ
+              {linkedObject ? ` + объект «${linkedObject.name}»` : ''}.
+            </div>
             <label>
               <div style={{ marginBottom: 6 }}>Название</div>
               <input

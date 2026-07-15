@@ -23,6 +23,7 @@ import {
   canViewObjectByScope,
 } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import {
   getRatePolicyLabel,
   normalizeRatePolicy,
@@ -130,7 +131,6 @@ interface LinkedOneTimeOrderView {
     comments: number;
     dailyReports: number;
     photos: number;
-    tasks: number;
   };
 }
 
@@ -508,7 +508,6 @@ export class ObjectOperationsService {
                 deletedAt: null,
               },
             },
-            tasks: true,
           },
         },
       },
@@ -544,6 +543,33 @@ export class ObjectOperationsService {
     }
 
     const roleCodes = this.getRoleCodes(currentUser);
+    const taskCountRows =
+      orders.length === 0
+        ? []
+        : await this.prisma.task.groupBy({
+            by: ['oneTimeOrderId'],
+            where: {
+              AND: [
+                {
+                  oneTimeOrderId: {
+                    in: orders.map((order) => order.id),
+                  },
+                },
+                buildTaskAccessWhere({
+                  currentUserId: currentUser.id,
+                  roleCodes,
+                }),
+              ],
+            },
+            _count: {
+              _all: true,
+            },
+          });
+    const taskCountMap = new Map(
+      taskCountRows.flatMap((row) =>
+        row.oneTimeOrderId ? [[row.oneTimeOrderId, row._count._all] as const] : [],
+      ),
+    );
 
     return orders.map((order) => ({
       id: order.id,
@@ -573,7 +599,7 @@ export class ObjectOperationsService {
         reportsCount: order._count.dailyReports,
         photosCount: order._count.photos,
         filesCount: fileCountMap.get(order.id) ?? 0,
-        tasksCount: order._count.tasks,
+        tasksCount: taskCountMap.get(order.id) ?? 0,
       },
     }));
   }
