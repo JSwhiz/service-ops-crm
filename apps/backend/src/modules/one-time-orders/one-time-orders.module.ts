@@ -8,6 +8,7 @@ import { TasksModule } from '../tasks/tasks.module';
 
 import { OneTimeOrdersController } from './one-time-orders.controller';
 import { OneTimeOrderCalendarService } from './one-time-order-calendar.service';
+import { OneTimeOrderConflictService } from './one-time-order-conflict.service';
 import { OneTimeOrdersService } from './one-time-orders.service';
 import { OneTimeManagerAvailabilityService } from './one-time-manager-availability.service';
 
@@ -18,6 +19,7 @@ import { OneTimeManagerAvailabilityService } from './one-time-manager-availabili
     OneTimeOrdersService,
     OneTimeManagerAvailabilityService,
     OneTimeOrderCalendarService,
+    OneTimeOrderConflictService,
   ],
   exports: [OneTimeOrdersService, OneTimeManagerAvailabilityService],
 })

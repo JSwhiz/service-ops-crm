@@ -27,6 +27,7 @@ import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dt
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
+import { OneTimeOrderConflictResponseDto } from './dto/one-time-order-conflict-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
 import {
   OneTimeOrderListItemResponseDto,
@@ -40,6 +41,7 @@ import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-da
 import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
 import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.dto';
 import { UpdateOneTimeOrderSpecificationItemDto } from './dto/update-one-time-order-specification-item.dto';
+import { OneTimeOrderConflictService } from './one-time-order-conflict.service';
 import { buildOneTimeOrderCapabilities, canOpenLinkedObjectCard } from './utils/one-time-order-capabilities.util';
 import {
   formatBusinessDate,
@@ -222,6 +224,21 @@ interface StoredFileView {
 
 type AuditPrimitive = string | number | boolean | null;
 
+interface ScheduleConflictCheckInput {
+  executionStartDate: Date | null;
+  executionEndDate: Date | null;
+  managerUserIds: string[];
+  excludeOrderId?: string;
+  confirmScheduleConflicts?: boolean;
+}
+
+interface ScheduleConflictAuditInput {
+  executionStartDate: Date | null;
+  executionEndDate: Date | null;
+  managerUserIds: string[];
+  conflictResult: OneTimeOrderConflictResponseDto | null;
+}
+
 @Injectable()
 export class OneTimeOrdersService {
   constructor(
@@ -230,6 +247,7 @@ export class OneTimeOrdersService {
     private readonly tasksService: TasksService,
     private readonly equipmentService: EquipmentService,
     private readonly chatsService: ChatsService,
+    private readonly oneTimeOrderConflictService: OneTimeOrderConflictService,
   ) {}
 
   async listOrders(
@@ -406,6 +424,15 @@ export class OneTimeOrdersService {
     const managerUsers = await this.loadManagerUsers(managerUserIds);
 
     const created = await this.prisma.$transaction(async (tx) => {
+      const conflictResult =
+        (payload.status ?? 'new') === 'cancelled'
+          ? null
+          : await this.checkScheduleConflicts(tx, currentUser, {
+              executionStartDate: dateRange.executionStartDate,
+              executionEndDate: dateRange.executionEndDate,
+              managerUserIds,
+              confirmScheduleConflicts: payload.confirmScheduleConflicts,
+            });
       const order = await tx.oneTimeOrder.create({
         data: {
           title: payload.title.trim(),
@@ -433,6 +460,13 @@ export class OneTimeOrdersService {
             : undefined,
         },
         include: this.getOrderInclude(),
+      });
+
+      await this.writeScheduleConflictOverrideAudit(tx, currentUser, order.id, {
+        executionStartDate: dateRange.executionStartDate,
+        executionEndDate: dateRange.executionEndDate,
+        managerUserIds,
+        conflictResult,
       });
 
       return order as OneTimeOrderView;
@@ -557,46 +591,73 @@ export class OneTimeOrdersService {
           : payload.expenseNotes?.trim() || null,
     };
 
-    const updated = (await this.prisma.oneTimeOrder.update({
-      where: { id },
-      data: {
-        ...(nextValues.title !== undefined ? { title: nextValues.title } : {}),
-        ...(nextValues.executionAddress !== undefined
-          ? { executionAddress: nextValues.executionAddress }
-          : {}),
-        ...(nextValues.linkedObjectId !== undefined
-          ? { linkedObjectId: nextValues.linkedObjectId }
-          : {}),
-        ...(nextValues.description !== undefined
-          ? { description: nextValues.description }
-          : {}),
-        ...(nextValues.executionDate !== undefined
-          ? { executionDate: nextValues.executionDate }
-          : {}),
-        ...(nextValues.executionStartDate !== undefined
-          ? { executionStartDate: nextValues.executionStartDate }
-          : {}),
-        ...(nextValues.executionEndDate !== undefined
-          ? { executionEndDate: nextValues.executionEndDate }
-          : {}),
-        ...(nextValues.contactName !== undefined
-          ? { contactName: nextValues.contactName }
-          : {}),
-        ...(nextValues.contactPhone !== undefined
-          ? { contactPhone: nextValues.contactPhone }
-          : {}),
-        ...(nextValues.agreedSum !== undefined
-          ? { agreedSum: nextValues.agreedSum }
-          : {}),
-        ...(nextValues.financialNotes !== undefined
-          ? { financialNotes: nextValues.financialNotes }
-          : {}),
-        ...(nextValues.expenseNotes !== undefined
-          ? { expenseNotes: nextValues.expenseNotes }
-          : {}),
-      },
-      include: this.getOrderInclude(),
-    })) as OneTimeOrderView;
+    const managerUserIds = existing.assignments
+      .filter(
+        (assignment) =>
+          assignment.assignmentRoleCode === 'one_time_manager' &&
+          assignment.isActive,
+      )
+      .map((assignment) => assignment.userId);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const conflictResult =
+        hasDateRangeUpdate && existing.status !== 'cancelled'
+          ? await this.checkScheduleConflicts(tx, currentUser, {
+              executionStartDate: dateRange?.executionStartDate ?? null,
+              executionEndDate: dateRange?.executionEndDate ?? null,
+              managerUserIds,
+              excludeOrderId: id,
+              confirmScheduleConflicts: payload.confirmScheduleConflicts,
+            })
+          : null;
+      const order = (await tx.oneTimeOrder.update({
+        where: { id },
+        data: {
+          ...(nextValues.title !== undefined ? { title: nextValues.title } : {}),
+          ...(nextValues.executionAddress !== undefined
+            ? { executionAddress: nextValues.executionAddress }
+            : {}),
+          ...(nextValues.linkedObjectId !== undefined
+            ? { linkedObjectId: nextValues.linkedObjectId }
+            : {}),
+          ...(nextValues.description !== undefined
+            ? { description: nextValues.description }
+            : {}),
+          ...(nextValues.executionDate !== undefined
+            ? { executionDate: nextValues.executionDate }
+            : {}),
+          ...(nextValues.executionStartDate !== undefined
+            ? { executionStartDate: nextValues.executionStartDate }
+            : {}),
+          ...(nextValues.executionEndDate !== undefined
+            ? { executionEndDate: nextValues.executionEndDate }
+            : {}),
+          ...(nextValues.contactName !== undefined
+            ? { contactName: nextValues.contactName }
+            : {}),
+          ...(nextValues.contactPhone !== undefined
+            ? { contactPhone: nextValues.contactPhone }
+            : {}),
+          ...(nextValues.agreedSum !== undefined
+            ? { agreedSum: nextValues.agreedSum }
+            : {}),
+          ...(nextValues.financialNotes !== undefined
+            ? { financialNotes: nextValues.financialNotes }
+            : {}),
+          ...(nextValues.expenseNotes !== undefined
+            ? { expenseNotes: nextValues.expenseNotes }
+            : {}),
+        },
+        include: this.getOrderInclude(),
+      })) as OneTimeOrderView;
+
+      await this.writeScheduleConflictOverrideAudit(tx, currentUser, id, {
+        executionStartDate: dateRange?.executionStartDate ?? null,
+        executionEndDate: dateRange?.executionEndDate ?? null,
+        managerUserIds,
+        conflictResult,
+      });
+      return order;
+    });
 
     const changes = this.buildOrderChanges(existing, updated);
 
@@ -1027,13 +1088,40 @@ export class OneTimeOrdersService {
       return this.mapOrder(existing, currentUser);
     }
 
-    const updated = (await this.prisma.oneTimeOrder.update({
-      where: { id },
-      data: {
-        status: payload.status,
-      },
-      include: this.getOrderInclude(),
-    })) as OneTimeOrderView;
+    const managerUserIds = existing.assignments
+      .filter(
+        (assignment) =>
+          assignment.assignmentRoleCode === 'one_time_manager' &&
+          assignment.isActive,
+      )
+      .map((assignment) => assignment.userId);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const conflictResult =
+        existing.status === 'cancelled' && payload.status !== 'cancelled'
+          ? await this.checkScheduleConflicts(tx, currentUser, {
+              executionStartDate: existing.executionStartDate,
+              executionEndDate: existing.executionEndDate,
+              managerUserIds,
+              excludeOrderId: id,
+              confirmScheduleConflicts: payload.confirmScheduleConflicts,
+            })
+          : null;
+      const order = (await tx.oneTimeOrder.update({
+        where: { id },
+        data: {
+          status: payload.status,
+        },
+        include: this.getOrderInclude(),
+      })) as OneTimeOrderView;
+
+      await this.writeScheduleConflictOverrideAudit(tx, currentUser, id, {
+        executionStartDate: existing.executionStartDate,
+        executionEndDate: existing.executionEndDate,
+        managerUserIds,
+        conflictResult,
+      });
+      return order;
+    });
 
     await this.auditService.writeAuditEvent({
       entityType: 'one_time_order',
@@ -1056,30 +1144,48 @@ export class OneTimeOrdersService {
     id: string,
     payload: AssignOneTimeOrderManagerDto,
   ): Promise<OneTimeOrderResponseDto> {
-    await this.getOrderForManagerChange(currentUser, id);
+    const order = await this.getOrderForManagerChange(currentUser, id);
     const [manager] = await this.loadManagerUsers([payload.userId]);
 
     if (!manager) {
       throw new NotFoundException('Selected one-time order manager not found');
     }
 
-    await this.prisma.oneTimeOrderAssignment.upsert({
-      where: {
-        oneTimeOrderId_userId_assignmentRoleCode: {
+    await this.prisma.$transaction(async (tx) => {
+      const conflictResult =
+        order.status === 'cancelled'
+          ? null
+          : await this.checkScheduleConflicts(tx, currentUser, {
+              executionStartDate: order.executionStartDate,
+              executionEndDate: order.executionEndDate,
+              managerUserIds: [manager.id],
+              excludeOrderId: id,
+              confirmScheduleConflicts: payload.confirmScheduleConflicts,
+            });
+      await tx.oneTimeOrderAssignment.upsert({
+        where: {
+          oneTimeOrderId_userId_assignmentRoleCode: {
+            oneTimeOrderId: id,
+            userId: manager.id,
+            assignmentRoleCode: 'one_time_manager',
+          },
+        },
+        update: {
+          isActive: true,
+        },
+        create: {
           oneTimeOrderId: id,
           userId: manager.id,
           assignmentRoleCode: 'one_time_manager',
+          isActive: true,
         },
-      },
-      update: {
-        isActive: true,
-      },
-      create: {
-        oneTimeOrderId: id,
-        userId: manager.id,
-        assignmentRoleCode: 'one_time_manager',
-        isActive: true,
-      },
+      });
+      await this.writeScheduleConflictOverrideAudit(tx, currentUser, id, {
+        executionStartDate: order.executionStartDate,
+        executionEndDate: order.executionEndDate,
+        managerUserIds: [manager.id],
+        conflictResult,
+      });
     });
 
     await this.auditService.writeAuditEvent({
@@ -1540,6 +1646,71 @@ export class OneTimeOrdersService {
   ): Promise<EquipmentScopeResponseDto> {
     await this.getOrderById(currentUser, id);
     return this.equipmentService.listOneTimeOrderEquipment(currentUser, id);
+  }
+
+  private async checkScheduleConflicts(
+    tx: Prisma.TransactionClient,
+    currentUser: CurrentAuthUser,
+    input: ScheduleConflictCheckInput,
+  ): Promise<OneTimeOrderConflictResponseDto | null> {
+    if (
+      !input.executionStartDate ||
+      !input.executionEndDate ||
+      input.managerUserIds.length === 0
+    ) {
+      return null;
+    }
+
+    const result = await this.oneTimeOrderConflictService.checkConflicts(
+      currentUser,
+      {
+        executionStartDate: formatBusinessDate(input.executionStartDate)!,
+        executionEndDate: formatBusinessDate(input.executionEndDate)!,
+        managerUserIds: [...new Set(input.managerUserIds)],
+        excludeOrderId: input.excludeOrderId,
+      },
+      {
+        db: tx,
+        lockManagerSchedules: true,
+      },
+    );
+
+    if (result.hasConflicts && !input.confirmScheduleConflicts) {
+      throw new ConflictException({
+        message: 'Schedule conflicts require confirmation',
+        hasConflicts: result.hasConflicts,
+        conflicts: result.conflicts,
+      });
+    }
+
+    return result;
+  }
+
+  private async writeScheduleConflictOverrideAudit(
+    tx: Prisma.TransactionClient,
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    input: ScheduleConflictAuditInput,
+  ): Promise<void> {
+    if (!input.conflictResult?.hasConflicts) {
+      return;
+    }
+
+    await tx.auditEvent.create({
+      data: {
+        entityType: 'one_time_order',
+        entityId: orderId,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.schedule_conflict_overridden',
+        metadata: {
+          executionStartDate: formatBusinessDate(input.executionStartDate),
+          executionEndDate: formatBusinessDate(input.executionEndDate),
+          managerUserIds: [...new Set(input.managerUserIds)],
+          conflicts: input.conflictResult.conflicts as unknown as Prisma.InputJsonArray,
+          actorUserId: currentUser.id,
+        } as Prisma.InputJsonObject,
+      },
+    });
   }
 
   private async getOrderForWrite(

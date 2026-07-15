@@ -17,6 +17,7 @@ import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.d
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
+import { CheckOneTimeOrderConflictsDto } from './dto/check-one-time-order-conflicts.dto';
 import {
   CreateOneTimeManagerAvailabilityDirectDto,
   CreateOneTimeManagerAvailabilityRequestDto,
@@ -34,6 +35,7 @@ import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-res
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
 import { OneTimeOrderListResponseDto } from './dto/one-time-order-list-response.dto';
 import { OneTimeOrderCalendarResponseDto } from './dto/one-time-order-calendar-response.dto';
+import { OneTimeOrderConflictResponseDto } from './dto/one-time-order-conflict-response.dto';
 import { OneTimeManagerAvailabilityResponseDto } from './dto/one-time-manager-availability-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
@@ -50,6 +52,7 @@ import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.
 import { UpdateOneTimeOrderSpecificationItemDto } from './dto/update-one-time-order-specification-item.dto';
 import { OneTimeOrdersService } from './one-time-orders.service';
 import { OneTimeOrderCalendarService } from './one-time-order-calendar.service';
+import { OneTimeOrderConflictService } from './one-time-order-conflict.service';
 import { OneTimeManagerAvailabilityService } from './one-time-manager-availability.service';
 
 interface CurrentAuthUser {
@@ -69,6 +72,7 @@ export class OneTimeOrdersController {
     private readonly oneTimeOrdersService: OneTimeOrdersService,
     private readonly oneTimeManagerAvailabilityService: OneTimeManagerAvailabilityService,
     private readonly oneTimeOrderCalendarService: OneTimeOrderCalendarService,
+    private readonly oneTimeOrderConflictService: OneTimeOrderConflictService,
   ) {}
 
   @Get('calendar')
@@ -77,6 +81,14 @@ export class OneTimeOrdersController {
     @Query() query: ListOneTimeOrderCalendarQueryDto,
   ): Promise<OneTimeOrderCalendarResponseDto> {
     return this.oneTimeOrderCalendarService.getCalendar(user, query);
+  }
+
+  @Post('calendar/check-conflicts')
+  checkCalendarConflicts(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() payload: CheckOneTimeOrderConflictsDto,
+  ): Promise<OneTimeOrderConflictResponseDto> {
+    return this.oneTimeOrderConflictService.checkConflicts(user, payload);
   }
 
   @Post('calendar/availability-requests')

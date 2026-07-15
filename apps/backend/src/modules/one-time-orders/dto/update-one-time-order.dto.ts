@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
@@ -60,4 +61,8 @@ export class UpdateOneTimeOrderDto {
   @IsOptional()
   @IsString()
   expenseNotes?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  confirmScheduleConflicts?: boolean;
 }

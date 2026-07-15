@@ -1,6 +1,7 @@
 import {
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
@@ -72,4 +73,8 @@ export class CreateOneTimeOrderDto {
   @ArrayUnique()
   @IsString({ each: true })
   managerUserIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  confirmScheduleConflicts?: boolean;
 }
