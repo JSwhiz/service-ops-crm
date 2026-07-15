@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
-import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
 import type {
   CreateTaskPayload,
   TaskCompletionRequirement,
@@ -58,7 +58,7 @@ export function TaskForm({
   onCancel,
 }: {
   objects: ServiceObject[];
-  orders: OneTimeOrderItem[];
+  orders: OneTimeOrderListItem[];
   users: SystemUserOption[];
   visibilityUsers: SystemUserOption[];
   initialValue?: Partial<TaskFormInitialValue>;

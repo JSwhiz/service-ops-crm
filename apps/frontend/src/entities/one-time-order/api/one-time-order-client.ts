@@ -6,14 +6,31 @@ import type {
   OneTimeOrderDailyReportItem,
   OneTimeOrderHistoryItem,
   OneTimeOrderItem,
+  OneTimeOrderListResponse,
   OneTimeOrderPhotoItem,
   OneTimeOrderSpecificationItem,
   UpdateOneTimeOrderPayload,
 } from '../model/one-time-order.types';
 
-interface ListOneTimeOrdersParams {
+export type OneTimeOrderSortField =
+  | 'title'
+  | 'executionStartDate'
+  | 'status'
+  | 'createdAt'
+  | 'updatedAt';
+
+export interface ListOneTimeOrdersParams {
+  q?: string;
   search?: string;
   status?: string;
+  managerUserId?: string;
+  linkedObjectId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: OneTimeOrderSortField;
+  sortDirection?: 'asc' | 'desc';
 }
 
 function buildQuery(params?: ListOneTimeOrdersParams): string {
@@ -23,12 +40,10 @@ function buildQuery(params?: ListOneTimeOrdersParams): string {
 
   const searchParams = new URLSearchParams();
 
-  if (params.search) {
-    searchParams.set('search', params.search);
-  }
-
-  if (params.status) {
-    searchParams.set('status', params.status);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') {
+      searchParams.set(key, String(value));
+    }
   }
 
   const query = searchParams.toString();
@@ -38,8 +53,8 @@ function buildQuery(params?: ListOneTimeOrdersParams): string {
 
 export async function listOneTimeOrders(
   params?: ListOneTimeOrdersParams,
-): Promise<OneTimeOrderItem[]> {
-  return fetcher<OneTimeOrderItem[]>(
+): Promise<OneTimeOrderListResponse> {
+  return fetcher<OneTimeOrderListResponse>(
     `/one-time-orders${buildQuery(params)}`,
     {
       method: 'GET',

@@ -15,7 +15,7 @@ import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listOneTimeOrders } from '@/entities/one-time-order/api/one-time-order-client';
-import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { EquipmentMovementPanel } from '@/features/equipment-card/ui/equipment-movement-panel';
 import {
   getEquipmentStatusLabel,
@@ -34,7 +34,7 @@ export default function EquipmentDetailPage({
   const [unit, setUnit] = useState<EquipmentUnit | null>(null);
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [objects, setObjects] = useState<ServiceObject[]>([]);
-  const [orders, setOrders] = useState<OneTimeOrderItem[]>([]);
+  const [orders, setOrders] = useState<OneTimeOrderListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,9 +62,13 @@ export default function EquipmentDetailPage({
             setObjects(response);
           }
         }),
-        listOneTimeOrders().then((response) => {
+        listOneTimeOrders({
+          limit: 100,
+          sortBy: 'title',
+          sortDirection: 'asc',
+        }).then((response) => {
           if (!cancelled) {
-            setOrders(response);
+            setOrders(response.items);
           }
         }),
       );

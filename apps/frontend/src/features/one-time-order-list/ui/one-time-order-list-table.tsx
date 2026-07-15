@@ -1,138 +1,146 @@
+'use client';
+
 import Link from 'next/link';
 import React from 'react';
 
-import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import type { OneTimeOrderSortField } from '@/entities/one-time-order/api/one-time-order-client';
+import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 
 export function OneTimeOrderListTable({
   items,
+  sortBy,
+  sortDirection,
+  onSort,
 }: {
-  items: OneTimeOrderItem[];
+  items: OneTimeOrderListItem[];
+  sortBy: OneTimeOrderSortField;
+  sortDirection: 'asc' | 'desc';
+  onSort: (field: OneTimeOrderSortField) => void;
 }): React.JSX.Element {
   if (items.length === 0) {
-    return (
-      <div className="page-card">
-        <div className="page-muted">Разовые заказы не найдены.</div>
-      </div>
-    );
+    return <div className="page-card page-muted">Разовые заказы не найдены.</div>;
   }
 
+  const sortButton = (
+    field: OneTimeOrderSortField,
+    label: string,
+  ): React.JSX.Element => (
+    <button
+      type="button"
+      className="one-time-order-table-sort"
+      onClick={() => onSort(field)}
+    >
+      {label}
+      {sortBy === field ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}
+    </button>
+  );
+
   return (
-    <div className="page-card" style={{ overflowX: 'auto' }}>
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          minWidth: 840,
-        }}
-      >
+    <div className="page-card one-time-order-table-scroll">
+      <table className="one-time-order-registry-table">
         <thead>
           <tr>
-            <th style={thStyle}>Заказ</th>
-            <th style={thStyle}>Статус</th>
-            <th style={thStyle}>Контакт</th>
-            <th style={thStyle}>Дата</th>
-            <th style={thStyle}>Сумма</th>
-            <th style={thStyle}>Отзыв</th>
-            <th style={thStyle}>Менеджеры</th>
+            <th>{sortButton('title', 'Заказ')}</th>
+            <th>{sortButton('executionStartDate', 'Даты')}</th>
+            <th>Адрес</th>
+            <th>{sortButton('status', 'Статус')}</th>
+            <th>Менеджеры</th>
+            <th>Объект</th>
+            <th>ТЗ</th>
+            <th>Задачи</th>
+            <th>Оценка</th>
+            <th>Отзыв</th>
+            <th>Действия</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
-            <tr key={item.id}>
-              <td style={tdStyle}>
-                <div>
-                  <Link href={`/one-time-orders/${item.id}`}>{item.title}</Link>
-                </div>
-                <div className="page-muted">{item.executionAddress}</div>
-              </td>
-              <td style={tdStyle}>
-                <span className="status-pill" data-status={item.status}>
-                  {getOneTimeOrderStatusLabel(item.status)}
-                </span>
-              </td>
-              <td style={tdStyle}>
-                {item.contactName}
-                {item.contactPhone ? ` (${item.contactPhone})` : ''}
-              </td>
-              <td style={tdStyle}>
-                {formatExecutionRange(
-                  item.executionStartDate,
-                  item.executionEndDate,
-                )}
-              </td>
-              <td style={tdStyle}>
-                {item.agreedSum !== null
-                  ? `${item.agreedSum.toLocaleString('ru-RU')} ₽`
-                  : '—'}
-              </td>
-              <td style={{ ...tdStyle, maxWidth: 240 }}>
-                <div>
+          {items.map((item) => {
+            const href = `/one-time-orders/${item.id}`;
+
+            return (
+              <tr key={item.id}>
+                <td data-label="Заказ">
+                  <strong>{item.title}</strong>
+                  <span className="one-time-order-table-meta">
+                    {item.contact.name}
+                    {item.contact.phone ? ` · ${item.contact.phone}` : ''}
+                  </span>
+                </td>
+                <td data-label="Даты">
+                  {formatExecutionRange(
+                    item.executionStartDate,
+                    item.executionEndDate,
+                  )}
+                  {item.durationDays ? (
+                    <span className="one-time-order-table-meta">
+                      {item.durationDays} дн.
+                    </span>
+                  ) : null}
+                </td>
+                <td data-label="Адрес">{item.executionAddress}</td>
+                <td data-label="Статус">
+                  <span className="status-pill" data-status={item.status}>
+                    {getOneTimeOrderStatusLabel(item.status)}
+                  </span>
+                </td>
+                <td data-label="Менеджеры">
+                  {item.managers.map(getUserDisplayName).join(', ') || '—'}
+                </td>
+                <td data-label="Объект">
+                  {item.linkedObject ? (
+                    item.linkedObject.canOpenObjectCard ? (
+                      <Link href={`/objects/${item.linkedObject.id}`}>
+                        {item.linkedObject.name}
+                      </Link>
+                    ) : (
+                      item.linkedObject.name
+                    )
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td data-label="ТЗ">
+                  {item.specificationProgress.completed} /{' '}
+                  {item.specificationProgress.total}
+                </td>
+                <td data-label="Задачи">{item.accessibleTaskCount}</td>
+                <td data-label="Оценка">
                   {item.reviewRating ? '★'.repeat(item.reviewRating) : '—'}
-                </div>
-                {item.reviewText ? (
-                  <div className="page-muted" title={item.reviewText}>
-                    {item.reviewText.length > 80
-                      ? `${item.reviewText.slice(0, 80)}…`
-                      : item.reviewText}
-                  </div>
-                ) : null}
-              </td>
-              <td style={tdStyle}>
-                {item.managers.map(getUserDisplayName).join(', ') || '—'}
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td data-label="Отзыв">
+                  <span title={item.reviewPreview ?? undefined}>
+                    {item.reviewPreview || '—'}
+                  </span>
+                </td>
+                <td data-label="Действия">
+                  <Link href={href}>Открыть</Link>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-const thStyle: React.CSSProperties = {
-  textAlign: 'left',
-  padding: '12px 10px',
-  borderBottom: '1px solid #e5e7eb',
-  fontSize: 14,
-};
-
 function formatExecutionRange(
   startDate: string | null,
   endDate: string | null,
 ): string {
-  if (!startDate) {
-    return 'Без даты';
-  }
-
-  if (!endDate || endDate === startDate) {
-    return formatBusinessDate(startDate);
-  }
-
-  const [startYear, startMonth, startDay] = startDate.split('-');
-  const [endYear, endMonth] = endDate.split('-');
-
-  if (startYear === endYear && startMonth === endMonth) {
-    return `${Number(startDay)}–${formatBusinessDate(endDate)}`;
-  }
-
+  if (!startDate) return 'Без даты';
+  if (!endDate || endDate === startDate) return formatBusinessDate(startDate);
   return `${formatBusinessDate(startDate)} – ${formatBusinessDate(endDate)}`;
 }
 
 function formatBusinessDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number);
-
   return new Intl.DateTimeFormat('ru-RU', {
-    day: 'numeric',
-    month: 'long',
+    day: '2-digit',
+    month: '2-digit',
     year: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(Date.UTC(year!, month! - 1, day!)));
 }
-
-const tdStyle: React.CSSProperties = {
-  padding: '12px 10px',
-  borderBottom: '1px solid #f0f2f5',
-  verticalAlign: 'top',
-  fontSize: 14,
-};

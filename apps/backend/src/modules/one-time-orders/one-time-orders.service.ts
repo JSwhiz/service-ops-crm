@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import { ChatsService } from '../chats/chats.service';
@@ -14,6 +15,7 @@ import { FileResponseDto } from '../files/dto/file-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { TasksService } from '../tasks/tasks.service';
+import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
@@ -26,6 +28,10 @@ import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto'
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
+import {
+  OneTimeOrderListItemResponseDto,
+  OneTimeOrderListResponseDto,
+} from './dto/one-time-order-list-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
 import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
@@ -117,6 +123,12 @@ interface OneTimeOrderView {
       }
     | null;
   assignments: OneTimeOrderAssignmentView[];
+}
+
+interface OneTimeOrderListView extends OneTimeOrderView {
+  specificationItems: Array<{
+    isCompleted: boolean;
+  }>;
 }
 
 interface OneTimeOrderDailyReportView {
@@ -223,38 +235,134 @@ export class OneTimeOrdersService {
   async listOrders(
     currentUser: CurrentAuthUser,
     query: ListOneTimeOrdersQueryDto,
-  ): Promise<OneTimeOrderResponseDto[]> {
-    const orders = (await this.prisma.oneTimeOrder.findMany({
-      where: {
-        ...(await this.buildVisibilityWhere(currentUser)),
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.search?.trim()
-          ? {
-              OR: [
-                { title: { contains: query.search.trim(), mode: 'insensitive' } },
-                {
-                  executionAddress: {
-                    contains: query.search.trim(),
-                    mode: 'insensitive',
-                  },
-                },
-                {
-                  contactName: {
-                    contains: query.search.trim(),
-                    mode: 'insensitive',
-                  },
-                },
-              ],
-            }
-          : {}),
-      },
-      include: this.getOrderInclude(),
-      orderBy: {
-        createdAt: 'desc',
-      },
-    })) as OneTimeOrderView[];
+  ): Promise<OneTimeOrderListResponseDto> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const sortBy = query.sortBy ?? 'updatedAt';
+    const sortDirection = query.sortDirection ?? 'desc';
+    const search = (query.q ?? query.search)?.trim();
+    const clauses: Prisma.OneTimeOrderWhereInput[] = [
+      await this.buildVisibilityWhere(currentUser),
+    ];
 
-    return orders.map((order) => this.mapOrder(order, currentUser));
+    if (query.status) clauses.push({ status: query.status });
+    if (query.managerUserId) {
+      clauses.push({
+        assignments: {
+          some: {
+            userId: query.managerUserId,
+            assignmentRoleCode: 'one_time_manager',
+            isActive: true,
+          },
+        },
+      });
+    }
+    if (query.linkedObjectId) {
+      clauses.push({ linkedObjectId: query.linkedObjectId });
+    }
+    if (query.dateFrom) {
+      clauses.push({
+        executionEndDate: {
+          gte: this.parseRegistryDate(query.dateFrom),
+        },
+      });
+    }
+    if (query.dateTo) {
+      clauses.push({
+        executionStartDate: {
+          lte: this.parseRegistryDate(query.dateTo),
+        },
+      });
+    }
+    if (search) {
+      clauses.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { executionAddress: { contains: search, mode: 'insensitive' } },
+          { contactName: { contains: search, mode: 'insensitive' } },
+          { contactPhone: { contains: search, mode: 'insensitive' } },
+          { reviewText: { contains: search, mode: 'insensitive' } },
+          {
+            linkedObject: {
+              name: { contains: search, mode: 'insensitive' },
+            },
+          },
+          {
+            assignments: {
+              some: {
+                assignmentRoleCode: 'one_time_manager',
+                isActive: true,
+                user: {
+                  OR: [
+                    { fullName: { contains: search, mode: 'insensitive' } },
+                    { login: { contains: search, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+
+    const where: Prisma.OneTimeOrderWhereInput = { AND: clauses };
+    const orderBy: Prisma.OneTimeOrderOrderByWithRelationInput[] = [
+      { [sortBy]: sortDirection },
+      { id: 'desc' },
+    ];
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.oneTimeOrder.findMany({
+        where,
+        include: {
+          ...this.getOrderInclude(),
+          specificationItems: {
+            where: { deletedAt: null },
+            select: { isCompleted: true },
+          },
+        },
+        orderBy,
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.oneTimeOrder.count({ where }),
+    ]);
+    const orders = rows as OneTimeOrderListView[];
+    const orderIds = orders.map((order) => order.id);
+    const taskCountRows =
+      orderIds.length === 0
+        ? []
+        : await this.prisma.task.groupBy({
+            by: ['oneTimeOrderId'],
+            where: {
+              AND: [
+                { oneTimeOrderId: { in: orderIds } },
+                buildTaskAccessWhere({
+                  currentUserId: currentUser.id,
+                  roleCodes: this.getRoleCodes(currentUser),
+                }),
+              ],
+            },
+            _count: { _all: true },
+          });
+    const taskCountMap = new Map(
+      taskCountRows.flatMap((row) =>
+        row.oneTimeOrderId ? [[row.oneTimeOrderId, row._count._all] as const] : [],
+      ),
+    );
+
+    return {
+      items: orders.map((order) =>
+        this.mapOrderListItem(
+          order,
+          currentUser,
+          taskCountMap.get(order.id) ?? 0,
+        ),
+      ),
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getOrderById(
@@ -1750,6 +1858,78 @@ export class OneTimeOrdersService {
     };
   }
 
+  private mapOrderListItem(
+    order: OneTimeOrderListView,
+    currentUser: CurrentAuthUser,
+    accessibleTaskCount: number,
+  ): OneTimeOrderListItemResponseDto {
+    const roleCodes = this.getRoleCodes(currentUser);
+    const executionStartDate =
+      order.executionStartDate ?? order.executionDate;
+    const executionEndDate = order.executionEndDate ?? executionStartDate;
+    const specificationCompleted = order.specificationItems.filter(
+      (item) => item.isCompleted,
+    ).length;
+    const reviewPreview = order.reviewText?.trim() || null;
+
+    return {
+      id: order.id,
+      title: order.title,
+      executionStartDate: formatBusinessDate(executionStartDate),
+      executionEndDate: formatBusinessDate(executionEndDate),
+      durationDays: getOneTimeOrderDurationDays(
+        executionStartDate,
+        executionEndDate,
+      ),
+      status: order.status,
+      executionAddress: order.executionAddress,
+      linkedObject: order.linkedObject
+        ? {
+            id: order.linkedObject.id,
+            name: order.linkedObject.name,
+            canOpenObjectCard: canOpenLinkedObjectCard({
+              currentUserId: currentUser.id,
+              roleCodes,
+              linkedObject: order.linkedObject,
+            }),
+          }
+        : null,
+      managers: order.assignments
+        .filter(
+          (assignment) =>
+            assignment.assignmentRoleCode === 'one_time_manager',
+        )
+        .map((assignment) => ({
+          userId: assignment.user.id,
+          login: assignment.user.login,
+          fullName: assignment.user.fullName,
+          roleCode: assignment.user.roles[0]?.role.code ?? 'unknown',
+        })),
+      contact: {
+        name: order.contactName,
+        phone: order.contactPhone,
+      },
+      reviewRating: order.reviewRating,
+      reviewPreview:
+        reviewPreview && reviewPreview.length > 200
+          ? `${reviewPreview.slice(0, 200)}…`
+          : reviewPreview,
+      specificationProgress: {
+        completed: specificationCompleted,
+        total: order.specificationItems.length,
+      },
+      accessibleTaskCount,
+      capabilities: buildOneTimeOrderCapabilities({
+        currentUserId: currentUser.id,
+        roleCodes,
+        permissionCodes: this.getPermissionCodes(currentUser),
+        order,
+      }),
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+    };
+  }
+
   private mapOrder(
     order: OneTimeOrderView,
     currentUser: CurrentAuthUser,
@@ -2070,6 +2250,21 @@ export class OneTimeOrdersService {
 
   private getPermissionCodes(currentUser: CurrentAuthUser): string[] {
     return currentUser.permissionCodes ?? [];
+  }
+
+  private parseRegistryDate(value: string): Date {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year!, month! - 1, day!));
+
+    if (
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month! - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      throw new BadRequestException('Registry date filter is invalid');
+    }
+
+    return date;
   }
 
   private startOfToday(): Date {

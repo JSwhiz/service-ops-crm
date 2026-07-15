@@ -10,7 +10,7 @@ import type {
   EquipmentUnit,
 } from '@/entities/equipment/model/equipment.types';
 import type { ServiceObject } from '@/entities/object/model/object.types';
-import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   EQUIPMENT_MOVEMENT_OPTIONS,
@@ -31,7 +31,7 @@ export function EquipmentMovementPanel({
   unit: EquipmentUnit;
   movements: EquipmentMovement[];
   objects: ServiceObject[];
-  orders: OneTimeOrderItem[];
+  orders: OneTimeOrderListItem[];
   onCreateMovement: (params: CreateEquipmentMovementFormPayload) => Promise<void>;
 }): React.JSX.Element {
   const [movementType, setMovementType] = useState('issue_to_object');

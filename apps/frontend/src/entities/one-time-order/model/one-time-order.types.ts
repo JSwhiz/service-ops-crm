@@ -64,6 +64,49 @@ export interface OneTimeOrderItem {
   };
 }
 
+export interface OneTimeOrderListItem {
+  id: string;
+  title: string;
+  executionStartDate: string | null;
+  executionEndDate: string | null;
+  durationDays: number | null;
+  status: string;
+  executionAddress: string;
+  linkedObject: {
+    id: string;
+    name: string;
+    canOpenObjectCard: boolean;
+  } | null;
+  managers: Array<{
+    userId: string;
+    login: string;
+    fullName: string;
+    roleCode: string;
+  }>;
+  contact: {
+    name: string;
+    phone: string | null;
+  };
+  reviewRating: number | null;
+  reviewPreview: string | null;
+  specificationProgress: {
+    completed: number;
+    total: number;
+  };
+  accessibleTaskCount: number;
+  capabilities: OneTimeOrderItem['capabilities'];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OneTimeOrderListResponse {
+  items: OneTimeOrderListItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface OneTimeOrderCommentItem {
   id: string;
   oneTimeOrderId: string;

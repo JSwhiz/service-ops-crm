@@ -27,6 +27,7 @@ import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto'
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
+import { OneTimeOrderListResponseDto } from './dto/one-time-order-list-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
 import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
@@ -56,7 +57,7 @@ export class OneTimeOrdersController {
   listOrders(
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListOneTimeOrdersQueryDto,
-  ): Promise<OneTimeOrderResponseDto[]> {
+  ): Promise<OneTimeOrderListResponseDto> {
     return this.oneTimeOrdersService.listOrders(user, query);
   }
 

@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listOneTimeOrders } from '@/entities/one-time-order/api/one-time-order-client';
-import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
 import {
   addTaskAssignees,
   cancelTask,
@@ -55,7 +55,7 @@ export default function TaskDetailPage({
     totalPages: 0,
   });
   const [objects, setObjects] = useState<ServiceObject[]>([]);
-  const [orders, setOrders] = useState<OneTimeOrderItem[]>([]);
+  const [orders, setOrders] = useState<OneTimeOrderListItem[]>([]);
   const [candidateUsers, setCandidateUsers] = useState<SystemUserOption[]>([]);
   const [visibilityUsers, setVisibilityUsers] = useState<SystemUserOption[]>([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -145,9 +145,12 @@ export default function TaskDetailPage({
     setIsActionBusy(true);
     setError(null);
     try {
-      const [nextObjects, nextOrders] = await Promise.all([listObjects(), listOneTimeOrders()]);
+      const [nextObjects, nextOrders] = await Promise.all([
+        listObjects(),
+        listOneTimeOrders({ limit: 100, sortBy: 'title', sortDirection: 'asc' }),
+      ]);
       setObjects(nextObjects);
-      setOrders(nextOrders);
+      setOrders(nextOrders.items);
       await loadCandidates(item.objectId ?? '', item.oneTimeOrderId ?? '');
       setIsEditing(true);
     } catch {

@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listOneTimeOrders } from '@/entities/one-time-order/api/one-time-order-client';
-import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { createTask } from '@/entities/task/api/task-client';
 import { listSystemUsers } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
@@ -16,7 +16,7 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 export default function NewTaskPage(): React.JSX.Element {
   const router = useRouter();
   const [objects, setObjects] = useState<ServiceObject[]>([]);
-  const [orders, setOrders] = useState<OneTimeOrderItem[]>([]);
+  const [orders, setOrders] = useState<OneTimeOrderListItem[]>([]);
   const [users, setUsers] = useState<SystemUserOption[]>([]);
   const [visibilityUsers, setVisibilityUsers] = useState<SystemUserOption[]>([]);
   const [targets, setTargets] = useState({ objectId: '', oneTimeOrderId: '' });
@@ -24,10 +24,13 @@ export default function NewTaskPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void Promise.all([listObjects(), listOneTimeOrders()])
+    void Promise.all([
+      listObjects(),
+      listOneTimeOrders({ limit: 100, sortBy: 'title', sortDirection: 'asc' }),
+    ])
       .then(([nextObjects, nextOrders]) => {
         setObjects(nextObjects);
-        setOrders(nextOrders);
+        setOrders(nextOrders.items);
       })
       .catch(() => setError('Не удалось загрузить доступные объекты и заказы.'))
       .finally(() => setIsLoading(false));
