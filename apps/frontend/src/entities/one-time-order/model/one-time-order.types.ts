@@ -224,6 +224,7 @@ export interface CreateOneTimeOrderPayload {
   financialNotes?: string;
   expenseNotes?: string;
   managerUserIds?: string[];
+  confirmScheduleConflicts?: boolean;
 }
 
 export interface UpdateOneTimeOrderPayload {
@@ -239,4 +240,101 @@ export interface UpdateOneTimeOrderPayload {
   agreedSum?: number | null;
   financialNotes?: string | null;
   expenseNotes?: string | null;
+  confirmScheduleConflicts?: boolean;
+}
+
+export type OneTimeOrderAvailabilityType =
+  | 'day_off'
+  | 'vacation'
+  | 'sick_leave';
+
+export interface OneTimeOrderCalendarAvailability {
+  id: string;
+  entryType: OneTimeOrderAvailabilityType;
+  startDate: string;
+  endDate: string;
+  status: string;
+  comment: string | null;
+}
+
+export interface OneTimeOrderCalendarOrder {
+  id: string;
+  title: string;
+  status: string;
+  executionStartDate: string;
+  executionEndDate: string;
+  executionAddress: string;
+  linkedObject: { id: string; name: string } | null;
+  managers: Array<{ id: string; login: string; fullName: string }>;
+}
+
+export interface OneTimeOrderCalendarDay {
+  date: string;
+  availability: OneTimeOrderCalendarAvailability | null;
+  pendingOwnRequest: OneTimeOrderCalendarAvailability | null;
+  orders: OneTimeOrderCalendarOrder[];
+  conflictLevel:
+    | 'none'
+    | 'multiple_orders'
+    | 'approved_availability'
+    | 'multiple_orders_and_availability';
+}
+
+export interface OneTimeOrderCalendarManager {
+  user: { id: string; login: string; fullName: string };
+  isActive: boolean;
+  workedDays: number;
+  orderCount: number;
+  completedOrderCount: number;
+  cancelledOrderCount: number;
+  days: OneTimeOrderCalendarDay[];
+}
+
+export interface OneTimeOrderCalendarResponse {
+  month: string;
+  daysInMonth: number;
+  managers: OneTimeOrderCalendarManager[];
+}
+
+export interface OneTimeManagerAvailability {
+  id: string;
+  userId: string;
+  entryType: OneTimeOrderAvailabilityType;
+  startDate: string;
+  endDate: string;
+  durationDays: number;
+  status: string;
+  requestComment: string | null;
+  resolutionComment: string | null;
+  requestedAt: string;
+  resolvedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  approvalRequestId: string | null;
+  user: { id: string; login: string; fullName: string };
+  requestedBy: { id: string; login: string; fullName: string };
+  resolvedBy: { id: string; login: string; fullName: string } | null;
+  cancelledBy: { id: string; login: string; fullName: string } | null;
+}
+
+export interface OneTimeOrderConflictResponse {
+  hasConflicts: boolean;
+  conflicts: Array<{
+    date: string;
+    user: { id: string; login: string; fullName: string };
+    type:
+      | 'existing_order'
+      | 'day_off'
+      | 'vacation'
+      | 'sick_leave'
+      | 'pending_availability_request';
+    relatedOrder?: {
+      id: string;
+      title: string;
+      status: string;
+      executionStartDate: string;
+      executionEndDate: string;
+    };
+  }>;
 }

@@ -12,3 +12,14 @@ export function getOneTimeOrderStatusLabel(status: string): string {
     status
   );
 }
+
+export function getOneTimeOrderConflictTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    existing_order: 'другой заказ',
+    day_off: 'выходной',
+    vacation: 'отпуск',
+    sick_leave: 'больничный',
+    pending_availability_request: 'запрос отсутствия на согласовании',
+  };
+  return labels[type] ?? type;
+}

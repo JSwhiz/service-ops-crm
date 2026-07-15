@@ -10,7 +10,11 @@ interface CalendarDay {
   date: string;
   availability: { entryType: string } | null;
   pendingOwnRequest: { entryType: string } | null;
-  orders: Array<{ id: string; status: string }>;
+  orders: Array<{
+    id: string;
+    status: string;
+    managers: Array<{ id: string; fullName: string }>;
+  }>;
   conflictLevel: string;
 }
 
@@ -195,6 +199,11 @@ test('one-time order calendar expands ranges and protects pending availability',
     (day) => day.date === '2032-07-11',
   )!;
   assert.equal(julyEleventh.orders.length, 3);
+  assert.ok(
+    julyEleventh.orders.some((order) =>
+      order.managers.some((manager) => manager.id === managerTwo.id),
+    ),
+  );
   assert.equal(julyEleventh.availability?.entryType, 'vacation');
   assert.equal(
     julyEleventh.conflictLevel,

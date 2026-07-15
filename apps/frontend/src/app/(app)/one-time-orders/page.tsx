@@ -64,6 +64,8 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   const canAccessOneTimeOrders = user?.capabilities?.canAccessOneTimeOrders;
   const canCreateOneTimeOrder =
     user?.capabilities?.canCreateOneTimeOrder ?? false;
+  const canViewCalendar =
+    user?.capabilities?.canViewOneTimeOrderCalendar ?? false;
   const [searchInput, setSearchInput] = useState(query);
   const [result, setResult] = useState(EMPTY_RESULT);
   const [objects, setObjects] = useState<ServiceObject[]>([]);
@@ -191,11 +193,18 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
           <div className="section-title">Реестр разовых заказов</div>
           <div className="page-muted">Доступно: {result.total}</div>
         </div>
-        {canCreateOneTimeOrder ? (
-          <Link className="button-link" href="/one-time-orders/new">
-            Создать заказ
-          </Link>
-        ) : null}
+        <div className="action-row">
+          {canViewCalendar ? (
+            <Link className="button-link" href="/one-time-orders/calendar">
+              Календарь
+            </Link>
+          ) : null}
+          {canCreateOneTimeOrder ? (
+            <Link className="button-link" href="/one-time-orders/new">
+              Создать заказ
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       <div className="page-card one-time-order-registry-filters">

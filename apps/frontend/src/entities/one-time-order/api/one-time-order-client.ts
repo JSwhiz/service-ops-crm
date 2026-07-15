@@ -5,6 +5,10 @@ import type {
   OneTimeOrderCommentItem,
   OneTimeOrderDailyReportItem,
   OneTimeOrderHistoryItem,
+  OneTimeManagerAvailability,
+  OneTimeOrderAvailabilityType,
+  OneTimeOrderCalendarResponse,
+  OneTimeOrderConflictResponse,
   OneTimeOrderItem,
   OneTimeOrderListResponse,
   OneTimeOrderPhotoItem,
@@ -187,20 +191,22 @@ export async function reorderOneTimeOrderSpecificationItems(
 export async function changeOneTimeOrderStatus(
   id: string,
   status: string,
+  confirmScheduleConflicts = false,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, confirmScheduleConflicts }),
   });
 }
 
 export async function assignOneTimeOrderManager(
   id: string,
   userId: string,
+  confirmScheduleConflicts = false,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/managers`, {
     method: 'POST',
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({ userId, confirmScheduleConflicts }),
   });
 }
 
@@ -315,5 +321,96 @@ export async function restoreOneTimeOrderPhoto(
   return fetcher<OneTimeOrderPhotoItem>(
     `/one-time-orders/${id}/photos/${photoId}/restore`,
     { method: 'POST' },
+  );
+}
+
+export async function getOneTimeOrderCalendar(params: {
+  month: string;
+  managerUserId?: string;
+}): Promise<OneTimeOrderCalendarResponse> {
+  return fetcher<OneTimeOrderCalendarResponse>(
+    `/one-time-orders/calendar${buildQuery(params)}`,
+    { method: 'GET' },
+  );
+}
+
+export async function checkOneTimeOrderConflicts(payload: {
+  executionStartDate: string;
+  executionEndDate: string;
+  managerUserIds: string[];
+  excludeOrderId?: string;
+}): Promise<OneTimeOrderConflictResponse> {
+  return fetcher<OneTimeOrderConflictResponse>(
+    '/one-time-orders/calendar/check-conflicts',
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function createOwnOneTimeManagerAvailability(payload: {
+  entryType: OneTimeOrderAvailabilityType;
+  startDate: string;
+  endDate: string;
+  comment?: string;
+}): Promise<OneTimeManagerAvailability> {
+  return fetcher<OneTimeManagerAvailability>(
+    '/one-time-orders/calendar/availability-requests',
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function createDirectOneTimeManagerAvailability(payload: {
+  userId: string;
+  entryType: OneTimeOrderAvailabilityType;
+  startDate: string;
+  endDate: string;
+  comment?: string;
+}): Promise<OneTimeManagerAvailability> {
+  return fetcher<OneTimeManagerAvailability>(
+    '/one-time-orders/calendar/availability/direct',
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+export async function approveOneTimeManagerAvailability(
+  id: string,
+  comment?: string,
+): Promise<OneTimeManagerAvailability> {
+  return fetcher<OneTimeManagerAvailability>(
+    `/one-time-orders/calendar/availability/${id}/approve`,
+    { method: 'POST', body: JSON.stringify({ comment }) },
+  );
+}
+
+export async function rejectOneTimeManagerAvailability(
+  id: string,
+  comment: string,
+): Promise<OneTimeManagerAvailability> {
+  return fetcher<OneTimeManagerAvailability>(
+    `/one-time-orders/calendar/availability/${id}/reject`,
+    { method: 'POST', body: JSON.stringify({ comment }) },
+  );
+}
+
+export async function cancelOneTimeManagerAvailability(
+  id: string,
+): Promise<OneTimeManagerAvailability> {
+  return fetcher<OneTimeManagerAvailability>(
+    `/one-time-orders/calendar/availability/${id}/cancel`,
+    { method: 'POST' },
+  );
+}
+
+export async function updateOneTimeManagerAvailability(
+  id: string,
+  payload: {
+    entryType?: OneTimeOrderAvailabilityType;
+    startDate?: string;
+    endDate?: string;
+    comment?: string;
+  },
+): Promise<OneTimeManagerAvailability> {
+  return fetcher<OneTimeManagerAvailability>(
+    `/one-time-orders/calendar/availability/${id}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
   );
 }

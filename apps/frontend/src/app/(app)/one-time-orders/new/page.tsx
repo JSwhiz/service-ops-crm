@@ -1,11 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
-import { createOneTimeOrder } from '@/entities/one-time-order/api/one-time-order-client';
+import {
+  checkOneTimeOrderConflicts,
+  createOneTimeOrder,
+} from '@/entities/one-time-order/api/one-time-order-client';
 import { OneTimeOrderForm } from '@/features/one-time-order-form/ui/one-time-order-form';
 import {
   listOneTimeOrderManagerCandidates,
@@ -13,6 +16,7 @@ import {
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { getOneTimeOrderConflictTypeLabel } from '@/shared/lib/one-time-order-presentation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -24,6 +28,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 export default function NewOneTimeOrderPage(): React.JSX.Element {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const canCreateOneTimeOrder =
     user?.capabilities?.canCreateOneTimeOrder ?? false;
@@ -91,12 +96,56 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
         <OneTimeOrderForm
           objects={objects}
           managerOptions={managerOptions}
+          initialValue={{
+            ...(searchParams.get('date') &&
+            /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('date')!)
+              ? {
+                  executionStartDate: searchParams.get('date'),
+                  executionEndDate: searchParams.get('date'),
+                }
+              : {}),
+            ...(searchParams.get('managerUserId')
+              ? { managerUserIds: [searchParams.get('managerUserId')!] }
+              : {}),
+          }}
           canSelectLinkedObject
           includeManagers
           allowStatusEdit
           submitLabel="Создать заказ"
           onSubmit={async (payload) => {
-            const created = await createOneTimeOrder(payload);
+            let confirmScheduleConflicts = false;
+            if (
+              payload.executionStartDate &&
+              payload.executionEndDate &&
+              payload.managerUserIds?.length
+            ) {
+              const result = await checkOneTimeOrderConflicts({
+                executionStartDate: payload.executionStartDate,
+                executionEndDate: payload.executionEndDate,
+                managerUserIds: payload.managerUserIds,
+              });
+              if (result.hasConflicts) {
+                const details = result.conflicts
+                  .filter(
+                    (conflict) =>
+                      conflict.type !== 'pending_availability_request',
+                  )
+                  .slice(0, 8)
+                  .map(
+                    (conflict) =>
+                      `${conflict.date} · ${conflict.user.fullName} · ${getOneTimeOrderConflictTypeLabel(conflict.type)}`,
+                  )
+                  .join('\n');
+                confirmScheduleConflicts = window.confirm(
+                  `Найдены конфликты расписания:\n${details}\n\nСохранить заказ с конфликтами?`,
+                );
+                if (!confirmScheduleConflicts) return;
+              }
+            }
+            const created = await createOneTimeOrder({
+              ...payload,
+              confirmScheduleConflicts,
+            });
             router.push(`/one-time-orders/${created.id}`);
           }}
         />

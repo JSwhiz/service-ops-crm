@@ -285,6 +285,9 @@ export class OneTimeOrderCalendarService {
     executionEndDate: Date | null;
     executionAddress: string;
     linkedObject: { id: string; name: string } | null;
+    assignments: Array<{
+      user: { id: string; login: string; fullName: string };
+    }>;
   }): CalendarOrderDto {
     return {
       id: order.id,
@@ -294,6 +297,7 @@ export class OneTimeOrderCalendarService {
       executionEndDate: formatAvailabilityDate(order.executionEndDate!),
       executionAddress: order.executionAddress,
       linkedObject: order.linkedObject,
+      managers: order.assignments.map((assignment) => assignment.user),
     };
   }
 

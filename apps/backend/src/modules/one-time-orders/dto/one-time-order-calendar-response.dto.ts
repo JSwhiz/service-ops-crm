@@ -43,4 +43,5 @@ export interface CalendarOrderDto {
   executionEndDate: string;
   executionAddress: string;
   linkedObject: { id: string; name: string } | null;
+  managers: Array<{ id: string; login: string; fullName: string }>;
 }

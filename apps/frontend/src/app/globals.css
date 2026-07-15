@@ -1219,6 +1219,408 @@ tbody tr:hover {
   font-weight: 400;
 }
 
+.one-time-calendar {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.one-time-calendar__toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 280px) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.one-time-calendar__month-nav,
+.one-time-calendar__actions,
+.one-time-calendar__legend {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.one-time-calendar__manager-filter {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.one-time-calendar__manager-filter select {
+  width: 100%;
+}
+
+.one-time-calendar__legend {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.one-time-calendar__legend span,
+.one-time-calendar__availability,
+.one-time-calendar__pending,
+.one-time-calendar__warning {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 7px;
+  line-height: 1.25;
+}
+
+.one-time-calendar [data-availability='day_off'] {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.one-time-calendar [data-availability='vacation'] {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+.one-time-calendar [data-availability='sick_leave'] {
+  border-color: #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.one-time-calendar__legend-warning,
+.one-time-calendar__warning,
+.calendar-modal__warning {
+  border-color: #fde68a !important;
+  background: #fffbeb !important;
+  color: #92400e !important;
+}
+
+.one-time-calendar__error {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+.one-time-calendar__grid-shell {
+  max-height: calc(100vh - 300px);
+  min-height: 360px;
+  overflow: auto;
+  padding: 0;
+  scrollbar-gutter: stable;
+}
+
+.one-time-calendar__grid {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.one-time-calendar__grid th,
+.one-time-calendar__grid td {
+  width: 116px;
+  min-width: 116px;
+  max-width: 116px;
+  height: 92px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 7px;
+  vertical-align: top;
+  background: #ffffff;
+}
+
+.one-time-calendar__grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 58px;
+  background: #f8fafc;
+  text-align: center;
+}
+
+.one-time-calendar__grid thead th > span,
+.one-time-calendar__grid thead th > strong {
+  display: block;
+}
+
+.one-time-calendar__grid thead th > span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.one-time-calendar__grid td {
+  cursor: pointer;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+
+.one-time-calendar__grid td:hover,
+.one-time-calendar__grid td:focus-visible {
+  position: relative;
+  z-index: 4;
+  outline: 0;
+  background: #f8fbff;
+  box-shadow: inset 0 0 0 2px #93c5fd;
+}
+
+.one-time-calendar__grid .is-weekend {
+  background: #fbfcfe;
+}
+
+.one-time-calendar__grid [data-today='true'] {
+  background: #eff6ff;
+  box-shadow: inset 0 3px 0 #2563eb;
+}
+
+.one-time-calendar__grid [data-conflict='true'] {
+  background: #fffcf2;
+}
+
+.one-time-calendar__manager-cell,
+.one-time-calendar__worked-cell {
+  position: sticky;
+  z-index: 10;
+  background: #ffffff !important;
+}
+
+.one-time-calendar__manager-cell {
+  left: 0;
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+  text-align: left !important;
+  box-shadow: 9px 0 12px -12px rgba(15, 23, 42, 0.42);
+}
+
+.one-time-calendar__worked-cell {
+  right: 0;
+  width: 78px !important;
+  min-width: 78px !important;
+  max-width: 78px !important;
+  text-align: center !important;
+  box-shadow: -9px 0 12px -12px rgba(15, 23, 42, 0.42);
+}
+
+.one-time-calendar__grid thead .one-time-calendar__manager-cell,
+.one-time-calendar__grid thead .one-time-calendar__worked-cell {
+  z-index: 30;
+  background: #f8fafc !important;
+}
+
+.one-time-calendar__manager-cell strong,
+.one-time-calendar__manager-cell span,
+.one-time-calendar__worked-cell strong,
+.one-time-calendar__worked-cell span {
+  display: block;
+}
+
+.one-time-calendar__manager-cell span,
+.one-time-calendar__worked-cell span {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.one-time-calendar__day-content {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.one-time-calendar__day-content > a,
+.one-time-calendar__more {
+  display: block;
+  overflow: hidden;
+  color: #1e40af;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.one-time-calendar__availability,
+.one-time-calendar__pending,
+.one-time-calendar__warning {
+  display: block;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.one-time-calendar__pending {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.one-time-calendar__mobile {
+  display: none;
+  gap: 10px;
+}
+
+.one-time-calendar__mobile-day {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+}
+
+.one-time-calendar__mobile-day[data-today='true'] {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.one-time-calendar__mobile-day[data-conflict='true'] {
+  border-color: #fde68a;
+}
+
+.one-time-calendar__mobile-date,
+.one-time-calendar__mobile-summary {
+  display: grid;
+  gap: 3px;
+}
+
+.one-time-calendar__mobile-date span,
+.one-time-calendar__mobile-summary {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.calendar-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.44);
+}
+
+.calendar-modal {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 48px);
+  display: grid;
+  gap: 14px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: var(--shadow-md);
+}
+
+.calendar-modal--form {
+  width: min(560px, 100%);
+}
+
+.calendar-modal label,
+.calendar-modal__section {
+  display: grid;
+  gap: 7px;
+}
+
+.calendar-modal label > span,
+.calendar-modal__section > span,
+.calendar-modal__section > p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.calendar-modal__section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.calendar-modal__section--pending {
+  border-color: #ddd6fe;
+  background: #faf9ff;
+}
+
+.calendar-modal__warning {
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.calendar-modal__order {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+}
+
+.calendar-modal__order span {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.calendar-modal__date-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1180px) {
+  .one-time-calendar__toolbar {
+    grid-template-columns: 1fr 280px;
+  }
+
+  .one-time-calendar__actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .one-time-calendar__toolbar,
+  .calendar-modal__date-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .one-time-calendar__month-nav,
+  .one-time-calendar__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .one-time-calendar__month-nav input,
+  .one-time-calendar__month-nav button,
+  .one-time-calendar__actions a,
+  .one-time-calendar__actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .one-time-calendar__grid-shell {
+    display: none;
+  }
+
+  .one-time-calendar__mobile {
+    display: grid;
+  }
+
+  .calendar-modal-backdrop {
+    padding: 0;
+  }
+
+  .calendar-modal {
+    width: 100%;
+    min-height: 100vh;
+    max-height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
 @media (max-width: 1180px) {
   .one-time-order-registry-filters {
     grid-template-columns: repeat(3, minmax(180px, 1fr));

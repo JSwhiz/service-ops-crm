@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 import {
   assignOneTimeOrderManager,
+  checkOneTimeOrderConflicts,
   changeOneTimeOrderStatus,
   clearOneTimeOrderReview,
   createOneTimeOrderPhoto,
@@ -61,6 +62,7 @@ import { OneTimeOrderSpecificationPanel } from '@/features/one-time-order-specif
 import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-scope-panel';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
+  getOneTimeOrderConflictTypeLabel,
   getOneTimeOrderStatusLabel,
 } from '@/shared/lib/one-time-order-presentation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
@@ -71,6 +73,22 @@ function getErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function confirmScheduleConflicts(
+  conflicts: Array<{ date: string; type: string; user: { fullName: string } }>,
+): boolean {
+  const details = conflicts
+    .filter((conflict) => conflict.type !== 'pending_availability_request')
+    .slice(0, 8)
+    .map(
+      (conflict) =>
+        `${conflict.date} · ${conflict.user.fullName} · ${getOneTimeOrderConflictTypeLabel(conflict.type)}`,
+    )
+    .join('\n');
+  return window.confirm(
+    `Найдены конфликты расписания:\n${details}\n\nПродолжить?`,
+  );
 }
 
 export default function OneTimeOrderDetailPage({
@@ -304,9 +322,31 @@ export default function OneTimeOrderDetailPage({
                     key={option.value}
                     type="button"
                     onClick={async () => {
+                      let confirmed = false;
+                      if (
+                        item.status === 'cancelled' &&
+                        option.value !== 'cancelled' &&
+                        item.executionStartDate &&
+                        item.executionEndDate &&
+                        item.managers.length > 0
+                      ) {
+                        const result = await checkOneTimeOrderConflicts({
+                          executionStartDate: item.executionStartDate,
+                          executionEndDate: item.executionEndDate,
+                          managerUserIds: item.managers.map(
+                            (manager) => manager.userId,
+                          ),
+                          excludeOrderId: item.id,
+                        });
+                        if (result.hasConflicts) {
+                          confirmed = confirmScheduleConflicts(result.conflicts);
+                          if (!confirmed) return;
+                        }
+                      }
                       const updated = await changeOneTimeOrderStatus(
                         item.id,
                         option.value,
+                        confirmed,
                       );
                       setItem(updated);
                       await loadAll(item.id);
@@ -332,7 +372,29 @@ export default function OneTimeOrderDetailPage({
               allowStatusEdit={false}
               submitLabel="Сохранить изменения"
               onSubmit={async (payload) => {
-                const updated = await updateOneTimeOrder(item.id, payload);
+                let confirmed = false;
+                if (
+                  payload.executionStartDate &&
+                  payload.executionEndDate &&
+                  item.managers.length > 0
+                ) {
+                  const result = await checkOneTimeOrderConflicts({
+                    executionStartDate: payload.executionStartDate,
+                    executionEndDate: payload.executionEndDate,
+                    managerUserIds: item.managers.map(
+                      (manager) => manager.userId,
+                    ),
+                    excludeOrderId: item.id,
+                  });
+                  if (result.hasConflicts) {
+                    confirmed = confirmScheduleConflicts(result.conflicts);
+                    if (!confirmed) return;
+                  }
+                }
+                const updated = await updateOneTimeOrder(item.id, {
+                  ...payload,
+                  confirmScheduleConflicts: confirmed,
+                });
                 setItem(updated);
                 await loadAll(item.id);
               }}
@@ -343,7 +405,24 @@ export default function OneTimeOrderDetailPage({
             item={item}
             candidates={managerCandidates}
             onAssign={async (userId) => {
-              const updated = await assignOneTimeOrderManager(item.id, userId);
+              let confirmed = false;
+              if (item.executionStartDate && item.executionEndDate) {
+                const result = await checkOneTimeOrderConflicts({
+                  executionStartDate: item.executionStartDate,
+                  executionEndDate: item.executionEndDate,
+                  managerUserIds: [userId],
+                  excludeOrderId: item.id,
+                });
+                if (result.hasConflicts) {
+                  confirmed = confirmScheduleConflicts(result.conflicts);
+                  if (!confirmed) return;
+                }
+              }
+              const updated = await assignOneTimeOrderManager(
+                item.id,
+                userId,
+                confirmed,
+              );
               setItem(updated);
               await loadAll(item.id);
             }}
