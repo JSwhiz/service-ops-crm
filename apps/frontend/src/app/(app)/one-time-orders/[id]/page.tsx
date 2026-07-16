@@ -322,7 +322,7 @@ export default function OneTimeOrderDetailPage({
                     key={option.value}
                     type="button"
                     onClick={async () => {
-                      let confirmed = false;
+                      let conflictFingerprint: string | undefined;
                       if (
                         item.status === 'cancelled' &&
                         option.value !== 'cancelled' &&
@@ -339,14 +339,15 @@ export default function OneTimeOrderDetailPage({
                           excludeOrderId: item.id,
                         });
                         if (result.hasConflicts) {
-                          confirmed = confirmScheduleConflicts(result.conflicts);
+                          const confirmed = confirmScheduleConflicts(result.conflicts);
                           if (!confirmed) return;
+                          conflictFingerprint = result.conflictFingerprint;
                         }
                       }
                       const updated = await changeOneTimeOrderStatus(
                         item.id,
                         option.value,
-                        confirmed,
+                        conflictFingerprint,
                       );
                       setItem(updated);
                       await loadAll(item.id);
@@ -372,7 +373,7 @@ export default function OneTimeOrderDetailPage({
               allowStatusEdit={false}
               submitLabel="Сохранить изменения"
               onSubmit={async (payload) => {
-                let confirmed = false;
+                let conflictFingerprint: string | undefined;
                 if (
                   payload.executionStartDate &&
                   payload.executionEndDate &&
@@ -387,13 +388,14 @@ export default function OneTimeOrderDetailPage({
                     excludeOrderId: item.id,
                   });
                   if (result.hasConflicts) {
-                    confirmed = confirmScheduleConflicts(result.conflicts);
+                    const confirmed = confirmScheduleConflicts(result.conflicts);
                     if (!confirmed) return;
+                    conflictFingerprint = result.conflictFingerprint;
                   }
                 }
                 const updated = await updateOneTimeOrder(item.id, {
                   ...payload,
-                  confirmScheduleConflicts: confirmed,
+                  conflictFingerprint,
                 });
                 setItem(updated);
                 await loadAll(item.id);
@@ -405,7 +407,7 @@ export default function OneTimeOrderDetailPage({
             item={item}
             candidates={managerCandidates}
             onAssign={async (userId) => {
-              let confirmed = false;
+              let conflictFingerprint: string | undefined;
               if (item.executionStartDate && item.executionEndDate) {
                 const result = await checkOneTimeOrderConflicts({
                   executionStartDate: item.executionStartDate,
@@ -414,14 +416,15 @@ export default function OneTimeOrderDetailPage({
                   excludeOrderId: item.id,
                 });
                 if (result.hasConflicts) {
-                  confirmed = confirmScheduleConflicts(result.conflicts);
+                  const confirmed = confirmScheduleConflicts(result.conflicts);
                   if (!confirmed) return;
+                  conflictFingerprint = result.conflictFingerprint;
                 }
               }
               const updated = await assignOneTimeOrderManager(
                 item.id,
                 userId,
-                confirmed,
+                conflictFingerprint,
               );
               setItem(updated);
               await loadAll(item.id);

@@ -220,7 +220,7 @@ interface ScheduleConflictCheckInput {
   executionEndDate: Date | null;
   managerUserIds: string[];
   excludeOrderId?: string;
-  confirmScheduleConflicts?: boolean;
+  conflictFingerprint?: string;
 }
 
 interface ScheduleConflictAuditInput {
@@ -432,7 +432,7 @@ export class OneTimeOrdersService {
               executionStartDate: dateRange.executionStartDate,
               executionEndDate: dateRange.executionEndDate,
               managerUserIds,
-              confirmScheduleConflicts: payload.confirmScheduleConflicts,
+              conflictFingerprint: payload.conflictFingerprint,
             });
       const order = await tx.oneTimeOrder.create({
         data: {
@@ -614,7 +614,7 @@ export class OneTimeOrdersService {
               executionEndDate: dateRange?.executionEndDate ?? null,
               managerUserIds,
               excludeOrderId: id,
-              confirmScheduleConflicts: payload.confirmScheduleConflicts,
+              conflictFingerprint: payload.conflictFingerprint,
             })
           : null;
       const order = (await tx.oneTimeOrder.update({
@@ -1179,7 +1179,7 @@ export class OneTimeOrdersService {
               executionEndDate: existing.executionEndDate,
               managerUserIds,
               excludeOrderId: id,
-              confirmScheduleConflicts: payload.confirmScheduleConflicts,
+              conflictFingerprint: payload.conflictFingerprint,
             })
           : null;
       const order = (await tx.oneTimeOrder.update({
@@ -1233,7 +1233,7 @@ export class OneTimeOrdersService {
               executionEndDate: order.executionEndDate,
               managerUserIds: [manager.id],
               excludeOrderId: id,
-              confirmScheduleConflicts: payload.confirmScheduleConflicts,
+              conflictFingerprint: payload.conflictFingerprint,
             });
       await tx.oneTimeOrderAssignment.upsert({
         where: {
@@ -1753,7 +1753,10 @@ export class OneTimeOrdersService {
       },
     );
 
-    if (result.hasConflicts && !input.confirmScheduleConflicts) {
+    if (
+      result.hasConflicts &&
+      result.conflictFingerprint !== input.conflictFingerprint
+    ) {
       this.logger.warn(
         JSON.stringify({
           event: 'one_time_order.schedule_conflict_rejected',
@@ -1767,6 +1770,7 @@ export class OneTimeOrdersService {
       throw new ConflictException({
         message: 'Schedule conflicts require confirmation',
         hasConflicts: result.hasConflicts,
+        conflictFingerprint: result.conflictFingerprint,
         conflicts: result.conflicts,
       });
     }
@@ -1794,6 +1798,7 @@ export class OneTimeOrdersService {
           executionStartDate: formatBusinessDate(input.executionStartDate),
           executionEndDate: formatBusinessDate(input.executionEndDate),
           managerUserIds: [...new Set(input.managerUserIds)],
+          conflictFingerprint: input.conflictResult.conflictFingerprint,
           conflicts: input.conflictResult.conflicts as unknown as Prisma.InputJsonArray,
           actorUserId: currentUser.id,
         } as Prisma.InputJsonObject,
@@ -1808,6 +1813,7 @@ export class OneTimeOrdersService {
         executionEndDate: formatBusinessDate(input.executionEndDate),
         managerCount: new Set(input.managerUserIds).size,
         conflictCount: input.conflictResult.conflicts.length,
+        conflictFingerprint: input.conflictResult.conflictFingerprint,
       }),
     );
   }

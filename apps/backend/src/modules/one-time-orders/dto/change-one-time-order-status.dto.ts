@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsOptional } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
 
 import { ONE_TIME_ORDER_STATUSES } from '../types/one-time-order-status.type';
 
@@ -7,6 +7,7 @@ export class ChangeOneTimeOrderStatusDto {
   status!: (typeof ONE_TIME_ORDER_STATUSES)[number];
 
   @IsOptional()
-  @IsBoolean()
-  confirmScheduleConflicts?: boolean;
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  conflictFingerprint?: string;
 }

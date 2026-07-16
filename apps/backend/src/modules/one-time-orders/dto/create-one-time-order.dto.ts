@@ -1,7 +1,6 @@
 import {
   ArrayUnique,
   IsArray,
-  IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
@@ -75,6 +74,7 @@ export class CreateOneTimeOrderDto {
   managerUserIds?: string[];
 
   @IsOptional()
-  @IsBoolean()
-  confirmScheduleConflicts?: boolean;
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  conflictFingerprint?: string;
 }

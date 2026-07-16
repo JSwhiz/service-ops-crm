@@ -21,5 +21,6 @@ export interface OneTimeOrderScheduleConflictDto {
 
 export class OneTimeOrderConflictResponseDto {
   hasConflicts!: boolean;
+  conflictFingerprint!: string;
   conflicts!: OneTimeOrderScheduleConflictDto[];
 }

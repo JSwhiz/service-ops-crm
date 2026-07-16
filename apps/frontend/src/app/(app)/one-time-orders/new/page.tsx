@@ -113,7 +113,7 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
           allowStatusEdit
           submitLabel="Создать заказ"
           onSubmit={async (payload) => {
-            let confirmScheduleConflicts = false;
+            let conflictFingerprint: string | undefined;
             if (
               payload.executionStartDate &&
               payload.executionEndDate &&
@@ -136,15 +136,16 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
                       `${conflict.date} · ${conflict.user.fullName} · ${getOneTimeOrderConflictTypeLabel(conflict.type)}`,
                   )
                   .join('\n');
-                confirmScheduleConflicts = window.confirm(
+                const confirmed = window.confirm(
                   `Найдены конфликты расписания:\n${details}\n\nСохранить заказ с конфликтами?`,
                 );
-                if (!confirmScheduleConflicts) return;
+                if (!confirmed) return;
+                conflictFingerprint = result.conflictFingerprint;
               }
             }
             const created = await createOneTimeOrder({
               ...payload,
-              confirmScheduleConflicts,
+              conflictFingerprint,
             });
             router.push(`/one-time-orders/${created.id}`);
           }}

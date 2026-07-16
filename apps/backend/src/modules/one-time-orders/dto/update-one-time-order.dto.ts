@@ -1,5 +1,4 @@
 import {
-  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
@@ -63,6 +62,7 @@ export class UpdateOneTimeOrderDto {
   expenseNotes?: string | null;
 
   @IsOptional()
-  @IsBoolean()
-  confirmScheduleConflicts?: boolean;
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  conflictFingerprint?: string;
 }

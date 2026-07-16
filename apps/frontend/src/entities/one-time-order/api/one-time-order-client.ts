@@ -193,22 +193,22 @@ export async function reorderOneTimeOrderSpecificationItems(
 export async function changeOneTimeOrderStatus(
   id: string,
   status: string,
-  confirmScheduleConflicts = false,
+  conflictFingerprint?: string,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status, confirmScheduleConflicts }),
+    body: JSON.stringify({ status, conflictFingerprint }),
   });
 }
 
 export async function assignOneTimeOrderManager(
   id: string,
   userId: string,
-  confirmScheduleConflicts = false,
+  conflictFingerprint?: string,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/managers`, {
     method: 'POST',
-    body: JSON.stringify({ userId, confirmScheduleConflicts }),
+    body: JSON.stringify({ userId, conflictFingerprint }),
   });
 }
 

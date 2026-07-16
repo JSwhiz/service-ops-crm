@@ -224,7 +224,7 @@ export interface CreateOneTimeOrderPayload {
   financialNotes?: string;
   expenseNotes?: string;
   managerUserIds?: string[];
-  confirmScheduleConflicts?: boolean;
+  conflictFingerprint?: string;
 }
 
 export interface UpdateOneTimeOrderPayload {
@@ -240,7 +240,7 @@ export interface UpdateOneTimeOrderPayload {
   agreedSum?: number | null;
   financialNotes?: string | null;
   expenseNotes?: string | null;
-  confirmScheduleConflicts?: boolean;
+  conflictFingerprint?: string;
 }
 
 export type OneTimeOrderAvailabilityType =
@@ -324,6 +324,7 @@ export interface OneTimeManagerAvailability {
 
 export interface OneTimeOrderConflictResponse {
   hasConflicts: boolean;
+  conflictFingerprint: string;
   conflicts: Array<{
     date: string;
     user: { id: string; login: string; fullName: string };

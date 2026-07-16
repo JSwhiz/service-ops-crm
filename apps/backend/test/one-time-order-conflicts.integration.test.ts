@@ -8,6 +8,7 @@ import { createTestApp } from './helpers/create-test-app';
 
 interface ConflictResponse {
   hasConflicts: boolean;
+  conflictFingerprint: string;
   conflicts: Array<{
     date: string;
     user: { id: string };
@@ -200,6 +201,7 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     managerUserIds: [managerOne.id, managerTwo.id],
   });
   assert.equal(leadershipCheck.hasConflicts, true);
+  assert.match(leadershipCheck.conflictFingerprint, /^[a-f0-9]{64}$/);
   assert.ok(
     leadershipCheck.conflicts.some(
       (conflict) =>
@@ -289,10 +291,45 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     await prisma.oneTimeOrder.count({ where: { title: createPayload.title } }),
     0,
   );
-
-  const confirmedCreate = await jsonRequest('', 'POST', founderCookie, {
+  const blindConfirmation = await jsonRequest('', 'POST', founderCookie, {
     ...createPayload,
     confirmScheduleConflicts: true,
+  });
+  assert.equal(blindConfirmation.status, 400);
+
+  await prisma.oneTimeOrder.create({
+    data: {
+      title: `${marker}-late-conflict`,
+      executionAddress: 'Москва',
+      status: 'planned',
+      executionStartDate: new Date('2040-04-11T00:00:00.000Z'),
+      executionEndDate: new Date('2040-04-11T00:00:00.000Z'),
+      contactName: 'Контакт',
+      createdByUserId: founder.id,
+      assignments: {
+        create: {
+          userId: managerOne.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+      },
+    },
+  });
+  const staleConfirmation = await jsonRequest('', 'POST', founderCookie, {
+    ...createPayload,
+    conflictFingerprint: blockedCreateBody.error.conflictFingerprint,
+  });
+  assert.equal(staleConfirmation.status, 409);
+  const staleConfirmationBody = (await staleConfirmation.json()) as {
+    error: ConflictResponse;
+  };
+  assert.notEqual(
+    staleConfirmationBody.error.conflictFingerprint,
+    blockedCreateBody.error.conflictFingerprint,
+  );
+  const confirmedCreate = await jsonRequest('', 'POST', founderCookie, {
+    ...createPayload,
+    conflictFingerprint: staleConfirmationBody.error.conflictFingerprint,
   });
   assert.equal(confirmedCreate.status, 201);
   const created = (await confirmedCreate.json()) as { id: string };
@@ -316,6 +353,9 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     },
   );
   assert.equal(blockedUpdate.status, 409);
+  const blockedUpdateBody = (await blockedUpdate.json()) as {
+    error: ConflictResponse;
+  };
   assert.equal(
     (
       await prisma.oneTimeOrder.findUniqueOrThrow({ where: { id: updateTarget.id } })
@@ -329,7 +369,7 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     {
       executionStartDate: '2040-04-11',
       executionEndDate: '2040-04-11',
-      confirmScheduleConflicts: true,
+      conflictFingerprint: blockedUpdateBody.error.conflictFingerprint,
     },
   );
   assert.equal(confirmedUpdate.status, 200);
@@ -360,6 +400,9 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     { userId: managerOne.id },
   );
   assert.equal(blockedAssignment.status, 409);
+  const blockedAssignmentBody = (await blockedAssignment.json()) as {
+    error: ConflictResponse;
+  };
   assert.equal(
     await prisma.oneTimeOrderAssignment.count({
       where: { oneTimeOrderId: assignmentTarget.id, userId: managerOne.id },
@@ -370,7 +413,10 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     `/${assignmentTarget.id}/managers`,
     'POST',
     founderCookie,
-    { userId: managerOne.id, confirmScheduleConflicts: true },
+    {
+      userId: managerOne.id,
+      conflictFingerprint: blockedAssignmentBody.error.conflictFingerprint,
+    },
   );
   assert.equal(confirmedAssignment.status, 201);
 
@@ -381,6 +427,9 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     { status: 'planned' },
   );
   assert.equal(blockedActivation.status, 409);
+  const blockedActivationBody = (await blockedActivation.json()) as {
+    error: ConflictResponse;
+  };
   assert.equal(
     (await prisma.oneTimeOrder.findUniqueOrThrow({ where: { id: cancelledTarget.id } }))
       .status,
@@ -390,7 +439,10 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     `/${cancelledTarget.id}/status`,
     'PATCH',
     founderCookie,
-    { status: 'planned', confirmScheduleConflicts: true },
+    {
+      status: 'planned',
+      conflictFingerprint: blockedActivationBody.error.conflictFingerprint,
+    },
   );
   assert.equal(confirmedActivation.status, 200);
 });

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -125,6 +127,7 @@ export class OneTimeOrderConflictService {
           status: true,
           executionStartDate: true,
           executionEndDate: true,
+          updatedAt: true,
           assignments: {
             where: {
               userId: { in: managerUserIds },
@@ -155,6 +158,7 @@ export class OneTimeOrderConflictService {
           status: true,
           startDate: true,
           endDate: true,
+          updatedAt: true,
         },
       }),
     ]);
@@ -261,8 +265,72 @@ export class OneTimeOrderConflictService {
       hasConflicts: conflicts.some(
         (conflict) => conflict.type !== 'pending_availability_request',
       ),
+      conflictFingerprint: this.buildConflictFingerprint({
+        startDate,
+        endDate,
+        managerUserIds,
+        excludeOrderId: payload.excludeOrderId,
+        orders,
+        availabilityEntries,
+      }),
       conflicts,
     };
+  }
+
+  private buildConflictFingerprint(input: {
+    startDate: Date;
+    endDate: Date;
+    managerUserIds: string[];
+    excludeOrderId?: string;
+    orders: Array<{
+      id: string;
+      status: string;
+      executionStartDate: Date | null;
+      executionEndDate: Date | null;
+      updatedAt: Date;
+      assignments: Array<{ userId: string }>;
+    }>;
+    availabilityEntries: Array<{
+      id: string;
+      userId: string;
+      entryType: string;
+      status: string;
+      startDate: Date;
+      endDate: Date;
+      updatedAt: Date;
+    }>;
+  }): string {
+    const snapshot = {
+      executionStartDate: formatBusinessDate(input.startDate),
+      executionEndDate: formatBusinessDate(input.endDate),
+      managerUserIds: [...input.managerUserIds].sort(),
+      currentOrderId: input.excludeOrderId ?? null,
+      orders: input.orders
+        .map((order) => ({
+          id: order.id,
+          status: order.status,
+          executionStartDate: formatBusinessDate(order.executionStartDate),
+          executionEndDate: formatBusinessDate(order.executionEndDate),
+          updatedAt: order.updatedAt.toISOString(),
+          managerUserIds: order.assignments
+            .map((assignment) => assignment.userId)
+            .sort(),
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id)),
+      availability: input.availabilityEntries
+        .map((entry) => ({
+          id: entry.id,
+          userId: entry.userId,
+          entryType: entry.entryType,
+          status: entry.status,
+          startDate: formatBusinessDate(entry.startDate),
+          endDate: formatBusinessDate(entry.endDate),
+          updatedAt: entry.updatedAt.toISOString(),
+        }))
+        .sort((left, right) => left.id.localeCompare(right.id)),
+    };
+
+    return createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
   }
 
   private async assertCanCheck(currentUser: CurrentAuthUser): Promise<void> {
