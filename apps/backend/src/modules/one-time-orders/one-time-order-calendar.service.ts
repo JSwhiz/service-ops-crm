@@ -292,6 +292,24 @@ export class OneTimeOrderCalendarService {
         new Date(Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth(), index + 1)),
       ),
     );
+    const ordersByManagerId = new Map<string, typeof orders>();
+    const availabilityByManagerId = new Map<
+      string,
+      typeof availabilityEntries
+    >();
+
+    for (const order of orders) {
+      for (const assignment of order.assignments) {
+        const managerOrders = ordersByManagerId.get(assignment.userId) ?? [];
+        managerOrders.push(order);
+        ordersByManagerId.set(assignment.userId, managerOrders);
+      }
+    }
+    for (const entry of availabilityEntries) {
+      const managerAvailability = availabilityByManagerId.get(entry.userId) ?? [];
+      managerAvailability.push(entry);
+      availabilityByManagerId.set(entry.userId, managerAvailability);
+    }
 
     return {
       month: query.month,
@@ -299,47 +317,61 @@ export class OneTimeOrderCalendarService {
       managers: [...managers.values()]
         .sort((left, right) => left.fullName.localeCompare(right.fullName, 'ru'))
         .map((manager) => {
-          const managerOrders = orders.filter((order) =>
-            order.assignments.some(
-              (assignment) => assignment.userId === manager.id,
-            ),
-          ).filter((order) => {
+          const managerOrders = (ordersByManagerId.get(manager.id) ?? []).filter((order) => {
             if (!accessibleOrderIds.has(order.id)) {
               return order.status !== 'cancelled';
             }
             if (query.status) return order.status === query.status;
             return query.includeCancelled || order.status !== 'cancelled';
           });
-          const managerAvailability = availabilityEntries.filter(
-            (entry) => entry.userId === manager.id,
-          );
+          const managerAvailability =
+            availabilityByManagerId.get(manager.id) ?? [];
+          const ordersByDate = new Map<string, typeof managerOrders>();
+          const approvedAvailabilityByDate = new Map<
+            string,
+            (typeof managerAvailability)[number]
+          >();
+          const pendingAvailabilityByDate = new Map<
+            string,
+            typeof managerAvailability
+          >();
+
+          for (const order of managerOrders) {
+            const startDate = formatAvailabilityDate(order.executionStartDate!);
+            const endDate = formatAvailabilityDate(order.executionEndDate!);
+            for (const date of dates) {
+              if (date < startDate || date > endDate) continue;
+              const dayOrders = ordersByDate.get(date) ?? [];
+              dayOrders.push(order);
+              ordersByDate.set(date, dayOrders);
+            }
+          }
+          for (const entry of managerAvailability) {
+            const startDate = formatAvailabilityDate(entry.startDate);
+            const endDate = formatAvailabilityDate(entry.endDate);
+            for (const date of dates) {
+              if (date < startDate || date > endDate) continue;
+              if (entry.status === 'approved') {
+                if (!approvedAvailabilityByDate.has(date)) {
+                  approvedAvailabilityByDate.set(date, entry);
+                }
+                continue;
+              }
+              const pendingRequests = pendingAvailabilityByDate.get(date) ?? [];
+              pendingRequests.push(entry);
+              pendingAvailabilityByDate.set(date, pendingRequests);
+            }
+          }
           const days = dates.map((date) => {
-            const dayOrders = managerOrders
-              .filter(
-                (order) =>
-                  formatAvailabilityDate(order.executionStartDate!) <= date &&
-                  formatAvailabilityDate(order.executionEndDate!) >= date,
-              )
-              .map((order) =>
+            const dayOrderRecords = ordersByDate.get(date) ?? [];
+            const dayOrders = dayOrderRecords.map((order) =>
                 this.mapOrder(order, accessibleOrderIds.has(order.id)),
-              );
-            const approved = managerAvailability.find(
-              (entry) =>
-                entry.status === 'approved' &&
-                formatAvailabilityDate(entry.startDate) <= date &&
-                formatAvailabilityDate(entry.endDate) >= date,
             );
-            const pendingRequests = managerAvailability.filter(
-              (entry) =>
-                entry.status === 'pending' &&
-                formatAvailabilityDate(entry.startDate) <= date &&
-                formatAvailabilityDate(entry.endDate) >= date,
-            );
-            const activeOrderCount = managerOrders.filter(
+            const approved = approvedAvailabilityByDate.get(date);
+            const pendingRequests = pendingAvailabilityByDate.get(date) ?? [];
+            const activeOrderCount = dayOrderRecords.filter(
               (order) =>
-                order.status !== 'cancelled' &&
-                formatAvailabilityDate(order.executionStartDate!) <= date &&
-                formatAvailabilityDate(order.executionEndDate!) >= date,
+                order.status !== 'cancelled',
             ).length;
 
             return {

@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -33,6 +33,8 @@ type DatabaseClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class OneTimeOrderConflictService {
+  private readonly logger = new Logger(OneTimeOrderConflictService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async checkConflicts(
@@ -238,6 +240,22 @@ export class OneTimeOrderConflictService {
         left.user.fullName.localeCompare(right.user.fullName, 'ru') ||
         left.type.localeCompare(right.type),
     );
+    const redactedConflictCount = conflicts.filter(
+      (conflict) => conflict.detailsRestricted,
+    ).length;
+
+    if (redactedConflictCount > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'one_time_order.conflict_response_redacted',
+          actorUserId: currentUser.id,
+          executionStartDate: formatBusinessDate(startDate),
+          executionEndDate: formatBusinessDate(endDate),
+          managerCount: managerUserIds.length,
+          redactedConflictCount,
+        }),
+      );
+    }
 
     return {
       hasConflicts: conflicts.some(

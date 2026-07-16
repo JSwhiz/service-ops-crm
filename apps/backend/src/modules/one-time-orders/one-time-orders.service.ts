@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -231,6 +232,8 @@ interface ScheduleConflictAuditInput {
 
 @Injectable()
 export class OneTimeOrdersService {
+  private readonly logger = new Logger(OneTimeOrdersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
@@ -1751,6 +1754,16 @@ export class OneTimeOrdersService {
     );
 
     if (result.hasConflicts && !input.confirmScheduleConflicts) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'one_time_order.schedule_conflict_rejected',
+          actorUserId: currentUser.id,
+          executionStartDate: formatBusinessDate(input.executionStartDate),
+          executionEndDate: formatBusinessDate(input.executionEndDate),
+          managerCount: new Set(input.managerUserIds).size,
+          conflictCount: result.conflicts.length,
+        }),
+      );
       throw new ConflictException({
         message: 'Schedule conflicts require confirmation',
         hasConflicts: result.hasConflicts,
@@ -1786,6 +1799,17 @@ export class OneTimeOrdersService {
         } as Prisma.InputJsonObject,
       },
     });
+    this.logger.log(
+      JSON.stringify({
+        event: 'one_time_order.schedule_conflict_overridden',
+        actorUserId: currentUser.id,
+        orderId,
+        executionStartDate: formatBusinessDate(input.executionStartDate),
+        executionEndDate: formatBusinessDate(input.executionEndDate),
+        managerCount: new Set(input.managerUserIds).size,
+        conflictCount: input.conflictResult.conflicts.length,
+      }),
+    );
   }
 
   private async getOrderForWrite(

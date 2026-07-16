@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { PrismaClient } from '@prisma/client';
 
+import { hashPassword } from '../src/modules/auth/utils/password-hash.util';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
 
@@ -303,4 +304,171 @@ test('one-time order registry is paginated, searchable and access-safe', async (
     );
     assert.equal(fileResponse.status, 403);
   }
+});
+
+test('one-time order visibility matrix protects cards and child resources', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const marker = `order-security-${Date.now()}`;
+  const [founder, hr, managerA, managerB, managerRole] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'hr1' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
+    prisma.role.findUniqueOrThrow({ where: { code: 'manager' } }),
+  ]);
+  const object = await prisma.object.create({
+    data: {
+      name: `${marker}-object`,
+      address: 'Москва',
+      status: 'active',
+      createdByUserId: founder.id,
+    },
+  });
+  const makeOrder = (input: {
+    suffix: string;
+    createdByUserId?: string;
+    managerUserId?: string;
+    assignmentActive?: boolean;
+    status?: string;
+    linkedObjectId?: string;
+  }) =>
+    prisma.oneTimeOrder.create({
+      data: {
+        title: `${marker}-${input.suffix}`,
+        executionAddress: 'Москва',
+        status: input.status ?? 'planned',
+        executionStartDate: new Date('2052-03-10T00:00:00.000Z'),
+        executionEndDate: new Date('2052-03-10T00:00:00.000Z'),
+        contactName: 'Контакт',
+        createdByUserId: input.createdByUserId ?? founder.id,
+        linkedObjectId: input.linkedObjectId,
+        assignments: input.managerUserId
+          ? {
+              create: {
+                userId: input.managerUserId,
+                assignmentRoleCode: 'one_time_manager',
+                isActive: input.assignmentActive ?? true,
+              },
+            }
+          : undefined,
+      },
+    });
+  const orders = await Promise.all([
+    makeOrder({ suffix: 'manager-a', managerUserId: managerA.id, linkedObjectId: object.id }),
+    makeOrder({ suffix: 'manager-b', managerUserId: managerB.id }),
+    makeOrder({ suffix: 'leadership-only' }),
+    makeOrder({ suffix: 'cancelled', managerUserId: managerA.id, status: 'cancelled' }),
+    makeOrder({ suffix: 'inactive-assignment', managerUserId: managerA.id, assignmentActive: false }),
+    makeOrder({ suffix: 'hr-created', createdByUserId: hr.id }),
+  ]);
+  const [managerAOrder, managerBOrder, leadershipOrder, cancelledOrder, inactiveOrder, hrOrder] =
+    orders;
+  const hiddenFile = await prisma.file.create({
+    data: {
+      bucket: 'integration-test',
+      objectKey: `${marker}/hidden.txt`,
+      originalName: 'hidden.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 10,
+      uploadedByUserId: founder.id,
+      attachments: {
+        create: {
+          entityType: 'one_time_order',
+          entityId: managerBOrder!.id,
+          uploadedByUserId: founder.id,
+        },
+      },
+    },
+  });
+  await prisma.auditEvent.create({
+    data: {
+      entityType: 'one_time_order',
+      entityId: managerBOrder!.id,
+      actorUserId: founder.id,
+      action: 'one_time_order.security_fixture',
+    },
+  });
+  const inactiveUser = await prisma.user.create({
+    data: {
+      login: `${marker}-inactive`,
+      fullName: 'Неактивный менеджер',
+      passwordHash: await hashPassword('inactive123'),
+      isActive: false,
+      roles: { create: { roleId: managerRole.id } },
+    },
+  });
+
+  t.after(async () => {
+    await prisma.file.delete({ where: { id: hiddenFile.id } });
+    await prisma.auditEvent.deleteMany({
+      where: { entityType: 'one_time_order', entityId: managerBOrder!.id },
+    });
+    await prisma.oneTimeOrder.deleteMany({
+      where: { id: { in: orders.map((order) => order.id) } },
+    });
+    await prisma.object.delete({ where: { id: object.id } });
+    await prisma.user.delete({ where: { id: inactiveUser.id } });
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const [founderCookie, directorCookie, deputyCookie, hrCookie, managerACookie, managerBCookie] =
+    await Promise.all([
+      loginAndGetCookieHeader({ baseUrl, login: 'founder', password: 'founder123' }),
+      loginAndGetCookieHeader({ baseUrl, login: 'director', password: 'director123' }),
+      loginAndGetCookieHeader({ baseUrl, login: 'deputy1', password: 'deputy123' }),
+      loginAndGetCookieHeader({ baseUrl, login: 'hr1', password: 'hr123' }),
+      loginAndGetCookieHeader({ baseUrl, login: 'manager1', password: 'manager123' }),
+      loginAndGetCookieHeader({ baseUrl, login: 'manager2', password: 'manager123' }),
+    ]);
+  const visibleIds = async (cookie: string) => {
+    const response = await fetch(
+      `${baseUrl}/api/v1/one-time-orders?q=${marker}&limit=20`,
+      { headers: { Cookie: cookie } },
+    );
+    assert.equal(response.status, 200);
+    const payload = (await response.json()) as RegistryResponse;
+    assert.equal(payload.total, payload.items.length);
+    return new Set(payload.items.map((item) => item.id));
+  };
+
+  assert.deepEqual(await visibleIds(founderCookie), new Set(orders.map((order) => order.id)));
+  assert.deepEqual(await visibleIds(directorCookie), new Set(orders.map((order) => order.id)));
+  assert.deepEqual(await visibleIds(deputyCookie), new Set());
+  assert.deepEqual(await visibleIds(hrCookie), new Set([hrOrder!.id]));
+  assert.deepEqual(
+    await visibleIds(managerACookie),
+    new Set([managerAOrder!.id, cancelledOrder!.id]),
+  );
+  assert.deepEqual(await visibleIds(managerBCookie), new Set([managerBOrder!.id]));
+  assert.ok(!(await visibleIds(managerACookie)).has(inactiveOrder!.id));
+  assert.ok((await visibleIds(founderCookie)).has(leadershipOrder!.id));
+
+  for (const path of [
+    '',
+    '/comments',
+    '/photos',
+    '/specification-items',
+    '/tasks',
+    '/history',
+  ]) {
+    const response = await fetch(
+      `${baseUrl}/api/v1/one-time-orders/${managerBOrder!.id}${path}`,
+      { headers: { Cookie: managerACookie } },
+    );
+    assert.equal(response.status, 404);
+  }
+  const hiddenFileResponse = await fetch(
+    `${baseUrl}/api/v1/files/${hiddenFile.id}`,
+    { headers: { Cookie: managerACookie } },
+  );
+  assert.equal(hiddenFileResponse.status, 403);
+
+  const inactiveLogin = await fetch(`${baseUrl}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ login: inactiveUser.login, password: 'inactive123' }),
+  });
+  assert.equal(inactiveLogin.status, 401);
 });

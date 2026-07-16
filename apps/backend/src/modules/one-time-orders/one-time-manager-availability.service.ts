@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -74,6 +75,8 @@ interface UserSummary {
 
 @Injectable()
 export class OneTimeManagerAvailabilityService {
+  private readonly logger = new Logger(OneTimeManagerAvailabilityService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async createOwnRequest(
@@ -466,6 +469,11 @@ export class OneTimeManagerAvailabilityService {
     }
 
     if (current.status !== 'pending') {
+      this.logApprovalConflict({
+        availabilityId: params.availabilityId,
+        actorUserId: params.actorUserId,
+        reason: 'availability_not_pending',
+      });
       throw new ConflictException('Only pending availability can be resolved');
     }
 
@@ -504,6 +512,11 @@ export class OneTimeManagerAvailabilityService {
             },
     });
     if (updateResult.count !== 1) {
+      this.logApprovalConflict({
+        availabilityId: params.availabilityId,
+        actorUserId: params.actorUserId,
+        reason: 'conditional_availability_update_lost',
+      });
       throw new ConflictException('Manager availability state has changed');
     }
 
@@ -598,6 +611,10 @@ export class OneTimeManagerAvailabilityService {
     });
 
     if (!request) {
+      this.logApprovalConflict({
+        availabilityId,
+        reason: 'pending_approval_missing',
+      });
       throw new ConflictException('Pending availability approval was not found');
     }
 
@@ -651,6 +668,10 @@ export class OneTimeManagerAvailabilityService {
     `;
 
     if (rows[0]?.status !== 'pending') {
+      this.logApprovalConflict({
+        approvalRequestId,
+        reason: 'approval_not_pending',
+      });
       throw new ConflictException('Availability approval state has changed');
     }
   }
@@ -673,6 +694,16 @@ export class OneTimeManagerAvailabilityService {
     });
 
     if (duplicate) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'one_time_order.availability_duplicate_request',
+          userId: input.userId,
+          entryType: input.entryType,
+          startDate: formatAvailabilityDate(input.startDate),
+          endDate: formatAvailabilityDate(input.endDate),
+          existingAvailabilityId: duplicate.id,
+        }),
+      );
       throw new ConflictException(
         'Duplicate pending manager availability request',
       );
@@ -710,6 +741,20 @@ export class OneTimeManagerAvailabilityService {
       resolvedBy: { select },
       cancelledBy: { select },
     } as const;
+  }
+
+  private logApprovalConflict(input: {
+    availabilityId?: string;
+    approvalRequestId?: string;
+    actorUserId?: string;
+    reason: string;
+  }): void {
+    this.logger.warn(
+      JSON.stringify({
+        event: 'one_time_order.availability_approval_conflict',
+        ...input,
+      }),
+    );
   }
 
   private mapAvailability(
