@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   BadRequestException,
   ConflictException,
@@ -21,6 +23,7 @@ import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
+import { CompleteOneTimeOrderDto } from './dto/complete-one-time-order.dto';
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
@@ -29,6 +32,7 @@ import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dt
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
+import { OneTimeOrderCompletionResponseDto } from './dto/one-time-order-completion-response.dto';
 import { OneTimeOrderConflictResponseDto } from './dto/one-time-order-conflict-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
 import {
@@ -102,6 +106,9 @@ interface OneTimeOrderView {
   reviewRating: number | null;
   reviewUpdatedAt: Date | null;
   reviewUpdatedByUserId: string | null;
+  workCycle: number;
+  completedAt: Date | null;
+  completedByUserId: string | null;
   createdByUserId: string;
   createdAt: Date;
   updatedAt: Date;
@@ -111,6 +118,11 @@ interface OneTimeOrderView {
     fullName: string;
   };
   reviewUpdatedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
+  completedBy: {
     id: string;
     login: string;
     fullName: string;
@@ -127,6 +139,25 @@ interface OneTimeOrderView {
       }
     | null;
   assignments: OneTimeOrderAssignmentView[];
+}
+
+interface OneTimeOrderCompletionView {
+  id: string;
+  oneTimeOrderId: string;
+  workCycle: number;
+  completedAt: Date;
+  completedByUserId: string;
+  completionComment: string | null;
+  status: string;
+  clientRequestId: string | null;
+  payloadFingerprint: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  completedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
 }
 
 interface OneTimeOrderListView extends OneTimeOrderView {
@@ -411,6 +442,10 @@ export class OneTimeOrdersService {
 
     if (!canCreateOneTimeOrder(roleCodes, this.getPermissionCodes(currentUser))) {
       throw new ForbiddenException('One-time order creation denied');
+    }
+
+    if (payload.status === 'completed') {
+      throw new ConflictException('Use the order completion endpoint');
     }
 
     await this.ensureLinkedObjectExists(payload.linkedObjectId ?? null);
@@ -1149,6 +1184,15 @@ export class OneTimeOrdersService {
     payload: ChangeOneTimeOrderStatusDto,
   ): Promise<OneTimeOrderResponseDto> {
     const existing = await this.getOrderForWrite(currentUser, id);
+
+    if (payload.status === 'completed') {
+      throw new ConflictException('Use the order completion endpoint');
+    }
+
+    if (existing.status === 'completed') {
+      throw new ConflictException('Use the order reopen endpoint');
+    }
+
     const capabilities = buildOneTimeOrderCapabilities({
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
@@ -1172,6 +1216,20 @@ export class OneTimeOrdersService {
       )
       .map((assignment) => assignment.userId);
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockOneTimeOrder(tx, id);
+      const current = await tx.oneTimeOrder.findUnique({
+        where: { id },
+        select: { status: true, workCycle: true },
+      });
+
+      if (
+        !current ||
+        current.status !== existing.status ||
+        current.workCycle !== existing.workCycle
+      ) {
+        throw new ConflictException('One-time order state changed');
+      }
+
       const conflictResult =
         existing.status === 'cancelled' && payload.status !== 'cancelled'
           ? await this.checkScheduleConflicts(tx, currentUser, {
@@ -1210,6 +1268,207 @@ export class OneTimeOrdersService {
     });
 
     return this.mapOrder(updated, currentUser);
+  }
+
+  async completeOrder(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: CompleteOneTimeOrderDto,
+  ): Promise<OneTimeOrderCompletionResponseDto> {
+    const expected = await this.getOrderForWrite(currentUser, id);
+    const payloadFingerprint = this.buildCompletionPayloadFingerprint(payload);
+
+    const completion = await this.prisma.$transaction(async (tx) => {
+      await this.lockOneTimeOrder(tx, id);
+      const order = await this.getOrderForCompletionTx(tx, currentUser, id);
+
+      if (payload.clientRequestId) {
+        const existingRequest = await tx.oneTimeOrderCompletion.findUnique({
+          where: {
+            oneTimeOrderId_clientRequestId: {
+              oneTimeOrderId: id,
+              clientRequestId: payload.clientRequestId,
+            },
+          },
+          include: this.getCompletionInclude(),
+        });
+
+        if (existingRequest) {
+          if (existingRequest.payloadFingerprint !== payloadFingerprint) {
+            throw new ConflictException(
+              'Completion request id was already used with another payload',
+            );
+          }
+
+          return existingRequest as OneTimeOrderCompletionView;
+        }
+      }
+
+      const capabilities = buildOneTimeOrderCapabilities({
+        currentUserId: currentUser.id,
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: this.getPermissionCodes(currentUser),
+        order,
+      });
+
+      if (!capabilities.canComplete) {
+        throw new ConflictException(
+          order.status === 'completed'
+            ? 'One-time order is already completed'
+            : 'One-time order cannot be completed in the current status',
+        );
+      }
+
+      if (
+        order.workCycle !== payload.workCycle ||
+        order.workCycle !== expected.workCycle ||
+        order.status !== expected.status
+      ) {
+        throw new ConflictException('One-time order state changed');
+      }
+
+      const completedAt = new Date();
+      const created = await tx.oneTimeOrderCompletion.create({
+        data: {
+          oneTimeOrderId: id,
+          workCycle: order.workCycle,
+          completedAt,
+          completedByUserId: currentUser.id,
+          completionComment: payload.completionComment?.trim() || null,
+          status: 'active',
+          clientRequestId: payload.clientRequestId ?? null,
+          payloadFingerprint,
+        },
+        include: this.getCompletionInclude(),
+      });
+      const updated = await tx.oneTimeOrder.updateMany({
+        where: {
+          id,
+          workCycle: order.workCycle,
+          status: order.status,
+        },
+        data: {
+          status: 'completed',
+          completedAt,
+          completedByUserId: currentUser.id,
+        },
+      });
+
+      if (updated.count !== 1) {
+        throw new ConflictException('One-time order state changed');
+      }
+
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.completed',
+        oldValues: { status: order.status, workCycle: order.workCycle },
+        newValues: { status: 'completed', workCycle: order.workCycle },
+        metadata: { completionId: created.id },
+      });
+
+      return created as OneTimeOrderCompletionView;
+    });
+
+    return this.mapCompletion(completion);
+  }
+
+  async reopenOrder(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderResponseDto> {
+    const expected = await this.getOrderForWrite(currentUser, id);
+
+    if (expected.status !== 'completed') {
+      throw new ConflictException('Only completed one-time order can be reopened');
+    }
+
+    const reopened = await this.prisma.$transaction(async (tx) => {
+      await this.lockOneTimeOrder(tx, id);
+      const order = await this.getOrderForCompletionTx(tx, currentUser, id);
+      const capabilities = buildOneTimeOrderCapabilities({
+        currentUserId: currentUser.id,
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: this.getPermissionCodes(currentUser),
+        order,
+      });
+
+      if (!capabilities.canReopen) {
+        throw new ConflictException('Only completed one-time order can be reopened');
+      }
+
+      if (
+        order.workCycle !== expected.workCycle ||
+        order.status !== expected.status
+      ) {
+        throw new ConflictException('One-time order state changed');
+      }
+
+      const superseded = await tx.oneTimeOrderCompletion.updateMany({
+        where: {
+          oneTimeOrderId: id,
+          workCycle: order.workCycle,
+          status: 'active',
+        },
+        data: { status: 'superseded' },
+      });
+
+      if (superseded.count !== 1) {
+        throw new ConflictException('Active completion history is inconsistent');
+      }
+
+      const nextWorkCycle = order.workCycle + 1;
+      const updated = await tx.oneTimeOrder.updateMany({
+        where: {
+          id,
+          workCycle: order.workCycle,
+          status: 'completed',
+        },
+        data: {
+          workCycle: nextWorkCycle,
+          status: 'in_progress',
+          completedAt: null,
+          completedByUserId: null,
+        },
+      });
+
+      if (updated.count !== 1) {
+        throw new ConflictException('One-time order state changed');
+      }
+
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.reopened',
+        oldValues: { status: 'completed', workCycle: order.workCycle },
+        newValues: { status: 'in_progress', workCycle: nextWorkCycle },
+      });
+
+      return (await tx.oneTimeOrder.findUniqueOrThrow({
+        where: { id },
+        include: this.getOrderInclude(),
+      })) as OneTimeOrderView;
+    });
+
+    return this.mapOrder(reopened, currentUser);
+  }
+
+  async listCompletions(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderCompletionResponseDto[]> {
+    await this.getOrderById(currentUser, id);
+    const completions = await this.prisma.oneTimeOrderCompletion.findMany({
+      where: { oneTimeOrderId: id },
+      orderBy: [{ workCycle: 'desc' }, { completedAt: 'desc' }],
+      include: this.getCompletionInclude(),
+    });
+
+    return completions.map((completion) =>
+      this.mapCompletion(completion as OneTimeOrderCompletionView),
+    );
   }
 
   async assignManager(
@@ -1853,6 +2112,37 @@ export class OneTimeOrdersService {
     return order;
   }
 
+  private async getOrderForCompletionTx(
+    tx: Prisma.TransactionClient,
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderView> {
+    const order = (await tx.oneTimeOrder.findFirst({
+      where: {
+        id,
+        ...buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        }),
+      },
+      include: this.getOrderInclude(),
+    })) as OneTimeOrderView | null;
+
+    if (!order) {
+      throw new NotFoundException('One-time order not found');
+    }
+
+    return order;
+  }
+
+  private async lockOneTimeOrder(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<void> {
+    await tx.$queryRaw`SELECT "id" FROM "one_time_orders" WHERE "id" = ${id} FOR UPDATE`;
+  }
+
   private async getPhoto(
     oneTimeOrderId: string,
     photoId: string,
@@ -2070,6 +2360,13 @@ export class OneTimeOrdersService {
           fullName: true,
         },
       },
+      completedBy: {
+        select: {
+          id: true,
+          login: true,
+          fullName: true,
+        },
+      },
       linkedObject: {
         select: {
           id: true,
@@ -2100,6 +2397,18 @@ export class OneTimeOrdersService {
               },
             },
           },
+        },
+      },
+    };
+  }
+
+  private getCompletionInclude() {
+    return {
+      completedBy: {
+        select: {
+          id: true,
+          login: true,
+          fullName: true,
         },
       },
     };
@@ -2240,6 +2549,15 @@ export class OneTimeOrdersService {
             fullName: order.reviewUpdatedBy.fullName,
           }
         : null,
+      workCycle: order.workCycle,
+      completedAt: order.completedAt?.toISOString() ?? null,
+      completedBy: order.completedBy
+        ? {
+            id: order.completedBy.id,
+            login: order.completedBy.login,
+            fullName: order.completedBy.fullName,
+          }
+        : null,
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
       createdBy: {
@@ -2267,6 +2585,36 @@ export class OneTimeOrdersService {
         })),
       capabilities,
     };
+  }
+
+  private mapCompletion(
+    completion: OneTimeOrderCompletionView,
+  ): OneTimeOrderCompletionResponseDto {
+    return {
+      id: completion.id,
+      oneTimeOrderId: completion.oneTimeOrderId,
+      workCycle: completion.workCycle,
+      completedAt: completion.completedAt.toISOString(),
+      completedBy: completion.completedBy,
+      completionComment: completion.completionComment,
+      status: completion.status,
+      clientRequestId: completion.clientRequestId,
+      createdAt: completion.createdAt.toISOString(),
+      updatedAt: completion.updatedAt.toISOString(),
+    };
+  }
+
+  private buildCompletionPayloadFingerprint(
+    payload: CompleteOneTimeOrderDto,
+  ): string {
+    return createHash('sha256')
+      .update(
+        JSON.stringify({
+          workCycle: payload.workCycle,
+          completionComment: payload.completionComment?.trim() || null,
+        }),
+      )
+      .digest('hex');
   }
 
   private mapSpecificationItem(

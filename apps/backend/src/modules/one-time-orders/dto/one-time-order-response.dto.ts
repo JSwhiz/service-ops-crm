@@ -21,6 +21,13 @@ export class OneTimeOrderResponseDto {
     login: string;
     fullName: string;
   } | null;
+  workCycle!: number;
+  completedAt!: string | null;
+  completedBy!: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
   createdAt!: string;
   updatedAt!: string;
   createdBy!: {
@@ -44,6 +51,8 @@ export class OneTimeOrderResponseDto {
     canEditFinancialFields: boolean;
     canChangeLinkedObject: boolean;
     canChangeStatus: boolean;
+    canComplete: boolean;
+    canReopen: boolean;
     canManageManagers: boolean;
     canManageSpecification: boolean;
     canUploadPhotos: boolean;

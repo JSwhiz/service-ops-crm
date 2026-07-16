@@ -26,6 +26,7 @@ import {
   CreateOneTimeManagerAvailabilityRequestDto,
 } from './dto/create-one-time-manager-availability.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
+import { CompleteOneTimeOrderDto } from './dto/complete-one-time-order.dto';
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
@@ -35,6 +36,7 @@ import { ListOneTimeOrderCalendarQueryDto } from './dto/list-one-time-order-cale
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
+import { OneTimeOrderCompletionResponseDto } from './dto/one-time-order-completion-response.dto';
 import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
 import { OneTimeOrderListResponseDto } from './dto/one-time-order-list-response.dto';
 import { OneTimeOrderCalendarResponseDto } from './dto/one-time-order-calendar-response.dto';
@@ -202,6 +204,31 @@ export class OneTimeOrdersController {
     @Param('id') id: string,
   ): Promise<OneTimeOrderResponseDto> {
     return this.oneTimeOrdersService.getOrderById(user, id);
+  }
+
+  @Get(':id/completions')
+  listCompletions(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<OneTimeOrderCompletionResponseDto[]> {
+    return this.oneTimeOrdersService.listCompletions(user, id);
+  }
+
+  @Post(':id/complete')
+  completeOrder(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: CompleteOneTimeOrderDto,
+  ): Promise<OneTimeOrderCompletionResponseDto> {
+    return this.oneTimeOrdersService.completeOrder(user, id, payload);
+  }
+
+  @Post(':id/reopen')
+  reopenOrder(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<OneTimeOrderResponseDto> {
+    return this.oneTimeOrdersService.reopenOrder(user, id);
   }
 
   @Post()

@@ -35,6 +35,8 @@ model User {
   createdObjects              Object[] @relation("ObjectCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
   reviewedOneTimeOrders       OneTimeOrder[] @relation("OneTimeOrderReviewUpdatedBy")
+  completedOneTimeOrders      OneTimeOrder[] @relation("OneTimeOrderCompletedBy")
+  oneTimeOrderCompletions     OneTimeOrderCompletion[] @relation("OneTimeOrderCompletionCompletedBy")
   createdOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCreatedBy")
   completedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCompletedBy")
   deletedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationDeletedBy")
@@ -649,6 +651,9 @@ model OneTimeOrder {
   reviewRating      Int?
   reviewUpdatedAt   DateTime?
   reviewUpdatedByUserId String?
+  workCycle         Int      @default(1)
+  completedAt       DateTime?
+  completedByUserId String?
   createdByUserId   String
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -656,6 +661,7 @@ model OneTimeOrder {
   linkedObject      Object?                @relation(fields: [linkedObjectId], references: [id], onDelete: SetNull)
   createdBy         User                   @relation("OneTimeOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   reviewUpdatedBy   User?                  @relation("OneTimeOrderReviewUpdatedBy", fields: [reviewUpdatedByUserId], references: [id], onDelete: SetNull)
+  completedBy       User?                  @relation("OneTimeOrderCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
   assignments       OneTimeOrderAssignment[]
   comments          OneTimeOrderComment[]
   dailyReports      OneTimeOrderDailyReport[]
@@ -666,14 +672,39 @@ model OneTimeOrder {
   equipmentMovementsTo   EquipmentMovement[] @relation("EquipmentMovementToOneTimeOrder")
   tasks             Task[]
   specificationItems OneTimeOrderSpecificationItem[]
+  completions       OneTimeOrderCompletion[]
 
   @@index([linkedObjectId])
   @@index([status])
   @@index([createdByUserId])
   @@index([reviewUpdatedByUserId])
+  @@index([completedByUserId])
   @@index([executionStartDate])
   @@index([executionEndDate])
   @@map("one_time_orders")
+}
+
+model OneTimeOrderCompletion {
+  id                 String   @id @default(uuid())
+  oneTimeOrderId     String
+  workCycle          Int
+  completedAt        DateTime
+  completedByUserId  String
+  completionComment  String?
+  status             String
+  clientRequestId    String?
+  payloadFingerprint String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  completedBy  User @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([oneTimeOrderId, workCycle])
+  @@unique([oneTimeOrderId, clientRequestId])
+  @@index([oneTimeOrderId, completedAt])
+  @@index([completedByUserId])
+  @@map("one_time_order_completions")
 }
 
 model OneTimeOrderSpecificationItem {

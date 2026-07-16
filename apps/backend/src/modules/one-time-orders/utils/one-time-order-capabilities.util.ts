@@ -68,6 +68,8 @@ export interface OneTimeOrderCapabilities {
   canEditFinancialFields: boolean;
   canChangeLinkedObject: boolean;
   canChangeStatus: boolean;
+  canComplete: boolean;
+  canReopen: boolean;
   canManageManagers: boolean;
   canManageSpecification: boolean;
   canUploadPhotos: boolean;
@@ -88,6 +90,7 @@ export function buildOneTimeOrderCapabilities(params: {
   roleCodes: string[];
   permissionCodes?: string[];
   order: {
+    status: string;
     createdByUserId: string;
     assignments: Array<{
       userId: string;
@@ -128,7 +131,14 @@ export function buildOneTimeOrderCapabilities(params: {
     canEditOperationalFields,
     canEditFinancialFields,
     canChangeLinkedObject: hasFullAccess || isCreator,
-    canChangeStatus: canEditOperationalFields,
+    canChangeStatus:
+      canEditOperationalFields && params.order.status !== 'completed',
+    canComplete:
+      canEditOperationalFields &&
+      params.order.status !== 'completed' &&
+      params.order.status !== 'cancelled',
+    canReopen:
+      canEditOperationalFields && params.order.status === 'completed',
     canManageManagers,
     canManageSpecification: canEditOperationalFields,
     canUploadPhotos: canEditOperationalFields,

@@ -11,6 +11,13 @@
 - PATCH дат сохраняет пропущенные поля. `executionStartDate: null` очищает диапазон; `executionEndDate: null` при существующем начале делает диапазон однодневным.
 - PATCH отзыва сохраняет пропущенное поле; DELETE review очищает текст и оценку.
 
+### Циклы завершения
+
+- `completed` устанавливается только через `POST /one-time-orders/:id/complete`; legacy status endpoint не закрывает и не переоткрывает заказ.
+- Complete фиксирует `OneTimeOrderCompletion` для конкретного `workCycle` под row lock. Повтор с тем же `clientRequestId` и payload идемпотентен; изменённый payload получает `409`.
+- Reopen помечает текущее завершение `superseded`, увеличивает `workCycle` ровно один раз и возвращает заказ в `in_progress`. История прошлых циклов сохраняется.
+- Клиент передаёт текущий `workCycle` при complete, поэтому запоздавший запрос старого цикла не может закрыть новый цикл после reopen.
+
 ## Техническое задание
 
 Операции create/reorder/complete/reopen/delete сериализуются lock по `oneTimeOrderId`. Complete/reopen используют conditional update: повторный вызов не меняет timestamp и не создаёт дублирующий audit. Требование attachment проверяется внутри той же транзакции.
