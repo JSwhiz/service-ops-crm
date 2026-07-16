@@ -37,6 +37,8 @@ model User {
   reviewedOneTimeOrders       OneTimeOrder[] @relation("OneTimeOrderReviewUpdatedBy")
   completedOneTimeOrders      OneTimeOrder[] @relation("OneTimeOrderCompletedBy")
   oneTimeOrderCompletions     OneTimeOrderCompletion[] @relation("OneTimeOrderCompletionCompletedBy")
+  receivedOneTimeOrderCompletionPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderCompletionPaymentRecipient")
+  recordedOneTimeOrderCompletionPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderCompletionPaymentRecordedBy")
   createdOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCreatedBy")
   completedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCompletedBy")
   deletedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationDeletedBy")
@@ -673,6 +675,7 @@ model OneTimeOrder {
   tasks             Task[]
   specificationItems OneTimeOrderSpecificationItem[]
   completions       OneTimeOrderCompletion[]
+  completionPayments OneTimeOrderCompletionPayment[]
 
   @@index([linkedObjectId])
   @@index([status])
@@ -699,12 +702,49 @@ model OneTimeOrderCompletion {
 
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
   completedBy  User @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+  payments     OneTimeOrderCompletionPayment[]
 
   @@unique([oneTimeOrderId, workCycle])
   @@unique([oneTimeOrderId, clientRequestId])
   @@index([oneTimeOrderId, completedAt])
   @@index([completedByUserId])
   @@map("one_time_order_completions")
+}
+
+model OneTimeOrderCompletionPayment {
+  id                    String   @id @default(uuid())
+  completionId          String
+  oneTimeOrderId        String
+  recipientUserId       String?
+  amount                Decimal  @db.Decimal(14, 2)
+  paymentMethod         String
+  paymentDestination    String
+  zeroReason            String?
+  comment               String?
+  differenceReason      String?
+  receivedAt            DateTime
+  recordedByUserId      String
+  status                String
+  reversalOfPaymentId   String?  @unique
+  reversedByPaymentId   String?  @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  completion       OneTimeOrderCompletion @relation(fields: [completionId], references: [id], onDelete: Cascade)
+  oneTimeOrder     OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  recipient        User? @relation("OneTimeOrderCompletionPaymentRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+  recordedBy       User @relation("OneTimeOrderCompletionPaymentRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  reversalOfPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentReversalSource", fields: [reversalOfPaymentId], references: [id], onDelete: Restrict)
+  reversalPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversalSource")
+  reversedByPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentReversedBy", fields: [reversedByPaymentId], references: [id], onDelete: Restrict)
+  reversedPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversedBy")
+
+  @@index([completionId])
+  @@index([oneTimeOrderId, receivedAt])
+  @@index([recipientUserId])
+  @@index([recordedByUserId])
+  @@index([status])
+  @@map("one_time_order_completion_payments")
 }
 
 model OneTimeOrderSpecificationItem {

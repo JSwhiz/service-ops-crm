@@ -105,6 +105,23 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
       clientRequestId,
       completionComment,
       workCycle,
+      payments:
+        workCycle === 1
+          ? [
+              {
+                amount: 10000,
+                paymentMethod: 'organization_transfer',
+                paymentDestination: 'organization',
+              },
+            ]
+          : [
+              {
+                amount: 0,
+                paymentMethod: 'organization_transfer',
+                paymentDestination: 'organization',
+                zeroReason: 'payment_later',
+              },
+            ],
     });
 
   const invalidCreate = await jsonPost(

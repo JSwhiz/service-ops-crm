@@ -17,6 +17,8 @@
 - Complete фиксирует `OneTimeOrderCompletion` для конкретного `workCycle` под row lock. Повтор с тем же `clientRequestId` и payload идемпотентен; изменённый payload получает `409`.
 - Reopen помечает текущее завершение `superseded`, увеличивает `workCycle` ровно один раз и возвращает заказ в `in_progress`. История прошлых циклов сохраняется.
 - Клиент передаёт текущий `workCycle` при complete, поэтому запоздавший запрос старого цикла не может закрыть новый цикл после reopen.
+- Каждое завершение содержит одну или несколько фактических payment rows. Method/destination/recipient, нулевая сумма и cumulative deviation от `agreedSum` валидируются backend до записи.
+- Фактическая сумма заказа считается по всем `active` payments всех циклов; reopen сохраняет прошлые payments и не сторнирует их автоматически.
 
 ## Техническое задание
 

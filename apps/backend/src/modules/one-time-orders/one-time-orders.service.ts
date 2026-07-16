@@ -23,7 +23,10 @@ import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
-import { CompleteOneTimeOrderDto } from './dto/complete-one-time-order.dto';
+import {
+  CompleteOneTimeOrderDto,
+  OneTimeOrderCompletionPaymentDto,
+} from './dto/complete-one-time-order.dto';
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
@@ -79,6 +82,8 @@ interface OneTimeOrderAssignmentView {
     id: string;
     login: string;
     fullName: string;
+    isActive: boolean;
+    deletedAt: Date | null;
     roles: Array<{
       role: {
         code: string;
@@ -158,6 +163,50 @@ interface OneTimeOrderCompletionView {
     login: string;
     fullName: string;
   };
+  payments: OneTimeOrderCompletionPaymentView[];
+}
+
+interface OneTimeOrderCompletionPaymentView {
+  id: string;
+  completionId: string;
+  oneTimeOrderId: string;
+  recipientUserId: string | null;
+  amount: Prisma.Decimal;
+  paymentMethod: string;
+  paymentDestination: string;
+  zeroReason: string | null;
+  comment: string | null;
+  differenceReason: string | null;
+  receivedAt: Date;
+  recordedByUserId: string;
+  status: string;
+  reversalOfPaymentId: string | null;
+  reversedByPaymentId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  recipient: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
+  recordedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+}
+
+interface NormalizedOneTimeOrderCompletionPayment {
+  recipientUserId: string | null;
+  amount: Prisma.Decimal;
+  paymentMethod: string;
+  paymentDestination: string;
+  zeroReason: string | null;
+  comment: string | null;
+  differenceReason: string | null;
+  receivedAt: Date;
+  recordedByUserId: string;
+  status: string;
 }
 
 interface OneTimeOrderListView extends OneTimeOrderView {
@@ -1327,6 +1376,12 @@ export class OneTimeOrdersService {
         throw new ConflictException('One-time order state changed');
       }
 
+      const payments = await this.normalizeCompletionPayments(
+        tx,
+        order,
+        payload.payments,
+        currentUser.id,
+      );
       const completedAt = new Date();
       const created = await tx.oneTimeOrderCompletion.create({
         data: {
@@ -1339,7 +1394,13 @@ export class OneTimeOrdersService {
           clientRequestId: payload.clientRequestId ?? null,
           payloadFingerprint,
         },
-        include: this.getCompletionInclude(),
+      });
+      await tx.oneTimeOrderCompletionPayment.createMany({
+        data: payments.map((payment) => ({
+          completionId: created.id,
+          oneTimeOrderId: id,
+          ...payment,
+        })),
       });
       const updated = await tx.oneTimeOrder.updateMany({
         where: {
@@ -1365,10 +1426,22 @@ export class OneTimeOrdersService {
         action: 'one_time_order.completed',
         oldValues: { status: order.status, workCycle: order.workCycle },
         newValues: { status: 'completed', workCycle: order.workCycle },
-        metadata: { completionId: created.id },
+        metadata: {
+          completionId: created.id,
+          paymentCount: payments.length,
+          totalAmount: payments
+            .reduce(
+              (sum, payment) => sum.add(payment.amount),
+              new Prisma.Decimal(0),
+            )
+            .toNumber(),
+        },
       });
 
-      return created as OneTimeOrderCompletionView;
+      return (await tx.oneTimeOrderCompletion.findUniqueOrThrow({
+        where: { id: created.id },
+        include: this.getCompletionInclude(),
+      })) as OneTimeOrderCompletionView;
     });
 
     return this.mapCompletion(completion);
@@ -2411,6 +2484,25 @@ export class OneTimeOrdersService {
           fullName: true,
         },
       },
+      payments: {
+        orderBy: [{ receivedAt: 'asc' as const }, { createdAt: 'asc' as const }],
+        include: {
+          recipient: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
+          },
+          recordedBy: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
+          },
+        },
+      },
     };
   }
 
@@ -2599,6 +2691,29 @@ export class OneTimeOrdersService {
       completionComment: completion.completionComment,
       status: completion.status,
       clientRequestId: completion.clientRequestId,
+      payments: completion.payments.map((payment) => ({
+        id: payment.id,
+        completionId: payment.completionId,
+        oneTimeOrderId: payment.oneTimeOrderId,
+        recipient: payment.recipient,
+        amount: payment.amount.toNumber(),
+        paymentMethod: payment.paymentMethod,
+        paymentDestination: payment.paymentDestination,
+        zeroReason: payment.zeroReason,
+        comment: payment.comment,
+        differenceReason: payment.differenceReason,
+        receivedAt: payment.receivedAt.toISOString(),
+        recordedBy: payment.recordedBy,
+        status: payment.status,
+        reversalOfPaymentId: payment.reversalOfPaymentId,
+        reversedByPaymentId: payment.reversedByPaymentId,
+        createdAt: payment.createdAt.toISOString(),
+        updatedAt: payment.updatedAt.toISOString(),
+      })),
+      totalAmount: completion.payments
+        .filter((payment) => payment.status === 'active')
+        .reduce((sum, payment) => sum.add(payment.amount), new Prisma.Decimal(0))
+        .toNumber(),
       createdAt: completion.createdAt.toISOString(),
       updatedAt: completion.updatedAt.toISOString(),
     };
@@ -2612,9 +2727,138 @@ export class OneTimeOrdersService {
         JSON.stringify({
           workCycle: payload.workCycle,
           completionComment: payload.completionComment?.trim() || null,
+          payments: payload.payments.map((payment) => ({
+            recipientUserId: payment.recipientUserId ?? null,
+            amount: new Prisma.Decimal(payment.amount).toFixed(2),
+            paymentMethod: payment.paymentMethod,
+            paymentDestination: payment.paymentDestination,
+            zeroReason: payment.zeroReason ?? null,
+            comment: payment.comment?.trim() || null,
+            differenceReason: payment.differenceReason?.trim() || null,
+            receivedAt: payment.receivedAt
+              ? new Date(payment.receivedAt).toISOString()
+              : null,
+          })),
         }),
       )
       .digest('hex');
+  }
+
+  private async normalizeCompletionPayments(
+    tx: Prisma.TransactionClient,
+    order: OneTimeOrderView,
+    input: OneTimeOrderCompletionPaymentDto[],
+    actorUserId: string,
+  ): Promise<NormalizedOneTimeOrderCompletionPayment[]> {
+    const activeManagerIds = new Set(
+      order.assignments
+        .filter(
+          (assignment) =>
+            assignment.assignmentRoleCode === 'one_time_manager' &&
+            assignment.isActive &&
+            assignment.user.isActive &&
+            assignment.user.deletedAt === null,
+        )
+        .map((assignment) => assignment.userId),
+    );
+    const defaultReceivedAt = new Date();
+    const payments = input.map((payment) => {
+      const amount = new Prisma.Decimal(payment.amount);
+      const recipientUserId = payment.recipientUserId ?? null;
+      const comment = payment.comment?.trim() || null;
+      const zeroReason = payment.zeroReason ?? null;
+      const differenceReason = payment.differenceReason?.trim() || null;
+
+      if (payment.paymentDestination === 'manager_accountability') {
+        if (!recipientUserId) {
+          throw new BadRequestException(
+            'Manager accountability payment requires recipient',
+          );
+        }
+        if (!activeManagerIds.has(recipientUserId)) {
+          throw new BadRequestException(
+            'Payment recipient must be an active one-time order manager',
+          );
+        }
+      } else if (recipientUserId) {
+        throw new BadRequestException(
+          'Organization payment must not have personal recipient',
+        );
+      }
+
+      if (
+        (payment.paymentMethod === 'cash' ||
+          payment.paymentMethod === 'personal_card_transfer') &&
+        payment.paymentDestination !== 'manager_accountability'
+      ) {
+        throw new BadRequestException(
+          'Selected payment method requires manager accountability destination',
+        );
+      }
+      if (
+        payment.paymentMethod === 'organization_transfer' &&
+        payment.paymentDestination !== 'organization'
+      ) {
+        throw new BadRequestException(
+          'Organization transfer requires organization destination',
+        );
+      }
+      if (payment.paymentMethod === 'other' && !comment) {
+        throw new BadRequestException(
+          'Other payment method requires comment',
+        );
+      }
+
+      if (amount.isZero() && !zeroReason) {
+        throw new BadRequestException('Zero payment requires reason');
+      }
+      if (!amount.isZero() && zeroReason) {
+        throw new BadRequestException(
+          'Zero payment reason is allowed only for zero amount',
+        );
+      }
+      if (zeroReason === 'other' && !comment) {
+        throw new BadRequestException('Other zero reason requires comment');
+      }
+
+      return {
+        recipientUserId,
+        amount,
+        paymentMethod: payment.paymentMethod,
+        paymentDestination: payment.paymentDestination,
+        zeroReason,
+        comment,
+        differenceReason,
+        receivedAt: payment.receivedAt
+          ? new Date(payment.receivedAt)
+          : defaultReceivedAt,
+        recordedByUserId: actorUserId,
+        status: 'active',
+      };
+    });
+    const existingTotal = await tx.oneTimeOrderCompletionPayment.aggregate({
+      where: {
+        oneTimeOrderId: order.id,
+        status: 'active',
+      },
+      _sum: { amount: true },
+    });
+    const cumulativeTotal = payments.reduce(
+      (sum, payment) => sum.add(payment.amount),
+      existingTotal._sum.amount ?? new Prisma.Decimal(0),
+    );
+
+    if (
+      order.agreedSum !== null &&
+      !cumulativeTotal.equals(order.agreedSum) &&
+      !payments.some((payment) => payment.differenceReason)
+    ) {
+      throw new BadRequestException(
+        'Actual payment difference requires reason',
+      );
+    }
+
+    return payments;
   }
 
   private mapSpecificationItem(
