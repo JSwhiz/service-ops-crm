@@ -17,7 +17,7 @@ import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-import { FileResponseDto } from './dto/file-response.dto';
+import { SafeFileResponseDto } from './dto/safe-file-response.dto';
 import { FileViewResponseDto } from './dto/file-view-response.dto';
 import { UploadFileBodyDto } from './dto/upload-file-body.dto';
 import { FilesService } from './files.service';
@@ -49,7 +49,7 @@ export class FilesController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('entityType') entityType: string,
     @Param('entityId') entityId: string,
-  ): Promise<FileResponseDto[]> {
+  ): Promise<SafeFileResponseDto[]> {
     return this.filesService.listByEntity({
       currentUser: user,
       entityType,
@@ -118,7 +118,7 @@ export class FilesController {
   getById(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') id: string,
-  ): Promise<FileResponseDto> {
+  ): Promise<SafeFileResponseDto> {
     return this.filesService.getById(user, id);
   }
 
@@ -134,7 +134,7 @@ export class FilesController {
     @CurrentUser() user: CurrentAuthUser,
     @Body() body: UploadFileBodyDto,
     @UploadedFile() file: UploadedFilePayload | undefined,
-  ): Promise<FileResponseDto> {
+  ): Promise<SafeFileResponseDto> {
     if (!file) {
       throw new BadRequestException('File is required');
     }

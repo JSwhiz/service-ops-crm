@@ -98,6 +98,45 @@ test('one-time order review uses permission, validation, audit and explicit clea
   assert.ok(updated.reviewUpdatedAt);
   assert.equal(updated.reviewUpdatedBy?.id, founder.id);
 
+  const ratingOnlyResponse = await fetch(reviewUrl, {
+    method: 'PATCH',
+    headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewRating: 4 }),
+  });
+  assert.equal(ratingOnlyResponse.status, 200);
+  const ratingOnly = (await ratingOnlyResponse.json()) as {
+    reviewText: string | null;
+    reviewRating: number | null;
+  };
+  assert.equal(ratingOnly.reviewText, 'Отличная работа');
+  assert.equal(ratingOnly.reviewRating, 4);
+
+  const textOnlyResponse = await fetch(reviewUrl, {
+    method: 'PATCH',
+    headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewText: 'Обновлённый отзыв' }),
+  });
+  assert.equal(textOnlyResponse.status, 200);
+  const textOnly = (await textOnlyResponse.json()) as {
+    reviewText: string | null;
+    reviewRating: number | null;
+  };
+  assert.equal(textOnly.reviewText, 'Обновлённый отзыв');
+  assert.equal(textOnly.reviewRating, 4);
+
+  const clearTextOnlyResponse = await fetch(reviewUrl, {
+    method: 'PATCH',
+    headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewText: '   ' }),
+  });
+  assert.equal(clearTextOnlyResponse.status, 200);
+  const clearTextOnly = (await clearTextOnlyResponse.json()) as {
+    reviewText: string | null;
+    reviewRating: number | null;
+  };
+  assert.equal(clearTextOnly.reviewText, null);
+  assert.equal(clearTextOnly.reviewRating, 4);
+
   const historyResponse = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${order.id}/history`,
     { headers: { Cookie: founderCookie } },
@@ -110,7 +149,9 @@ test('one-time order review uses permission, validation, audit and explicit clea
     metadata: Record<string, unknown> | null;
   }>;
   const updatedEvent = history.find(
-    (item) => item.action === 'one_time_order.review_updated',
+    (item) =>
+      item.action === 'one_time_order.review_updated' &&
+      item.newValues?.reviewRating === 5,
   );
   assert.equal(updatedEvent?.oldValues?.reviewRating, null);
   assert.equal(updatedEvent?.newValues?.reviewRating, 5);

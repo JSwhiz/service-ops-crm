@@ -73,6 +73,55 @@ export function normalizeOneTimeOrderDateRange(input: {
   };
 }
 
+export function normalizeOneTimeOrderDateRangePatch(
+  input: {
+    executionStartDate?: string | null;
+    executionEndDate?: string | null;
+    executionDate?: string | null;
+  },
+  current: {
+    executionStartDate: Date | null;
+    executionEndDate: Date | null;
+  },
+): OneTimeOrderDateRange {
+  const hasStart = input.executionStartDate !== undefined;
+  const hasEnd = input.executionEndDate !== undefined;
+  const hasLegacyDate = input.executionDate !== undefined;
+
+  if (hasLegacyDate && !hasStart && !hasEnd) {
+    return normalizeOneTimeOrderDateRange({ executionDate: input.executionDate });
+  }
+
+  if (hasStart && input.executionStartDate === null) {
+    return normalizeOneTimeOrderDateRange({ executionStartDate: null });
+  }
+
+  const currentStart = formatBusinessDate(current.executionStartDate);
+  const currentEnd = formatBusinessDate(
+    current.executionEndDate ?? current.executionStartDate,
+  );
+  const nextStart = hasStart ? input.executionStartDate : currentStart;
+
+  if (!nextStart) {
+    if (hasEnd && input.executionEndDate) {
+      throw new BadRequestException(
+        'Execution end date requires execution start date',
+      );
+    }
+
+    return normalizeOneTimeOrderDateRange({ executionStartDate: null });
+  }
+
+  const nextEnd = hasEnd
+    ? input.executionEndDate ?? nextStart
+    : currentEnd ?? nextStart;
+
+  return normalizeOneTimeOrderDateRange({
+    executionStartDate: nextStart,
+    executionEndDate: nextEnd,
+  });
+}
+
 export function formatBusinessDate(value: Date | null): string | null {
   return value?.toISOString().slice(0, 10) ?? null;
 }

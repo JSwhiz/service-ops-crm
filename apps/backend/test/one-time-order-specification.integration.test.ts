@@ -140,6 +140,30 @@ test('one-time order specification supports checklist lifecycle, attachments and
   assert.equal(completed.isCompleted, true);
   assert.equal(completed.completedBy?.id, manager.id);
   assert.deepEqual(completed.attachments.map((item) => item.id), [file.id]);
+  assert.equal('bucket' in completed.attachments[0]!, false);
+  assert.equal('objectKey' in completed.attachments[0]!, false);
+  assert.equal('attachments' in completed.attachments[0]!, false);
+
+  const firstCompletedAt = (
+    await prisma.oneTimeOrderSpecificationItem.findUniqueOrThrow({
+      where: { id: first.id },
+      select: { completedAt: true },
+    })
+  ).completedAt;
+  const duplicateCompleteResponse = await fetch(completeUrl, {
+    method: 'POST',
+    headers: { Cookie: managerCookie },
+  });
+  assert.equal(duplicateCompleteResponse.status, 201);
+  assert.equal(
+    (
+      await prisma.oneTimeOrderSpecificationItem.findUniqueOrThrow({
+        where: { id: first.id },
+        select: { completedAt: true },
+      })
+    ).completedAt?.toISOString(),
+    firstCompletedAt?.toISOString(),
+  );
 
   const editCompleted = await fetch(`${itemsUrl}/${first.id}`, {
     method: 'PATCH',
@@ -228,4 +252,103 @@ test('one-time order specification supports checklist lifecycle, attachments and
     },
   });
   assert.ok(auditCount >= 7);
+});
+
+test('one-time order specification serializes parallel create and reorder', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const [founder, manager] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
+  ]);
+  const order = await prisma.oneTimeOrder.create({
+    data: {
+      title: `Parallel specification ${Date.now()}`,
+      executionAddress: 'Москва',
+      status: 'in_progress',
+      contactName: 'Контакт',
+      createdByUserId: founder.id,
+      assignments: {
+        create: {
+          userId: manager.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+      },
+    },
+  });
+
+  t.after(async () => {
+    await prisma.auditEvent.deleteMany({
+      where: { entityType: 'one_time_order', entityId: order.id },
+    });
+    await prisma.oneTimeOrderSpecificationItem.deleteMany({
+      where: { oneTimeOrderId: order.id },
+    });
+    await prisma.oneTimeOrderAssignment.deleteMany({
+      where: { oneTimeOrderId: order.id },
+    });
+    await prisma.oneTimeOrder.delete({ where: { id: order.id } });
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const managerCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'manager1',
+    password: 'manager123',
+  });
+  const itemsUrl = `${baseUrl}/api/v1/one-time-orders/${order.id}/specification-items`;
+  const createResponses = await Promise.all(
+    Array.from({ length: 4 }, (_, index) =>
+      fetch(itemsUrl, {
+        method: 'POST',
+        headers: {
+          Cookie: managerCookie,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: `Параллельный пункт ${index + 1}` }),
+      }),
+    ),
+  );
+  assert.deepEqual(createResponses.map((response) => response.status), [201, 201, 201, 201]);
+
+  const createdItems = await prisma.oneTimeOrderSpecificationItem.findMany({
+    where: { oneTimeOrderId: order.id, deletedAt: null },
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, sortOrder: true },
+  });
+  assert.deepEqual(
+    createdItems.map((item) => item.sortOrder),
+    [0, 1, 2, 3],
+  );
+
+  const ids = createdItems.map((item) => item.id);
+  const reorderResponses = await Promise.all([
+    fetch(`${itemsUrl}/reorder`, {
+      method: 'PATCH',
+      headers: { Cookie: managerCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemIds: [...ids].reverse() }),
+    }),
+    fetch(`${itemsUrl}/reorder`, {
+      method: 'PATCH',
+      headers: { Cookie: managerCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemIds: [ids[1], ids[3], ids[0], ids[2]] }),
+    }),
+  ]);
+  assert.deepEqual(reorderResponses.map((response) => response.status), [200, 200]);
+
+  const finalItems = await prisma.oneTimeOrderSpecificationItem.findMany({
+    where: { oneTimeOrderId: order.id, deletedAt: null },
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, sortOrder: true },
+  });
+  assert.deepEqual(
+    finalItems.map((item) => item.sortOrder),
+    [0, 1, 2, 3],
+  );
+  assert.deepEqual(
+    [...finalItems.map((item) => item.id)].sort(),
+    [...ids].sort(),
+  );
 });

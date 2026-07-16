@@ -1,4 +1,4 @@
-import { FileResponseDto } from '../../files/dto/file-response.dto';
+import { SafeFileResponseDto } from '../../files/dto/safe-file-response.dto';
 
 export class OneTimeOrderPhotoResponseDto {
   id!: string;
@@ -29,5 +29,5 @@ export class OneTimeOrderPhotoResponseDto {
     canDelete: boolean;
     canRestore: boolean;
   };
-  attachments!: FileResponseDto[];
+  attachments!: SafeFileResponseDto[];
 }

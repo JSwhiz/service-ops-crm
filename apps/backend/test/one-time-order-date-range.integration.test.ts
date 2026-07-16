@@ -88,6 +88,50 @@ test('one-time order execution dates support empty, single and multi-day ranges'
   assert.equal(multiDay.payload.executionEndDate, '2026-07-18');
   assert.equal(multiDay.payload.durationDays, 4);
 
+  const patchOrder = async (payload: Record<string, unknown>) => {
+    const response = await fetch(
+      `${baseUrl}/api/v1/one-time-orders/${multiDay.payload.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Cookie: founderCookie,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+
+    return {
+      response,
+      payload: (await response.json()) as OrderDateResponse,
+    };
+  };
+
+  const endOnly = await patchOrder({ executionEndDate: '2026-07-20' });
+  assert.equal(endOnly.response.status, 200);
+  assert.equal(endOnly.payload.executionStartDate, '2026-07-15');
+  assert.equal(endOnly.payload.executionEndDate, '2026-07-20');
+
+  const startOnly = await patchOrder({ executionStartDate: '2026-07-16' });
+  assert.equal(startOnly.response.status, 200);
+  assert.equal(startOnly.payload.executionStartDate, '2026-07-16');
+  assert.equal(startOnly.payload.executionEndDate, '2026-07-20');
+
+  const clearEnd = await patchOrder({ executionEndDate: null });
+  assert.equal(clearEnd.response.status, 200);
+  assert.equal(clearEnd.payload.executionStartDate, '2026-07-16');
+  assert.equal(clearEnd.payload.executionEndDate, '2026-07-16');
+
+  const legacyPatch = await patchOrder({ executionDate: '2026-08-01' });
+  assert.equal(legacyPatch.response.status, 200);
+  assert.equal(legacyPatch.payload.executionStartDate, '2026-08-01');
+  assert.equal(legacyPatch.payload.executionEndDate, '2026-08-01');
+
+  const clearRange = await patchOrder({ executionStartDate: null });
+  assert.equal(clearRange.response.status, 200);
+  assert.equal(clearRange.payload.executionStartDate, null);
+  assert.equal(clearRange.payload.executionEndDate, null);
+
   const legacyBoundary = await createOrder({ executionDate: '2026-12-31' });
   assert.equal(legacyBoundary.response.status, 201);
   assert.equal(legacyBoundary.payload.executionDate, '2026-12-31');

@@ -39,7 +39,7 @@ import {
   isChatLeadership,
 } from '../chats/utils/chat-access.util';
 
-import { FileResponseDto } from './dto/file-response.dto';
+import { SafeFileResponseDto } from './dto/safe-file-response.dto';
 import { FileViewResponseDto } from './dto/file-view-response.dto';
 import { UploadFileBodyDto } from './dto/upload-file-body.dto';
 import {
@@ -57,6 +57,7 @@ import {
   type FilePreviewStatus,
 } from './constants/file-preview.constants';
 import { FilePreviewService } from './file-preview.service';
+import { mapSafeFileResponse } from './utils/safe-file-response.mapper';
 
 interface CurrentAuthUser {
   id: string;
@@ -87,7 +88,7 @@ export class FilesService {
     currentUser: CurrentAuthUser,
     body: UploadFileBodyDto,
     file: UploadedFilePayload,
-  ): Promise<FileResponseDto> {
+  ): Promise<SafeFileResponseDto> {
     const entityType = this.parseEntityType(body.entityType);
     this.assertValidFieldCode(entityType, body.fieldCode ?? null);
     await this.assertEntityWritable(currentUser, entityType, body.entityId);
@@ -213,7 +214,7 @@ export class FilesService {
       );
     });
 
-    return this.mapFile(uploadResult.file);
+    return mapSafeFileResponse(uploadResult.file);
   }
 
   async getViewById(
@@ -334,7 +335,7 @@ export class FilesService {
   async getById(
     currentUser: CurrentAuthUser,
     id: string,
-  ): Promise<FileResponseDto> {
+  ): Promise<SafeFileResponseDto> {
     const file = await this.prisma.file.findFirst({
       where: {
         id,
@@ -355,14 +356,14 @@ export class FilesService {
 
     await this.assertFileReadable(currentUser, file.attachments);
 
-    return this.mapFile(file);
+    return mapSafeFileResponse(file);
   }
 
   async listByEntity(params: {
     currentUser: CurrentAuthUser;
     entityType: string;
     entityId: string;
-  }): Promise<FileResponseDto[]> {
+  }): Promise<SafeFileResponseDto[]> {
     const entityType = this.parseEntityType(params.entityType);
     await this.assertEntityReadable(params.currentUser, entityType, params.entityId);
 
@@ -375,22 +376,16 @@ export class FilesService {
         },
       },
       include: {
-        file: {
-          include: {
-            attachments: {
-              orderBy: {
-                createdAt: 'asc',
-              },
-            },
-          },
-        },
+        file: true,
       },
       orderBy: {
         createdAt: 'asc',
       },
     });
 
-    return attachments.map((attachment) => this.mapFile(attachment.file));
+    return attachments.map((attachment) =>
+      mapSafeFileResponse(attachment.file),
+    );
   }
 
   async getContentById(
@@ -1448,42 +1443,4 @@ export class FilesService {
     return currentUser.permissionCodes ?? [];
   }
 
-  private mapFile(file: {
-    id: string;
-    bucket: string;
-    objectKey: string;
-    originalName: string;
-    mimeType: string;
-    sizeBytes: number;
-    uploadedByUserId: string | null;
-    createdAt: Date;
-    attachments: Array<{
-      id: string;
-      entityType: string;
-      entityId: string;
-      fieldCode: string | null;
-      uploadedByUserId: string | null;
-      createdAt: Date;
-    }>;
-  }): FileResponseDto {
-    return {
-      id: file.id,
-      bucket: file.bucket,
-      objectKey: file.objectKey,
-      originalName: file.originalName,
-      mimeType: file.mimeType,
-      sizeBytes: file.sizeBytes,
-      uploadedByUserId: file.uploadedByUserId,
-      createdAt: file.createdAt.toISOString(),
-      url: this.buildDownloadUrl(file.id),
-      attachments: file.attachments.map((attachment) => ({
-        id: attachment.id,
-        entityType: attachment.entityType,
-        entityId: attachment.entityId,
-        fieldCode: attachment.fieldCode,
-        uploadedByUserId: attachment.uploadedByUserId,
-        createdAt: attachment.createdAt.toISOString(),
-      })),
-    };
-  }
 }

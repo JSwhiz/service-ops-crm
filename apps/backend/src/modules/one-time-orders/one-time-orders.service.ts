@@ -11,7 +11,8 @@ import { AuditService } from '../audit/audit.service';
 import { ChatsService } from '../chats/chats.service';
 import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { EquipmentService } from '../equipment/equipment.service';
-import { FileResponseDto } from '../files/dto/file-response.dto';
+import { SafeFileResponseDto } from '../files/dto/safe-file-response.dto';
+import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { TasksService } from '../tasks/tasks.service';
@@ -47,12 +48,12 @@ import {
   formatBusinessDate,
   getOneTimeOrderDurationDays,
   normalizeOneTimeOrderDateRange,
+  normalizeOneTimeOrderDateRangePatch,
 } from './utils/one-time-order-date-range.util';
 import {
   buildOneTimeOrderAccessWhere,
   canBeOneTimeOrderManager,
   canCreateOneTimeOrder,
-  canManageOneTimeOrderManagers,
 } from './utils/one-time-order-access.util';
 
 interface CurrentAuthUser {
@@ -205,21 +206,10 @@ interface OneTimeOrderSpecificationItemView {
 
 interface StoredFileView {
   id: string;
-  bucket: string;
-  objectKey: string;
   originalName: string;
   mimeType: string;
   sizeBytes: number;
-  uploadedByUserId: string | null;
   createdAt: Date;
-  attachments: Array<{
-    id: string;
-    entityType: string;
-    entityId: string;
-    fieldCode: string | null;
-    uploadedByUserId: string | null;
-    createdAt: Date;
-  }>;
 }
 
 type AuditPrimitive = string | number | boolean | null;
@@ -477,19 +467,19 @@ export class OneTimeOrdersService {
         conflictResult,
       });
 
-      return order as OneTimeOrderView;
-    });
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: order.id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.created',
+        newValues: {
+          title: order.title,
+          status: order.status,
+          linkedObjectId: order.linkedObjectId,
+        },
+      });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: created.id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.created',
-      newValues: {
-        title: created.title,
-        status: created.status,
-        linkedObjectId: created.linkedObjectId,
-      },
+      return order as OneTimeOrderView;
     });
 
     await this.chatsService.createSystemMessage(
@@ -568,10 +558,17 @@ export class OneTimeOrdersService {
       payload.executionEndDate !== undefined ||
       payload.executionDate !== undefined;
     const dateRange = hasDateRangeUpdate
-      ? normalizeOneTimeOrderDateRange({
+      ? normalizeOneTimeOrderDateRangePatch({
           executionStartDate: payload.executionStartDate,
           executionEndDate: payload.executionEndDate,
           executionDate: payload.executionDate,
+        }, {
+          executionStartDate:
+            existing.executionStartDate ?? existing.executionDate,
+          executionEndDate:
+            existing.executionEndDate ??
+            existing.executionStartDate ??
+            existing.executionDate,
         })
       : null;
 
@@ -664,22 +661,21 @@ export class OneTimeOrdersService {
         managerUserIds,
         conflictResult,
       });
+
+      const changes = this.buildOrderChanges(existing, order);
+
+      if (Object.keys(changes).length > 0) {
+        await this.writeAuditEvent(tx, {
+          entityType: 'one_time_order',
+          entityId: order.id,
+          actorUserId: currentUser.id,
+          action: 'one_time_order.updated',
+          metadata: { changes },
+        });
+      }
+
       return order;
     });
-
-    const changes = this.buildOrderChanges(existing, updated);
-
-    if (Object.keys(changes).length > 0) {
-      await this.auditService.writeAuditEvent({
-        entityType: 'one_time_order',
-        entityId: updated.id,
-        actorUserId: currentUser.id,
-        action: 'one_time_order.updated',
-        metadata: {
-          changes,
-        },
-      });
-    }
 
     return this.mapOrder(updated, currentUser);
   }
@@ -690,8 +686,21 @@ export class OneTimeOrdersService {
     payload: UpdateOneTimeOrderReviewDto,
   ): Promise<OneTimeOrderResponseDto> {
     const existing = await this.getOrderForReviewChange(currentUser, id);
-    const reviewText = payload.reviewText?.trim() || null;
-    const reviewRating = payload.reviewRating ?? null;
+    if (
+      payload.reviewText === undefined &&
+      payload.reviewRating === undefined
+    ) {
+      throw new BadRequestException('Review update payload is empty');
+    }
+
+    const reviewText =
+      payload.reviewText === undefined
+        ? existing.reviewText
+        : payload.reviewText?.trim() || null;
+    const reviewRating =
+      payload.reviewRating === undefined
+        ? existing.reviewRating
+        : payload.reviewRating;
 
     if (reviewText === null && reviewRating === null) {
       throw new BadRequestException(
@@ -699,33 +708,42 @@ export class OneTimeOrdersService {
       );
     }
 
-    const updated = (await this.prisma.oneTimeOrder.update({
-      where: { id },
-      data: {
-        reviewText,
-        reviewRating,
-        reviewUpdatedAt: new Date(),
-        reviewUpdatedByUserId: currentUser.id,
-      },
-      include: this.getOrderInclude(),
-    })) as OneTimeOrderView;
+    if (
+      reviewText === existing.reviewText &&
+      reviewRating === existing.reviewRating
+    ) {
+      return this.mapOrder(existing, currentUser);
+    }
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.review_updated',
-      oldValues: {
-        reviewText: existing.reviewText,
-        reviewRating: existing.reviewRating,
-      },
-      newValues: {
-        reviewText: updated.reviewText,
-        reviewRating: updated.reviewRating,
-      },
-      metadata: {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const order = (await tx.oneTimeOrder.update({
+        where: { id },
+        data: {
+          reviewText,
+          reviewRating,
+          reviewUpdatedAt: new Date(),
+          reviewUpdatedByUserId: currentUser.id,
+        },
+        include: this.getOrderInclude(),
+      })) as OneTimeOrderView;
+
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
         actorUserId: currentUser.id,
-      },
+        action: 'one_time_order.review_updated',
+        oldValues: {
+          reviewText: existing.reviewText,
+          reviewRating: existing.reviewRating,
+        },
+        newValues: {
+          reviewText: order.reviewText,
+          reviewRating: order.reviewRating,
+        },
+        metadata: { actorUserId: currentUser.id },
+      });
+
+      return order;
     });
 
     return this.mapOrder(updated, currentUser);
@@ -736,33 +754,36 @@ export class OneTimeOrdersService {
     id: string,
   ): Promise<OneTimeOrderResponseDto> {
     const existing = await this.getOrderForReviewChange(currentUser, id);
-    const updated = (await this.prisma.oneTimeOrder.update({
-      where: { id },
-      data: {
-        reviewText: null,
-        reviewRating: null,
-        reviewUpdatedAt: null,
-        reviewUpdatedByUserId: null,
-      },
-      include: this.getOrderInclude(),
-    })) as OneTimeOrderView;
+    if (existing.reviewText === null && existing.reviewRating === null) {
+      return this.mapOrder(existing, currentUser);
+    }
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.review_cleared',
-      oldValues: {
-        reviewText: existing.reviewText,
-        reviewRating: existing.reviewRating,
-      },
-      newValues: {
-        reviewText: null,
-        reviewRating: null,
-      },
-      metadata: {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const order = (await tx.oneTimeOrder.update({
+        where: { id },
+        data: {
+          reviewText: null,
+          reviewRating: null,
+          reviewUpdatedAt: null,
+          reviewUpdatedByUserId: null,
+        },
+        include: this.getOrderInclude(),
+      })) as OneTimeOrderView;
+
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
         actorUserId: currentUser.id,
-      },
+        action: 'one_time_order.review_cleared',
+        oldValues: {
+          reviewText: existing.reviewText,
+          reviewRating: existing.reviewRating,
+        },
+        newValues: { reviewText: null, reviewRating: null },
+        metadata: { actorUserId: currentUser.id },
+      });
+
+      return order;
     });
 
     return this.mapOrder(updated, currentUser);
@@ -803,14 +824,15 @@ export class OneTimeOrdersService {
       throw new BadRequestException('Specification item title is required');
     }
 
-    const item = await this.prisma.$transaction(async (transaction) => {
-      const lastItem = await transaction.oneTimeOrderSpecificationItem.findFirst({
+    const item = await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, id);
+      const lastItem = await tx.oneTimeOrderSpecificationItem.findFirst({
         where: { oneTimeOrderId: id, deletedAt: null },
         orderBy: { sortOrder: 'desc' },
         select: { sortOrder: true },
       });
 
-      return transaction.oneTimeOrderSpecificationItem.create({
+      const created = await tx.oneTimeOrderSpecificationItem.create({
         data: {
           oneTimeOrderId: id,
           title,
@@ -821,21 +843,23 @@ export class OneTimeOrdersService {
         },
         include: this.getSpecificationItemInclude(),
       });
-    });
 
-    await this.writeSpecificationAudit(
-      id,
-      currentUser.id,
-      'one_time_order.specification_item_created',
-      item.id,
-      null,
-      {
-        title: item.title,
-        description: item.description,
-        requiresAttachment: item.requiresAttachment,
-        sortOrder: item.sortOrder,
-      },
-    );
+      await this.writeSpecificationAudit(tx, {
+        oneTimeOrderId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.specification_item_created',
+        itemId: created.id,
+        oldValues: null,
+        newValues: {
+          title: created.title,
+          description: created.description,
+          requiresAttachment: created.requiresAttachment,
+          sortOrder: created.sortOrder,
+        },
+      });
+
+      return created;
+    });
 
     return this.mapSpecificationItem(
       item as OneTimeOrderSpecificationItemView,
@@ -850,59 +874,69 @@ export class OneTimeOrdersService {
     payload: UpdateOneTimeOrderSpecificationItemDto,
   ): Promise<OneTimeOrderSpecificationItemResponseDto> {
     await this.getOrderForSpecificationWrite(currentUser, id);
-    const existing = await this.getSpecificationItem(id, itemId);
-    const title = payload.title === undefined ? existing.title : payload.title.trim();
-    const description =
-      payload.description === undefined
-        ? existing.description
-        : payload.description?.trim() || null;
-    const requiresAttachment =
-      payload.requiresAttachment ?? existing.requiresAttachment;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, id);
+      const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
+      const title =
+        payload.title === undefined ? existing.title : payload.title.trim();
+      const description =
+        payload.description === undefined
+          ? existing.description
+          : payload.description?.trim() || null;
+      const requiresAttachment =
+        payload.requiresAttachment ?? existing.requiresAttachment;
 
-    if (!title) {
-      throw new BadRequestException('Specification item title is required');
-    }
+      if (!title) {
+        throw new BadRequestException('Specification item title is required');
+      }
 
-    const hasMeaningfulChanges =
-      title !== existing.title ||
-      description !== existing.description ||
-      requiresAttachment !== existing.requiresAttachment;
+      const hasMeaningfulChanges =
+        title !== existing.title ||
+        description !== existing.description ||
+        requiresAttachment !== existing.requiresAttachment;
 
-    if (
-      existing.isCompleted &&
-      hasMeaningfulChanges &&
-      payload.reopenCompleted !== true
-    ) {
-      throw new ConflictException(
-        'Completed specification item must be explicitly reopened before editing',
-      );
-    }
+      if (
+        existing.isCompleted &&
+        hasMeaningfulChanges &&
+        payload.reopenCompleted !== true
+      ) {
+        throw new ConflictException(
+          'Completed specification item must be explicitly reopened before editing',
+        );
+      }
 
-    const updated = (await this.prisma.oneTimeOrderSpecificationItem.update({
-      where: { id: itemId },
-      data: {
-        title,
-        description,
-        requiresAttachment,
-        ...(existing.isCompleted && hasMeaningfulChanges
-          ? {
-              isCompleted: false,
-              completedAt: null,
-              completedByUserId: null,
-            }
-          : {}),
-      },
-      include: this.getSpecificationItemInclude(),
-    })) as OneTimeOrderSpecificationItemView;
+      if (!hasMeaningfulChanges) {
+        return existing;
+      }
 
-    await this.writeSpecificationAudit(
-      id,
-      currentUser.id,
-      'one_time_order.specification_item_updated',
-      itemId,
-      this.specificationAuditValues(existing),
-      this.specificationAuditValues(updated),
-    );
+      const item = (await tx.oneTimeOrderSpecificationItem.update({
+        where: { id: itemId },
+        data: {
+          title,
+          description,
+          requiresAttachment,
+          ...(existing.isCompleted
+            ? {
+                isCompleted: false,
+                completedAt: null,
+                completedByUserId: null,
+              }
+            : {}),
+        },
+        include: this.getSpecificationItemInclude(),
+      })) as OneTimeOrderSpecificationItemView;
+
+      await this.writeSpecificationAudit(tx, {
+        oneTimeOrderId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.specification_item_updated',
+        itemId,
+        oldValues: this.specificationAuditValues(existing),
+        newValues: this.specificationAuditValues(item),
+      });
+
+      return item;
+    });
 
     return this.mapSpecificationItem(
       updated,
@@ -916,24 +950,29 @@ export class OneTimeOrdersService {
     itemId: string,
   ): Promise<OneTimeOrderSpecificationItemResponseDto> {
     await this.getOrderForSpecificationWrite(currentUser, id);
-    const existing = await this.getSpecificationItem(id, itemId);
-    const deleted = (await this.prisma.oneTimeOrderSpecificationItem.update({
-      where: { id: itemId },
-      data: {
-        deletedAt: new Date(),
-        deletedByUserId: currentUser.id,
-      },
-      include: this.getSpecificationItemInclude(),
-    })) as OneTimeOrderSpecificationItemView;
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, id);
+      const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
+      const item = (await tx.oneTimeOrderSpecificationItem.update({
+        where: { id: itemId },
+        data: {
+          deletedAt: new Date(),
+          deletedByUserId: currentUser.id,
+        },
+        include: this.getSpecificationItemInclude(),
+      })) as OneTimeOrderSpecificationItemView;
 
-    await this.writeSpecificationAudit(
-      id,
-      currentUser.id,
-      'one_time_order.specification_item_deleted',
-      itemId,
-      this.specificationAuditValues(existing),
-      null,
-    );
+      await this.writeSpecificationAudit(tx, {
+        oneTimeOrderId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.specification_item_deleted',
+        itemId,
+        oldValues: this.specificationAuditValues(existing),
+        newValues: null,
+      });
+
+      return item;
+    });
 
     return this.mapSpecificationItem(
       deleted,
@@ -947,42 +986,51 @@ export class OneTimeOrdersService {
     itemId: string,
   ): Promise<OneTimeOrderSpecificationItemResponseDto> {
     await this.getOrderForSpecificationWrite(currentUser, id);
-    const existing = await this.getSpecificationItem(id, itemId);
+    const completed = await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, id);
+      const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
 
-    if (existing.requiresAttachment) {
-      const attachmentCount = await this.prisma.fileAttachment.count({
-        where: {
-          entityType: 'one_time_order_specification_item',
-          entityId: itemId,
-          file: { deletedAt: null },
+      if (existing.isCompleted) {
+        return existing;
+      }
+
+      if (existing.requiresAttachment) {
+        const attachmentCount = await tx.fileAttachment.count({
+          where: {
+            entityType: 'one_time_order_specification_item',
+            entityId: itemId,
+            file: { deletedAt: null },
+          },
+        });
+
+        if (attachmentCount === 0) {
+          throw new ConflictException(
+            'Specification item requires at least one attachment',
+          );
+        }
+      }
+
+      const item = (await tx.oneTimeOrderSpecificationItem.update({
+        where: { id: itemId },
+        data: {
+          isCompleted: true,
+          completedAt: new Date(),
+          completedByUserId: currentUser.id,
         },
+        include: this.getSpecificationItemInclude(),
+      })) as OneTimeOrderSpecificationItemView;
+
+      await this.writeSpecificationAudit(tx, {
+        oneTimeOrderId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.specification_item_completed',
+        itemId,
+        oldValues: this.specificationAuditValues(existing),
+        newValues: this.specificationAuditValues(item),
       });
 
-      if (attachmentCount === 0) {
-        throw new ConflictException(
-          'Specification item requires at least one attachment',
-        );
-      }
-    }
-
-    const completed = (await this.prisma.oneTimeOrderSpecificationItem.update({
-      where: { id: itemId },
-      data: {
-        isCompleted: true,
-        completedAt: new Date(),
-        completedByUserId: currentUser.id,
-      },
-      include: this.getSpecificationItemInclude(),
-    })) as OneTimeOrderSpecificationItemView;
-
-    await this.writeSpecificationAudit(
-      id,
-      currentUser.id,
-      'one_time_order.specification_item_completed',
-      itemId,
-      this.specificationAuditValues(existing),
-      this.specificationAuditValues(completed),
-    );
+      return item;
+    });
 
     return this.mapSpecificationItem(
       completed,
@@ -996,25 +1044,35 @@ export class OneTimeOrdersService {
     itemId: string,
   ): Promise<OneTimeOrderSpecificationItemResponseDto> {
     await this.getOrderForSpecificationWrite(currentUser, id);
-    const existing = await this.getSpecificationItem(id, itemId);
-    const reopened = (await this.prisma.oneTimeOrderSpecificationItem.update({
-      where: { id: itemId },
-      data: {
-        isCompleted: false,
-        completedAt: null,
-        completedByUserId: null,
-      },
-      include: this.getSpecificationItemInclude(),
-    })) as OneTimeOrderSpecificationItemView;
+    const reopened = await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, id);
+      const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
 
-    await this.writeSpecificationAudit(
-      id,
-      currentUser.id,
-      'one_time_order.specification_item_reopened',
-      itemId,
-      this.specificationAuditValues(existing),
-      this.specificationAuditValues(reopened),
-    );
+      if (!existing.isCompleted) {
+        return existing;
+      }
+
+      const item = (await tx.oneTimeOrderSpecificationItem.update({
+        where: { id: itemId },
+        data: {
+          isCompleted: false,
+          completedAt: null,
+          completedByUserId: null,
+        },
+        include: this.getSpecificationItemInclude(),
+      })) as OneTimeOrderSpecificationItemView;
+
+      await this.writeSpecificationAudit(tx, {
+        oneTimeOrderId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.specification_item_reopened',
+        itemId,
+        oldValues: this.specificationAuditValues(existing),
+        newValues: this.specificationAuditValues(item),
+      });
+
+      return item;
+    });
 
     return this.mapSpecificationItem(
       reopened,
@@ -1028,48 +1086,55 @@ export class OneTimeOrdersService {
     payload: ReorderOneTimeOrderSpecificationItemsDto,
   ): Promise<OneTimeOrderSpecificationItemResponseDto[]> {
     await this.getOrderForSpecificationWrite(currentUser, id);
-    const existing = await this.prisma.oneTimeOrderSpecificationItem.findMany({
-      where: { oneTimeOrderId: id, deletedAt: null },
-      select: { id: true, sortOrder: true },
-      orderBy: { sortOrder: 'asc' },
-    });
-    const existingIds = existing.map((item) => item.id).sort();
-    const requestedIds = [...payload.itemIds].sort();
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, id);
+      const existing = await tx.oneTimeOrderSpecificationItem.findMany({
+        where: { oneTimeOrderId: id, deletedAt: null },
+        select: { id: true, sortOrder: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+      const existingIds = existing.map((item) => item.id).sort();
+      const requestedIds = [...payload.itemIds].sort();
 
-    if (
-      existingIds.length !== requestedIds.length ||
-      existingIds.some((itemId, index) => itemId !== requestedIds[index])
-    ) {
-      throw new BadRequestException(
-        'Reorder payload must contain every active specification item exactly once',
-      );
-    }
+      if (
+        existingIds.length !== requestedIds.length ||
+        existingIds.some((itemId, index) => itemId !== requestedIds[index])
+      ) {
+        throw new BadRequestException(
+          'Reorder payload must contain every active specification item exactly once',
+        );
+      }
 
-    await this.prisma.$transaction(async (transaction) => {
+      if (
+        existing.every((item, index) => item.id === payload.itemIds[index])
+      ) {
+        return;
+      }
+
       for (const [index, itemId] of payload.itemIds.entries()) {
-        await transaction.oneTimeOrderSpecificationItem.update({
+        await tx.oneTimeOrderSpecificationItem.update({
           where: { id: itemId },
           data: { sortOrder: -index - 1 },
         });
       }
 
       for (const [index, itemId] of payload.itemIds.entries()) {
-        await transaction.oneTimeOrderSpecificationItem.update({
+        await tx.oneTimeOrderSpecificationItem.update({
           where: { id: itemId },
           data: { sortOrder: index },
         });
       }
-    });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.specification_reordered',
-      metadata: {
-        previousOrder: existing.map((item) => item.id),
-        nextOrder: payload.itemIds,
-      },
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.specification_reordered',
+        metadata: {
+          previousOrder: existing.map((item) => item.id),
+          nextOrder: payload.itemIds,
+        },
+      });
     });
 
     return this.listSpecificationItems(currentUser, id);
@@ -1128,20 +1193,17 @@ export class OneTimeOrdersService {
         managerUserIds,
         conflictResult,
       });
-      return order;
-    });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: updated.id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.status_changed',
-      oldValues: {
-        status: existing.status,
-      },
-      newValues: {
-        status: updated.status,
-      },
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: order.id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.status_changed',
+        oldValues: { status: existing.status },
+        newValues: { status: order.status },
+      });
+
+      return order;
     });
 
     return this.mapOrder(updated, currentUser);
@@ -1194,17 +1256,17 @@ export class OneTimeOrdersService {
         managerUserIds: [manager.id],
         conflictResult,
       });
-    });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.manager_added',
-      metadata: {
-        managerUserId: manager.id,
-        managerFullName: manager.fullName,
-      },
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.manager_added',
+        metadata: {
+          managerUserId: manager.id,
+          managerFullName: manager.fullName,
+        },
+      });
     });
 
     return this.getOrderById(currentUser, id);
@@ -1217,30 +1279,30 @@ export class OneTimeOrdersService {
   ): Promise<OneTimeOrderResponseDto> {
     await this.getOrderForManagerChange(currentUser, id);
 
-    const result = await this.prisma.oneTimeOrderAssignment.updateMany({
-      where: {
-        oneTimeOrderId: id,
-        userId,
-        assignmentRoleCode: 'one_time_manager',
-        isActive: true,
-      },
-      data: {
-        isActive: false,
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const result = await tx.oneTimeOrderAssignment.updateMany({
+        where: {
+          oneTimeOrderId: id,
+          userId,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+        data: { isActive: false },
+      });
 
-    if (result.count === 0) {
-      throw new NotFoundException('One-time order manager assignment not found');
-    }
+      if (result.count === 0) {
+        throw new NotFoundException(
+          'One-time order manager assignment not found',
+        );
+      }
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.manager_removed',
-      metadata: {
-        managerUserId: userId,
-      },
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.manager_removed',
+        metadata: { managerUserId: userId },
+      });
     });
 
     return this.getOrderById(currentUser, id);
@@ -1512,31 +1574,32 @@ export class OneTimeOrdersService {
     }
 
     const deleteReason = payload.reason?.trim() || null;
-    const item = (await this.prisma.oneTimeOrderPhoto.update({
-      where: { id: photoId },
-      data: {
-        deletedAt: new Date(),
-        deletedByUserId: currentUser.id,
-        deleteReason,
-        restoredAt: null,
-        restoredByUserId: null,
-      },
-      include: {
-        createdBy: true,
-        deletedBy: true,
-        restoredBy: true,
-      },
-    })) as OneTimeOrderPhotoView;
+    const item = await this.prisma.$transaction(async (tx) => {
+      const photo = (await tx.oneTimeOrderPhoto.update({
+        where: { id: photoId },
+        data: {
+          deletedAt: new Date(),
+          deletedByUserId: currentUser.id,
+          deleteReason,
+          restoredAt: null,
+          restoredByUserId: null,
+        },
+        include: {
+          createdBy: true,
+          deletedBy: true,
+          restoredBy: true,
+        },
+      })) as OneTimeOrderPhotoView;
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.photo_deleted',
-      metadata: {
-        photoId,
-        deleteReason,
-      },
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.photo_deleted',
+        metadata: { photoId, deleteReason },
+      });
+
+      return photo;
     });
 
     return this.mapPhoto(item, [], {
@@ -1572,31 +1635,35 @@ export class OneTimeOrdersService {
       });
     }
 
-    const item = (await this.prisma.oneTimeOrderPhoto.update({
-      where: { id: photoId },
-      data: {
-        deletedAt: null,
-        deletedByUserId: null,
-        deleteReason: null,
-        restoredAt: new Date(),
-        restoredByUserId: currentUser.id,
-      },
-      include: {
-        createdBy: true,
-        deletedBy: true,
-        restoredBy: true,
-      },
-    })) as OneTimeOrderPhotoView;
+    const item = await this.prisma.$transaction(async (tx) => {
+      const photo = (await tx.oneTimeOrderPhoto.update({
+        where: { id: photoId },
+        data: {
+          deletedAt: null,
+          deletedByUserId: null,
+          deleteReason: null,
+          restoredAt: new Date(),
+          restoredByUserId: currentUser.id,
+        },
+        include: {
+          createdBy: true,
+          deletedBy: true,
+          restoredBy: true,
+        },
+      })) as OneTimeOrderPhotoView;
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.photo_restored',
-      metadata: {
-        photoId,
-        previousDeleteReason: existing.deleteReason,
-      },
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.photo_restored',
+        metadata: {
+          photoId,
+          previousDeleteReason: existing.deleteReason,
+        },
+      });
+
+      return photo;
     });
 
     return this.mapPhoto(item, await this.getPhotoAttachments(photoId), {
@@ -1779,7 +1846,7 @@ export class OneTimeOrdersService {
     return item;
   }
 
-  private async getPhotoAttachments(photoId: string): Promise<FileResponseDto[]> {
+  private async getPhotoAttachments(photoId: string): Promise<SafeFileResponseDto[]> {
     const map = await this.listAttachmentsByEntityIds('one_time_order_photo', [
       photoId,
     ]);
@@ -1845,11 +1912,12 @@ export class OneTimeOrdersService {
     return order;
   }
 
-  private async getSpecificationItem(
+  private async getSpecificationItemFromTx(
+    tx: Prisma.TransactionClient,
     oneTimeOrderId: string,
     itemId: string,
   ): Promise<OneTimeOrderSpecificationItemView> {
-    const item = (await this.prisma.oneTimeOrderSpecificationItem.findFirst({
+    const item = (await tx.oneTimeOrderSpecificationItem.findFirst({
       where: {
         id: itemId,
         oneTimeOrderId,
@@ -2173,7 +2241,7 @@ export class OneTimeOrdersService {
 
   private mapSpecificationItem(
     item: OneTimeOrderSpecificationItemView,
-    attachments: FileResponseDto[],
+    attachments: SafeFileResponseDto[],
   ): OneTimeOrderSpecificationItemResponseDto {
     return {
       id: item.id,
@@ -2204,7 +2272,7 @@ export class OneTimeOrdersService {
 
   private async listSpecificationItemAttachments(
     itemId: string,
-  ): Promise<FileResponseDto[]> {
+  ): Promise<SafeFileResponseDto[]> {
     const attachments = await this.listAttachmentsByEntityIds(
       'one_time_order_specification_item',
       [itemId],
@@ -2227,23 +2295,75 @@ export class OneTimeOrdersService {
     };
   }
 
-  private async writeSpecificationAudit(
+  private async lockSpecification(
+    tx: Prisma.TransactionClient,
     oneTimeOrderId: string,
-    actorUserId: string,
-    action: string,
-    itemId: string,
-    oldValues: Record<string, string | number | boolean | null> | null,
-    newValues: Record<string, string | number | boolean | null> | null,
   ): Promise<void> {
-    await this.auditService.writeAuditEvent({
+    await tx.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${oneTimeOrderId}))`,
+    );
+  }
+
+  private async writeSpecificationAudit(
+    tx: Prisma.TransactionClient,
+    params: {
+      oneTimeOrderId: string;
+      actorUserId: string;
+      action: string;
+      itemId: string;
+      oldValues: Record<string, string | number | boolean | null> | null;
+      newValues: Record<string, string | number | boolean | null> | null;
+    },
+  ): Promise<void> {
+    await this.writeAuditEvent(tx, {
       entityType: 'one_time_order',
-      entityId: oneTimeOrderId,
-      actorUserId,
-      action,
-      oldValues,
-      newValues,
+      entityId: params.oneTimeOrderId,
+      actorUserId: params.actorUserId,
+      action: params.action,
+      oldValues: params.oldValues,
+      newValues: params.newValues,
       metadata: {
-        specificationItemId: itemId,
+        specificationItemId: params.itemId,
+      },
+    });
+  }
+
+  private async writeAuditEvent(
+    tx: Prisma.TransactionClient,
+    params: {
+      entityType: string;
+      entityId: string;
+      actorUserId?: string | null;
+      action: string;
+      oldValues?: Prisma.InputJsonValue | null;
+      newValues?: Prisma.InputJsonValue | null;
+      metadata?: Prisma.InputJsonValue | null;
+    },
+  ): Promise<void> {
+    await tx.auditEvent.create({
+      data: {
+        entityType: params.entityType,
+        entityId: params.entityId,
+        actorUserId: params.actorUserId ?? null,
+        action: params.action,
+        ...(params.oldValues === undefined
+          ? {}
+          : {
+              oldValues:
+                params.oldValues === null ? Prisma.JsonNull : params.oldValues,
+            }),
+        ...(params.newValues === undefined
+          ? {}
+          : {
+              newValues:
+                params.newValues === null ? Prisma.JsonNull : params.newValues,
+            }),
+        ...(params.metadata === undefined
+          ? {}
+          : {
+              metadata:
+                params.metadata === null ? Prisma.JsonNull : params.metadata,
+            }),
       },
     });
   }
@@ -2260,7 +2380,7 @@ export class OneTimeOrdersService {
       login: string;
       fullName: string;
     };
-  }, attachments: FileResponseDto[]): OneTimeOrderCommentResponseDto {
+  }, attachments: SafeFileResponseDto[]): OneTimeOrderCommentResponseDto {
     return {
       id: item.id,
       oneTimeOrderId: item.oneTimeOrderId,
@@ -2279,7 +2399,7 @@ export class OneTimeOrdersService {
 
   private mapDailyReport(
     item: OneTimeOrderDailyReportView,
-    attachments: FileResponseDto[],
+    attachments: SafeFileResponseDto[],
   ): OneTimeOrderDailyReportResponseDto {
     return {
       id: item.id,
@@ -2299,7 +2419,7 @@ export class OneTimeOrdersService {
 
   private mapPhoto(
     item: OneTimeOrderPhotoView,
-    attachments: FileResponseDto[],
+    attachments: SafeFileResponseDto[],
     capabilities: {
       canDelete: boolean;
       canRestore: boolean;
@@ -2443,8 +2563,8 @@ export class OneTimeOrdersService {
   private async listAttachmentsByEntityIds(
     entityType: string,
     entityIds: string[],
-  ): Promise<Map<string, FileResponseDto[]>> {
-    const map = new Map<string, FileResponseDto[]>();
+  ): Promise<Map<string, SafeFileResponseDto[]>> {
+    const map = new Map<string, SafeFileResponseDto[]>();
 
     if (entityIds.length === 0) {
       return map;
@@ -2461,15 +2581,7 @@ export class OneTimeOrdersService {
         },
       },
       include: {
-        file: {
-          include: {
-            attachments: {
-              orderBy: {
-                createdAt: 'asc',
-              },
-            },
-          },
-        },
+        file: true,
       },
       orderBy: {
         createdAt: 'asc',
@@ -2478,32 +2590,11 @@ export class OneTimeOrdersService {
 
     for (const row of rows) {
       const items = map.get(row.entityId) ?? [];
-      items.push(this.mapFile(row.file as StoredFileView));
+      items.push(mapSafeFileResponse(row.file as StoredFileView));
       map.set(row.entityId, items);
     }
 
     return map;
   }
 
-  private mapFile(file: StoredFileView): FileResponseDto {
-    return {
-      id: file.id,
-      bucket: file.bucket,
-      objectKey: file.objectKey,
-      originalName: file.originalName,
-      mimeType: file.mimeType,
-      sizeBytes: file.sizeBytes,
-      uploadedByUserId: file.uploadedByUserId,
-      createdAt: file.createdAt.toISOString(),
-      url: `/api/v1/files/${file.id}/content`,
-      attachments: file.attachments.map((attachment) => ({
-        id: attachment.id,
-        entityType: attachment.entityType,
-        entityId: attachment.entityId,
-        fieldCode: attachment.fieldCode,
-        uploadedByUserId: attachment.uploadedByUserId,
-        createdAt: attachment.createdAt.toISOString(),
-      })),
-    };
-  }
 }

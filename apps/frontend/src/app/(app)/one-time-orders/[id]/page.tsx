@@ -529,12 +529,17 @@ export default function OneTimeOrderDetailPage({
             assigneeOptions={taskAssignees}
             canCreateTask={item.capabilities.canCreateTask}
             linkedObject={item.linkedObject}
-            onCreate={async (payload) => {
+            onCreate={async ({ linkToObject, ...payload }) => {
               await createTask({
                 ...payload,
-                ...(item.linkedObject ? { objectId: item.linkedObject.id } : {}),
+                ...(item.linkedObject && linkToObject
+                  ? { objectId: item.linkedObject.id }
+                  : {}),
                 oneTimeOrderId: item.id,
-                visibilityMode: item.linkedObject ? 'scope' : 'selected',
+                visibilityMode:
+                  item.linkedObject && linkToObject
+                    ? 'scope'
+                    : 'selected',
                 requiresConfirmation: true,
                 completionRequirement: 'comment_or_file',
               });

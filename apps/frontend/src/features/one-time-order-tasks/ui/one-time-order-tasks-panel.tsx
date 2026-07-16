@@ -31,6 +31,7 @@ export function OneTimeOrderTasksPanel({
       | 'important_not_urgent'
       | 'not_important_not_urgent';
     assigneeUserIds: string[];
+    linkToObject: boolean;
   }) => Promise<void>;
 }): React.JSX.Element {
   const [title, setTitle] = useState('');
@@ -42,6 +43,7 @@ export function OneTimeOrderTasksPanel({
     | 'not_important_not_urgent'
   >('important_not_urgent');
   const [assigneeUserIds, setAssigneeUserIds] = useState<string[]>([]);
+  const [linkToObject, setLinkToObject] = useState(Boolean(linkedObject));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const toggleAssignee = (userId: string): void => {
@@ -70,7 +72,7 @@ export function OneTimeOrderTasksPanel({
           onSubmit={async (event) => {
             event.preventDefault();
 
-            const targetLabel = linkedObject
+            const targetLabel = linkedObject && linkToObject
               ? `заказом и объектом «${linkedObject.name}»`
               : 'заказом';
             if (!window.confirm(`Создать задачу со связью с ${targetLabel}?`)) {
@@ -85,6 +87,7 @@ export function OneTimeOrderTasksPanel({
                 description: description || undefined,
                 priority,
                 assigneeUserIds,
+                linkToObject,
               });
               setTitle('');
               setDescription('');
@@ -116,8 +119,27 @@ export function OneTimeOrderTasksPanel({
               style={{ gridColumn: '1 / -1' }}
             >
               Связи: текущий разовый заказ
-              {linkedObject ? ` + объект «${linkedObject.name}»` : ''}.
+              {linkedObject && linkToObject
+                ? ` + объект «${linkedObject.name}»`
+                : ''}.
             </div>
+            {linkedObject ? (
+              <label
+                style={{
+                  gridColumn: '1 / -1',
+                  display: 'flex',
+                  gap: 8,
+                  alignItems: 'center',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={linkToObject}
+                  onChange={(event) => setLinkToObject(event.target.checked)}
+                />
+                Также привязать к объекту «{linkedObject.name}»
+              </label>
+            ) : null}
             <label>
               <div style={{ marginBottom: 6 }}>Название</div>
               <input

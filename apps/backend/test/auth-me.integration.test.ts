@@ -134,9 +134,16 @@ test('/auth/me returns fresh MeResponseDto capabilities from DB', async (t) => {
   const prisma = new PrismaClient();
   const userId = await ensureAuthMeTestUser(prisma);
   const { app, baseUrl } = await createTestApp();
+  const createdOrderIds: string[] = [];
 
   t.after(async () => {
     await app.close();
+    await prisma.oneTimeOrderAssignment.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
+    await prisma.oneTimeOrder.deleteMany({
+      where: { id: { in: createdOrderIds } },
+    });
     await prisma.user.deleteMany({
       where: {
         id: userId,
@@ -172,6 +179,45 @@ test('/auth/me returns fresh MeResponseDto capabilities from DB', async (t) => {
   assert.deepEqual(
     Object.keys(mePayload.capabilities).sort(),
     Object.keys(loginPayload.user.capabilities).sort(),
+  );
+
+  await prisma.userRole.deleteMany({ where: { userId } });
+  const withoutEligibleRoleResponse = await getMe({ baseUrl, cookieHeader });
+  assert.equal(withoutEligibleRoleResponse.status, 200);
+  assert.equal(
+    ((await withoutEligibleRoleResponse.json()) as MePayload).capabilities
+      .canManageOwnOneTimeOrderAvailability,
+    false,
+  );
+
+  const founder = await prisma.user.findUniqueOrThrow({
+    where: { login: 'founder' },
+    select: { id: true },
+  });
+  const assignedOrder = await prisma.oneTimeOrder.create({
+    data: {
+      title: `Auth capability assignment ${Date.now()}`,
+      executionAddress: 'Москва',
+      status: 'new',
+      contactName: 'Контакт',
+      createdByUserId: founder.id,
+      assignments: {
+        create: {
+          userId,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+      },
+    },
+  });
+  createdOrderIds.push(assignedOrder.id);
+
+  const assignedMeResponse = await getMe({ baseUrl, cookieHeader });
+  assert.equal(assignedMeResponse.status, 200);
+  assert.equal(
+    ((await assignedMeResponse.json()) as MePayload).capabilities
+      .canManageOwnOneTimeOrderAvailability,
+    true,
   );
 
   const founderRole = await prisma.role.findUniqueOrThrow({

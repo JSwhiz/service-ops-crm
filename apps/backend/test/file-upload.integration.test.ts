@@ -56,21 +56,20 @@ test('file upload stores metadata and serves content via backend proxy', async (
     originalName: string;
     mimeType: string;
     sizeBytes: number;
-    url: string;
-    attachments: Array<{
-      entityType: string;
-      entityId: string;
-      fieldCode: string | null;
-    }>;
+    viewUrl: string;
+    downloadUrl: string;
   };
 
   assert.equal(uploaded.originalName, 'platform-upload.txt');
   assert.equal(uploaded.mimeType, 'text/plain');
-  assert.equal(uploaded.attachments.length, 1);
-  assert.equal(uploaded.attachments[0]?.entityType, 'object');
-  assert.equal(uploaded.attachments[0]?.entityId, object.id);
-  assert.equal(uploaded.attachments[0]?.fieldCode, null);
-  assert.match(uploaded.url, /^\/api\/v1\/files\/.+\/content$/);
+  assert.match(uploaded.viewUrl, /^\/api\/v1\/files\/.+\/view$/);
+  assert.match(
+    uploaded.downloadUrl,
+    /^\/api\/v1\/files\/.+\/content\?download=1$/,
+  );
+  assert.equal('bucket' in uploaded, false);
+  assert.equal('objectKey' in uploaded, false);
+  assert.equal('attachments' in uploaded, false);
 
   const listedResponse = await fetch(
     `${baseUrl}/api/v1/files/entity/object/${object.id}`,
@@ -86,7 +85,7 @@ test('file upload stores metadata and serves content via backend proxy', async (
   const listed = (await listedResponse.json()) as Array<{ id: string }>;
   assert.ok(listed.some((item) => item.id === uploaded.id));
 
-  const contentResponse = await fetch(new URL(uploaded.url, baseUrl), {
+  const contentResponse = await fetch(new URL(uploaded.downloadUrl, baseUrl), {
     headers: {
       Cookie: cookieHeader,
     },

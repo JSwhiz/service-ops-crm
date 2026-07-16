@@ -1,4 +1,4 @@
-import { FileResponseDto } from '../../files/dto/file-response.dto';
+import { SafeFileResponseDto } from '../../files/dto/safe-file-response.dto';
 
 export class OneTimeOrderDailyReportResponseDto {
   id!: string;
@@ -12,5 +12,5 @@ export class OneTimeOrderDailyReportResponseDto {
     login: string;
     fullName: string;
   };
-  attachments!: FileResponseDto[];
+  attachments!: SafeFileResponseDto[];
 }

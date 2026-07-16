@@ -13,6 +13,7 @@ import { buildEquipmentGlobalCapabilities } from '../equipment/utils/equipment-c
 import { buildChatGlobalCapabilities } from '../chats/utils/chat-capabilities.util';
 import { buildOneTimeOrderGlobalCapabilities } from '../one-time-orders/utils/one-time-order-capabilities.util';
 import { canCreateObject } from '../objects/utils/object-access.util';
+import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users-access/users.service';
 
 import { LoginDto } from './dto/login.dto';
@@ -52,6 +53,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly authSessionsService: AuthSessionsService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async login(
@@ -70,7 +72,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const safeUser = this.buildMeResponse(this.usersService.sanitizeUser(user));
+    const safeUser = await this.buildMeResponse(
+      this.usersService.sanitizeUser(user),
+    );
 
     return this.issueAuthSession(safeUser, meta);
   }
@@ -93,7 +97,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const safeUser = this.buildMeResponse(this.usersService.sanitizeUser(user));
+    const safeUser = await this.buildMeResponse(
+      this.usersService.sanitizeUser(user),
+    );
     const refreshExpiresAt = this.getRefreshExpiresAt();
     const rotatedSession = await this.authSessionsService.rotateSession(
       refreshToken,
@@ -179,7 +185,18 @@ export class AuthService {
     };
   }
 
-  private buildMeResponse(user: SanitizedAuthUserRecord): MeResponseDto {
+  private async buildMeResponse(
+    user: SanitizedAuthUserRecord,
+  ): Promise<MeResponseDto> {
+    const activeManagerAssignment =
+      await this.prisma.oneTimeOrderAssignment.findFirst({
+        where: {
+          userId: user.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+        select: { id: true },
+      });
     const approvalCapabilities = buildApprovalGlobalCapabilities({
       roleCodes: user.roleCodes,
       permissionCodes: user.permissionCodes,
@@ -198,6 +215,7 @@ export class AuthService {
     const oneTimeOrderCapabilities = buildOneTimeOrderGlobalCapabilities({
       roleCodes: user.roleCodes,
       permissionCodes: user.permissionCodes,
+      hasActiveManagerAssignment: activeManagerAssignment !== null,
     });
 
     return {

@@ -27,6 +27,7 @@ export interface OneTimeOrderGlobalCapabilities {
 export function buildOneTimeOrderGlobalCapabilities(params: {
   roleCodes: string[];
   permissionCodes?: string[];
+  hasActiveManagerAssignment?: boolean;
 }): OneTimeOrderGlobalCapabilities {
   const canManageAnyAvailability = hasOneTimeOrderPermission(
     params.permissionCodes,
@@ -36,7 +37,9 @@ export function buildOneTimeOrderGlobalCapabilities(params: {
     params.permissionCodes,
     ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
   );
-  const canManageOwnAvailability = canBeOneTimeOrderManager(params.roleCodes);
+  const canManageOwnAvailability =
+    canBeOneTimeOrderManager(params.roleCodes) ||
+    params.hasActiveManagerAssignment === true;
   const canAccess = canAccessOneTimeOrders(
     params.roleCodes,
     params.permissionCodes,

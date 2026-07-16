@@ -8,20 +8,7 @@ export interface FilePreviewItem {
   downloadUrl?: string;
 }
 
-export interface AttachedFile extends FilePreviewItem {
-  bucket: string;
-  objectKey: string;
-  uploadedByUserId: string | null;
-  url: string;
-  attachments: Array<{
-    id: string;
-    entityType: string;
-    entityId: string;
-    fieldCode: string | null;
-    uploadedByUserId: string | null;
-    createdAt: string;
-  }>;
-}
+export type AttachedFile = FilePreviewItem;
 
 export interface FileView {
   id: string;
