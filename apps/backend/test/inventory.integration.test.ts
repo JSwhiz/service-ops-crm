@@ -66,6 +66,7 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   const { app, baseUrl } = await createTestApp();
 
   let inventoryItemId: string | null = null;
+  let deputyInventoryItemId: string | null = null;
   let oneTimeOrderId: string | null = null;
   const createdMovementIds: string[] = [];
   const createdFileIds: string[] = [];
@@ -170,6 +171,18 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
       });
     }
 
+    if (deputyInventoryItemId) {
+      await prisma.auditEvent.deleteMany({
+        where: {
+          entityType: 'inventory_item',
+          entityId: deputyInventoryItemId,
+        },
+      });
+      await prisma.inventoryItem.deleteMany({
+        where: { id: deputyInventoryItemId },
+      });
+    }
+
     await app.close();
     await prisma.$disconnect();
   });
@@ -206,7 +219,7 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
 
   assert.equal(managerDeniedResponse.status, 403);
 
-  const createItemDeniedForDeputy = await fetch(
+  const createItemForDeputy = await fetch(
     `${baseUrl}/api/v1/inventory/items`,
     {
       method: 'POST',
@@ -215,14 +228,17 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        name: 'Запасная химия',
+        name: `Запасная химия ${Date.now()}`,
         category: 'Химия',
         unit: 'шт',
       }),
     },
   );
 
-  assert.equal(createItemDeniedForDeputy.status, 403);
+  assert.equal(createItemForDeputy.status, 201);
+  deputyInventoryItemId = (
+    (await createItemForDeputy.json()) as { id: string }
+  ).id;
 
   const createItemResponse = await fetch(`${baseUrl}/api/v1/inventory/items`, {
     method: 'POST',
@@ -428,7 +444,7 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   const returnMovement = (await returnResponse.json()) as { id: string };
   createdMovementIds.push(returnMovement.id);
 
-  const writeoffDeniedForDeputy = await fetch(
+  const writeoffResponse = await fetch(
     `${baseUrl}/api/v1/inventory/movements`,
     {
       method: 'POST',
@@ -440,25 +456,10 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
         inventoryItemId,
         movementType: 'writeoff',
         quantity: 1,
+        comment: 'Списание заместителем директора',
       }),
     },
   );
-
-  assert.equal(writeoffDeniedForDeputy.status, 403);
-
-  const writeoffResponse = await fetch(`${baseUrl}/api/v1/inventory/movements`, {
-    method: 'POST',
-    headers: {
-      Cookie: directorCookie,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inventoryItemId,
-      movementType: 'writeoff',
-      quantity: 1,
-      comment: 'Списание поврежденной упаковки',
-    }),
-  });
 
   assert.equal(writeoffResponse.status, 201);
   const writeoffMovement = (await writeoffResponse.json()) as {
@@ -650,13 +651,11 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   assert.ok(deputyMovements.some((movement) => movement.relatedObject !== null));
   assert.ok(
     deputyMovements.some(
-      (movement) => movement.relatedObject?.canOpenObjectCard === false,
+      (movement) => movement.relatedObject?.canOpenObjectCard === true,
     ),
   );
   assert.ok(
-    deputyMovements.some(
-      (movement) => movement.relatedOneTimeOrder?.canOpenOrderCard === false,
-    ),
+    deputyMovements.every((movement) => movement.relatedOneTimeOrder === null),
   );
 
   const directorMovementsResponse = await fetch(

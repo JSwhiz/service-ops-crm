@@ -8,8 +8,8 @@ import { createTestApp } from './helpers/create-test-app';
 
 interface CalendarDay {
   date: string;
-  availability: { entryType: string } | null;
-  pendingRequests: Array<{ entryType: string }>;
+  availability: { entryType: string; comment: string | null } | null;
+  pendingRequests: Array<{ entryType: string; comment: string | null }>;
   orders: Array<{
     detailsRestricted: boolean;
     relatedOrder: {
@@ -78,6 +78,13 @@ test('one-time order calendar expands ranges and protects pending availability',
       managers: [managerOne.id],
     },
     {
+      title: `${marker}-cancelled-only-day`,
+      status: 'cancelled',
+      start: '2032-07-14',
+      end: '2032-07-14',
+      managers: [managerOne.id],
+    },
+    {
       title: `${marker}-boundary`,
       status: 'planned',
       start: '2032-06-30',
@@ -96,6 +103,13 @@ test('one-time order calendar expands ranges and protects pending availability',
       status: 'planned',
       start: '2032-07-11',
       end: '2032-07-11',
+      managers: [managerTwo.id],
+    },
+    {
+      title: `${marker}-manager-two-private-cancelled`,
+      status: 'cancelled',
+      start: '2032-07-14',
+      end: '2032-07-14',
       managers: [managerTwo.id],
     },
   ];
@@ -129,6 +143,8 @@ test('one-time order calendar expands ranges and protects pending availability',
         startDate: new Date('2032-07-11T00:00:00.000Z'),
         endDate: new Date('2032-07-11T00:00:00.000Z'),
         status: 'approved',
+        requestComment: 'Приватный комментарий отпуска',
+        resolutionComment: 'Приватное решение по отпуску',
         requestedByUserId: founder.id,
         resolvedByUserId: founder.id,
         resolvedAt: new Date(),
@@ -141,6 +157,7 @@ test('one-time order calendar expands ranges and protects pending availability',
         startDate: new Date('2032-07-13T00:00:00.000Z'),
         endDate: new Date('2032-07-13T00:00:00.000Z'),
         status: 'pending',
+        requestComment: 'Личный запрос выходного',
         requestedByUserId: managerOne.id,
       },
     }),
@@ -151,6 +168,7 @@ test('one-time order calendar expands ranges and protects pending availability',
         startDate: new Date('2032-07-12T00:00:00.000Z'),
         endDate: new Date('2032-07-12T00:00:00.000Z'),
         status: 'pending',
+        requestComment: 'Приватный больничный',
         requestedByUserId: managerTwo.id,
       },
     }),
@@ -168,7 +186,7 @@ test('one-time order calendar expands ranges and protects pending availability',
     await prisma.$disconnect();
   });
 
-  const [founderCookie, managerCookie, hrCookie] = await Promise.all([
+  const [founderCookie, managerCookie, managerTwoCookie, hrCookie] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
@@ -177,6 +195,11 @@ test('one-time order calendar expands ranges and protects pending availability',
     loginAndGetCookieHeader({
       baseUrl,
       login: 'manager1',
+      password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'manager2',
       password: 'manager123',
     }),
     loginAndGetCookieHeader({
@@ -204,12 +227,17 @@ test('one-time order calendar expands ranges and protects pending availability',
     (row) => row.user.id === managerOne.id,
   )!;
   assert.equal(managerOneRow.workedDays, 4);
-  assert.equal(managerOneRow.orderCount, 4);
+  assert.equal(managerOneRow.orderCount, 5);
   assert.equal(managerOneRow.completedOrderCount, 1);
-  assert.equal(managerOneRow.cancelledOrderCount, 1);
+  assert.equal(managerOneRow.cancelledOrderCount, 2);
+  assert.equal(
+    managerOneRow.days.find((day) => day.date === '2032-07-14')?.orders.length,
+    1,
+  );
   const julyEleventh = managerOneRow.days.find(
     (day) => day.date === '2032-07-11',
   )!;
+  assert.equal(julyEleventh.availability?.comment, 'Приватный комментарий отпуска');
   assert.equal(julyEleventh.orders.length, 3);
   assert.ok(
     julyEleventh.orders.some((order) =>
@@ -261,6 +289,11 @@ test('one-time order calendar expands ranges and protects pending availability',
   assert.equal(ordinaryOwnRow.orderCount, 3);
   assert.equal(ordinaryOwnRow.cancelledOrderCount, 0);
   assert.equal(
+    ordinaryOwnRow.days.find((day) => day.date === '2032-07-11')?.availability
+      ?.comment,
+    'Приватный комментарий отпуска',
+  );
+  assert.equal(
     ordinaryOwnRow.days.find((day) => day.date === '2032-07-11')?.orders.length,
     2,
   );
@@ -277,6 +310,23 @@ test('one-time order calendar expands ranges and protects pending availability',
     false,
   );
 
+  const ordinaryWithCancelled = await getCalendar(
+    managerCookie,
+    'month=2032-07&includeCancelled=true',
+  );
+  const ordinaryHiddenCancelledDay = ordinaryWithCancelled.managers
+    .find((row) => row.user.id === managerTwo.id)
+    ?.days.find((day) => day.date === '2032-07-14');
+  assert.deepEqual(ordinaryHiddenCancelledDay?.orders, []);
+
+  const otherManagerCalendar = await getCalendar(managerTwoCookie);
+  assert.equal(
+    otherManagerCalendar.managers
+      .find((row) => row.user.id === managerOne.id)
+      ?.days.find((day) => day.date === '2032-07-11')?.availability?.comment,
+    null,
+  );
+
   const filteredCalendar = await getCalendar(
     founderCookie,
     `month=2032-07&managerUserId=${managerTwo.id}`,
@@ -288,6 +338,12 @@ test('one-time order calendar expands ranges and protects pending availability',
   assert.equal(filteredCalendar.managers[0]?.workedDays, 3);
 
   const hrCalendar = await getCalendar(hrCookie);
+  assert.equal(
+    hrCalendar.managers
+      .find((row) => row.user.id === managerOne.id)
+      ?.days.find((day) => day.date === '2032-07-11')?.availability?.comment,
+    'Приватный комментарий отпуска',
+  );
   assert.equal(
     hrCalendar.managers
       .find((row) => row.user.id === managerTwo.id)

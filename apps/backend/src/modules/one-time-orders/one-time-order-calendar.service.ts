@@ -88,8 +88,9 @@ export class OneTimeOrderCalendarService {
       [{ value: 'Легенда', styleId: 1 }],
       [
         { value: 'Заказ', styleId: 4 },
-        'Несколько заказов',
+        { value: 'Несколько заказов', styleId: 7 },
         { value: 'Конфликт', styleId: 8 },
+        { value: 'Отменённый заказ', styleId: 9 },
       ],
       [
         { value: 'Выходной', styleId: 3 },
@@ -114,6 +115,7 @@ export class OneTimeOrderCalendarService {
         { value: 'Контакт', styleId: 1 },
         { value: 'Телефон', styleId: 1 },
         { value: 'Оценка', styleId: 1 },
+        { value: 'Отзыв', styleId: 1 },
         { value: 'Прогресс ТЗ', styleId: 1 },
         { value: 'Доступные задачи', styleId: 1 },
       ],
@@ -131,6 +133,7 @@ export class OneTimeOrderCalendarService {
         order.contactName,
         order.contactPhone ?? '',
         order.reviewRating ?? '',
+        order.reviewText ?? '',
         `${order.specificationItems.filter((item) => item.isCompleted).length}/${order.specificationItems.length}`,
         order.accessibleTaskCount,
       ]),
@@ -152,8 +155,31 @@ export class OneTimeOrderCalendarService {
     return {
       fileName: `one-time-orders-calendar-${query.month}.xlsx`,
       buffer: createSimpleXlsxWorkbook([
-        { name: 'Календарь', rows: calendarRows },
-        { name: 'Заказы', rows: orderRows },
+        {
+          name: 'Календарь',
+          rows: calendarRows,
+          columnWidths: [34, ...Array(calendar.daysInMonth).fill(13), 15, 12, 12, 12],
+          freeze: { rows: 3, columns: 1 },
+          rowHeights: Object.fromEntries(
+            calendar.managers.map((_manager, index) => [index + 4, 42]),
+          ),
+          pageSetup: {
+            orientation: 'landscape',
+            fitToWidth: 1,
+            fitToHeight: 0,
+          },
+        },
+        {
+          name: 'Заказы',
+          rows: orderRows,
+          columnWidths: [32, 13, 13, 12, 14, 28, 24, 28, 24, 18, 10, 36, 14, 16],
+          freeze: { rows: 1, columns: 1 },
+          pageSetup: {
+            orientation: 'landscape',
+            fitToWidth: 1,
+            fitToHeight: 0,
+          },
+        },
       ]),
     };
   }
@@ -376,9 +402,11 @@ export class OneTimeOrderCalendarService {
 
             return {
               date,
-              availability: approved ? this.mapAvailability(approved) : null,
+              availability: approved
+                ? this.mapAvailability(approved, currentUser)
+                : null,
               pendingRequests: pendingRequests.map((entry) =>
-                this.mapAvailability(entry),
+                this.mapAvailability(entry, currentUser),
               ),
               orders: dayOrders,
               conflictLevel: this.getConflictLevel(
@@ -387,7 +415,11 @@ export class OneTimeOrderCalendarService {
               ),
             };
           });
-          const workedDays = days.filter((day) => day.orders.length > 0).length;
+          const workedDays = days.filter((day) =>
+            (ordersByDate.get(day.date) ?? []).some(
+              (order) => order.status !== 'cancelled',
+            ),
+          ).length;
 
           return {
             user: {
@@ -459,6 +491,7 @@ export class OneTimeOrderCalendarService {
         contactName: true,
         contactPhone: true,
         reviewRating: true,
+        reviewText: true,
         linkedObject: { select: { name: true } },
         assignments: {
           where: {
@@ -511,12 +544,15 @@ export class OneTimeOrderCalendarService {
     day: OneTimeOrderCalendarResponseDto['managers'][number]['days'][number],
   ): Exclude<XlsxCell, string | number | null> {
     const parts: string[] = [];
-    const orderLabels = day.orders.map(
-      (order) => order.relatedOrder?.title ?? 'Занят',
-    );
+    const orderLabels = day.orders.map((order) => {
+      if (!order.relatedOrder) return 'Занят';
+      return order.relatedOrder.status === 'cancelled'
+        ? `${order.relatedOrder.title} (Отменён)`
+        : order.relatedOrder.title;
+    });
 
     if (orderLabels.length > 0) {
-      parts.push(orderLabels.join(' / '));
+      parts.push(orderLabels.join('\n'));
     }
     if (day.availability) {
       parts.push(this.getAvailabilityLabel(day.availability.entryType));
@@ -529,6 +565,10 @@ export class OneTimeOrderCalendarService {
 
     let styleId: number | undefined;
     if (day.conflictLevel !== 'none') styleId = 8;
+    else if (
+      day.orders.length > 0 &&
+      day.orders.every((order) => order.relatedOrder?.status === 'cancelled')
+    ) styleId = 9;
     else if (day.orders.length > 1) styleId = 7;
     else if (day.availability?.entryType === 'sick_leave') styleId = 5;
     else if (day.availability?.entryType === 'vacation') styleId = 6;
@@ -537,7 +577,7 @@ export class OneTimeOrderCalendarService {
     else if (day.pendingRequests.length > 0) styleId = 2;
     else if (this.isWeekend(day.date)) styleId = 3;
 
-    return { value: parts.join(' · '), styleId };
+    return { value: parts.join('\n'), styleId };
   }
 
   private getAvailabilityLabel(entryType: string): string {
@@ -666,20 +706,43 @@ export class OneTimeOrderCalendarService {
 
   private mapAvailability(entry: {
     id: string;
+    userId: string;
     entryType: string;
     startDate: Date;
     endDate: Date;
     status: string;
     requestComment: string | null;
-  }): CalendarAvailabilityDto {
+  }, currentUser: CurrentAuthUser): CalendarAvailabilityDto {
     return {
       id: entry.id,
       entryType: entry.entryType,
       startDate: formatAvailabilityDate(entry.startDate),
       endDate: formatAvailabilityDate(entry.endDate),
       status: entry.status,
-      comment: entry.requestComment,
+      comment: this.canViewAvailabilityComments(currentUser, entry.userId)
+        ? entry.requestComment
+        : null,
     };
+  }
+
+  private canViewAvailabilityComments(
+    currentUser: CurrentAuthUser,
+    ownerUserId: string,
+  ): boolean {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    return (
+      currentUser.id === ownerUserId ||
+      roleCodes.includes('hr') ||
+      hasOneTimeOrderPermission(
+        currentUser.permissionCodes,
+        ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION,
+      ) ||
+      hasOneTimeOrderPermission(
+        currentUser.permissionCodes,
+        ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
+      )
+    );
   }
 
   private getConflictLevel(

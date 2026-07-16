@@ -310,13 +310,28 @@ test('one-time order visibility matrix protects cards and child resources', asyn
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const marker = `order-security-${Date.now()}`;
-  const [founder, hr, managerA, managerB, managerRole] = await Promise.all([
+  const [founder, hr, managerA, managerB, managerRole, manageAllPermission] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'hr1' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
     prisma.role.findUniqueOrThrow({ where: { code: 'manager' } }),
+    prisma.permission.findUniqueOrThrow({
+      where: { code: 'one_time_order.manage_all' },
+    }),
   ]);
+  const directPermissionUser = await prisma.user.create({
+    data: {
+      login: `${marker}-direct-access`,
+      fullName: 'Адресный доступ к разовым заказам',
+      passwordHash: await hashPassword('direct123'),
+      isActive: true,
+      roles: { create: { roleId: managerRole.id } },
+      permissions: {
+        create: { permissionId: manageAllPermission.id },
+      },
+    },
+  });
   const object = await prisma.object.create({
     data: {
       name: `${marker}-object`,
@@ -398,8 +413,10 @@ test('one-time order visibility matrix protects cards and child resources', asyn
       roles: { create: { roleId: managerRole.id } },
     },
   });
+  const createdTaskIds: string[] = [];
 
   t.after(async () => {
+    await prisma.task.deleteMany({ where: { id: { in: createdTaskIds } } });
     await prisma.file.delete({ where: { id: hiddenFile.id } });
     await prisma.auditEvent.deleteMany({
       where: { entityType: 'one_time_order', entityId: managerBOrder!.id },
@@ -409,11 +426,20 @@ test('one-time order visibility matrix protects cards and child resources', asyn
     });
     await prisma.object.delete({ where: { id: object.id } });
     await prisma.user.delete({ where: { id: inactiveUser.id } });
+    await prisma.user.delete({ where: { id: directPermissionUser.id } });
     await app.close();
     await prisma.$disconnect();
   });
 
-  const [founderCookie, directorCookie, deputyCookie, hrCookie, managerACookie, managerBCookie] =
+  const [
+    founderCookie,
+    directorCookie,
+    deputyCookie,
+    hrCookie,
+    managerACookie,
+    managerBCookie,
+    directPermissionCookie,
+  ] =
     await Promise.all([
       loginAndGetCookieHeader({ baseUrl, login: 'founder', password: 'founder123' }),
       loginAndGetCookieHeader({ baseUrl, login: 'director', password: 'director123' }),
@@ -421,6 +447,11 @@ test('one-time order visibility matrix protects cards and child resources', asyn
       loginAndGetCookieHeader({ baseUrl, login: 'hr1', password: 'hr123' }),
       loginAndGetCookieHeader({ baseUrl, login: 'manager1', password: 'manager123' }),
       loginAndGetCookieHeader({ baseUrl, login: 'manager2', password: 'manager123' }),
+      loginAndGetCookieHeader({
+        baseUrl,
+        login: directPermissionUser.login,
+        password: 'direct123',
+      }),
     ]);
   const visibleIds = async (cookie: string) => {
     const response = await fetch(
@@ -442,6 +473,10 @@ test('one-time order visibility matrix protects cards and child resources', asyn
     new Set([managerAOrder!.id, cancelledOrder!.id]),
   );
   assert.deepEqual(await visibleIds(managerBCookie), new Set([managerBOrder!.id]));
+  assert.deepEqual(
+    await visibleIds(directPermissionCookie),
+    new Set(orders.map((order) => order.id)),
+  );
   assert.ok(!(await visibleIds(managerACookie)).has(inactiveOrder!.id));
   assert.ok((await visibleIds(founderCookie)).has(leadershipOrder!.id));
 
@@ -464,6 +499,35 @@ test('one-time order visibility matrix protects cards and child resources', asyn
     { headers: { Cookie: managerACookie } },
   );
   assert.equal(hiddenFileResponse.status, 403);
+
+  for (const path of ['', '/comments', '/photos', '/specification-items', '/tasks', '/history', '/equipment']) {
+    const response = await fetch(
+      `${baseUrl}/api/v1/one-time-orders/${managerBOrder!.id}${path}`,
+      { headers: { Cookie: directPermissionCookie } },
+    );
+    assert.equal(response.status, 200);
+  }
+  const directFileResponse = await fetch(
+    `${baseUrl}/api/v1/files/${hiddenFile.id}`,
+    { headers: { Cookie: directPermissionCookie } },
+  );
+  assert.equal(directFileResponse.status, 200);
+  const directTaskResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
+    method: 'POST',
+    headers: {
+      Cookie: directPermissionCookie,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      title: `${marker}-direct-task`,
+      priority: 'important_not_urgent',
+      oneTimeOrderId: managerBOrder!.id,
+      assigneeUserIds: [directPermissionUser.id],
+      visibilityMode: 'selected',
+    }),
+  });
+  assert.equal(directTaskResponse.status, 201);
+  createdTaskIds.push(((await directTaskResponse.json()) as { id: string }).id);
 
   const inactiveLogin = await fetch(`${baseUrl}/api/v1/auth/login`, {
     method: 'POST',

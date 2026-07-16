@@ -63,6 +63,24 @@ test('one-time order schedule conflicts require an explicit override', async (t)
       },
     },
   });
+  const multiManagerUpdateTarget = await prisma.oneTimeOrder.create({
+    data: {
+      title: `${marker}-multi-manager-update`,
+      executionAddress: 'Москва',
+      status: 'planned',
+      executionStartDate: new Date('2040-04-20T00:00:00.000Z'),
+      executionEndDate: new Date('2040-04-20T00:00:00.000Z'),
+      contactName: 'Контакт',
+      createdByUserId: founder.id,
+      assignments: {
+        create: [managerOne.id, managerTwo.id].map((userId) => ({
+          userId,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        })),
+      },
+    },
+  });
   const assignmentTarget = await prisma.oneTimeOrder.create({
     data: {
       title: `${marker}-assignment`,
@@ -234,6 +252,32 @@ test('one-time order schedule conflicts require an explicit override', async (t)
   );
   assert.equal(forbiddenEnumeration.status, 403);
 
+  const outsiderTargetCheck = await jsonRequest(
+    '/calendar/check-conflicts',
+    'POST',
+    managerTwoCookie,
+    {
+      executionStartDate: '2040-04-11',
+      executionEndDate: '2040-04-11',
+      managerUserIds: [managerOne.id],
+      excludeOrderId: updateTarget.id,
+    },
+  );
+  assert.equal(outsiderTargetCheck.status, 403);
+
+  const injectedManagerCheck = await jsonRequest(
+    '/calendar/check-conflicts',
+    'POST',
+    managerCookie,
+    {
+      executionStartDate: '2040-04-11',
+      executionEndDate: '2040-04-11',
+      managerUserIds: [managerOne.id, founder.id],
+      excludeOrderId: multiManagerUpdateTarget.id,
+    },
+  );
+  assert.equal(injectedManagerCheck.status, 403);
+
   const ordinaryCheck = await checkConflicts(managerCookie, {
     executionStartDate: '2040-04-11',
     executionEndDate: '2040-04-11',
@@ -373,6 +417,33 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     },
   );
   assert.equal(confirmedUpdate.status, 200);
+
+  const blockedMultiManagerUpdate = await jsonRequest(
+    `/${multiManagerUpdateTarget.id}`,
+    'PATCH',
+    managerCookie,
+    {
+      executionStartDate: '2040-04-11',
+      executionEndDate: '2040-04-11',
+    },
+  );
+  assert.equal(blockedMultiManagerUpdate.status, 409);
+  const blockedMultiManagerBody = (await blockedMultiManagerUpdate.json()) as {
+    error: ConflictResponse;
+  };
+  assert.equal(blockedMultiManagerBody.error.hasConflicts, true);
+  assert.ok(blockedMultiManagerBody.error.conflicts.length > 0);
+  const confirmedMultiManagerUpdate = await jsonRequest(
+    `/${multiManagerUpdateTarget.id}`,
+    'PATCH',
+    managerCookie,
+    {
+      executionStartDate: '2040-04-11',
+      executionEndDate: '2040-04-11',
+      conflictFingerprint: blockedMultiManagerBody.error.conflictFingerprint,
+    },
+  );
+  assert.equal(confirmedMultiManagerUpdate.status, 200);
 
   const blockedRedactedUpdate = await jsonRequest(
     `/${ordinaryOwnedTarget.id}`,

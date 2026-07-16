@@ -1001,6 +1001,7 @@ export class FilesService {
         canViewOneTimeOrderByScope({
           currentUserId: currentUser.id,
           roleCodes,
+          permissionCodes: this.getPermissionCodes(currentUser),
           order: movement.relatedOneTimeOrder,
         }))
     );
@@ -1082,12 +1083,14 @@ export class FilesService {
         canViewOneTimeOrderByScope({
           currentUserId: currentUser.id,
           roleCodes,
+          permissionCodes: this.getPermissionCodes(currentUser),
           order: movement.fromOneTimeOrder,
         })) ||
       (!!movement.toOneTimeOrder &&
         canViewOneTimeOrderByScope({
           currentUserId: currentUser.id,
           roleCodes,
+          permissionCodes: this.getPermissionCodes(currentUser),
           order: movement.toOneTimeOrder,
         }))
     );

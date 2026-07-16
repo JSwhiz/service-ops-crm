@@ -382,17 +382,37 @@ export class OneTimeOrderConflictService {
       return;
     }
 
-    const ownedTarget = targetOrderId
+    const targetOrder = targetOrderId
       ? await db.oneTimeOrder.findFirst({
           where: {
             id: targetOrderId,
-            createdByUserId: currentUser.id,
           },
-          select: { id: true },
+          select: {
+            createdByUserId: true,
+            assignments: {
+              where: {
+                assignmentRoleCode: 'one_time_manager',
+                isActive: true,
+              },
+              select: { userId: true },
+            },
+          },
         })
       : null;
 
-    if (ownedTarget) return;
+    if (targetOrder?.createdByUserId === currentUser.id) return;
+
+    if (targetOrder) {
+      const activeManagerIds = new Set(
+        targetOrder.assignments.map((assignment) => assignment.userId),
+      );
+      const isActiveManager = activeManagerIds.has(currentUser.id);
+      const requestedManagersBelongToOrder = managerUserIds.every((userId) =>
+        activeManagerIds.has(userId),
+      );
+
+      if (isActiveManager && requestedManagersBelongToOrder) return;
+    }
 
     throw new ForbiddenException(
       'Schedule conflict check is limited to assignable managers',

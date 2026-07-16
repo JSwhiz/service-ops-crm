@@ -12,6 +12,7 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
   const { app, baseUrl } = await createTestApp();
 
   let catalogItemId: string | null = null;
+  let deputyCatalogItemId: string | null = null;
   let unitId: string | null = null;
   let oneTimeOrderId: string | null = null;
   const movementIds: string[] = [];
@@ -84,6 +85,18 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
       });
     }
 
+    if (deputyCatalogItemId) {
+      await prisma.auditEvent.deleteMany({
+        where: {
+          entityType: 'equipment_catalog_item',
+          entityId: deputyCatalogItemId,
+        },
+      });
+      await prisma.equipmentCatalogItem.deleteMany({
+        where: { id: deputyCatalogItemId },
+      });
+    }
+
     if (oneTimeOrderId) {
       await prisma.auditEvent.deleteMany({
         where: { entityType: 'one_time_order', entityId: oneTimeOrderId },
@@ -139,7 +152,7 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
   });
   assert.equal(managerDenied.status, 403);
 
-  const deputyCatalogDenied = await fetch(`${baseUrl}/api/v1/equipment/catalog`, {
+  const deputyCatalogCreated = await fetch(`${baseUrl}/api/v1/equipment/catalog`, {
     method: 'POST',
     headers: {
       Cookie: deputyCookie,
@@ -147,10 +160,13 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
     },
     body: JSON.stringify({
       category: 'Техника',
-      name: 'Тестовая мойка',
+      name: `Тестовая мойка ${Date.now()}`,
     }),
   });
-  assert.equal(deputyCatalogDenied.status, 403);
+  assert.equal(deputyCatalogCreated.status, 201);
+  deputyCatalogItemId = (
+    (await deputyCatalogCreated.json()) as { id: string }
+  ).id;
 
   const catalogResponse = await fetch(`${baseUrl}/api/v1/equipment/catalog`, {
     method: 'POST',
@@ -202,7 +218,7 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
   const deputyUnit = deputyUnits.find((item) => item.id === unitId);
   assert.ok(deputyUnit);
   assert.equal(deputyUnit.capabilities.canAssignToObject, true);
-  assert.equal(deputyUnit.capabilities.canWriteoff, false);
+  assert.equal(deputyUnit.capabilities.canWriteoff, true);
 
   const issueToObjectResponse = await fetch(
     `${baseUrl}/api/v1/equipment/units/${unitId}/movements`,
@@ -325,11 +341,11 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
   const issueToOrder = (await issueToOrderResponse.json()) as {
     id: string;
     toStatus: string;
-    toOneTimeOrder: { id: string };
+    toOneTimeOrder: { id: string } | null;
   };
   movementIds.push(issueToOrder.id);
   assert.equal(issueToOrder.toStatus, 'assigned_to_one_time_order');
-  assert.equal(issueToOrder.toOneTimeOrder.id, oneTimeOrderId);
+  assert.equal(issueToOrder.toOneTimeOrder, null);
 
   const orderManagerCookie = await loginAndGetCookieHeader({
     baseUrl,
@@ -347,21 +363,6 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
     units: Array<{ id: string; status: string }>;
   };
   assert.ok(orderEquipment.units.some((item) => item.id === unitId));
-
-  const deputyWriteoffDenied = await fetch(
-    `${baseUrl}/api/v1/equipment/units/${unitId}/movements`,
-    {
-      method: 'POST',
-      headers: {
-        Cookie: deputyCookie,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        movementType: 'writeoff',
-      }),
-    },
-  );
-  assert.equal(deputyWriteoffDenied.status, 403);
 
   const returnToStorageResponse = await fetch(
     `${baseUrl}/api/v1/equipment/units/${unitId}/movements`,
@@ -453,7 +454,7 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
     {
       method: 'POST',
       headers: {
-        Cookie: founderCookie,
+        Cookie: deputyCookie,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

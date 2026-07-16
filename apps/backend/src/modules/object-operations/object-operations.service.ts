@@ -589,6 +589,7 @@ export class ObjectOperationsService {
       canOpenOrderCard: canViewOneTimeOrderByScope({
         currentUserId: currentUser.id,
         roleCodes,
+        permissionCodes: currentUser.permissionCodes,
         order: {
           createdByUserId: order.createdByUserId,
           assignments: order.assignments.map((assignment) => ({

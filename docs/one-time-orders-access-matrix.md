@@ -25,6 +25,7 @@ Backend capabilities и `buildOneTimeOrderAccessWhere` являются исто
 - Финансовые поля доступны full-management или создателю заказа; активный менеджер получает только operational edit.
 - Управлять менеджерами может создатель либо full-management actor.
 - Собственный availability доступен eligible manager role или пользователю с активным назначением `one_time_manager`.
+- Комментарии availability видят только владелец записи, HR и пользователи с `one_time_order.calendar.manage` или `one_time_order.calendar.approve_availability`. Остальные пользователи календаря видят сам факт отсутствия без комментария.
 
 ## Redaction
 

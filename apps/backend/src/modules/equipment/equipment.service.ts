@@ -485,6 +485,7 @@ export class EquipmentService {
       !canViewOneTimeOrderByScope({
         currentUserId: currentUser.id,
         roleCodes,
+        permissionCodes: currentUser.permissionCodes,
         order,
       })
     ) {
@@ -759,6 +760,7 @@ export class EquipmentService {
         canViewOneTimeOrderByScope({
           currentUserId: currentUser.id,
           roleCodes,
+          permissionCodes: currentUser.permissionCodes,
           order: unit.currentOneTimeOrder,
         }))
     );

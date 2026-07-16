@@ -24,6 +24,8 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
         executionStartDate: new Date('2042-07-10T00:00:00.000Z'),
         executionEndDate: new Date('2042-07-10T00:00:00.000Z'),
         contactName: 'Видимый контакт',
+        reviewRating: 5,
+        reviewText: `${marker}-private-review-text`,
         createdByUserId: founder.id,
         assignments: {
           create: {
@@ -71,8 +73,25 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
       },
     }),
   ]);
+  const privateAvailability = await prisma.oneTimeManagerAvailability.create({
+    data: {
+      userId: managerOne.id,
+      entryType: 'sick_leave',
+      startDate: new Date('2042-07-13T00:00:00.000Z'),
+      endDate: new Date('2042-07-13T00:00:00.000Z'),
+      status: 'approved',
+      requestComment: `${marker}-private-availability-comment`,
+      resolutionComment: `${marker}-private-resolution-comment`,
+      requestedByUserId: managerOne.id,
+      resolvedByUserId: founder.id,
+      resolvedAt: new Date(),
+    },
+  });
 
   t.after(async () => {
+    await prisma.oneTimeManagerAvailability.delete({
+      where: { id: privateAvailability.id },
+    });
     await prisma.oneTimeOrder.deleteMany({
       where: { id: { in: orders.map((order) => order.id) } },
     });
@@ -80,7 +99,7 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
     await prisma.$disconnect();
   });
 
-  const [founderCookie, managerCookie] = await Promise.all([
+  const [founderCookie, managerCookie, otherManagerCookie] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
@@ -89,6 +108,11 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
     loginAndGetCookieHeader({
       baseUrl,
       login: 'manager1',
+      password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'manager2',
       password: 'manager123',
     }),
   ]);
@@ -122,6 +146,28 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
   assert.doesNotMatch(ordinaryDefault.raw, new RegExp(`${marker}-cancelled`));
   assert.doesNotMatch(ordinaryDefault.raw, new RegExp(`${marker}-hidden`));
   assert.match(ordinaryDefault.raw, /Занят/);
+  assert.match(ordinaryDefault.raw, /state="frozen"/);
+  assert.match(ordinaryDefault.raw, /orientation="landscape"/);
+  assert.match(ordinaryDefault.raw, /wrapText="1"/);
+  assert.match(ordinaryDefault.raw, /Отзыв/);
+  assert.match(ordinaryDefault.raw, new RegExp(`${marker}-private-review-text`));
+  assert.doesNotMatch(
+    ordinaryDefault.raw,
+    new RegExp(`${marker}-private-availability-comment`),
+  );
+
+  const otherManagerExport = await exportCalendar(
+    otherManagerCookie,
+    'month=2042-07',
+  );
+  assert.doesNotMatch(
+    otherManagerExport.raw,
+    new RegExp(`${marker}-private-availability-comment`),
+  );
+  assert.doesNotMatch(
+    otherManagerExport.raw,
+    new RegExp(`${marker}-private-resolution-comment`),
+  );
 
   const ordinaryWithCancelled = await exportCalendar(
     managerCookie,
@@ -136,6 +182,7 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
     'month=2042-07&includeCancelled=true',
   );
   assert.match(leadership.raw, new RegExp(`${marker}-hidden`));
+  assert.match(leadership.raw, /Отменённый заказ/);
 
   const managerFiltered = await exportCalendar(
     founderCookie,

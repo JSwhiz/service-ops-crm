@@ -17,6 +17,17 @@ type XlsxCellObject = {
 export interface XlsxSheet {
   name: string;
   rows: XlsxCell[][];
+  columnWidths?: number[];
+  rowHeights?: Record<number, number>;
+  freeze?: {
+    rows?: number;
+    columns?: number;
+  };
+  pageSetup?: {
+    orientation?: 'portrait' | 'landscape';
+    fitToWidth?: number;
+    fitToHeight?: number;
+  };
 }
 
 interface ZipEntry {
@@ -39,7 +50,7 @@ export function createSimpleXlsxWorkbook(sheets: XlsxSheet[]): Buffer {
   files.set('xl/styles.xml', buildStyles());
 
   safeSheets.forEach((sheet, index) => {
-    files.set(`xl/worksheets/sheet${index + 1}.xml`, buildWorksheet(sheet.rows));
+    files.set(`xl/worksheets/sheet${index + 1}.xml`, buildWorksheet(sheet));
   });
 
   return buildZip(
@@ -50,21 +61,47 @@ export function createSimpleXlsxWorkbook(sheets: XlsxSheet[]): Buffer {
   );
 }
 
-function buildWorksheet(rows: XlsxCell[][]): string {
-  const body = rows
+function buildWorksheet(sheet: XlsxSheet): string {
+  const body = sheet.rows
     .map((row, rowIndex) => {
       const cells = row
         .map((cell, columnIndex) =>
           buildCell(cell, `${toColumnName(columnIndex + 1)}${rowIndex + 1}`),
         )
         .join('');
-      return `<row r="${rowIndex + 1}">${cells}</row>`;
+      const height = sheet.rowHeights?.[rowIndex + 1];
+      const heightAttributes = height
+        ? ` ht="${height}" customHeight="1"`
+        : '';
+      return `<row r="${rowIndex + 1}"${heightAttributes}>${cells}</row>`;
     })
     .join('');
+  const columns = sheet.columnWidths?.length
+    ? `<cols>${sheet.columnWidths
+        .map(
+          (width, index) =>
+            `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`,
+        )
+        .join('')}</cols>`
+    : '';
+  const frozenRows = sheet.freeze?.rows ?? 0;
+  const frozenColumns = sheet.freeze?.columns ?? 0;
+  const pane =
+    frozenRows || frozenColumns
+      ? `<pane${frozenColumns ? ` xSplit="${frozenColumns}"` : ''}${frozenRows ? ` ySplit="${frozenRows}"` : ''} topLeftCell="${toColumnName(frozenColumns + 1)}${frozenRows + 1}" activePane="bottomRight" state="frozen"/>`
+      : '';
+  const pageSetup = sheet.pageSetup
+    ? `<pageMargins left="0.25" right="0.25" top="0.5" bottom="0.5" header="0.2" footer="0.2"/><pageSetup orientation="${sheet.pageSetup.orientation ?? 'portrait'}" fitToWidth="${sheet.pageSetup.fitToWidth ?? 1}" fitToHeight="${sheet.pageSetup.fitToHeight ?? 0}"/>`
+    : '';
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  ${sheet.pageSetup ? '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>' : ''}
+  <sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/>
+  ${columns}
   <sheetData>${body}</sheetData>
+  ${pageSetup}
 </worksheet>`;
 }
 
@@ -146,19 +183,20 @@ function buildStyles(): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <fonts count="2"><font/><font><b/></font></fonts>
-  <fills count="9"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF3CD"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F3F5"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDDEBFF"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFE3E3"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD3F9D8"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFE8CC"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFC9C9"/><bgColor indexed="64"/></patternFill></fill></fills>
+  <fills count="10"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFF3CD"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F3F5"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFDDEBFF"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFE3E3"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD3F9D8"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFE8CC"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFC9C9"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE9ECEF"/><bgColor indexed="64"/></patternFill></fill></fills>
   <borders count="1"><border/></borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="9">
-    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
-    <xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1"/>
-    <xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1"/>
-    <xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1"/>
-    <xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1"/>
-    <xf numFmtId="0" fontId="0" fillId="6" borderId="0" xfId="0" applyFill="1"/>
-    <xf numFmtId="0" fontId="0" fillId="7" borderId="0" xfId="0" applyFill="1"/>
-    <xf numFmtId="0" fontId="0" fillId="8" borderId="0" xfId="0" applyFill="1"/>
+  <cellXfs count="10">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="6" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="7" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="8" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="9" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
   </cellXfs>
 </styleSheet>`;
 }

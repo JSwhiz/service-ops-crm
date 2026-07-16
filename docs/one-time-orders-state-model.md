@@ -26,6 +26,14 @@
 - Conditional update разрешает только один параллельный approve/reject/cancel; проигравшие запросы получают `409`.
 - Domain audit и approval audit записываются в той же транзакции, что и конечное состояние.
 
+## Историчность назначений
+
+Календарь использует текущее активное назначение `one_time_manager`. Полная историческая реконструкция требует отдельных `assignedAt`/`removedAt` и пересечения периода назначения с месяцем календаря; автоматический backfill без достоверного источника не выполняется.
+
+## Требование PostgreSQL
+
+Exclusion constraint для approved availability использует extension `btree_gist`. На новом production database роль миграций должна иметь право выполнить `CREATE EXTENSION btree_gist`, либо extension должен быть заранее установлен администратором БД.
+
 ## Наблюдаемость
 
 Structured logs фиксируют export, отклонённые и подтверждённые schedule conflicts, redacted conflict projection, duplicate availability request и approval race. Телефоны, комментарии, содержимое файлов, JWT и cookies не логируются.

@@ -265,6 +265,7 @@ export class TasksService {
       !canViewOneTimeOrderByScope({
         currentUserId: currentUser.id,
         roleCodes,
+        permissionCodes: currentUser.permissionCodes,
         order,
       })
     ) {
@@ -393,6 +394,7 @@ export class TasksService {
       !canViewOneTimeOrderByScope({
         currentUserId: currentUser.id,
         roleCodes,
+        permissionCodes: currentUser.permissionCodes,
         order,
       })
     ) {
