@@ -216,7 +216,7 @@ export class OneTimeOrderCalendarService {
                 formatAvailabilityDate(entry.startDate) <= date &&
                 formatAvailabilityDate(entry.endDate) >= date,
             );
-            const pending = managerAvailability.find(
+            const pendingRequests = managerAvailability.filter(
               (entry) =>
                 entry.status === 'pending' &&
                 formatAvailabilityDate(entry.startDate) <= date &&
@@ -232,7 +232,9 @@ export class OneTimeOrderCalendarService {
             return {
               date,
               availability: approved ? this.mapAvailability(approved) : null,
-              pendingOwnRequest: pending ? this.mapAvailability(pending) : null,
+              pendingRequests: pendingRequests.map((entry) =>
+                this.mapAvailability(entry),
+              ),
               orders: dayOrders,
               conflictLevel: this.getConflictLevel(
                 activeOrderCount,

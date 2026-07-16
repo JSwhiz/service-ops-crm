@@ -15,7 +15,7 @@ export class OneTimeOrderCalendarResponseDto {
     days: Array<{
       date: string;
       availability: CalendarAvailabilityDto | null;
-      pendingOwnRequest: CalendarAvailabilityDto | null;
+      pendingRequests: CalendarAvailabilityDto[];
       orders: CalendarOrderDto[];
       conflictLevel:
         | 'none'

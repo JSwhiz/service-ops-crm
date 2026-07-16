@@ -9,7 +9,7 @@ import { createTestApp } from './helpers/create-test-app';
 interface CalendarDay {
   date: string;
   availability: { entryType: string } | null;
-  pendingOwnRequest: { entryType: string } | null;
+  pendingRequests: Array<{ entryType: string }>;
   orders: Array<{
     detailsRestricted: boolean;
     relatedOrder: {
@@ -225,7 +225,7 @@ test('one-time order calendar expands ranges and protects pending availability',
   );
   assert.equal(
     managerOneRow.days.find((day) => day.date === '2032-07-13')
-      ?.pendingOwnRequest?.entryType,
+      ?.pendingRequests[0]?.entryType,
     'day_off',
   );
   const managerTwoLeadershipRow = leadershipCalendar.managers.find(
@@ -233,7 +233,7 @@ test('one-time order calendar expands ranges and protects pending availability',
   )!;
   assert.equal(
     managerTwoLeadershipRow.days.find((day) => day.date === '2032-07-12')
-      ?.pendingOwnRequest?.entryType,
+      ?.pendingRequests[0]?.entryType,
     'sick_leave',
   );
   const historicalRow = leadershipCalendar.managers.find(
@@ -247,16 +247,16 @@ test('one-time order calendar expands ranges and protects pending availability',
   )!;
   assert.equal(
     ordinaryOwnRow.days.find((day) => day.date === '2032-07-13')
-      ?.pendingOwnRequest?.entryType,
+      ?.pendingRequests[0]?.entryType,
     'day_off',
   );
   const ordinaryOtherRow = ordinaryCalendar.managers.find(
     (row) => row.user.id === managerTwo.id,
   )!;
-  assert.equal(
+  assert.deepEqual(
     ordinaryOtherRow.days.find((day) => day.date === '2032-07-12')
-      ?.pendingOwnRequest,
-    null,
+      ?.pendingRequests,
+    [],
   );
   assert.equal(ordinaryOwnRow.orderCount, 3);
   assert.equal(ordinaryOwnRow.cancelledOrderCount, 0);
@@ -291,7 +291,7 @@ test('one-time order calendar expands ranges and protects pending availability',
   assert.equal(
     hrCalendar.managers
       .find((row) => row.user.id === managerTwo.id)
-      ?.days.find((day) => day.date === '2032-07-12')?.pendingOwnRequest
+      ?.days.find((day) => day.date === '2032-07-12')?.pendingRequests[0]
       ?.entryType,
     'sick_leave',
   );

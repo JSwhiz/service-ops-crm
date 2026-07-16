@@ -243,9 +243,10 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
     }
   };
 
-  const resolvePending = async (decision: 'approve' | 'reject'): Promise<void> => {
-    const pending = selectedDay?.day.pendingOwnRequest;
-    if (!pending) return;
+  const resolvePending = async (
+    decision: 'approve' | 'reject',
+    pending: OneTimeOrderCalendarAvailability,
+  ): Promise<void> => {
     if (decision === 'reject' && !decisionComment.trim()) {
       setError('Для отклонения укажите причину.');
       return;
@@ -502,8 +503,8 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             openAvailabilityForm('edit', { availability })
           }
           onCancel={cancelAvailability}
-          onApprove={() => resolvePending('approve')}
-          onReject={() => resolvePending('reject')}
+          onApprove={(pending) => resolvePending('approve', pending)}
+          onReject={(pending) => resolvePending('reject', pending)}
           onCreateOwn={(date) => openAvailabilityForm('own', { date })}
           canManageOwn={canManageOwn}
         />
@@ -538,8 +539,10 @@ function CalendarDayContent({
           {availabilityLabel(day.availability.entryType)}
         </span>
       ) : null}
-      {day.pendingOwnRequest ? (
-        <span className="one-time-calendar__pending">Ожидает согласования</span>
+      {day.pendingRequests.length > 0 ? (
+        <span className="one-time-calendar__pending">
+          Ожидает согласования: {day.pendingRequests.length}
+        </span>
       ) : null}
       {day.orders.slice(0, 2).map((order, index) =>
         order.relatedOrder ? (
@@ -599,14 +602,12 @@ function DayDetailsModal({
   onClose: () => void;
   onEdit: (availability: OneTimeOrderCalendarAvailability) => void;
   onCancel: (availability: OneTimeOrderCalendarAvailability) => void;
-  onApprove: () => void;
-  onReject: () => void;
+  onApprove: (availability: OneTimeOrderCalendarAvailability) => void;
+  onReject: (availability: OneTimeOrderCalendarAvailability) => void;
   onCreateOwn: (date: string) => void;
 }): React.JSX.Element {
   const { manager, day } = selected;
   const warning = conflictLabel(day.conflictLevel);
-  const canCancelPending =
-    day.pendingOwnRequest && manager.user.id === currentUserId;
 
   return (
     <div className="calendar-modal-backdrop" role="presentation" onMouseDown={onClose}>
@@ -648,12 +649,16 @@ function DayDetailsModal({
           </div>
         ) : null}
 
-        {day.pendingOwnRequest ? (
-          <div className="calendar-modal__section calendar-modal__section--pending">
-            <strong>
-              Запрос: {availabilityLabel(day.pendingOwnRequest.entryType)}
-            </strong>
-            <span>Ожидает согласования</span>
+        {day.pendingRequests.map((pending) => (
+          <div
+            className="calendar-modal__section calendar-modal__section--pending"
+            key={pending.id}
+          >
+            <strong>Запрос: {availabilityLabel(pending.entryType)}</strong>
+            <span>
+              {formatDate(pending.startDate)} — {formatDate(pending.endDate)}
+            </span>
+            {pending.comment ? <p>{pending.comment}</p> : null}
             {canApprove ? (
               <>
                 <label>
@@ -666,21 +671,33 @@ function DayDetailsModal({
                   />
                 </label>
                 <div className="action-row">
-                  <button type="button" disabled={isSubmitting} onClick={onApprove}>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => onApprove(pending)}
+                  >
                     Согласовать
                   </button>
-                  <button type="button" disabled={isSubmitting} onClick={onReject}>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => onReject(pending)}
+                  >
                     Отклонить
                   </button>
                 </div>
               </>
-            ) : canCancelPending ? (
-              <button type="button" disabled={isSubmitting} onClick={() => onCancel(day.pendingOwnRequest!)}>
+            ) : manager.user.id === currentUserId ? (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => onCancel(pending)}
+              >
                 Отменить запрос
               </button>
             ) : null}
           </div>
-        ) : null}
+        ))}
 
         <div className="calendar-modal__section">
           <strong>Заказы: {day.orders.length}</strong>

@@ -149,7 +149,7 @@ export class ApprovalsService {
       this.assertCanApprove(currentUser, request);
       await this.applyApprovalBusinessEffect(tx, request, currentUser, comment);
 
-      return (await tx.approvalRequest.update({
+      const updated = (await tx.approvalRequest.update({
         where: {
           id: requestId,
         },
@@ -161,19 +161,8 @@ export class ApprovalsService {
         },
         include: this.approvalInclude(),
       })) as ApprovalRequestRecord;
-    });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'approval_request',
-      entityId: approved.id,
-      actorUserId: currentUser.id,
-      action: 'approval.request.approved',
-      newValues: {
-        approvalType: approved.approvalType,
-        sourceEntityType: approved.sourceEntityType,
-        sourceEntityId: approved.sourceEntityId,
-        decisionComment: approved.decisionComment,
-      },
+      await this.writeApprovalAuditEvent(tx, updated, currentUser.id, 'approved');
+      return updated;
     });
 
     if (approved.approvalType === OBJECT_CHANGE_CONFIRMATION_TYPE) {
@@ -209,7 +198,7 @@ export class ApprovalsService {
       this.assertCanReject(currentUser, request);
       await this.applyRejectionBusinessEffect(tx, request, currentUser, comment);
 
-      return (await tx.approvalRequest.update({
+      const updated = (await tx.approvalRequest.update({
         where: {
           id: requestId,
         },
@@ -221,19 +210,8 @@ export class ApprovalsService {
         },
         include: this.approvalInclude(),
       })) as ApprovalRequestRecord;
-    });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'approval_request',
-      entityId: rejected.id,
-      actorUserId: currentUser.id,
-      action: 'approval.request.rejected',
-      newValues: {
-        approvalType: rejected.approvalType,
-        sourceEntityType: rejected.sourceEntityType,
-        sourceEntityId: rejected.sourceEntityId,
-        decisionComment: rejected.decisionComment,
-      },
+      await this.writeApprovalAuditEvent(tx, updated, currentUser.id, 'rejected');
+      return updated;
     });
 
     return this.mapRequest(rejected, currentUser);
@@ -251,7 +229,7 @@ export class ApprovalsService {
       this.assertCanCancel(currentUser, request);
       await this.applyCancellationBusinessEffect(tx, request, currentUser, comment);
 
-      return (await tx.approvalRequest.update({
+      const updated = (await tx.approvalRequest.update({
         where: {
           id: requestId,
         },
@@ -263,19 +241,8 @@ export class ApprovalsService {
         },
         include: this.approvalInclude(),
       })) as ApprovalRequestRecord;
-    });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'approval_request',
-      entityId: cancelled.id,
-      actorUserId: currentUser.id,
-      action: 'approval.request.cancelled',
-      newValues: {
-        approvalType: cancelled.approvalType,
-        sourceEntityType: cancelled.sourceEntityType,
-        sourceEntityId: cancelled.sourceEntityId,
-        decisionComment: cancelled.decisionComment,
-      },
+      await this.writeApprovalAuditEvent(tx, updated, currentUser.id, 'cancelled');
+      return updated;
     });
 
     return this.mapRequest(cancelled, currentUser);
@@ -363,6 +330,12 @@ export class ApprovalsService {
     tx: Prisma.TransactionClient,
     requestId: string,
   ): Promise<ApprovalRequestRecord> {
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "approval_requests"
+      WHERE "id" = ${requestId}
+      FOR UPDATE
+    `;
     const request = (await tx.approvalRequest.findUnique({
       where: {
         id: requestId,
@@ -379,6 +352,28 @@ export class ApprovalsService {
     }
 
     return request;
+  }
+
+  private async writeApprovalAuditEvent(
+    tx: Prisma.TransactionClient,
+    request: ApprovalRequestRecord,
+    actorUserId: string,
+    action: 'approved' | 'rejected' | 'cancelled',
+  ): Promise<void> {
+    await tx.auditEvent.create({
+      data: {
+        entityType: 'approval_request',
+        entityId: request.id,
+        actorUserId,
+        action: `approval.request.${action}`,
+        newValues: {
+          approvalType: request.approvalType,
+          sourceEntityType: request.sourceEntityType,
+          sourceEntityId: request.sourceEntityId,
+          decisionComment: request.decisionComment,
+        },
+      },
+    });
   }
 
   private assertCanApprove(

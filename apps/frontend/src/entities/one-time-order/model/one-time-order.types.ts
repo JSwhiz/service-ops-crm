@@ -275,7 +275,7 @@ export interface OneTimeOrderCalendarOrder {
 export interface OneTimeOrderCalendarDay {
   date: string;
   availability: OneTimeOrderCalendarAvailability | null;
-  pendingOwnRequest: OneTimeOrderCalendarAvailability | null;
+  pendingRequests: OneTimeOrderCalendarAvailability[];
   orders: OneTimeOrderCalendarOrder[];
   conflictLevel:
     | 'none'

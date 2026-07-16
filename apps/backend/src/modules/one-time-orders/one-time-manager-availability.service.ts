@@ -85,6 +85,13 @@ export class OneTimeManagerAvailabilityService {
     const requestComment = payload.comment?.trim() || null;
 
     const result = await this.prisma.$transaction(async (tx) => {
+      await this.lockAvailabilityUser(tx, currentUser.id);
+      await this.assertNoExactPendingDuplicate(tx, {
+        userId: currentUser.id,
+        entryType: payload.entryType,
+        startDate: range.startDate,
+        endDate: range.endDate,
+      });
       const availability = (await tx.oneTimeManagerAvailability.create({
         data: {
           userId: currentUser.id,
@@ -208,14 +215,15 @@ export class OneTimeManagerAvailabilityService {
     const comment = payload.comment?.trim() || null;
 
     const availability = await this.prisma.$transaction(async (tx) => {
+      await this.lockPendingApprovalRequest(tx, approvalRequest.id);
       const approved = await this.applyApprovalDecision(tx, {
         availabilityId,
         decision: 'approve',
         actorUserId: currentUser.id,
         comment,
       });
-      await tx.approvalRequest.update({
-        where: { id: approvalRequest.id },
+      const approvalUpdate = await tx.approvalRequest.updateMany({
+        where: { id: approvalRequest.id, status: 'pending' },
         data: {
           status: 'approved',
           resolvedByUserId: currentUser.id,
@@ -223,6 +231,9 @@ export class OneTimeManagerAvailabilityService {
           decisionComment: comment,
         },
       });
+      if (approvalUpdate.count !== 1) {
+        throw new ConflictException('Availability approval state has changed');
+      }
       await this.writeApprovalAudit(
         tx,
         approvalRequest.id,
@@ -250,14 +261,15 @@ export class OneTimeManagerAvailabilityService {
 
     const approvalRequest = await this.getPendingApprovalRequest(availabilityId);
     const availability = await this.prisma.$transaction(async (tx) => {
+      await this.lockPendingApprovalRequest(tx, approvalRequest.id);
       const rejected = await this.applyApprovalDecision(tx, {
         availabilityId,
         decision: 'reject',
         actorUserId: currentUser.id,
         comment,
       });
-      await tx.approvalRequest.update({
-        where: { id: approvalRequest.id },
+      const approvalUpdate = await tx.approvalRequest.updateMany({
+        where: { id: approvalRequest.id, status: 'pending' },
         data: {
           status: 'rejected',
           resolvedByUserId: currentUser.id,
@@ -265,6 +277,9 @@ export class OneTimeManagerAvailabilityService {
           decisionComment: comment,
         },
       });
+      if (approvalUpdate.count !== 1) {
+        throw new ConflictException('Availability approval state has changed');
+      }
       await this.writeApprovalAudit(
         tx,
         approvalRequest.id,
@@ -283,6 +298,12 @@ export class OneTimeManagerAvailabilityService {
     availabilityId: string,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
     const current = await this.getAvailability(availabilityId);
+    if (
+      current.userId === currentUser.id &&
+      current.status !== 'pending'
+    ) {
+      throw new ConflictException('Manager availability state has changed');
+    }
     const canCancelOwnPending =
       current.status === 'pending' && current.userId === currentUser.id;
     const canCancelApproved =
@@ -293,6 +314,25 @@ export class OneTimeManagerAvailabilityService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
+      const pendingApproval =
+        current.status === 'pending'
+          ? await tx.approvalRequest.findFirst({
+              where: {
+                approvalType: ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
+                sourceEntityType:
+                  ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_SOURCE_ENTITY_TYPE,
+                sourceEntityId: availabilityId,
+              },
+              select: { id: true },
+              orderBy: { createdAt: 'desc' },
+            })
+          : null;
+      if (current.status === 'pending' && !pendingApproval) {
+        throw new ConflictException('Pending availability approval was not found');
+      }
+      if (pendingApproval) {
+        await this.lockPendingApprovalRequest(tx, pendingApproval.id);
+      }
       const updateResult = await tx.oneTimeManagerAvailability.updateMany({
         where: { id: availabilityId, status: current.status },
         data: {
@@ -310,29 +350,18 @@ export class OneTimeManagerAvailabilityService {
         where: { id: availabilityId },
         include: this.availabilityInclude(),
       })) as AvailabilityRecord;
-      const pendingApproval =
-        current.status === 'pending'
-          ? await tx.approvalRequest.findFirst({
-              where: {
-                approvalType: ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_TYPE,
-                sourceEntityType:
-                  ONE_TIME_MANAGER_AVAILABILITY_APPROVAL_SOURCE_ENTITY_TYPE,
-                sourceEntityId: availabilityId,
-                status: 'pending',
-              },
-              select: { id: true },
-            })
-          : null;
-
       if (pendingApproval) {
-        await tx.approvalRequest.update({
-          where: { id: pendingApproval.id },
+        const approvalUpdate = await tx.approvalRequest.updateMany({
+          where: { id: pendingApproval.id, status: 'pending' },
           data: {
             status: 'cancelled',
             cancelledByUserId: currentUser.id,
             cancelledAt: new Date(),
           },
         });
+        if (approvalUpdate.count !== 1) {
+          throw new ConflictException('Availability approval state has changed');
+        }
         await this.writeApprovalAudit(
           tx,
           pendingApproval.id,
@@ -458,8 +487,8 @@ export class OneTimeManagerAvailabilityService {
         : params.decision === 'reject'
           ? 'rejected'
           : 'cancelled';
-    const updated = (await tx.oneTimeManagerAvailability.update({
-      where: { id: params.availabilityId },
+    const updateResult = await tx.oneTimeManagerAvailability.updateMany({
+      where: { id: params.availabilityId, status: 'pending' },
       data:
         params.decision === 'cancel'
           ? {
@@ -473,6 +502,13 @@ export class OneTimeManagerAvailabilityService {
               resolvedByUserId: params.actorUserId,
               resolvedAt,
             },
+    });
+    if (updateResult.count !== 1) {
+      throw new ConflictException('Manager availability state has changed');
+    }
+
+    const updated = (await tx.oneTimeManagerAvailability.findUniqueOrThrow({
+      where: { id: params.availabilityId },
       include: this.availabilityInclude(),
     })) as AvailabilityRecord;
     await this.writeDomainAudit(
@@ -601,6 +637,46 @@ export class OneTimeManagerAvailabilityService {
     userId: string,
   ): Promise<void> {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))::text`;
+  }
+
+  private async lockPendingApprovalRequest(
+    tx: Prisma.TransactionClient,
+    approvalRequestId: string,
+  ): Promise<void> {
+    const rows = await tx.$queryRaw<Array<{ id: string; status: string }>>`
+      SELECT "id", "status"
+      FROM "approval_requests"
+      WHERE "id" = ${approvalRequestId}
+      FOR UPDATE
+    `;
+
+    if (rows[0]?.status !== 'pending') {
+      throw new ConflictException('Availability approval state has changed');
+    }
+  }
+
+  private async assertNoExactPendingDuplicate(
+    tx: Prisma.TransactionClient,
+    input: {
+      userId: string;
+      entryType: string;
+      startDate: Date;
+      endDate: Date;
+    },
+  ): Promise<void> {
+    const duplicate = await tx.oneTimeManagerAvailability.findFirst({
+      where: {
+        ...input,
+        status: 'pending',
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      throw new ConflictException(
+        'Duplicate pending manager availability request',
+      );
+    }
   }
 
   private async assertNoApprovedOverlap(
