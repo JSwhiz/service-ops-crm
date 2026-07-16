@@ -9,6 +9,7 @@ import {
   cancelOneTimeManagerAvailability,
   createDirectOneTimeManagerAvailability,
   createOwnOneTimeManagerAvailability,
+  downloadOneTimeOrderCalendarExcel,
   getOneTimeOrderCalendar,
   rejectOneTimeManagerAvailability,
   updateOneTimeManagerAvailability,
@@ -126,6 +127,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   const [decisionComment, setDecisionComment] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const replaceQuery = (nextMonth: string, nextManagerId = managerUserId): void => {
@@ -345,6 +347,32 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
           </select>
         </label>
         <div className="action-row one-time-calendar__actions">
+          <button
+            type="button"
+            disabled={isExporting}
+            onClick={() => {
+              setIsExporting(true);
+              setError(null);
+              void downloadOneTimeOrderCalendarExcel({
+                month,
+                managerUserId: managerUserId || undefined,
+              })
+                .then((blob) => {
+                  const url = URL.createObjectURL(blob);
+                  const anchor = document.createElement('a');
+                  anchor.href = url;
+                  anchor.download = `one-time-orders-calendar-${month}.xlsx`;
+                  anchor.click();
+                  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+                })
+                .catch((exportError: unknown) => {
+                  setError(getErrorMessage(exportError));
+                })
+                .finally(() => setIsExporting(false));
+            }}
+          >
+            {isExporting ? 'Готовим Excel...' : 'Скачать Excel'}
+          </button>
           {canManageOwn ? (
             <button type="button" onClick={() => openAvailabilityForm('own')}>
               Запросить отсутствие

@@ -2,9 +2,15 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
+import {
+  createSimpleXlsxWorkbook,
+  type XlsxCell,
+} from '../timesheets/utils/simple-xlsx.util';
 
 import { ListOneTimeOrderCalendarQueryDto } from './dto/list-one-time-order-calendar-query.dto';
 import {
@@ -43,7 +49,114 @@ interface CalendarManager {
 
 @Injectable()
 export class OneTimeOrderCalendarService {
+  private readonly logger = new Logger(OneTimeOrderCalendarService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  async exportCalendar(
+    currentUser: CurrentAuthUser,
+    query: ListOneTimeOrderCalendarQueryDto,
+  ): Promise<{ fileName: string; buffer: Buffer }> {
+    const calendar = await this.getCalendar(currentUser, query);
+    const accessibleOrders = await this.loadAccessibleExportOrders(
+      currentUser,
+      query,
+    );
+    const calendarRows: XlsxCell[][] = [
+      [{ value: `Календарь разовых заказов · ${query.month}`, styleId: 1 }],
+      [],
+      [
+        { value: 'Менеджер', styleId: 1 },
+        ...Array.from({ length: calendar.daysInMonth }, (_unused, index) => ({
+          value: index + 1,
+          styleId: 1,
+        })),
+        { value: 'Отработано дней', styleId: 1 },
+        { value: 'Заказов', styleId: 1 },
+        { value: 'Выполнено', styleId: 1 },
+        { value: 'Отменено', styleId: 1 },
+      ],
+      ...calendar.managers.map((manager) => [
+        `${manager.user.fullName} (${manager.user.login})`,
+        ...manager.days.map((day) => this.mapCalendarDayToXlsx(day)),
+        manager.workedDays,
+        manager.orderCount,
+        manager.completedOrderCount,
+        manager.cancelledOrderCount,
+      ]),
+      [],
+      [{ value: 'Легенда', styleId: 1 }],
+      [
+        { value: 'Заказ', styleId: 4 },
+        'Несколько заказов',
+        { value: 'Конфликт', styleId: 8 },
+      ],
+      [
+        { value: 'Выходной', styleId: 3 },
+        { value: 'Отпуск', styleId: 6 },
+        { value: 'Больничный', styleId: 5 },
+      ],
+      [
+        { value: 'Ожидает подтверждения', styleId: 2 },
+        { value: 'Скрытый заказ: Занят', styleId: 4 },
+      ],
+    ];
+    const orderRows: XlsxCell[][] = [
+      [
+        { value: 'Название', styleId: 1 },
+        { value: 'Дата начала', styleId: 1 },
+        { value: 'Дата окончания', styleId: 1 },
+        { value: 'Длительность', styleId: 1 },
+        { value: 'Статус', styleId: 1 },
+        { value: 'Адрес', styleId: 1 },
+        { value: 'Связанный объект', styleId: 1 },
+        { value: 'Менеджеры', styleId: 1 },
+        { value: 'Контакт', styleId: 1 },
+        { value: 'Телефон', styleId: 1 },
+        { value: 'Оценка', styleId: 1 },
+        { value: 'Прогресс ТЗ', styleId: 1 },
+        { value: 'Доступные задачи', styleId: 1 },
+      ],
+      ...accessibleOrders.map((order) => [
+        order.title,
+        formatAvailabilityDate(order.executionStartDate!),
+        formatAvailabilityDate(order.executionEndDate!),
+        this.getDurationDays(order.executionStartDate!, order.executionEndDate!),
+        this.getOrderStatusLabel(order.status),
+        order.executionAddress,
+        order.linkedObject?.name ?? '',
+        order.assignments
+          .map((assignment) => assignment.user.fullName)
+          .join(', '),
+        order.contactName,
+        order.contactPhone ?? '',
+        order.reviewRating ?? '',
+        `${order.specificationItems.filter((item) => item.isCompleted).length}/${order.specificationItems.length}`,
+        order.accessibleTaskCount,
+      ]),
+    ];
+
+    this.logger.log(
+      JSON.stringify({
+        event: 'one_time_order.calendar_exported',
+        actorUserId: currentUser.id,
+        month: query.month,
+        managerUserId: query.managerUserId ?? null,
+        status: query.status ?? null,
+        includeCancelled: query.includeCancelled === true,
+        managerCount: calendar.managers.length,
+        orderCount: accessibleOrders.length,
+      }),
+    );
+
+    return {
+      fileName: `one-time-orders-calendar-${query.month}.xlsx`,
+      buffer: createSimpleXlsxWorkbook([
+        { name: 'Календарь', rows: calendarRows },
+        { name: 'Заказы', rows: orderRows },
+      ]),
+    };
+  }
 
   async getCalendar(
     currentUser: CurrentAuthUser,
@@ -265,6 +378,167 @@ export class OneTimeOrderCalendarService {
           };
         }),
     };
+  }
+
+  private async loadAccessibleExportOrders(
+    currentUser: CurrentAuthUser,
+    query: ListOneTimeOrderCalendarQueryDto,
+  ) {
+    const { monthStart, monthEnd } = this.parseMonth(query.month);
+    const accessWhere = buildOneTimeOrderAccessWhere({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: currentUser.permissionCodes,
+    });
+    const statusWhere = query.status
+      ? { status: query.status }
+      : query.includeCancelled
+        ? {}
+        : { status: { not: 'cancelled' } };
+    const orders = await this.prisma.oneTimeOrder.findMany({
+      where: {
+        AND: [
+          accessWhere,
+          {
+            executionStartDate: { lte: monthEnd },
+            executionEndDate: { gte: monthStart },
+            ...statusWhere,
+            ...(query.managerUserId
+              ? {
+                  assignments: {
+                    some: {
+                      userId: query.managerUserId,
+                      assignmentRoleCode: 'one_time_manager',
+                      isActive: true,
+                    },
+                  },
+                }
+              : {}),
+          },
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        executionStartDate: true,
+        executionEndDate: true,
+        status: true,
+        executionAddress: true,
+        contactName: true,
+        contactPhone: true,
+        reviewRating: true,
+        linkedObject: { select: { name: true } },
+        assignments: {
+          where: {
+            assignmentRoleCode: 'one_time_manager',
+            isActive: true,
+            user: { isActive: true, deletedAt: null },
+          },
+          select: { user: { select: { fullName: true } } },
+        },
+        specificationItems: {
+          where: { deletedAt: null },
+          select: { isCompleted: true },
+        },
+      },
+      orderBy: [{ executionStartDate: 'asc' }, { title: 'asc' }],
+    });
+    const taskCounts = new Map<string, number>();
+
+    if (orders.length > 0) {
+      const tasks = await this.prisma.task.findMany({
+        where: {
+          AND: [
+            buildTaskAccessWhere({
+              currentUserId: currentUser.id,
+              roleCodes: this.getRoleCodes(currentUser),
+            }),
+            { oneTimeOrderId: { in: orders.map((order) => order.id) } },
+          ],
+        },
+        select: { oneTimeOrderId: true },
+      });
+
+      for (const task of tasks) {
+        if (task.oneTimeOrderId) {
+          taskCounts.set(
+            task.oneTimeOrderId,
+            (taskCounts.get(task.oneTimeOrderId) ?? 0) + 1,
+          );
+        }
+      }
+    }
+
+    return orders.map((order) => ({
+      ...order,
+      accessibleTaskCount: taskCounts.get(order.id) ?? 0,
+    }));
+  }
+
+  private mapCalendarDayToXlsx(
+    day: OneTimeOrderCalendarResponseDto['managers'][number]['days'][number],
+  ): Exclude<XlsxCell, string | number | null> {
+    const parts: string[] = [];
+    const orderLabels = day.orders.map(
+      (order) => order.relatedOrder?.title ?? 'Занят',
+    );
+
+    if (orderLabels.length > 0) {
+      parts.push(orderLabels.join(' / '));
+    }
+    if (day.availability) {
+      parts.push(this.getAvailabilityLabel(day.availability.entryType));
+    }
+    if (day.pendingRequests.length > 0) {
+      parts.push(
+        `Ожидает: ${day.pendingRequests.map((item) => this.getAvailabilityLabel(item.entryType)).join(', ')}`,
+      );
+    }
+
+    let styleId: number | undefined;
+    if (day.conflictLevel !== 'none') styleId = 8;
+    else if (day.orders.length > 1) styleId = 7;
+    else if (day.availability?.entryType === 'sick_leave') styleId = 5;
+    else if (day.availability?.entryType === 'vacation') styleId = 6;
+    else if (day.availability?.entryType === 'day_off') styleId = 3;
+    else if (day.orders.length > 0) styleId = 4;
+    else if (day.pendingRequests.length > 0) styleId = 2;
+    else if (this.isWeekend(day.date)) styleId = 3;
+
+    return { value: parts.join(' · '), styleId };
+  }
+
+  private getAvailabilityLabel(entryType: string): string {
+    return (
+      {
+        day_off: 'Выходной',
+        vacation: 'Отпуск',
+        sick_leave: 'Больничный',
+      }[entryType] ?? entryType
+    );
+  }
+
+  private getOrderStatusLabel(status: string): string {
+    return (
+      {
+        new: 'Новый',
+        planned: 'Запланирован',
+        in_progress: 'В работе',
+        completed: 'Выполнен',
+        cancelled: 'Отменён',
+      }[status] ?? status
+    );
+  }
+
+  private getDurationDays(startDate: Date, endDate: Date): number {
+    return (
+      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1
+    );
+  }
+
+  private isWeekend(date: string): boolean {
+    const day = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+    return day === 0 || day === 6;
   }
 
   private async assertCanViewCalendar(currentUser: CurrentAuthUser): Promise<void> {

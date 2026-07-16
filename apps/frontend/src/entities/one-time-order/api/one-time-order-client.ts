@@ -1,4 +1,6 @@
 import { fetcher } from '@/shared/api/fetcher';
+import { refreshSession } from '@/shared/auth/auth-session';
+import { appConfig } from '@/shared/config/app-config';
 
 import type {
   CreateOneTimeOrderPayload,
@@ -332,6 +334,35 @@ export async function getOneTimeOrderCalendar(params: {
     `/one-time-orders/calendar${buildQuery(params)}`,
     { method: 'GET' },
   );
+}
+
+export async function downloadOneTimeOrderCalendarExcel(params: {
+  month: string;
+  managerUserId?: string;
+  status?: string;
+  includeCancelled?: boolean;
+}): Promise<Blob> {
+  const path = `/one-time-orders/calendar/export.xlsx${buildQuery(params)}`;
+  const request = (): Promise<Response> =>
+    fetch(`${appConfig.apiUrl}${path}`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+  let response = await request();
+
+  if (response.status === 401 && (await refreshSession())) {
+    response = await request();
+  }
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(
+      `GET ${path} failed with status ${response.status}${body ? `: ${body}` : ''}`,
+    );
+  }
+
+  return response.blob();
 }
 
 export async function checkOneTimeOrderConflicts(payload: {

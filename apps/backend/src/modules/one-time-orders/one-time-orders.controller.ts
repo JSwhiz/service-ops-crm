@@ -8,8 +8,11 @@ import {
   Post,
   Put,
   Query,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -74,6 +77,30 @@ export class OneTimeOrdersController {
     private readonly oneTimeOrderCalendarService: OneTimeOrderCalendarService,
     private readonly oneTimeOrderConflictService: OneTimeOrderConflictService,
   ) {}
+
+  @Get('calendar/export.xlsx')
+  async exportCalendar(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListOneTimeOrderCalendarQueryDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const exported = await this.oneTimeOrderCalendarService.exportCalendar(
+      user,
+      query,
+    );
+    const encodedFileName = encodeURIComponent(exported.fileName);
+
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${exported.fileName}"; filename*=UTF-8''${encodedFileName}`,
+    );
+
+    return new StreamableFile(exported.buffer);
+  }
 
   @Get('calendar')
   getCalendar(
