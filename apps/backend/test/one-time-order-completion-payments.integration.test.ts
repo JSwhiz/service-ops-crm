@@ -36,20 +36,65 @@ test('one-time order completion validates and stores actual payment rows', async
   const { app, baseUrl } = await createTestApp();
   const marker = `completion-payment-${Date.now()}`;
   const createdOrderIds: string[] = [];
-  const [managerOne, managerTwo] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
-  ]);
+  const createdUserIds: string[] = [];
+  const templateManager = await prisma.user.findUniqueOrThrow({
+    where: { login: 'manager1' },
+  });
+  const managerRole = await prisma.role.findUniqueOrThrow({
+    where: { code: 'manager' },
+  });
+  const createdManagers = await Promise.all(
+    [1, 2].map((index) =>
+      prisma.user.create({
+        data: {
+          login: `${marker}-manager-${index}`,
+          fullName: `Тестовый менеджер оплат ${index}`,
+          passwordHash: templateManager.passwordHash,
+          isActive: true,
+          roles: { create: { roleId: managerRole.id } },
+        },
+      }),
+    ),
+  );
+  const managerOne = createdManagers[0]!;
+  const managerTwo = createdManagers[1]!;
+  createdUserIds.push(managerOne.id, managerTwo.id);
 
   t.after(async () => {
+    const fundingIds = (
+      await prisma.accountabilityFunding.findMany({
+        where: { accountabilityAccount: { userId: { in: createdUserIds } } },
+        select: { id: true },
+      })
+    ).map((funding) => funding.id);
     await prisma.auditEvent.deleteMany({
       where: {
-        entityType: 'one_time_order',
-        entityId: { in: createdOrderIds },
+        OR: [
+          {
+            entityType: 'one_time_order',
+            entityId: { in: createdOrderIds },
+          },
+          {
+            entityType: 'accountability_funding',
+            entityId: { in: fundingIds },
+          },
+        ],
       },
+    });
+    await prisma.accountabilityFunding.deleteMany({
+      where: { accountabilityAccount: { userId: { in: createdUserIds } } },
     });
     await prisma.oneTimeOrder.deleteMany({
       where: { id: { in: createdOrderIds } },
+    });
+    await prisma.accountabilityAccount.deleteMany({
+      where: { userId: { in: createdUserIds } },
+    });
+    await prisma.userRole.deleteMany({
+      where: { userId: { in: createdUserIds } },
+    });
+    await prisma.user.deleteMany({
+      where: { id: { in: createdUserIds } },
     });
     await app.close();
     await prisma.$disconnect();
@@ -63,7 +108,7 @@ test('one-time order completion validates and stores actual payment rows', async
     }),
     loginAndGetCookieHeader({
       baseUrl,
-      login: 'manager1',
+      login: managerOne.login,
       password: 'manager123',
     }),
   ]);

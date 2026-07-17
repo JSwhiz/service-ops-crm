@@ -44,6 +44,9 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
         entityId: { in: createdOrderIds },
       },
     });
+    await prisma.accountabilityFunding.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
     await prisma.oneTimeOrder.deleteMany({
       where: { id: { in: createdOrderIds } },
     });

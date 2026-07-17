@@ -19,6 +19,8 @@
 - Клиент передаёт текущий `workCycle` при complete, поэтому запоздавший запрос старого цикла не может закрыть новый цикл после reopen.
 - Каждое завершение содержит одну или несколько фактических payment rows. Method/destination/recipient, нулевая сумма и cumulative deviation от `agreedSum` валидируются backend до записи.
 - Фактическая сумма заказа считается по всем `active` payments всех циклов; reopen сохраняет прошлые payments и не сторнирует их автоматически.
+- Положительный payment с destination `manager_accountability` атомарно создаёт linked credit funding; organization и zero payments funding не создают. Locked accountability account откатывает весь complete.
+- Остаток подотчёта: credits минус debits минус approved/reconciled expenses. Forecast дополнительно вычитает submitted expenses; draft/rejected не меняют официальный остаток.
 
 ## Техническое задание
 

@@ -50,6 +50,7 @@ model User {
   createdEquipmentMovements    EquipmentMovement[] @relation("EquipmentMovementCreatedBy")
   accountabilityAccount        AccountabilityAccount? @relation("UserAccountabilityAccount")
   issuedAccountabilityFundings AccountabilityFunding[] @relation("AccountabilityFundingIssuedBy")
+  recordedAccountabilityFundings AccountabilityFunding[] @relation("AccountabilityFundingRecordedBy")
   createdAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseCreatedBy")
   approvedAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseApprovedBy")
   rejectedAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseRejectedBy")
@@ -676,6 +677,7 @@ model OneTimeOrder {
   specificationItems OneTimeOrderSpecificationItem[]
   completions       OneTimeOrderCompletion[]
   completionPayments OneTimeOrderCompletionPayment[]
+  accountabilityFundings AccountabilityFunding[]
 
   @@index([linkedObjectId])
   @@index([status])
@@ -703,6 +705,7 @@ model OneTimeOrderCompletion {
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
   completedBy  User @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
   payments     OneTimeOrderCompletionPayment[]
+  accountabilityFundings AccountabilityFunding[]
 
   @@unique([oneTimeOrderId, workCycle])
   @@unique([oneTimeOrderId, clientRequestId])
@@ -738,6 +741,7 @@ model OneTimeOrderCompletionPayment {
   reversalPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversalSource")
   reversedByPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentReversedBy", fields: [reversedByPaymentId], references: [id], onDelete: Restrict)
   reversedPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversedBy")
+  accountabilityFunding AccountabilityFunding?
 
   @@index([completionId])
   @@index([oneTimeOrderId, receivedAt])
@@ -1177,12 +1181,33 @@ model AccountabilityFunding {
   comment                 String?
   issuedByUserId          String
   issuedAt                DateTime @default(now())
+  fundingType             String   @default("manual_issue")
+  entryDirection          String   @default("credit")
+  oneTimeOrderPaymentId   String?  @unique
+  oneTimeOrderId          String?
+  oneTimeOrderCompletionId String?
+  recordedByUserId        String?
+  reversalOfFundingId     String?  @unique
+  reversedByFundingId     String?  @unique
 
   accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Cascade)
   issuedBy             User                 @relation("AccountabilityFundingIssuedBy", fields: [issuedByUserId], references: [id], onDelete: Restrict)
+  recordedBy           User?                @relation("AccountabilityFundingRecordedBy", fields: [recordedByUserId], references: [id], onDelete: SetNull)
+  oneTimeOrderPayment  OneTimeOrderCompletionPayment? @relation(fields: [oneTimeOrderPaymentId], references: [id], onDelete: SetNull)
+  oneTimeOrder         OneTimeOrder? @relation(fields: [oneTimeOrderId], references: [id], onDelete: SetNull)
+  oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: SetNull)
+  reversalOfFunding    AccountabilityFunding? @relation("AccountabilityFundingReversalSource", fields: [reversalOfFundingId], references: [id], onDelete: Restrict)
+  reversalFundings     AccountabilityFunding[] @relation("AccountabilityFundingReversalSource")
+  reversedByFunding    AccountabilityFunding? @relation("AccountabilityFundingReversedBy", fields: [reversedByFundingId], references: [id], onDelete: Restrict)
+  reversedFundings     AccountabilityFunding[] @relation("AccountabilityFundingReversedBy")
 
   @@index([accountabilityAccountId, issuedAt])
   @@index([issuedByUserId])
+  @@index([recordedByUserId])
+  @@index([oneTimeOrderId])
+  @@index([oneTimeOrderCompletionId])
+  @@index([fundingType])
+  @@index([entryDirection])
   @@map("accountability_fundings")
 }
 

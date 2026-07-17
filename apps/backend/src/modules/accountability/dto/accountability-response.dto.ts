@@ -12,7 +12,13 @@ export class AccountabilityFundingResponseDto {
   amount!: number;
   comment!: string | null;
   issuedAt!: string;
+  fundingType!: string;
+  entryDirection!: string;
+  oneTimeOrderPaymentId!: string | null;
+  oneTimeOrderId!: string | null;
+  oneTimeOrderCompletionId!: string | null;
   issuedBy!: AccountabilityUserSummaryDto;
+  recordedBy!: AccountabilityUserSummaryDto | null;
 }
 
 export class AccountabilityExpenseResponseDto {
@@ -57,11 +63,14 @@ export class AccountabilityClosureResponseDto {
 
 export class AccountabilityAccountSummaryDto {
   totalFunding!: number;
+  totalCredits!: number;
+  totalDebits!: number;
   totalRecordedExpenses!: number;
   totalApprovedExpenses!: number;
   totalRejectedExpenses!: number;
   totalReconciledExpenses!: number;
   currentBalance!: number;
+  forecastBalance!: number;
   submittedExpensesCount!: number;
   draftExpensesCount!: number;
 }

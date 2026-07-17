@@ -97,6 +97,7 @@ export class AccountabilityService {
         fundings: {
           select: {
             amount: true,
+            entryDirection: true,
           },
         },
         expenses: {
@@ -241,9 +242,28 @@ export class AccountabilityService {
           amount,
           comment: payload.comment?.trim() || null,
           issuedByUserId: currentUser.id,
+          fundingType: 'manual_issue',
+          entryDirection: 'credit',
+          recordedByUserId: currentUser.id,
         },
         include: {
           issuedBy: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+              roles: {
+                select: {
+                  role: {
+                    select: {
+                      code: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          recordedBy: {
             select: {
               id: true,
               login: true,
@@ -999,6 +1019,22 @@ export class AccountabilityService {
                 },
               },
             },
+            recordedBy: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+                roles: {
+                  select: {
+                    role: {
+                      select: {
+                        code: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
           orderBy: {
             issuedAt: 'desc',
@@ -1194,14 +1230,25 @@ export class AccountabilityService {
   private buildSummary(params: {
     fundings: Array<{
       amount: Prisma.Decimal;
+      entryDirection: string;
     }>;
     expenses: Array<{
       amount: Prisma.Decimal;
       status: string;
     }>;
   }): AccountabilityAccountSummaryDto {
-    const totalFunding = params.fundings.reduce(
-      (sum, funding) => sum + funding.amount.toNumber(),
+    const totalCredits = params.fundings.reduce(
+      (sum, funding) =>
+        funding.entryDirection === 'credit'
+          ? sum + funding.amount.toNumber()
+          : sum,
+      0,
+    );
+    const totalDebits = params.fundings.reduce(
+      (sum, funding) =>
+        funding.entryDirection === 'debit'
+          ? sum + funding.amount.toNumber()
+          : sum,
       0,
     );
 
@@ -1219,21 +1266,22 @@ export class AccountabilityService {
       'reconciled',
     ]);
     const currentBalance =
-      totalFunding -
-      this.sumExpenseStatuses(params.expenses, [
-        'draft',
-        'submitted',
-        'approved',
-        'reconciled',
-      ]);
+      totalCredits -
+      totalDebits -
+      this.sumExpenseStatuses(params.expenses, ['approved', 'reconciled']);
+    const forecastBalance =
+      currentBalance - this.sumExpenseStatuses(params.expenses, ['submitted']);
 
     return {
-      totalFunding,
+      totalFunding: totalCredits,
+      totalCredits,
+      totalDebits,
       totalRecordedExpenses,
       totalApprovedExpenses,
       totalRejectedExpenses,
       totalReconciledExpenses,
       currentBalance,
+      forecastBalance,
       submittedExpensesCount: params.expenses.filter(
         (expense) => expense.status === 'submitted',
       ).length,
@@ -1301,6 +1349,11 @@ export class AccountabilityService {
     amount: Prisma.Decimal;
     comment: string | null;
     issuedAt: Date;
+    fundingType: string;
+    entryDirection: string;
+    oneTimeOrderPaymentId: string | null;
+    oneTimeOrderId: string | null;
+    oneTimeOrderCompletionId: string | null;
     issuedBy: {
       id: string;
       login: string;
@@ -1311,13 +1364,31 @@ export class AccountabilityService {
         };
       }>;
     };
+    recordedBy: {
+      id: string;
+      login: string;
+      fullName: string;
+      roles: Array<{
+        role: {
+          code: string;
+        };
+      }>;
+    } | null;
   }): AccountabilityFundingResponseDto {
     return {
       id: funding.id,
       amount: funding.amount.toNumber(),
       comment: funding.comment,
       issuedAt: funding.issuedAt.toISOString(),
+      fundingType: funding.fundingType,
+      entryDirection: funding.entryDirection,
+      oneTimeOrderPaymentId: funding.oneTimeOrderPaymentId,
+      oneTimeOrderId: funding.oneTimeOrderId,
+      oneTimeOrderCompletionId: funding.oneTimeOrderCompletionId,
       issuedBy: this.mapUserSummary(funding.issuedBy),
+      recordedBy: funding.recordedBy
+        ? this.mapUserSummary(funding.recordedBy)
+        : null,
     };
   }
 

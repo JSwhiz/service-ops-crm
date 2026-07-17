@@ -1395,13 +1395,21 @@ export class OneTimeOrdersService {
           payloadFingerprint,
         },
       });
-      await tx.oneTimeOrderCompletionPayment.createMany({
-        data: payments.map((payment) => ({
+      for (const payment of payments) {
+        const createdPayment = await tx.oneTimeOrderCompletionPayment.create({
+          data: {
+            completionId: created.id,
+            oneTimeOrderId: id,
+            ...payment,
+          },
+        });
+
+        await this.createAccountabilityReceiptFunding(tx, {
+          payment: createdPayment,
           completionId: created.id,
-          oneTimeOrderId: id,
-          ...payment,
-        })),
-      });
+          actorUserId: currentUser.id,
+        });
+      }
       const updated = await tx.oneTimeOrder.updateMany({
         where: {
           id,
@@ -2859,6 +2867,97 @@ export class OneTimeOrdersService {
     }
 
     return payments;
+  }
+
+  private async createAccountabilityReceiptFunding(
+    tx: Prisma.TransactionClient,
+    params: {
+      payment: {
+        id: string;
+        oneTimeOrderId: string;
+        recipientUserId: string | null;
+        amount: Prisma.Decimal;
+        paymentDestination: string;
+        comment: string | null;
+        receivedAt: Date;
+      };
+      completionId: string;
+      actorUserId: string;
+    },
+  ): Promise<void> {
+    if (
+      params.payment.paymentDestination !== 'manager_accountability' ||
+      params.payment.amount.isZero()
+    ) {
+      return;
+    }
+
+    const recipientUserId = params.payment.recipientUserId;
+
+    if (!recipientUserId) {
+      throw new BadRequestException(
+        'Manager accountability payment requires recipient',
+      );
+    }
+
+    await tx.$queryRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${'accountability:' + recipientUserId}))::text`,
+    );
+    let account = await tx.accountabilityAccount.findUnique({
+      where: { userId: recipientUserId },
+    });
+
+    if (account) {
+      await tx.$queryRaw`SELECT "id" FROM "accountability_accounts" WHERE "id" = ${account.id} FOR UPDATE`;
+      account = await tx.accountabilityAccount.findUniqueOrThrow({
+        where: { id: account.id },
+      });
+    } else {
+      account = await tx.accountabilityAccount.create({
+        data: {
+          userId: recipientUserId,
+          status: 'active',
+        },
+      });
+    }
+
+    if (account.status !== 'active') {
+      throw new ConflictException(
+        'Accountability account does not accept order receipts',
+      );
+    }
+
+    const funding = await tx.accountabilityFunding.create({
+      data: {
+        accountabilityAccountId: account.id,
+        amount: params.payment.amount,
+        comment: params.payment.comment,
+        issuedByUserId: params.actorUserId,
+        issuedAt: params.payment.receivedAt,
+        fundingType: 'one_time_order_receipt',
+        entryDirection: 'credit',
+        oneTimeOrderPaymentId: params.payment.id,
+        oneTimeOrderId: params.payment.oneTimeOrderId,
+        oneTimeOrderCompletionId: params.completionId,
+        recordedByUserId: params.actorUserId,
+      },
+    });
+
+    await this.writeAuditEvent(tx, {
+      entityType: 'accountability_funding',
+      entityId: funding.id,
+      actorUserId: params.actorUserId,
+      action: 'accountability_funding.one_time_order_receipt_created',
+      newValues: {
+        accountabilityAccountId: account.id,
+        amount: params.payment.amount.toNumber(),
+        fundingType: 'one_time_order_receipt',
+        entryDirection: 'credit',
+        oneTimeOrderPaymentId: params.payment.id,
+        oneTimeOrderId: params.payment.oneTimeOrderId,
+        oneTimeOrderCompletionId: params.completionId,
+      },
+    });
   }
 
   private mapSpecificationItem(
