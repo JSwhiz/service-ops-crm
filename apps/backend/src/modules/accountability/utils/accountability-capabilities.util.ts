@@ -17,8 +17,10 @@ export interface AccountabilityGlobalCapabilities {
 export function buildAccountabilityGlobalCapabilities(params: {
   roleCodes: string[];
   permissionCodes?: string[];
+  hasActiveOneTimeManagerAssignment?: boolean;
+  hasHistoricalOneTimeOrderReceipt?: boolean;
 }): AccountabilityGlobalCapabilities {
-  const canViewOwn = canViewOwnAccountability();
+  const canViewOwn = canViewOwnAccountability(params);
   const canIssue = canIssueAccountabilityFunds(params);
   const canReview = canReviewAccountability(params);
   const canApproveClosure = canApproveAccountabilityClosure(params);

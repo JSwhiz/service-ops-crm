@@ -45,6 +45,8 @@ export default function AccountabilityPage(): React.JSX.Element {
   const { user } = useAuth();
   const canAccessAccountability =
     user?.capabilities?.canAccessAccountability ?? false;
+  const canViewOwnAccountability =
+    user?.capabilities?.canViewOwnAccountability ?? false;
   const canReviewAccountability =
     user?.capabilities?.canReviewAccountability ?? false;
   const canIssueAccountabilityFunds =
@@ -76,7 +78,7 @@ export default function AccountabilityPage(): React.JSX.Element {
   );
 
   const reloadOwnView = async (): Promise<void> => {
-    if (!canAccessAccountability) {
+    if (!canViewOwnAccountability) {
       setOwnView(null);
       setOwnError(null);
       setOwnLoading(false);
@@ -183,7 +185,7 @@ export default function AccountabilityPage(): React.JSX.Element {
 
   useEffect(() => {
     void reloadOwnView();
-  }, [canAccessAccountability]);
+  }, [canViewOwnAccountability]);
 
   useEffect(() => {
     void reloadReviewDirectory();
@@ -220,13 +222,13 @@ export default function AccountabilityPage(): React.JSX.Element {
           </div>
         ) : null}
 
-        {ownLoading ? (
+        {canViewOwnAccountability && ownLoading ? (
           <div className="page-card">Загрузка вашего подотчета...</div>
-        ) : ownError ? (
+        ) : canViewOwnAccountability && ownError ? (
           <div className="page-card" style={{ color: '#b91c1c' }}>
             {ownError}
           </div>
-        ) : ownView ? (
+        ) : canViewOwnAccountability && ownView ? (
           <AccountabilityAccountPanel
             title="Мой подотчет"
             view={ownView}

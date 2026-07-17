@@ -61,9 +61,7 @@ export class AccountabilityService {
   async getMyAccount(
     currentUser: CurrentAuthUser,
   ): Promise<AccountabilityAccountViewDto> {
-    if (!canViewOwnAccountability()) {
-      throw new ForbiddenException('Access to accountability is denied');
-    }
+    await this.assertCanViewOwnAccountability(currentUser);
 
     return this.buildAccountView({
       currentUser,
@@ -166,7 +164,15 @@ export class AccountabilityService {
   ): Promise<AccountabilityAccountViewDto> {
     const isOwnAccount = currentUser.id === userId;
 
-    if (!isOwnAccount) {
+    if (
+      isOwnAccount &&
+      !canReviewAccountability({
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: this.getPermissionCodes(currentUser),
+      })
+    ) {
+      await this.assertCanViewOwnAccountability(currentUser);
+    } else if (!isOwnAccount) {
       this.assertCanReview(currentUser);
     }
 
@@ -305,6 +311,7 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     payload: SaveAccountabilityExpenseDto,
   ): Promise<AccountabilityExpenseResponseDto> {
+    await this.assertCanViewOwnAccountability(currentUser);
     const account = await this.getRequiredOwnActiveAccount(currentUser.id);
     this.assertAccountAllowsOwnExpenseWrite(account.status);
     const description = payload.description.trim();
@@ -352,6 +359,7 @@ export class AccountabilityService {
     expenseId: string,
     payload: SaveAccountabilityExpenseDto,
   ): Promise<AccountabilityExpenseResponseDto> {
+    await this.assertCanViewOwnAccountability(currentUser);
     const description = payload.description.trim();
 
     if (!description) {
@@ -426,6 +434,7 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     expenseId: string,
   ): Promise<AccountabilityExpenseResponseDto> {
+    await this.assertCanViewOwnAccountability(currentUser);
     const existingExpense = await this.prisma.accountabilityExpense.findFirst({
       where: {
         id: expenseId,
@@ -620,6 +629,7 @@ export class AccountabilityService {
   async requestClosure(
     currentUser: CurrentAuthUser,
   ): Promise<AccountabilityClosureResponseDto> {
+    await this.assertCanViewOwnAccountability(currentUser);
     const account = await this.getRequiredOwnActiveAccount(currentUser.id);
 
     if (account.status !== 'active') {
@@ -1638,6 +1648,46 @@ export class AccountabilityService {
       throw new ConflictException(
         'Accountability account is locked for new expense actions',
       );
+    }
+  }
+
+  private async assertCanViewOwnAccountability(
+    currentUser: CurrentAuthUser,
+  ): Promise<void> {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (canViewOwnAccountability({ roleCodes })) {
+      return;
+    }
+
+    const [activeManagerAssignment, historicalReceipt] = await Promise.all([
+      this.prisma.oneTimeOrderAssignment.findFirst({
+        where: {
+          userId: currentUser.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+        select: { id: true },
+      }),
+      this.prisma.accountabilityFunding.findFirst({
+        where: {
+          fundingType: 'one_time_order_receipt',
+          accountabilityAccount: {
+            userId: currentUser.id,
+          },
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    if (
+      !canViewOwnAccountability({
+        roleCodes,
+        hasActiveOneTimeManagerAssignment: activeManagerAssignment !== null,
+        hasHistoricalOneTimeOrderReceipt: historicalReceipt !== null,
+      })
+    ) {
+      throw new ForbiddenException('Access to own accountability is denied');
     }
   }
 

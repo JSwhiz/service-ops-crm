@@ -21,6 +21,12 @@ export const ACCOUNTABILITY_CLOSURE_STATUSES = [
 ] as const;
 
 const ACCOUNTABILITY_DEFAULT_ISSUER_ROLES = ['founder', 'director'] as const;
+const ACCOUNTABILITY_DEFAULT_REVIEWER_ROLES = ['founder', 'director'] as const;
+const ACCOUNTABILITY_OWN_MANAGER_ROLES = [
+  'manager',
+  'senior_manager',
+  'operation_manager',
+] as const;
 const ACCOUNTABILITY_ISSUE_PERMISSION = 'accountability.issue_cash';
 const EXPENSE_APPROVE_PERMISSION = 'expense.approve';
 
@@ -38,8 +44,16 @@ function hasPermission(
   return (permissionCodes ?? []).includes(code);
 }
 
-export function canViewOwnAccountability(): boolean {
-  return true;
+export function canViewOwnAccountability(params: {
+  roleCodes: string[];
+  hasActiveOneTimeManagerAssignment?: boolean;
+  hasHistoricalOneTimeOrderReceipt?: boolean;
+}): boolean {
+  return (
+    hasAnyRole(params.roleCodes, ACCOUNTABILITY_OWN_MANAGER_ROLES) ||
+    params.hasActiveOneTimeManagerAssignment === true ||
+    params.hasHistoricalOneTimeOrderReceipt === true
+  );
 }
 
 export function canIssueAccountabilityFunds(params: {
@@ -61,7 +75,7 @@ export function canApproveAccountabilityExpense(params: {
   permissionCodes?: string[];
 }): boolean {
   return (
-    hasAnyRole(params.roleCodes, LEADERSHIP_OBJECT_ROLE_CODES) ||
+    hasAnyRole(params.roleCodes, ACCOUNTABILITY_DEFAULT_REVIEWER_ROLES) ||
     hasPermission(params.permissionCodes, EXPENSE_APPROVE_PERMISSION)
   );
 }
