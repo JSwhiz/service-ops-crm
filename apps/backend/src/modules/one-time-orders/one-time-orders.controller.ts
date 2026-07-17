@@ -27,6 +27,7 @@ import {
 } from './dto/create-one-time-manager-availability.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
 import { CompleteOneTimeOrderDto } from './dto/complete-one-time-order.dto';
+import { CorrectOneTimeOrderPaymentDto } from './dto/correct-one-time-order-payment.dto';
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
@@ -229,6 +230,21 @@ export class OneTimeOrdersController {
     @Param('id') id: string,
   ): Promise<OneTimeOrderResponseDto> {
     return this.oneTimeOrdersService.reopenOrder(user, id);
+  }
+
+  @Post(':orderId/payments/:paymentId/correct')
+  correctPayment(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('orderId') orderId: string,
+    @Param('paymentId') paymentId: string,
+    @Body() payload: CorrectOneTimeOrderPaymentDto,
+  ): Promise<OneTimeOrderCompletionResponseDto> {
+    return this.oneTimeOrdersService.correctPayment(
+      user,
+      orderId,
+      paymentId,
+      payload,
+    );
   }
 
   @Post()

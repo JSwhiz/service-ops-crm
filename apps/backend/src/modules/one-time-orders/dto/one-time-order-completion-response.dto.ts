@@ -22,6 +22,8 @@ export class OneTimeOrderCompletionPaymentResponseDto {
   status!: string;
   reversalOfPaymentId!: string | null;
   reversedByPaymentId!: string | null;
+  correctedFromPaymentId!: string | null;
+  correctedByPaymentId!: string | null;
   createdAt!: string;
   updatedAt!: string;
 }

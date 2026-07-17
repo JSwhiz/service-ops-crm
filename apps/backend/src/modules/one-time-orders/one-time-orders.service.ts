@@ -11,6 +11,7 @@ import {
 import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
+import { canReviewAccountability } from '../accountability/utils/accountability-access.util';
 import { ChatsService } from '../chats/chats.service';
 import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { EquipmentService } from '../equipment/equipment.service';
@@ -23,6 +24,7 @@ import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 
 import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
 import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
+import { CorrectOneTimeOrderPaymentDto } from './dto/correct-one-time-order-payment.dto';
 import {
   CompleteOneTimeOrderDto,
   OneTimeOrderCompletionPaymentDto,
@@ -182,6 +184,8 @@ interface OneTimeOrderCompletionPaymentView {
   status: string;
   reversalOfPaymentId: string | null;
   reversedByPaymentId: string | null;
+  correctedFromPaymentId: string | null;
+  correctedByPaymentId: string | null;
   createdAt: Date;
   updatedAt: Date;
   recipient: {
@@ -1552,6 +1556,237 @@ export class OneTimeOrdersService {
     );
   }
 
+  async correctPayment(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    paymentId: string,
+    payload: CorrectOneTimeOrderPaymentDto,
+  ): Promise<OneTimeOrderCompletionResponseDto> {
+    this.assertCanCorrectPayment(currentUser);
+    const reason = payload.reason.trim();
+
+    if (!reason) {
+      throw new BadRequestException('Payment correction reason is required');
+    }
+
+    const completion = await this.prisma.$transaction(async (tx) => {
+      await this.lockOneTimeOrder(tx, orderId);
+      await tx.$queryRaw`SELECT "id" FROM "one_time_order_completion_payments" WHERE "id" = ${paymentId} FOR UPDATE`;
+
+      const sourcePayment = await tx.oneTimeOrderCompletionPayment.findUnique({
+        where: { id: paymentId },
+        include: {
+          accountabilityFunding: {
+            include: {
+              accountabilityAccount: true,
+            },
+          },
+        },
+      });
+
+      if (!sourcePayment || sourcePayment.oneTimeOrderId !== orderId) {
+        throw new NotFoundException('One-time order payment not found');
+      }
+      if (
+        sourcePayment.status !== 'active' ||
+        sourcePayment.reversedByPaymentId ||
+        sourcePayment.correctedByPaymentId
+      ) {
+        throw new ConflictException('One-time order payment is already resolved');
+      }
+      if (sourcePayment.accountabilityFunding?.reversedByFundingId) {
+        throw new ConflictException('Accountability receipt is already reversed');
+      }
+
+      const order = (await tx.oneTimeOrder.findUnique({
+        where: { id: orderId },
+        include: this.getOrderInclude(),
+      })) as OneTimeOrderView | null;
+
+      if (!order) {
+        throw new NotFoundException('One-time order not found');
+      }
+
+      const [correctedInput] = await this.normalizeCompletionPayments(
+        tx,
+        order,
+        [
+          {
+            recipientUserId: payload.recipientUserId ?? null,
+            amount: payload.correctedAmount,
+            paymentMethod: payload.paymentMethod,
+            paymentDestination: payload.paymentDestination,
+            zeroReason: payload.zeroReason ?? null,
+            comment: payload.comment ?? null,
+            differenceReason: reason,
+            receivedAt: sourcePayment.receivedAt.toISOString(),
+          },
+        ],
+        currentUser.id,
+        sourcePayment.id,
+      );
+
+      if (!correctedInput) {
+        throw new BadRequestException('Corrected payment is required');
+      }
+
+      const accountabilityUserIds = [
+        sourcePayment.accountabilityFunding?.accountabilityAccount.userId,
+        correctedInput.paymentDestination === 'manager_accountability' &&
+        !correctedInput.amount.isZero()
+          ? correctedInput.recipientUserId
+          : null,
+      ].filter((userId): userId is string => Boolean(userId));
+      await this.lockActiveAccountabilityUsers(tx, accountabilityUserIds);
+
+      const reversalPayment = await tx.oneTimeOrderCompletionPayment.create({
+        data: {
+          completionId: sourcePayment.completionId,
+          oneTimeOrderId: sourcePayment.oneTimeOrderId,
+          recipientUserId: sourcePayment.recipientUserId,
+          amount: sourcePayment.amount,
+          paymentMethod: sourcePayment.paymentMethod,
+          paymentDestination: sourcePayment.paymentDestination,
+          zeroReason: sourcePayment.zeroReason,
+          comment: sourcePayment.comment,
+          differenceReason: reason,
+          receivedAt: new Date(),
+          recordedByUserId: currentUser.id,
+          status: 'reversal',
+          reversalOfPaymentId: sourcePayment.id,
+        },
+      });
+      const reversed = await tx.oneTimeOrderCompletionPayment.updateMany({
+        where: {
+          id: sourcePayment.id,
+          status: 'active',
+          reversedByPaymentId: null,
+          correctedByPaymentId: null,
+        },
+        data: {
+          status: 'reversed',
+          reversedByPaymentId: reversalPayment.id,
+        },
+      });
+
+      if (reversed.count !== 1) {
+        throw new ConflictException('One-time order payment state changed');
+      }
+
+      let reversalFundingId: string | null = null;
+      if (sourcePayment.accountabilityFunding) {
+        const sourceFunding = sourcePayment.accountabilityFunding;
+        const reversalFunding = await tx.accountabilityFunding.create({
+          data: {
+            accountabilityAccountId: sourceFunding.accountabilityAccountId,
+            amount: sourceFunding.amount,
+            comment: reason,
+            issuedByUserId: currentUser.id,
+            issuedAt: new Date(),
+            fundingType: 'one_time_order_receipt_reversal',
+            entryDirection: 'debit',
+            oneTimeOrderPaymentId: reversalPayment.id,
+            oneTimeOrderId: sourcePayment.oneTimeOrderId,
+            oneTimeOrderCompletionId: sourcePayment.completionId,
+            recordedByUserId: currentUser.id,
+            reversalOfFundingId: sourceFunding.id,
+          },
+        });
+        const reversedFunding = await tx.accountabilityFunding.updateMany({
+          where: {
+            id: sourceFunding.id,
+            reversedByFundingId: null,
+          },
+          data: { reversedByFundingId: reversalFunding.id },
+        });
+
+        if (reversedFunding.count !== 1) {
+          throw new ConflictException('Accountability receipt state changed');
+        }
+
+        reversalFundingId = reversalFunding.id;
+        await this.writeAuditEvent(tx, {
+          entityType: 'accountability_funding',
+          entityId: reversalFunding.id,
+          actorUserId: currentUser.id,
+          action: 'accountability_funding.one_time_order_receipt_reversed',
+          newValues: {
+            amount: reversalFunding.amount.toNumber(),
+            entryDirection: 'debit',
+            reversalOfFundingId: sourceFunding.id,
+            reason,
+          },
+        });
+      }
+
+      const correctedPayment = await tx.oneTimeOrderCompletionPayment.create({
+        data: {
+          completionId: sourcePayment.completionId,
+          oneTimeOrderId: sourcePayment.oneTimeOrderId,
+          ...correctedInput,
+          correctedFromPaymentId: sourcePayment.id,
+        },
+      });
+      const correctedSource = await tx.oneTimeOrderCompletionPayment.updateMany({
+        where: {
+          id: sourcePayment.id,
+          correctedByPaymentId: null,
+        },
+        data: { correctedByPaymentId: correctedPayment.id },
+      });
+
+      if (correctedSource.count !== 1) {
+        throw new ConflictException('One-time order payment correction changed');
+      }
+
+      const correctedFundingId = await this.createAccountabilityReceiptFunding(
+        tx,
+        {
+          payment: correctedPayment,
+          completionId: sourcePayment.completionId,
+          actorUserId: currentUser.id,
+        },
+      );
+
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: orderId,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.payment_corrected',
+        oldValues: {
+          paymentId: sourcePayment.id,
+          amount: sourcePayment.amount.toNumber(),
+          paymentMethod: sourcePayment.paymentMethod,
+          paymentDestination: sourcePayment.paymentDestination,
+          recipientUserId: sourcePayment.recipientUserId,
+        },
+        newValues: {
+          paymentId: correctedPayment.id,
+          amount: correctedPayment.amount.toNumber(),
+          paymentMethod: correctedPayment.paymentMethod,
+          paymentDestination: correctedPayment.paymentDestination,
+          recipientUserId: correctedPayment.recipientUserId,
+        },
+        metadata: {
+          reason,
+          sourcePaymentId: sourcePayment.id,
+          reversalPaymentId: reversalPayment.id,
+          correctedPaymentId: correctedPayment.id,
+          sourceFundingId: sourcePayment.accountabilityFunding?.id ?? null,
+          reversalFundingId,
+          correctedFundingId,
+        },
+      });
+
+      return (await tx.oneTimeOrderCompletion.findUniqueOrThrow({
+        where: { id: sourcePayment.completionId },
+        include: this.getCompletionInclude(),
+      })) as OneTimeOrderCompletionView;
+    });
+
+    return this.mapCompletion(completion);
+  }
+
   async assignManager(
     currentUser: CurrentAuthUser,
     id: string,
@@ -2224,6 +2459,50 @@ export class OneTimeOrdersService {
     await tx.$queryRaw`SELECT "id" FROM "one_time_orders" WHERE "id" = ${id} FOR UPDATE`;
   }
 
+  private assertCanCorrectPayment(currentUser: CurrentAuthUser): void {
+    if (
+      !canReviewAccountability({
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: this.getPermissionCodes(currentUser),
+      })
+    ) {
+      throw new ForbiddenException(
+        'You cannot correct one-time order payments',
+      );
+    }
+  }
+
+  private async lockActiveAccountabilityUsers(
+    tx: Prisma.TransactionClient,
+    userIds: string[],
+  ): Promise<void> {
+    const uniqueUserIds = [...new Set(userIds)].sort();
+
+    for (const userId of uniqueUserIds) {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${'accountability:' + userId}))::text`,
+      );
+      const account = await tx.accountabilityAccount.findUnique({
+        where: { userId },
+      });
+
+      if (!account) {
+        continue;
+      }
+
+      await tx.$queryRaw`SELECT "id" FROM "accountability_accounts" WHERE "id" = ${account.id} FOR UPDATE`;
+      const lockedAccount = await tx.accountabilityAccount.findUniqueOrThrow({
+        where: { id: account.id },
+      });
+
+      if (lockedAccount.status !== 'active') {
+        throw new ConflictException(
+          'Accountability account does not accept order receipt corrections',
+        );
+      }
+    }
+  }
+
   private async getPhoto(
     oneTimeOrderId: string,
     photoId: string,
@@ -2715,6 +2994,8 @@ export class OneTimeOrdersService {
         status: payment.status,
         reversalOfPaymentId: payment.reversalOfPaymentId,
         reversedByPaymentId: payment.reversedByPaymentId,
+        correctedFromPaymentId: payment.correctedFromPaymentId,
+        correctedByPaymentId: payment.correctedByPaymentId,
         createdAt: payment.createdAt.toISOString(),
         updatedAt: payment.updatedAt.toISOString(),
       })),
@@ -2757,6 +3038,7 @@ export class OneTimeOrdersService {
     order: OneTimeOrderView,
     input: OneTimeOrderCompletionPaymentDto[],
     actorUserId: string,
+    excludePaymentId?: string,
   ): Promise<NormalizedOneTimeOrderCompletionPayment[]> {
     const activeManagerIds = new Set(
       order.assignments
@@ -2848,6 +3130,7 @@ export class OneTimeOrdersService {
       where: {
         oneTimeOrderId: order.id,
         status: 'active',
+        id: excludePaymentId ? { not: excludePaymentId } : undefined,
       },
       _sum: { amount: true },
     });
@@ -2884,12 +3167,12 @@ export class OneTimeOrdersService {
       completionId: string;
       actorUserId: string;
     },
-  ): Promise<void> {
+  ): Promise<string | null> {
     if (
       params.payment.paymentDestination !== 'manager_accountability' ||
       params.payment.amount.isZero()
     ) {
-      return;
+      return null;
     }
 
     const recipientUserId = params.payment.recipientUserId;
@@ -2958,6 +3241,8 @@ export class OneTimeOrdersService {
         oneTimeOrderCompletionId: params.completionId,
       },
     });
+
+    return funding.id;
   }
 
   private mapSpecificationItem(

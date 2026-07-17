@@ -732,6 +732,8 @@ model OneTimeOrderCompletionPayment {
   status                String
   reversalOfPaymentId   String?  @unique
   reversedByPaymentId   String?  @unique
+  correctedFromPaymentId String? @unique
+  correctedByPaymentId  String?  @unique
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
@@ -743,6 +745,10 @@ model OneTimeOrderCompletionPayment {
   reversalPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversalSource")
   reversedByPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentReversedBy", fields: [reversedByPaymentId], references: [id], onDelete: Restrict)
   reversedPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversedBy")
+  correctedFromPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentCorrectionSource", fields: [correctedFromPaymentId], references: [id], onDelete: Restrict)
+  correctedPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentCorrectionSource")
+  correctedByPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentCorrectedBy", fields: [correctedByPaymentId], references: [id], onDelete: Restrict)
+  sourcePaymentsCorrected OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentCorrectedBy")
   accountabilityFunding AccountabilityFunding?
 
   @@index([completionId])
