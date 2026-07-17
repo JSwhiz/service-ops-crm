@@ -14,6 +14,14 @@ export const ACCOUNTABILITY_EXPENSE_STATUSES = [
   'reconciled',
 ] as const;
 
+export const ACCOUNTABILITY_EXPENSE_CATEGORIES = [
+  'consumables',
+  'delivery',
+  'transport',
+  'services',
+  'other',
+] as const;
+
 export const ACCOUNTABILITY_CLOSURE_STATUSES = [
   'requested',
   'approved',

@@ -678,6 +678,7 @@ model OneTimeOrder {
   completions       OneTimeOrderCompletion[]
   completionPayments OneTimeOrderCompletionPayment[]
   accountabilityFundings AccountabilityFunding[]
+  accountabilityExpenses AccountabilityExpense[]
 
   @@index([linkedObjectId])
   @@index([status])
@@ -706,6 +707,7 @@ model OneTimeOrderCompletion {
   completedBy  User @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
   payments     OneTimeOrderCompletionPayment[]
   accountabilityFundings AccountabilityFunding[]
+  accountabilityExpenses AccountabilityExpense[]
 
   @@unique([oneTimeOrderId, workCycle])
   @@unique([oneTimeOrderId, clientRequestId])
@@ -1214,6 +1216,10 @@ model AccountabilityFunding {
 model AccountabilityExpense {
   id                      String   @id @default(uuid())
   accountabilityAccountId String
+  oneTimeOrderId          String?
+  oneTimeOrderCompletionId String?
+  expenseCategory         String?
+  expenseDate             DateTime? @db.Date
   amount                  Decimal  @db.Decimal(14, 2)
   description             String
   status                  String   @default("draft")
@@ -1229,12 +1235,18 @@ model AccountabilityExpense {
   updatedAt               DateTime @updatedAt
 
   accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Cascade)
+  oneTimeOrder          OneTimeOrder?          @relation(fields: [oneTimeOrderId], references: [id], onDelete: SetNull)
+  oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: SetNull)
   createdBy             User                 @relation("AccountabilityExpenseCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   approvedBy            User?                @relation("AccountabilityExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
   rejectedBy            User?                @relation("AccountabilityExpenseRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
 
   @@index([accountabilityAccountId, createdAt])
   @@index([accountabilityAccountId, status])
+  @@index([oneTimeOrderId, createdAt])
+  @@index([oneTimeOrderCompletionId])
+  @@index([expenseCategory])
+  @@index([expenseDate])
   @@index([createdByUserId])
   @@index([approvedByUserId])
   @@index([rejectedByUserId])

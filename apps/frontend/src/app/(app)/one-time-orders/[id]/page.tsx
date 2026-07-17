@@ -4,6 +4,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 import {
+  createAccountabilityExpense,
+  getOneTimeOrderAccountability,
+  submitAccountabilityExpense,
+} from '@/entities/accountability/api/accountability-client';
+import type {
+  OneTimeOrderAccountabilityView,
+} from '@/entities/accountability/model/accountability.types';
+
+import {
   assignOneTimeOrderManager,
   checkOneTimeOrderConflicts,
   changeOneTimeOrderStatus,
@@ -59,6 +68,9 @@ import { OneTimeOrderPhotosPanel } from '@/features/one-time-order-photos/ui/one
 import { OneTimeOrderTasksPanel } from '@/features/one-time-order-tasks/ui/one-time-order-tasks-panel';
 import { OneTimeOrderReviewPanel } from '@/features/one-time-order-review/ui/one-time-order-review-panel';
 import { OneTimeOrderSpecificationPanel } from '@/features/one-time-order-specification/ui/one-time-order-specification-panel';
+import {
+  OneTimeOrderAccountabilityPanel,
+} from '@/features/one-time-order-accountability/ui/one-time-order-accountability-panel';
 import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-scope-panel';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
@@ -103,6 +115,8 @@ export default function OneTimeOrderDetailPage({
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [photos, setPhotos] = useState<OneTimeOrderPhotoItem[]>([]);
   const [equipment, setEquipment] = useState<EquipmentScope | null>(null);
+  const [accountability, setAccountability] =
+    useState<OneTimeOrderAccountabilityView | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [managerCandidates, setManagerCandidates] = useState<SystemUserOption[]>([]);
   const [taskAssignees, setTaskAssignees] = useState<SystemUserOption[]>([]);
@@ -213,6 +227,11 @@ export default function OneTimeOrderDetailPage({
       listTasksByOneTimeOrder(id).then((response) => {
         if (!cancelled) {
           setTasks(response);
+        }
+      }),
+      getOneTimeOrderAccountability(id).then((response) => {
+        if (!cancelled) {
+          setAccountability(response);
         }
       }),
     ];
@@ -435,6 +454,37 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+
+          {accountability ? (
+            <OneTimeOrderAccountabilityPanel
+              view={accountability}
+              onCreateExpense={async (payload) => {
+                const expense = await createAccountabilityExpense({
+                  amount: payload.amount,
+                  description: payload.description,
+                  oneTimeOrderId: item.id,
+                  expenseCategory: payload.expenseCategory,
+                  expenseDate: payload.expenseDate,
+                });
+
+                await Promise.all(
+                  payload.files.map((file) =>
+                    uploadFileToEntity({
+                      entityType: 'accountability_expense',
+                      entityId: expense.id,
+                      file,
+                    }),
+                  ),
+                );
+
+                if (payload.submitAfterSave) {
+                  await submitAccountabilityExpense(expense.id);
+                }
+
+                await loadAll(item.id);
+              }}
+            />
+          ) : null}
 
           <OneTimeOrderCommentsPanel
             items={comments}

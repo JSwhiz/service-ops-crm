@@ -12,7 +12,9 @@ import {
   ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
   ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
 } from '../approvals/constants/approval.constants';
-import { FileResponseDto } from '../files/dto/file-response.dto';
+import { SafeFileResponseDto } from '../files/dto/safe-file-response.dto';
+import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
+import { buildOneTimeOrderAccessWhere } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import {
@@ -23,6 +25,7 @@ import {
   AccountabilityExpenseResponseDto,
   AccountabilityFundingResponseDto,
   AccountabilityUserSummaryDto,
+  OneTimeOrderAccountabilityViewDto,
 } from './dto/accountability-response.dto';
 import { CreateAccountabilityFundingDto } from './dto/create-accountability-funding.dto';
 import { RejectAccountabilityClosureDto } from './dto/reject-accountability-closure.dto';
@@ -34,6 +37,7 @@ import {
   canIssueAccountabilityFunds,
   canReviewAccountability,
   canViewOwnAccountability,
+  ACCOUNTABILITY_EXPENSE_CATEGORIES,
 } from './utils/accountability-access.util';
 import {
   buildAccountabilityExpenseCapabilities,
@@ -182,6 +186,148 @@ export class AccountabilityService {
     });
   }
 
+  async getOneTimeOrderAccountability(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+  ): Promise<OneTimeOrderAccountabilityViewDto> {
+    const canReview = canReviewAccountability({
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+    });
+    const order = await this.prisma.oneTimeOrder.findFirst({
+      where: {
+        id: orderId,
+        ...buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        }),
+      },
+      select: {
+        id: true,
+        title: true,
+        assignments: {
+          where: {
+            userId: currentUser.id,
+            assignmentRoleCode: 'one_time_manager',
+          },
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('One-time order not found');
+    }
+
+    const canViewOwn = await this.canCurrentUserViewOwnAccountability(
+      currentUser,
+    );
+    const accounts = await this.prisma.accountabilityAccount.findMany({
+      where:
+        !canReview && !canViewOwn
+          ? { id: { in: [] } }
+          : canReview
+            ? {
+                OR: [
+                  { fundings: { some: { oneTimeOrderId: orderId } } },
+                  { expenses: { some: { oneTimeOrderId: orderId } } },
+                ],
+              }
+            : { userId: currentUser.id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            login: true,
+            fullName: true,
+            roles: {
+              select: {
+                role: {
+                  select: { code: true },
+                },
+              },
+            },
+          },
+        },
+        fundings: {
+          where: { oneTimeOrderId: orderId },
+          include: {
+            issuedBy: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+                roles: {
+                  select: { role: { select: { code: true } } },
+                },
+              },
+            },
+            recordedBy: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+                roles: {
+                  select: { role: { select: { code: true } } },
+                },
+              },
+            },
+          },
+          orderBy: { issuedAt: 'desc' },
+        },
+        expenses: {
+          where: { oneTimeOrderId: orderId },
+          include: this.accountabilityExpenseInclude(),
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+      orderBy: { user: { fullName: 'asc' } },
+    });
+    const attachmentsByEntityId = await this.loadExpenseAttachments(
+      accounts.flatMap((account) =>
+        account.expenses.map((expense) => expense.id),
+      ),
+    );
+    const ownAccount = accounts.find(
+      (account) => account.userId === currentUser.id,
+    );
+
+    return {
+      order: {
+        id: order.id,
+        title: order.title,
+      },
+      visibilityScope: canReview ? 'administrative' : 'own',
+      capabilities: {
+        canCreateExpense:
+          canViewOwn &&
+          order.assignments.length > 0 &&
+          ownAccount?.status === 'active',
+        canReviewExpenses: canReview,
+      },
+      accounts: accounts.map((account) => ({
+        accountId: account.id,
+        accountStatus: account.status,
+        user: this.mapUserSummary(account.user),
+        summary: this.buildSummary({
+          fundings: account.fundings,
+          expenses: account.expenses,
+        }),
+        fundings: account.fundings.map((funding) => this.mapFunding(funding)),
+        expenses: account.expenses.map((expense) =>
+          this.mapExpense({
+            expense,
+            currentUser,
+            attachments: attachmentsByEntityId.get(expense.id) ?? [],
+          }),
+        ),
+      })),
+    };
+  }
+
   async issueFunding(
     currentUser: CurrentAuthUser,
     userId: string,
@@ -320,9 +466,19 @@ export class AccountabilityService {
       throw new BadRequestException('Expense description is required');
     }
 
+    const orderExpense = await this.normalizeOrderExpenseInput({
+      currentUser,
+      oneTimeOrderId: payload.oneTimeOrderId ?? null,
+      expenseCategory: payload.expenseCategory ?? null,
+      expenseDate: payload.expenseDate ?? null,
+    });
+
     const createdExpense = await this.prisma.accountabilityExpense.create({
       data: {
         accountabilityAccountId: account.id,
+        oneTimeOrderId: orderExpense.oneTimeOrderId,
+        expenseCategory: orderExpense.expenseCategory,
+        expenseDate: orderExpense.expenseDate,
         amount: new Prisma.Decimal(payload.amount),
         description,
         status: 'draft',
@@ -340,6 +496,9 @@ export class AccountabilityService {
           amount: payload.amount,
           description,
           status: 'draft',
+          oneTimeOrderId: orderExpense.oneTimeOrderId,
+          expenseCategory: orderExpense.expenseCategory,
+          expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
         },
       });
 
@@ -397,6 +556,18 @@ export class AccountabilityService {
       existingExpense.accountabilityAccount.status,
     );
 
+    const orderExpense = await this.normalizeOrderExpenseInput({
+      currentUser,
+      oneTimeOrderId:
+        payload.oneTimeOrderId ?? existingExpense.oneTimeOrderId ?? null,
+      expenseCategory:
+        payload.expenseCategory ?? existingExpense.expenseCategory ?? null,
+      expenseDate:
+        payload.expenseDate ??
+        this.formatDateOnly(existingExpense.expenseDate) ??
+        null,
+    });
+
     const updatedExpense = await this.prisma.accountabilityExpense.update({
       where: {
         id: expenseId,
@@ -404,6 +575,9 @@ export class AccountabilityService {
       data: {
         amount: new Prisma.Decimal(payload.amount),
         description,
+        oneTimeOrderId: orderExpense.oneTimeOrderId,
+        expenseCategory: orderExpense.expenseCategory,
+        expenseDate: orderExpense.expenseDate,
       },
       include: this.accountabilityExpenseInclude(),
     });
@@ -416,6 +590,9 @@ export class AccountabilityService {
         newValues: {
           amount: payload.amount,
           description,
+          oneTimeOrderId: orderExpense.oneTimeOrderId,
+          expenseCategory: orderExpense.expenseCategory,
+          expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
         },
       });
 
@@ -465,6 +642,21 @@ export class AccountabilityService {
     this.assertAccountAllowsOwnExpenseWrite(
       existingExpense.accountabilityAccount.status,
     );
+
+    if (existingExpense.oneTimeOrderId) {
+      const attachmentCount = await this.prisma.fileAttachment.count({
+        where: {
+          entityType: EXPENSE_ATTACHMENTS_ENTITY_TYPE,
+          entityId: existingExpense.id,
+        },
+      });
+
+      if (attachmentCount === 0) {
+        throw new ConflictException(
+          'One-time order expense requires a receipt or document',
+        );
+      }
+    }
 
     const submittedExpense = await this.prisma.accountabilityExpense.update({
       where: {
@@ -1319,8 +1511,8 @@ export class AccountabilityService {
 
   private async loadExpenseAttachments(
     expenseIds: string[],
-  ): Promise<Map<string, FileResponseDto[]>> {
-    const byEntityId = new Map<string, FileResponseDto[]>();
+  ): Promise<Map<string, SafeFileResponseDto[]>> {
+    const byEntityId = new Map<string, SafeFileResponseDto[]>();
 
     if (expenseIds.length === 0) {
       return byEntityId;
@@ -1333,10 +1525,15 @@ export class AccountabilityService {
           in: expenseIds,
         },
       },
-      include: {
+      select: {
+        entityId: true,
         file: {
-          include: {
-            attachments: true,
+          select: {
+            id: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            createdAt: true,
           },
         },
       },
@@ -1347,7 +1544,7 @@ export class AccountabilityService {
 
     for (const attachment of attachments) {
       const current = byEntityId.get(attachment.entityId) ?? [];
-      current.push(this.mapFile(attachment.file));
+      current.push(mapSafeFileResponse(attachment.file));
       byEntityId.set(attachment.entityId, current);
     }
 
@@ -1405,6 +1602,10 @@ export class AccountabilityService {
   private mapExpense(params: {
     expense: {
       id: string;
+      oneTimeOrderId: string | null;
+      oneTimeOrderCompletionId: string | null;
+      expenseCategory: string | null;
+      expenseDate: Date | null;
       amount: Prisma.Decimal;
       description: string;
       status: string;
@@ -1450,10 +1651,14 @@ export class AccountabilityService {
       } | null;
     };
     currentUser: CurrentAuthUser;
-    attachments: FileResponseDto[];
+    attachments: SafeFileResponseDto[];
   }): AccountabilityExpenseResponseDto {
     return {
       id: params.expense.id,
+      oneTimeOrderId: params.expense.oneTimeOrderId,
+      oneTimeOrderCompletionId: params.expense.oneTimeOrderCompletionId,
+      expenseCategory: params.expense.expenseCategory,
+      expenseDate: this.formatDateOnly(params.expense.expenseDate),
       amount: params.expense.amount.toNumber(),
       description: params.expense.description,
       status: params.expense.status,
@@ -1569,45 +1774,6 @@ export class AccountabilityService {
     };
   }
 
-  private mapFile(file: {
-    id: string;
-    bucket: string;
-    objectKey: string;
-    originalName: string;
-    mimeType: string;
-    sizeBytes: number;
-    uploadedByUserId: string | null;
-    createdAt: Date;
-    attachments: Array<{
-      id: string;
-      entityType: string;
-      entityId: string;
-      fieldCode: string | null;
-      uploadedByUserId: string | null;
-      createdAt: Date;
-    }>;
-  }): FileResponseDto {
-    return {
-      id: file.id,
-      bucket: file.bucket,
-      objectKey: file.objectKey,
-      originalName: file.originalName,
-      mimeType: file.mimeType,
-      sizeBytes: file.sizeBytes,
-      uploadedByUserId: file.uploadedByUserId,
-      createdAt: file.createdAt.toISOString(),
-      url: `/api/v1/files/${file.id}/content`,
-      attachments: file.attachments.map((attachment) => ({
-        id: attachment.id,
-        entityType: attachment.entityType,
-        entityId: attachment.entityId,
-        fieldCode: attachment.fieldCode,
-        uploadedByUserId: attachment.uploadedByUserId,
-        createdAt: attachment.createdAt.toISOString(),
-      })),
-    };
-  }
-
   private async getRequiredOwnActiveAccount(userId: string) {
     const account = await this.prisma.accountabilityAccount.findUnique({
       where: {
@@ -1651,13 +1817,108 @@ export class AccountabilityService {
     }
   }
 
+  private async normalizeOrderExpenseInput(params: {
+    currentUser: CurrentAuthUser;
+    oneTimeOrderId: string | null;
+    expenseCategory: string | null;
+    expenseDate: string | null;
+  }): Promise<{
+    oneTimeOrderId: string | null;
+    expenseCategory: string | null;
+    expenseDate: Date | null;
+  }> {
+    if (
+      params.expenseCategory &&
+      !ACCOUNTABILITY_EXPENSE_CATEGORIES.includes(
+        params.expenseCategory as never,
+      )
+    ) {
+      throw new BadRequestException('Unsupported accountability expense category');
+    }
+
+    const expenseDate = params.expenseDate
+      ? this.parseDateOnly(params.expenseDate)
+      : null;
+
+    if (params.oneTimeOrderId) {
+      if (!params.expenseCategory || !expenseDate) {
+        throw new BadRequestException(
+          'One-time order expense requires category and expense date',
+        );
+      }
+
+      await this.assertCanLinkExpenseToOneTimeOrder(
+        params.currentUser,
+        params.oneTimeOrderId,
+      );
+    }
+
+    return {
+      oneTimeOrderId: params.oneTimeOrderId,
+      expenseCategory: params.expenseCategory,
+      expenseDate,
+    };
+  }
+
+  private async assertCanLinkExpenseToOneTimeOrder(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+  ): Promise<void> {
+    const order = await this.prisma.oneTimeOrder.findFirst({
+      where: {
+        id: orderId,
+        ...buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        }),
+        assignments: {
+          some: {
+            userId: currentUser.id,
+            assignmentRoleCode: 'one_time_manager',
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Available one-time order assignment not found');
+    }
+  }
+
+  private parseDateOnly(value: string): Date {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.toISOString().slice(0, 10) !== value
+    ) {
+      throw new BadRequestException('Expense date must be a valid date');
+    }
+
+    return parsed;
+  }
+
+  private formatDateOnly(value: Date | null): string | null {
+    return value?.toISOString().slice(0, 10) ?? null;
+  }
+
   private async assertCanViewOwnAccountability(
     currentUser: CurrentAuthUser,
   ): Promise<void> {
+    if (!(await this.canCurrentUserViewOwnAccountability(currentUser))) {
+      throw new ForbiddenException('Access to own accountability is denied');
+    }
+  }
+
+  private async canCurrentUserViewOwnAccountability(
+    currentUser: CurrentAuthUser,
+  ): Promise<boolean> {
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (canViewOwnAccountability({ roleCodes })) {
-      return;
+      return true;
     }
 
     const [activeManagerAssignment, historicalReceipt] = await Promise.all([
@@ -1680,15 +1941,11 @@ export class AccountabilityService {
       }),
     ]);
 
-    if (
-      !canViewOwnAccountability({
-        roleCodes,
-        hasActiveOneTimeManagerAssignment: activeManagerAssignment !== null,
-        hasHistoricalOneTimeOrderReceipt: historicalReceipt !== null,
-      })
-    ) {
-      throw new ForbiddenException('Access to own accountability is denied');
-    }
+    return canViewOwnAccountability({
+      roleCodes,
+      hasActiveOneTimeManagerAssignment: activeManagerAssignment !== null,
+      hasHistoricalOneTimeOrderReceipt: historicalReceipt !== null,
+    });
   }
 
   private assertCanReview(currentUser: CurrentAuthUser): void {

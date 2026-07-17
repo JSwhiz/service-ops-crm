@@ -19,6 +19,7 @@ import {
   AccountabilityExpenseResponseDto,
   AccountabilityFundingResponseDto,
   AccountabilityUserSummaryDto,
+  OneTimeOrderAccountabilityViewDto,
 } from './dto/accountability-response.dto';
 import { CreateAccountabilityFundingDto } from './dto/create-accountability-funding.dto';
 import { RejectAccountabilityClosureDto } from './dto/reject-accountability-closure.dto';
@@ -61,6 +62,17 @@ export class AccountabilityController {
     @Param('userId') userId: string,
   ): Promise<AccountabilityAccountViewDto> {
     return this.accountabilityService.getAccountByUserId(user, userId);
+  }
+
+  @Get('orders/:orderId')
+  getOneTimeOrderAccountability(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('orderId') orderId: string,
+  ): Promise<OneTimeOrderAccountabilityViewDto> {
+    return this.accountabilityService.getOneTimeOrderAccountability(
+      user,
+      orderId,
+    );
   }
 
   @Get('reference/users')

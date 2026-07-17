@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsString, Min } from 'class-validator';
+import {
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Min,
+} from 'class-validator';
+
+import { ACCOUNTABILITY_EXPENSE_CATEGORIES } from '../utils/accountability-access.util';
 
 export class SaveAccountabilityExpenseDto {
   @Type(() => Number)
@@ -9,4 +19,16 @@ export class SaveAccountabilityExpenseDto {
 
   @IsString()
   description!: string;
+
+  @IsOptional()
+  @IsUUID()
+  oneTimeOrderId?: string;
+
+  @IsOptional()
+  @IsIn(ACCOUNTABILITY_EXPENSE_CATEGORIES)
+  expenseCategory?: (typeof ACCOUNTABILITY_EXPENSE_CATEGORIES)[number];
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  expenseDate?: string;
 }

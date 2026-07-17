@@ -30,6 +30,27 @@ export function getAccountabilityExpenseStatusLabel(status: string): string {
   }
 }
 
+export function getAccountabilityExpenseCategoryLabel(
+  category: string | null,
+): string {
+  switch (category) {
+    case 'consumables':
+      return 'Расходные материалы';
+    case 'delivery':
+      return 'Доставка';
+    case 'transport':
+      return 'Транспорт';
+    case 'services':
+      return 'Услуги';
+    case 'other':
+      return 'Другое';
+    case null:
+      return 'Без категории';
+    default:
+      return category;
+  }
+}
+
 export function getAccountabilityClosureStatusLabel(status: string): string {
   switch (status) {
     case 'requested':

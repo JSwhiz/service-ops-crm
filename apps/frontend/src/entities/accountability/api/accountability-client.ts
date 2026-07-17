@@ -8,6 +8,7 @@ import type {
   AccountabilityFundingEntry,
   AccountabilityUserSummary,
   CreateAccountabilityFundingPayload,
+  OneTimeOrderAccountabilityView,
   SaveAccountabilityExpensePayload,
 } from '../model/accountability.types';
 
@@ -15,6 +16,15 @@ export async function getMyAccountability(): Promise<AccountabilityAccountView> 
   return fetcher<AccountabilityAccountView>('/accountability/me', {
     method: 'GET',
   });
+}
+
+export async function getOneTimeOrderAccountability(
+  orderId: string,
+): Promise<OneTimeOrderAccountabilityView> {
+  return fetcher<OneTimeOrderAccountabilityView>(
+    `/accountability/orders/${orderId}`,
+    { method: 'GET' },
+  );
 }
 
 export async function listAccountabilityAccounts(): Promise<

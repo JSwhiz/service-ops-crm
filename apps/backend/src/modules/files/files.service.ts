@@ -23,7 +23,10 @@ import {
   canAccessInventory,
   canCreateInventoryMovement,
 } from '../inventory/utils/inventory-access.util';
-import { canReviewAccountability } from '../accountability/utils/accountability-access.util';
+import {
+  canReviewAccountability,
+  canViewOwnAccountability,
+} from '../accountability/utils/accountability-access.util';
 import { canAccessEquipment } from '../equipment/utils/equipment-access.util';
 import {
   buildOneTimeOrderAccessWhere,
@@ -1276,10 +1279,13 @@ export class FilesService {
     }
 
     const isOwner = expense.accountabilityAccount.userId === currentUser.id;
+    const ownerCanAccess =
+      isOwner &&
+      (await this.canCurrentUserViewOwnAccountability(currentUser));
 
     if (mode === 'write') {
       return (
-        isOwner &&
+        ownerCanAccess &&
         expense.createdByUserId === currentUser.id &&
         expense.accountabilityAccount.status === 'active' &&
         expense.status === 'draft'
@@ -1287,12 +1293,46 @@ export class FilesService {
     }
 
     return (
-      isOwner ||
+      ownerCanAccess ||
       canReviewAccountability({
         roleCodes: this.getRoleCodes(currentUser),
         permissionCodes: this.getPermissionCodes(currentUser),
       })
     );
+  }
+
+  private async canCurrentUserViewOwnAccountability(
+    currentUser: CurrentAuthUser,
+  ): Promise<boolean> {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (canViewOwnAccountability({ roleCodes })) {
+      return true;
+    }
+
+    const [activeAssignment, historicalReceipt] = await Promise.all([
+      this.prisma.oneTimeOrderAssignment.findFirst({
+        where: {
+          userId: currentUser.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+        select: { id: true },
+      }),
+      this.prisma.accountabilityFunding.findFirst({
+        where: {
+          fundingType: 'one_time_order_receipt',
+          accountabilityAccount: { userId: currentUser.id },
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    return canViewOwnAccountability({
+      roleCodes,
+      hasActiveOneTimeManagerAssignment: activeAssignment !== null,
+      hasHistoricalOneTimeOrderReceipt: historicalReceipt !== null,
+    });
   }
 
   private async canAccessChatMessage(

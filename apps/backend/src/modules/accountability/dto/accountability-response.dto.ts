@@ -1,4 +1,4 @@
-import { FileResponseDto } from '../../files/dto/file-response.dto';
+import { SafeFileResponseDto } from '../../files/dto/safe-file-response.dto';
 
 export class AccountabilityUserSummaryDto {
   id!: string;
@@ -23,6 +23,10 @@ export class AccountabilityFundingResponseDto {
 
 export class AccountabilityExpenseResponseDto {
   id!: string;
+  oneTimeOrderId!: string | null;
+  oneTimeOrderCompletionId!: string | null;
+  expenseCategory!: string | null;
+  expenseDate!: string | null;
   amount!: number;
   description!: string;
   status!: string;
@@ -36,7 +40,7 @@ export class AccountabilityExpenseResponseDto {
   createdBy!: AccountabilityUserSummaryDto;
   approvedBy!: AccountabilityUserSummaryDto | null;
   rejectedBy!: AccountabilityUserSummaryDto | null;
-  attachments!: FileResponseDto[];
+  attachments!: SafeFileResponseDto[];
   capabilities!: {
     canEdit: boolean;
     canSubmit: boolean;
@@ -101,4 +105,26 @@ export class AccountabilityAccountListItemDto {
   accountId!: string;
   status!: string;
   summary!: AccountabilityAccountSummaryDto;
+}
+
+export class OneTimeOrderAccountabilityAccountDto {
+  accountId!: string;
+  accountStatus!: string;
+  user!: AccountabilityUserSummaryDto;
+  summary!: AccountabilityAccountSummaryDto;
+  fundings!: AccountabilityFundingResponseDto[];
+  expenses!: AccountabilityExpenseResponseDto[];
+}
+
+export class OneTimeOrderAccountabilityViewDto {
+  order!: {
+    id: string;
+    title: string;
+  };
+  visibilityScope!: 'own' | 'administrative';
+  capabilities!: {
+    canCreateExpense: boolean;
+    canReviewExpenses: boolean;
+  };
+  accounts!: OneTimeOrderAccountabilityAccountDto[];
 }

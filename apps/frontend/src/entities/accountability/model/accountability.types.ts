@@ -12,11 +12,21 @@ export interface AccountabilityFundingEntry {
   amount: number;
   comment: string | null;
   issuedAt: string;
+  fundingType: string;
+  entryDirection: string;
+  oneTimeOrderPaymentId: string | null;
+  oneTimeOrderId: string | null;
+  oneTimeOrderCompletionId: string | null;
   issuedBy: AccountabilityUserSummary;
+  recordedBy: AccountabilityUserSummary | null;
 }
 
 export interface AccountabilityExpenseItem {
   id: string;
+  oneTimeOrderId: string | null;
+  oneTimeOrderCompletionId: string | null;
+  expenseCategory: string | null;
+  expenseDate: string | null;
   amount: number;
   description: string;
   status: string;
@@ -57,11 +67,14 @@ export interface AccountabilityClosureItem {
 
 export interface AccountabilitySummary {
   totalFunding: number;
+  totalCredits: number;
+  totalDebits: number;
   totalRecordedExpenses: number;
   totalApprovedExpenses: number;
   totalRejectedExpenses: number;
   totalReconciledExpenses: number;
   currentBalance: number;
+  forecastBalance: number;
   submittedExpensesCount: number;
   draftExpensesCount: number;
 }
@@ -102,4 +115,34 @@ export interface CreateAccountabilityFundingPayload {
 export interface SaveAccountabilityExpensePayload {
   amount: number;
   description: string;
+  oneTimeOrderId?: string;
+  expenseCategory?: AccountabilityExpenseCategory;
+  expenseDate?: string;
+}
+
+export type AccountabilityExpenseCategory =
+  | 'consumables'
+  | 'delivery'
+  | 'transport'
+  | 'services'
+  | 'other';
+
+export interface OneTimeOrderAccountabilityView {
+  order: {
+    id: string;
+    title: string;
+  };
+  visibilityScope: 'own' | 'administrative';
+  capabilities: {
+    canCreateExpense: boolean;
+    canReviewExpenses: boolean;
+  };
+  accounts: Array<{
+    accountId: string;
+    accountStatus: string;
+    user: AccountabilityUserSummary;
+    summary: AccountabilitySummary;
+    fundings: AccountabilityFundingEntry[];
+    expenses: AccountabilityExpenseItem[];
+  }>;
 }
