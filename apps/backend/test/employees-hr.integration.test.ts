@@ -52,6 +52,7 @@ test('hr can create employee card and manage shared employee domain actions', as
 
   const createdEmployee = (await createResponse.json()) as {
     id: string;
+    version: number;
     capabilities: {
       canEdit: boolean;
       canManageAssignments: boolean;
@@ -72,6 +73,7 @@ test('hr can create employee card and manage shared employee domain actions', as
       },
       body: JSON.stringify({
         employmentStatus: 'inactive',
+        expectedVersion: createdEmployee.version,
       }),
     },
   );
@@ -80,6 +82,7 @@ test('hr can create employee card and manage shared employee domain actions', as
 
   const inactiveEmployee = (await statusResponse.json()) as {
     employmentStatus: string;
+    version: number;
   };
 
   assert.equal(inactiveEmployee.employmentStatus, 'inactive');
@@ -94,6 +97,7 @@ test('hr can create employee card and manage shared employee domain actions', as
       },
       body: JSON.stringify({
         employmentStatus: 'active',
+        expectedVersion: inactiveEmployee.version,
       }),
     },
   );

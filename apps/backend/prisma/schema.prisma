@@ -445,11 +445,14 @@ model Employee {
   id                 String   @id @default(uuid())
   fullName           String
   phone              String?
+  position           String?
+  birthDate          DateTime? @db.Date
   residenceAddress   String?
   shiftPreferences   String?
   baseDailyRate      Int?
   notes              String?
   employmentStatus   String
+  version            Int      @default(1)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   deletedAt          DateTime?
@@ -463,7 +466,12 @@ model Employee {
   timesheetRows      TimesheetEmployeeRow[]
   timesheetManualExceptions TimesheetManualException[]
 
+  @@index([fullName])
+  @@index([phone])
+  @@index([position])
   @@index([employmentStatus])
+  @@index([birthDate])
+  @@index([deletedAt])
   @@map("employees")
 }
 

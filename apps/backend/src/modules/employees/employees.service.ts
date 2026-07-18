@@ -1,10 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { canViewObjectByScope } from '../objects/utils/object-access.util';
 
@@ -14,9 +17,13 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { CreateEmployeeSubstitutionDto } from './dto/create-employee-substitution.dto';
 import { AssignEmployeeToObjectDto } from './dto/assign-employee-to-object.dto';
 import { ChangeEmployeeStatusDto } from './dto/change-employee-status.dto';
-import { EmployeeListItemDto } from './dto/employee-list-item.dto';
+import {
+  EmployeeListItemDto,
+  EmployeeListResponseDto,
+} from './dto/employee-list-item.dto';
 import { EmployeeObjectOptionDto } from './dto/employee-object-option.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
+import { EmployeeVersionDto } from './dto/employee-version.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import {
@@ -41,56 +48,109 @@ interface CurrentAuthUser {
 export class EmployeesService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
     private readonly assignmentHistoryService: EmployeeAssignmentHistoryService,
   ) {}
 
   async listEmployees(
     currentUser: CurrentAuthUser,
     query: ListEmployeesQueryDto,
-  ): Promise<EmployeeListItemDto[]> {
+  ): Promise<EmployeeListResponseDto> {
     this.assertViewAccess(currentUser);
 
-    const items = await this.prisma.employee.findMany({
-      where: {
-        deletedAt: null,
-        ...(query.employmentStatus
-          ? { employmentStatus: query.employmentStatus }
-          : {}),
-        ...(query.search?.trim()
-          ? {
-              fullName: {
-                contains: query.search.trim(),
-                mode: 'insensitive',
-              },
-            }
-          : {}),
-      },
-      include: {
-        objectAssignments: {
-          where: {
-            isActive: true,
-            object: {
-              deletedAt: null,
+    const page = query.page;
+    const limit = query.limit;
+    const offset = (page - 1) * limit;
+    const conditions = this.buildEmployeeListConditions(query);
+    const whereSql = conditions.length
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+      : Prisma.empty;
+    const sortColumn = this.getEmployeeSortColumn(query.sortBy);
+    const sortOrder = query.sortOrder === 'desc' ? Prisma.sql`DESC` : Prisma.sql`ASC`;
+
+    const { items, total } = await this.prisma.$transaction(async (tx) => {
+      const [idRows, countRows] = await Promise.all([
+        tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+          SELECT employee."id"
+          FROM "employees" employee
+          ${whereSql}
+          ORDER BY ${sortColumn} ${sortOrder} NULLS LAST, employee."id" ASC
+          LIMIT ${limit}
+          OFFSET ${offset}
+        `),
+        tx.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+          SELECT COUNT(*)::integer AS "total"
+          FROM "employees" employee
+          ${whereSql}
+        `),
+      ]);
+
+      const ids = idRows.map((row) => row.id);
+      const employees = ids.length
+        ? await tx.employee.findMany({
+            where: {
+              id: { in: ids },
             },
-          },
-          select: {
-            id: true,
-          },
-        },
-      },
-      orderBy: {
-        fullName: 'asc',
-      },
+            include: {
+              objectAssignments: {
+                where: {
+                  isActive: true,
+                  object: {
+                    deletedAt: null,
+                  },
+                },
+                select: {
+                  object: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+                orderBy: {
+                  object: {
+                    name: 'asc',
+                  },
+                },
+              },
+            },
+          })
+        : [];
+      const employeeById = new Map(employees.map((employee) => [employee.id, employee]));
+
+      return {
+        items: ids
+          .map((id) => employeeById.get(id))
+          .filter((employee): employee is NonNullable<typeof employee> => Boolean(employee))
+          .map((employee): EmployeeListItemDto => ({
+            id: employee.id,
+            fullName: employee.fullName,
+            phone: employee.phone,
+            position: employee.position,
+            birthDate: this.formatDateOnly(employee.birthDate),
+            employmentStatus: employee.employmentStatus,
+            baseDailyRate: employee.baseDailyRate,
+            version: employee.version,
+            isArchived: employee.deletedAt !== null,
+            deletedAt: employee.deletedAt?.toISOString() ?? null,
+            updatedAt: employee.updatedAt.toISOString(),
+            currentObjects: employee.objectAssignments.map((assignment) => ({
+              id: assignment.object.id,
+              name: assignment.object.name,
+            })),
+            currentObjectCount: employee.objectAssignments.length,
+          })),
+        total: countRows[0]?.total ?? 0,
+      };
     });
 
-    return items.map((item) => ({
-      id: item.id,
-      fullName: item.fullName,
-      phone: item.phone ?? null,
-      employmentStatus: item.employmentStatus,
-      baseDailyRate: item.baseDailyRate ?? null,
-      currentObjectCount: item.objectAssignments.length,
-    }));
+    return {
+      items,
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
   }
 
   async listObjectCandidates(
@@ -121,10 +181,9 @@ export class EmployeesService {
   ): Promise<EmployeeResponseDto> {
     this.assertViewAccess(currentUser);
 
-    const employee = await this.prisma.employee.findFirst({
+    const employee = await this.prisma.employee.findUnique({
       where: {
         id: employeeId,
-        deletedAt: null,
       },
       include: this.getEmployeeDetailInclude(),
     });
@@ -141,23 +200,38 @@ export class EmployeesService {
     payload: CreateEmployeeDto,
   ): Promise<EmployeeResponseDto> {
     this.assertManageAccess(currentUser);
+    const birthDate = this.parseBirthDate(payload.birthDate);
 
-    const employee = await this.prisma.employee.create({
-      data: {
-        fullName: payload.fullName.trim(),
-        phone: payload.phone?.trim() || null,
-        residenceAddress: payload.residenceAddress?.trim() || null,
-        shiftPreferences: payload.shiftPreferences?.trim() || null,
-        baseDailyRate: payload.baseDailyRate ?? null,
-        notes: payload.notes?.trim() || null,
-        employmentStatus: payload.employmentStatus ?? 'active',
-      },
-      select: {
-        id: true,
-      },
+    const employeeId = await this.prisma.$transaction(async (tx) => {
+      const employee = await tx.employee.create({
+        data: {
+          fullName: payload.fullName,
+          phone: payload.phone ?? null,
+          position: payload.position ?? null,
+          birthDate,
+          residenceAddress: payload.residenceAddress ?? null,
+          shiftPreferences: payload.shiftPreferences ?? null,
+          baseDailyRate: payload.baseDailyRate ?? null,
+          notes: payload.notes ?? null,
+          employmentStatus: payload.employmentStatus ?? 'active',
+        },
+      });
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'employee',
+          entityId: employee.id,
+          actorUserId: currentUser.id,
+          action: 'employee.created',
+          newValues: this.buildEmployeeAuditSnapshot(employee),
+        },
+        tx,
+      );
+
+      return employee.id;
     });
 
-    return this.getEmployeeById(currentUser, employee.id);
+    return this.getEmployeeById(currentUser, employeeId);
   }
 
   async updateEmployee(
@@ -166,32 +240,71 @@ export class EmployeesService {
     payload: UpdateEmployeeDto,
   ): Promise<EmployeeResponseDto> {
     this.assertManageAccess(currentUser);
-    await this.ensureEmployeeExists(employeeId);
+    const birthDate =
+      payload.birthDate === undefined
+        ? undefined
+        : this.parseBirthDate(payload.birthDate);
 
-    await this.prisma.employee.update({
-      where: {
-        id: employeeId,
-      },
-      data: {
-        ...(payload.fullName !== undefined
-          ? { fullName: payload.fullName.trim() }
-          : {}),
-        ...(payload.phone !== undefined
-          ? { phone: payload.phone.trim() || null }
-          : {}),
-        ...(payload.residenceAddress !== undefined
-          ? { residenceAddress: payload.residenceAddress.trim() || null }
-          : {}),
-        ...(payload.shiftPreferences !== undefined
-          ? { shiftPreferences: payload.shiftPreferences.trim() || null }
-          : {}),
-        ...(payload.baseDailyRate !== undefined
-          ? { baseDailyRate: payload.baseDailyRate }
-          : {}),
-        ...(payload.notes !== undefined
-          ? { notes: payload.notes.trim() || null }
-          : {}),
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.employee.findUnique({
+        where: { id: employeeId },
+      });
+
+      if (!existing || existing.deletedAt) {
+        throw new NotFoundException('Employee not found');
+      }
+
+      if (existing.version !== payload.expectedVersion) {
+        this.throwVersionConflict();
+      }
+
+      const result = await tx.employee.updateMany({
+        where: {
+          id: employeeId,
+          version: payload.expectedVersion,
+          deletedAt: null,
+        },
+        data: {
+          ...(payload.fullName !== undefined ? { fullName: payload.fullName } : {}),
+          ...(payload.phone !== undefined ? { phone: payload.phone } : {}),
+          ...(payload.position !== undefined ? { position: payload.position } : {}),
+          ...(birthDate !== undefined ? { birthDate } : {}),
+          ...(payload.residenceAddress !== undefined
+            ? { residenceAddress: payload.residenceAddress }
+            : {}),
+          ...(payload.shiftPreferences !== undefined
+            ? { shiftPreferences: payload.shiftPreferences }
+            : {}),
+          ...(payload.baseDailyRate !== undefined
+            ? { baseDailyRate: payload.baseDailyRate }
+            : {}),
+          ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+          ...(payload.employmentStatus !== undefined
+            ? { employmentStatus: payload.employmentStatus }
+            : {}),
+          version: { increment: 1 },
+        },
+      });
+
+      if (result.count !== 1) {
+        this.throwVersionConflict();
+      }
+
+      const updated = await tx.employee.findUniqueOrThrow({
+        where: { id: employeeId },
+      });
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'employee',
+          entityId: employeeId,
+          actorUserId: currentUser.id,
+          action: 'employee.updated',
+          oldValues: this.buildEmployeeAuditSnapshot(existing),
+          newValues: this.buildEmployeeAuditSnapshot(updated),
+        },
+        tx,
+      );
     });
 
     return this.getEmployeeById(currentUser, employeeId);
@@ -202,16 +315,159 @@ export class EmployeesService {
     employeeId: string,
     payload: ChangeEmployeeStatusDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
-    await this.ensureEmployeeExists(employeeId);
+    return this.updateEmployee(currentUser, employeeId, payload);
+  }
 
-    await this.prisma.employee.update({
-      where: {
-        id: employeeId,
-      },
-      data: {
-        employmentStatus: payload.employmentStatus,
-      },
+  async archiveEmployee(
+    currentUser: CurrentAuthUser,
+    employeeId: string,
+    payload: EmployeeVersionDto,
+  ): Promise<EmployeeResponseDto> {
+    this.assertManageAccess(currentUser);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "employees"
+        WHERE "id" = ${employeeId}
+        FOR UPDATE
+      `;
+
+      const existing = await tx.employee.findUnique({
+        where: { id: employeeId },
+      });
+
+      if (!existing) {
+        throw new NotFoundException('Employee not found');
+      }
+
+      if (existing.version !== payload.expectedVersion) {
+        this.throwVersionConflict();
+      }
+
+      if (existing.deletedAt) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_ALREADY_ARCHIVED',
+          message: 'Employee is already archived',
+        });
+      }
+
+      const activeAssignmentCount = await tx.objectEmployeeAssignment.count({
+        where: {
+          employeeId,
+          isActive: true,
+        },
+      });
+
+      if (activeAssignmentCount > 0) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_HAS_ACTIVE_OBJECT_ASSIGNMENTS',
+          message: 'Employee has active object assignments',
+        });
+      }
+
+      const archivedAt = new Date();
+      const result = await tx.employee.updateMany({
+        where: {
+          id: employeeId,
+          version: payload.expectedVersion,
+          deletedAt: null,
+        },
+        data: {
+          deletedAt: archivedAt,
+          version: { increment: 1 },
+        },
+      });
+
+      if (result.count !== 1) {
+        this.throwVersionConflict();
+      }
+
+      const archived = await tx.employee.findUniqueOrThrow({
+        where: { id: employeeId },
+      });
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'employee',
+          entityId: employeeId,
+          actorUserId: currentUser.id,
+          action: 'employee.archived',
+          oldValues: this.buildEmployeeAuditSnapshot(existing),
+          newValues: this.buildEmployeeAuditSnapshot(archived),
+        },
+        tx,
+      );
+    });
+
+    return this.getEmployeeById(currentUser, employeeId);
+  }
+
+  async restoreEmployee(
+    currentUser: CurrentAuthUser,
+    employeeId: string,
+    payload: EmployeeVersionDto,
+  ): Promise<EmployeeResponseDto> {
+    this.assertManageAccess(currentUser);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "employees"
+        WHERE "id" = ${employeeId}
+        FOR UPDATE
+      `;
+
+      const existing = await tx.employee.findUnique({
+        where: { id: employeeId },
+      });
+
+      if (!existing) {
+        throw new NotFoundException('Employee not found');
+      }
+
+      if (existing.version !== payload.expectedVersion) {
+        this.throwVersionConflict();
+      }
+
+      if (!existing.deletedAt) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_NOT_ARCHIVED',
+          message: 'Employee is not archived',
+        });
+      }
+
+      const result = await tx.employee.updateMany({
+        where: {
+          id: employeeId,
+          version: payload.expectedVersion,
+          deletedAt: { not: null },
+        },
+        data: {
+          deletedAt: null,
+          version: { increment: 1 },
+        },
+      });
+
+      if (result.count !== 1) {
+        this.throwVersionConflict();
+      }
+
+      const restored = await tx.employee.findUniqueOrThrow({
+        where: { id: employeeId },
+      });
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'employee',
+          entityId: employeeId,
+          actorUserId: currentUser.id,
+          action: 'employee.restored',
+          oldValues: this.buildEmployeeAuditSnapshot(existing),
+          newValues: this.buildEmployeeAuditSnapshot(restored),
+        },
+        tx,
+      );
     });
 
     return this.getEmployeeById(currentUser, employeeId);
@@ -408,6 +664,93 @@ export class EmployeesService {
     return this.getEmployeeById(currentUser, employeeId);
   }
 
+  private buildEmployeeListConditions(query: ListEmployeesQueryDto): Prisma.Sql[] {
+    const conditions: Prisma.Sql[] = [];
+
+    if (query.archiveState === 'active') {
+      conditions.push(Prisma.sql`employee."deletedAt" IS NULL`);
+    } else if (query.archiveState === 'archived') {
+      conditions.push(Prisma.sql`employee."deletedAt" IS NOT NULL`);
+    }
+
+    if (query.search) {
+      const pattern = `%${query.search}%`;
+      conditions.push(
+        Prisma.sql`(
+          employee."fullName" ILIKE ${pattern}
+          OR COALESCE(employee."phone", '') ILIKE ${pattern}
+        )`,
+      );
+    }
+
+    if (query.objectId) {
+      conditions.push(Prisma.sql`EXISTS (
+        SELECT 1
+        FROM "object_employee_assignments" assignment
+        INNER JOIN "objects" object ON object."id" = assignment."objectId"
+        WHERE assignment."employeeId" = employee."id"
+          AND assignment."objectId" = ${query.objectId}
+          AND assignment."isActive" = true
+          AND object."deletedAt" IS NULL
+      )`);
+    }
+
+    if (query.position) {
+      conditions.push(Prisma.sql`employee."position" ILIKE ${query.position}`);
+    }
+
+    if (query.employmentStatus) {
+      conditions.push(
+        Prisma.sql`employee."employmentStatus" = ${query.employmentStatus}`,
+      );
+    }
+
+    if (query.birthMonth) {
+      conditions.push(
+        Prisma.sql`EXTRACT(MONTH FROM employee."birthDate") = ${query.birthMonth}`,
+      );
+    }
+
+    if (query.hasActiveObjectAssignment !== undefined) {
+      const activeAssignmentExists = Prisma.sql`EXISTS (
+        SELECT 1
+        FROM "object_employee_assignments" active_assignment
+        INNER JOIN "objects" active_object
+          ON active_object."id" = active_assignment."objectId"
+        WHERE active_assignment."employeeId" = employee."id"
+          AND active_assignment."isActive" = true
+          AND active_object."deletedAt" IS NULL
+      )`;
+      conditions.push(
+        query.hasActiveObjectAssignment
+          ? activeAssignmentExists
+          : Prisma.sql`NOT (${activeAssignmentExists})`,
+      );
+    }
+
+    return conditions;
+  }
+
+  private getEmployeeSortColumn(
+    sortBy: ListEmployeesQueryDto['sortBy'],
+  ): Prisma.Sql {
+    switch (sortBy) {
+      case 'position':
+        return Prisma.sql`employee."position"`;
+      case 'employmentStatus':
+        return Prisma.sql`employee."employmentStatus"`;
+      case 'birthDate':
+        return Prisma.sql`employee."birthDate"`;
+      case 'createdAt':
+        return Prisma.sql`employee."createdAt"`;
+      case 'updatedAt':
+        return Prisma.sql`employee."updatedAt"`;
+      case 'fullName':
+      default:
+        return Prisma.sql`employee."fullName"`;
+    }
+  }
+
   private assertViewAccess(currentUser: CurrentAuthUser): void {
     if (!canViewEmployeesHr(this.getRoleCodes(currentUser))) {
       throw new ForbiddenException('Employees registry access denied');
@@ -445,6 +788,74 @@ export class EmployeesService {
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private parseBirthDate(value: string | null | undefined): Date | null {
+    if (!value) {
+      return null;
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new BadRequestException('birthDate must use YYYY-MM-DD format');
+    }
+
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+      throw new BadRequestException('birthDate must be a valid calendar date');
+    }
+
+    const today = new Date();
+    const todayDateOnly = Date.UTC(
+      today.getUTCFullYear(),
+      today.getUTCMonth(),
+      today.getUTCDate(),
+    );
+
+    if (parsed.getTime() > todayDateOnly) {
+      throw new BadRequestException('birthDate cannot be in the future');
+    }
+
+    return parsed;
+  }
+
+  private formatDateOnly(value: Date | null): string | null {
+    return value?.toISOString().slice(0, 10) ?? null;
+  }
+
+  private throwVersionConflict(): never {
+    throw new ConflictException({
+      code: 'EMPLOYEE_VERSION_CONFLICT',
+      message: 'Employee was changed by another user',
+    });
+  }
+
+  private buildEmployeeAuditSnapshot(employee: {
+    fullName: string;
+    phone: string | null;
+    position: string | null;
+    birthDate: Date | null;
+    residenceAddress: string | null;
+    shiftPreferences: string | null;
+    baseDailyRate: number | null;
+    notes: string | null;
+    employmentStatus: string;
+    version: number;
+    deletedAt: Date | null;
+  }): Prisma.InputJsonValue {
+    return {
+      fullName: employee.fullName,
+      phone: employee.phone,
+      position: employee.position,
+      birthDate: this.formatDateOnly(employee.birthDate),
+      residenceAddress: employee.residenceAddress,
+      shiftPreferences: employee.shiftPreferences,
+      baseDailyRate: employee.baseDailyRate,
+      notes: employee.notes,
+      employmentStatus: employee.employmentStatus,
+      version: employee.version,
+      deletedAt: employee.deletedAt?.toISOString() ?? null,
+    };
   }
 
   private getEmployeeDetailInclude() {
@@ -581,13 +992,17 @@ export class EmployeesService {
       id: string;
       fullName: string;
       phone: string | null;
+      position: string | null;
+      birthDate: Date | null;
       residenceAddress: string | null;
       shiftPreferences: string | null;
       baseDailyRate: number | null;
       notes: string | null;
       employmentStatus: string;
+      version: number;
       createdAt: Date;
       updatedAt: Date;
+      deletedAt: Date | null;
       objectAssignments: Array<{
         isActive: boolean;
         startDate: Date | null;
@@ -653,11 +1068,16 @@ export class EmployeesService {
       id: employee.id,
       fullName: employee.fullName,
       phone: employee.phone,
+      position: employee.position,
+      birthDate: this.formatDateOnly(employee.birthDate),
       residenceAddress: employee.residenceAddress,
       shiftPreferences: employee.shiftPreferences,
       baseDailyRate: employee.baseDailyRate,
       notes: employee.notes,
       employmentStatus: employee.employmentStatus,
+      version: employee.version,
+      isArchived: employee.deletedAt !== null,
+      deletedAt: employee.deletedAt?.toISOString() ?? null,
       createdAt: employee.createdAt.toISOString(),
       updatedAt: employee.updatedAt.toISOString(),
       currentObjectAssignments: employee.objectAssignments
@@ -714,11 +1134,13 @@ export class EmployeesService {
         })),
       ].sort((left, right) => (left.startDate < right.startDate ? 1 : -1)),
       capabilities: {
-        canEdit: canManage,
-        canManageStatus: canManage,
-        canManageAvailability: canManage,
-        canManageSubstitutions: canManage,
-        canManageAssignments: canManage,
+        canEdit: canManage && employee.deletedAt === null,
+        canArchive: canManage && employee.deletedAt === null,
+        canRestore: canManage && employee.deletedAt !== null,
+        canManageStatus: canManage && employee.deletedAt === null,
+        canManageAvailability: canManage && employee.deletedAt === null,
+        canManageSubstitutions: canManage && employee.deletedAt === null,
+        canManageAssignments: canManage && employee.deletedAt === null,
       },
     };
   }

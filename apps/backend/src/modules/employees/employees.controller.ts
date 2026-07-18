@@ -18,9 +18,10 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { CreateEmployeeSubstitutionDto } from './dto/create-employee-substitution.dto';
 import { AssignEmployeeToObjectDto } from './dto/assign-employee-to-object.dto';
 import { ChangeEmployeeStatusDto } from './dto/change-employee-status.dto';
-import { EmployeeListItemDto } from './dto/employee-list-item.dto';
+import { EmployeeListResponseDto } from './dto/employee-list-item.dto';
 import { EmployeeObjectOptionDto } from './dto/employee-object-option.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
+import { EmployeeVersionDto } from './dto/employee-version.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeesService } from './employees.service';
@@ -43,7 +44,7 @@ export class EmployeesController {
   listEmployees(
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListEmployeesQueryDto,
-  ): Promise<EmployeeListItemDto[]> {
+  ): Promise<EmployeeListResponseDto> {
     return this.employeesService.listEmployees(user, query);
   }
 
@@ -86,6 +87,24 @@ export class EmployeesController {
     @Body() payload: ChangeEmployeeStatusDto,
   ): Promise<EmployeeResponseDto> {
     return this.employeesService.changeEmploymentStatus(user, employeeId, payload);
+  }
+
+  @Post(':id/archive')
+  archiveEmployee(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') employeeId: string,
+    @Body() payload: EmployeeVersionDto,
+  ): Promise<EmployeeResponseDto> {
+    return this.employeesService.archiveEmployee(user, employeeId, payload);
+  }
+
+  @Post(':id/restore')
+  restoreEmployee(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') employeeId: string,
+    @Body() payload: EmployeeVersionDto,
+  ): Promise<EmployeeResponseDto> {
+    return this.employeesService.restoreEmployee(user, employeeId, payload);
   }
 
   @Post(':id/availability')

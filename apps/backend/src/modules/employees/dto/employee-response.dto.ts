@@ -2,11 +2,16 @@ export class EmployeeResponseDto {
   id!: string;
   fullName!: string;
   phone!: string | null;
+  position!: string | null;
+  birthDate!: string | null;
   residenceAddress!: string | null;
   shiftPreferences!: string | null;
   baseDailyRate!: number | null;
   notes!: string | null;
   employmentStatus!: string;
+  version!: number;
+  isArchived!: boolean;
+  deletedAt!: string | null;
   createdAt!: string;
   updatedAt!: string;
   currentObjectAssignments!: Array<{
@@ -47,6 +52,8 @@ export class EmployeeResponseDto {
   }>;
   capabilities!: {
     canEdit: boolean;
+    canArchive: boolean;
+    canRestore: boolean;
     canManageStatus: boolean;
     canManageAvailability: boolean;
     canManageSubstitutions: boolean;
