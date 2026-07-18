@@ -67,6 +67,12 @@ test('one-time order receipts update accountability atomically and use ledger di
     await prisma.accountabilityFunding.deleteMany({
       where: { accountabilityAccount: { userId: { in: createdUserIds } } },
     });
+    await prisma.oneTimeOrderCompletionPayment.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
+    await prisma.oneTimeOrderCompletion.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
     await prisma.oneTimeOrder.deleteMany({
       where: { id: { in: createdOrderIds } },
     });

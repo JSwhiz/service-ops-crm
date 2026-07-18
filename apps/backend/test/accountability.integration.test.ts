@@ -113,6 +113,15 @@ async function cleanupAccountabilityForUser(
     });
   }
 
+  await prisma.accountabilityExpense.deleteMany({
+    where: { accountabilityAccountId: account.id },
+  });
+  await prisma.accountabilityClosure.deleteMany({
+    where: { accountabilityAccountId: account.id },
+  });
+  await prisma.accountabilityFunding.deleteMany({
+    where: { accountabilityAccountId: account.id },
+  });
   await prisma.accountabilityAccount.delete({
     where: {
       id: account.id,

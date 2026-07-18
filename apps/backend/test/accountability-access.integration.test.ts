@@ -128,6 +128,15 @@ test('own accountability access follows manager assignment and receipt eligibili
         ],
       },
     });
+    await prisma.accountabilityExpense.deleteMany({
+      where: { accountabilityAccountId: { in: accounts.map((account) => account.id) } },
+    });
+    await prisma.accountabilityClosure.deleteMany({
+      where: { accountabilityAccountId: { in: accounts.map((account) => account.id) } },
+    });
+    await prisma.accountabilityFunding.deleteMany({
+      where: { accountabilityAccountId: { in: accounts.map((account) => account.id) } },
+    });
     await prisma.accountabilityAccount.deleteMany({
       where: { userId: { in: createdUserIds } },
     });

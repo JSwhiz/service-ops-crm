@@ -77,6 +77,12 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
     await prisma.accountabilityFunding.deleteMany({
       where: { accountabilityAccount: { userId: { in: createdUserIds } } },
     });
+    await prisma.oneTimeOrderCompletionPayment.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
+    await prisma.oneTimeOrderCompletion.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
     await prisma.oneTimeOrder.deleteMany({
       where: { id: { in: createdOrderIds } },
     });

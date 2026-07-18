@@ -703,7 +703,7 @@ model OneTimeOrderCompletion {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
   completedBy  User @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
   payments     OneTimeOrderCompletionPayment[]
   accountabilityFundings AccountabilityFunding[]
@@ -737,8 +737,8 @@ model OneTimeOrderCompletionPayment {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  completion       OneTimeOrderCompletion @relation(fields: [completionId], references: [id], onDelete: Cascade)
-  oneTimeOrder     OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+  completion       OneTimeOrderCompletion @relation(fields: [completionId], references: [id], onDelete: Restrict)
+  oneTimeOrder     OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
   recipient        User? @relation("OneTimeOrderCompletionPaymentRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
   recordedBy       User @relation("OneTimeOrderCompletionPaymentRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
   reversalOfPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentReversalSource", fields: [reversalOfPaymentId], references: [id], onDelete: Restrict)
@@ -1173,7 +1173,7 @@ model AccountabilityAccount {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  user      User                    @relation("UserAccountabilityAccount", fields: [userId], references: [id], onDelete: Cascade)
+  user      User                    @relation("UserAccountabilityAccount", fields: [userId], references: [id], onDelete: Restrict)
   fundings  AccountabilityFunding[]
   expenses  AccountabilityExpense[]
   closures  AccountabilityClosure[]
@@ -1198,12 +1198,12 @@ model AccountabilityFunding {
   reversalOfFundingId     String?  @unique
   reversedByFundingId     String?  @unique
 
-  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Cascade)
+  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
   issuedBy             User                 @relation("AccountabilityFundingIssuedBy", fields: [issuedByUserId], references: [id], onDelete: Restrict)
-  recordedBy           User?                @relation("AccountabilityFundingRecordedBy", fields: [recordedByUserId], references: [id], onDelete: SetNull)
-  oneTimeOrderPayment  OneTimeOrderCompletionPayment? @relation(fields: [oneTimeOrderPaymentId], references: [id], onDelete: SetNull)
-  oneTimeOrder         OneTimeOrder? @relation(fields: [oneTimeOrderId], references: [id], onDelete: SetNull)
-  oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: SetNull)
+  recordedBy           User?                @relation("AccountabilityFundingRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  oneTimeOrderPayment  OneTimeOrderCompletionPayment? @relation(fields: [oneTimeOrderPaymentId], references: [id], onDelete: Restrict)
+  oneTimeOrder         OneTimeOrder? @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
+  oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: Restrict)
   reversalOfFunding    AccountabilityFunding? @relation("AccountabilityFundingReversalSource", fields: [reversalOfFundingId], references: [id], onDelete: Restrict)
   reversalFundings     AccountabilityFunding[] @relation("AccountabilityFundingReversalSource")
   reversedByFunding    AccountabilityFunding? @relation("AccountabilityFundingReversedBy", fields: [reversedByFundingId], references: [id], onDelete: Restrict)
@@ -1240,12 +1240,12 @@ model AccountabilityExpense {
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
-  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Cascade)
-  oneTimeOrder          OneTimeOrder?          @relation(fields: [oneTimeOrderId], references: [id], onDelete: SetNull)
-  oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: SetNull)
+  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
+  oneTimeOrder          OneTimeOrder?          @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
+  oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: Restrict)
   createdBy             User                 @relation("AccountabilityExpenseCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  approvedBy            User?                @relation("AccountabilityExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  rejectedBy            User?                @relation("AccountabilityExpenseRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+  approvedBy            User?                @relation("AccountabilityExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  rejectedBy            User?                @relation("AccountabilityExpenseRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
 
   @@index([accountabilityAccountId, createdAt])
   @@index([accountabilityAccountId, status])
@@ -1273,10 +1273,10 @@ model AccountabilityClosure {
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 
-  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Cascade)
+  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
   requestedBy          User                 @relation("AccountabilityClosureRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  approvedBy           User?                @relation("AccountabilityClosureApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  rejectedBy           User?                @relation("AccountabilityClosureRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+  approvedBy           User?                @relation("AccountabilityClosureApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  rejectedBy           User?                @relation("AccountabilityClosureRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
 
   @@index([accountabilityAccountId, requestedAt])
   @@index([status])

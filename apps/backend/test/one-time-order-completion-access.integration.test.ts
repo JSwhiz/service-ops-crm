@@ -70,6 +70,12 @@ test('completion payments expose only permitted financial details', async (t) =>
       await prisma.accountabilityFunding.deleteMany({
         where: { oneTimeOrderId: orderId },
       });
+      await prisma.oneTimeOrderCompletionPayment.deleteMany({
+        where: { oneTimeOrderId: orderId },
+      });
+      await prisma.oneTimeOrderCompletion.deleteMany({
+        where: { oneTimeOrderId: orderId },
+      });
       await prisma.oneTimeOrder.delete({ where: { id: orderId } });
     }
     await prisma.accountabilityAccount.deleteMany({

@@ -62,8 +62,27 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
     await prisma.accountabilityExpense.deleteMany({
       where: { accountabilityAccount: { userId: manager.id } },
     });
+    await prisma.accountabilityFunding.updateMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+      data: { reversalOfFundingId: null, reversedByFundingId: null },
+    });
     await prisma.accountabilityFunding.deleteMany({
       where: { accountabilityAccount: { userId: manager.id } },
+    });
+    await prisma.oneTimeOrderCompletionPayment.updateMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+      data: {
+        reversalOfPaymentId: null,
+        reversedByPaymentId: null,
+        correctedFromPaymentId: null,
+        correctedByPaymentId: null,
+      },
+    });
+    await prisma.oneTimeOrderCompletionPayment.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
+    await prisma.oneTimeOrderCompletion.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
     });
     await prisma.oneTimeOrder.deleteMany({
       where: { id: { in: createdOrderIds } },

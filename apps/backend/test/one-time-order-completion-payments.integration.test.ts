@@ -85,6 +85,12 @@ test('one-time order completion validates and stores actual payment rows', async
     await prisma.accountabilityFunding.deleteMany({
       where: { accountabilityAccount: { userId: { in: createdUserIds } } },
     });
+    await prisma.oneTimeOrderCompletionPayment.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
+    await prisma.oneTimeOrderCompletion.deleteMany({
+      where: { oneTimeOrderId: { in: createdOrderIds } },
+    });
     await prisma.oneTimeOrder.deleteMany({
       where: { id: { in: createdOrderIds } },
     });

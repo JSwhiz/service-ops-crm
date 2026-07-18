@@ -60,6 +60,15 @@ test('accountability transitions are atomic and concurrency safe', async (t) => 
       await prisma.auditEvent.deleteMany({
         where: { entityId: { in: entityIds } },
       });
+      await prisma.accountabilityExpense.deleteMany({
+        where: { accountabilityAccountId: account.id },
+      });
+      await prisma.accountabilityClosure.deleteMany({
+        where: { accountabilityAccountId: account.id },
+      });
+      await prisma.accountabilityFunding.deleteMany({
+        where: { accountabilityAccountId: account.id },
+      });
       await prisma.accountabilityAccount.delete({ where: { id: account.id } });
     }
     await prisma.userRole.deleteMany({ where: { userId: manager.id } });
