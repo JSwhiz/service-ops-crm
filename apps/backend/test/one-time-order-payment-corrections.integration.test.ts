@@ -7,6 +7,7 @@ import { OneTimeOrdersService } from '../src/modules/one-time-orders/one-time-or
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 interface CompletionResponse {
   id: string;
@@ -54,6 +55,11 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
   const createdManagerIds = [manager.id, secondaryManager.id];
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     const fundingIds = (
       await prisma.accountabilityFunding.findMany({
         where: {

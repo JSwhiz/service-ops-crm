@@ -5,11 +5,14 @@ import { PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 async function cleanupAccountabilityForUser(
   prisma: PrismaClient,
   userId: string,
 ): Promise<void> {
+  if (usesIsolatedIntegrationDatabase()) return;
+
   const account = await prisma.accountabilityAccount.findUnique({
     where: {
       userId,
@@ -145,6 +148,11 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   await cleanupAccountabilityForUser(prisma, manager.id);
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     await cleanupAccountabilityForUser(prisma, manager.id);
     await app.close();
     await prisma.$disconnect();

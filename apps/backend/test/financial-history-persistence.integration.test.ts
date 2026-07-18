@@ -5,6 +5,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 test('financial history rejects destructive deletes and direct mutations', async (t) => {
   const prisma = new PrismaClient();
@@ -28,6 +29,11 @@ test('financial history rejects destructive deletes and direct mutations', async
   let orderId: string | null = null;
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     if (orderId) {
       const completionIds = (
         await prisma.oneTimeOrderCompletion.findMany({
@@ -191,16 +197,75 @@ test('financial history rejects destructive deletes and direct mutations', async
     }),
   );
   await expectDatabaseRejection(() =>
+    prisma.oneTimeOrderCompletionPayment.update({
+      where: { id: paymentId },
+      data: { comment: 'Direct mutation is forbidden' },
+    }),
+  );
+  await expectDatabaseRejection(() =>
+    prisma.oneTimeOrderCompletionPayment.delete({ where: { id: paymentId } }),
+  );
+  await expectDatabaseRejection(() =>
     prisma.accountabilityFunding.update({
       where: { id: funding.id },
       data: { amount: 999 },
     }),
   );
   await expectDatabaseRejection(() =>
+    prisma.accountabilityFunding.update({
+      where: { id: funding.id },
+      data: { comment: 'Direct mutation is forbidden' },
+    }),
+  );
+  await expectDatabaseRejection(() =>
+    prisma.accountabilityFunding.delete({ where: { id: funding.id } }),
+  );
+  await expectDatabaseRejection(() =>
     prisma.accountabilityExpense.update({
       where: { id: expenseId },
       data: { amount: 999 },
     }),
+  );
+  await expectDatabaseRejection(() =>
+    prisma.accountabilityExpense.update({
+      where: { id: expenseId },
+      data: { description: 'Direct mutation is forbidden' },
+    }),
+  );
+  await expectDatabaseRejection(() =>
+    prisma.accountabilityExpense.update({
+      where: { id: expenseId },
+      data: { expenseCategory: 'other' },
+    }),
+  );
+  await expectDatabaseRejection(() =>
+    prisma.accountabilityExpense.update({
+      where: { id: expenseId },
+      data: { expenseDate: new Date('2045-01-01T00:00:00.000Z') },
+    }),
+  );
+  await expectDatabaseRejection(() =>
+    prisma.accountabilityExpense.update({
+      where: { id: expenseId },
+      data: { status: 'draft' },
+    }),
+  );
+  await expectDatabaseRejection(() =>
+    prisma.accountabilityExpense.delete({ where: { id: expenseId } }),
+  );
+
+  const draftExpense = await prisma.accountabilityExpense.create({
+    data: {
+      accountabilityAccountId: account.id,
+      amount: 1,
+      description: 'Удаляемый черновик',
+      createdByUserId: manager.id,
+    },
+  });
+  await prisma.accountabilityExpense.delete({ where: { id: draftExpense.id } });
+  assert.equal(
+    await prisma.accountabilityExpense.count({ where: { id: draftExpense.id } }),
+    0,
   );
 
   assert.equal(

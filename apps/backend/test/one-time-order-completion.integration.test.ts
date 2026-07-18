@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 interface OrderResponse {
   id: string;
@@ -46,6 +47,11 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
   });
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     await prisma.auditEvent.deleteMany({
       where: {
         entityType: 'one_time_order',

@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 test('one-time order expenses keep own scope safe files and ledger balances', async (t) => {
   const prisma = new PrismaClient();
@@ -34,6 +35,11 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
   createdUserIds.push(...managers.map((user) => user.id));
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     const expenses = await prisma.accountabilityExpense.findMany({
       where: { accountabilityAccount: { userId: { in: createdUserIds } } },
       select: { id: true },

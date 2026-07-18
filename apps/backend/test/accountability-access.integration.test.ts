@@ -7,6 +7,7 @@ import { hashPassword } from '../src/modules/auth/utils/password-hash.util';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 interface MePayload {
   capabilities: {
@@ -100,6 +101,11 @@ test('own accountability access follows manager assignment and receipt eligibili
   });
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     const accounts = await prisma.accountabilityAccount.findMany({
       where: { userId: { in: createdUserIds } },
       select: {

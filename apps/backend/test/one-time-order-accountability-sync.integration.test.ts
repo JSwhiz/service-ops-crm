@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 test('one-time order receipts update accountability atomically and use ledger directions', async (t) => {
   const prisma = new PrismaClient();
@@ -39,6 +40,11 @@ test('one-time order receipts update accountability atomically and use ledger di
   createdUserIds.push(...recipients.map((user) => user.id));
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     const accounts = await prisma.accountabilityAccount.findMany({
       where: { userId: { in: createdUserIds } },
       select: { id: true },

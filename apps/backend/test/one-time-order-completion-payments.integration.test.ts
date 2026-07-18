@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 interface PaymentInput {
   recipientUserId?: string | null;
@@ -63,6 +64,11 @@ test('one-time order completion validates and stores actual payment rows', async
   createdUserIds.push(managerOne.id, managerTwo.id);
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     const fundingIds = (
       await prisma.accountabilityFunding.findMany({
         where: { accountabilityAccount: { userId: { in: createdUserIds } } },

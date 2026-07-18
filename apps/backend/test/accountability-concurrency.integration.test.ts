@@ -7,6 +7,7 @@ import { AuditService } from '../src/modules/audit/audit.service';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 test('accountability transitions are atomic and concurrency safe', async (t) => {
   const prisma = new PrismaClient();
@@ -29,6 +30,11 @@ test('accountability transitions are atomic and concurrency safe', async (t) => 
   });
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     const account = await prisma.accountabilityAccount.findUnique({
       where: { userId: manager.id },
       include: {

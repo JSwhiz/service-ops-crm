@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 
 interface PaymentResponse {
   id: string;
@@ -52,6 +53,11 @@ test('completion payments expose only permitted financial details', async (t) =>
   let orderId: string | null = null;
 
   t.after(async () => {
+    if (usesIsolatedIntegrationDatabase()) {
+      await app.close();
+      await prisma.$disconnect();
+      return;
+    }
     if (orderId) {
       const fundingIds = (
         await prisma.accountabilityFunding.findMany({
