@@ -1,4 +1,4 @@
-import { FileResponseDto } from '../../files/dto/file-response.dto';
+import { SafeFileResponseDto } from '../../files/dto/safe-file-response.dto';
 
 export class InventoryMovementResponseDto {
   id!: string;
@@ -36,7 +36,7 @@ export class InventoryMovementResponseDto {
     status: string;
     canOpenOrderCard: boolean;
   } | null;
-  attachments!: FileResponseDto[];
+  attachments!: SafeFileResponseDto[];
   approvalRequest!: {
     id: string;
     approvalType: string;

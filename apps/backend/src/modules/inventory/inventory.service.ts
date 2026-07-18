@@ -14,7 +14,8 @@ import {
   INVENTORY_WRITEOFF_CONFIRMATION_TYPE,
   LEGACY_INVENTORY_MISSING_PHOTO_BRIDGE_TYPE,
 } from '../approvals/constants/approval.constants';
-import { FileResponseDto } from '../files/dto/file-response.dto';
+import { SafeFileResponseDto } from '../files/dto/safe-file-response.dto';
+import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
 import {
   canViewObjectByScope,
   hasWideObjectAccess,
@@ -144,21 +145,10 @@ type FileAttachmentRecord = {
   entityId: string;
   file: {
     id: string;
-    bucket: string;
-    objectKey: string;
     originalName: string;
     mimeType: string;
     sizeBytes: number;
-    uploadedByUserId: string | null;
     createdAt: Date;
-    attachments: Array<{
-      id: string;
-      entityType: string;
-      entityId: string;
-      fieldCode: string | null;
-      uploadedByUserId: string | null;
-      createdAt: Date;
-    }>;
   };
 };
 
@@ -601,15 +591,36 @@ export class InventoryService {
     });
 
     await this.prisma.$transaction(async (tx) => {
+      if (approvalRequest) {
+        const lockedApprovalRequests = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id"
+          FROM "approval_requests"
+          WHERE "id" = ${approvalRequest.id}
+          FOR UPDATE
+        `;
+        const lockedApprovalRequest = await tx.approvalRequest.findUnique({
+          where: { id: approvalRequest.id },
+          select: { status: true },
+        });
+
+        if (
+          lockedApprovalRequests.length === 0 ||
+          lockedApprovalRequest?.status !== 'pending'
+        ) {
+          throw new ConflictException('Inventory approval is already resolved');
+        }
+      }
+
       await this.applyInventoryExceptionApprovalDecision(tx, {
         movementId: movement.id,
         actorUserId: currentUser.id,
       });
 
       if (approvalRequest) {
-        await tx.approvalRequest.update({
+        const resolvedApproval = await tx.approvalRequest.updateMany({
           where: {
             id: approvalRequest.id,
+            status: 'pending',
           },
           data: {
             status: 'approved',
@@ -618,32 +629,27 @@ export class InventoryService {
             decisionComment: null,
           },
         });
+
+        if (resolvedApproval.count !== 1) {
+          throw new ConflictException('Inventory approval is already resolved');
+        }
+
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'approval_request',
+            entityId: approvalRequest.id,
+            actorUserId: currentUser.id,
+            action: 'approval.request.approved',
+            newValues: {
+              approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+              sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+              sourceEntityId: movement.id,
+            },
+          },
+          tx,
+        );
       }
     });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'inventory_movement',
-      entityId: movement.id,
-      actorUserId: currentUser.id,
-        action: 'inventory.missing_photo_approval.resolved',
-        newValues: {
-          approvalBridgeType: movement.approvalBridgeType,
-        },
-      });
-
-    if (approvalRequest) {
-      await this.auditService.writeAuditEvent({
-        entityType: 'approval_request',
-        entityId: approvalRequest.id,
-        actorUserId: currentUser.id,
-        action: 'approval.request.approved',
-        newValues: {
-          approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
-          sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
-          sourceEntityId: movement.id,
-        },
-      });
-    }
 
     const updated = await this.loadMovementViewById(movement.id);
     const updatedAttachments = await this.loadMovementAttachments([movement.id]);
@@ -994,7 +1000,18 @@ export class InventoryService {
       actorUserId: string;
     },
   ): Promise<void> {
-    const movement = await tx.inventoryMovement.findFirst({
+    const lockedMovements = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "inventory_movements"
+      WHERE "id" = ${params.movementId}
+      FOR UPDATE
+    `;
+
+    if (lockedMovements.length === 0) {
+      throw new NotFoundException('Inventory movement not found');
+    }
+
+    const movement = await tx.inventoryMovement.findUnique({
       where: {
         id: params.movementId,
       },
@@ -1025,6 +1042,9 @@ export class InventoryService {
       where: {
         entityType: 'inventory_movement',
         entityId: movement.id,
+        file: {
+          deletedAt: null,
+        },
       },
     });
 
@@ -1034,17 +1054,37 @@ export class InventoryService {
       );
     }
 
-    if (!movement.approvalBridgeResolvedAt) {
-      await tx.inventoryMovement.update({
-        where: {
-          id: movement.id,
-        },
-        data: {
-          approvalBridgeResolvedAt: new Date(),
-          approvalBridgeResolvedByUserId: params.actorUserId,
-        },
-      });
+    if (movement.approvalBridgeResolvedAt) {
+      throw new ConflictException('Inventory exception is already resolved');
     }
+
+    const resolved = await tx.inventoryMovement.updateMany({
+      where: {
+        id: movement.id,
+        approvalBridgeResolvedAt: null,
+      },
+      data: {
+        approvalBridgeResolvedAt: new Date(),
+        approvalBridgeResolvedByUserId: params.actorUserId,
+      },
+    });
+
+    if (resolved.count !== 1) {
+      throw new ConflictException('Inventory exception is already resolved');
+    }
+
+    await this.auditService.writeAuditEvent(
+      {
+        entityType: 'inventory_movement',
+        entityId: movement.id,
+        actorUserId: params.actorUserId,
+        action: 'inventory.missing_photo_approval.resolved',
+        newValues: {
+          approvalBridgeType: movement.approvalBridgeType,
+        },
+      },
+      tx,
+    );
   }
 
   async applyInventoryWriteoffApprovalDecision(
@@ -1054,9 +1094,18 @@ export class InventoryService {
       actorUserId: string;
     },
   ): Promise<void> {
-    void params.actorUserId;
+    const lockedMovements = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "inventory_movements"
+      WHERE "id" = ${params.movementId}
+      FOR UPDATE
+    `;
 
-    const movement = await tx.inventoryMovement.findFirst({
+    if (lockedMovements.length === 0) {
+      throw new NotFoundException('Inventory movement not found');
+    }
+
+    const movement = await tx.inventoryMovement.findUnique({
       where: {
         id: params.movementId,
       },
@@ -1081,6 +1130,13 @@ export class InventoryService {
       throw new ConflictException('Inventory writeoff is already resolved');
     }
 
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "inventory_items"
+      WHERE "id" = ${movement.inventoryItemId}
+      FOR UPDATE
+    `;
+
     const stockSummary = await this.loadStockSummaryForItem(
       tx,
       movement.inventoryItemId,
@@ -1091,14 +1147,33 @@ export class InventoryService {
       throw new ConflictException('Insufficient stock to approve inventory writeoff');
     }
 
-    await tx.inventoryMovement.update({
+    const resolved = await tx.inventoryMovement.updateMany({
       where: {
         id: movement.id,
+        status: 'pending_approval',
       },
       data: {
         status: 'applied',
       },
     });
+
+    if (resolved.count !== 1) {
+      throw new ConflictException('Inventory writeoff is already resolved');
+    }
+
+    await this.auditService.writeAuditEvent(
+      {
+        entityType: 'inventory_movement',
+        entityId: movement.id,
+        actorUserId: params.actorUserId,
+        action: 'inventory.writeoff.approved',
+        newValues: {
+          status: 'applied',
+          quantity: Number(movement.quantity),
+        },
+      },
+      tx,
+    );
   }
 
   async applyInventoryWriteoffRejectionDecision(
@@ -1109,9 +1184,18 @@ export class InventoryService {
       decision: 'reject' | 'cancel';
     },
   ): Promise<void> {
-    void params.actorUserId;
+    const lockedMovements = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "inventory_movements"
+      WHERE "id" = ${params.movementId}
+      FOR UPDATE
+    `;
 
-    const movement = await tx.inventoryMovement.findFirst({
+    if (lockedMovements.length === 0) {
+      throw new NotFoundException('Inventory movement not found');
+    }
+
+    const movement = await tx.inventoryMovement.findUnique({
       where: {
         id: params.movementId,
       },
@@ -1134,14 +1218,33 @@ export class InventoryService {
       throw new ConflictException('Inventory writeoff is already resolved');
     }
 
-    await tx.inventoryMovement.update({
+    const nextStatus = params.decision === 'reject' ? 'rejected' : 'cancelled';
+    const resolved = await tx.inventoryMovement.updateMany({
       where: {
         id: movement.id,
+        status: 'pending_approval',
       },
       data: {
-        status: params.decision === 'reject' ? 'rejected' : 'cancelled',
+        status: nextStatus,
       },
     });
+
+    if (resolved.count !== 1) {
+      throw new ConflictException('Inventory writeoff is already resolved');
+    }
+
+    await this.auditService.writeAuditEvent(
+      {
+        entityType: 'inventory_movement',
+        entityId: movement.id,
+        actorUserId: params.actorUserId,
+        action: `inventory.writeoff.${nextStatus}`,
+        newValues: {
+          status: nextStatus,
+        },
+      },
+      tx,
+    );
   }
 
   async listObjectReferenceOptions(
@@ -2094,8 +2197,8 @@ export class InventoryService {
 
   private async loadMovementAttachments(
     movementIds: string[],
-  ): Promise<Map<string, FileResponseDto[]>> {
-    const result = new Map<string, FileResponseDto[]>();
+  ): Promise<Map<string, SafeFileResponseDto[]>> {
+    const result = new Map<string, SafeFileResponseDto[]>();
 
     if (movementIds.length === 0) {
       return result;
@@ -2111,14 +2214,15 @@ export class InventoryService {
           deletedAt: null,
         },
       },
-      include: {
+      select: {
+        entityId: true,
         file: {
-          include: {
-            attachments: {
-              orderBy: {
-                createdAt: 'asc',
-              },
-            },
+          select: {
+            id: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+            createdAt: true,
           },
         },
       },
@@ -2129,7 +2233,7 @@ export class InventoryService {
 
     for (const attachment of attachments) {
       const current = result.get(attachment.entityId) ?? [];
-      current.push(this.mapFile(attachment.file));
+      current.push(mapSafeFileResponse(attachment.file));
       result.set(attachment.entityId, current);
     }
 
@@ -2191,28 +2295,6 @@ export class InventoryService {
     return result;
   }
 
-  private mapFile(file: FileAttachmentRecord['file']): FileResponseDto {
-    return {
-      id: file.id,
-      bucket: file.bucket,
-      objectKey: file.objectKey,
-      originalName: file.originalName,
-      mimeType: file.mimeType,
-      sizeBytes: file.sizeBytes,
-      uploadedByUserId: file.uploadedByUserId,
-      createdAt: file.createdAt.toISOString(),
-      url: `/api/v1/files/${file.id}/content`,
-      attachments: file.attachments.map((attachment) => ({
-        id: attachment.id,
-        entityType: attachment.entityType,
-        entityId: attachment.entityId,
-        fieldCode: attachment.fieldCode,
-        uploadedByUserId: attachment.uploadedByUserId,
-        createdAt: attachment.createdAt.toISOString(),
-      })),
-    };
-  }
-
   private mapItem(
     item: InventoryItemRecord,
     stockSummary:
@@ -2272,7 +2354,7 @@ export class InventoryService {
 
   private mapMovement(
     movement: InventoryMovementRecord,
-    attachments: FileResponseDto[],
+    attachments: SafeFileResponseDto[],
     approvalRequest:
       | {
           id: string;
