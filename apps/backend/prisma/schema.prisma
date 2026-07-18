@@ -697,6 +697,7 @@ model OneTimeOrderCompletion {
   completedAt        DateTime
   completedByUserId  String
   completionComment  String?
+  completionSource   String   @default("native")
   status             String
   clientRequestId    String?
   payloadFingerprint String?

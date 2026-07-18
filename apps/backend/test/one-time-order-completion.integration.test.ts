@@ -22,9 +22,14 @@ interface CompletionResponse {
   id: string;
   oneTimeOrderId: string;
   workCycle: number;
+  completedAt: string | null;
+  completedBy: { id: string } | null;
   completionComment: string | null;
+  completionSource: 'native' | 'legacy_unknown';
   status: string;
   clientRequestId: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 test('one-time order completion cycles are access-safe, idempotent and serialized', async (t) => {
@@ -36,6 +41,9 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
     prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
   ]);
+  const founder = await prisma.user.findUniqueOrThrow({
+    where: { login: 'founder' },
+  });
 
   t.after(async () => {
     await prisma.auditEvent.deleteMany({
@@ -145,6 +153,71 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
   );
   assert.equal(invalidCreate.status, 409);
 
+  const legacyWithoutHistory = await prisma.oneTimeOrder.create({
+    data: {
+      title: `${marker}-legacy-without-history`,
+      executionAddress: 'Москва, исторический заказ',
+      contactName: 'Исторический заказчик',
+      status: 'completed',
+      workCycle: 1,
+      createdByUserId: founder.id,
+    },
+  });
+  createdOrderIds.push(legacyWithoutHistory.id);
+  const legacyOrderResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${legacyWithoutHistory.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(legacyOrderResponse.status, 200);
+  const legacyOrder = (await legacyOrderResponse.json()) as OrderResponse;
+  assert.equal(legacyOrder.status, 'completed');
+  assert.equal(legacyOrder.completedAt, null);
+  assert.equal(legacyOrder.completedBy, null);
+  const emptyLegacyHistoryResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${legacyWithoutHistory.id}/completions`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(emptyLegacyHistoryResponse.status, 200);
+  assert.deepEqual(await emptyLegacyHistoryResponse.json(), []);
+
+  const legacyUnknownOrder = await prisma.oneTimeOrder.create({
+    data: {
+      title: `${marker}-legacy-unknown`,
+      executionAddress: 'Москва, сохраненная историческая запись',
+      contactName: 'Исторический заказчик',
+      status: 'completed',
+      workCycle: 1,
+      createdByUserId: founder.id,
+    },
+  });
+  createdOrderIds.push(legacyUnknownOrder.id);
+  const technicalDate = new Date('2025-01-15T12:00:00.000Z');
+  await prisma.oneTimeOrderCompletion.create({
+    data: {
+      oneTimeOrderId: legacyUnknownOrder.id,
+      workCycle: 1,
+      completedAt: technicalDate,
+      completedByUserId: founder.id,
+      completionComment: 'Legacy completion backfill',
+      completionSource: 'legacy_unknown',
+      status: 'active',
+    },
+  });
+  const legacyUnknownHistoryResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${legacyUnknownOrder.id}/completions`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(legacyUnknownHistoryResponse.status, 200);
+  const legacyUnknownHistory =
+    (await legacyUnknownHistoryResponse.json()) as CompletionResponse[];
+  assert.equal(legacyUnknownHistory.length, 1);
+  assert.equal(legacyUnknownHistory[0]!.completionSource, 'legacy_unknown');
+  assert.equal(legacyUnknownHistory[0]!.completedAt, null);
+  assert.equal(legacyUnknownHistory[0]!.completedBy, null);
+  assert.equal(legacyUnknownHistory[0]!.completionComment, null);
+  assert.equal(legacyUnknownHistory[0]!.createdAt, null);
+  assert.equal(legacyUnknownHistory[0]!.updatedAt, null);
+
   const privateOrder = await createOrder([managerOne.id]);
   const denied = await complete(
     privateOrder.id,
@@ -176,6 +249,9 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
   assert.equal(firstComplete.status, 201);
   const firstCompletion = (await firstComplete.json()) as CompletionResponse;
   assert.equal(firstCompletion.workCycle, 1);
+  assert.equal(firstCompletion.completionSource, 'native');
+  assert.ok(firstCompletion.completedAt);
+  assert.ok(firstCompletion.completedBy);
   assert.equal(firstCompletion.status, 'active');
 
   const repeatedComplete = await complete(

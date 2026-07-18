@@ -536,7 +536,11 @@ function CompletionHistory({
         </div>
       </div>
       {completions.length === 0 ? (
-        <div className="page-muted">Завершенных циклов пока нет.</div>
+        <div className="page-muted">
+          {item.status === 'completed'
+            ? 'Заказ был завершен до введения истории циклов. Точная дата и пользователь завершения отсутствуют.'
+            : 'Завершенных циклов пока нет.'}
+        </div>
       ) : (
         <div className="record-list local-scroll local-scroll--lg">
           {completions.map((completion) => (
@@ -545,8 +549,11 @@ function CompletionHistory({
                 <div>
                   <strong>Цикл {completion.workCycle}</strong>
                   <div className="page-muted">
-                    {new Date(completion.completedAt).toLocaleString('ru-RU')} ·{' '}
-                    {getUserDisplayName(completion.completedBy)}
+                    {completion.completionSource === 'legacy_unknown' ||
+                    !completion.completedAt ||
+                    !completion.completedBy
+                      ? 'Историческое завершение: точная дата и пользователь отсутствуют'
+                      : `${new Date(completion.completedAt).toLocaleString('ru-RU')} · ${getUserDisplayName(completion.completedBy)}`}
                   </div>
                 </div>
                 <span className="status-pill" data-status={completion.status}>

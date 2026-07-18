@@ -158,6 +158,7 @@ interface OneTimeOrderCompletionView {
   completedAt: Date;
   completedByUserId: string;
   completionComment: string | null;
+  completionSource: string;
   status: string;
   clientRequestId: string | null;
   payloadFingerprint: string | null;
@@ -2972,6 +2973,7 @@ export class OneTimeOrdersService {
     completion: OneTimeOrderCompletionView,
     currentUser: CurrentAuthUser,
   ): OneTimeOrderCompletionResponseDto {
+    const isLegacyUnknown = completion.completionSource === 'legacy_unknown';
     const canViewAllPayments =
       canReviewAccountability({
         roleCodes: this.getRoleCodes(currentUser),
@@ -2992,9 +2994,10 @@ export class OneTimeOrdersService {
       id: completion.id,
       oneTimeOrderId: completion.oneTimeOrderId,
       workCycle: completion.workCycle,
-      completedAt: completion.completedAt.toISOString(),
-      completedBy: completion.completedBy,
-      completionComment: completion.completionComment,
+      completedAt: isLegacyUnknown ? null : completion.completedAt.toISOString(),
+      completedBy: isLegacyUnknown ? null : completion.completedBy,
+      completionComment: isLegacyUnknown ? null : completion.completionComment,
+      completionSource: isLegacyUnknown ? 'legacy_unknown' : 'native',
       status: completion.status,
       clientRequestId: completion.clientRequestId,
       payments: completion.payments.map((payment) =>
@@ -3010,8 +3013,8 @@ export class OneTimeOrdersService {
         .toNumber(),
       fullTotalAmountVisible:
         visiblePayments.length === completion.payments.length,
-      createdAt: completion.createdAt.toISOString(),
-      updatedAt: completion.updatedAt.toISOString(),
+      createdAt: isLegacyUnknown ? null : completion.createdAt.toISOString(),
+      updatedAt: isLegacyUnknown ? null : completion.updatedAt.toISOString(),
     };
   }
 

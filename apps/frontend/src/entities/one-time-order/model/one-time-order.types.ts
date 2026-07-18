@@ -135,20 +135,21 @@ export interface OneTimeOrderCompletion {
   id: string;
   oneTimeOrderId: string;
   workCycle: number;
-  completedAt: string;
+  completedAt: string | null;
   completedBy: {
     id: string;
     login: string;
     fullName: string;
-  };
+  } | null;
   completionComment: string | null;
+  completionSource: 'native' | 'legacy_unknown';
   status: 'active' | 'superseded';
   clientRequestId: string | null;
   payments: OneTimeOrderCompletionPayment[];
   visibleTotalAmount: number;
   fullTotalAmountVisible: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface OneTimeOrderCompletionPaymentPayload {

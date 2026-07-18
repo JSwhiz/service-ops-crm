@@ -33,18 +33,19 @@ export class OneTimeOrderCompletionResponseDto {
   id!: string;
   oneTimeOrderId!: string;
   workCycle!: number;
-  completedAt!: string;
+  completedAt!: string | null;
   completedBy!: {
     id: string;
     login: string;
     fullName: string;
-  };
+  } | null;
   completionComment!: string | null;
+  completionSource!: 'native' | 'legacy_unknown';
   status!: string;
   clientRequestId!: string | null;
   payments!: OneTimeOrderCompletionPaymentResponseDto[];
   visibleTotalAmount!: number;
   fullTotalAmountVisible!: boolean;
-  createdAt!: string;
-  updatedAt!: string;
+  createdAt!: string | null;
+  updatedAt!: string | null;
 }
