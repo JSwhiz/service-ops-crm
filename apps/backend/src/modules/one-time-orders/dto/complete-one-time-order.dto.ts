@@ -8,9 +8,9 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
-  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -79,11 +79,8 @@ export class CompleteOneTimeOrderDto {
   @MaxLength(2000)
   completionComment?: string;
 
-  @IsOptional()
-  @IsString()
-  @MinLength(8)
-  @MaxLength(100)
-  clientRequestId?: string;
+  @IsUUID()
+  clientRequestId!: string;
 
   @IsArray()
   @ArrayMinSize(1)

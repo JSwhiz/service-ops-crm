@@ -140,7 +140,7 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
     firstCookie,
     {
       workCycle: 1,
-      clientRequestId: `${marker}-complete`,
+      clientRequestId: crypto.randomUUID(),
       payments: managers.slice(0, 2).map((manager) => ({
         recipientUserId: manager.id,
         amount: 1000,

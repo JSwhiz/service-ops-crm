@@ -39,6 +39,24 @@ test('one-time order receipts update accountability atomically and use ledger di
   createdUserIds.push(...recipients.map((user) => user.id));
 
   t.after(async () => {
+    const accounts = await prisma.accountabilityAccount.findMany({
+      where: { userId: { in: createdUserIds } },
+      select: { id: true },
+    });
+    const accountIds = accounts.map((account) => account.id);
+    const closures = await prisma.accountabilityClosure.findMany({
+      where: { accountabilityAccountId: { in: accountIds } },
+      select: { id: true },
+    });
+    const closureIds = closures.map((closure) => closure.id);
+    const approvals = await prisma.approvalRequest.findMany({
+      where: {
+        sourceEntityType: 'accountability_closure',
+        sourceEntityId: { in: closureIds },
+      },
+      select: { id: true },
+    });
+    const approvalIds = approvals.map((approval) => approval.id);
     const fundingIds = (
       await prisma.accountabilityFunding.findMany({
         where: {
@@ -58,8 +76,20 @@ test('one-time order receipts update accountability atomically and use ledger di
             entityType: 'accountability_funding',
             entityId: { in: fundingIds },
           },
+          { entityType: 'accountability_account', entityId: { in: accountIds } },
+          {
+            entityType: 'accountability_closure',
+            entityId: { in: closureIds },
+          },
+          { entityType: 'approval_request', entityId: { in: approvalIds } },
         ],
       },
+    });
+    await prisma.approvalRequest.deleteMany({
+      where: { id: { in: approvalIds } },
+    });
+    await prisma.accountabilityClosure.deleteMany({
+      where: { id: { in: closureIds } },
     });
     await prisma.accountabilityExpense.deleteMany({
       where: { accountabilityAccount: { userId: { in: createdUserIds } } },
@@ -89,7 +119,8 @@ test('one-time order receipts update accountability atomically and use ledger di
     await prisma.$disconnect();
   });
 
-  const [founderCookie, recipientCookie] = await Promise.all([
+  const [founderCookie, recipientCookie, secondRecipientCookie] =
+    await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
@@ -98,6 +129,11 @@ test('one-time order receipts update accountability atomically and use ledger di
     loginAndGetCookieHeader({
       baseUrl,
       login: recipients[0]!.login,
+      password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: recipients[1]!.login,
       password: 'manager123',
     }),
   ]);
@@ -132,7 +168,7 @@ test('one-time order receipts update accountability atomically and use ledger di
   const orderId = await createOrder(175);
   const completePayload = {
     workCycle: 1,
-    clientRequestId: `${marker}-complete`,
+    clientRequestId: crypto.randomUUID(),
     completionComment: 'Оплата получена несколькими способами',
     payments: [
       {
@@ -269,6 +305,101 @@ test('one-time order receipts update accountability atomically and use ledger di
     ),
   );
 
+  await prisma.accountabilityAccount.update({
+    where: { id: account.id },
+    data: { status: 'closed' },
+  });
+  const closedAccountOrderId = await createOrder(15);
+  const closedAccountCompletion = await postJson(
+    `${baseUrl}/api/v1/one-time-orders/${closedAccountOrderId}/complete`,
+    founderCookie,
+    {
+      workCycle: 1,
+      clientRequestId: crypto.randomUUID(),
+      payments: [
+        {
+          recipientUserId: recipients[0]!.id,
+          amount: 15,
+          paymentMethod: 'cash',
+          paymentDestination: 'manager_accountability',
+        },
+      ],
+    },
+  );
+  assert.equal(closedAccountCompletion.status, 201);
+  assert.equal(
+    (
+      await prisma.accountabilityAccount.findUniqueOrThrow({
+        where: { id: account.id },
+      })
+    ).status,
+    'active',
+  );
+  assert.equal(
+    await prisma.accountabilityFunding.count({
+      where: { oneTimeOrderId: closedAccountOrderId },
+    }),
+    1,
+  );
+
+  const closureRequest = await postJson(
+    `${baseUrl}/api/v1/accountability/me/closures/request`,
+    secondRecipientCookie,
+  );
+  assert.equal(closureRequest.status, 201);
+  const closure = (await closureRequest.json()) as { id: string };
+  const closureApproval = await prisma.approvalRequest.findFirstOrThrow({
+    where: {
+      sourceEntityType: 'accountability_closure',
+      sourceEntityId: closure.id,
+      status: 'pending',
+    },
+  });
+  const closingAccountOrderId = await createOrder(20);
+  const closingAccountCompletion = await postJson(
+    `${baseUrl}/api/v1/one-time-orders/${closingAccountOrderId}/complete`,
+    founderCookie,
+    {
+      workCycle: 1,
+      clientRequestId: crypto.randomUUID(),
+      payments: [
+        {
+          recipientUserId: recipients[1]!.id,
+          amount: 20,
+          paymentMethod: 'cash',
+          paymentDestination: 'manager_accountability',
+        },
+      ],
+    },
+  );
+  assert.equal(closingAccountCompletion.status, 201);
+  assert.equal(
+    (
+      await prisma.accountabilityAccount.findUniqueOrThrow({
+        where: { userId: recipients[1]!.id },
+      })
+    ).status,
+    'active',
+  );
+  assert.equal(
+    (await prisma.accountabilityClosure.findUniqueOrThrow({
+      where: { id: closure.id },
+    })).status,
+    'rejected',
+  );
+  assert.equal(
+    (await prisma.approvalRequest.findUniqueOrThrow({
+      where: { id: closureApproval.id },
+    })).status,
+    'cancelled',
+  );
+  assert.equal(
+    await prisma.accountabilityFunding.count({
+      where: { oneTimeOrderId: closingAccountOrderId },
+    }),
+    1,
+  );
+
   const lockedOrderId = await createOrder(30);
   const secondAccount = await prisma.accountabilityAccount.findUniqueOrThrow({
     where: { userId: recipients[1]!.id },
@@ -282,7 +413,7 @@ test('one-time order receipts update accountability atomically and use ledger di
     founderCookie,
     {
       workCycle: 1,
-      clientRequestId: `${marker}-locked`,
+      clientRequestId: crypto.randomUUID(),
       payments: [
         {
           recipientUserId: recipients[0]!.id,
@@ -322,5 +453,28 @@ test('one-time order receipts update accountability atomically and use ledger di
     (await prisma.oneTimeOrder.findUniqueOrThrow({ where: { id: lockedOrderId } }))
       .status,
     'in_progress',
+  );
+
+  await prisma.oneTimeOrderAssignment.updateMany({
+    where: {
+      oneTimeOrderId: lockedOrderId,
+      userId: recipients[1]!.id,
+      assignmentRoleCode: 'one_time_manager',
+    },
+    data: { isActive: false },
+  });
+  await prisma.user.update({
+    where: { id: recipients[0]!.id },
+    data: { isActive: false },
+  });
+  const filteredManagersResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${lockedOrderId}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(filteredManagersResponse.status, 200);
+  assert.deepEqual(
+    ((await filteredManagersResponse.json()) as { managers: unknown[] })
+      .managers,
+    [],
   );
 });

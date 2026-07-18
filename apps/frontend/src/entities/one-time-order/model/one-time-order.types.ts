@@ -166,7 +166,7 @@ export interface OneTimeOrderCompletionPaymentPayload {
 export interface CompleteOneTimeOrderPayload {
   workCycle: number;
   completionComment?: string;
-  clientRequestId?: string;
+  clientRequestId: string;
   payments: OneTimeOrderCompletionPaymentPayload[];
 }
 

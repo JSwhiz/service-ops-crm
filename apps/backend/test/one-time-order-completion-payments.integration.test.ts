@@ -168,7 +168,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const invalidRecipient = await complete(
     orderId,
     1,
-    `${marker}-invalid-recipient`,
+    crypto.randomUUID(),
     [
       {
         recipientUserId: managerTwo.id,
@@ -183,7 +183,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const invalidMethodDestination = await complete(
     orderId,
     1,
-    `${marker}-invalid-method`,
+    crypto.randomUUID(),
     [
       {
         amount: 35000,
@@ -197,7 +197,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const zeroWithoutReason = await complete(
     orderId,
     1,
-    `${marker}-zero-without-reason`,
+    crypto.randomUUID(),
     [
       {
         recipientUserId: managerOne.id,
@@ -230,7 +230,7 @@ test('one-time order completion validates and stores actual payment rows', async
       receivedAt,
     },
   ];
-  const requestId = `${marker}-valid-cycle-1`;
+  const requestId = crypto.randomUUID();
   const completed = await complete(orderId, 1, requestId, validPayments);
   assert.equal(completed.status, 201);
   const completion = (await completed.json()) as CompletionResponse;
@@ -268,7 +268,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const mismatchWithoutReason = await complete(
     orderId,
     2,
-    `${marker}-mismatch-without-reason`,
+    crypto.randomUUID(),
     [
       {
         recipientUserId: managerOne.id,
@@ -283,7 +283,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const mismatchWithReason = await complete(
     orderId,
     2,
-    `${marker}-mismatch-with-reason`,
+    crypto.randomUUID(),
     [
       {
         recipientUserId: managerOne.id,
@@ -309,7 +309,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const noAgreement = await complete(
     noAgreementOrderId,
     1,
-    `${marker}-no-agreement`,
+    crypto.randomUUID(),
     [
       {
         recipientUserId: managerOne.id,
@@ -325,7 +325,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const zeroPayment = await complete(
     zeroOrderId,
     1,
-    `${marker}-zero-valid`,
+    crypto.randomUUID(),
     [
       {
         recipientUserId: managerOne.id,
@@ -342,7 +342,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const otherWithoutComment = await complete(
     otherOrderId,
     1,
-    `${marker}-other-without-comment`,
+    crypto.randomUUID(),
     [
       {
         amount: 10,
@@ -355,7 +355,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const otherWithComment = await complete(
     otherOrderId,
     1,
-    `${marker}-other-with-comment`,
+    crypto.randomUUID(),
     [
       {
         amount: 10,
@@ -379,7 +379,7 @@ test('one-time order completion validates and stores actual payment rows', async
   const inactiveRecipient = await complete(
     inactiveAssignmentOrderId,
     1,
-    `${marker}-inactive-recipient`,
+    crypto.randomUUID(),
     [
       {
         recipientUserId: managerOne.id,

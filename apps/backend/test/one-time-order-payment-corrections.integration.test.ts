@@ -167,7 +167,7 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
       founderCookie,
       {
         workCycle: 1,
-        clientRequestId: `${marker}-${order.id}`,
+        clientRequestId: crypto.randomUUID(),
         payments: params.payments,
       },
     );

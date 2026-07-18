@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 
 import type {
   CompleteOneTimeOrderPayload,
@@ -128,6 +128,12 @@ export function OneTimeOrderCompletionPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [canRetry, setCanRetry] = useState(false);
+  const inFlightRef = useRef(false);
+  const retryRequestRef = useRef<{
+    fingerprint: string;
+    payload: CompleteOneTimeOrderPayload;
+  } | null>(null);
 
   const previousActual = useMemo(
     () =>
@@ -170,34 +176,49 @@ export function OneTimeOrderCompletionPanel({
   };
 
   const submit = async (): Promise<void> => {
+    if (inFlightRef.current) {
+      return;
+    }
+
     if (!canSubmit) {
       setError('Заполните обязательные поля получения и причину расхождения.');
       return;
     }
 
+    const basePayload = {
+      workCycle: item.workCycle,
+      completionComment: completionComment.trim() || undefined,
+      payments: payments.map((payment, index) => ({
+        recipientUserId:
+          payment.paymentDestination === 'manager_accountability'
+            ? payment.recipientUserId
+            : null,
+        amount: Number(payment.amount),
+        paymentMethod: payment.paymentMethod,
+        paymentDestination: payment.paymentDestination,
+        zeroReason: payment.zeroReason || null,
+        comment: payment.comment.trim() || null,
+        differenceReason:
+          index === 0 && hasDifference ? differenceReason.trim() : null,
+      })),
+    };
+    const fingerprint = JSON.stringify(basePayload);
+    const previousRequest = retryRequestRef.current;
+    const requestPayload: CompleteOneTimeOrderPayload =
+      previousRequest?.fingerprint === fingerprint
+        ? previousRequest.payload
+        : {
+            ...basePayload,
+            clientRequestId: crypto.randomUUID(),
+          };
+    retryRequestRef.current = { fingerprint, payload: requestPayload };
+    inFlightRef.current = true;
     setIsSaving(true);
+    setCanRetry(false);
     setError(null);
     try {
-      await onComplete({
-        workCycle: item.workCycle,
-        completionComment: completionComment.trim() || undefined,
-        clientRequestId: `${item.id}:${item.workCycle}:${Date.now()}`,
-        payments: payments.map((payment, index) => ({
-          recipientUserId:
-            payment.paymentDestination === 'manager_accountability'
-              ? payment.recipientUserId
-              : null,
-          amount: Number(payment.amount),
-          paymentMethod: payment.paymentMethod,
-          paymentDestination: payment.paymentDestination,
-          zeroReason: payment.zeroReason || null,
-          comment: payment.comment.trim() || null,
-          differenceReason:
-            index === 0 && hasDifference
-              ? differenceReason.trim()
-              : null,
-        })),
-      });
+      await onComplete(requestPayload);
+      retryRequestRef.current = null;
       setPayments([createPaymentDraft(item)]);
       setCompletionComment('');
       setDifferenceReason('');
@@ -207,7 +228,9 @@ export function OneTimeOrderCompletionPanel({
           ? saveError.message
           : 'Не удалось завершить заказ.',
       );
+      setCanRetry(true);
     } finally {
+      inFlightRef.current = false;
       setIsSaving(false);
     }
   };
@@ -298,7 +321,11 @@ export function OneTimeOrderCompletionPanel({
               disabled={isSaving || !canSubmit}
               onClick={() => void submit()}
             >
-              {isSaving ? 'Завершаем...' : 'Завершить заказ'}
+              {isSaving
+                ? 'Завершаем...'
+                : canRetry
+                  ? 'Повторить завершение'
+                  : 'Завершить заказ'}
             </button>
           </div>
         </div>

@@ -12,6 +12,10 @@ import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import {
+  ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+  ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+} from '../approvals/constants/approval.constants';
+import {
   canCorrectAccountabilityReceipt,
   canReviewAccountability,
 } from '../accountability/utils/accountability-access.util';
@@ -356,6 +360,7 @@ export class OneTimeOrdersService {
             userId: query.managerUserId,
             assignmentRoleCode: 'one_time_manager',
             isActive: true,
+            user: { isActive: true, deletedAt: null },
           },
         },
       });
@@ -396,6 +401,8 @@ export class OneTimeOrdersService {
                 assignmentRoleCode: 'one_time_manager',
                 isActive: true,
                 user: {
+                  isActive: true,
+                  deletedAt: null,
                   OR: [
                     { fullName: { contains: search, mode: 'insensitive' } },
                     { login: { contains: search, mode: 'insensitive' } },
@@ -2777,7 +2784,12 @@ export class OneTimeOrdersService {
       },
       assignments: {
         where: {
+          assignmentRoleCode: 'one_time_manager',
           isActive: true,
+          user: {
+            isActive: true,
+            deletedAt: null,
+          },
         },
         include: {
           user: {
@@ -2883,7 +2895,10 @@ export class OneTimeOrdersService {
       managers: order.assignments
         .filter(
           (assignment) =>
-            assignment.assignmentRoleCode === 'one_time_manager',
+            assignment.assignmentRoleCode === 'one_time_manager' &&
+            assignment.isActive &&
+            assignment.user.isActive &&
+            assignment.user.deletedAt === null,
         )
         .map((assignment) => ({
           userId: assignment.user.id,
@@ -2988,7 +3003,13 @@ export class OneTimeOrdersService {
           }
         : null,
       managers: order.assignments
-        .filter((assignment) => assignment.assignmentRoleCode === 'one_time_manager')
+        .filter(
+          (assignment) =>
+            assignment.assignmentRoleCode === 'one_time_manager' &&
+            assignment.isActive &&
+            assignment.user.isActive &&
+            assignment.user.deletedAt === null,
+        )
         .map((assignment) => ({
           userId: assignment.user.id,
           fullName: assignment.user.fullName,
@@ -3302,10 +3323,116 @@ export class OneTimeOrdersService {
       });
     }
 
-    if (account.status !== 'active') {
+    if (account.status === 'closing_requested') {
+      const requestedClosures = await tx.accountabilityClosure.findMany({
+        where: {
+          accountabilityAccountId: account.id,
+          status: 'requested',
+        },
+        select: { id: true },
+      });
+      if (requestedClosures.length !== 1) {
+        throw new ConflictException(
+          'Accountability closing state is inconsistent',
+        );
+      }
+      const closureId = requestedClosures[0]!.id;
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "accountability_closures"
+        WHERE "id" = ${closureId}
+        FOR UPDATE
+      `;
+      const pendingApprovals = await tx.approvalRequest.findMany({
+        where: {
+          approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+          sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+          sourceEntityId: closureId,
+          status: 'pending',
+        },
+        select: { id: true },
+      });
+      if (pendingApprovals.length !== 1) {
+        throw new ConflictException(
+          'Accountability closure approval state is inconsistent',
+        );
+      }
+      const approvalId = pendingApprovals[0]!.id;
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "approval_requests"
+        WHERE "id" = ${approvalId}
+        FOR UPDATE
+      `;
+      const reopenedAt = new Date();
+      const reason = 'Automatically cancelled by a new one-time order receipt';
+      const closureUpdate = await tx.accountabilityClosure.updateMany({
+        where: { id: closureId, status: 'requested' },
+        data: {
+          status: 'rejected',
+          rejectedByUserId: params.actorUserId,
+          rejectedAt: reopenedAt,
+          comment: reason,
+        },
+      });
+      const approvalUpdate = await tx.approvalRequest.updateMany({
+        where: { id: approvalId, status: 'pending' },
+        data: {
+          status: 'cancelled',
+          cancelledByUserId: params.actorUserId,
+          cancelledAt: reopenedAt,
+          decisionComment: reason,
+        },
+      });
+      if (closureUpdate.count !== 1 || approvalUpdate.count !== 1) {
+        throw new ConflictException('Accountability closure state changed');
+      }
+      await this.writeAuditEvent(tx, {
+        entityType: 'accountability_closure',
+        entityId: closureId,
+        actorUserId: params.actorUserId,
+        action: 'accountability_closure.cancelled_by_one_time_order_receipt',
+        oldValues: { status: 'requested' },
+        newValues: { status: 'rejected', reason },
+      });
+      await this.writeAuditEvent(tx, {
+        entityType: 'approval_request',
+        entityId: approvalId,
+        actorUserId: params.actorUserId,
+        action: 'approval.request.cancelled',
+        oldValues: { status: 'pending' },
+        newValues: {
+          status: 'cancelled',
+          reason,
+          sourceEntityId: closureId,
+        },
+      });
+    } else if (account.status !== 'active' && account.status !== 'closed') {
       throw new ConflictException(
         'Accountability account does not accept order receipts',
       );
+    }
+
+    if (account.status !== 'active') {
+      const accountUpdate = await tx.accountabilityAccount.updateMany({
+        where: { id: account.id, status: account.status },
+        data: { status: 'active' },
+      });
+      if (accountUpdate.count !== 1) {
+        throw new ConflictException('Accountability account state changed');
+      }
+      await this.writeAuditEvent(tx, {
+        entityType: 'accountability_account',
+        entityId: account.id,
+        actorUserId: params.actorUserId,
+        action: 'accountability_account.reopened_by_one_time_order_receipt',
+        oldValues: { status: account.status },
+        newValues: {
+          status: 'active',
+          oneTimeOrderId: params.payment.oneTimeOrderId,
+          oneTimeOrderCompletionId: params.completionId,
+        },
+      });
     }
 
     const funding = await tx.accountabilityFunding.create({

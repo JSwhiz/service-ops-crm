@@ -219,10 +219,31 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
   assert.equal(legacyUnknownHistory[0]!.updatedAt, null);
 
   const privateOrder = await createOrder([managerOne.id]);
+  const invalidRequestId = await complete(
+    privateOrder.id,
+    managerOneCookie,
+    'legacy-request-id',
+  );
+  assert.equal(invalidRequestId.status, 400);
+  const missingRequestId = await jsonPost(
+    `${baseUrl}/api/v1/one-time-orders/${privateOrder.id}/complete`,
+    managerOneCookie,
+    {
+      workCycle: 1,
+      payments: [
+        {
+          amount: 10000,
+          paymentMethod: 'organization_transfer',
+          paymentDestination: 'organization',
+        },
+      ],
+    },
+  );
+  assert.equal(missingRequestId.status, 400);
   const denied = await complete(
     privateOrder.id,
     managerTwoCookie,
-    `${marker}-denied`,
+    crypto.randomUUID(),
   );
   assert.equal(denied.status, 404);
 
@@ -240,7 +261,7 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
   assert.equal(legacyComplete.status, 409);
 
   const multiManagerOrder = await createOrder([managerOne.id, managerTwo.id]);
-  const firstRequestId = `${marker}-cycle-1`;
+  const firstRequestId = crypto.randomUUID();
   const firstComplete = await complete(
     multiManagerOrder.id,
     managerTwoCookie,
@@ -313,7 +334,7 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
   const secondComplete = await complete(
     multiManagerOrder.id,
     managerOneCookie,
-    `${marker}-cycle-2`,
+    crypto.randomUUID(),
     'Повторный выезд завершён',
     2,
   );
@@ -341,7 +362,7 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
     complete(
       multiManagerOrder.id,
       managerOneCookie,
-      `${marker}-stale-cycle-2`,
+      crypto.randomUUID(),
       'Запоздавшее завершение',
       2,
     ),
@@ -368,8 +389,8 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
 
   const raceOrder = await createOrder([managerOne.id]);
   const raceResponses = await Promise.all([
-    complete(raceOrder.id, managerOneCookie, `${marker}-race-a`),
-    complete(raceOrder.id, managerOneCookie, `${marker}-race-b`),
+    complete(raceOrder.id, managerOneCookie, crypto.randomUUID()),
+    complete(raceOrder.id, managerOneCookie, crypto.randomUUID()),
   ]);
   assert.deepEqual(
     raceResponses.map((response) => response.status).sort((a, b) => a - b),
@@ -378,6 +399,37 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
   assert.equal(
     await prisma.oneTimeOrderCompletion.count({
       where: { oneTimeOrderId: raceOrder.id },
+    }),
+    1,
+  );
+
+  const doubleSubmitOrder = await createOrder([managerOne.id]);
+  const doubleSubmitRequestId = crypto.randomUUID();
+  const doubleSubmitResponses = await Promise.all([
+    complete(
+      doubleSubmitOrder.id,
+      managerOneCookie,
+      doubleSubmitRequestId,
+    ),
+    complete(
+      doubleSubmitOrder.id,
+      managerOneCookie,
+      doubleSubmitRequestId,
+    ),
+  ]);
+  assert.deepEqual(
+    doubleSubmitResponses.map((response) => response.status),
+    [201, 201],
+  );
+  const doubleSubmitCompletionIds = await Promise.all(
+    doubleSubmitResponses.map(async (response) =>
+      ((await response.json()) as CompletionResponse).id,
+    ),
+  );
+  assert.equal(new Set(doubleSubmitCompletionIds).size, 1);
+  assert.equal(
+    await prisma.oneTimeOrderCompletion.count({
+      where: { oneTimeOrderId: doubleSubmitOrder.id },
     }),
     1,
   );
