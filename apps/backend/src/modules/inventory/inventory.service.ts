@@ -725,36 +725,40 @@ export class InventoryService {
     currentUser: CurrentAuthUser,
     payload: CreateInventoryMovementDto,
   ): Promise<InventoryMovementResponseDto> {
-    const item = await this.prisma.inventoryItem.findFirst({
-      where: {
-        id: payload.inventoryItemId,
-      },
-      select: {
-        id: true,
-        isActive: true,
-        currentUnitPrice: true,
-      },
-    });
-
-    if (!item) {
-      throw new NotFoundException('Inventory item not found');
-    }
-
-    if (!item.isActive) {
-      throw new BadRequestException(
-        'Inactive inventory item cannot be used in movements',
-      );
-    }
-
     await this.assertScopedTargets(payload);
-    const normalizedMovement = this.normalizeMovementPayload(
-      payload,
-      item.currentUnitPrice,
-    );
-    const requiresWriteoffApproval =
-      normalizedMovement.movementType === 'writeoff';
-    const creationResult = await this.prisma.$transaction(
-      async (tx) => {
+    const creationResult = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`
+          SELECT "id"
+          FROM "inventory_items"
+          WHERE "id" = ${payload.inventoryItemId}
+          FOR UPDATE
+        `;
+
+        const item = await tx.inventoryItem.findUnique({
+          where: { id: payload.inventoryItemId },
+          select: {
+            id: true,
+            isActive: true,
+            currentUnitPrice: true,
+          },
+        });
+
+        if (!item) {
+          throw new NotFoundException('Inventory item not found');
+        }
+
+        if (!item.isActive) {
+          throw new BadRequestException(
+            'Inactive inventory item cannot be used in movements',
+          );
+        }
+
+        const normalizedMovement = this.normalizeMovementPayload(
+          payload,
+          item.currentUnitPrice,
+        );
+        const requiresWriteoffApproval =
+          normalizedMovement.movementType === 'writeoff';
         const stockSummary = await this.loadStockSummaryForItem(tx, item.id);
         const nextStock =
           stockSummary.currentStock + normalizedMovement.signedQuantity;
@@ -783,10 +787,16 @@ export class InventoryService {
         });
 
         if (normalizedMovement.movementType === 'receipt') {
+          const nextUnitPrice =
+            item.currentUnitPrice === null ||
+            normalizedMovement.unitPriceSnapshot.gt(item.currentUnitPrice)
+              ? normalizedMovement.unitPriceSnapshot
+              : item.currentUnitPrice;
+
           await tx.inventoryItem.update({
             where: { id: item.id },
             data: {
-              currentUnitPrice: normalizedMovement.unitPriceSnapshot,
+              currentUnitPrice: nextUnitPrice,
             },
           });
         }
@@ -844,57 +854,59 @@ export class InventoryService {
               })
             : null;
 
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'inventory_movement',
+            entityId: createdMovement.id,
+            actorUserId: currentUser.id,
+            action: 'inventory.movement.created',
+            newValues: {
+              inventoryItemId: createdMovement.inventoryItemId,
+              movementType: createdMovement.movementType,
+              quantity: Number(createdMovement.quantity),
+              unitPriceSnapshot: Number(createdMovement.unitPriceSnapshot),
+              totalAmountSnapshot: Number(
+                createdMovement.totalAmountSnapshot,
+              ),
+              adjustmentDirection: createdMovement.adjustmentDirection,
+              evidenceRequired: createdMovement.evidenceRequired,
+              requiresApprovalBridge:
+                createdMovement.requiresApprovalBridge,
+              approvalBridgeType: createdMovement.approvalBridgeType,
+              status: createdMovement.status,
+              relatedObjectId: createdMovement.relatedObjectId,
+              relatedOneTimeOrderId:
+                createdMovement.relatedOneTimeOrderId,
+              comment: createdMovement.comment,
+            },
+          },
+          tx,
+        );
+
+        if (approvalRequest) {
+          await this.auditService.writeAuditEvent(
+            {
+              entityType: 'approval_request',
+              entityId: approvalRequest.id,
+              actorUserId: currentUser.id,
+              action: 'approval.request.created',
+              newValues: {
+                approvalType: requiresWriteoffApproval
+                  ? INVENTORY_WRITEOFF_CONFIRMATION_TYPE
+                  : INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
+                sourceEntityType:
+                  INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+                sourceEntityId: createdMovement.id,
+              },
+            },
+            tx,
+          );
+        }
+
         return {
           createdMovement,
-          approvalRequestId: approvalRequest?.id ?? null,
         };
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      },
-    );
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'inventory_movement',
-      entityId: creationResult.createdMovement.id,
-      actorUserId: currentUser.id,
-      action: 'inventory.movement.created',
-      newValues: {
-        inventoryItemId: creationResult.createdMovement.inventoryItemId,
-        movementType: creationResult.createdMovement.movementType,
-        quantity: Number(creationResult.createdMovement.quantity),
-        unitPriceSnapshot: Number(creationResult.createdMovement.unitPriceSnapshot),
-        totalAmountSnapshot: Number(
-          creationResult.createdMovement.totalAmountSnapshot,
-        ),
-        adjustmentDirection: creationResult.createdMovement.adjustmentDirection,
-        evidenceRequired: creationResult.createdMovement.evidenceRequired,
-        requiresApprovalBridge:
-          creationResult.createdMovement.requiresApprovalBridge,
-        approvalBridgeType: creationResult.createdMovement.approvalBridgeType,
-        status: creationResult.createdMovement.status,
-        relatedObjectId: creationResult.createdMovement.relatedObjectId,
-        relatedOneTimeOrderId:
-          creationResult.createdMovement.relatedOneTimeOrderId,
-        comment: creationResult.createdMovement.comment,
-      },
     });
-
-    if (creationResult.approvalRequestId) {
-      await this.auditService.writeAuditEvent({
-        entityType: 'approval_request',
-        entityId: creationResult.approvalRequestId,
-        actorUserId: currentUser.id,
-        action: 'approval.request.created',
-        newValues: {
-          approvalType: requiresWriteoffApproval
-            ? INVENTORY_WRITEOFF_CONFIRMATION_TYPE
-            : INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
-          sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
-          sourceEntityId: creationResult.createdMovement.id,
-        },
-      });
-    }
 
     const createdView = await this.prisma.inventoryMovement.findFirst({
       where: {

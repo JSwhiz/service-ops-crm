@@ -155,7 +155,7 @@ export default function InventoryItemDetailPage({
                 </div>
               </div>
               <div className="detail-field">
-                <div className="detail-label">Текущая цена</div>
+                <div className="detail-label">Максимальная цена поставки</div>
                 <div className="detail-value">
                   {item.currentUnitPrice === null
                     ? 'Нет прихода с ценой'

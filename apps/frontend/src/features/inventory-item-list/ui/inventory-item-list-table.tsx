@@ -24,7 +24,7 @@ export function InventoryItemListTable({
             <th align="left">Категория</th>
             <th align="left">Ед.</th>
             <th align="left">Остаток</th>
-            <th align="left">Цена</th>
+            <th align="left">Макс. цена поставки</th>
             <th align="left">Оценка</th>
             <th align="left">Статус</th>
             <th align="left">Движений</th>

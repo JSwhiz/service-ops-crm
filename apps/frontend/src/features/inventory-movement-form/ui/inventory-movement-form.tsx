@@ -259,7 +259,9 @@ export function InventoryMovementForm({
           </label>
         ) : (
           <div>
-            <div className="page-muted">Цена из последнего прихода</div>
+            <div className="page-muted">
+              Максимальная цена применённых приходов
+            </div>
             <div>
               {selectedItem?.currentUnitPrice === null ||
               selectedItem?.currentUnitPrice === undefined
