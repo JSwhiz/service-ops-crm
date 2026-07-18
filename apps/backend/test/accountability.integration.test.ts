@@ -351,9 +351,33 @@ test('accountability ledger supports funding, own expenses, attachments, closure
     },
   );
 
-  assert.equal(requestClosureResponse.status, 201);
+  assert.equal(requestClosureResponse.status, 409);
 
-  const requestedClosure = (await requestClosureResponse.json()) as {
+  const approveExpenseResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/expenses/${createdExpense.id}/approve`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+      },
+    },
+  );
+
+  assert.equal(approveExpenseResponse.status, 200);
+
+  const firstClosureRequestResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/me/closures/request`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerCookie,
+      },
+    },
+  );
+
+  assert.equal(firstClosureRequestResponse.status, 201);
+
+  const requestedClosure = (await firstClosureRequestResponse.json()) as {
     id: string;
     status: string;
   };
@@ -415,20 +439,6 @@ test('accountability ledger supports funding, own expenses, attachments, closure
 
   assert.equal(fundingWhileClosingResponse.status, 409);
 
-  const approveClosureTooEarlyResponse = await fetch(
-    `${baseUrl}/api/v1/approvals/${founderPendingClosureApprovals[0]?.id}/approve`,
-    {
-      method: 'POST',
-      headers: {
-        Cookie: founderCookie,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}),
-    },
-  );
-
-  assert.equal(approveClosureTooEarlyResponse.status, 409);
-
   const rejectClosureResponse = await fetch(
     `${baseUrl}/api/v1/approvals/${founderPendingClosureApprovals[0]?.id}/reject`,
     {
@@ -438,7 +448,7 @@ test('accountability ledger supports funding, own expenses, attachments, closure
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        comment: 'Сначала закройте submitted расход.',
+        comment: 'Сверка требует уточнения.',
       }),
     },
   );
@@ -470,20 +480,8 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   assert.equal(ownAfterRejectedClosure.closures[0]?.status, 'rejected');
   assert.equal(
     ownAfterRejectedClosure.closures[0]?.comment,
-    'Сначала закройте submitted расход.',
+    'Сверка требует уточнения.',
   );
-
-  const approveExpenseResponse = await fetch(
-    `${baseUrl}/api/v1/accountability/expenses/${createdExpense.id}/approve`,
-    {
-      method: 'POST',
-      headers: {
-        Cookie: founderCookie,
-      },
-    },
-  );
-
-  assert.equal(approveExpenseResponse.status, 200);
 
   const secondClosureRequestResponse = await fetch(
     `${baseUrl}/api/v1/accountability/me/closures/request`,

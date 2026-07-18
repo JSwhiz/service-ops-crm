@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+type AuditDatabaseClient = Pick<Prisma.TransactionClient, 'auditEvent'>;
+
 @Injectable()
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
@@ -15,8 +17,8 @@ export class AuditService {
     oldValues?: Prisma.InputJsonValue | null;
     newValues?: Prisma.InputJsonValue | null;
     metadata?: Prisma.InputJsonValue | null;
-  }): Promise<void> {
-    await this.prisma.auditEvent.create({
+  }, database: AuditDatabaseClient = this.prisma): Promise<void> {
+    await database.auditEvent.create({
       data: {
         entityType: params.entityType,
         entityId: params.entityId,

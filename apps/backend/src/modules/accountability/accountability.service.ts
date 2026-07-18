@@ -352,11 +352,19 @@ export class AccountabilityService {
 
     const amount = new Prisma.Decimal(payload.amount);
     const funding = await this.prisma.$transaction(async (tx) => {
-      const existingAccount = await tx.accountabilityAccount.findUnique({
+      await this.lockAccountabilityUser(tx, userId);
+      let existingAccount = await tx.accountabilityAccount.findUnique({
         where: {
           userId,
         },
       });
+
+      if (existingAccount) {
+        await this.lockAccountabilityAccount(tx, existingAccount.id);
+        existingAccount = await tx.accountabilityAccount.findUniqueOrThrow({
+          where: { id: existingAccount.id },
+        });
+      }
 
       let accountId = existingAccount?.id ?? null;
 
@@ -434,18 +442,21 @@ export class AccountabilityService {
         },
       });
 
-      await this.auditService.writeAuditEvent({
-        entityType: 'accountability_funding',
-        entityId: createdFunding.id,
-        actorUserId: currentUser.id,
-        action: 'accountability_funding_issued',
-        newValues: {
-          accountabilityAccountId: createdFunding.accountabilityAccountId,
-          amount: payload.amount,
-          issuedByUserId: currentUser.id,
-          targetUserId: userId,
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'accountability_funding',
+          entityId: createdFunding.id,
+          actorUserId: currentUser.id,
+          action: 'accountability_funding_issued',
+          newValues: {
+            accountabilityAccountId: createdFunding.accountabilityAccountId,
+            amount: payload.amount,
+            issuedByUserId: currentUser.id,
+            targetUserId: userId,
+          },
         },
-      });
+        tx,
+      );
 
       return createdFunding;
     });
@@ -473,34 +484,48 @@ export class AccountabilityService {
       expenseDate: payload.expenseDate ?? null,
     });
 
-    const createdExpense = await this.prisma.accountabilityExpense.create({
-      data: {
-        accountabilityAccountId: account.id,
-        oneTimeOrderId: orderExpense.oneTimeOrderId,
-        expenseCategory: orderExpense.expenseCategory,
-        expenseDate: orderExpense.expenseDate,
-        amount: new Prisma.Decimal(payload.amount),
-        description,
-        status: 'draft',
-        createdByUserId: currentUser.id,
-      },
-      include: this.accountabilityExpenseInclude(),
-    });
+    const createdExpense = await this.prisma.$transaction(async (tx) => {
+      await this.lockAccountabilityAccount(tx, account.id);
+      const lockedAccount = await tx.accountabilityAccount.findUniqueOrThrow({
+        where: { id: account.id },
+        select: { status: true },
+      });
+      this.assertAccountAllowsOwnExpenseWrite(lockedAccount.status);
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'accountability_expense',
-      entityId: createdExpense.id,
-        actorUserId: currentUser.id,
-        action: 'accountability_expense_created',
-        newValues: {
-          amount: payload.amount,
-          description,
-          status: 'draft',
+      const expense = await tx.accountabilityExpense.create({
+        data: {
+          accountabilityAccountId: account.id,
           oneTimeOrderId: orderExpense.oneTimeOrderId,
           expenseCategory: orderExpense.expenseCategory,
-          expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
+          expenseDate: orderExpense.expenseDate,
+          amount: new Prisma.Decimal(payload.amount),
+          description,
+          status: 'draft',
+          createdByUserId: currentUser.id,
         },
+        include: this.accountabilityExpenseInclude(),
       });
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'accountability_expense',
+          entityId: expense.id,
+          actorUserId: currentUser.id,
+          action: 'accountability_expense_created',
+          newValues: {
+            amount: payload.amount,
+            description,
+            status: 'draft',
+            oneTimeOrderId: orderExpense.oneTimeOrderId,
+            expenseCategory: orderExpense.expenseCategory,
+            expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
+          },
+        },
+        tx,
+      );
+
+      return expense;
+    });
 
     const attachmentsByEntityId = await this.loadExpenseAttachments([
       createdExpense.id,
@@ -568,33 +593,76 @@ export class AccountabilityService {
         null,
     });
 
-    const updatedExpense = await this.prisma.accountabilityExpense.update({
-      where: {
-        id: expenseId,
-      },
-      data: {
-        amount: new Prisma.Decimal(payload.amount),
-        description,
-        oneTimeOrderId: orderExpense.oneTimeOrderId,
-        expenseCategory: orderExpense.expenseCategory,
-        expenseDate: orderExpense.expenseDate,
-      },
-      include: this.accountabilityExpenseInclude(),
-    });
+    const updatedExpense = await this.prisma.$transaction(async (tx) => {
+      await this.lockAccountabilityExpense(tx, expenseId);
+      await this.lockAccountabilityAccount(
+        tx,
+        existingExpense.accountabilityAccountId,
+      );
+      const lockedExpense = await tx.accountabilityExpense.findUniqueOrThrow({
+        where: { id: expenseId },
+        include: {
+          accountabilityAccount: {
+            select: { userId: true, status: true },
+          },
+        },
+      });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'accountability_expense',
-      entityId: updatedExpense.id,
-        actorUserId: currentUser.id,
-        action: 'accountability_expense_updated',
-        newValues: {
-          amount: payload.amount,
+      if (lockedExpense.accountabilityAccount.userId !== currentUser.id) {
+        throw new ForbiddenException(
+          'Only owner can edit accountability expense',
+        );
+      }
+      if (
+        lockedExpense.status !== 'draft' ||
+        lockedExpense.updatedAt.getTime() !== existingExpense.updatedAt.getTime()
+      ) {
+        throw new ConflictException('Draft expense state changed');
+      }
+      this.assertAccountAllowsOwnExpenseWrite(
+        lockedExpense.accountabilityAccount.status,
+      );
+
+      const updated = await tx.accountabilityExpense.updateMany({
+        where: {
+          id: expenseId,
+          status: 'draft',
+          updatedAt: existingExpense.updatedAt,
+        },
+        data: {
+          amount: new Prisma.Decimal(payload.amount),
           description,
           oneTimeOrderId: orderExpense.oneTimeOrderId,
           expenseCategory: orderExpense.expenseCategory,
-          expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
+          expenseDate: orderExpense.expenseDate,
         },
       });
+      if (updated.count !== 1) {
+        throw new ConflictException('Draft expense state changed');
+      }
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'accountability_expense',
+          entityId: expenseId,
+          actorUserId: currentUser.id,
+          action: 'accountability_expense_updated',
+          newValues: {
+            amount: payload.amount,
+            description,
+            oneTimeOrderId: orderExpense.oneTimeOrderId,
+            expenseCategory: orderExpense.expenseCategory,
+            expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
+          },
+        },
+        tx,
+      );
+
+      return tx.accountabilityExpense.findUniqueOrThrow({
+        where: { id: expenseId },
+        include: this.accountabilityExpenseInclude(),
+      });
+    });
 
     const attachmentsByEntityId = await this.loadExpenseAttachments([
       updatedExpense.id,
@@ -643,40 +711,82 @@ export class AccountabilityService {
       existingExpense.accountabilityAccount.status,
     );
 
-    if (existingExpense.oneTimeOrderId) {
-      const attachmentCount = await this.prisma.fileAttachment.count({
-        where: {
-          entityType: EXPENSE_ATTACHMENTS_ENTITY_TYPE,
-          entityId: existingExpense.id,
+    const submittedExpense = await this.prisma.$transaction(async (tx) => {
+      await this.lockAccountabilityExpense(tx, expenseId);
+      await this.lockAccountabilityAccount(
+        tx,
+        existingExpense.accountabilityAccountId,
+      );
+      const lockedExpense = await tx.accountabilityExpense.findUniqueOrThrow({
+        where: { id: expenseId },
+        include: {
+          accountabilityAccount: {
+            select: { userId: true, status: true },
+          },
         },
       });
 
-      if (attachmentCount === 0) {
-        throw new ConflictException(
-          'One-time order expense requires a receipt or document',
+      if (lockedExpense.accountabilityAccount.userId !== currentUser.id) {
+        throw new ForbiddenException(
+          'Only owner can submit accountability expense',
         );
       }
-    }
+      if (
+        lockedExpense.status !== 'draft' ||
+        lockedExpense.updatedAt.getTime() !== existingExpense.updatedAt.getTime()
+      ) {
+        throw new ConflictException('Draft expense state changed');
+      }
+      this.assertAccountAllowsOwnExpenseWrite(
+        lockedExpense.accountabilityAccount.status,
+      );
 
-    const submittedExpense = await this.prisma.accountabilityExpense.update({
-      where: {
-        id: expenseId,
-      },
-      data: {
-        status: 'submitted',
-        submittedAt: new Date(),
-      },
-      include: this.accountabilityExpenseInclude(),
-    });
+      if (lockedExpense.oneTimeOrderId) {
+        const attachmentCount = await tx.fileAttachment.count({
+          where: {
+            entityType: EXPENSE_ATTACHMENTS_ENTITY_TYPE,
+            entityId: lockedExpense.id,
+            file: { deletedAt: null },
+          },
+        });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'accountability_expense',
-      entityId: submittedExpense.id,
-      actorUserId: currentUser.id,
-      action: 'accountability_expense_submitted',
-      newValues: {
-        status: 'submitted',
-      },
+        if (attachmentCount === 0) {
+          throw new ConflictException(
+            'One-time order expense requires an active receipt or document',
+          );
+        }
+      }
+
+      const updated = await tx.accountabilityExpense.updateMany({
+        where: {
+          id: expenseId,
+          status: 'draft',
+          updatedAt: existingExpense.updatedAt,
+        },
+        data: {
+          status: 'submitted',
+          submittedAt: new Date(),
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException('Draft expense state changed');
+      }
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'accountability_expense',
+          entityId: expenseId,
+          actorUserId: currentUser.id,
+          action: 'accountability_expense_submitted',
+          newValues: { status: 'submitted' },
+        },
+        tx,
+      );
+
+      return tx.accountabilityExpense.findUniqueOrThrow({
+        where: { id: expenseId },
+        include: this.accountabilityExpenseInclude(),
+      });
     });
 
     const attachmentsByEntityId = await this.loadExpenseAttachments([
@@ -695,48 +805,8 @@ export class AccountabilityService {
     expenseId: string,
   ): Promise<AccountabilityExpenseResponseDto> {
     this.assertCanApproveExpense(currentUser);
-
-    const existingExpense = await this.prisma.accountabilityExpense.findFirst({
-      where: {
-        id: expenseId,
-      },
-      select: {
-        id: true,
-        status: true,
-      },
-    });
-
-    if (!existingExpense) {
-      throw new NotFoundException('Accountability expense not found');
-    }
-
-    if (existingExpense.status !== 'submitted') {
-      throw new ConflictException('Only submitted expense can be approved');
-    }
-
-    const approvedExpense = await this.prisma.accountabilityExpense.update({
-      where: {
-        id: expenseId,
-      },
-      data: {
-        status: 'approved',
-        approvedByUserId: currentUser.id,
-        approvedAt: new Date(),
-        rejectedByUserId: null,
-        rejectedAt: null,
-        rejectionComment: null,
-      },
-      include: this.accountabilityExpenseInclude(),
-    });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'accountability_expense',
-      entityId: approvedExpense.id,
-      actorUserId: currentUser.id,
-      action: 'accountability_expense_approved',
-      newValues: {
-        status: 'approved',
-      },
+    const approvedExpense = await this.resolveExpense(currentUser, expenseId, {
+      decision: 'approve',
     });
 
     const attachmentsByEntityId = await this.loadExpenseAttachments([
@@ -756,56 +826,16 @@ export class AccountabilityService {
     payload: RejectAccountabilityExpenseDto,
   ): Promise<AccountabilityExpenseResponseDto> {
     this.assertCanApproveExpense(currentUser);
-
-    const existingExpense = await this.prisma.accountabilityExpense.findFirst({
-      where: {
-        id: expenseId,
-      },
-      select: {
-        id: true,
-        status: true,
-      },
-    });
-
-    if (!existingExpense) {
-      throw new NotFoundException('Accountability expense not found');
-    }
-
-    if (existingExpense.status !== 'submitted') {
-      throw new ConflictException('Only submitted expense can be rejected');
-    }
-
     const rejectionComment = payload.comment.trim();
 
     if (!rejectionComment) {
       throw new BadRequestException('Expense rejection comment is required');
     }
 
-    const rejectedExpense = await this.prisma.accountabilityExpense.update({
-      where: {
-        id: expenseId,
-      },
-      data: {
-        status: 'rejected',
-        rejectedByUserId: currentUser.id,
-        rejectedAt: new Date(),
-        rejectionComment,
-        approvedByUserId: null,
-        approvedAt: null,
-      },
-      include: this.accountabilityExpenseInclude(),
+    const rejectedExpense = await this.resolveExpense(currentUser, expenseId, {
+      decision: 'reject',
+      comment: rejectionComment,
     });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'accountability_expense',
-      entityId: rejectedExpense.id,
-      actorUserId: currentUser.id,
-        action: 'accountability_expense_rejected',
-        newValues: {
-          status: 'rejected',
-          rejectionComment,
-        },
-      });
 
     const attachmentsByEntityId = await this.loadExpenseAttachments([
       rejectedExpense.id,
@@ -818,40 +848,126 @@ export class AccountabilityService {
     });
   }
 
+  private async resolveExpense(
+    currentUser: CurrentAuthUser,
+    expenseId: string,
+    resolution:
+      | { decision: 'approve' }
+      | { decision: 'reject'; comment: string },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockAccountabilityExpense(tx, expenseId);
+      const expense = await tx.accountabilityExpense.findUnique({
+        where: { id: expenseId },
+        select: { id: true, status: true, accountabilityAccountId: true },
+      });
+
+      if (!expense) {
+        throw new NotFoundException('Accountability expense not found');
+      }
+
+      await this.lockAccountabilityAccount(tx, expense.accountabilityAccountId);
+      if (expense.status !== 'submitted') {
+        throw new ConflictException(
+          `Only submitted expense can be ${resolution.decision === 'approve' ? 'approved' : 'rejected'}`,
+        );
+      }
+
+      const resolvedAt = new Date();
+      const updated = await tx.accountabilityExpense.updateMany({
+        where: { id: expenseId, status: 'submitted' },
+        data:
+          resolution.decision === 'approve'
+            ? {
+                status: 'approved',
+                approvedByUserId: currentUser.id,
+                approvedAt: resolvedAt,
+                rejectedByUserId: null,
+                rejectedAt: null,
+                rejectionComment: null,
+              }
+            : {
+                status: 'rejected',
+                rejectedByUserId: currentUser.id,
+                rejectedAt: resolvedAt,
+                rejectionComment: resolution.comment,
+                approvedByUserId: null,
+                approvedAt: null,
+              },
+      });
+
+      if (updated.count !== 1) {
+        throw new ConflictException('Accountability expense state changed');
+      }
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'accountability_expense',
+          entityId: expenseId,
+          actorUserId: currentUser.id,
+          action: `accountability_expense_${resolution.decision === 'approve' ? 'approved' : 'rejected'}`,
+          newValues: {
+            status: resolution.decision === 'approve' ? 'approved' : 'rejected',
+            ...(resolution.decision === 'reject'
+              ? { rejectionComment: resolution.comment }
+              : {}),
+          },
+        },
+        tx,
+      );
+
+      return tx.accountabilityExpense.findUniqueOrThrow({
+        where: { id: expenseId },
+        include: this.accountabilityExpenseInclude(),
+      });
+    });
+  }
+
   async requestClosure(
     currentUser: CurrentAuthUser,
   ): Promise<AccountabilityClosureResponseDto> {
     await this.assertCanViewOwnAccountability(currentUser);
-    const account = await this.getRequiredOwnActiveAccount(currentUser.id);
-
-    if (account.status !== 'active') {
-      throw new ConflictException(
-        'Accountability account is not available for closure request',
-      );
-    }
-
-    const draftExpensesCount = await this.prisma.accountabilityExpense.count({
-      where: {
-        accountabilityAccountId: account.id,
-        status: 'draft',
-      },
-    });
-
-    if (draftExpensesCount > 0) {
-      throw new ConflictException(
-        'Draft expenses must be submitted or removed before closure request',
-      );
-    }
-
     const closureCreation = await this.prisma.$transaction(async (tx) => {
-      await tx.accountabilityAccount.update({
+      const account = await tx.accountabilityAccount.findUnique({
+        where: { userId: currentUser.id },
+        select: { id: true },
+      });
+      if (!account) {
+        throw new BadRequestException(
+          'No accountability account exists for current user yet',
+        );
+      }
+
+      await this.lockAccountabilityAccount(tx, account.id);
+      const lockedAccount = await tx.accountabilityAccount.findUniqueOrThrow({
+        where: { id: account.id },
+        select: { status: true },
+      });
+      if (lockedAccount.status !== 'active') {
+        throw new ConflictException(
+          'Accountability account is not available for closure request',
+        );
+      }
+
+      const unresolvedExpenseCount = await tx.accountabilityExpense.count({
         where: {
-          id: account.id,
-        },
-        data: {
-          status: 'closing_requested',
+          accountabilityAccountId: account.id,
+          status: { in: ['draft', 'submitted'] },
         },
       });
+      if (unresolvedExpenseCount > 0) {
+        throw new ConflictException(
+          'Draft and submitted expenses must be resolved before closure request',
+        );
+      }
+
+      const accountUpdate = await tx.accountabilityAccount.updateMany({
+        where: { id: account.id, status: 'active' },
+        data: { status: 'closing_requested' },
+      });
+      if (accountUpdate.count !== 1) {
+        throw new ConflictException('Accountability account state changed');
+      }
 
       const createdClosure = await tx.accountabilityClosure.create({
         data: {
@@ -878,33 +994,38 @@ export class AccountabilityService {
         },
       });
 
-      await this.auditService.writeAuditEvent({
-        entityType: 'accountability_closure',
-        entityId: createdClosure.id,
-        actorUserId: currentUser.id,
-        action: 'accountability_closure_requested',
-        newValues: {
-          accountabilityAccountId: account.id,
-          status: 'requested',
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'accountability_closure',
+          entityId: createdClosure.id,
+          actorUserId: currentUser.id,
+          action: 'accountability_closure_requested',
+          newValues: {
+            accountabilityAccountId: account.id,
+            status: 'requested',
+          },
         },
-      });
+        tx,
+      );
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'approval_request',
+          entityId: approvalRequest.id,
+          actorUserId: currentUser.id,
+          action: 'approval.request.created',
+          newValues: {
+            approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+            sourceEntityType:
+              ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+            sourceEntityId: createdClosure.id,
+          },
+        },
+        tx,
+      );
 
       return {
         closure: createdClosure,
-        approvalRequestId: approvalRequest.id,
       };
-    });
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'approval_request',
-      entityId: closureCreation.approvalRequestId,
-      actorUserId: currentUser.id,
-      action: 'approval.request.created',
-      newValues: {
-        approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
-        sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
-        sourceEntityId: closureCreation.closure.id,
-      },
     });
 
     return this.mapClosure({
@@ -918,45 +1039,10 @@ export class AccountabilityService {
     closureId: string,
   ): Promise<AccountabilityClosureResponseDto> {
     this.assertCanApproveClosure(currentUser);
-    const approvalRequest = await this.findPendingClosureApprovalRequest(closureId);
-
-    const approvedClosure = await this.prisma.$transaction(async (tx) => {
-      const closure = await this.applyClosureApprovalDecision(tx, {
-        closureId,
-        decision: 'approve',
-        actorUserId: currentUser.id,
-      });
-
-      if (approvalRequest) {
-        await tx.approvalRequest.update({
-          where: {
-            id: approvalRequest.id,
-          },
-          data: {
-            status: 'approved',
-            resolvedByUserId: currentUser.id,
-            resolvedAt: new Date(),
-            decisionComment: null,
-          },
-        });
-      }
-
-      return closure;
+    const approvedClosure = await this.resolveClosureDirect(currentUser, {
+      closureId,
+      decision: 'approve',
     });
-
-    if (approvalRequest) {
-      await this.auditService.writeAuditEvent({
-        entityType: 'approval_request',
-        entityId: approvalRequest.id,
-        actorUserId: currentUser.id,
-        action: 'approval.request.approved',
-        newValues: {
-          approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
-          sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
-          sourceEntityId: closureId,
-        },
-      });
-    }
 
     return this.mapClosure({
       closure: approvedClosure,
@@ -976,51 +1062,73 @@ export class AccountabilityService {
     if (!rejectionComment) {
       throw new BadRequestException('Closure rejection comment is required');
     }
-    const approvalRequest = await this.findPendingClosureApprovalRequest(closureId);
-
-    const rejectedClosure = await this.prisma.$transaction(async (tx) => {
-      const closure = await this.applyClosureApprovalDecision(tx, {
-        closureId,
-        decision: 'reject',
-        actorUserId: currentUser.id,
-        comment: rejectionComment,
-      });
-
-      if (approvalRequest) {
-        await tx.approvalRequest.update({
-          where: {
-            id: approvalRequest.id,
-          },
-          data: {
-            status: 'rejected',
-            resolvedByUserId: currentUser.id,
-            resolvedAt: new Date(),
-            decisionComment: rejectionComment,
-          },
-        });
-      }
-
-      return closure;
+    const rejectedClosure = await this.resolveClosureDirect(currentUser, {
+      closureId,
+      decision: 'reject',
+      comment: rejectionComment,
     });
-
-    if (approvalRequest) {
-      await this.auditService.writeAuditEvent({
-        entityType: 'approval_request',
-        entityId: approvalRequest.id,
-        actorUserId: currentUser.id,
-        action: 'approval.request.rejected',
-        newValues: {
-          approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
-          sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
-          sourceEntityId: closureId,
-          decisionComment: rejectionComment,
-        },
-      });
-    }
 
     return this.mapClosure({
       closure: rejectedClosure,
       currentUser,
+    });
+  }
+
+  private async resolveClosureDirect(
+    currentUser: CurrentAuthUser,
+    resolution:
+      | { closureId: string; decision: 'approve' }
+      | { closureId: string; decision: 'reject'; comment: string },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const approvalRequest =
+        await this.loadPendingClosureApprovalRequestForUpdate(
+          tx,
+          resolution.closureId,
+        );
+      const closure = await this.applyClosureApprovalDecision(tx, {
+        closureId: resolution.closureId,
+        decision: resolution.decision,
+        actorUserId: currentUser.id,
+        ...(resolution.decision === 'reject'
+          ? { comment: resolution.comment }
+          : {}),
+      });
+      const resolvedAt = new Date();
+      const updated = await tx.approvalRequest.updateMany({
+        where: { id: approvalRequest.id, status: 'pending' },
+        data: {
+          status:
+            resolution.decision === 'approve' ? 'approved' : 'rejected',
+          resolvedByUserId: currentUser.id,
+          resolvedAt,
+          decisionComment:
+            resolution.decision === 'reject' ? resolution.comment : null,
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException('Closure approval request state changed');
+      }
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'approval_request',
+          entityId: approvalRequest.id,
+          actorUserId: currentUser.id,
+          action: `approval.request.${resolution.decision === 'approve' ? 'approved' : 'rejected'}`,
+          newValues: {
+            approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
+            sourceEntityType:
+              ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
+            sourceEntityId: resolution.closureId,
+            decisionComment:
+              resolution.decision === 'reject' ? resolution.comment : null,
+          },
+        },
+        tx,
+      );
+
+      return closure;
     });
   }
 
@@ -1033,20 +1141,19 @@ export class AccountabilityService {
       comment?: string;
     },
   ) {
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "accountability_closures"
+      WHERE "id" = ${params.closureId}
+      FOR UPDATE
+    `;
     const currentClosure = await tx.accountabilityClosure.findFirst({
       where: {
         id: params.closureId,
       },
       include: {
         accountabilityAccount: {
-          include: {
-            expenses: {
-              select: {
-                id: true,
-                status: true,
-              },
-            },
-          },
+          select: { id: true },
         },
         ...this.accountabilityClosureInclude(),
       },
@@ -1062,7 +1169,18 @@ export class AccountabilityService {
       );
     }
 
-    if (currentClosure.accountabilityAccount.status !== 'closing_requested') {
+    await this.lockAccountabilityAccount(
+      tx,
+      currentClosure.accountabilityAccountId,
+    );
+    const lockedAccount = await tx.accountabilityAccount.findUniqueOrThrow({
+      where: { id: currentClosure.accountabilityAccountId },
+      include: {
+        expenses: { select: { id: true, status: true } },
+      },
+    });
+
+    if (lockedAccount.status !== 'closing_requested') {
       throw new ConflictException(
         'Accountability account is not waiting for closure approval',
       );
@@ -1070,7 +1188,7 @@ export class AccountabilityService {
 
     if (params.decision === 'approve') {
       const unresolvedExpense =
-        currentClosure.accountabilityAccount.expenses.find(
+        lockedAccount.expenses.find(
           (expense) =>
             expense.status === 'draft' || expense.status === 'submitted',
         );
@@ -1081,6 +1199,9 @@ export class AccountabilityService {
         );
       }
 
+      const approvedExpenses = lockedAccount.expenses.filter(
+        (expense) => expense.status === 'approved',
+      );
       await tx.accountabilityExpense.updateMany({
         where: {
           accountabilityAccountId: currentClosure.accountabilityAccountId,
@@ -1092,36 +1213,59 @@ export class AccountabilityService {
         },
       });
 
-      await tx.accountabilityAccount.update({
+      for (const expense of approvedExpenses) {
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'accountability_expense',
+            entityId: expense.id,
+            actorUserId: params.actorUserId,
+            action: 'accountability_expense_reconciled',
+            newValues: {
+              status: 'reconciled',
+              closureId: currentClosure.id,
+            },
+          },
+          tx,
+        );
+      }
+
+      const accountUpdate = await tx.accountabilityAccount.updateMany({
         where: {
           id: currentClosure.accountabilityAccountId,
+          status: 'closing_requested',
         },
-        data: {
-          status: 'active',
-        },
+        data: { status: 'active' },
       });
+      if (accountUpdate.count !== 1) {
+        throw new ConflictException('Accountability account state changed');
+      }
 
-      const closure = await tx.accountabilityClosure.update({
-        where: {
-          id: params.closureId,
-        },
+      const closureUpdate = await tx.accountabilityClosure.updateMany({
+        where: { id: params.closureId, status: 'requested' },
         data: {
           status: 'approved',
           approvedByUserId: params.actorUserId,
           approvedAt: new Date(),
         },
+      });
+      if (closureUpdate.count !== 1) {
+        throw new ConflictException('Accountability closure state changed');
+      }
+      const closure = await tx.accountabilityClosure.findUniqueOrThrow({
+        where: { id: params.closureId },
         include: this.accountabilityClosureInclude(),
       });
 
-      await this.auditService.writeAuditEvent({
-        entityType: 'accountability_closure',
-        entityId: closure.id,
-        actorUserId: params.actorUserId,
-        action: 'accountability_closure_approved',
-        newValues: {
-          status: 'approved',
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'accountability_closure',
+          entityId: closure.id,
+          actorUserId: params.actorUserId,
+          action: 'accountability_closure_approved',
+          newValues: { status: 'approved' },
         },
-      });
+        tx,
+      );
 
       return closure;
     }
@@ -1132,38 +1276,47 @@ export class AccountabilityService {
       throw new BadRequestException('Closure rejection comment is required');
     }
 
-    await tx.accountabilityAccount.update({
+    const accountUpdate = await tx.accountabilityAccount.updateMany({
       where: {
         id: currentClosure.accountabilityAccountId,
+        status: 'closing_requested',
       },
-      data: {
-        status: 'active',
-      },
+      data: { status: 'active' },
     });
+    if (accountUpdate.count !== 1) {
+      throw new ConflictException('Accountability account state changed');
+    }
 
-    const closure = await tx.accountabilityClosure.update({
-      where: {
-        id: params.closureId,
-      },
+    const closureUpdate = await tx.accountabilityClosure.updateMany({
+      where: { id: params.closureId, status: 'requested' },
       data: {
         status: 'rejected',
         rejectedByUserId: params.actorUserId,
         rejectedAt: new Date(),
         comment: rejectionComment,
       },
+    });
+    if (closureUpdate.count !== 1) {
+      throw new ConflictException('Accountability closure state changed');
+    }
+    const closure = await tx.accountabilityClosure.findUniqueOrThrow({
+      where: { id: params.closureId },
       include: this.accountabilityClosureInclude(),
     });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'accountability_closure',
-      entityId: closure.id,
-      actorUserId: params.actorUserId,
-      action: 'accountability_closure_rejected',
-      newValues: {
-        status: 'rejected',
-        comment: rejectionComment,
+    await this.auditService.writeAuditEvent(
+      {
+        entityType: 'accountability_closure',
+        entityId: closure.id,
+        actorUserId: params.actorUserId,
+        action: 'accountability_closure_rejected',
+        newValues: {
+          status: 'rejected',
+          comment: rejectionComment,
+        },
       },
-    });
+      tx,
+    );
 
     return closure;
   }
@@ -1795,18 +1948,73 @@ export class AccountabilityService {
     return account;
   }
 
-  private async findPendingClosureApprovalRequest(closureId: string) {
-    return this.prisma.approvalRequest.findFirst({
+  private async loadPendingClosureApprovalRequestForUpdate(
+    tx: Prisma.TransactionClient,
+    closureId: string,
+  ) {
+    const candidate = await tx.approvalRequest.findFirst({
       where: {
         approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
         sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
         sourceEntityId: closureId,
-        status: 'pending',
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
+
+    if (!candidate) {
+      throw new ConflictException('Closure approval request is missing');
+    }
+
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "approval_requests"
+      WHERE "id" = ${candidate.id}
+      FOR UPDATE
+    `;
+    const request = await tx.approvalRequest.findUniqueOrThrow({
+      where: { id: candidate.id },
+      select: { id: true, status: true },
+    });
+    if (request.status !== 'pending') {
+      throw new ConflictException(
+        'Only pending closure approval request can be resolved',
+      );
+    }
+
+    return request;
+  }
+
+  private async lockAccountabilityUser(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ): Promise<void> {
+    await tx.$queryRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${'accountability:' + userId}))::text`,
+    );
+  }
+
+  private async lockAccountabilityAccount(
+    tx: Prisma.TransactionClient,
+    accountId: string,
+  ): Promise<void> {
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "accountability_accounts"
+      WHERE "id" = ${accountId}
+      FOR UPDATE
+    `;
+  }
+
+  private async lockAccountabilityExpense(
+    tx: Prisma.TransactionClient,
+    expenseId: string,
+  ): Promise<void> {
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "accountability_expenses"
+      WHERE "id" = ${expenseId}
+      FOR UPDATE
+    `;
   }
 
   private assertAccountAllowsOwnExpenseWrite(status: string): void {

@@ -216,6 +216,23 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
     body: uploadForm,
   });
   assert.equal(uploadResponse.status, 201);
+  const uploadedFile = (await uploadResponse.json()) as { id: string };
+
+  await prisma.file.update({
+    where: { id: uploadedFile.id },
+    data: { deletedAt: new Date() },
+  });
+  const submitWithDeletedFileResponse = await postJson(
+    `${baseUrl}/api/v1/accountability/me/expenses/${firstExpense.id}/submit`,
+    firstCookie,
+    {},
+  );
+  assert.equal(submitWithDeletedFileResponse.status, 409);
+
+  await prisma.file.update({
+    where: { id: uploadedFile.id },
+    data: { deletedAt: null },
+  });
 
   const submitResponse = await postJson(
     `${baseUrl}/api/v1/accountability/me/expenses/${firstExpense.id}/submit`,
