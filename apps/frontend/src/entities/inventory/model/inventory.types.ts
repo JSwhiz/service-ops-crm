@@ -8,6 +8,7 @@ export interface InventoryItem {
   isActive: boolean;
   notes: string | null;
   currentUnitPrice: number | null;
+  version: number;
   createdAt: string;
   updatedAt: string;
   createdBy: {
@@ -125,6 +126,7 @@ export interface CreateInventoryItemPayload {
 }
 
 export interface UpdateInventoryItemPayload {
+  expectedVersion: number;
   name?: string;
   category?: string;
   unit?: string;

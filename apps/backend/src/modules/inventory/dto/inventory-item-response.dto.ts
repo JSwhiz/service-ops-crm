@@ -6,6 +6,7 @@ export class InventoryItemResponseDto {
   isActive!: boolean;
   notes!: string | null;
   currentUnitPrice!: number | null;
+  version!: number;
   createdAt!: string;
   updatedAt!: string;
   createdBy!: {

@@ -1,16 +1,32 @@
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+
+const trimString = ({ value }: { value: unknown }): unknown =>
+  typeof value === 'string' ? value.trim() : value;
 
 export class CreateInventoryItemDto {
+  @Transform(trimString)
   @IsString()
   @MinLength(2)
+  @MaxLength(200)
   name!: string;
 
+  @Transform(trimString)
   @IsString()
   @MinLength(2)
+  @MaxLength(100)
   category!: string;
 
+  @Transform(trimString)
   @IsString()
   @MinLength(1)
+  @MaxLength(50)
   unit!: string;
 
   @IsOptional()
@@ -18,6 +34,8 @@ export class CreateInventoryItemDto {
   isActive?: boolean;
 
   @IsOptional()
+  @Transform(trimString)
   @IsString()
+  @MaxLength(4000)
   notes?: string;
 }

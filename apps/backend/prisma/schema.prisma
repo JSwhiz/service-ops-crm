@@ -1034,6 +1034,7 @@ model InventoryItem {
   isActive        Boolean  @default(true)
   notes           String?
   currentUnitPrice Decimal? @db.Decimal(12, 2)
+  version         Int      @default(1)
   createdByUserId String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

@@ -75,6 +75,7 @@ type InventoryItemRecord = {
   isActive: boolean;
   notes: string | null;
   currentUnitPrice: Prisma.Decimal | null;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
   createdBy: {
@@ -271,40 +272,48 @@ export class InventoryService {
     payload: CreateInventoryItemDto,
   ): Promise<InventoryItemResponseDto> {
     this.assertCatalogManageable(currentUser);
+    const normalized = this.normalizeCreateItemPayload(payload);
 
-    const created = (await this.prisma.inventoryItem.create({
-      data: {
-        name: payload.name.trim(),
-        category: payload.category.trim(),
-        unit: payload.unit.trim(),
-        isActive: payload.isActive ?? true,
-        notes: payload.notes?.trim() || null,
-        createdByUserId: currentUser.id,
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
+    let created: InventoryItemRecord;
+
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        if (normalized.isActive) {
+          await this.assertNoActiveItemDuplicate(tx, normalized);
+        }
+
+        const item = (await tx.inventoryItem.create({
+          data: {
+            ...normalized,
+            createdByUserId: currentUser.id,
           },
-        },
-      },
-    })) as InventoryItemRecord;
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+              },
+            },
+          },
+        })) as InventoryItemRecord;
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'inventory_item',
-      entityId: created.id,
-      actorUserId: currentUser.id,
-      action: 'inventory.item.created',
-      newValues: {
-        name: created.name,
-        category: created.category,
-        unit: created.unit,
-        isActive: created.isActive,
-        notes: created.notes,
-      },
-    });
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'inventory_item',
+            entityId: item.id,
+            actorUserId: currentUser.id,
+            action: 'inventory.item.created',
+            newValues: this.buildItemAuditSnapshot(item),
+          },
+          tx,
+        );
+
+        return item;
+      });
+    } catch (error) {
+      this.rethrowInventoryItemDuplicate(error);
+    }
 
     return this.mapItem(
       created,
@@ -319,70 +328,114 @@ export class InventoryService {
     payload: UpdateInventoryItemDto,
   ): Promise<InventoryItemResponseDto> {
     this.assertCatalogManageable(currentUser);
+    const normalized = this.normalizeUpdateItemPayload(payload);
 
-    const existing = await this.prisma.inventoryItem.findFirst({
-      where: { id },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
+    let updated: InventoryItemRecord;
+
+    try {
+      updated = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`
+          SELECT "id"
+          FROM "inventory_items"
+          WHERE "id" = ${id}
+          FOR UPDATE
+        `;
+
+        const existing = (await tx.inventoryItem.findUnique({
+          where: { id },
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+              },
+            },
           },
-        },
-      },
-    });
+        })) as InventoryItemRecord | null;
 
-    if (!existing) {
-      throw new NotFoundException('Inventory item not found');
+        if (!existing) {
+          throw new NotFoundException('Inventory item not found');
+        }
+
+        if (existing.version !== payload.expectedVersion) {
+          throw new ConflictException({
+            code: 'INVENTORY_ITEM_VERSION_CONFLICT',
+            message: 'Inventory item was changed by another user',
+          });
+        }
+
+        const nextValues = {
+          name: normalized.name ?? existing.name,
+          category: normalized.category ?? existing.category,
+          unit: normalized.unit ?? existing.unit,
+          notes:
+            normalized.notes === undefined ? existing.notes : normalized.notes,
+          isActive: normalized.isActive ?? existing.isActive,
+        };
+
+        if (existing.isActive && !nextValues.isActive) {
+          await this.assertItemArchivable(tx, existing.id);
+        }
+
+        if (nextValues.isActive) {
+          await this.assertNoActiveItemDuplicate(tx, nextValues, existing.id);
+        }
+
+        const updateResult = await tx.inventoryItem.updateMany({
+          where: {
+            id,
+            version: payload.expectedVersion,
+          },
+          data: {
+            ...normalized,
+            version: { increment: 1 },
+          },
+        });
+
+        if (updateResult.count !== 1) {
+          throw new ConflictException({
+            code: 'INVENTORY_ITEM_VERSION_CONFLICT',
+            message: 'Inventory item was changed by another user',
+          });
+        }
+
+        const item = (await tx.inventoryItem.findUniqueOrThrow({
+          where: { id },
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+              },
+            },
+          },
+        })) as InventoryItemRecord;
+        const action =
+          existing.isActive && !item.isActive
+            ? 'inventory.item.archived'
+            : !existing.isActive && item.isActive
+              ? 'inventory.item.reactivated'
+              : 'inventory.item.updated';
+
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'inventory_item',
+            entityId: item.id,
+            actorUserId: currentUser.id,
+            action,
+            oldValues: this.buildItemAuditSnapshot(existing),
+            newValues: this.buildItemAuditSnapshot(item),
+          },
+          tx,
+        );
+
+        return item;
+      });
+    } catch (error) {
+      this.rethrowInventoryItemDuplicate(error);
     }
-
-    const updated = (await this.prisma.inventoryItem.update({
-      where: { id },
-      data: {
-        ...(payload.name === undefined ? {} : { name: payload.name.trim() }),
-        ...(payload.category === undefined
-          ? {}
-          : { category: payload.category.trim() }),
-        ...(payload.unit === undefined ? {} : { unit: payload.unit.trim() }),
-        ...(payload.isActive === undefined
-          ? {}
-          : { isActive: payload.isActive }),
-        ...(payload.notes === undefined
-          ? {}
-          : { notes: payload.notes?.trim() || null }),
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
-          },
-        },
-      },
-    })) as InventoryItemRecord;
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'inventory_item',
-      entityId: updated.id,
-      actorUserId: currentUser.id,
-      action: 'inventory.item.updated',
-      oldValues: {
-        name: existing.name,
-        category: existing.category,
-        unit: existing.unit,
-        isActive: existing.isActive,
-        notes: existing.notes,
-      },
-      newValues: {
-        name: updated.name,
-        category: updated.category,
-        unit: updated.unit,
-        isActive: updated.isActive,
-        notes: updated.notes,
-      },
-    });
 
     const stockByItemId = await this.loadStockSummariesByItemIds([updated.id]);
 
@@ -1317,6 +1370,201 @@ export class InventoryService {
     return buildInventoryGlobalCapabilities(this.getRoleCodes(currentUser));
   }
 
+  private normalizeCreateItemPayload(payload: CreateInventoryItemDto): {
+    name: string;
+    category: string;
+    unit: string;
+    notes: string | null;
+    isActive: boolean;
+  } {
+    return {
+      name: this.normalizeCatalogText(payload.name, 'name', 2, 200),
+      category: this.normalizeCatalogText(
+        payload.category,
+        'category',
+        2,
+        100,
+      ),
+      unit: this.normalizeCatalogText(payload.unit, 'unit', 1, 50),
+      notes: this.normalizeCatalogNotes(payload.notes),
+      isActive: payload.isActive ?? true,
+    };
+  }
+
+  private normalizeUpdateItemPayload(payload: UpdateInventoryItemDto): {
+    name?: string;
+    category?: string;
+    unit?: string;
+    notes?: string | null;
+    isActive?: boolean;
+  } {
+    return {
+      ...(payload.name === undefined
+        ? {}
+        : { name: this.normalizeCatalogText(payload.name, 'name', 2, 200) }),
+      ...(payload.category === undefined
+        ? {}
+        : {
+            category: this.normalizeCatalogText(
+              payload.category,
+              'category',
+              2,
+              100,
+            ),
+          }),
+      ...(payload.unit === undefined
+        ? {}
+        : { unit: this.normalizeCatalogText(payload.unit, 'unit', 1, 50) }),
+      ...(payload.notes === undefined
+        ? {}
+        : { notes: this.normalizeCatalogNotes(payload.notes) }),
+      ...(payload.isActive === undefined
+        ? {}
+        : { isActive: payload.isActive }),
+    };
+  }
+
+  private normalizeCatalogText(
+    value: string,
+    field: string,
+    minLength: number,
+    maxLength: number,
+  ): string {
+    const normalized = value.trim();
+
+    if (
+      normalized.length < minLength ||
+      normalized.length > maxLength
+    ) {
+      throw new BadRequestException(
+        `${field} length must be between ${minLength} and ${maxLength} characters after trim`,
+      );
+    }
+
+    return normalized;
+  }
+
+  private normalizeCatalogNotes(value: string | null | undefined): string | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    const normalized = value.trim();
+
+    if (normalized.length > 4000) {
+      throw new BadRequestException(
+        'notes length must not exceed 4000 characters after trim',
+      );
+    }
+
+    return normalized || null;
+  }
+
+  private async assertNoActiveItemDuplicate(
+    tx: Prisma.TransactionClient,
+    item: { name: string; category: string; unit: string },
+    excludeItemId?: string,
+  ): Promise<void> {
+    const duplicate = await tx.inventoryItem.findFirst({
+      where: {
+        isActive: true,
+        ...(excludeItemId ? { id: { not: excludeItemId } } : {}),
+        name: { equals: item.name.trim(), mode: 'insensitive' },
+        category: { equals: item.category.trim(), mode: 'insensitive' },
+        unit: { equals: item.unit.trim(), mode: 'insensitive' },
+      },
+      select: { id: true },
+    });
+
+    if (duplicate) {
+      this.throwInventoryItemDuplicate();
+    }
+  }
+
+  private async assertItemArchivable(
+    tx: Prisma.TransactionClient,
+    itemId: string,
+  ): Promise<void> {
+    const [stockSummary, movements] = await Promise.all([
+      this.loadStockSummaryForItem(tx, itemId),
+      tx.inventoryMovement.findMany({
+        where: { inventoryItemId: itemId },
+        select: { id: true, status: true },
+      }),
+    ]);
+    const movementIds = movements.map((movement) => movement.id);
+    const pendingApproval =
+      movementIds.length === 0
+        ? null
+        : await tx.approvalRequest.findFirst({
+            where: {
+              sourceEntityType:
+                INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+              sourceEntityId: { in: movementIds },
+              status: 'pending',
+            },
+            select: { id: true },
+          });
+    const reasons: string[] = [];
+
+    if (Math.abs(stockSummary.currentStock) > 0.0001) {
+      reasons.push('non_zero_stock');
+    }
+
+    if (movements.some((movement) => movement.status === 'pending_approval')) {
+      reasons.push('pending_movement');
+    }
+
+    if (pendingApproval) {
+      reasons.push('pending_approval');
+    }
+
+    if (reasons.length > 0) {
+      throw new ConflictException({
+        code: 'INVENTORY_ITEM_ARCHIVE_BLOCKED',
+        message: 'Inventory item cannot be archived in its current state',
+        reasons,
+        currentStock: Number(stockSummary.currentStock.toFixed(3)),
+      });
+    }
+  }
+
+  private buildItemAuditSnapshot(item: {
+    name: string;
+    category: string;
+    unit: string;
+    notes: string | null;
+    isActive: boolean;
+    version: number;
+  }): Prisma.InputJsonObject {
+    return {
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      notes: item.notes,
+      isActive: item.isActive,
+      version: item.version,
+    };
+  }
+
+  private rethrowInventoryItemDuplicate(error: unknown): never {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      this.throwInventoryItemDuplicate();
+    }
+
+    throw error;
+  }
+
+  private throwInventoryItemDuplicate(): never {
+    throw new ConflictException({
+      code: 'INVENTORY_ITEM_DUPLICATE',
+      message: 'An active inventory item with the same identity already exists',
+    });
+  }
+
   private assertInventoryVisible(currentUser: CurrentAuthUser): void {
     if (!canAccessInventory(this.getRoleCodes(currentUser))) {
       throw new ForbiddenException('Inventory access denied');
@@ -1980,6 +2228,7 @@ export class InventoryService {
       isActive: item.isActive,
       notes: item.notes,
       currentUnitPrice,
+      version: item.version,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
       createdBy: item.createdBy,
