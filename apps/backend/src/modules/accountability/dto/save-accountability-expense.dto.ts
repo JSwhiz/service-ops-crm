@@ -25,6 +25,10 @@ export class SaveAccountabilityExpenseDto {
   oneTimeOrderId?: string;
 
   @IsOptional()
+  @IsUUID()
+  oneTimeOrderCompletionId?: string | null;
+
+  @IsOptional()
   @IsIn(ACCOUNTABILITY_EXPENSE_CATEGORIES)
   expenseCategory?: (typeof ACCOUNTABILITY_EXPENSE_CATEGORIES)[number];
 

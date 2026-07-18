@@ -194,7 +194,30 @@ export class AccountabilityService {
       roleCodes: this.getRoleCodes(currentUser),
       permissionCodes: this.getPermissionCodes(currentUser),
     });
-    const order = await this.prisma.oneTimeOrder.findFirst({
+    const orderSelect = {
+      id: true,
+      title: true,
+      assignments: {
+        where: {
+          userId: currentUser.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+        select: { id: true },
+      },
+      completionPayments: {
+        where: { recipientUserId: currentUser.id },
+        select: { id: true },
+      },
+      accountabilityFundings: {
+        where: {
+          fundingType: 'one_time_order_receipt',
+          accountabilityAccount: { userId: currentUser.id },
+        },
+        select: { id: true },
+      },
+    } satisfies Prisma.OneTimeOrderSelect;
+    let order = await this.prisma.oneTimeOrder.findFirst({
       where: {
         id: orderId,
         ...buildOneTimeOrderAccessWhere({
@@ -203,20 +226,36 @@ export class AccountabilityService {
           permissionCodes: this.getPermissionCodes(currentUser),
         }),
       },
-      select: {
-        id: true,
-        title: true,
-        assignments: {
-          where: {
-            userId: currentUser.id,
-            assignmentRoleCode: 'one_time_manager',
-          },
-          select: {
-            id: true,
-          },
-        },
-      },
+      select: orderSelect,
     });
+
+    if (!order) {
+      order = await this.prisma.oneTimeOrder.findFirst({
+        where: {
+          id: orderId,
+          ...(canReview
+            ? {}
+            : {
+                OR: [
+                  {
+                    completionPayments: {
+                      some: { recipientUserId: currentUser.id },
+                    },
+                  },
+                  {
+                    accountabilityFundings: {
+                      some: {
+                        fundingType: 'one_time_order_receipt',
+                        accountabilityAccount: { userId: currentUser.id },
+                      },
+                    },
+                  },
+                ],
+              }),
+        },
+        select: orderSelect,
+      });
+    }
 
     if (!order) {
       throw new NotFoundException('One-time order not found');
@@ -304,7 +343,10 @@ export class AccountabilityService {
       capabilities: {
         canCreateExpense:
           canViewOwn &&
-          order.assignments.length > 0 &&
+          (canReview ||
+            order.assignments.length > 0 ||
+            order.completionPayments.length > 0 ||
+            order.accountabilityFundings.length > 0) &&
           ownAccount?.status === 'active',
         canReviewExpenses: canReview,
       },
@@ -480,6 +522,7 @@ export class AccountabilityService {
     const orderExpense = await this.normalizeOrderExpenseInput({
       currentUser,
       oneTimeOrderId: payload.oneTimeOrderId ?? null,
+      oneTimeOrderCompletionId: payload.oneTimeOrderCompletionId ?? null,
       expenseCategory: payload.expenseCategory ?? null,
       expenseDate: payload.expenseDate ?? null,
     });
@@ -496,6 +539,7 @@ export class AccountabilityService {
         data: {
           accountabilityAccountId: account.id,
           oneTimeOrderId: orderExpense.oneTimeOrderId,
+          oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
           expenseCategory: orderExpense.expenseCategory,
           expenseDate: orderExpense.expenseDate,
           amount: new Prisma.Decimal(payload.amount),
@@ -517,6 +561,7 @@ export class AccountabilityService {
             description,
             status: 'draft',
             oneTimeOrderId: orderExpense.oneTimeOrderId,
+            oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
             expenseCategory: orderExpense.expenseCategory,
             expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
           },
@@ -585,6 +630,10 @@ export class AccountabilityService {
       currentUser,
       oneTimeOrderId:
         payload.oneTimeOrderId ?? existingExpense.oneTimeOrderId ?? null,
+      oneTimeOrderCompletionId:
+        payload.oneTimeOrderCompletionId === undefined
+          ? existingExpense.oneTimeOrderCompletionId
+          : payload.oneTimeOrderCompletionId,
       expenseCategory:
         payload.expenseCategory ?? existingExpense.expenseCategory ?? null,
       expenseDate:
@@ -633,6 +682,7 @@ export class AccountabilityService {
           amount: new Prisma.Decimal(payload.amount),
           description,
           oneTimeOrderId: orderExpense.oneTimeOrderId,
+          oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
           expenseCategory: orderExpense.expenseCategory,
           expenseDate: orderExpense.expenseDate,
         },
@@ -651,6 +701,7 @@ export class AccountabilityService {
             amount: payload.amount,
             description,
             oneTimeOrderId: orderExpense.oneTimeOrderId,
+            oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
             expenseCategory: orderExpense.expenseCategory,
             expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
           },
@@ -2028,10 +2079,12 @@ export class AccountabilityService {
   private async normalizeOrderExpenseInput(params: {
     currentUser: CurrentAuthUser;
     oneTimeOrderId: string | null;
+    oneTimeOrderCompletionId: string | null;
     expenseCategory: string | null;
     expenseDate: string | null;
   }): Promise<{
     oneTimeOrderId: string | null;
+    oneTimeOrderCompletionId: string | null;
     expenseCategory: string | null;
     expenseDate: Date | null;
   }> {
@@ -2048,6 +2101,12 @@ export class AccountabilityService {
       ? this.parseDateOnly(params.expenseDate)
       : null;
 
+    if (params.oneTimeOrderCompletionId && !params.oneTimeOrderId) {
+      throw new BadRequestException(
+        'Completion expense link requires one-time order',
+      );
+    }
+
     if (params.oneTimeOrderId) {
       if (!params.expenseCategory || !expenseDate) {
         throw new BadRequestException(
@@ -2059,10 +2118,25 @@ export class AccountabilityService {
         params.currentUser,
         params.oneTimeOrderId,
       );
+
+      if (params.oneTimeOrderCompletionId) {
+        const completion = await this.prisma.oneTimeOrderCompletion.findFirst({
+          where: {
+            id: params.oneTimeOrderCompletionId,
+            oneTimeOrderId: params.oneTimeOrderId,
+          },
+          select: { id: true },
+        });
+
+        if (!completion) {
+          throw new NotFoundException('One-time order completion not found');
+        }
+      }
     }
 
     return {
       oneTimeOrderId: params.oneTimeOrderId,
+      oneTimeOrderCompletionId: params.oneTimeOrderCompletionId,
       expenseCategory: params.expenseCategory,
       expenseDate,
     };
@@ -2072,20 +2146,41 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     orderId: string,
   ): Promise<void> {
+    const canReview = canReviewAccountability({
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+    });
     const order = await this.prisma.oneTimeOrder.findFirst({
       where: {
         id: orderId,
-        ...buildOneTimeOrderAccessWhere({
-          currentUserId: currentUser.id,
-          roleCodes: this.getRoleCodes(currentUser),
-          permissionCodes: this.getPermissionCodes(currentUser),
-        }),
-        assignments: {
-          some: {
-            userId: currentUser.id,
-            assignmentRoleCode: 'one_time_manager',
-          },
-        },
+        ...(canReview
+          ? {}
+          : {
+              OR: [
+                {
+                  assignments: {
+                    some: {
+                      userId: currentUser.id,
+                      assignmentRoleCode: 'one_time_manager',
+                      isActive: true,
+                    },
+                  },
+                },
+                {
+                  completionPayments: {
+                    some: { recipientUserId: currentUser.id },
+                  },
+                },
+                {
+                  accountabilityFundings: {
+                    some: {
+                      fundingType: 'one_time_order_receipt',
+                      accountabilityAccount: { userId: currentUser.id },
+                    },
+                  },
+                },
+              ],
+            }),
       },
       select: { id: true },
     });

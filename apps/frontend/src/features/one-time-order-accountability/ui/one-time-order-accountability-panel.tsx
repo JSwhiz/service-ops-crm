@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import type {
   AccountabilityExpenseCategory,
   OneTimeOrderAccountabilityView,
 } from '@/entities/accountability/model/accountability.types';
+import type { OneTimeOrderCompletion } from '@/entities/one-time-order/model/one-time-order.types';
 import {
   getAccountabilityExpenseCategoryLabel,
   getAccountabilityExpenseStatusLabel,
@@ -36,12 +37,17 @@ function formatMoney(value: number): string {
 
 export function OneTimeOrderAccountabilityPanel({
   view,
+  completions,
+  orderStatus,
   onCreateExpense,
 }: {
   view: OneTimeOrderAccountabilityView;
+  completions: OneTimeOrderCompletion[];
+  orderStatus: string;
   onCreateExpense: (payload: {
     amount: number;
     description: string;
+    oneTimeOrderCompletionId: string | null;
     expenseCategory: AccountabilityExpenseCategory;
     expenseDate: string;
     files: File[];
@@ -57,6 +63,24 @@ export function OneTimeOrderAccountabilityPanel({
   );
   const [files, setFiles] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [completionSelection, setCompletionSelection] = useState('');
+  const completionOptionsKey = completions
+    .map((completion) => `${completion.id}:${completion.workCycle}`)
+    .join('|');
+
+  useEffect(() => {
+    if (completions.length > 1) {
+      setCompletionSelection('');
+      return;
+    }
+
+    if (orderStatus === 'completed' && completions.length === 1) {
+      setCompletionSelection(completions[0]!.id);
+      return;
+    }
+
+    setCompletionSelection('order_only');
+  }, [completionOptionsKey, completions, orderStatus]);
 
   const save = async (submitAfterSave: boolean): Promise<void> => {
     const normalizedAmount = Number(amount);
@@ -67,6 +91,7 @@ export function OneTimeOrderAccountabilityPanel({
       normalizedAmount <= 0 ||
       !normalizedDescription ||
       !expenseDate ||
+      !completionSelection ||
       (submitAfterSave && files.length === 0)
     ) {
       return;
@@ -77,6 +102,8 @@ export function OneTimeOrderAccountabilityPanel({
       await onCreateExpense({
         amount: normalizedAmount,
         description: normalizedDescription,
+        oneTimeOrderCompletionId:
+          completionSelection === 'order_only' ? null : completionSelection,
         expenseCategory,
         expenseDate,
         files,
@@ -150,6 +177,34 @@ export function OneTimeOrderAccountabilityPanel({
                 ))}
               </select>
             </label>
+            {completions.length > 0 ? (
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span>Цикл заказа</span>
+                <select
+                  value={completionSelection}
+                  onChange={(event) =>
+                    setCompletionSelection(event.target.value)
+                  }
+                >
+                  {completions.length > 1 ? (
+                    <option value="">Выберите цикл</option>
+                  ) : null}
+                  {orderStatus !== 'completed' ? (
+                    <option value="order_only">
+                      Текущий цикл, до завершения
+                    </option>
+                  ) : null}
+                  {completions.map((completion) => (
+                    <option key={completion.id} value={completion.id}>
+                      Цикл {completion.workCycle}
+                      {completion.completionSource === 'legacy_unknown'
+                        ? ' · исторический'
+                        : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1' }}>
               <span>Описание</span>
               <textarea
@@ -176,14 +231,16 @@ export function OneTimeOrderAccountabilityPanel({
           <div className="action-row">
             <button
               type="button"
-              disabled={isSaving}
+              disabled={isSaving || !completionSelection}
               onClick={() => void save(false)}
             >
               Сохранить черновик
             </button>
             <button
               type="button"
-              disabled={isSaving || files.length === 0}
+              disabled={
+                isSaving || !completionSelection || files.length === 0
+              }
               onClick={() => void save(true)}
             >
               Отправить на проверку
@@ -277,6 +334,9 @@ export function OneTimeOrderAccountabilityPanel({
                               {expense.expenseDate
                                 ? ` · ${new Date(`${expense.expenseDate}T00:00:00`).toLocaleDateString('ru-RU')}`
                                 : ''}
+                              {expense.oneTimeOrderCompletionId
+                                ? ` · Цикл ${completions.find((completion) => completion.id === expense.oneTimeOrderCompletionId)?.workCycle ?? 'не найден'}`
+                                : ' · Без привязки к циклу'}
                             </div>
                           </div>
                           <span

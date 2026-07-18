@@ -116,6 +116,7 @@ export interface SaveAccountabilityExpensePayload {
   amount: number;
   description: string;
   oneTimeOrderId?: string;
+  oneTimeOrderCompletionId?: string | null;
   expenseCategory?: AccountabilityExpenseCategory;
   expenseDate?: string;
 }

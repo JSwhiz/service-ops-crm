@@ -488,11 +488,15 @@ export default function OneTimeOrderDetailPage({
           {accountability ? (
             <OneTimeOrderAccountabilityPanel
               view={accountability}
+              completions={completions}
+              orderStatus={item.status}
               onCreateExpense={async (payload) => {
                 const expense = await createAccountabilityExpense({
                   amount: payload.amount,
                   description: payload.description,
                   oneTimeOrderId: item.id,
+                  oneTimeOrderCompletionId:
+                    payload.oneTimeOrderCompletionId,
                   expenseCategory: payload.expenseCategory,
                   expenseDate: payload.expenseDate,
                 });

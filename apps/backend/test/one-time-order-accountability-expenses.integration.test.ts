@@ -150,6 +150,16 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
     },
   );
   assert.equal(completeResponse.status, 201);
+  const completion = (await completeResponse.json()) as { id: string };
+
+  await prisma.oneTimeOrderAssignment.updateMany({
+    where: {
+      oneTimeOrderId: order.id,
+      userId: managers[0]!.id,
+      assignmentRoleCode: 'one_time_manager',
+    },
+    data: { isActive: false },
+  });
 
   await prisma.accountabilityAccount.create({
     data: { userId: managers[2]!.id, status: 'active' },
@@ -186,6 +196,7 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
       amount: 200,
       description: 'Доставка материалов',
       oneTimeOrderId: order.id,
+      oneTimeOrderCompletionId: completion.id,
       expenseCategory: 'delivery',
       expenseDate: '2026-07-17',
     },
@@ -194,12 +205,90 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
   const firstExpense = (await createFirstExpenseResponse.json()) as {
     id: string;
     oneTimeOrderId: string;
+    oneTimeOrderCompletionId: string;
     expenseCategory: string;
     expenseDate: string;
   };
   assert.equal(firstExpense.oneTimeOrderId, order.id);
+  assert.equal(firstExpense.oneTimeOrderCompletionId, completion.id);
   assert.equal(firstExpense.expenseCategory, 'delivery');
   assert.equal(firstExpense.expenseDate, '2026-07-17');
+
+  const otherOrder = await prisma.oneTimeOrder.create({
+    data: {
+      title: `${marker}-other-cycle`,
+      executionAddress: 'Москва, другой цикл',
+      contactName: 'Другой заказчик',
+      status: 'completed',
+      workCycle: 1,
+      createdByUserId: managers[0]!.id,
+      assignments: {
+        create: {
+          userId: managers[0]!.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+      },
+    },
+  });
+  createdOrderIds.push(otherOrder.id);
+  const otherCompletion = await prisma.oneTimeOrderCompletion.create({
+    data: {
+      oneTimeOrderId: otherOrder.id,
+      workCycle: 1,
+      completedAt: new Date(),
+      completedByUserId: managers[0]!.id,
+      completionSource: 'native',
+      status: 'active',
+    },
+  });
+  const mismatchedCompletionResponse = await postJson(
+    `${baseUrl}/api/v1/accountability/me/expenses`,
+    firstCookie,
+    {
+      amount: 60,
+      description: 'Цикл другого заказа',
+      oneTimeOrderId: order.id,
+      oneTimeOrderCompletionId: otherCompletion.id,
+      expenseCategory: 'other',
+      expenseDate: '2026-07-17',
+    },
+  );
+  assert.equal(mismatchedCompletionResponse.status, 404);
+
+  const preCompletionOrderResponse = await postJson(
+    `${baseUrl}/api/v1/one-time-orders`,
+    founderCookie,
+    {
+      title: `${marker}-pre-completion`,
+      executionAddress: 'Москва, текущая поездка',
+      status: 'in_progress',
+      contactName: 'Заказчик текущей поездки',
+      managerUserIds: [managers[1]!.id],
+    },
+  );
+  assert.equal(preCompletionOrderResponse.status, 201);
+  const preCompletionOrder =
+    (await preCompletionOrderResponse.json()) as { id: string };
+  createdOrderIds.push(preCompletionOrder.id);
+  const preCompletionExpenseResponse = await postJson(
+    `${baseUrl}/api/v1/accountability/me/expenses`,
+    secondCookie,
+    {
+      amount: 75,
+      description: 'Расход до завершения поездки',
+      oneTimeOrderId: preCompletionOrder.id,
+      expenseCategory: 'transport',
+      expenseDate: '2026-07-17',
+    },
+  );
+  assert.equal(preCompletionExpenseResponse.status, 201);
+  assert.equal(
+    ((await preCompletionExpenseResponse.json()) as {
+      oneTimeOrderCompletionId: string | null;
+    }).oneTimeOrderCompletionId,
+    null,
+  );
 
   const submitWithoutFileResponse = await postJson(
     `${baseUrl}/api/v1/accountability/me/expenses/${firstExpense.id}/submit`,
