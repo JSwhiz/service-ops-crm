@@ -61,6 +61,14 @@ export interface InventoryMovementListResponse {
   totalPages: number;
 }
 
+export interface InventoryReportSummary {
+  totalItems: number;
+  totalActiveItems: number;
+  movementCount: number;
+  totalStockValueEstimate: number;
+  missingPhotoBridgeCount: number;
+}
+
 export interface InventoryMovement {
   id: string;
   inventoryItem: {

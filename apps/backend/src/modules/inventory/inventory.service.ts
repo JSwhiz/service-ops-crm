@@ -33,6 +33,7 @@ import { InventoryItemListResponseDto } from './dto/inventory-item-list-response
 import { InventoryItemResponseDto } from './dto/inventory-item-response.dto';
 import { InventoryMovementListResponseDto } from './dto/inventory-movement-list-response.dto';
 import { InventoryMovementResponseDto } from './dto/inventory-movement-response.dto';
+import { InventoryReportSummaryDto } from './dto/inventory-report-summary.dto';
 import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto';
 import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
 import { ObjectInventoryResponseDto } from './dto/object-inventory-response.dto';
@@ -522,6 +523,69 @@ export class InventoryService {
     this.assertMovementCreatable(currentUser, payload.movementType);
 
     return this.createMovementRecord(currentUser, payload);
+  }
+
+  async getReportSummary(
+    currentUser: CurrentAuthUser,
+  ): Promise<InventoryReportSummaryDto> {
+    this.assertInventoryVisible(currentUser);
+
+    const [totalItems, totalActiveItems, movementCount, missingPhotoBridgeCount] =
+      await Promise.all([
+        this.prisma.inventoryItem.count(),
+        this.prisma.inventoryItem.count({ where: { isActive: true } }),
+        this.prisma.inventoryMovement.count(),
+        this.prisma.inventoryMovement.count({
+          where: {
+            requiresApprovalBridge: true,
+            approvalBridgeResolvedAt: null,
+          },
+        }),
+      ]);
+    const valuationRows = await this.prisma.$queryRaw<
+      Array<{ totalStockValueEstimate: Prisma.Decimal }>
+    >`
+      WITH inventory_stock AS (
+        SELECT
+          movement."inventoryItemId",
+          SUM(
+            CASE
+              WHEN movement."status" <> 'applied' THEN 0
+              WHEN movement."movementType" IN ('receipt', 'return')
+                THEN movement."quantity"
+              WHEN movement."movementType" IN (
+                'issue_to_object',
+                'issue_to_one_time_order',
+                'writeoff'
+              ) THEN -movement."quantity"
+              WHEN movement."movementType" = 'adjustment'
+                   AND movement."adjustmentDirection" = 'increase'
+                THEN movement."quantity"
+              WHEN movement."movementType" = 'adjustment'
+                THEN -movement."quantity"
+              ELSE 0
+            END
+          ) AS stock
+        FROM "inventory_movements" AS movement
+        GROUP BY movement."inventoryItemId"
+      )
+      SELECT COALESCE(
+        SUM(COALESCE(stock.stock, 0) * COALESCE(item."currentUnitPrice", 0)),
+        0
+      ) AS "totalStockValueEstimate"
+      FROM "inventory_items" AS item
+      LEFT JOIN inventory_stock AS stock ON stock."inventoryItemId" = item."id"
+    `;
+
+    return {
+      totalItems,
+      totalActiveItems,
+      movementCount,
+      totalStockValueEstimate: Number(
+        valuationRows[0]?.totalStockValueEstimate ?? 0,
+      ),
+      missingPhotoBridgeCount,
+    };
   }
 
   async resolveMissingPhotoApproval(

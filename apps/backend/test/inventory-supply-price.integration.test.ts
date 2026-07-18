@@ -138,6 +138,19 @@ test('inventory supply price is the atomic maximum of applied receipts', async (
   );
   assert.equal(await loadPrice(item.id), 175);
 
+  const reportSummaryResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/reports/summary`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(reportSummaryResponse.status, 200);
+  assert.deepEqual(await reportSummaryResponse.json(), {
+    totalItems: 1,
+    totalActiveItems: 1,
+    movementCount: 8,
+    totalStockValueEstimate: 2975,
+    missingPhotoBridgeCount: 1,
+  });
+
   const movementCount = await prisma.inventoryMovement.count({
     where: { inventoryItemId: item.id },
   });

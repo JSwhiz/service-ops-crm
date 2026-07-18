@@ -9,6 +9,7 @@ import type {
   InventoryMovementListResponse,
   InventoryObjectReference,
   InventoryOneTimeOrderReference,
+  InventoryReportSummary,
   ObjectInventory,
   ListInventoryItemsParams,
   ListInventoryMovementsParams,
@@ -107,6 +108,12 @@ export async function resolveInventoryMissingPhotoApproval(
       method: 'POST',
     },
   );
+}
+
+export async function getInventoryReportSummary(): Promise<InventoryReportSummary> {
+  return fetcher<InventoryReportSummary>('/inventory/reports/summary', {
+    method: 'GET',
+  });
 }
 
 export async function getObjectInventory(

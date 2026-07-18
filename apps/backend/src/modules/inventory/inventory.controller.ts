@@ -19,6 +19,7 @@ import { InventoryItemResponseDto } from './dto/inventory-item-response.dto';
 import { InventoryItemListResponseDto } from './dto/inventory-item-list-response.dto';
 import { InventoryMovementListResponseDto } from './dto/inventory-movement-list-response.dto';
 import { InventoryMovementResponseDto } from './dto/inventory-movement-response.dto';
+import { InventoryReportSummaryDto } from './dto/inventory-report-summary.dto';
 import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto';
 import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
 import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
@@ -77,6 +78,13 @@ export class InventoryController {
     @Query() query: ListInventoryMovementsQueryDto,
   ): Promise<InventoryMovementListResponseDto> {
     return this.inventoryService.listMovements(user, query);
+  }
+
+  @Get('reports/summary')
+  getReportSummary(
+    @CurrentUser() user: CurrentAuthUser,
+  ): Promise<InventoryReportSummaryDto> {
+    return this.inventoryService.getReportSummary(user);
   }
 
   @Post('movements')

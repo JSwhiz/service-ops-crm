@@ -3,12 +3,14 @@
 import React, { useEffect, useState } from 'react';
 
 import {
+  getInventoryReportSummary,
   listInventoryItems,
   listInventoryMovements,
 } from '@/entities/inventory/api/inventory-client';
 import type {
   InventoryItem,
   InventoryMovement,
+  InventoryReportSummary as InventoryReportSummaryData,
 } from '@/entities/inventory/model/inventory.types';
 import { InventoryItemListTable } from '@/features/inventory-item-list/ui/inventory-item-list-table';
 import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inventory-movement-list';
@@ -32,6 +34,7 @@ export default function InventoryReportsPage(): React.JSX.Element {
 
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
+  const [summary, setSummary] = useState<InventoryReportSummaryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +42,7 @@ export default function InventoryReportsPage(): React.JSX.Element {
     if (!canAccessInventory || !canViewInventoryReports) {
       setItems([]);
       setMovements([]);
+      setSummary(null);
       setError(null);
       setIsLoading(false);
       return;
@@ -51,12 +55,14 @@ export default function InventoryReportsPage(): React.JSX.Element {
       setError(null);
 
       try {
-        const [loadedItems, loadedMovements] = await Promise.all([
+        const [loadedSummary, loadedItems, loadedMovements] = await Promise.all([
+          getInventoryReportSummary(),
           listInventoryItems({ limit: 100 }),
-          listInventoryMovements({ limit: 100 }),
+          listInventoryMovements({ limit: 20 }),
         ]);
 
         if (!cancelled) {
+          setSummary(loadedSummary);
           setItems(loadedItems.items);
           setMovements(loadedMovements.items);
         }
@@ -94,22 +100,9 @@ export default function InventoryReportsPage(): React.JSX.Element {
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 16 }}>
-          <InventoryReportSummary
-            totalItems={items.length}
-            totalActiveItems={items.filter((item) => item.isActive).length}
-            movementCount={movements.length}
-            totalStockValueEstimate={items.reduce(
-              (sum, item) => sum + item.currentEstimatedTotalValue,
-              0,
-            )}
-            missingPhotoBridgeCount={
-              movements.filter(
-                (movement) => movement.projection.requiresApprovalBridge,
-              ).length
-            }
-          />
+          {summary ? <InventoryReportSummary {...summary} /> : null}
           <InventoryItemListTable items={items} />
-          <InventoryMovementList items={movements.slice(0, 20)} />
+          <InventoryMovementList items={movements} />
         </div>
       )}
     </>

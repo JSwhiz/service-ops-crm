@@ -18,7 +18,7 @@ export function InventoryReportSummary({
   const cards = [
     { label: 'Всего позиций', value: totalItems },
     { label: 'Активных позиций', value: totalActiveItems },
-    { label: 'Движений по выборке', value: movementCount },
+    { label: 'Всего движений', value: movementCount },
     {
       label: 'Оценка остатка',
       value: `${totalStockValueEstimate.toLocaleString('ru-RU')} ₽`,
