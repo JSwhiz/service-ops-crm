@@ -1489,7 +1489,8 @@ export class AccountabilityService {
         canRequestClosure:
           isOwnView &&
           account?.status === 'active' &&
-          summary.draftExpensesCount === 0,
+          summary.draftExpensesCount === 0 &&
+          summary.submittedExpensesCount === 0,
         canIssueFunding: canIssueAccountabilityFunds({
           roleCodes: this.getRoleCodes(params.currentUser),
           permissionCodes: this.getPermissionCodes(params.currentUser),
@@ -1727,6 +1728,9 @@ export class AccountabilityService {
         entityType: EXPENSE_ATTACHMENTS_ENTITY_TYPE,
         entityId: {
           in: expenseIds,
+        },
+        file: {
+          deletedAt: null,
         },
       },
       select: {

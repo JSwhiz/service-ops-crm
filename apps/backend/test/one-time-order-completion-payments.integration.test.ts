@@ -24,11 +24,12 @@ interface CompletionResponse {
   fullTotalAmountVisible: boolean;
   payments: Array<{
     id: string;
-    recipient: { id: string } | null;
-    amount: number;
-    paymentMethod: string;
-    paymentDestination: string;
-    status: string;
+    detailsRestricted: boolean;
+    recipient?: { id: string } | null;
+    amount?: number;
+    paymentMethod?: string;
+    paymentDestination?: string;
+    status?: string;
   }>;
 }
 
@@ -107,7 +108,7 @@ test('one-time order completion validates and stores actual payment rows', async
     await prisma.$disconnect();
   });
 
-  const [founderCookie, managerCookie] = await Promise.all([
+  const [founderCookie, managerCookie, managerTwoCookie] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
@@ -116,6 +117,11 @@ test('one-time order completion validates and stores actual payment rows', async
     loginAndGetCookieHeader({
       baseUrl,
       login: managerOne.login,
+      password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: managerTwo.login,
       password: 'manager123',
     }),
   ]);
@@ -366,6 +372,97 @@ test('one-time order completion validates and stores actual payment rows', async
     ],
   );
   assert.equal(otherWithComment.status, 201);
+
+  const hiddenCumulativeOrderId = await createOrder(
+    [managerOne.id, managerTwo.id],
+    100,
+  );
+  const firstManagerCompletion = await complete(
+    hiddenCumulativeOrderId,
+    1,
+    crypto.randomUUID(),
+    [
+      {
+        recipientUserId: managerOne.id,
+        amount: 60,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+        differenceReason: 'Первая часть оплаты',
+      },
+    ],
+  );
+  assert.equal(firstManagerCompletion.status, 201);
+  const hiddenReopen = await postJson(
+    `${baseUrl}/api/v1/one-time-orders/${hiddenCumulativeOrderId}/reopen`,
+    managerTwoCookie,
+  );
+  assert.equal(hiddenReopen.status, 201);
+
+  const hiddenDifferenceResponse = await complete(
+    hiddenCumulativeOrderId,
+    2,
+    crypto.randomUUID(),
+    [
+      {
+        recipientUserId: managerTwo.id,
+        amount: 30,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+      },
+    ],
+    managerTwoCookie,
+  );
+  assert.equal(hiddenDifferenceResponse.status, 400);
+  const hiddenDifferenceBody = (await hiddenDifferenceResponse.json()) as {
+    statusCode: number;
+    code: string;
+    message: string;
+    path: string;
+    method: string;
+    timestamp: string;
+  };
+  assert.equal(hiddenDifferenceBody.statusCode, 400);
+  assert.equal(
+    hiddenDifferenceBody.code,
+    'ACTUAL_AMOUNT_DIFFERENCE_REASON_REQUIRED',
+  );
+  assert.equal(
+    hiddenDifferenceBody.message,
+    'Укажите причину расхождения фактической и согласованной суммы',
+  );
+  assert.equal('amount' in hiddenDifferenceBody, false);
+  assert.equal('payments' in hiddenDifferenceBody, false);
+
+  const hiddenDifferenceWithReason = await complete(
+    hiddenCumulativeOrderId,
+    2,
+    crypto.randomUUID(),
+    [
+      {
+        recipientUserId: managerTwo.id,
+        amount: 30,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+        differenceReason: 'Клиент доплатит остаток позже',
+      },
+    ],
+    managerTwoCookie,
+  );
+  assert.equal(hiddenDifferenceWithReason.status, 201);
+  const hiddenCompletionsResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${hiddenCumulativeOrderId}/completions`,
+    { headers: { Cookie: managerTwoCookie } },
+  );
+  assert.equal(hiddenCompletionsResponse.status, 200);
+  const hiddenCompletions =
+    (await hiddenCompletionsResponse.json()) as CompletionResponse[];
+  const firstCycle = hiddenCompletions.find((entry) => entry.workCycle === 1);
+  assert.equal(firstCycle?.fullTotalAmountVisible, false);
+  assert.equal(firstCycle?.visibleTotalAmount, 0);
+  assert.deepEqual(firstCycle?.payments[0], {
+    id: firstCycle?.payments[0]?.id,
+    detailsRestricted: true,
+  });
 
   const inactiveAssignmentOrderId = await createOrder([managerOne.id], 50);
   await prisma.oneTimeOrderAssignment.updateMany({

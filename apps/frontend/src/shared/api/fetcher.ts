@@ -6,13 +6,42 @@ interface FetcherOptions extends RequestInit {
 }
 
 type ParsedErrorBody = {
+  code?: string;
   message?: string | string[];
-  error?: string | { message?: string | string[]; error?: string };
+  error?: string | { code?: string; message?: string | string[]; error?: string };
   statusCode?: number;
   path?: string;
   method?: string;
   timestamp?: string;
 };
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+    readonly code: string | null,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+function extractCodeFromParsedBody(parsed: ParsedErrorBody): string | null {
+  if (typeof parsed.code === 'string' && parsed.code.trim()) {
+    return parsed.code;
+  }
+
+  if (
+    parsed.error &&
+    typeof parsed.error === 'object' &&
+    typeof parsed.error.code === 'string' &&
+    parsed.error.code.trim()
+  ) {
+    return parsed.error.code;
+  }
+
+  return null;
+}
 
 function extractMessageFromParsedBody(parsed: ParsedErrorBody): string | null {
   if (Array.isArray(parsed.message)) {
@@ -47,14 +76,18 @@ function extractMessageFromParsedBody(parsed: ParsedErrorBody): string | null {
   return null;
 }
 
-function buildErrorMessage(
+function buildApiError(
   method: string,
   url: string,
   status: number,
   rawBody: string,
-): string {
+): ApiError {
   if (!rawBody.trim()) {
-    return `${method} ${url} failed with status ${status}`;
+    return new ApiError(
+      `${method} ${url} failed with status ${status}`,
+      status,
+      null,
+    );
   }
 
   try {
@@ -62,13 +95,21 @@ function buildErrorMessage(
     const extractedMessage = extractMessageFromParsedBody(parsed);
 
     if (extractedMessage) {
-      return `${method} ${url} failed with status ${status}: ${extractedMessage}`;
+      return new ApiError(
+        `${method} ${url} failed with status ${status}: ${extractedMessage}`,
+        status,
+        extractCodeFromParsedBody(parsed),
+      );
     }
   } catch {
     // ignore JSON parse failure
   }
 
-  return `${method} ${url} failed with status ${status}: ${rawBody}`;
+  return new ApiError(
+    `${method} ${url} failed with status ${status}: ${rawBody}`,
+    status,
+    null,
+  );
 }
 
 async function executeRequest(
@@ -141,9 +182,7 @@ export async function fetcher<T>(
 
     if (!response.ok) {
       const rawBody = await response.text();
-      throw new Error(
-        buildErrorMessage(resolvedMethod, url, response.status, rawBody),
-      );
+      throw buildApiError(resolvedMethod, url, response.status, rawBody);
     }
 
     const rawBody = await response.text();
@@ -154,6 +193,10 @@ export async function fetcher<T>(
 
     return JSON.parse(rawBody) as T;
   } catch (error: unknown) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
     if (error instanceof Error) {
       throw new Error(`${resolvedMethod} ${url} failed: ${error.message}`, {
         cause: error,

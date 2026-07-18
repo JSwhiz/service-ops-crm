@@ -258,6 +258,7 @@ test('accountability ledger supports funding, own expenses, attachments, closure
     }>;
     capabilities: {
       canCreateExpense: boolean;
+      canRequestClosure: boolean;
     };
   };
 
@@ -267,6 +268,7 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   assert.equal(ownAfterFunding.fundings.length, 1);
   assert.equal(ownAfterFunding.fundings[0]?.comment, 'Аванс на хозяйственные расходы');
   assert.equal(ownAfterFunding.capabilities.canCreateExpense, true);
+  assert.equal(ownAfterFunding.capabilities.canRequestClosure, true);
 
   const createExpenseResponse = await fetch(`${baseUrl}/api/v1/accountability/me/expenses`, {
     method: 'POST',
@@ -323,6 +325,7 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   assert.equal(ownWithDraftResponse.status, 200);
 
   const ownWithDraft = (await ownWithDraftResponse.json()) as {
+    capabilities: { canRequestClosure: boolean };
     expenses: Array<{
       id: string;
       attachments: Array<{
@@ -337,6 +340,7 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   assert.ok(draftExpense);
   assert.equal(draftExpense.attachments.length, 1);
   assert.equal(draftExpense.attachments[0]?.originalName, 'expense-receipt.txt');
+  assert.equal(ownWithDraft.capabilities.canRequestClosure, false);
 
   const submitExpenseResponse = await fetch(
     `${baseUrl}/api/v1/accountability/me/expenses/${createdExpense.id}/submit`,
@@ -349,6 +353,19 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   );
 
   assert.equal(submitExpenseResponse.status, 200);
+
+  const ownWithSubmittedResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/me`,
+    { headers: { Cookie: managerCookie } },
+  );
+  assert.equal(ownWithSubmittedResponse.status, 200);
+  const ownWithSubmitted = (await ownWithSubmittedResponse.json()) as {
+    summary: { submittedExpensesCount: number; draftExpensesCount: number };
+    capabilities: { canRequestClosure: boolean };
+  };
+  assert.equal(ownWithSubmitted.summary.draftExpensesCount, 0);
+  assert.equal(ownWithSubmitted.summary.submittedExpensesCount, 1);
+  assert.equal(ownWithSubmitted.capabilities.canRequestClosure, false);
 
   const requestClosureResponse = await fetch(
     `${baseUrl}/api/v1/accountability/me/closures/request`,
@@ -373,6 +390,16 @@ test('accountability ledger supports funding, own expenses, attachments, closure
   );
 
   assert.equal(approveExpenseResponse.status, 200);
+
+  const ownWithApprovedResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/me`,
+    { headers: { Cookie: managerCookie } },
+  );
+  assert.equal(ownWithApprovedResponse.status, 200);
+  const ownWithApproved = (await ownWithApprovedResponse.json()) as {
+    capabilities: { canRequestClosure: boolean };
+  };
+  assert.equal(ownWithApproved.capabilities.canRequestClosure, true);
 
   const firstClosureRequestResponse = await fetch(
     `${baseUrl}/api/v1/accountability/me/closures/request`,
@@ -570,12 +597,14 @@ test('accountability ledger supports funding, own expenses, attachments, closure
         originalName: string;
       }>;
     }>;
+    capabilities: { canRequestClosure: boolean };
   };
 
   assert.equal(finalOwn.account.status, 'active');
   assert.equal(finalOwn.summary.totalFunding, 5000);
   assert.equal(finalOwn.summary.currentBalance, 3800);
   assert.equal(finalOwn.summary.totalReconciledExpenses, 1200);
+  assert.equal(finalOwn.capabilities.canRequestClosure, true);
 
   const finalExpense = finalOwn.expenses.find(
     (expense) => expense.id === createdExpense.id,

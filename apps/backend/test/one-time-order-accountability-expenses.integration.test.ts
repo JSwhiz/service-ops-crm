@@ -311,7 +311,10 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
     body: uploadForm,
   });
   assert.equal(uploadResponse.status, 201);
-  const uploadedFile = (await uploadResponse.json()) as { id: string };
+  const uploadedFile = (await uploadResponse.json()) as {
+    id: string;
+    viewUrl: string;
+  };
 
   await prisma.file.update({
     where: { id: uploadedFile.id },
@@ -324,10 +327,58 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
   );
   assert.equal(submitWithDeletedFileResponse.status, 409);
 
-  await prisma.file.update({
-    where: { id: uploadedFile.id },
-    data: { deletedAt: null },
+  const deletedOwnViewResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/orders/${order.id}`,
+    { headers: { Cookie: firstCookie } },
+  );
+  assert.equal(deletedOwnViewResponse.status, 200);
+  const deletedOwnView = (await deletedOwnViewResponse.json()) as {
+    accounts: Array<{
+      expenses: Array<{ id: string; attachments: unknown[] }>;
+    }>;
+  };
+  assert.deepEqual(
+    deletedOwnView.accounts[0]?.expenses.find(
+      (expense) => expense.id === firstExpense.id,
+    )?.attachments,
+    [],
+  );
+  const deletedAdminViewResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/orders/${order.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(deletedAdminViewResponse.status, 200);
+  const deletedAdminView = (await deletedAdminViewResponse.json()) as {
+    accounts: Array<{
+      expenses: Array<{ id: string; attachments: unknown[] }>;
+    }>;
+  };
+  assert.deepEqual(
+    deletedAdminView.accounts
+      .flatMap((account) => account.expenses)
+      .find((expense) => expense.id === firstExpense.id)?.attachments,
+    [],
+  );
+  const deletedProxyResponse = await fetch(
+    `${baseUrl}${uploadedFile.viewUrl}`,
+    { headers: { Cookie: firstCookie } },
+  );
+  assert.equal(deletedProxyResponse.status, 404);
+
+  const activeUploadForm = new FormData();
+  activeUploadForm.set('entityType', 'accountability_expense');
+  activeUploadForm.set('entityId', firstExpense.id);
+  activeUploadForm.set(
+    'file',
+    new Blob(['replacement order expense receipt'], { type: 'text/plain' }),
+    'receipt-active.txt',
+  );
+  const activeUploadResponse = await fetch(`${baseUrl}/api/v1/files/upload`, {
+    method: 'POST',
+    headers: { Cookie: firstCookie },
+    body: activeUploadForm,
   });
+  assert.equal(activeUploadResponse.status, 201);
 
   const submitResponse = await postJson(
     `${baseUrl}/api/v1/accountability/me/expenses/${firstExpense.id}/submit`,
@@ -375,7 +426,7 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
   assert.equal(firstView.accounts[0]?.summary.forecastBalance, 800);
   const safeAttachment = firstView.accounts[0]?.expenses[0]?.attachments[0];
   assert.ok(safeAttachment);
-  assert.equal(safeAttachment.originalName, 'receipt.txt');
+  assert.equal(safeAttachment.originalName, 'receipt-active.txt');
   assert.equal(typeof safeAttachment.viewUrl, 'string');
   assert.equal(typeof safeAttachment.downloadUrl, 'string');
   assert.equal('bucket' in safeAttachment, false);

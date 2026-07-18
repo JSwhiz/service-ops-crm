@@ -3263,9 +3263,10 @@ export class OneTimeOrdersService {
       !cumulativeTotal.equals(order.agreedSum) &&
       !payments.some((payment) => payment.differenceReason)
     ) {
-      throw new BadRequestException(
-        'Actual payment difference requires reason',
-      );
+      throw new BadRequestException({
+        code: 'ACTUAL_AMOUNT_DIFFERENCE_REASON_REQUIRED',
+        message: 'Укажите причину расхождения фактической и согласованной суммы',
+      });
     }
 
     return payments;

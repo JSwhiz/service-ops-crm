@@ -32,12 +32,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    const structuredError =
+      typeof exceptionResponse === 'object' &&
+      exceptionResponse !== null &&
+      'code' in exceptionResponse &&
+      typeof exceptionResponse.code === 'string'
+        ? exceptionResponse
+        : null;
+
     response.status(status).json({
       statusCode: status,
       path: request.url,
       method: request.method,
       timestamp: new Date().toISOString(),
-      error: exceptionResponse,
+      ...(structuredError ?? { error: exceptionResponse }),
     });
   }
 }

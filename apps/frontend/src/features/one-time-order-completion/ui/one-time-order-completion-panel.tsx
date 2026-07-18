@@ -13,6 +13,7 @@ import type {
   OneTimeOrderPaymentZeroReason,
   VisibleOneTimeOrderCompletionPayment,
 } from '@/entities/one-time-order/model/one-time-order.types';
+import { ApiError } from '@/shared/api/fetcher';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   getOneTimeOrderPaymentDestinationLabel,
@@ -129,6 +130,8 @@ export function OneTimeOrderCompletionPanel({
   const [isReopening, setIsReopening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canRetry, setCanRetry] = useState(false);
+  const [serverRequiresDifferenceReason, setServerRequiresDifferenceReason] =
+    useState(false);
   const inFlightRef = useRef(false);
   const retryRequestRef = useRef<{
     fingerprint: string;
@@ -159,10 +162,11 @@ export function OneTimeOrderCompletionPanel({
     fullPreviousTotalVisible &&
     item.agreedSum !== null &&
     Math.abs(cumulativeActual - item.agreedSum) >= 0.005;
+  const needsDifferenceReason = hasDifference || serverRequiresDifferenceReason;
   const canSubmit =
     payments.length > 0 &&
     payments.every(isDraftValid) &&
-    (!hasDifference || Boolean(differenceReason.trim()));
+    (!needsDifferenceReason || Boolean(differenceReason.trim()));
 
   const updatePayment = (
     key: string,
@@ -199,7 +203,9 @@ export function OneTimeOrderCompletionPanel({
         zeroReason: payment.zeroReason || null,
         comment: payment.comment.trim() || null,
         differenceReason:
-          index === 0 && hasDifference ? differenceReason.trim() : null,
+          index === 0 && needsDifferenceReason
+            ? differenceReason.trim()
+            : null,
       })),
     };
     const fingerprint = JSON.stringify(basePayload);
@@ -222,7 +228,18 @@ export function OneTimeOrderCompletionPanel({
       setPayments([createPaymentDraft(item)]);
       setCompletionComment('');
       setDifferenceReason('');
+      setServerRequiresDifferenceReason(false);
     } catch (saveError) {
+      if (
+        saveError instanceof ApiError &&
+        saveError.code === 'ACTUAL_AMOUNT_DIFFERENCE_REASON_REQUIRED'
+      ) {
+        retryRequestRef.current = null;
+        setServerRequiresDifferenceReason(true);
+        setCanRetry(false);
+        setError('Укажите причину расхождения фактической и согласованной суммы.');
+        return;
+      }
       setError(
         saveError instanceof Error
           ? saveError.message
@@ -255,8 +272,8 @@ export function OneTimeOrderCompletionPanel({
 
       {!fullPreviousTotalVisible ? (
         <div className="page-muted">
-          Показаны только доступные вам поступления. Итоговое расхождение
-          проверит сервер при завершении заказа.
+          Часть предыдущих поступлений скрыта. Итоговая сумма будет проверена
+          сервером.
         </div>
       ) : null}
 
@@ -298,13 +315,20 @@ export function OneTimeOrderCompletionPanel({
             />
           </label>
 
-          {hasDifference ? (
+          {needsDifferenceReason ? (
             <div className="order-completion-warning">
-              <strong>Общая фактически полученная сумма отличается от согласованной.</strong>
-              <div>
-                После этого цикла: {formatMoney(cumulativeActual)}. Укажите причину
-                расхождения.
-              </div>
+              <strong>Комментарий к расхождению общей суммы</strong>
+              {fullPreviousTotalVisible ? (
+                <div>
+                  После этого цикла: {formatMoney(cumulativeActual)}. Укажите причину
+                  расхождения.
+                </div>
+              ) : (
+                <div>
+                  Сервер обнаружил расхождение с согласованной суммой без раскрытия
+                  скрытых поступлений.
+                </div>
+              )}
               <textarea
                 rows={2}
                 value={differenceReason}
