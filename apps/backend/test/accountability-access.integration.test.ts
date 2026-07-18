@@ -14,6 +14,7 @@ interface MePayload {
     canViewOwnAccountability: boolean;
     canIssueAccountabilityFunds: boolean;
     canReviewAccountability: boolean;
+    canApproveAccountabilityClosure: boolean;
   };
 }
 
@@ -216,6 +217,21 @@ test('own accountability access follows manager assignment and receipt eligibili
     0,
   );
 
+  const reviewPermission = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'accountability.review' },
+  });
+  await prisma.userPermission.create({
+    data: { userId: unrelated.id, permissionId: reviewPermission.id },
+  });
+  const directReviewerMe = await getMe(unrelatedCookie);
+  assert.equal(directReviewerMe.capabilities.canReviewAccountability, true);
+  assert.equal(directReviewerMe.capabilities.canAccessAccountability, true);
+  const directReviewerAccounts = await fetch(
+    `${baseUrl}/api/v1/accountability/accounts`,
+    { headers: { Cookie: unrelatedCookie } },
+  );
+  assert.equal(directReviewerAccounts.status, 200);
+
   const managerForeignResponse = await fetch(
     `${baseUrl}/api/v1/accountability/accounts/${receiptOwner.id}`,
     { headers: { Cookie: managerCookie } },
@@ -224,15 +240,32 @@ test('own accountability access follows manager assignment and receipt eligibili
 
   const deputyFounderMe = await getMe(deputyFounderCookie);
   assert.equal(deputyFounderMe.capabilities.canViewOwnAccountability, false);
-  assert.equal(deputyFounderMe.capabilities.canReviewAccountability, false);
+  assert.equal(deputyFounderMe.capabilities.canReviewAccountability, true);
   assert.equal(deputyFounderMe.capabilities.canIssueAccountabilityFunds, false);
-  assert.equal(deputyFounderMe.capabilities.canAccessAccountability, false);
+  assert.equal(
+    deputyFounderMe.capabilities.canApproveAccountabilityClosure,
+    true,
+  );
+  assert.equal(deputyFounderMe.capabilities.canAccessAccountability, true);
 
   const deputyFounderAccountsResponse = await fetch(
     `${baseUrl}/api/v1/accountability/accounts`,
     { headers: { Cookie: deputyFounderCookie } },
   );
-  assert.equal(deputyFounderAccountsResponse.status, 403);
+  assert.equal(deputyFounderAccountsResponse.status, 200);
+
+  const deputyFounderIssueResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/accounts/${assignedManager.id}/fundings`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: deputyFounderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ amount: 500 }),
+    },
+  );
+  assert.equal(deputyFounderIssueResponse.status, 403);
 
   const founderMe = await getMe(founderCookie);
   assert.equal(founderMe.capabilities.canIssueAccountabilityFunds, true);

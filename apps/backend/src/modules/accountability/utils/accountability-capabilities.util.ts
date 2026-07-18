@@ -26,7 +26,8 @@ export function buildAccountabilityGlobalCapabilities(params: {
   const canApproveClosure = canApproveAccountabilityClosure(params);
 
   return {
-    canAccessAccountability: canViewOwn || canReview,
+    canAccessAccountability:
+      canViewOwn || canIssue || canReview || canApproveClosure,
     canViewOwnAccountability: canViewOwn,
     canIssueAccountabilityFunds: canIssue,
     canReviewAccountability: canReview,

@@ -110,7 +110,9 @@ async function main(): Promise<void> {
     { code: 'timesheet.attendance.edit', name: 'Изменение табеля' },
     { code: 'timesheet.amount.edit', name: 'Изменение денежных ячеек табеля' },
     { code: 'accountability.issue_cash', name: 'Выдача подотчетных средств' },
+    { code: 'accountability.review', name: 'Административный просмотр подотчета' },
     { code: 'expense.approve', name: 'Подтверждение расходов и сверки' },
+    { code: 'accountability.closure.approve', name: 'Подтверждение закрытия подотчета' },
     { code: 'accountability.correct_receipt', name: 'Корректировка поступлений разовых заказов' },
     { code: 'approval.resolve_task_result', name: 'Подтверждение результата задачи' },
     { code: 'approval.resolve_object_change', name: 'Подтверждение чувствительных изменений объекта' },
@@ -150,6 +152,18 @@ async function main(): Promise<void> {
     corporateDirectorRole,
   ];
   const rolePermissionAssignments = [
+    {
+      roles: [founderRole, directorRole],
+      permissionCodes: ['accountability.issue_cash'],
+    },
+    {
+      roles: leadershipRoles,
+      permissionCodes: [
+        'accountability.review',
+        'expense.approve',
+        'accountability.closure.approve',
+      ],
+    },
     {
       roles: [founderRole, directorRole],
       permissionCodes: ['accountability.correct_receipt'],

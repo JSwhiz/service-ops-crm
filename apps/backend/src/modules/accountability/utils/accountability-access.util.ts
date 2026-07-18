@@ -1,5 +1,3 @@
-import { LEADERSHIP_OBJECT_ROLE_CODES } from '../../objects/utils/object-access.util';
-
 export const ACCOUNTABILITY_ACCOUNT_STATUSES = [
   'active',
   'closing_requested',
@@ -28,15 +26,16 @@ export const ACCOUNTABILITY_CLOSURE_STATUSES = [
   'rejected',
 ] as const;
 
-const ACCOUNTABILITY_DEFAULT_ISSUER_ROLES = ['founder', 'director'] as const;
-const ACCOUNTABILITY_DEFAULT_REVIEWER_ROLES = ['founder', 'director'] as const;
 const ACCOUNTABILITY_OWN_MANAGER_ROLES = [
   'manager',
   'senior_manager',
   'operation_manager',
 ] as const;
-const ACCOUNTABILITY_ISSUE_PERMISSION = 'accountability.issue_cash';
-const EXPENSE_APPROVE_PERMISSION = 'expense.approve';
+export const ACCOUNTABILITY_ISSUE_PERMISSION = 'accountability.issue_cash';
+export const ACCOUNTABILITY_REVIEW_PERMISSION = 'accountability.review';
+export const EXPENSE_APPROVE_PERMISSION = 'expense.approve';
+export const ACCOUNTABILITY_CLOSURE_APPROVE_PERMISSION =
+  'accountability.closure.approve';
 export const ACCOUNTABILITY_CORRECT_RECEIPT_PERMISSION =
   'accountability.correct_receipt';
 
@@ -70,41 +69,31 @@ export function canIssueAccountabilityFunds(params: {
   roleCodes: string[];
   permissionCodes?: string[];
 }): boolean {
-  if (hasAnyRole(params.roleCodes, ACCOUNTABILITY_DEFAULT_ISSUER_ROLES)) {
-    return true;
-  }
-
-  return (
-    hasAnyRole(params.roleCodes, LEADERSHIP_OBJECT_ROLE_CODES) &&
-    hasPermission(params.permissionCodes, ACCOUNTABILITY_ISSUE_PERMISSION)
-  );
+  return hasPermission(params.permissionCodes, ACCOUNTABILITY_ISSUE_PERMISSION);
 }
 
 export function canApproveAccountabilityExpense(params: {
   roleCodes: string[];
   permissionCodes?: string[];
 }): boolean {
-  return (
-    hasAnyRole(params.roleCodes, ACCOUNTABILITY_DEFAULT_REVIEWER_ROLES) ||
-    hasPermission(params.permissionCodes, EXPENSE_APPROVE_PERMISSION)
-  );
+  return hasPermission(params.permissionCodes, EXPENSE_APPROVE_PERMISSION);
 }
 
 export function canReviewAccountability(params: {
   roleCodes: string[];
   permissionCodes?: string[];
 }): boolean {
-  return (
-    canIssueAccountabilityFunds(params) ||
-    canApproveAccountabilityExpense(params)
-  );
+  return hasPermission(params.permissionCodes, ACCOUNTABILITY_REVIEW_PERMISSION);
 }
 
 export function canApproveAccountabilityClosure(params: {
   roleCodes: string[];
   permissionCodes?: string[];
 }): boolean {
-  return canApproveAccountabilityExpense(params);
+  return hasPermission(
+    params.permissionCodes,
+    ACCOUNTABILITY_CLOSURE_APPROVE_PERMISSION,
+  );
 }
 
 export function canCorrectAccountabilityReceipt(params: {
