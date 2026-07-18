@@ -34,6 +34,8 @@ export default () => ({
       process.env.MINIO_PUBLIC_BASE_URL ?? 'http://localhost:9000',
   },
   filePreview: {
+    queueName:
+      process.env.FILE_PREVIEW_QUEUE_NAME ?? 'service-ops:file-preview:jobs',
     officeExecutable: process.env.FILE_PREVIEW_OFFICE_EXECUTABLE ?? 'libreoffice',
     tempDirectory: process.env.FILE_PREVIEW_TEMP_DIR ?? '/tmp',
     conversionTimeoutMs: Number(

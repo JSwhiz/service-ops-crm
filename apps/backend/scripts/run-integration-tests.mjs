@@ -51,6 +51,7 @@ try {
     const env = {
       ...process.env,
       DATABASE_URL: testUrl.toString(),
+      FILE_PREVIEW_QUEUE_NAME: `service-ops:file-preview:jobs:integration:${process.pid}:${index}`,
       TEST_ISOLATED_DATABASE: 'true',
     };
 

@@ -39,6 +39,7 @@ type PreviewJob = {
 @Injectable()
 export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(FilePreviewService.name);
+  private readonly queueName: string;
   private readonly officeExecutable: string;
   private readonly tempDirectory: string;
   private readonly conversionTimeoutMs: number;
@@ -53,6 +54,9 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
     private readonly storageService: StorageService,
     private readonly configService: ConfigService,
   ) {
+    this.queueName =
+      this.configService.get<string>('filePreview.queueName') ??
+      FILE_PREVIEW_QUEUE;
     this.officeExecutable =
       this.configService.get<string>('filePreview.officeExecutable') ??
       'libreoffice';
@@ -311,13 +315,13 @@ export class FilePreviewService implements OnModuleInit, OnModuleDestroy {
 
     await this.redisService
       .getClient()
-      .rPush(FILE_PREVIEW_QUEUE, JSON.stringify(job));
+      .rPush(this.queueName, JSON.stringify(job));
   }
 
   private async runWorkerLoop(): Promise<void> {
     while (!this.stopped && this.workerClient?.isOpen) {
       try {
-        const queued = await this.workerClient.blPop(FILE_PREVIEW_QUEUE, 1);
+        const queued = await this.workerClient.blPop(this.queueName, 1);
 
         if (!queued) {
           continue;

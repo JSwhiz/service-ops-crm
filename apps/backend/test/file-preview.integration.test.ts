@@ -398,11 +398,14 @@ test('file preview worker recovers stale jobs on startup', async (t) => {
     await prisma.$disconnect();
   });
 
+  let lastStatuses: Array<{ fileId: string; status: string }> = [];
+
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const derivatives = await prisma.fileDerivative.findMany({
       where: { fileId: { in: fileIds } },
       orderBy: { fileId: 'asc' },
     });
+    lastStatuses = derivatives.map(({ fileId, status }) => ({ fileId, status }));
 
     if (derivatives.every((item) => item.status === 'failed')) {
       const recovered = derivatives.find((item) => item.fileId === fileIds[0]);
@@ -417,5 +420,7 @@ test('file preview worker recovers stale jobs on startup', async (t) => {
     await delay(100);
   }
 
-  assert.fail('Startup recovery did not finish stale preview jobs');
+  assert.fail(
+    `Startup recovery did not finish stale preview jobs: ${JSON.stringify(lastStatuses)}`,
+  );
 });
