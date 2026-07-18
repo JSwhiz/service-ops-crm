@@ -4,27 +4,22 @@ import test from 'node:test';
 import { PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
+import {
+  cleanupCoreTestObject,
+  createCoreTestObject,
+} from './helpers/core-fixtures';
 import { createTestApp } from './helpers/create-test-app';
 
 test('file upload stores metadata and serves content via backend proxy', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
+  const { objectId } = await createCoreTestObject(prisma);
 
   t.after(async () => {
+    await cleanupCoreTestObject(prisma, objectId);
     await app.close();
     await prisma.$disconnect();
   });
-
-  const object = await prisma.object.findFirst({
-    where: {
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  assert.ok(object, 'seeded object should exist');
 
   const cookieHeader = await loginAndGetCookieHeader({
     baseUrl,
@@ -34,7 +29,7 @@ test('file upload stores metadata and serves content via backend proxy', async (
 
   const form = new FormData();
   form.set('entityType', 'object');
-  form.set('entityId', object.id);
+  form.set('entityId', objectId);
   form.set(
     'file',
     new Blob(['platform upload smoke'], { type: 'text/plain' }),
@@ -49,7 +44,11 @@ test('file upload stores metadata and serves content via backend proxy', async (
     body: form,
   });
 
-  assert.equal(uploadResponse.status, 201);
+  if (uploadResponse.status !== 201) {
+    assert.fail(
+      `File upload failed with ${uploadResponse.status}: ${await uploadResponse.text()}`,
+    );
+  }
 
   const uploaded = (await uploadResponse.json()) as {
     id: string;
@@ -72,7 +71,7 @@ test('file upload stores metadata and serves content via backend proxy', async (
   assert.equal('attachments' in uploaded, false);
 
   const listedResponse = await fetch(
-    `${baseUrl}/api/v1/files/entity/object/${object.id}`,
+    `${baseUrl}/api/v1/files/entity/object/${objectId}`,
     {
       headers: {
         Cookie: cookieHeader,
