@@ -152,6 +152,12 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
   );
   assert.equal(managerDeniedResponse.status, 403);
 
+  const managerHistoryResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/movements?inventoryItemId=${item.id}`,
+    { headers: { Cookie: managerCookie } },
+  );
+  assert.equal(managerHistoryResponse.status, 403);
+
   const archiveResponse = await updateItem(item.id, {
     expectedVersion: 2,
     isActive: false,

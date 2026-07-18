@@ -335,4 +335,67 @@ test('inventory movements expose safe files and resolve approvals atomically', a
     ).status,
     'pending',
   );
+
+  const approvalAuditRollbackWriteoff = await createMovement(item.id, {
+    movementType: 'writeoff',
+    quantity: 1,
+    comment: 'Проверка atomic approval audit',
+  });
+  assert.ok(approvalAuditRollbackWriteoff.approvalRequest);
+  await prisma.$executeRawUnsafe(
+    'DROP TRIGGER fail_inventory_resolve_audit_trigger ON "audit_events"',
+  );
+  await prisma.$executeRawUnsafe(
+    'DROP FUNCTION fail_inventory_resolve_audit()',
+  );
+  await prisma.$executeRawUnsafe(`
+    CREATE FUNCTION fail_inventory_resolve_audit()
+    RETURNS trigger AS $$
+    BEGIN
+      IF NEW."action" = 'approval.request.approved'
+         AND NEW."entityId" = '${approvalAuditRollbackWriteoff.approvalRequest.id}' THEN
+        RAISE EXCEPTION 'forced inventory approval audit failure';
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TRIGGER fail_inventory_resolve_audit_trigger
+    BEFORE INSERT ON "audit_events"
+    FOR EACH ROW EXECUTE FUNCTION fail_inventory_resolve_audit()
+  `);
+  const approvalAuditFailureResponse = await resolveApproval(
+    approvalAuditRollbackWriteoff.approvalRequest.id,
+    'approve',
+  );
+  assert.equal(approvalAuditFailureResponse.status, 500);
+  assert.equal(
+    (
+      await prisma.inventoryMovement.findUniqueOrThrow({
+        where: { id: approvalAuditRollbackWriteoff.id },
+        select: { status: true },
+      })
+    ).status,
+    'pending_approval',
+  );
+  assert.equal(
+    (
+      await prisma.approvalRequest.findUniqueOrThrow({
+        where: { id: approvalAuditRollbackWriteoff.approvalRequest.id },
+        select: { status: true },
+      })
+    ).status,
+    'pending',
+  );
+  assert.equal(
+    await prisma.auditEvent.count({
+      where: {
+        entityType: 'inventory_movement',
+        entityId: approvalAuditRollbackWriteoff.id,
+        action: 'inventory.writeoff.approved',
+      },
+    }),
+    0,
+  );
 });
