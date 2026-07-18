@@ -8,7 +8,7 @@ import { createTestApp } from './helpers/create-test-app';
 
 interface CompletionResponse {
   id: string;
-  totalAmount: number;
+  visibleTotalAmount: number;
   payments: Array<{
     id: string;
     amount: number;
@@ -175,7 +175,7 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
     await correctedResponse.clone().text(),
   );
   const corrected = (await correctedResponse.json()) as CompletionResponse;
-  assert.equal(corrected.totalAmount, 30000);
+  assert.equal(corrected.visibleTotalAmount, 30000);
   const source = corrected.payments.find(
     (payment) => payment.id === personal.source.id,
   )!;

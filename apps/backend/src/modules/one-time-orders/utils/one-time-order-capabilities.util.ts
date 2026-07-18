@@ -1,7 +1,7 @@
 import {
   canViewObjectByScope,
 } from '../../objects/utils/object-access.util';
-import { canReviewAccountability } from '../../accountability/utils/accountability-access.util';
+import { canCorrectAccountabilityReceipt } from '../../accountability/utils/accountability-access.util';
 
 import {
   canAccessOneTimeOrders,
@@ -141,8 +141,7 @@ export function buildOneTimeOrderCapabilities(params: {
       params.order.status !== 'cancelled',
     canReopen:
       canEditOperationalFields && params.order.status === 'completed',
-    canCorrectPayments: canReviewAccountability({
-      roleCodes: params.roleCodes,
+    canCorrectPayments: canCorrectAccountabilityReceipt({
       permissionCodes: params.permissionCodes,
     }),
     canManageManagers,

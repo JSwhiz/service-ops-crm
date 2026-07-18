@@ -37,6 +37,8 @@ const ACCOUNTABILITY_OWN_MANAGER_ROLES = [
 ] as const;
 const ACCOUNTABILITY_ISSUE_PERMISSION = 'accountability.issue_cash';
 const EXPENSE_APPROVE_PERMISSION = 'expense.approve';
+export const ACCOUNTABILITY_CORRECT_RECEIPT_PERMISSION =
+  'accountability.correct_receipt';
 
 function hasAnyRole(
   roleCodes: string[],
@@ -103,4 +105,13 @@ export function canApproveAccountabilityClosure(params: {
   permissionCodes?: string[];
 }): boolean {
   return canApproveAccountabilityExpense(params);
+}
+
+export function canCorrectAccountabilityReceipt(params: {
+  permissionCodes?: string[];
+}): boolean {
+  return hasPermission(
+    params.permissionCodes,
+    ACCOUNTABILITY_CORRECT_RECEIPT_PERMISSION,
+  );
 }

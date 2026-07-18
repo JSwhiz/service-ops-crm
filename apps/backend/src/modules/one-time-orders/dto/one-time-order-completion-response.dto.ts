@@ -1,31 +1,32 @@
 export class OneTimeOrderCompletionPaymentResponseDto {
   id!: string;
-  completionId!: string;
-  oneTimeOrderId!: string;
-  recipient!: {
+  detailsRestricted!: boolean;
+  completionId?: string;
+  oneTimeOrderId?: string;
+  recipient?: {
     id: string;
     login: string;
     fullName: string;
   } | null;
-  amount!: number;
-  paymentMethod!: string;
-  paymentDestination!: string;
-  zeroReason!: string | null;
-  comment!: string | null;
-  differenceReason!: string | null;
-  receivedAt!: string;
-  recordedBy!: {
+  amount?: number;
+  paymentMethod?: string;
+  paymentDestination?: string;
+  zeroReason?: string | null;
+  comment?: string | null;
+  differenceReason?: string | null;
+  receivedAt?: string;
+  recordedBy?: {
     id: string;
     login: string;
     fullName: string;
   };
-  status!: string;
-  reversalOfPaymentId!: string | null;
-  reversedByPaymentId!: string | null;
-  correctedFromPaymentId!: string | null;
-  correctedByPaymentId!: string | null;
-  createdAt!: string;
-  updatedAt!: string;
+  status?: string;
+  reversalOfPaymentId?: string | null;
+  reversedByPaymentId?: string | null;
+  correctedFromPaymentId?: string | null;
+  correctedByPaymentId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export class OneTimeOrderCompletionResponseDto {
@@ -42,7 +43,8 @@ export class OneTimeOrderCompletionResponseDto {
   status!: string;
   clientRequestId!: string | null;
   payments!: OneTimeOrderCompletionPaymentResponseDto[];
-  totalAmount!: number;
+  visibleTotalAmount!: number;
+  fullTotalAmountVisible!: boolean;
   createdAt!: string;
   updatedAt!: string;
 }

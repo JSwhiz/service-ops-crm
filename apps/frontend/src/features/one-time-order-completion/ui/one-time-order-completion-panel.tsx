@@ -11,6 +11,7 @@ import type {
   OneTimeOrderPaymentDestination,
   OneTimeOrderPaymentMethod,
   OneTimeOrderPaymentZeroReason,
+  VisibleOneTimeOrderCompletionPayment,
 } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
@@ -129,7 +130,11 @@ export function OneTimeOrderCompletionPanel({
   const [error, setError] = useState<string | null>(null);
 
   const previousActual = useMemo(
-    () => completions.reduce((sum, completion) => sum + completion.totalAmount, 0),
+    () =>
+      completions.reduce(
+        (sum, completion) => sum + completion.visibleTotalAmount,
+        0,
+      ),
     [completions],
   );
   const currentActual = payments.reduce((sum, payment) => {
@@ -137,11 +142,15 @@ export function OneTimeOrderCompletionPanel({
     return sum + (Number.isFinite(amount) ? amount : 0);
   }, 0);
   const cumulativeActual = previousActual + currentActual;
+  const fullPreviousTotalVisible = completions.every(
+    (completion) => completion.fullTotalAmountVisible,
+  );
   const hasEnteredAmounts = payments.every(
     (payment) => payment.amount.trim() !== '',
   );
   const hasDifference =
     hasEnteredAmounts &&
+    fullPreviousTotalVisible &&
     item.agreedSum !== null &&
     Math.abs(cumulativeActual - item.agreedSum) >= 0.005;
   const canSubmit =
@@ -220,6 +229,13 @@ export function OneTimeOrderCompletionPanel({
         <Summary label="Получено в предыдущих циклах" value={formatMoney(previousActual)} />
         <Summary label="Текущий цикл" value={`Цикл ${item.workCycle}`} />
       </div>
+
+      {!fullPreviousTotalVisible ? (
+        <div className="page-muted">
+          Показаны только доступные вам поступления. Итоговое расхождение
+          проверит сервер при завершении заказа.
+        </div>
+      ) : null}
 
       {item.capabilities.canComplete ? (
         <div className="order-completion-form">
@@ -571,6 +587,18 @@ function PaymentHistoryRow({
   ) => Promise<void>;
 }): React.JSX.Element {
   const [isCorrecting, setIsCorrecting] = useState(false);
+
+  if (payment.detailsRestricted) {
+    return (
+      <div className="order-payment-history-row" data-payment-status="restricted">
+        <div className="page-muted">
+          Финансовые сведения доступны только получателю и ответственному за
+          подотчет.
+        </div>
+      </div>
+    );
+  }
+
   const isReversal = payment.status === 'reversal';
   const entryLabel = isReversal
     ? 'Сторнирование'
@@ -651,7 +679,7 @@ function PaymentCorrectionForm({
   onSubmit,
 }: {
   item: OneTimeOrderItem;
-  payment: OneTimeOrderCompletionPayment;
+  payment: VisibleOneTimeOrderCompletionPayment;
   onCancel: () => void;
   onSubmit: (payload: CorrectOneTimeOrderPaymentPayload) => Promise<void>;
 }): React.JSX.Element {

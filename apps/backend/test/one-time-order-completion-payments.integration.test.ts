@@ -20,7 +20,8 @@ interface PaymentInput {
 interface CompletionResponse {
   id: string;
   workCycle: number;
-  totalAmount: number;
+  visibleTotalAmount: number;
+  fullTotalAmountVisible: boolean;
   payments: Array<{
     id: string;
     recipient: { id: string } | null;
@@ -227,7 +228,8 @@ test('one-time order completion validates and stores actual payment rows', async
   const completed = await complete(orderId, 1, requestId, validPayments);
   assert.equal(completed.status, 201);
   const completion = (await completed.json()) as CompletionResponse;
-  assert.equal(completion.totalAmount, 35000);
+  assert.equal(completion.visibleTotalAmount, 35000);
+  assert.equal(completion.fullTotalAmountVisible, true);
   assert.equal(completion.payments.length, 2);
   assert.equal(completion.payments[0]?.recipient?.id, managerOne.id);
   assert.equal(completion.payments[1]?.recipient, null);
@@ -288,7 +290,7 @@ test('one-time order completion validates and stores actual payment rows', async
   );
   assert.equal(mismatchWithReason.status, 201);
   assert.equal(
-    ((await mismatchWithReason.json()) as CompletionResponse).totalAmount,
+    ((await mismatchWithReason.json()) as CompletionResponse).visibleTotalAmount,
     5000,
   );
   const cumulative = await prisma.oneTimeOrderCompletionPayment.aggregate({

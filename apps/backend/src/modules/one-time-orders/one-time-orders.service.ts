@@ -11,7 +11,10 @@ import {
 import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
-import { canReviewAccountability } from '../accountability/utils/accountability-access.util';
+import {
+  canCorrectAccountabilityReceipt,
+  canReviewAccountability,
+} from '../accountability/utils/accountability-access.util';
 import { ChatsService } from '../chats/chats.service';
 import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { EquipmentService } from '../equipment/equipment.service';
@@ -1456,7 +1459,7 @@ export class OneTimeOrdersService {
       })) as OneTimeOrderCompletionView;
     });
 
-    return this.mapCompletion(completion);
+    return this.mapCompletion(completion, currentUser);
   }
 
   async reopenOrder(
@@ -1552,7 +1555,7 @@ export class OneTimeOrdersService {
     });
 
     return completions.map((completion) =>
-      this.mapCompletion(completion as OneTimeOrderCompletionView),
+      this.mapCompletion(completion as OneTimeOrderCompletionView, currentUser),
     );
   }
 
@@ -1784,7 +1787,7 @@ export class OneTimeOrdersService {
       })) as OneTimeOrderCompletionView;
     });
 
-    return this.mapCompletion(completion);
+    return this.mapCompletion(completion, currentUser);
   }
 
   async assignManager(
@@ -2461,8 +2464,7 @@ export class OneTimeOrdersService {
 
   private assertCanCorrectPayment(currentUser: CurrentAuthUser): void {
     if (
-      !canReviewAccountability({
-        roleCodes: this.getRoleCodes(currentUser),
+      !canCorrectAccountabilityReceipt({
         permissionCodes: this.getPermissionCodes(currentUser),
       })
     ) {
@@ -2968,7 +2970,24 @@ export class OneTimeOrdersService {
 
   private mapCompletion(
     completion: OneTimeOrderCompletionView,
+    currentUser: CurrentAuthUser,
   ): OneTimeOrderCompletionResponseDto {
+    const canViewAllPayments =
+      canReviewAccountability({
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: this.getPermissionCodes(currentUser),
+      }) ||
+      canCorrectAccountabilityReceipt({
+        permissionCodes: this.getPermissionCodes(currentUser),
+      });
+    const visiblePayments = completion.payments.filter((payment) =>
+      this.canViewCompletionPayment(
+        payment,
+        currentUser.id,
+        canViewAllPayments,
+      ),
+    );
+
     return {
       id: completion.id,
       oneTimeOrderId: completion.oneTimeOrderId,
@@ -2978,33 +2997,76 @@ export class OneTimeOrdersService {
       completionComment: completion.completionComment,
       status: completion.status,
       clientRequestId: completion.clientRequestId,
-      payments: completion.payments.map((payment) => ({
-        id: payment.id,
-        completionId: payment.completionId,
-        oneTimeOrderId: payment.oneTimeOrderId,
-        recipient: payment.recipient,
-        amount: payment.amount.toNumber(),
-        paymentMethod: payment.paymentMethod,
-        paymentDestination: payment.paymentDestination,
-        zeroReason: payment.zeroReason,
-        comment: payment.comment,
-        differenceReason: payment.differenceReason,
-        receivedAt: payment.receivedAt.toISOString(),
-        recordedBy: payment.recordedBy,
-        status: payment.status,
-        reversalOfPaymentId: payment.reversalOfPaymentId,
-        reversedByPaymentId: payment.reversedByPaymentId,
-        correctedFromPaymentId: payment.correctedFromPaymentId,
-        correctedByPaymentId: payment.correctedByPaymentId,
-        createdAt: payment.createdAt.toISOString(),
-        updatedAt: payment.updatedAt.toISOString(),
-      })),
-      totalAmount: completion.payments
+      payments: completion.payments.map((payment) =>
+        this.mapCompletionPayment(
+          payment,
+          currentUser.id,
+          canViewAllPayments,
+        ),
+      ),
+      visibleTotalAmount: visiblePayments
         .filter((payment) => payment.status === 'active')
         .reduce((sum, payment) => sum.add(payment.amount), new Prisma.Decimal(0))
         .toNumber(),
+      fullTotalAmountVisible:
+        visiblePayments.length === completion.payments.length,
       createdAt: completion.createdAt.toISOString(),
       updatedAt: completion.updatedAt.toISOString(),
+    };
+  }
+
+  private canViewCompletionPayment(
+    payment: OneTimeOrderCompletionPaymentView,
+    currentUserId: string,
+    canViewAllPayments: boolean,
+  ): boolean {
+    return (
+      canViewAllPayments ||
+      payment.recipientUserId === currentUserId ||
+      (payment.paymentDestination === 'organization' &&
+        payment.recordedByUserId === currentUserId)
+    );
+  }
+
+  private mapCompletionPayment(
+    payment: OneTimeOrderCompletionPaymentView,
+    currentUserId: string,
+    canViewAllPayments: boolean,
+  ): OneTimeOrderCompletionResponseDto['payments'][number] {
+    if (
+      !this.canViewCompletionPayment(
+        payment,
+        currentUserId,
+        canViewAllPayments,
+      )
+    ) {
+      return {
+        id: payment.id,
+        detailsRestricted: true,
+      };
+    }
+
+    return {
+      id: payment.id,
+      detailsRestricted: false,
+      completionId: payment.completionId,
+      oneTimeOrderId: payment.oneTimeOrderId,
+      recipient: payment.recipient,
+      amount: payment.amount.toNumber(),
+      paymentMethod: payment.paymentMethod,
+      paymentDestination: payment.paymentDestination,
+      zeroReason: payment.zeroReason,
+      comment: payment.comment,
+      differenceReason: payment.differenceReason,
+      receivedAt: payment.receivedAt.toISOString(),
+      recordedBy: payment.recordedBy,
+      status: payment.status,
+      reversalOfPaymentId: payment.reversalOfPaymentId,
+      reversedByPaymentId: payment.reversedByPaymentId,
+      correctedFromPaymentId: payment.correctedFromPaymentId,
+      correctedByPaymentId: payment.correctedByPaymentId,
+      createdAt: payment.createdAt.toISOString(),
+      updatedAt: payment.updatedAt.toISOString(),
     };
   }
 

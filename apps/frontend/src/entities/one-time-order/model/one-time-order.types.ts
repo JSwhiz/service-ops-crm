@@ -91,8 +91,9 @@ export type OneTimeOrderPaymentZeroReason =
   | 'customer_did_not_pay'
   | 'other';
 
-export interface OneTimeOrderCompletionPayment {
+export interface VisibleOneTimeOrderCompletionPayment {
   id: string;
+  detailsRestricted: false;
   completionId: string;
   oneTimeOrderId: string;
   recipient: {
@@ -121,6 +122,15 @@ export interface OneTimeOrderCompletionPayment {
   updatedAt: string;
 }
 
+export interface RestrictedOneTimeOrderCompletionPayment {
+  id: string;
+  detailsRestricted: true;
+}
+
+export type OneTimeOrderCompletionPayment =
+  | VisibleOneTimeOrderCompletionPayment
+  | RestrictedOneTimeOrderCompletionPayment;
+
 export interface OneTimeOrderCompletion {
   id: string;
   oneTimeOrderId: string;
@@ -135,7 +145,8 @@ export interface OneTimeOrderCompletion {
   status: 'active' | 'superseded';
   clientRequestId: string | null;
   payments: OneTimeOrderCompletionPayment[];
-  totalAmount: number;
+  visibleTotalAmount: number;
+  fullTotalAmountVisible: boolean;
   createdAt: string;
   updatedAt: string;
 }
