@@ -17,15 +17,19 @@ import {
   checkOneTimeOrderConflicts,
   changeOneTimeOrderStatus,
   clearOneTimeOrderReview,
+  completeOneTimeOrder,
+  correctOneTimeOrderPayment,
   createOneTimeOrderPhoto,
   createOneTimeOrderComment,
   deleteOneTimeOrderPhoto,
   getOneTimeOrderById,
   getTodayOneTimeOrderDailyReport,
   listOneTimeOrderComments,
+  listOneTimeOrderCompletions,
   listOneTimeOrderHistory,
   listOneTimeOrderPhotos,
   removeOneTimeOrderManager,
+  reopenOneTimeOrder,
   restoreOneTimeOrderPhoto,
   upsertTodayOneTimeOrderDailyReport,
   updateOneTimeOrder,
@@ -33,6 +37,7 @@ import {
 } from '@/entities/one-time-order/api/one-time-order-client';
 import type {
   OneTimeOrderCommentItem,
+  OneTimeOrderCompletion,
   OneTimeOrderDailyReportItem,
   OneTimeOrderHistoryItem,
   OneTimeOrderItem,
@@ -71,6 +76,7 @@ import { OneTimeOrderSpecificationPanel } from '@/features/one-time-order-specif
 import {
   OneTimeOrderAccountabilityPanel,
 } from '@/features/one-time-order-accountability/ui/one-time-order-accountability-panel';
+import { OneTimeOrderCompletionPanel } from '@/features/one-time-order-completion/ui/one-time-order-completion-panel';
 import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-scope-panel';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
@@ -110,6 +116,7 @@ export default function OneTimeOrderDetailPage({
 }): React.JSX.Element {
   const [item, setItem] = useState<OneTimeOrderItem | null>(null);
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
+  const [completions, setCompletions] = useState<OneTimeOrderCompletion[]>([]);
   const [dailyReport, setDailyReport] = useState<OneTimeOrderDailyReportItem | null>(null);
   const [history, setHistory] = useState<OneTimeOrderHistoryItem[]>([]);
   const [files, setFiles] = useState<AttachedFile[]>([]);
@@ -195,6 +202,11 @@ export default function OneTimeOrderDetailPage({
       listOneTimeOrderComments(id).then((response) => {
         if (!cancelled) {
           setComments(response);
+        }
+      }),
+      listOneTimeOrderCompletions(id).then((response) => {
+        if (!cancelled) {
+          setCompletions(response);
         }
       }),
       getTodayOneTimeOrderDailyReport(id).then((response) => {
@@ -289,6 +301,23 @@ export default function OneTimeOrderDetailPage({
         <div className="page-stack">
           <OneTimeOrderSummaryCard item={item} />
 
+          <OneTimeOrderCompletionPanel
+            item={item}
+            completions={completions}
+            onComplete={async (payload) => {
+              await completeOneTimeOrder(item.id, payload);
+              await loadAll(item.id);
+            }}
+            onReopen={async () => {
+              await reopenOneTimeOrder(item.id);
+              await loadAll(item.id);
+            }}
+            onCorrectPayment={async (paymentId, payload) => {
+              await correctOneTimeOrderPayment(item.id, paymentId, payload);
+              await loadAll(item.id);
+            }}
+          />
+
           <OneTimeOrderReviewPanel
             item={item}
             onSave={async (payload) => {
@@ -335,7 +364,8 @@ export default function OneTimeOrderDetailPage({
               </div>
               <div className="action-row">
                 {ONE_TIME_ORDER_STATUS_OPTIONS.filter(
-                  (option) => option.value !== item.status,
+                  (option) =>
+                    option.value !== item.status && option.value !== 'completed',
                 ).map((option) => (
                   <button
                     key={option.value}

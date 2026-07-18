@@ -12,6 +12,7 @@ interface OrderCapabilities {
   canChangeLinkedObject: boolean;
   canManageManagers: boolean;
   canChangeStatus: boolean;
+  canCorrectPayments: boolean;
   canManageSpecification: boolean;
   canUploadPhotos: boolean;
   canDeletePhotos: boolean;
@@ -135,6 +136,7 @@ test('one-time order capabilities separate operational, financial and calendar a
   assert.equal(leadership.payload?.capabilities.canEditReview, true);
   assert.equal(leadership.payload?.capabilities.canManageAnyAvailability, true);
   assert.equal(leadership.payload?.capabilities.canApproveAvailability, true);
+  assert.equal(leadership.payload?.capabilities.canCorrectPayments, true);
 
   const creator = await getOrder(cookies.manager2);
   assert.equal(creator.response.status, 200);
@@ -168,6 +170,7 @@ test('one-time order capabilities separate operational, financial and calendar a
   assert.equal(activeManager.payload?.capabilities.canUploadPhotos, true);
   assert.equal(activeManager.payload?.capabilities.canCreateTask, true);
   assert.equal(activeManager.payload?.capabilities.canManageOwnAvailability, true);
+  assert.equal(activeManager.payload?.capabilities.canCorrectPayments, false);
 
   const managerFinancialEdit = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${creatorOrder.id}`,

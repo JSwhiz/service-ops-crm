@@ -53,6 +53,7 @@ export class OneTimeOrderResponseDto {
     canChangeStatus: boolean;
     canComplete: boolean;
     canReopen: boolean;
+    canCorrectPayments: boolean;
     canManageManagers: boolean;
     canManageSpecification: boolean;
     canUploadPhotos: boolean;

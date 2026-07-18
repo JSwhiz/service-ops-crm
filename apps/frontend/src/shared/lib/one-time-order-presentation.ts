@@ -23,3 +23,34 @@ export function getOneTimeOrderConflictTypeLabel(type: string): string {
   };
   return labels[type] ?? type;
 }
+
+export function getOneTimeOrderPaymentMethodLabel(method: string): string {
+  const labels: Record<string, string> = {
+    cash: 'Наличные менеджеру',
+    personal_card_transfer: 'Перевод на личную карту',
+    organization_transfer: 'Перевод организации',
+    other: 'Другой способ',
+  };
+  return labels[method] ?? method;
+}
+
+export function getOneTimeOrderPaymentDestinationLabel(
+  destination: string,
+): string {
+  return destination === 'manager_accountability'
+    ? 'Личный подотчет менеджера'
+    : destination === 'organization'
+      ? 'Организация'
+      : destination;
+}
+
+export function getOneTimeOrderPaymentZeroReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    payment_later: 'Оплата будет позже',
+    paid_directly_to_organization: 'Оплачено напрямую организации',
+    free_order: 'Заказ выполнен без оплаты',
+    customer_did_not_pay: 'Клиент не оплатил',
+    other: 'Другая причина',
+  };
+  return labels[reason] ?? reason;
+}

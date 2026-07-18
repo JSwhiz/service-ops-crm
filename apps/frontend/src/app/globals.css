@@ -1034,12 +1034,15 @@ tbody tr:hover {
 
 @media (max-width: 1024px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-sidebar {
     position: relative;
+    width: 100%;
+    min-width: 0;
     height: auto;
+    overflow: hidden;
     border-right: none;
     border-bottom: 1px solid #e5e7eb;
   }
@@ -1137,6 +1140,111 @@ tbody tr:hover {
   gap: 12px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.order-completion-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.order-completion-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.order-completion-form,
+.order-completion-history,
+.order-payment-correction,
+.accountability-ledger-filters {
+  display: grid;
+  gap: 14px;
+}
+
+.order-payment-card,
+.order-completion-cycle {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--surface-soft);
+}
+
+.order-payment-card label,
+.order-completion-wide-field,
+.accountability-ledger-filters label {
+  display: grid;
+  gap: 6px;
+}
+
+.order-completion-wide-field {
+  grid-column: 1 / -1;
+}
+
+.order-payment-note,
+.order-completion-warning {
+  border-left: 3px solid #d97706;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--warning-soft);
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.order-completion-warning {
+  display: grid;
+  gap: 8px;
+}
+
+.order-completion-closed-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #bbf7d0;
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--success-soft);
+}
+
+.order-payment-history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.order-payment-history-row {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.order-payment-history-row[data-payment-status="reversed"] {
+  color: var(--text-muted);
+}
+
+.order-payment-history-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.order-payment-history-amount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.form-error {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.button-quiet {
+  box-shadow: none;
 }
 
 .one-time-order-registry-filters {
@@ -1581,6 +1689,20 @@ tbody tr:hover {
 }
 
 @media (max-width: 700px) {
+  .order-completion-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .order-completion-closed-state,
+  .order-payment-history-main {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .order-payment-history-amount {
+    white-space: normal;
+  }
+
   .one-time-calendar__toolbar,
   .calendar-modal__date-grid {
     grid-template-columns: 1fr;

@@ -11,7 +11,9 @@ import type {
 import {
   getAccountabilityAccountStatusLabel,
   getAccountabilityClosureStatusLabel,
+  getAccountabilityExpenseCategoryLabel,
   getAccountabilityExpenseStatusLabel,
+  getAccountabilityFundingTypeLabel,
 } from '@/shared/lib/accountability-presentation';
 import { getUserDisplayName, getUserSecondaryLabel } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
@@ -56,11 +58,58 @@ export function AccountabilityAccountPanel({
     null,
   );
   const [expenseRejectComment, setExpenseRejectComment] = useState('');
+  const [orderFilter, setOrderFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const latestClosure = view.closures[0] ?? null;
+
+  const orderIds = useMemo(
+    () =>
+      [...new Set(
+        [...view.fundings, ...view.expenses]
+          .map((entry) => entry.oneTimeOrderId)
+          .filter((id): id is string => Boolean(id)),
+      )],
+    [view.expenses, view.fundings],
+  );
+  const activeOrderFilter = orderIds.includes(orderFilter) ? orderFilter : '';
+  const isWithinDates = (value: string): boolean => {
+    const date = value.slice(0, 10);
+    return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+  };
+  const filteredFundings = useMemo(
+    () =>
+      view.fundings.filter(
+        (funding) =>
+          (!activeOrderFilter ||
+            funding.oneTimeOrderId === activeOrderFilter) &&
+          isWithinDates(funding.issuedAt),
+      ),
+    [activeOrderFilter, dateFrom, dateTo, view.fundings],
+  );
+  const filteredExpenses = useMemo(
+    () =>
+      view.expenses.filter(
+        (expense) =>
+          (!activeOrderFilter ||
+            expense.oneTimeOrderId === activeOrderFilter) &&
+          isWithinDates(expense.expenseDate ?? expense.createdAt),
+      ),
+    [activeOrderFilter, dateFrom, dateTo, view.expenses],
+  );
+  const submittedAmount = useMemo(
+    () =>
+      view.expenses
+        .filter((expense) => expense.status === 'submitted')
+        .reduce((sum, expense) => sum + expense.amount, 0),
+    [view.expenses],
+  );
 
   const summaryCards = useMemo(
     () => [
       { label: 'Текущий остаток', value: formatMoney(view.summary.currentBalance) },
+      { label: 'Прогнозный остаток', value: formatMoney(view.summary.forecastBalance) },
+      { label: 'На подтверждении', value: formatMoney(submittedAmount) },
       { label: 'Выдано всего', value: formatMoney(view.summary.totalFunding) },
       {
         label: 'Занесено расходов',
@@ -79,7 +128,7 @@ export function AccountabilityAccountPanel({
         value: formatMoney(view.summary.totalReconciledExpenses),
       },
     ],
-    [view.summary],
+    [submittedAmount, view.summary],
   );
 
   return (
@@ -173,6 +222,49 @@ export function AccountabilityAccountPanel({
         />
       ) : null}
 
+      {view.fundings.length > 0 || view.expenses.length > 0 ? (
+        <div className="page-card page-card--subtle accountability-ledger-filters">
+          <div>
+            <div className="section-title">Фильтры финансовой истории</div>
+            <div className="section-subtitle">
+              Отбор применяется к поступлениям и расходам ниже.
+            </div>
+          </div>
+          <div className="field-grid">
+            <label>
+              <span>Разовый заказ</span>
+              <select
+                value={activeOrderFilter}
+                onChange={(event) => setOrderFilter(event.target.value)}
+              >
+                <option value="">Все заказы и ручные операции</option>
+                {orderIds.map((orderId) => (
+                  <option key={orderId} value={orderId}>
+                    Разовый заказ · {orderId.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Дата с</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(event) => setDateFrom(event.target.value)}
+              />
+            </label>
+            <label>
+              <span>Дата по</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(event) => setDateTo(event.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+      ) : null}
+
       <div className="page-card" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
@@ -183,20 +275,31 @@ export function AccountabilityAccountPanel({
           </div>
         </div>
 
-        {view.fundings.length === 0 ? (
-          <div className="page-muted">Выдач денег пока нет.</div>
+        {filteredFundings.length === 0 ? (
+          <div className="page-muted">По выбранным фильтрам поступлений нет.</div>
         ) : (
           <div className="record-list local-scroll local-scroll--sm">
-            {view.fundings.map((funding) => (
+            {filteredFundings.map((funding) => (
               <div key={funding.id} className="record-card">
                 <div className="section-header" style={{ paddingBottom: 0 }}>
-                  <strong>{formatMoney(funding.amount)}</strong>
+                  <div>
+                    <strong>
+                      {funding.entryDirection === 'debit' ? '−' : '+'}
+                      {formatMoney(funding.amount)}
+                    </strong>
+                    <div className="page-muted">
+                      {getAccountabilityFundingTypeLabel(funding.fundingType)}
+                    </div>
+                  </div>
                   <div className="page-muted">
                     {new Date(funding.issuedAt).toLocaleString('ru-RU')}
                   </div>
                 </div>
                 <div className="page-muted" style={{ marginTop: 6 }}>
-                  Выдал: {getUserDisplayName(funding.issuedBy)}
+                  Зафиксировал: {getUserDisplayName(funding.recordedBy ?? funding.issuedBy)}
+                  {funding.oneTimeOrderId
+                    ? ` · заказ ${funding.oneTimeOrderId.slice(0, 8)}`
+                    : ''}
                 </div>
                 {funding.comment ? (
                   <div style={{ marginTop: 8 }}>{funding.comment}</div>
@@ -217,18 +320,24 @@ export function AccountabilityAccountPanel({
           </div>
         </div>
 
-        {view.expenses.length === 0 ? (
-          <div className="page-muted">Расходов пока нет.</div>
+        {filteredExpenses.length === 0 ? (
+          <div className="page-muted">По выбранным фильтрам расходов нет.</div>
         ) : (
           <div className="record-list local-scroll local-scroll--lg">
-            {view.expenses.map((expense) => (
+            {filteredExpenses.map((expense) => (
               <div key={expense.id} className="record-card" style={{ display: 'grid', gap: 10 }}>
                 <div className="section-header" style={{ paddingBottom: 0 }}>
                   <div style={{ display: 'grid', gap: 6 }}>
                     <strong>{formatMoney(expense.amount)}</strong>
                     <div className="page-muted">
-                      {new Date(expense.createdAt).toLocaleString('ru-RU')} ·{' '}
+                      {expense.expenseDate
+                        ? new Date(`${expense.expenseDate}T00:00:00`).toLocaleDateString('ru-RU')
+                        : new Date(expense.createdAt).toLocaleString('ru-RU')}{' '}
+                      · {getAccountabilityExpenseCategoryLabel(expense.expenseCategory)} ·{' '}
                       {getUserDisplayName(expense.createdBy)}
+                      {expense.oneTimeOrderId
+                        ? ` · заказ ${expense.oneTimeOrderId.slice(0, 8)}`
+                        : ''}
                     </div>
                   </div>
                   <span

@@ -9,6 +9,7 @@ import type {
 import {
   getAccountabilityExpenseCategoryLabel,
   getAccountabilityExpenseStatusLabel,
+  getAccountabilityFundingTypeLabel,
 } from '@/shared/lib/accountability-presentation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
@@ -248,6 +249,7 @@ export function OneTimeOrderAccountabilityPanel({
                           {formatMoney(funding.amount)}
                         </div>
                         <div className="detail-label">
+                          {getAccountabilityFundingTypeLabel(funding.fundingType)} ·{' '}
                           {new Date(funding.issuedAt).toLocaleString('ru-RU')}
                           {funding.comment ? ` · ${funding.comment}` : ''}
                         </div>

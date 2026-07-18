@@ -4,6 +4,8 @@ import { appConfig } from '@/shared/config/app-config';
 
 import type {
   CreateOneTimeOrderPayload,
+  CompleteOneTimeOrderPayload,
+  CorrectOneTimeOrderPaymentPayload,
   OneTimeOrderCommentItem,
   OneTimeOrderDailyReportItem,
   OneTimeOrderHistoryItem,
@@ -12,6 +14,7 @@ import type {
   OneTimeOrderCalendarResponse,
   OneTimeOrderConflictResponse,
   OneTimeOrderItem,
+  OneTimeOrderCompletion,
   OneTimeOrderListResponse,
   OneTimeOrderPhotoItem,
   OneTimeOrderSpecificationItem,
@@ -72,6 +75,43 @@ export async function getOneTimeOrderById(id: string): Promise<OneTimeOrderItem>
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}`, {
     method: 'GET',
   });
+}
+
+export async function listOneTimeOrderCompletions(
+  id: string,
+): Promise<OneTimeOrderCompletion[]> {
+  return fetcher<OneTimeOrderCompletion[]>(`/one-time-orders/${id}/completions`, {
+    method: 'GET',
+  });
+}
+
+export async function completeOneTimeOrder(
+  id: string,
+  payload: CompleteOneTimeOrderPayload,
+): Promise<OneTimeOrderCompletion> {
+  return fetcher<OneTimeOrderCompletion>(`/one-time-orders/${id}/complete`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function reopenOneTimeOrder(
+  id: string,
+): Promise<OneTimeOrderItem> {
+  return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/reopen`, {
+    method: 'POST',
+  });
+}
+
+export async function correctOneTimeOrderPayment(
+  orderId: string,
+  paymentId: string,
+  payload: CorrectOneTimeOrderPaymentPayload,
+): Promise<OneTimeOrderCompletion> {
+  return fetcher<OneTimeOrderCompletion>(
+    `/one-time-orders/${orderId}/payments/${paymentId}/correct`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
 }
 
 export async function createOneTimeOrder(

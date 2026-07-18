@@ -63,3 +63,18 @@ export function getAccountabilityClosureStatusLabel(status: string): string {
       return status;
   }
 }
+
+export function getAccountabilityFundingTypeLabel(type: string): string {
+  switch (type) {
+    case 'manual_issue':
+      return 'Выдача денег';
+    case 'one_time_order_receipt':
+      return 'Поступление от разового заказа';
+    case 'one_time_order_receipt_reversal':
+      return 'Сторнирование поступления';
+    case 'manual_correction':
+      return 'Ручная корректировка';
+    default:
+      return type;
+  }
+}

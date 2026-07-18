@@ -29,6 +29,13 @@ export interface OneTimeOrderItem {
     login: string;
     fullName: string;
   } | null;
+  workCycle: number;
+  completedAt: string | null;
+  completedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
   createdBy: {
@@ -48,6 +55,9 @@ export interface OneTimeOrderItem {
     canEditFinancialFields: boolean;
     canChangeLinkedObject: boolean;
     canChangeStatus: boolean;
+    canComplete: boolean;
+    canReopen: boolean;
+    canCorrectPayments: boolean;
     canManageManagers: boolean;
     canManageSpecification: boolean;
     canUploadPhotos: boolean;
@@ -62,6 +72,100 @@ export interface OneTimeOrderItem {
     canManageAnyAvailability: boolean;
     canApproveAvailability: boolean;
   };
+}
+
+export type OneTimeOrderPaymentMethod =
+  | 'cash'
+  | 'personal_card_transfer'
+  | 'organization_transfer'
+  | 'other';
+
+export type OneTimeOrderPaymentDestination =
+  | 'manager_accountability'
+  | 'organization';
+
+export type OneTimeOrderPaymentZeroReason =
+  | 'payment_later'
+  | 'paid_directly_to_organization'
+  | 'free_order'
+  | 'customer_did_not_pay'
+  | 'other';
+
+export interface OneTimeOrderCompletionPayment {
+  id: string;
+  completionId: string;
+  oneTimeOrderId: string;
+  recipient: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
+  amount: number;
+  paymentMethod: OneTimeOrderPaymentMethod;
+  paymentDestination: OneTimeOrderPaymentDestination;
+  zeroReason: OneTimeOrderPaymentZeroReason | null;
+  comment: string | null;
+  differenceReason: string | null;
+  receivedAt: string;
+  recordedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+  status: 'active' | 'reversed' | 'reversal';
+  reversalOfPaymentId: string | null;
+  reversedByPaymentId: string | null;
+  correctedFromPaymentId: string | null;
+  correctedByPaymentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OneTimeOrderCompletion {
+  id: string;
+  oneTimeOrderId: string;
+  workCycle: number;
+  completedAt: string;
+  completedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  };
+  completionComment: string | null;
+  status: 'active' | 'superseded';
+  clientRequestId: string | null;
+  payments: OneTimeOrderCompletionPayment[];
+  totalAmount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OneTimeOrderCompletionPaymentPayload {
+  recipientUserId?: string | null;
+  amount: number;
+  paymentMethod: OneTimeOrderPaymentMethod;
+  paymentDestination: OneTimeOrderPaymentDestination;
+  zeroReason?: OneTimeOrderPaymentZeroReason | null;
+  comment?: string | null;
+  differenceReason?: string | null;
+  receivedAt?: string;
+}
+
+export interface CompleteOneTimeOrderPayload {
+  workCycle: number;
+  completionComment?: string;
+  clientRequestId?: string;
+  payments: OneTimeOrderCompletionPaymentPayload[];
+}
+
+export interface CorrectOneTimeOrderPaymentPayload {
+  correctedAmount: number;
+  paymentMethod: OneTimeOrderPaymentMethod;
+  paymentDestination: OneTimeOrderPaymentDestination;
+  recipientUserId?: string | null;
+  zeroReason?: OneTimeOrderPaymentZeroReason | null;
+  comment?: string | null;
+  reason: string;
 }
 
 export interface OneTimeOrderListItem {

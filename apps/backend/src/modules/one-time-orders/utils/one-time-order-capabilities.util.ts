@@ -1,6 +1,7 @@
 import {
   canViewObjectByScope,
 } from '../../objects/utils/object-access.util';
+import { canReviewAccountability } from '../../accountability/utils/accountability-access.util';
 
 import {
   canAccessOneTimeOrders,
@@ -70,6 +71,7 @@ export interface OneTimeOrderCapabilities {
   canChangeStatus: boolean;
   canComplete: boolean;
   canReopen: boolean;
+  canCorrectPayments: boolean;
   canManageManagers: boolean;
   canManageSpecification: boolean;
   canUploadPhotos: boolean;
@@ -139,6 +141,10 @@ export function buildOneTimeOrderCapabilities(params: {
       params.order.status !== 'cancelled',
     canReopen:
       canEditOperationalFields && params.order.status === 'completed',
+    canCorrectPayments: canReviewAccountability({
+      roleCodes: params.roleCodes,
+      permissionCodes: params.permissionCodes,
+    }),
     canManageManagers,
     canManageSpecification: canEditOperationalFields,
     canUploadPhotos: canEditOperationalFields,
