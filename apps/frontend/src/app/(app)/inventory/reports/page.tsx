@@ -52,13 +52,13 @@ export default function InventoryReportsPage(): React.JSX.Element {
 
       try {
         const [loadedItems, loadedMovements] = await Promise.all([
-          listInventoryItems(),
-          listInventoryMovements(),
+          listInventoryItems({ limit: 100 }),
+          listInventoryMovements({ limit: 100 }),
         ]);
 
         if (!cancelled) {
-          setItems(loadedItems);
-          setMovements(loadedMovements);
+          setItems(loadedItems.items);
+          setMovements(loadedMovements.items);
         }
       } catch (loadError) {
         if (!cancelled) {

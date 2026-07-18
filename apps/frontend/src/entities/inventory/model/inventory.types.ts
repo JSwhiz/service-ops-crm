@@ -26,6 +26,12 @@ export interface InventoryItem {
     writeoffsCount: number;
     adjustmentsCount: number;
   };
+  archiveState: {
+    canArchive: boolean;
+    pendingMovementsCount: number;
+    pendingApprovalsCount: number;
+    blockerCodes: string[];
+  };
   capabilities: {
     canEditCatalog: boolean;
     canCreateMovement: boolean;
@@ -37,6 +43,22 @@ export interface InventoryItem {
     canAdjust: boolean;
     canViewReports: boolean;
   };
+}
+
+export interface InventoryItemListResponse {
+  items: InventoryItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface InventoryMovementListResponse {
+  items: InventoryMovement[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface InventoryMovement {
@@ -156,14 +178,27 @@ export interface ListInventoryItemsParams {
   search?: string;
   category?: string;
   isActive?: boolean;
+  page?: number;
+  limit?: number;
+  sortBy?:
+    | 'name'
+    | 'category'
+    | 'unit'
+    | 'currentUnitPrice'
+    | 'createdAt'
+    | 'updatedAt';
+  sortDirection?: 'asc' | 'desc';
 }
 
 export interface ListInventoryMovementsParams {
   inventoryItemId?: string;
   movementType?: string;
+  status?: string;
   dateFrom?: string;
   dateTo?: string;
   objectId?: string;
   oneTimeOrderId?: string;
   approvalBridge?: string;
+  page?: number;
+  limit?: number;
 }

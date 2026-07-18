@@ -125,14 +125,25 @@ test('inventory movements expose safe files and resolve approvals atomically', a
   });
 
   const movementListResponse = await fetch(
-    `${baseUrl}/api/v1/inventory/movements?inventoryItemId=${item.id}`,
+    `${baseUrl}/api/v1/inventory/movements?inventoryItemId=${item.id}&page=1&limit=1&status=applied`,
     { headers: { Cookie: founderCookie } },
   );
   assert.equal(movementListResponse.status, 200);
-  const movementList = (await movementListResponse.json()) as Array<{
-    id: string;
-    attachments: Array<Record<string, unknown>>;
-  }>;
+  const movementListBody = (await movementListResponse.json()) as {
+      items: Array<{
+        id: string;
+        attachments: Array<Record<string, unknown>>;
+      }>;
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  const movementList = movementListBody.items;
+  assert.equal(movementListBody.total, 1);
+  assert.equal(movementListBody.page, 1);
+  assert.equal(movementListBody.limit, 1);
+  assert.equal(movementListBody.totalPages, 1);
   const listedReceipt = movementList.find((movement) => movement.id === receipt.id);
   assert.ok(listedReceipt);
   assert.equal(listedReceipt.attachments.length, 1);

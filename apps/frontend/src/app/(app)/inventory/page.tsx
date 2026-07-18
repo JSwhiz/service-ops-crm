@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useEffect, useState } from 'react';
+import React, { useDeferredValue, useEffect, useState } from 'react';
 
 import { listInventoryItems } from '@/entities/inventory/api/inventory-client';
 import type { InventoryItem } from '@/entities/inventory/model/inventory.types';
@@ -22,10 +22,20 @@ export default function InventoryPage(): React.JSX.Element {
   const canAccessInventory = user?.capabilities?.canAccessInventory ?? false;
   const canManageInventoryCatalog =
     user?.capabilities?.canManageInventoryCatalog ?? false;
-
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [category, setCategory] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'archived'>(
+    'active',
+  );
+  const [sortBy, setSortBy] = useState<
+    'name' | 'category' | 'unit' | 'currentUnitPrice' | 'updatedAt'
+  >('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,20 +55,26 @@ export default function InventoryPage(): React.JSX.Element {
 
       try {
         const response = await listInventoryItems({
-          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(deferredSearch.trim() ? { search: deferredSearch.trim() } : {}),
           ...(category.trim() ? { category: category.trim() } : {}),
+          ...(activeFilter === 'all'
+            ? {}
+            : { isActive: activeFilter === 'active' }),
+          page,
+          limit: 25,
+          sortBy,
+          sortDirection,
         });
 
         if (!cancelled) {
-          setItems(response);
+          setItems(response.items);
+          setTotal(response.total);
+          setTotalPages(response.totalPages);
         }
       } catch (loadError) {
         if (!cancelled) {
           setError(
-            getErrorMessage(
-              loadError,
-              'Не удалось загрузить реестр расходников.',
-            ),
+            getErrorMessage(loadError, 'Не удалось загрузить реестр расходников.'),
           );
         }
       } finally {
@@ -73,10 +89,15 @@ export default function InventoryPage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [canAccessInventory, search, category]);
-
-  const totalItems = items.length;
-  const totalActiveItems = items.filter((item) => item.isActive).length;
+  }, [
+    activeFilter,
+    canAccessInventory,
+    category,
+    deferredSearch,
+    page,
+    sortBy,
+    sortDirection,
+  ]);
 
   return (
     <>
@@ -85,51 +106,107 @@ export default function InventoryPage(): React.JSX.Element {
       {!canAccessInventory ? (
         <div className="page-card">У вас нет доступа к inventory-модулю.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              }}
-            >
+        <div className="page-stack">
+          <div className="page-card" style={{ display: 'grid', gap: 14 }}>
+            <div className="section-header">
+              <div>
+                <div className="section-title">Каталог</div>
+                <div className="page-muted">Найдено позиций: {total}</div>
+              </div>
+              <div className="action-row">
+                {canManageInventoryCatalog ? (
+                  <Link href="/inventory/new">
+                    <button type="button">Новая позиция</button>
+                  </Link>
+                ) : null}
+                <Link href="/inventory/movements">
+                  <button type="button" className="button-secondary">
+                    Движения
+                  </button>
+                </Link>
+                <Link href="/inventory/reports">
+                  <button type="button" className="button-secondary">
+                    Отчеты
+                  </button>
+                </Link>
+              </div>
+            </div>
+
+            <div className="detail-grid">
               <label>
-                <div style={{ marginBottom: 6 }}>Поиск</div>
+                <div className="detail-label">Поиск</div>
                 <input
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  style={{ width: '100%', padding: 10 }}
-                  placeholder="Название или категория"
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Название, категория или единица"
                 />
               </label>
               <label>
-                <div style={{ marginBottom: 6 }}>Категория</div>
+                <div className="detail-label">Категория</div>
                 <input
                   value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                  style={{ width: '100%', padding: 10 }}
-                  placeholder="Например, Моющие средства"
+                  onChange={(event) => {
+                    setCategory(event.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Точное название категории"
                 />
               </label>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {canManageInventoryCatalog ? (
-                <Link href="/inventory/new">
-                  <button type="button">Новая позиция</button>
-                </Link>
-              ) : null}
-              <Link href="/inventory/movements">
-                <button type="button">Движения</button>
-              </Link>
-              <Link href="/inventory/reports">
-                <button type="button">Отчеты</button>
-              </Link>
-            </div>
-
-            <div className="page-muted">
-              Всего позиций: {totalItems} • Активных: {totalActiveItems}
+              <label>
+                <div className="detail-label">Статус</div>
+                <select
+                  value={activeFilter}
+                  onChange={(event) => {
+                    setActiveFilter(
+                      event.target.value as 'all' | 'active' | 'archived',
+                    );
+                    setPage(1);
+                  }}
+                >
+                  <option value="active">Активные</option>
+                  <option value="archived">Архивные</option>
+                  <option value="all">Все</option>
+                </select>
+              </label>
+              <label>
+                <div className="detail-label">Сортировка</div>
+                <select
+                  value={sortBy}
+                  onChange={(event) => {
+                    setSortBy(
+                      event.target.value as
+                        | 'name'
+                        | 'category'
+                        | 'unit'
+                        | 'currentUnitPrice'
+                        | 'updatedAt',
+                    );
+                    setPage(1);
+                  }}
+                >
+                  <option value="name">Название</option>
+                  <option value="category">Категория</option>
+                  <option value="unit">Единица измерения</option>
+                  <option value="currentUnitPrice">Максимальная цена</option>
+                  <option value="updatedAt">Дата изменения</option>
+                </select>
+              </label>
+              <label>
+                <div className="detail-label">Направление</div>
+                <select
+                  value={sortDirection}
+                  onChange={(event) => {
+                    setSortDirection(event.target.value as 'asc' | 'desc');
+                    setPage(1);
+                  }}
+                >
+                  <option value="asc">По возрастанию</option>
+                  <option value="desc">По убыванию</option>
+                </select>
+              </label>
             </div>
           </div>
 
@@ -142,6 +219,30 @@ export default function InventoryPage(): React.JSX.Element {
           ) : (
             <InventoryItemListTable items={items} />
           )}
+
+          {totalPages > 1 ? (
+            <div className="page-card pagination-row">
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page <= 1 || isLoading}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Назад
+              </button>
+              <span className="page-muted">
+                Страница {page} из {totalPages}
+              </span>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page >= totalPages || isLoading}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Далее
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
     </>

@@ -595,16 +595,20 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   );
 
   assert.equal(founderMovementsResponse.status, 200);
-  const founderMovements = (await founderMovementsResponse.json()) as Array<{
-    id: string;
-    projection: {
-      hasEvidence: boolean;
-      requiresApprovalBridge: boolean;
-      canResolveMissingPhotoApproval: boolean;
-    };
-    relatedObject: { canOpenObjectCard: boolean } | null;
-    relatedOneTimeOrder: { canOpenOrderCard: boolean } | null;
-  }>;
+  const founderMovements = (
+    (await founderMovementsResponse.json()) as {
+      items: Array<{
+        id: string;
+        projection: {
+          hasEvidence: boolean;
+          requiresApprovalBridge: boolean;
+          canResolveMissingPhotoApproval: boolean;
+        };
+        relatedObject: { canOpenObjectCard: boolean } | null;
+        relatedOneTimeOrder: { canOpenOrderCard: boolean } | null;
+      }>;
+    }
+  ).items;
 
   const uploadedMovement = founderMovements.find(
     (movement) => movement.id === issueToObjectMovement.id,
@@ -643,10 +647,14 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   );
 
   assert.equal(deputyMovementsResponse.status, 200);
-  const deputyMovements = (await deputyMovementsResponse.json()) as Array<{
-    relatedObject: { canOpenObjectCard: boolean } | null;
-    relatedOneTimeOrder: { canOpenOrderCard: boolean } | null;
-  }>;
+  const deputyMovements = (
+    (await deputyMovementsResponse.json()) as {
+      items: Array<{
+        relatedObject: { canOpenObjectCard: boolean } | null;
+        relatedOneTimeOrder: { canOpenOrderCard: boolean } | null;
+      }>;
+    }
+  ).items;
 
   assert.ok(deputyMovements.some((movement) => movement.relatedObject !== null));
   assert.ok(
@@ -668,14 +676,18 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   );
 
   assert.equal(directorMovementsResponse.status, 200);
-  const directorMovements = (await directorMovementsResponse.json()) as Array<{
-    id: string;
-    projection: {
-      requiresApprovalBridge: boolean;
-      approvalBridgeResolvedAt: string | null;
-      canResolveMissingPhotoApproval: boolean;
-    };
-  }>;
+  const directorMovements = (
+    (await directorMovementsResponse.json()) as {
+      items: Array<{
+        id: string;
+        projection: {
+          requiresApprovalBridge: boolean;
+          approvalBridgeResolvedAt: string | null;
+          canResolveMissingPhotoApproval: boolean;
+        };
+      }>;
+    }
+  ).items;
   const directorBridgeMovement = directorMovements.find(
     (movement) => movement.id === managerObjectIssue.id,
   );
@@ -749,16 +761,20 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
   );
 
   assert.equal(resolvedMovementViewResponse.status, 200);
-  const resolvedMovementView = (await resolvedMovementViewResponse.json()) as Array<{
-    id: string;
-    projection: {
-      hasEvidence: boolean;
-      requiresApprovalBridge: boolean;
-      approvalBridgeResolvedAt: string | null;
-      approvalBridgeResolvedBy: { fullName: string } | null;
-      canResolveMissingPhotoApproval: boolean;
-    };
-  }>;
+  const resolvedMovementView = (
+    (await resolvedMovementViewResponse.json()) as {
+      items: Array<{
+        id: string;
+        projection: {
+          hasEvidence: boolean;
+          requiresApprovalBridge: boolean;
+          approvalBridgeResolvedAt: string | null;
+          approvalBridgeResolvedBy: { fullName: string } | null;
+          canResolveMissingPhotoApproval: boolean;
+        };
+      }>;
+    }
+  ).items;
   const approvedMovement = resolvedMovementView.find(
     (movement) => movement.id === managerObjectIssue.id,
   );

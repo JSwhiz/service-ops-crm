@@ -16,6 +16,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { CreateInventoryMovementDto } from './dto/create-inventory-movement.dto';
 import { InventoryItemResponseDto } from './dto/inventory-item-response.dto';
+import { InventoryItemListResponseDto } from './dto/inventory-item-list-response.dto';
+import { InventoryMovementListResponseDto } from './dto/inventory-movement-list-response.dto';
 import { InventoryMovementResponseDto } from './dto/inventory-movement-response.dto';
 import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto';
 import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
@@ -40,7 +42,7 @@ export class InventoryController {
   listItems(
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListInventoryItemsQueryDto,
-  ): Promise<InventoryItemResponseDto[]> {
+  ): Promise<InventoryItemListResponseDto> {
     return this.inventoryService.listItems(user, query);
   }
 
@@ -73,7 +75,7 @@ export class InventoryController {
   listMovements(
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListInventoryMovementsQueryDto,
-  ): Promise<InventoryMovementResponseDto[]> {
+  ): Promise<InventoryMovementListResponseDto> {
     return this.inventoryService.listMovements(user, query);
   }
 

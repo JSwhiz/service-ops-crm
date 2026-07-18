@@ -296,6 +296,55 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
     ['pending_approval', 'pending_movement'],
   );
 
+  const pendingItemViewResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/items/${pendingItem.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(pendingItemViewResponse.status, 200);
+  const pendingItemView = (await pendingItemViewResponse.json()) as {
+    archiveState: {
+      canArchive: boolean;
+      pendingMovementsCount: number;
+      pendingApprovalsCount: number;
+      blockerCodes: string[];
+    };
+  };
+  assert.equal(pendingItemView.archiveState.canArchive, false);
+  assert.equal(pendingItemView.archiveState.pendingMovementsCount, 1);
+  assert.equal(pendingItemView.archiveState.pendingApprovalsCount, 1);
+  assert.deepEqual(pendingItemView.archiveState.blockerCodes.sort(), [
+    'pending_approval',
+    'pending_movement',
+  ]);
+
+  const paginatedListResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/items?search=${encodeURIComponent(marker)}&page=1&limit=2&sortBy=name&sortDirection=desc`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(paginatedListResponse.status, 200);
+  const paginatedList = (await paginatedListResponse.json()) as {
+    items: Array<{ name: string }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+  assert.equal(paginatedList.items.length, 2);
+  assert.ok(paginatedList.total > 2);
+  assert.equal(paginatedList.page, 1);
+  assert.equal(paginatedList.limit, 2);
+  assert.equal(paginatedList.totalPages, Math.ceil(paginatedList.total / 2));
+  const expectedPage = await prisma.inventoryItem.findMany({
+    where: { name: { contains: marker, mode: 'insensitive' } },
+    orderBy: [{ name: 'desc' }, { id: 'asc' }],
+    take: 2,
+    select: { name: true },
+  });
+  assert.deepEqual(
+    paginatedList.items.map((listedItem) => ({ name: listedItem.name })),
+    expectedPage,
+  );
+
   const archivedMovementResponse = await fetch(
     `${baseUrl}/api/v1/inventory/movements`,
     {

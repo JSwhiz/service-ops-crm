@@ -114,6 +114,22 @@ button:disabled {
   box-shadow: none;
 }
 
+button.button-secondary {
+  background: #ffffff;
+  color: var(--text);
+}
+
+button.button-danger {
+  border-color: #b91c1c;
+  background: #b91c1c;
+  color: #ffffff;
+}
+
+button.button-danger:hover:not(:disabled) {
+  border-color: #991b1b;
+  background: #991b1b;
+}
+
 input,
 textarea,
 select {
@@ -453,6 +469,28 @@ a:hover {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.inline-notice {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.inline-notice--warning {
+  border-color: #f2c078;
+  background: #fffaf0;
 }
 
 .field-grid {

@@ -4,7 +4,9 @@ import type {
   CreateInventoryItemPayload,
   CreateInventoryMovementPayload,
   InventoryItem,
+  InventoryItemListResponse,
   InventoryMovement,
+  InventoryMovementListResponse,
   InventoryObjectReference,
   InventoryOneTimeOrderReference,
   ObjectInventory,
@@ -38,8 +40,8 @@ function buildQuery(
 
 export async function listInventoryItems(
   params?: ListInventoryItemsParams,
-): Promise<InventoryItem[]> {
-  return fetcher<InventoryItem[]>(
+): Promise<InventoryItemListResponse> {
+  return fetcher<InventoryItemListResponse>(
     `/inventory/items${buildQuery(
       params as Record<string, string | number | boolean | undefined> | undefined,
     )}`,
@@ -76,8 +78,8 @@ export async function updateInventoryItem(
 
 export async function listInventoryMovements(
   params?: ListInventoryMovementsParams,
-): Promise<InventoryMovement[]> {
-  return fetcher<InventoryMovement[]>(
+): Promise<InventoryMovementListResponse> {
+  return fetcher<InventoryMovementListResponse>(
     `/inventory/movements${buildQuery(
       params as Record<string, string | number | boolean | undefined> | undefined,
     )}`,

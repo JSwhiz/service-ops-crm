@@ -24,6 +24,12 @@ export class InventoryItemResponseDto {
     writeoffsCount: number;
     adjustmentsCount: number;
   };
+  archiveState!: {
+    canArchive: boolean;
+    pendingMovementsCount: number;
+    pendingApprovalsCount: number;
+    blockerCodes: string[];
+  };
   capabilities!: {
     canEditCatalog: boolean;
     canCreateMovement: boolean;

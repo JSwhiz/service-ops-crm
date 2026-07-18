@@ -28,6 +28,7 @@ export function InventoryItemListTable({
             <th align="left">Оценка</th>
             <th align="left">Статус</th>
             <th align="left">Движений</th>
+            <th align="right">Действия</th>
           </tr>
         </thead>
         <tbody>
@@ -47,6 +48,13 @@ export function InventoryItemListTable({
               <td>{item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽</td>
               <td>{item.isActive ? 'Активна' : 'Неактивна'}</td>
               <td>{item.summary.movementsCount}</td>
+              <td align="right">
+                {item.capabilities.canEditCatalog ? (
+                  <Link href={`/inventory/${item.id}#edit`}>Редактировать</Link>
+                ) : (
+                  <Link href={`/inventory/${item.id}`}>Открыть</Link>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

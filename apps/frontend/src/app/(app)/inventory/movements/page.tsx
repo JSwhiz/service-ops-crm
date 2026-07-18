@@ -44,12 +44,15 @@ export default function InventoryMovementsPage(): React.JSX.Element {
     InventoryOneTimeOrderReference[]
   >([]);
   const [movementType, setMovementType] = useState('');
+  const [movementStatus, setMovementStatus] = useState('');
   const [selectedItemId, setSelectedItemId] = useState('');
   const [selectedObjectId, setSelectedObjectId] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [approvalBridgeOnly, setApprovalBridgeOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,23 +74,27 @@ export default function InventoryMovementsPage(): React.JSX.Element {
       try {
         const [loadedItems, loadedMovements, loadedObjects, loadedOrders] =
           await Promise.all([
-            listInventoryItems(),
+            listInventoryItems({ isActive: true, limit: 100 }),
             listInventoryMovements({
               ...(movementType ? { movementType } : {}),
+              ...(movementStatus ? { status: movementStatus } : {}),
               ...(selectedItemId ? { inventoryItemId: selectedItemId } : {}),
               ...(selectedObjectId ? { objectId: selectedObjectId } : {}),
               ...(selectedOrderId ? { oneTimeOrderId: selectedOrderId } : {}),
               ...(approvalBridgeOnly ? { approvalBridge: 'true' } : {}),
               ...(dateFrom ? { dateFrom } : {}),
               ...(dateTo ? { dateTo } : {}),
+              page,
+              limit: 25,
             }),
             listInventoryObjectReferenceOptions(),
             listInventoryOneTimeOrderReferenceOptions(),
           ]);
 
         if (!cancelled) {
-          setItems(loadedItems);
-          setMovements(loadedMovements);
+          setItems(loadedItems.items);
+          setMovements(loadedMovements.items);
+          setTotalPages(loadedMovements.totalPages);
           setObjectOptions(loadedObjects);
           setOneTimeOrderOptions(loadedOrders);
         }
@@ -115,12 +122,14 @@ export default function InventoryMovementsPage(): React.JSX.Element {
   }, [
     canAccessInventory,
     movementType,
+    movementStatus,
     selectedItemId,
     selectedObjectId,
     selectedOrderId,
     approvalBridgeOnly,
     dateFrom,
     dateTo,
+    page,
   ]);
 
   return (
@@ -156,20 +165,24 @@ export default function InventoryMovementsPage(): React.JSX.Element {
               }
 
               const [updatedItems, updatedMovements] = await Promise.all([
-                listInventoryItems(),
+                listInventoryItems({ isActive: true, limit: 100 }),
                 listInventoryMovements({
                   ...(movementType ? { movementType } : {}),
+                  ...(movementStatus ? { status: movementStatus } : {}),
                   ...(selectedItemId ? { inventoryItemId: selectedItemId } : {}),
                   ...(selectedObjectId ? { objectId: selectedObjectId } : {}),
                   ...(selectedOrderId ? { oneTimeOrderId: selectedOrderId } : {}),
                   ...(approvalBridgeOnly ? { approvalBridge: 'true' } : {}),
                   ...(dateFrom ? { dateFrom } : {}),
                   ...(dateTo ? { dateTo } : {}),
+                  page,
+                  limit: 25,
                 }),
               ]);
 
-              setItems(updatedItems);
-              setMovements(updatedMovements);
+              setItems(updatedItems.items);
+              setMovements(updatedMovements.items);
+              setTotalPages(updatedMovements.totalPages);
             }}
           />
 
@@ -186,7 +199,10 @@ export default function InventoryMovementsPage(): React.JSX.Element {
                 <div style={{ marginBottom: 6 }}>Тип движения</div>
                 <select
                   value={movementType}
-                  onChange={(event) => setMovementType(event.target.value)}
+                  onChange={(event) => {
+                    setMovementType(event.target.value);
+                    setPage(1);
+                  }}
                   style={{ width: '100%', padding: 10 }}
                 >
                   <option value="">Все типы</option>
@@ -199,10 +215,31 @@ export default function InventoryMovementsPage(): React.JSX.Element {
               </label>
 
               <label>
+                <div style={{ marginBottom: 6 }}>Статус</div>
+                <select
+                  value={movementStatus}
+                  onChange={(event) => {
+                    setMovementStatus(event.target.value);
+                    setPage(1);
+                  }}
+                  style={{ width: '100%', padding: 10 }}
+                >
+                  <option value="">Все статусы</option>
+                  <option value="applied">Применено</option>
+                  <option value="pending_approval">Ожидает согласования</option>
+                  <option value="rejected">Отклонено</option>
+                  <option value="cancelled">Отменено</option>
+                </select>
+              </label>
+
+              <label>
                 <div style={{ marginBottom: 6 }}>Номенклатура</div>
                 <select
                   value={selectedItemId}
-                  onChange={(event) => setSelectedItemId(event.target.value)}
+                  onChange={(event) => {
+                    setSelectedItemId(event.target.value);
+                    setPage(1);
+                  }}
                   style={{ width: '100%', padding: 10 }}
                 >
                   <option value="">Все позиции</option>
@@ -218,7 +255,10 @@ export default function InventoryMovementsPage(): React.JSX.Element {
                 <div style={{ marginBottom: 6 }}>Объект</div>
                 <select
                   value={selectedObjectId}
-                  onChange={(event) => setSelectedObjectId(event.target.value)}
+                  onChange={(event) => {
+                    setSelectedObjectId(event.target.value);
+                    setPage(1);
+                  }}
                   style={{ width: '100%', padding: 10 }}
                 >
                   <option value="">Все объекты</option>
@@ -234,7 +274,10 @@ export default function InventoryMovementsPage(): React.JSX.Element {
                 <div style={{ marginBottom: 6 }}>Разовый заказ</div>
                 <select
                   value={selectedOrderId}
-                  onChange={(event) => setSelectedOrderId(event.target.value)}
+                  onChange={(event) => {
+                    setSelectedOrderId(event.target.value);
+                    setPage(1);
+                  }}
                   style={{ width: '100%', padding: 10 }}
                 >
                   <option value="">Все заказы</option>
@@ -251,7 +294,10 @@ export default function InventoryMovementsPage(): React.JSX.Element {
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(event) => setDateFrom(event.target.value)}
+                  onChange={(event) => {
+                    setDateFrom(event.target.value);
+                    setPage(1);
+                  }}
                   style={{ width: '100%', padding: 10 }}
                 />
               </label>
@@ -261,7 +307,10 @@ export default function InventoryMovementsPage(): React.JSX.Element {
                 <input
                   type="date"
                   value={dateTo}
-                  onChange={(event) => setDateTo(event.target.value)}
+                  onChange={(event) => {
+                    setDateTo(event.target.value);
+                    setPage(1);
+                  }}
                   style={{ width: '100%', padding: 10 }}
                 />
               </label>
@@ -270,9 +319,10 @@ export default function InventoryMovementsPage(): React.JSX.Element {
                 <input
                   type="checkbox"
                   checked={approvalBridgeOnly}
-                  onChange={(event) =>
-                    setApprovalBridgeOnly(event.target.checked)
-                  }
+                  onChange={(event) => {
+                    setApprovalBridgeOnly(event.target.checked);
+                    setPage(1);
+                  }}
                 />
                 Только без фото / bridge
               </label>
@@ -288,6 +338,30 @@ export default function InventoryMovementsPage(): React.JSX.Element {
           ) : (
             <InventoryMovementList items={movements} />
           )}
+
+          {totalPages > 1 ? (
+            <div className="page-card pagination-row">
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page <= 1 || isLoading}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Назад
+              </button>
+              <span className="page-muted">
+                Страница {page} из {totalPages}
+              </span>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={page >= totalPages || isLoading}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Далее
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
     </>

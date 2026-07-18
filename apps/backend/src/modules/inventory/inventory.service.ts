@@ -29,7 +29,9 @@ import {
 import { CreateObjectInventoryIssueDto } from './dto/create-object-inventory-issue.dto';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { CreateInventoryMovementDto } from './dto/create-inventory-movement.dto';
+import { InventoryItemListResponseDto } from './dto/inventory-item-list-response.dto';
 import { InventoryItemResponseDto } from './dto/inventory-item-response.dto';
+import { InventoryMovementListResponseDto } from './dto/inventory-movement-list-response.dto';
 import { InventoryMovementResponseDto } from './dto/inventory-movement-response.dto';
 import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto';
 import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
@@ -162,65 +164,46 @@ export class InventoryService {
   async listItems(
     currentUser: CurrentAuthUser,
     query: ListInventoryItemsQueryDto,
-  ): Promise<InventoryItemResponseDto[]> {
+  ): Promise<InventoryItemListResponseDto> {
     this.assertInventoryVisible(currentUser);
-
-    const items = (await this.prisma.inventoryItem.findMany({
-      where: {
-        ...(query.search?.trim()
-          ? {
-              OR: [
-                {
-                  name: {
-                    contains: query.search.trim(),
-                    mode: 'insensitive',
-                  },
-                },
-                {
-                  category: {
-                    contains: query.search.trim(),
-                    mode: 'insensitive',
-                  },
-                },
-                {
-                  unit: {
-                    contains: query.search.trim(),
-                    mode: 'insensitive',
-                  },
-                },
-              ],
-            }
-          : {}),
-        ...(query.category?.trim()
-          ? {
-              category: {
-                equals: query.category.trim(),
-                mode: 'insensitive',
-              },
-            }
-          : {}),
-        ...(query.isActive === undefined ? {} : { isActive: query.isActive }),
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
+    const where = this.buildItemListWhere(query);
+    const orderBy: Prisma.InventoryItemOrderByWithRelationInput[] = [
+      { [query.sortBy]: query.sortDirection },
+      { id: 'asc' },
+    ];
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.inventoryItem.count({ where }),
+      this.prisma.inventoryItem.findMany({
+        where,
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
           },
         },
-      },
-      orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
-    })) as InventoryItemRecord[];
+        orderBy,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+    ]);
 
     const stockByItemId = await this.loadStockSummariesByItemIds(
       items.map((item) => item.id),
     );
     const capabilities = this.getGlobalCapabilities(currentUser);
 
-    return items.map((item) =>
-      this.mapItem(item, stockByItemId.get(item.id), capabilities),
-    );
+    return {
+      items: (items as InventoryItemRecord[]).map((item) =>
+        this.mapItem(item, stockByItemId.get(item.id), capabilities),
+      ),
+      total,
+      page: query.page,
+      limit: query.limit,
+      totalPages: Math.ceil(total / query.limit),
+    };
   }
 
   async getItemById(
@@ -439,80 +422,74 @@ export class InventoryService {
   async listMovements(
     currentUser: CurrentAuthUser,
     query: ListInventoryMovementsQueryDto,
-  ): Promise<InventoryMovementResponseDto[]> {
+  ): Promise<InventoryMovementListResponseDto> {
     this.assertInventoryVisible(currentUser);
-
-    const movements = (await this.prisma.inventoryMovement.findMany({
-      where: {
-        ...(query.inventoryItemId ? { inventoryItemId: query.inventoryItemId } : {}),
-        ...(query.movementType ? { movementType: query.movementType } : {}),
-        ...(query.objectId ? { relatedObjectId: query.objectId } : {}),
-        ...(query.oneTimeOrderId
-          ? { relatedOneTimeOrderId: query.oneTimeOrderId }
-          : {}),
-        ...(query.approvalBridge === 'true'
-          ? { requiresApprovalBridge: true, approvalBridgeResolvedAt: null }
-          : {}),
-        ...this.buildDateRangeWhere(query),
-      },
-      include: {
-        inventoryItem: {
-          select: {
-            id: true,
-            name: true,
-            category: true,
-            unit: true,
-            isActive: true,
-            currentUnitPrice: true,
+    const where = this.buildMovementListWhere(query);
+    const [total, movements] = await this.prisma.$transaction([
+      this.prisma.inventoryMovement.count({ where }),
+      this.prisma.inventoryMovement.findMany({
+        where,
+        include: {
+          inventoryItem: {
+            select: {
+              id: true,
+              name: true,
+              category: true,
+              unit: true,
+              isActive: true,
+              currentUnitPrice: true,
+            },
           },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
+          createdBy: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
           },
-        },
-        approvalBridgeResolvedBy: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
+          approvalBridgeResolvedBy: {
+            select: {
+              id: true,
+              login: true,
+              fullName: true,
+            },
           },
-        },
-        relatedObject: {
-          select: {
-            id: true,
-            name: true,
-            createdByUserId: true,
-            assignments: {
-              where: { isActive: true },
-              select: {
-                userId: true,
-                isActive: true,
+          relatedObject: {
+            select: {
+              id: true,
+              name: true,
+              createdByUserId: true,
+              assignments: {
+                where: { isActive: true },
+                select: {
+                  userId: true,
+                  isActive: true,
+                },
+              },
+            },
+          },
+          relatedOneTimeOrder: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              createdByUserId: true,
+              assignments: {
+                where: { isActive: true },
+                select: {
+                  userId: true,
+                  assignmentRoleCode: true,
+                  isActive: true,
+                },
               },
             },
           },
         },
-        relatedOneTimeOrder: {
-          select: {
-            id: true,
-            title: true,
-            status: true,
-            createdByUserId: true,
-            assignments: {
-              where: { isActive: true },
-              select: {
-                userId: true,
-                assignmentRoleCode: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    })) as InventoryMovementRecord[];
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+    ]);
 
     const attachmentsByEntityId = await this.loadMovementAttachments(
       movements.map((movement) => movement.id),
@@ -522,14 +499,20 @@ export class InventoryService {
         movements.map((movement) => movement.id),
       );
 
-    return movements.map((movement) =>
-      this.mapMovement(
-        movement,
-        attachmentsByEntityId.get(movement.id) ?? [],
-        approvalRequestsByEntityId.get(movement.id) ?? null,
-        currentUser,
+    return {
+      items: (movements as InventoryMovementRecord[]).map((movement) =>
+        this.mapMovement(
+          movement,
+          attachmentsByEntityId.get(movement.id) ?? [],
+          approvalRequestsByEntityId.get(movement.id) ?? null,
+          currentUser,
+        ),
       ),
-    );
+      total,
+      page: query.page,
+      limit: query.limit,
+      totalPages: Math.ceil(total / query.limit),
+    };
   }
 
   async createMovement(
@@ -681,13 +664,24 @@ export class InventoryService {
 
     const [movements, availableItems] = await Promise.all([
       this.listObjectScopedMovements(currentUser, objectId),
-      this.listItems(currentUser, { isActive: true }).catch((error: unknown) => {
-        if (error instanceof ForbiddenException) {
-          return this.listOperationalInventoryItemsForObject(currentUser, object);
-        }
+      this.listItems(currentUser, {
+        isActive: true,
+        page: 1,
+        limit: 100,
+        sortBy: 'name',
+        sortDirection: 'asc',
+      })
+        .then((response) => response.items)
+        .catch((error: unknown) => {
+          if (error instanceof ForbiddenException) {
+            return this.listOperationalInventoryItemsForObject(
+              currentUser,
+              object,
+            );
+          }
 
-        throw error;
-      }),
+          throw error;
+        }),
     ]);
 
     return {
@@ -1929,11 +1923,13 @@ export class InventoryService {
         movementsCount: number;
         receiptsCount: number;
         issuesCount: number;
-        returnsCount: number;
-        writeoffsCount: number;
-        adjustmentsCount: number;
-      }
-    >
+          returnsCount: number;
+          writeoffsCount: number;
+          adjustmentsCount: number;
+          pendingMovementsCount: number;
+          pendingApprovalsCount: number;
+        }
+      >
   > {
     const result = new Map<
       string,
@@ -1942,11 +1938,13 @@ export class InventoryService {
         movementsCount: number;
         receiptsCount: number;
         issuesCount: number;
-        returnsCount: number;
-        writeoffsCount: number;
-        adjustmentsCount: number;
-      }
-    >();
+          returnsCount: number;
+          writeoffsCount: number;
+          adjustmentsCount: number;
+          pendingMovementsCount: number;
+          pendingApprovalsCount: number;
+        }
+      >();
 
     if (itemIds.length === 0) {
       return result;
@@ -1957,15 +1955,30 @@ export class InventoryService {
         inventoryItemId: {
           in: itemIds,
         },
-        status: 'applied',
       },
       select: {
+        id: true,
         inventoryItemId: true,
         movementType: true,
+        status: true,
         quantity: true,
         adjustmentDirection: true,
       },
     });
+    const movementItemById = new Map(
+      movements.map((movement) => [movement.id, movement.inventoryItemId]),
+    );
+    const pendingApprovals =
+      movements.length === 0
+        ? []
+        : await this.prisma.approvalRequest.findMany({
+            where: {
+              sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
+              sourceEntityId: { in: movements.map((movement) => movement.id) },
+              status: 'pending',
+            },
+            select: { sourceEntityId: true },
+          });
 
     for (const movement of movements) {
       const current = result.get(movement.inventoryItemId) ?? {
@@ -1976,14 +1989,22 @@ export class InventoryService {
         returnsCount: 0,
         writeoffsCount: 0,
         adjustmentsCount: 0,
+        pendingMovementsCount: 0,
+        pendingApprovalsCount: 0,
       };
 
-      current.currentStock += this.calculateSignedQuantity({
-        movementType: movement.movementType as InventoryMovementType,
-        quantity: Number(movement.quantity),
-        adjustmentDirection: movement.adjustmentDirection,
-      });
+      if (movement.status === 'applied') {
+        current.currentStock += this.calculateSignedQuantity({
+          movementType: movement.movementType as InventoryMovementType,
+          quantity: Number(movement.quantity),
+          adjustmentDirection: movement.adjustmentDirection,
+        });
+      }
       current.movementsCount += 1;
+
+      if (movement.status === 'pending_approval') {
+        current.pendingMovementsCount += 1;
+      }
 
       switch (movement.movementType as InventoryMovementType) {
         case 'receipt':
@@ -2005,6 +2026,18 @@ export class InventoryService {
       }
 
       result.set(movement.inventoryItemId, current);
+    }
+
+    for (const approval of pendingApprovals) {
+      const itemId = movementItemById.get(approval.sourceEntityId);
+
+      if (itemId) {
+        const current = result.get(itemId);
+
+        if (current) {
+          current.pendingApprovalsCount += 1;
+        }
+      }
     }
 
     return result;
@@ -2103,6 +2136,47 @@ export class InventoryService {
       requestedEvidenceRequired ??
       defaultEvidenceRequiredForMovementType(movementType)
     );
+  }
+
+  private buildItemListWhere(
+    query: ListInventoryItemsQueryDto,
+  ): Prisma.InventoryItemWhereInput {
+    const search = query.search?.trim();
+    const category = query.category?.trim();
+
+    return {
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: 'insensitive' as const } },
+              { category: { contains: search, mode: 'insensitive' as const } },
+              { unit: { contains: search, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+      ...(category
+        ? { category: { equals: category, mode: 'insensitive' as const } }
+        : {}),
+      ...(query.isActive === undefined ? {} : { isActive: query.isActive }),
+    };
+  }
+
+  private buildMovementListWhere(
+    query: ListInventoryMovementsQueryDto,
+  ): Prisma.InventoryMovementWhereInput {
+    return {
+      ...(query.inventoryItemId ? { inventoryItemId: query.inventoryItemId } : {}),
+      ...(query.movementType ? { movementType: query.movementType } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.objectId ? { relatedObjectId: query.objectId } : {}),
+      ...(query.oneTimeOrderId
+        ? { relatedOneTimeOrderId: query.oneTimeOrderId }
+        : {}),
+      ...(query.approvalBridge === 'true'
+        ? { requiresApprovalBridge: true, approvalBridgeResolvedAt: null }
+        : {}),
+      ...this.buildDateRangeWhere(query),
+    };
   }
 
   private buildDateRangeWhere(query: ListInventoryMovementsQueryDto): {
@@ -2306,6 +2380,8 @@ export class InventoryService {
           returnsCount: number;
           writeoffsCount: number;
           adjustmentsCount: number;
+          pendingMovementsCount: number;
+          pendingApprovalsCount: number;
         }
       | undefined,
     capabilities: InventoryGlobalCapabilities,
@@ -2313,6 +2389,15 @@ export class InventoryService {
     const currentStock = Number((stockSummary?.currentStock ?? 0).toFixed(3));
     const currentUnitPrice =
       item.currentUnitPrice === null ? null : Number(item.currentUnitPrice);
+    const blockerCodes = [
+      ...(Math.abs(currentStock) > 0.0001 ? ['non_zero_stock'] : []),
+      ...((stockSummary?.pendingMovementsCount ?? 0) > 0
+        ? ['pending_movement']
+        : []),
+      ...((stockSummary?.pendingApprovalsCount ?? 0) > 0
+        ? ['pending_approval']
+        : []),
+    ];
 
     return {
       id: item.id,
@@ -2337,6 +2422,12 @@ export class InventoryService {
         returnsCount: stockSummary?.returnsCount ?? 0,
         writeoffsCount: stockSummary?.writeoffsCount ?? 0,
         adjustmentsCount: stockSummary?.adjustmentsCount ?? 0,
+      },
+      archiveState: {
+        canArchive: item.isActive && blockerCodes.length === 0,
+        pendingMovementsCount: stockSummary?.pendingMovementsCount ?? 0,
+        pendingApprovalsCount: stockSummary?.pendingApprovalsCount ?? 0,
+        blockerCodes,
       },
       capabilities: {
         canEditCatalog: capabilities.canManageInventoryCatalog,
