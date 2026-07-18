@@ -6,12 +6,13 @@ import Link from 'next/link';
 import {
   addEmployeeAvailability,
   addEmployeeSubstitution,
+  archiveEmployee,
   assignEmployeeToObject,
-  changeEmployeeStatus,
   getEmployeeById,
   listEmployeeObjectCandidates,
   listEmployees,
   removeEmployeeFromObject,
+  restoreEmployee,
   updateEmployee,
 } from '@/entities/employee/api/employee-client';
 import type {
@@ -19,6 +20,7 @@ import type {
   EmployeeListItem,
   EmployeeObjectOption,
 } from '@/entities/employee/model/employee.types';
+import { ApiError } from '@/shared/api/fetcher';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
@@ -87,6 +89,29 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function formatDateOnly(value: string | null): string {
+  if (!value) return '—';
+  const [year, month, day] = value.split('-');
+  return year && month && day ? `${day}.${month}.${year}` : value;
+}
+
+function buildEditForm(employee: EmployeeDetail) {
+  return {
+    fullName: employee.fullName,
+    phone: employee.phone ?? '',
+    position: employee.position ?? '',
+    birthDate: employee.birthDate ?? '',
+    residenceAddress: employee.residenceAddress ?? '',
+    shiftPreferences: employee.shiftPreferences ?? '',
+    baseDailyRate:
+      typeof employee.baseDailyRate === 'number'
+        ? String(employee.baseDailyRate)
+        : '',
+    employmentStatus: employee.employmentStatus,
+    notes: employee.notes ?? '',
+  };
+}
+
 export default function EmployeeDetailPage({
   params,
 }: {
@@ -106,13 +131,18 @@ export default function EmployeeDetailPage({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [hasVersionConflict, setHasVersionConflict] = useState(false);
+  const [isActionPending, setIsActionPending] = useState(false);
 
   const [editForm, setEditForm] = useState({
     fullName: '',
     phone: '',
+    position: '',
+    birthDate: '',
     residenceAddress: '',
     shiftPreferences: '',
     baseDailyRate: '',
+    employmentStatus: 'active',
     notes: '',
   });
   const [assignmentObjectId, setAssignmentObjectId] = useState('');
@@ -147,24 +177,17 @@ export default function EmployeeDetailPage({
       needsEmployeeCandidates
         ? listEmployees({
             employmentStatus: 'active',
-          })
+            archiveState: 'active',
+            limit: 100,
+          }).then((response) => response.items)
         : Promise.resolve<EmployeeListItem[]>([]),
     ]);
 
     setItem(employee);
     setObjectCandidates(objects);
     setEmployeeCandidates(employees);
-    setEditForm({
-      fullName: employee.fullName,
-      phone: employee.phone ?? '',
-      residenceAddress: employee.residenceAddress ?? '',
-      shiftPreferences: employee.shiftPreferences ?? '',
-      baseDailyRate:
-        typeof employee.baseDailyRate === 'number'
-          ? String(employee.baseDailyRate)
-          : '',
-      notes: employee.notes ?? '',
-    });
+    setEditForm(buildEditForm(employee));
+    setHasVersionConflict(false);
     setAssignmentObjectId(objects[0]?.id ?? '');
   };
 
@@ -191,7 +214,7 @@ export default function EmployeeDetailPage({
       } catch (error) {
         if (!cancelled) {
           setLoadError(
-            getErrorMessage(error, 'Не удалось загрузить employee-карточку.'),
+            getErrorMessage(error, 'Не удалось загрузить карточку сотрудника.'),
           );
         }
       } finally {
@@ -265,22 +288,147 @@ export default function EmployeeDetailPage({
           {actionError ? (
             <div className="page-card" style={{ color: '#b91c1c' }}>
               {actionError}
+              {hasVersionConflict ? (
+                <div className="action-row" style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setActionError(null);
+                      try {
+                        await load(item.id);
+                      } catch (error) {
+                        setActionError(
+                          getErrorMessage(error, 'Не удалось загрузить актуальную карточку.'),
+                        );
+                      }
+                    }}
+                  >
+                    Загрузить актуальные данные
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => {
+                      setEditForm(buildEditForm(item));
+                      setHasVersionConflict(false);
+                      setActionError(null);
+                    }}
+                  >
+                    Отменить свои изменения
+                  </button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
           <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+            <div className="section-header">
               <div>
                 <div style={{ fontSize: 24, fontWeight: 700 }}>{item.fullName}</div>
-                <div className="page-muted">
-                  Статус: {getEmploymentStatusLabel(item.employmentStatus)}
+                <div className="action-row" style={{ marginTop: 8 }}>
+                  <span
+                    className={`employee-state-badge ${
+                      item.isArchived ? 'is-archived' : 'is-active'
+                    }`}
+                  >
+                    {item.isArchived ? 'Архивная карточка' : 'Активная карточка'}
+                  </span>
+                  <span className="page-muted">
+                    {getEmploymentStatusLabel(item.employmentStatus)}
+                  </span>
                 </div>
               </div>
 
-              <Link href="/employees">
-                <button type="button">К реестру</button>
-              </Link>
+              <div className="action-row">
+                {item.capabilities.canArchive ? (
+                  <button
+                    type="button"
+                    className="button-danger"
+                    disabled={isActionPending}
+                    onClick={async () => {
+                      if (!window.confirm('Архивировать карточку сотрудника?')) return;
+
+                      setActionError(null);
+                      setIsActionPending(true);
+                      try {
+                        const archived = await archiveEmployee(item.id, item.version);
+                        setItem(archived);
+                        setEditForm(buildEditForm(archived));
+                      } catch (error) {
+                        if (
+                          error instanceof ApiError &&
+                          error.code === 'EMPLOYEE_HAS_ACTIVE_OBJECT_ASSIGNMENTS'
+                        ) {
+                          setActionError(
+                            'Сначала завершите активные назначения сотрудника на объекты.',
+                          );
+                        } else if (
+                          error instanceof ApiError &&
+                          error.code === 'EMPLOYEE_VERSION_CONFLICT'
+                        ) {
+                          setHasVersionConflict(true);
+                          setActionError(
+                            'Карточка сотрудника была изменена другим пользователем.',
+                          );
+                        } else {
+                          setActionError(
+                            getErrorMessage(error, 'Не удалось архивировать сотрудника.'),
+                          );
+                        }
+                      } finally {
+                        setIsActionPending(false);
+                      }
+                    }}
+                  >
+                    Архивировать
+                  </button>
+                ) : null}
+                {item.capabilities.canRestore ? (
+                  <button
+                    type="button"
+                    disabled={isActionPending}
+                    onClick={async () => {
+                      setActionError(null);
+                      setIsActionPending(true);
+                      try {
+                        const restored = await restoreEmployee(item.id, item.version);
+                        setItem(restored);
+                        setEditForm(buildEditForm(restored));
+                      } catch (error) {
+                        if (
+                          error instanceof ApiError &&
+                          error.code === 'EMPLOYEE_VERSION_CONFLICT'
+                        ) {
+                          setHasVersionConflict(true);
+                          setActionError(
+                            'Карточка сотрудника была изменена другим пользователем.',
+                          );
+                        } else {
+                          setActionError(
+                            getErrorMessage(error, 'Не удалось восстановить сотрудника.'),
+                          );
+                        }
+                      } finally {
+                        setIsActionPending(false);
+                      }
+                    }}
+                  >
+                    Восстановить
+                  </button>
+                ) : null}
+                <Link href="/employees">
+                  <button type="button" className="button-secondary">
+                    К реестру
+                  </button>
+                </Link>
+              </div>
             </div>
+
+            {item.isArchived ? (
+              <div className="inline-notice inline-notice--warning">
+                Карточка находится в архиве и доступна только для просмотра истории.
+              </div>
+            ) : null}
 
             <div
               style={{
@@ -294,12 +442,28 @@ export default function EmployeeDetailPage({
                 <div>{item.phone ?? '—'}</div>
               </div>
               <div>
+                <div className="page-muted">Должность</div>
+                <div>{item.position ?? '—'}</div>
+              </div>
+              <div>
+                <div className="page-muted">Дата рождения</div>
+                <div>{formatDateOnly(item.birthDate)}</div>
+              </div>
+              <div>
                 <div className="page-muted">Место проживания</div>
                 <div>{item.residenceAddress ?? '—'}</div>
               </div>
               <div>
                 <div className="page-muted">Базовая ставка</div>
                 <div>{item.baseDailyRate ?? '—'}</div>
+              </div>
+              <div>
+                <div className="page-muted">Создана</div>
+                <div>{new Date(item.createdAt).toLocaleString('ru-RU')}</div>
+              </div>
+              <div>
+                <div className="page-muted">Изменена</div>
+                <div>{new Date(item.updatedAt).toLocaleString('ru-RU')}</div>
               </div>
             </div>
 
@@ -321,57 +485,145 @@ export default function EmployeeDetailPage({
               onSubmit={async (event) => {
                 event.preventDefault();
                 setActionError(null);
+                setHasVersionConflict(false);
+                setIsActionPending(true);
 
                 try {
                   const updated = await updateEmployee(item.id, {
+                    expectedVersion: item.version,
                     fullName: editForm.fullName,
-                    phone: editForm.phone,
-                    residenceAddress: editForm.residenceAddress,
-                    shiftPreferences: editForm.shiftPreferences,
+                    phone: editForm.phone.trim() || null,
+                    position: editForm.position.trim() || null,
+                    birthDate: editForm.birthDate || null,
+                    residenceAddress: editForm.residenceAddress.trim() || null,
+                    shiftPreferences: editForm.shiftPreferences.trim() || null,
                     baseDailyRate: editForm.baseDailyRate.trim()
                       ? Number(editForm.baseDailyRate)
-                      : undefined,
-                    notes: editForm.notes,
+                      : null,
+                    employmentStatus: editForm.employmentStatus,
+                    notes: editForm.notes.trim() || null,
                   });
                   setItem(updated);
+                  setEditForm(buildEditForm(updated));
                 } catch (error) {
-                  setActionError(
-                    getErrorMessage(error, 'Не удалось обновить employee-карточку.'),
-                  );
+                  if (
+                    error instanceof ApiError &&
+                    error.code === 'EMPLOYEE_VERSION_CONFLICT'
+                  ) {
+                    setHasVersionConflict(true);
+                    setActionError(
+                      'Карточка сотрудника была изменена другим пользователем.',
+                    );
+                  } else {
+                    setActionError(
+                      getErrorMessage(error, 'Не удалось обновить карточку сотрудника.'),
+                    );
+                  }
+                } finally {
+                  setIsActionPending(false);
                 }
               }}
             >
-              <div style={{ fontWeight: 600 }}>Редактирование employee-карточки</div>
+              <div className="section-header">
+                <div>
+                  <div className="section-title">Редактирование карточки</div>
+                  <div className="section-subtitle">Версия {item.version}</div>
+                </div>
+              </div>
 
-              <input
-                value={editForm.fullName}
-                onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, fullName: event.target.value }))
-                }
-                style={{ padding: 10 }}
-                required
-              />
-              <input
-                value={editForm.phone}
-                onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, phone: event.target.value }))
-                }
-                style={{ padding: 10 }}
-                placeholder="Телефон"
-              />
-              <input
-                value={editForm.residenceAddress}
-                onChange={(event) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    residenceAddress: event.target.value,
-                  }))
-                }
-                style={{ padding: 10 }}
-                placeholder="Место проживания"
-              />
+              <div className="employee-form-grid">
+                <label>
+                  <span className="detail-label">ФИО</span>
+                  <input
+                    value={editForm.fullName}
+                    maxLength={200}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, fullName: event.target.value }))
+                    }
+                    required
+                  />
+                </label>
+                <label>
+                  <span className="detail-label">Телефон</span>
+                  <input
+                    value={editForm.phone}
+                    maxLength={50}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, phone: event.target.value }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span className="detail-label">Должность</span>
+                  <input
+                    value={editForm.position}
+                    maxLength={150}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, position: event.target.value }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span className="detail-label">Дата рождения</span>
+                  <input
+                    type="date"
+                    value={editForm.birthDate}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, birthDate: event.target.value }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span className="detail-label">Место проживания</span>
+                  <input
+                    value={editForm.residenceAddress}
+                    maxLength={1000}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        residenceAddress: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span className="detail-label">Базовая ставка</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={editForm.baseDailyRate}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        baseDailyRate: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span className="detail-label">Статус работы</span>
+                  <select
+                    value={editForm.employmentStatus}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        employmentStatus: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="active">Работает</option>
+                    <option value="inactive">Неактивен</option>
+                  </select>
+                </label>
+              </div>
+
+              <label>
+                <span className="detail-label">Пожелания по выходам</span>
               <textarea
                 value={editForm.shiftPreferences}
+                maxLength={2000}
                 onChange={(event) =>
                   setEditForm((prev) => ({
                     ...prev,
@@ -379,54 +631,35 @@ export default function EmployeeDetailPage({
                   }))
                 }
                 style={{ minHeight: 90, padding: 10 }}
-                placeholder="Пожелания по выходам"
               />
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={editForm.baseDailyRate}
-                onChange={(event) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    baseDailyRate: event.target.value,
-                  }))
-                }
-                style={{ padding: 10 }}
-                placeholder="Базовая ставка"
-              />
+              </label>
+              <label>
+                <span className="detail-label">Примечание</span>
               <textarea
                 value={editForm.notes}
+                maxLength={4000}
                 onChange={(event) =>
                   setEditForm((prev) => ({ ...prev, notes: event.target.value }))
                 }
                 style={{ minHeight: 90, padding: 10 }}
-                placeholder="Комментарий"
               />
+              </label>
 
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button type="submit">Сохранить карточку</button>
+              <div className="action-row">
+                <button type="submit" disabled={isActionPending}>
+                  {isActionPending ? 'Сохранение...' : 'Сохранить карточку'}
+                </button>
                 <button
                   type="button"
-                  onClick={async () => {
-                    try {
-                      const nextStatus =
-                        item.employmentStatus === 'active' ? 'inactive' : 'active';
-                      const updated = await changeEmployeeStatus(
-                        item.id,
-                        nextStatus,
-                      );
-                      setItem(updated);
-                    } catch (error) {
-                      setActionError(
-                        getErrorMessage(error, 'Не удалось сменить статус сотрудника.'),
-                      );
-                    }
+                  className="button-secondary"
+                  disabled={isActionPending}
+                  onClick={() => {
+                    setEditForm(buildEditForm(item));
+                    setHasVersionConflict(false);
+                    setActionError(null);
                   }}
                 >
-                  {item.employmentStatus === 'active'
-                    ? 'Деактивировать'
-                    : 'Активировать'}
+                  Отменить изменения
                 </button>
               </div>
             </form>
@@ -564,7 +797,7 @@ export default function EmployeeDetailPage({
               <div>
                 <div className="section-title">Доступность</div>
                 <div className="section-subtitle">
-                  Full-day и timed окна, влияющие на staffing/attendance UX.
+                  Периоды доступности сотрудника на весь день или по времени.
                 </div>
               </div>
             </div>
@@ -696,7 +929,7 @@ export default function EmployeeDetailPage({
               <div>
                 <div className="section-title">Подмены</div>
                 <div className="section-subtitle">
-                  Отдельный слой поверх состава объекта, без переписывания staffing.
+                  История подмен без изменения основного состава объекта.
                 </div>
               </div>
             </div>

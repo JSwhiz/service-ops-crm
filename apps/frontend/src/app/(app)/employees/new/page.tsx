@@ -15,6 +15,8 @@ export default function NewEmployeePage(): React.JSX.Element {
   const [form, setForm] = useState({
     fullName: '',
     phone: '',
+    position: '',
+    birthDate: '',
     residenceAddress: '',
     shiftPreferences: '',
     baseDailyRate: '',
@@ -30,7 +32,7 @@ export default function NewEmployeePage(): React.JSX.Element {
 
       {!canManageEmployeesHr ? (
         <div className="page-card" style={{ color: '#b91c1c' }}>
-          У вас нет прав на создание employee-карточек.
+          У вас нет прав на создание карточек сотрудников.
         </div>
       ) : (
         <form
@@ -44,13 +46,15 @@ export default function NewEmployeePage(): React.JSX.Element {
             try {
               const created = await createEmployee({
                 fullName: form.fullName.trim(),
-                phone: form.phone.trim() || undefined,
-                residenceAddress: form.residenceAddress.trim() || undefined,
-                shiftPreferences: form.shiftPreferences.trim() || undefined,
+                phone: form.phone.trim() || null,
+                position: form.position.trim() || null,
+                birthDate: form.birthDate || null,
+                residenceAddress: form.residenceAddress.trim() || null,
+                shiftPreferences: form.shiftPreferences.trim() || null,
                 baseDailyRate: form.baseDailyRate.trim()
                   ? Number(form.baseDailyRate)
                   : undefined,
-                notes: form.notes.trim() || undefined,
+                notes: form.notes.trim() || null,
                 employmentStatus: form.employmentStatus,
               });
 
@@ -66,7 +70,14 @@ export default function NewEmployeePage(): React.JSX.Element {
             }
           }}
         >
-          <div style={{ fontWeight: 600, fontSize: 18 }}>Новая employee-карточка</div>
+          <div className="section-header">
+            <div>
+              <div className="section-title">Новая карточка сотрудника</div>
+              <div className="section-subtitle">
+                Назначения на объекты настраиваются отдельно после создания.
+              </div>
+            </div>
+          </div>
 
           {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
 
@@ -74,6 +85,7 @@ export default function NewEmployeePage(): React.JSX.Element {
             <div style={{ marginBottom: 6 }}>ФИО</div>
             <input
               value={form.fullName}
+              maxLength={200}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, fullName: event.target.value }))
               }
@@ -86,6 +98,7 @@ export default function NewEmployeePage(): React.JSX.Element {
             <div style={{ marginBottom: 6 }}>Телефон</div>
             <input
               value={form.phone}
+              maxLength={50}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, phone: event.target.value }))
               }
@@ -93,10 +106,38 @@ export default function NewEmployeePage(): React.JSX.Element {
             />
           </label>
 
+          <div className="field-grid">
+            <label>
+              <div style={{ marginBottom: 6 }}>Должность</div>
+              <input
+                value={form.position}
+                maxLength={150}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, position: event.target.value }))
+                }
+                style={{ width: '100%' }}
+              />
+            </label>
+
+            <label>
+              <div style={{ marginBottom: 6 }}>Дата рождения</div>
+              <input
+                type="date"
+                value={form.birthDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, birthDate: event.target.value }))
+                }
+                style={{ width: '100%' }}
+              />
+            </label>
+          </div>
+
           <label>
             <div style={{ marginBottom: 6 }}>Место проживания</div>
             <input
               value={form.residenceAddress}
+              maxLength={1000}
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
@@ -111,6 +152,7 @@ export default function NewEmployeePage(): React.JSX.Element {
             <div style={{ marginBottom: 6 }}>Пожелания по выходам</div>
             <textarea
               value={form.shiftPreferences}
+              maxLength={2000}
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
@@ -159,6 +201,7 @@ export default function NewEmployeePage(): React.JSX.Element {
             <div style={{ marginBottom: 6 }}>Комментарий</div>
             <textarea
               value={form.notes}
+              maxLength={4000}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, notes: event.target.value }))
               }
