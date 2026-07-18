@@ -1611,6 +1611,19 @@ export class OneTimeOrdersService {
         throw new NotFoundException('One-time order not found');
       }
 
+      const historicalRecipientIds = (
+        await tx.oneTimeOrderCompletionPayment.findMany({
+          where: {
+            oneTimeOrderId: orderId,
+            completionId: sourcePayment.completionId,
+            recipientUserId: { not: null },
+          },
+          select: { recipientUserId: true },
+        })
+      )
+        .map((payment) => payment.recipientUserId)
+        .filter((userId): userId is string => Boolean(userId));
+
       const [correctedInput] = await this.normalizeCompletionPayments(
         tx,
         order,
@@ -1628,6 +1641,7 @@ export class OneTimeOrdersService {
         ],
         currentUser.id,
         sourcePayment.id,
+        historicalRecipientIds,
       );
 
       if (!correctedInput) {
@@ -1751,6 +1765,18 @@ export class OneTimeOrdersService {
           actorUserId: currentUser.id,
         },
       );
+      const activePaymentTotal = await tx.oneTimeOrderCompletionPayment.aggregate({
+        where: {
+          oneTimeOrderId: orderId,
+          status: 'active',
+        },
+        _sum: { amount: true },
+      });
+      const cumulativeActiveAmount =
+        activePaymentTotal._sum.amount ?? new Prisma.Decimal(0);
+      const createsFinancialDifference =
+        order.agreedSum !== null &&
+        !cumulativeActiveAmount.equals(order.agreedSum);
 
       await this.writeAuditEvent(tx, {
         entityType: 'one_time_order',
@@ -1773,6 +1799,9 @@ export class OneTimeOrdersService {
         },
         metadata: {
           reason,
+          cumulativeActiveAmount: cumulativeActiveAmount.toNumber(),
+          agreedSum: order.agreedSum,
+          createsFinancialDifference,
           sourcePaymentId: sourcePayment.id,
           reversalPaymentId: reversalPayment.id,
           correctedPaymentId: correctedPayment.id,
@@ -3104,6 +3133,7 @@ export class OneTimeOrdersService {
     input: OneTimeOrderCompletionPaymentDto[],
     actorUserId: string,
     excludePaymentId?: string,
+    allowedHistoricalRecipientIds: readonly string[] = [],
   ): Promise<NormalizedOneTimeOrderCompletionPayment[]> {
     const activeManagerIds = new Set(
       order.assignments
@@ -3116,6 +3146,9 @@ export class OneTimeOrdersService {
         )
         .map((assignment) => assignment.userId),
     );
+    for (const userId of allowedHistoricalRecipientIds) {
+      activeManagerIds.add(userId);
+    }
     const defaultReceivedAt = new Date();
     const payments = input.map((payment) => {
       const amount = new Prisma.Decimal(payment.amount);

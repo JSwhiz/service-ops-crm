@@ -3,6 +3,8 @@ import test from 'node:test';
 
 import { PrismaClient } from '@prisma/client';
 
+import { OneTimeOrdersService } from '../src/modules/one-time-orders/one-time-orders.service';
+
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
 
@@ -40,11 +42,23 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
       roles: { create: { roleId: managerRole.id } },
     },
   });
+  const secondaryManager = await prisma.user.create({
+    data: {
+      login: `${marker}-secondary`,
+      fullName: 'Второй тестовый менеджер корректировок',
+      passwordHash: templateManager.passwordHash,
+      isActive: true,
+      roles: { create: { roleId: managerRole.id } },
+    },
+  });
+  const createdManagerIds = [manager.id, secondaryManager.id];
 
   t.after(async () => {
     const fundingIds = (
       await prisma.accountabilityFunding.findMany({
-        where: { accountabilityAccount: { userId: manager.id } },
+        where: {
+          accountabilityAccount: { userId: { in: createdManagerIds } },
+        },
         select: { id: true },
       })
     ).map((funding) => funding.id);
@@ -60,14 +74,18 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
       },
     });
     await prisma.accountabilityExpense.deleteMany({
-      where: { accountabilityAccount: { userId: manager.id } },
+      where: {
+        accountabilityAccount: { userId: { in: createdManagerIds } },
+      },
     });
     await prisma.accountabilityFunding.updateMany({
       where: { oneTimeOrderId: { in: createdOrderIds } },
       data: { reversalOfFundingId: null, reversedByFundingId: null },
     });
     await prisma.accountabilityFunding.deleteMany({
-      where: { accountabilityAccount: { userId: manager.id } },
+      where: {
+        accountabilityAccount: { userId: { in: createdManagerIds } },
+      },
     });
     await prisma.oneTimeOrderCompletionPayment.updateMany({
       where: { oneTimeOrderId: { in: createdOrderIds } },
@@ -88,10 +106,14 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
       where: { id: { in: createdOrderIds } },
     });
     await prisma.accountabilityAccount.deleteMany({
-      where: { userId: manager.id },
+      where: { userId: { in: createdManagerIds } },
     });
-    await prisma.userRole.deleteMany({ where: { userId: manager.id } });
-    await prisma.user.delete({ where: { id: manager.id } });
+    await prisma.userRole.deleteMany({
+      where: { userId: { in: createdManagerIds } },
+    });
+    await prisma.user.deleteMany({
+      where: { id: { in: createdManagerIds } },
+    });
     await app.close();
     await prisma.$disconnect();
   });
@@ -114,11 +136,15 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
       headers: { Cookie: cookie, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-  const createCompletedOrder = async (params: {
-    amount: number;
-    paymentMethod: string;
-    paymentDestination: string;
-    recipientUserId?: string;
+  const createCompletedOrderWithPayments = async (params: {
+    agreedSum: number;
+    managerUserIds: string[];
+    payments: Array<{
+      amount: number;
+      paymentMethod: string;
+      paymentDestination: string;
+      recipientUserId?: string;
+    }>;
   }) => {
     const createResponse = await postJson(
       `${baseUrl}/api/v1/one-time-orders`,
@@ -128,8 +154,8 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
         executionAddress: 'Москва, адрес корректировки оплаты',
         status: 'in_progress',
         contactName: 'Тестовый заказчик',
-        agreedSum: params.amount,
-        managerUserIds: [manager.id],
+        agreedSum: params.agreedSum,
+        managerUserIds: params.managerUserIds,
       },
     );
     assert.equal(createResponse.status, 201);
@@ -142,12 +168,28 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
       {
         workCycle: 1,
         clientRequestId: `${marker}-${order.id}`,
-        payments: [params],
+        payments: params.payments,
       },
     );
     assert.equal(completeResponse.status, 201);
     const completion = (await completeResponse.json()) as CompletionResponse;
-    return { orderId: order.id, completion, source: completion.payments[0]! };
+    return { orderId: order.id, completion };
+  };
+  const createCompletedOrder = async (params: {
+    amount: number;
+    paymentMethod: string;
+    paymentDestination: string;
+    recipientUserId?: string;
+  }) => {
+    const result = await createCompletedOrderWithPayments({
+      agreedSum: params.amount,
+      managerUserIds: [manager.id],
+      payments: [params],
+    });
+    return {
+      ...result,
+      source: result.completion.payments[0]!,
+    };
   };
   const correct = (
     orderId: string,
@@ -251,6 +293,140 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
   });
   assert.equal(repeated.status, 409);
 
+  const removedRecipient = await createCompletedOrder({
+    amount: 120,
+    paymentMethod: 'cash',
+    paymentDestination: 'manager_accountability',
+    recipientUserId: manager.id,
+  });
+  await prisma.oneTimeOrderAssignment.updateMany({
+    where: {
+      oneTimeOrderId: removedRecipient.orderId,
+      userId: manager.id,
+      assignmentRoleCode: 'one_time_manager',
+    },
+    data: { isActive: false },
+  });
+  const removedRecipientCorrection = await correct(
+    removedRecipient.orderId,
+    removedRecipient.source.id,
+    {
+      correctedAmount: 120,
+      paymentMethod: 'cash',
+      paymentDestination: 'manager_accountability',
+      recipientUserId: manager.id,
+      reason: 'Получатель больше не назначен на заказ',
+    },
+  );
+  assert.equal(removedRecipientCorrection.status, 201);
+
+  const activeRecipient = await createCompletedOrderWithPayments({
+    agreedSum: 140,
+    managerUserIds: [manager.id, secondaryManager.id],
+    payments: [
+      {
+        amount: 140,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+        recipientUserId: manager.id,
+      },
+    ],
+  });
+  const activeRecipientCorrection = await correct(
+    activeRecipient.orderId,
+    activeRecipient.completion.payments[0]!.id,
+    {
+      correctedAmount: 140,
+      paymentMethod: 'cash',
+      paymentDestination: 'manager_accountability',
+      recipientUserId: secondaryManager.id,
+      reason: 'Исправлен активный получатель',
+    },
+  );
+  assert.equal(activeRecipientCorrection.status, 201);
+
+  const historicalRecipient = await createCompletedOrderWithPayments({
+    agreedSum: 200,
+    managerUserIds: [manager.id, secondaryManager.id],
+    payments: [
+      {
+        amount: 100,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+        recipientUserId: manager.id,
+      },
+      {
+        amount: 100,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+        recipientUserId: secondaryManager.id,
+      },
+    ],
+  });
+  await prisma.oneTimeOrderAssignment.updateMany({
+    where: {
+      oneTimeOrderId: historicalRecipient.orderId,
+      userId: secondaryManager.id,
+      assignmentRoleCode: 'one_time_manager',
+    },
+    data: { isActive: false },
+  });
+  const historicalRecipientCorrection = await correct(
+    historicalRecipient.orderId,
+    historicalRecipient.completion.payments[0]!.id,
+    {
+      correctedAmount: 100,
+      paymentMethod: 'cash',
+      paymentDestination: 'manager_accountability',
+      recipientUserId: secondaryManager.id,
+      reason: 'Исправлен исторический получатель этого цикла',
+    },
+  );
+  assert.equal(historicalRecipientCorrection.status, 201);
+
+  const arbitraryRecipient = await createCompletedOrder({
+    amount: 90,
+    paymentMethod: 'cash',
+    paymentDestination: 'manager_accountability',
+    recipientUserId: manager.id,
+  });
+  const arbitraryRecipientCorrection = await correct(
+    arbitraryRecipient.orderId,
+    arbitraryRecipient.source.id,
+    {
+      correctedAmount: 90,
+      paymentMethod: 'cash',
+      paymentDestination: 'manager_accountability',
+      recipientUserId: templateManager.id,
+      reason: 'Попытка назначить произвольного пользователя',
+    },
+  );
+  assert.equal(arbitraryRecipientCorrection.status, 400);
+
+  const personalToOrganization = await createCompletedOrder({
+    amount: 70,
+    paymentMethod: 'cash',
+    paymentDestination: 'manager_accountability',
+    recipientUserId: manager.id,
+  });
+  const personalToOrganizationCorrection = await correct(
+    personalToOrganization.orderId,
+    personalToOrganization.source.id,
+    {
+      correctedAmount: 70,
+      paymentMethod: 'organization_transfer',
+      paymentDestination: 'organization',
+      reason: 'Оплата фактически поступила организации',
+    },
+  );
+  assert.equal(personalToOrganizationCorrection.status, 201);
+  assert.equal(
+    await prisma.accountabilityFunding.count({
+      where: { oneTimeOrderId: personalToOrganization.orderId },
+    }),
+    2,
+  );
+
   const organization = await createCompletedOrder({
     amount: 100,
     paymentMethod: 'organization_transfer',
@@ -261,9 +437,10 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
     organization.source.id,
     {
       correctedAmount: 80,
-      paymentMethod: 'organization_transfer',
-      paymentDestination: 'organization',
-      reason: 'Банковская комиссия',
+      paymentMethod: 'cash',
+      paymentDestination: 'manager_accountability',
+      recipientUserId: manager.id,
+      reason: 'Оплата фактически передана менеджеру',
     },
   );
   assert.equal(organizationCorrection.status, 201);
@@ -271,7 +448,63 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
     await prisma.accountabilityFunding.count({
       where: { oneTimeOrderId: organization.orderId },
     }),
-    0,
+    1,
+  );
+
+  const auditFailure = await createCompletedOrder({
+    amount: 60,
+    paymentMethod: 'cash',
+    paymentDestination: 'manager_accountability',
+    recipientUserId: manager.id,
+  });
+  const service = app.get(OneTimeOrdersService) as unknown as {
+    writeAuditEvent: (...args: unknown[]) => Promise<void>;
+  };
+  const originalWriteAuditEvent = service.writeAuditEvent.bind(service);
+  service.writeAuditEvent = async (...args: unknown[]) => {
+    const event = args[1] as { action?: string; entityId?: string } | undefined;
+    if (
+      event?.action === 'one_time_order.payment_corrected' &&
+      event.entityId === auditFailure.orderId
+    ) {
+      throw new Error('Injected correction audit failure');
+    }
+    return originalWriteAuditEvent(...args);
+  };
+  try {
+    const failedCorrection = await correct(
+      auditFailure.orderId,
+      auditFailure.source.id,
+      {
+        correctedAmount: 55,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+        recipientUserId: manager.id,
+        reason: 'Проверка атомарности аудита',
+      },
+    );
+    assert.equal(failedCorrection.status, 500);
+  } finally {
+    service.writeAuditEvent = originalWriteAuditEvent;
+  }
+  const sourceAfterAuditFailure =
+    await prisma.oneTimeOrderCompletionPayment.findUniqueOrThrow({
+      where: { id: auditFailure.source.id },
+    });
+  assert.equal(sourceAfterAuditFailure.status, 'active');
+  assert.equal(sourceAfterAuditFailure.reversedByPaymentId, null);
+  assert.equal(sourceAfterAuditFailure.correctedByPaymentId, null);
+  assert.equal(
+    await prisma.oneTimeOrderCompletionPayment.count({
+      where: { oneTimeOrderId: auditFailure.orderId },
+    }),
+    1,
+  );
+  assert.equal(
+    await prisma.accountabilityFunding.count({
+      where: { oneTimeOrderId: auditFailure.orderId },
+    }),
+    1,
   );
 
   const zero = await createCompletedOrder({
@@ -347,6 +580,21 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
         action: 'one_time_order.payment_corrected',
       },
     }),
-    4,
+    8,
   );
+
+  const differenceAudit = await prisma.auditEvent.findFirstOrThrow({
+    where: {
+      entityType: 'one_time_order',
+      entityId: personal.orderId,
+      action: 'one_time_order.payment_corrected',
+    },
+  });
+  const differenceMetadata = differenceAudit.metadata as Record<
+    string,
+    unknown
+  >;
+  assert.equal(differenceMetadata.cumulativeActiveAmount, 30000);
+  assert.equal(differenceMetadata.agreedSum, 35000);
+  assert.equal(differenceMetadata.createsFinancialDifference, true);
 });
