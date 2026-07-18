@@ -18,6 +18,8 @@ interface AvailabilityResponse {
 }
 
 const SOURCE_ENTITY_TYPE = 'one_time_manager_availability';
+const START = new Date('2031-01-01T00:00:00.000Z');
+const END = new Date('2032-01-01T00:00:00.000Z');
 
 test('one-time manager availability supports requests, approvals and history', async (t) => {
   const prisma = new PrismaClient();
@@ -31,7 +33,10 @@ test('one-time manager availability supports requests, approvals and history', a
 
   const cleanup = async () => {
     const entries = await prisma.oneTimeManagerAvailability.findMany({
-      where: { userId: { in: userIds } },
+      where: {
+        userId: { in: userIds },
+        startDate: { gte: START, lt: END },
+      },
       select: { id: true },
     });
     const entryIds = entries.map((entry) => entry.id);
@@ -61,7 +66,10 @@ test('one-time manager availability supports requests, approvals and history', a
       },
     });
     await prisma.oneTimeManagerAvailability.deleteMany({
-      where: { userId: { in: userIds } },
+      where: {
+        userId: { in: userIds },
+        startDate: { gte: START, lt: END },
+      },
     });
   };
 
