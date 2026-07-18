@@ -197,14 +197,13 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
     },
   });
   createdOrderIds.push(legacyUnknownOrder.id);
-  const technicalDate = new Date('2025-01-15T12:00:00.000Z');
   await prisma.oneTimeOrderCompletion.create({
     data: {
       oneTimeOrderId: legacyUnknownOrder.id,
       workCycle: 1,
-      completedAt: technicalDate,
-      completedByUserId: founder.id,
-      completionComment: 'Legacy completion backfill',
+      completedAt: null,
+      completedByUserId: null,
+      completionComment: null,
       completionSource: 'legacy_unknown',
       status: 'active',
     },

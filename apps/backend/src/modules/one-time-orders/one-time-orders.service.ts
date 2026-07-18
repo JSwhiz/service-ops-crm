@@ -159,8 +159,8 @@ interface OneTimeOrderCompletionView {
   id: string;
   oneTimeOrderId: string;
   workCycle: number;
-  completedAt: Date;
-  completedByUserId: string;
+  completedAt: Date | null;
+  completedByUserId: string | null;
   completionComment: string | null;
   completionSource: string;
   status: string;
@@ -172,7 +172,7 @@ interface OneTimeOrderCompletionView {
     id: string;
     login: string;
     fullName: string;
-  };
+  } | null;
   payments: OneTimeOrderCompletionPaymentView[];
 }
 
@@ -3044,7 +3044,10 @@ export class OneTimeOrdersService {
       id: completion.id,
       oneTimeOrderId: completion.oneTimeOrderId,
       workCycle: completion.workCycle,
-      completedAt: isLegacyUnknown ? null : completion.completedAt.toISOString(),
+      completedAt:
+        isLegacyUnknown || !completion.completedAt
+          ? null
+          : completion.completedAt.toISOString(),
       completedBy: isLegacyUnknown ? null : completion.completedBy,
       completionComment: isLegacyUnknown ? null : completion.completionComment,
       completionSource: isLegacyUnknown ? 'legacy_unknown' : 'native',

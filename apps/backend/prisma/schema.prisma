@@ -694,8 +694,8 @@ model OneTimeOrderCompletion {
   id                 String   @id @default(uuid())
   oneTimeOrderId     String
   workCycle          Int
-  completedAt        DateTime
-  completedByUserId  String
+  completedAt        DateTime?
+  completedByUserId  String?
   completionComment  String?
   completionSource   String   @default("native")
   status             String
@@ -705,7 +705,7 @@ model OneTimeOrderCompletion {
   updatedAt          DateTime @updatedAt
 
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
-  completedBy  User @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+  completedBy  User? @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
   payments     OneTimeOrderCompletionPayment[]
   accountabilityFundings AccountabilityFunding[]
   accountabilityExpenses AccountabilityExpense[]
