@@ -1,15 +1,15 @@
-import { PrismaClient } from '@prisma/client';
-import { randomBytes, scrypt as nodeScrypt } from 'node:crypto';
-import { promisify } from 'node:util';
+import { PrismaClient } from "@prisma/client";
+import { randomBytes, scrypt as nodeScrypt } from "node:crypto";
+import { promisify } from "node:util";
 
 const prisma = new PrismaClient();
 const scrypt = promisify(nodeScrypt);
 
 async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex');
+  const salt = randomBytes(16).toString("hex");
   const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
 
-  return `scrypt$${salt}$${derivedKey.toString('hex')}`;
+  return `scrypt$${salt}$${derivedKey.toString("hex")}`;
 }
 
 function startOfToday(): Date {
@@ -22,106 +22,150 @@ function daysInMonth(year: number, month: number): number {
 }
 
 async function main(): Promise<void> {
-  const founderPasswordHash = await hashPassword('founder123');
-  const directorPasswordHash = await hashPassword('director123');
-  const managerPasswordHash = await hashPassword('manager123');
-  const hrPasswordHash = await hashPassword('hr123');
-  const deputyDirectorPasswordHash = await hashPassword('deputy123');
+  const founderPasswordHash = await hashPassword("admin");
+  const directorPasswordHash = await hashPassword("lebedev123");
+  const managerOnePasswordHash = await hashPassword("eliseeva123");
+  const managerTwoPasswordHash = await hashPassword("gerasimov123");
+  const hrPasswordHash = await hashPassword("kireeva123");
+  const deputyDirectorPasswordHash = await hashPassword("gorbacheva123");
 
   const founderRole = await prisma.role.upsert({
-    where: { code: 'founder' },
+    where: { code: "founder" },
     update: {},
     create: {
-      code: 'founder',
-      name: 'Учредитель',
-      description: 'Системная роль учредителя',
+      code: "founder",
+      name: "Учредитель",
+      description: "Системная роль учредителя",
     },
   });
 
   const directorRole = await prisma.role.upsert({
-    where: { code: 'director' },
+    where: { code: "director" },
     update: {},
     create: {
-      code: 'director',
-      name: 'Директор',
-      description: 'Системная роль директора',
+      code: "director",
+      name: "Директор",
+      description: "Системная роль директора",
     },
   });
 
   const deputyFounderRole = await prisma.role.upsert({
-    where: { code: 'deputy_founder' },
+    where: { code: "deputy_founder" },
     update: {},
     create: {
-      code: 'deputy_founder',
-      name: 'Заместитель учредителя',
-      description: 'Системная роль заместителя учредителя',
+      code: "deputy_founder",
+      name: "Заместитель учредителя",
+      description: "Системная роль заместителя учредителя",
     },
   });
 
   const corporateDirectorRole = await prisma.role.upsert({
-    where: { code: 'corporate_director' },
+    where: { code: "corporate_director" },
     update: {},
     create: {
-      code: 'corporate_director',
-      name: 'Корпоративный директор',
-      description: 'Системная роль корпоративного директора',
+      code: "corporate_director",
+      name: "Корпоративный директор",
+      description: "Системная роль корпоративного директора",
     },
   });
 
   const managerRole = await prisma.role.upsert({
-    where: { code: 'manager' },
+    where: { code: "manager" },
     update: {},
     create: {
-      code: 'manager',
-      name: 'Менеджер',
-      description: 'Системная роль менеджера объекта',
+      code: "manager",
+      name: "Менеджер",
+      description: "Системная роль менеджера объекта",
+    },
+  });
+
+  const operationManagerRole = await prisma.role.upsert({
+    where: { code: "operation_manager" },
+    update: {},
+    create: {
+      code: "operation_manager",
+      name: "Операционный менеджер",
+      description: "Системная роль операционного менеджера",
     },
   });
 
   const hrRole = await prisma.role.upsert({
-    where: { code: 'hr' },
+    where: { code: "hr" },
     update: {},
     create: {
-      code: 'hr',
-      name: 'HR',
-      description: 'Системная роль HR-контура',
+      code: "hr",
+      name: "HR",
+      description: "Системная роль HR-контура",
     },
   });
 
   const deputyDirectorRole = await prisma.role.upsert({
-    where: { code: 'deputy_director' },
+    where: { code: "deputy_director" },
     update: {},
     create: {
-      code: 'deputy_director',
-      name: 'Заместитель директора',
-      description: 'Системная роль заместителя директора',
+      code: "deputy_director",
+      name: "Заместитель директора",
+      description: "Системная роль заместителя директора",
     },
   });
 
   const permissions = [
-    { code: 'auth.login', name: 'Вход в систему' },
-    { code: 'objects.read', name: 'Чтение объектов' },
-    { code: 'objects.create', name: 'Создание объектов' },
-    { code: 'objects.update', name: 'Изменение объектов' },
-    { code: 'tasks.read', name: 'Чтение задач' },
-    { code: 'tasks.create', name: 'Создание задач' },
-    { code: 'tasks.update', name: 'Изменение задач' },
-    { code: 'timesheet.read', name: 'Чтение табеля' },
-    { code: 'timesheet.attendance.edit', name: 'Изменение табеля' },
-    { code: 'timesheet.amount.edit', name: 'Изменение денежных ячеек табеля' },
-    { code: 'accountability.issue_cash', name: 'Выдача подотчетных средств' },
-    { code: 'accountability.review', name: 'Административный просмотр подотчета' },
-    { code: 'expense.approve', name: 'Подтверждение расходов и сверки' },
-    { code: 'accountability.closure.approve', name: 'Подтверждение закрытия подотчета' },
-    { code: 'accountability.correct_receipt', name: 'Корректировка поступлений разовых заказов' },
-    { code: 'approval.resolve_task_result', name: 'Подтверждение результата задачи' },
-    { code: 'approval.resolve_object_change', name: 'Подтверждение чувствительных изменений объекта' },
-    { code: 'approval.resolve_inventory_exception', name: 'Подтверждение inventory exception' },
-    { code: 'timesheet.manual_correction', name: 'Подтверждение manual timesheet exception' },
-    { code: 'one_time_order.review.edit', name: 'Редактирование отзывов разовых заказов' },
-    { code: 'one_time_order.calendar.approve_availability', name: 'Подтверждение доступности менеджеров разовых заказов' },
-    { code: 'one_time_order.calendar.manage', name: 'Управление календарём разовых заказов' },
-    { code: 'one_time_order.manage_all', name: 'Полное управление разовыми заказами' },
+    { code: "auth.login", name: "Вход в систему" },
+    { code: "objects.read", name: "Чтение объектов" },
+    { code: "objects.create", name: "Создание объектов" },
+    { code: "objects.update", name: "Изменение объектов" },
+    { code: "tasks.read", name: "Чтение задач" },
+    { code: "tasks.create", name: "Создание задач" },
+    { code: "tasks.update", name: "Изменение задач" },
+    { code: "timesheet.read", name: "Чтение табеля" },
+    { code: "timesheet.attendance.edit", name: "Изменение табеля" },
+    { code: "timesheet.amount.edit", name: "Изменение денежных ячеек табеля" },
+    { code: "accountability.issue_cash", name: "Выдача подотчетных средств" },
+    {
+      code: "accountability.review",
+      name: "Административный просмотр подотчета",
+    },
+    { code: "expense.approve", name: "Подтверждение расходов и сверки" },
+    {
+      code: "accountability.closure.approve",
+      name: "Подтверждение закрытия подотчета",
+    },
+    {
+      code: "accountability.correct_receipt",
+      name: "Корректировка поступлений разовых заказов",
+    },
+    {
+      code: "approval.resolve_task_result",
+      name: "Подтверждение результата задачи",
+    },
+    {
+      code: "approval.resolve_object_change",
+      name: "Подтверждение чувствительных изменений объекта",
+    },
+    {
+      code: "approval.resolve_inventory_exception",
+      name: "Подтверждение inventory exception",
+    },
+    {
+      code: "timesheet.manual_correction",
+      name: "Подтверждение manual timesheet exception",
+    },
+    {
+      code: "one_time_order.review.edit",
+      name: "Редактирование отзывов разовых заказов",
+    },
+    {
+      code: "one_time_order.calendar.approve_availability",
+      name: "Подтверждение доступности менеджеров разовых заказов",
+    },
+    {
+      code: "one_time_order.calendar.manage",
+      name: "Управление календарём разовых заказов",
+    },
+    {
+      code: "one_time_order.manage_all",
+      name: "Полное управление разовыми заказами",
+    },
   ];
 
   for (const permission of permissions) {
@@ -154,32 +198,32 @@ async function main(): Promise<void> {
   const rolePermissionAssignments = [
     {
       roles: [founderRole, directorRole],
-      permissionCodes: ['accountability.issue_cash'],
+      permissionCodes: ["accountability.issue_cash"],
     },
     {
       roles: leadershipRoles,
       permissionCodes: [
-        'accountability.review',
-        'expense.approve',
-        'accountability.closure.approve',
+        "accountability.review",
+        "expense.approve",
+        "accountability.closure.approve",
       ],
     },
     {
       roles: [founderRole, directorRole],
-      permissionCodes: ['accountability.correct_receipt'],
+      permissionCodes: ["accountability.correct_receipt"],
     },
     {
       roles: leadershipRoles,
       permissionCodes: [
-        'one_time_order.review.edit',
-        'one_time_order.manage_all',
+        "one_time_order.review.edit",
+        "one_time_order.manage_all",
       ],
     },
     {
       roles: [...leadershipRoles, hrRole],
       permissionCodes: [
-        'one_time_order.calendar.approve_availability',
-        'one_time_order.calendar.manage',
+        "one_time_order.calendar.approve_availability",
+        "one_time_order.calendar.manage",
       ],
     },
   ];
@@ -211,94 +255,177 @@ async function main(): Promise<void> {
   }
 
   const founder = await prisma.user.upsert({
-    where: { login: 'founder' },
+    where: { login: "admin" },
     update: {
-      fullName: 'Учредитель',
+      fullName: "Тестовый администратор",
       isActive: true,
       passwordHash: founderPasswordHash,
     },
     create: {
-      login: 'founder',
+      login: "admin",
       passwordHash: founderPasswordHash,
-      fullName: 'Учредитель',
+      fullName: "Тестовый администратор",
       isActive: true,
     },
   });
 
   const director = await prisma.user.upsert({
-    where: { login: 'director' },
+    where: { login: "lebedev" },
     update: {
-      fullName: 'Директор',
+      fullName: "Лебедев Роман Владимирович",
       isActive: true,
       passwordHash: directorPasswordHash,
     },
     create: {
-      login: 'director',
+      login: "lebedev",
       passwordHash: directorPasswordHash,
-      fullName: 'Директор',
+      fullName: "Лебедев Роман Владимирович",
       isActive: true,
     },
   });
 
   const managerOne = await prisma.user.upsert({
-    where: { login: 'manager1' },
+    where: { login: "eliseeva" },
     update: {
-      fullName: 'Менеджер Первый',
+      fullName: "Елисеева Оксана Анатольевна",
       isActive: true,
-      passwordHash: managerPasswordHash,
+      passwordHash: managerOnePasswordHash,
     },
     create: {
-      login: 'manager1',
-      passwordHash: managerPasswordHash,
-      fullName: 'Менеджер Первый',
+      login: "eliseeva",
+      passwordHash: managerOnePasswordHash,
+      fullName: "Елисеева Оксана Анатольевна",
       isActive: true,
     },
   });
 
   const managerTwo = await prisma.user.upsert({
-    where: { login: 'manager2' },
+    where: { login: "gerasimov" },
     update: {
-      fullName: 'Менеджер Второй',
+      fullName: "Герасимов Владимир Геннадьевич",
       isActive: true,
-      passwordHash: managerPasswordHash,
+      passwordHash: managerTwoPasswordHash,
     },
     create: {
-      login: 'manager2',
-      passwordHash: managerPasswordHash,
-      fullName: 'Менеджер Второй',
+      login: "gerasimov",
+      passwordHash: managerTwoPasswordHash,
+      fullName: "Герасимов Владимир Геннадьевич",
       isActive: true,
     },
   });
 
   const hrUser = await prisma.user.upsert({
-    where: { login: 'hr1' },
+    where: { login: "kireeva" },
     update: {
-      fullName: 'HR Специалист',
+      fullName: "Киреева Алина Андреевна",
       isActive: true,
       passwordHash: hrPasswordHash,
     },
     create: {
-      login: 'hr1',
+      login: "kireeva",
       passwordHash: hrPasswordHash,
-      fullName: 'HR Специалист',
+      fullName: "Киреева Алина Андреевна",
       isActive: true,
     },
   });
 
   const deputyDirectorUser = await prisma.user.upsert({
-    where: { login: 'deputy1' },
+    where: { login: "gorbacheva" },
     update: {
-      fullName: 'Заместитель директора',
+      fullName: "Горбачева Светлана Денисовна",
       isActive: true,
       passwordHash: deputyDirectorPasswordHash,
     },
     create: {
-      login: 'deputy1',
+      login: "gorbacheva",
       passwordHash: deputyDirectorPasswordHash,
-      fullName: 'Заместитель директора',
+      fullName: "Горбачева Светлана Денисовна",
       isActive: true,
     },
   });
+
+  const additionalProfiles = [
+    {
+      login: "berendyakov",
+      password: "berendyakov123",
+      fullName: "Берендяков Роман Вячеславович",
+      role: operationManagerRole,
+    },
+    {
+      login: "drozdovskiy",
+      password: "drozdovskiy123",
+      fullName: "Дроздовский Александр Александрович",
+      role: operationManagerRole,
+    },
+    {
+      login: "gomonova",
+      password: "gomonova123",
+      fullName: "Гомонова Мария Николаевна",
+      role: managerRole,
+    },
+    {
+      login: "lazutina",
+      password: "lazutina123",
+      fullName: "Лазутина Мария Александровна",
+      role: hrRole,
+    },
+    {
+      login: "milov",
+      password: "milov123",
+      fullName: "Милов Евгений Юрьевич",
+      role: managerRole,
+    },
+    {
+      login: "nikitina",
+      password: "nikitina123",
+      fullName: "Никитина Наталия Анатольевна",
+      role: corporateDirectorRole,
+    },
+    {
+      login: "stepanova",
+      password: "stepanova123",
+      fullName: "Степанова Ирина Владимировна",
+      role: deputyFounderRole,
+    },
+    {
+      login: "sycheva",
+      password: "sycheva123",
+      fullName: "Сычева Кристина Александровна",
+      role: managerRole,
+    },
+  ];
+
+  for (const profile of additionalProfiles) {
+    const passwordHash = await hashPassword(profile.password);
+    const user = await prisma.user.upsert({
+      where: { login: profile.login },
+      update: {
+        fullName: profile.fullName,
+        isActive: true,
+        passwordHash,
+      },
+      create: {
+        login: profile.login,
+        passwordHash,
+        fullName: profile.fullName,
+        isActive: true,
+      },
+    });
+
+    await prisma.userRole.upsert({
+      where: {
+        userId_roleId: {
+          userId: user.id,
+          roleId: profile.role.id,
+        },
+      },
+      update: {},
+      create: {
+        userId: user.id,
+        roleId: profile.role.id,
+      },
+    });
+  }
 
   await prisma.userRole.upsert({
     where: {
@@ -385,27 +512,27 @@ async function main(): Promise<void> {
   });
 
   const objectOne = await prisma.object.upsert({
-    where: { id: '11111111-1111-1111-1111-111111111111' },
+    where: { id: "11111111-1111-1111-1111-111111111111" },
     update: {
-      name: 'Белый дом',
-      internalName: 'BH-001',
-      address: 'Москва, ул. Центральная, 1',
-      status: 'active',
-      seasonMode: 'summer',
+      name: "Белый дом",
+      internalName: "BH-001",
+      address: "Москва, ул. Центральная, 1",
+      status: "active",
+      seasonMode: "summer",
       dailyRate: 2500,
-      notes: 'Тестовый объект foundation-модуля',
+      notes: "Тестовый объект foundation-модуля",
       createdByUserId: founder.id,
       deletedAt: null,
     },
     create: {
-      id: '11111111-1111-1111-1111-111111111111',
-      name: 'Белый дом',
-      internalName: 'BH-001',
-      address: 'Москва, ул. Центральная, 1',
-      status: 'active',
-      seasonMode: 'summer',
+      id: "11111111-1111-1111-1111-111111111111",
+      name: "Белый дом",
+      internalName: "BH-001",
+      address: "Москва, ул. Центральная, 1",
+      status: "active",
+      seasonMode: "summer",
       dailyRate: 2500,
-      notes: 'Тестовый объект foundation-модуля',
+      notes: "Тестовый объект foundation-модуля",
       createdByUserId: founder.id,
     },
   });
@@ -415,14 +542,14 @@ async function main(): Promise<void> {
       objectId_userId_assignmentRoleCode: {
         objectId: objectOne.id,
         userId: founder.id,
-        assignmentRoleCode: 'responsible',
+        assignmentRoleCode: "responsible",
       },
     },
     update: { isActive: true },
     create: {
       objectId: objectOne.id,
       userId: founder.id,
-      assignmentRoleCode: 'responsible',
+      assignmentRoleCode: "responsible",
       isActive: true,
     },
   });
@@ -432,14 +559,14 @@ async function main(): Promise<void> {
       objectId_userId_assignmentRoleCode: {
         objectId: objectOne.id,
         userId: director.id,
-        assignmentRoleCode: 'manager',
+        assignmentRoleCode: "manager",
       },
     },
     update: { isActive: true },
     create: {
       objectId: objectOne.id,
       userId: director.id,
-      assignmentRoleCode: 'manager',
+      assignmentRoleCode: "manager",
       isActive: true,
     },
   });
@@ -449,87 +576,87 @@ async function main(): Promise<void> {
       objectId_userId_assignmentRoleCode: {
         objectId: objectOne.id,
         userId: managerOne.id,
-        assignmentRoleCode: 'manager',
+        assignmentRoleCode: "manager",
       },
     },
     update: { isActive: true },
     create: {
       objectId: objectOne.id,
       userId: managerOne.id,
-      assignmentRoleCode: 'manager',
+      assignmentRoleCode: "manager",
       isActive: true,
     },
   });
 
   const employeeIvan = await prisma.employee.upsert({
-    where: { id: '4f1a8d0a-4c0d-4b66-8e2d-111111111111' },
+    where: { id: "4f1a8d0a-4c0d-4b66-8e2d-111111111111" },
     update: {
-      fullName: 'Иван Петров',
-      employmentStatus: 'active',
-      phone: '+79990000001',
-      residenceAddress: 'Москва, Химкинский бульвар, 10',
-      shiftPreferences: 'Предпочитает дневные смены по будням',
+      fullName: "Иван Петров",
+      employmentStatus: "active",
+      phone: "+79990000001",
+      residenceAddress: "Москва, Химкинский бульвар, 10",
+      shiftPreferences: "Предпочитает дневные смены по будням",
       baseDailyRate: 2200,
-      notes: 'Может выходить на срочные замены при согласовании',
+      notes: "Может выходить на срочные замены при согласовании",
       deletedAt: null,
     },
     create: {
-      id: '4f1a8d0a-4c0d-4b66-8e2d-111111111111',
-      fullName: 'Иван Петров',
-      employmentStatus: 'active',
-      phone: '+79990000001',
-      residenceAddress: 'Москва, Химкинский бульвар, 10',
-      shiftPreferences: 'Предпочитает дневные смены по будням',
+      id: "4f1a8d0a-4c0d-4b66-8e2d-111111111111",
+      fullName: "Иван Петров",
+      employmentStatus: "active",
+      phone: "+79990000001",
+      residenceAddress: "Москва, Химкинский бульвар, 10",
+      shiftPreferences: "Предпочитает дневные смены по будням",
       baseDailyRate: 2200,
-      notes: 'Может выходить на срочные замены при согласовании',
+      notes: "Может выходить на срочные замены при согласовании",
     },
   });
 
   const employeeSergey = await prisma.employee.upsert({
-    where: { id: '6b9b0e4c-2d5f-4e3f-9c1a-222222222222' },
+    where: { id: "6b9b0e4c-2d5f-4e3f-9c1a-222222222222" },
     update: {
-      fullName: 'Сергей Иванов',
-      employmentStatus: 'active',
-      phone: '+79990000002',
-      residenceAddress: 'Москва, Рязанский проспект, 22',
-      shiftPreferences: 'Готов к вечерним сменам и подменам',
+      fullName: "Сергей Иванов",
+      employmentStatus: "active",
+      phone: "+79990000002",
+      residenceAddress: "Москва, Рязанский проспект, 22",
+      shiftPreferences: "Готов к вечерним сменам и подменам",
       baseDailyRate: 2100,
-      notes: 'Опытный сотрудник для объектов с высокой нагрузкой',
+      notes: "Опытный сотрудник для объектов с высокой нагрузкой",
       deletedAt: null,
     },
     create: {
-      id: '6b9b0e4c-2d5f-4e3f-9c1a-222222222222',
-      fullName: 'Сергей Иванов',
-      employmentStatus: 'active',
-      phone: '+79990000002',
-      residenceAddress: 'Москва, Рязанский проспект, 22',
-      shiftPreferences: 'Готов к вечерним сменам и подменам',
+      id: "6b9b0e4c-2d5f-4e3f-9c1a-222222222222",
+      fullName: "Сергей Иванов",
+      employmentStatus: "active",
+      phone: "+79990000002",
+      residenceAddress: "Москва, Рязанский проспект, 22",
+      shiftPreferences: "Готов к вечерним сменам и подменам",
       baseDailyRate: 2100,
-      notes: 'Опытный сотрудник для объектов с высокой нагрузкой',
+      notes: "Опытный сотрудник для объектов с высокой нагрузкой",
     },
   });
 
   const employeeAlexey = await prisma.employee.upsert({
-    where: { id: '8c2f4d1b-7a61-4d73-a7de-333333333333' },
+    where: { id: "8c2f4d1b-7a61-4d73-a7de-333333333333" },
     update: {
-      fullName: 'Алексей Смирнов',
-      employmentStatus: 'active',
-      phone: '+79990000003',
-      residenceAddress: 'Москва, Каширское шоссе, 5',
-      shiftPreferences: 'Предпочитает плотный график без дробных смен',
+      fullName: "Алексей Смирнов",
+      employmentStatus: "active",
+      phone: "+79990000003",
+      residenceAddress: "Москва, Каширское шоссе, 5",
+      shiftPreferences: "Предпочитает плотный график без дробных смен",
       baseDailyRate: 2300,
-      notes: 'Универсальный сотрудник для выездных задач',
+      notes: "Универсальный сотрудник для выездных задач",
       deletedAt: null,
     },
     create: {
-      id: '8c2f4d1b-7a61-4d73-a7de-333333333333',
-      fullName: 'Алексей Смирнов',
-      employmentStatus: 'active',
-      phone: '+79990000003',
-      residenceAddress: 'Москва, Каширское шоссе, 5',
-      shiftPreferences: 'Предпочитает плотный график без дробных смен',
+      id: "8c2f4d1b-7a61-4d73-a7de-333333333333",
+      fullName: "Алексей Смирнов",
+      employmentStatus: "active",
+      phone: "+79990000003",
+      residenceAddress: "Москва, Каширское шоссе, 5",
+      shiftPreferences: "Предпочитает плотный график без дробных смен",
       baseDailyRate: 2300,
-      notes: 'Универсальный сотрудник для выездных задач',
+      notes: "Универсальный сотрудник для выездных задач",
     },
   });
 
@@ -585,17 +712,17 @@ async function main(): Promise<void> {
       },
     },
     update: {
-      photoUrl: 'https://example.com/arrival/bh-001-today.jpg',
-      photoType: 'arrival',
-      comment: 'Фото прибытия foundation-этапа',
+      photoUrl: "https://example.com/arrival/bh-001-today.jpg",
+      photoType: "arrival",
+      comment: "Фото прибытия foundation-этапа",
       createdByUserId: founder.id,
     },
     create: {
       objectId: objectOne.id,
       operationDate: today,
-      photoUrl: 'https://example.com/arrival/bh-001-today.jpg',
-      photoType: 'arrival',
-      comment: 'Фото прибытия foundation-этапа',
+      photoUrl: "https://example.com/arrival/bh-001-today.jpg",
+      photoType: "arrival",
+      comment: "Фото прибытия foundation-этапа",
       createdByUserId: founder.id,
     },
   });
@@ -609,34 +736,34 @@ async function main(): Promise<void> {
     },
     update: {
       content:
-        'На объекте выполнены базовые работы. Замечаний по текущему дню нет.',
+        "На объекте выполнены базовые работы. Замечаний по текущему дню нет.",
       updatedByUserId: founder.id,
     },
     create: {
       objectId: objectOne.id,
       reportDate: today,
       content:
-        'На объекте выполнены базовые работы. Замечаний по текущему дню нет.',
+        "На объекте выполнены базовые работы. Замечаний по текущему дню нет.",
       updatedByUserId: founder.id,
     },
   });
 
   const taskOne = await prisma.task.upsert({
-    where: { id: '33333333-3333-3333-3333-333333333333' },
+    where: { id: "33333333-3333-3333-3333-333333333333" },
     update: {
-      title: 'Проверить состояние входной зоны',
-      description: 'Осмотреть входную зону и сообщить о замечаниях.',
-      priority: 'important_not_urgent',
-      status: 'assigned',
+      title: "Проверить состояние входной зоны",
+      description: "Осмотреть входную зону и сообщить о замечаниях.",
+      priority: "important_not_urgent",
+      status: "assigned",
       objectId: objectOne.id,
       createdByUserId: director.id,
     },
     create: {
-      id: '33333333-3333-3333-3333-333333333333',
-      title: 'Проверить состояние входной зоны',
-      description: 'Осмотреть входную зону и сообщить о замечаниях.',
-      priority: 'important_not_urgent',
-      status: 'assigned',
+      id: "33333333-3333-3333-3333-333333333333",
+      title: "Проверить состояние входной зоны",
+      description: "Осмотреть входную зону и сообщить о замечаниях.",
+      priority: "important_not_urgent",
+      status: "assigned",
       objectId: objectOne.id,
       createdByUserId: director.id,
     },
@@ -713,14 +840,14 @@ async function main(): Promise<void> {
       },
     },
     update: {
-      status: 'open',
+      status: "open",
       createdByUserId: founder.id,
     },
     create: {
       objectId: objectOne.id,
       year: timesheetYear,
       month: timesheetMonth,
-      status: 'open',
+      status: "open",
       createdByUserId: founder.id,
     },
   });
@@ -811,7 +938,7 @@ async function main(): Promise<void> {
     data: {
       dayValue: 3100,
       isChangedManually: true,
-      comment: 'Ручная корректировка тестового значения',
+      comment: "Ручная корректировка тестового значения",
       updatedByUserId: founder.id,
     },
   });

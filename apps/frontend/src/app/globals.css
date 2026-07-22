@@ -29,14 +29,13 @@ html,
 body {
   margin: 0;
   padding: 0;
-  font-family:
-    "Aptos",
-    "Segoe UI",
-    "SF Pro Text",
-    Arial,
-    sans-serif;
+  font-family: "Aptos", "Segoe UI", "SF Pro Text", Arial, sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(219, 234, 254, 0.75), transparent 32rem),
+    radial-gradient(
+      circle at top left,
+      rgba(219, 234, 254, 0.75),
+      transparent 32rem
+    ),
     linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%);
   color: var(--text);
 }
@@ -178,7 +177,11 @@ a:hover {
   height: 100vh;
   border-right: 1px solid var(--border);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96)),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(248, 250, 252, 0.96)
+    ),
     #ffffff;
   padding: 24px 16px;
   box-shadow: 12px 0 30px rgba(15, 23, 42, 0.04);
@@ -260,6 +263,37 @@ a:hover {
   border-bottom: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(14px);
+}
+
+.user-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #ffffff;
+  font-weight: 800;
+  line-height: 1;
+  user-select: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.user-avatar--small {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.user-avatar--medium {
+  width: 36px;
+  height: 36px;
+  font-size: 15px;
+}
+
+.user-avatar--large {
+  width: 52px;
+  height: 52px;
+  font-size: 21px;
 }
 
 .app-header__title {
@@ -374,7 +408,11 @@ a:hover {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at top right, rgba(29, 78, 216, 0.09), transparent 24rem),
+    radial-gradient(
+      circle at top right,
+      rgba(29, 78, 216, 0.09),
+      transparent 24rem
+    ),
     linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(248, 250, 252, 0.75));
 }
 
@@ -431,8 +469,11 @@ a:hover {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(248, 250, 252, 0.98)
+  );
   box-shadow: var(--shadow-sm);
 }
 
@@ -1414,19 +1455,19 @@ tbody tr:hover {
   line-height: 1.25;
 }
 
-.one-time-calendar [data-availability='day_off'] {
+.one-time-calendar [data-availability="day_off"] {
   border-color: #a7f3d0;
   background: #ecfdf5;
   color: #047857;
 }
 
-.one-time-calendar [data-availability='vacation'] {
+.one-time-calendar [data-availability="vacation"] {
   border-color: #bae6fd;
   background: #f0f9ff;
   color: #0369a1;
 }
 
-.one-time-calendar [data-availability='sick_leave'] {
+.one-time-calendar [data-availability="sick_leave"] {
   border-color: #fecdd3;
   background: #fff1f2;
   color: #be123c;
@@ -1495,7 +1536,9 @@ tbody tr:hover {
 
 .one-time-calendar__grid td {
   cursor: pointer;
-  transition: background 120ms ease, box-shadow 120ms ease;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .one-time-calendar__grid td:hover,
@@ -1511,12 +1554,12 @@ tbody tr:hover {
   background: #fbfcfe;
 }
 
-.one-time-calendar__grid [data-today='true'] {
+.one-time-calendar__grid [data-today="true"] {
   background: #eff6ff;
   box-shadow: inset 0 3px 0 #2563eb;
 }
 
-.one-time-calendar__grid [data-conflict='true'] {
+.one-time-calendar__grid [data-conflict="true"] {
   background: #fffcf2;
 }
 
@@ -1615,12 +1658,12 @@ tbody tr:hover {
   text-align: left;
 }
 
-.one-time-calendar__mobile-day[data-today='true'] {
+.one-time-calendar__mobile-day[data-today="true"] {
   border-color: #93c5fd;
   background: #eff6ff;
 }
 
-.one-time-calendar__mobile-day[data-conflict='true'] {
+.one-time-calendar__mobile-day[data-conflict="true"] {
   border-color: #fde68a;
 }
 
@@ -1980,7 +2023,8 @@ tbody tr:hover {
   background: #fcfdff;
 }
 
-.timesheet-table__fact-cell.timesheet-table__changed-cell .timesheet-table__input {
+.timesheet-table__fact-cell.timesheet-table__changed-cell
+  .timesheet-table__input {
   border-color: #2563eb;
   background: #eff6ff;
 }
@@ -2007,7 +2051,7 @@ tbody tr:hover {
   margin: 0;
 }
 
-.timesheet-table__input[type='number'] {
+.timesheet-table__input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
@@ -2701,7 +2745,11 @@ tbody tr:hover {
   gap: 12px;
   padding: 18px;
   background:
-    radial-gradient(circle at top right, rgba(219, 234, 254, 0.28), transparent 22rem),
+    radial-gradient(
+      circle at top right,
+      rgba(219, 234, 254, 0.28),
+      transparent 22rem
+    ),
     #f8fafc;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -2749,7 +2797,7 @@ tbody tr:hover {
 
 .chat-unread-divider::before,
 .chat-unread-divider::after {
-  content: '';
+  content: "";
   flex: 1;
   height: 1px;
   background: #bfdbfe;

@@ -23,6 +23,7 @@ COPY packages/eslint-config/package.json packages/eslint-config/package.json
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/tsconfig/package.json packages/tsconfig/package.json
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile \
+    && chown -R node:node /workspace/node_modules /workspace/apps/backend/node_modules /workspace/apps/frontend/node_modules
 
 USER node
