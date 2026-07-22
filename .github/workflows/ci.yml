@@ -70,6 +70,9 @@ jobs:
           JWT_REFRESH_SECRET=ci_refresh_secret
           JWT_ACCESS_EXPIRES_IN=15m
           JWT_REFRESH_EXPIRES_IN=30d
+          AUTH_COOKIE_DOMAIN=
+          AUTH_COOKIE_SECURE=false
+          AUTH_COOKIE_SAME_SITE=lax
           MINIO_ENDPOINT=localhost
           MINIO_PORT=9000
           MINIO_USE_SSL=false
@@ -77,9 +80,9 @@ jobs:
           MINIO_SECRET_KEY=minioadminpassword
           MINIO_BUCKET=service-ops-files
           MINIO_PUBLIC_BASE_URL=http://localhost:9000
-          FIRST_ADMIN_LOGIN=founder
-          FIRST_ADMIN_PASSWORD=founder123
-          FIRST_ADMIN_FULL_NAME=Учредитель
+          FIRST_ADMIN_LOGIN=admin
+          FIRST_ADMIN_PASSWORD=admin
+          FIRST_ADMIN_FULL_NAME=Тестовый администратор
           EOF
 
       - name: Create frontend env file

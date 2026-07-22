@@ -425,6 +425,7 @@ async function main(): Promise<void> {
         roleId: profile.role.id,
       },
     });
+
   }
 
   await prisma.userRole.upsert({
@@ -511,6 +512,97 @@ async function main(): Promise<void> {
     },
   });
 
+  if (process.env.TEST_ISOLATED_DATABASE === "true") {
+    const integrationFounder = await prisma.user.upsert({
+      where: { login: "founder" },
+      update: {
+        fullName: "Учредитель",
+        isActive: true,
+        passwordHash: await hashPassword("founder123"),
+      },
+      create: {
+        login: "founder",
+        fullName: "Учредитель",
+        isActive: true,
+        passwordHash: await hashPassword("founder123"),
+      },
+    });
+
+    await prisma.userRole.upsert({
+      where: {
+        userId_roleId: {
+          userId: integrationFounder.id,
+          roleId: founderRole.id,
+        },
+      },
+      update: {},
+      create: {
+        userId: integrationFounder.id,
+        roleId: founderRole.id,
+      },
+    });
+
+    const legacyIntegrationProfiles = [
+      {
+        login: "director",
+        password: "director123",
+        fullName: "Директор",
+        role: directorRole,
+      },
+      {
+        login: "manager1",
+        password: "manager123",
+        fullName: "Менеджер Первый",
+        role: managerRole,
+      },
+      {
+        login: "manager2",
+        password: "manager123",
+        fullName: "Менеджер Второй",
+        role: managerRole,
+      },
+      { login: "hr1", password: "hr123", fullName: "HR Специалист", role: hrRole },
+      {
+        login: "deputy1",
+        password: "deputy123",
+        fullName: "Заместитель директора",
+        role: deputyDirectorRole,
+      },
+    ];
+
+    for (const profile of legacyIntegrationProfiles) {
+      const passwordHash = await hashPassword(profile.password);
+      const integrationUser = await prisma.user.upsert({
+        where: { login: profile.login },
+        update: {
+          fullName: profile.fullName,
+          isActive: true,
+          passwordHash,
+        },
+        create: {
+          login: profile.login,
+          fullName: profile.fullName,
+          isActive: true,
+          passwordHash,
+        },
+      });
+
+      await prisma.userRole.upsert({
+        where: {
+          userId_roleId: {
+            userId: integrationUser.id,
+            roleId: profile.role.id,
+          },
+        },
+        update: {},
+        create: {
+          userId: integrationUser.id,
+          roleId: profile.role.id,
+        },
+      });
+    }
+  }
+
   const objectOne = await prisma.object.upsert({
     where: { id: "11111111-1111-1111-1111-111111111111" },
     update: {
@@ -587,6 +679,30 @@ async function main(): Promise<void> {
       isActive: true,
     },
   });
+
+  if (process.env.TEST_ISOLATED_DATABASE === "true") {
+    const integrationManager = await prisma.user.findUniqueOrThrow({
+      where: { login: "manager1" },
+      select: { id: true },
+    });
+
+    await prisma.objectAssignment.upsert({
+      where: {
+        objectId_userId_assignmentRoleCode: {
+          objectId: objectOne.id,
+          userId: integrationManager.id,
+          assignmentRoleCode: "manager",
+        },
+      },
+      update: { isActive: true },
+      create: {
+        objectId: objectOne.id,
+        userId: integrationManager.id,
+        assignmentRoleCode: "manager",
+        isActive: true,
+      },
+    });
+  }
 
   const employeeIvan = await prisma.employee.upsert({
     where: { id: "4f1a8d0a-4c0d-4b66-8e2d-111111111111" },
