@@ -77,6 +77,7 @@ COPY --from=frontend-build --chown=node:node /workspace/apps/frontend/package.js
 COPY --from=frontend-build --chown=node:node /workspace/apps/frontend/.next apps/frontend/.next
 COPY --from=frontend-build --chown=node:node /workspace/scripts scripts
 
+WORKDIR /workspace/apps/frontend
 USER node
 EXPOSE 3000
-CMD ["pnpm", "--filter", "frontend", "start"]
+CMD ["node", "node_modules/next/dist/bin/next", "start", "-H", "0.0.0.0", "-p", "3000"]

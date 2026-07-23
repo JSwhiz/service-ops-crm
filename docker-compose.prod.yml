@@ -79,7 +79,12 @@ services:
       dockerfile: infra/docker/prod.Dockerfile
       target: backend
     restart: "no"
-    command: ["pnpm", "--filter", "backend", "prisma:deploy"]
+    command:
+      - ./apps/backend/node_modules/.bin/prisma
+      - migrate
+      - deploy
+      - --schema
+      - apps/backend/prisma/schema.prisma
     env_file:
       - ${APP_ENV_FILE:-.env.production}
     depends_on:
@@ -127,6 +132,15 @@ services:
         NEXT_PUBLIC_APP_NAME: ${APP_NAME}
         NEXT_PUBLIC_API_URL: https://${APP_DOMAIN}/api/v1
     restart: unless-stopped
+    working_dir: /workspace/apps/frontend
+    command:
+      - node
+      - node_modules/next/dist/bin/next
+      - start
+      - -H
+      - 0.0.0.0
+      - -p
+      - "3000"
     depends_on:
       backend:
         condition: service_healthy
