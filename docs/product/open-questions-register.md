@@ -524,7 +524,8 @@ Approval:
 
 До появления более детализированной HR visibility model в runtime действует безопасный bridge-вариант:
 
-- employee registry и employee card доступны `leadership circle` и системной роли `hr`;
+- employee registry и employee card доступны `leadership circle` и системной роли `hr` для просмотра и управления;
+- `deputy_director` получает view-only доступ без create/update/archive/assignment действий;
 - это не расширяет object visibility автоматически;
 - назначение employee на объект может выполняться из HR-контура без превращения HR-актора в object actor.
 

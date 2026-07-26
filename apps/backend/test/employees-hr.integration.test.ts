@@ -265,3 +265,38 @@ test('manager cannot access employees registry', async (t) => {
 
   assert.equal(objectCandidatesResponse.status, 403);
 });
+
+test('deputy director can view employees registry without managing it', async (t) => {
+  const { app, baseUrl } = await createTestApp();
+  const deputyDirectorCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'deputy1',
+    password: 'deputy123',
+  });
+
+  t.after(async () => {
+    await app.close();
+  });
+
+  const listResponse = await fetch(`${baseUrl}/api/v1/employees`, {
+    headers: {
+      Cookie: deputyDirectorCookie,
+    },
+  });
+
+  assert.equal(listResponse.status, 200);
+
+  const createResponse = await fetch(`${baseUrl}/api/v1/employees`, {
+    method: 'POST',
+    headers: {
+      Cookie: deputyDirectorCookie,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      fullName: `Недоступное создание ${Date.now()}`,
+      employmentStatus: 'active',
+    }),
+  });
+
+  assert.equal(createResponse.status, 403);
+});

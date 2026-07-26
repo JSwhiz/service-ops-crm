@@ -175,6 +175,16 @@
 - object/order scoped equipment blocks показывают reference без доступа к глобальной equipment card;
 - object или one-time-order linkage не расширяет global equipment module access.
 
+### 9.1. Employees / HR
+
+| Action                            | leadership circle | hr  | deputy_director | others |
+| --------------------------------- | ----------------- | --- | --------------- | ------ |
+| View employee registry/card       | yes               | yes | yes             | no     |
+| Create/update/archive employee    | yes               | yes | no              | no     |
+| Manage employee object assignment | yes               | yes | no              | no     |
+
+Просмотр HR-реестра ролью `deputy_director` не расширяет object visibility и не дает HR-management actions.
+
 ---
 
 ## 10. Accountability / expenses

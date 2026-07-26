@@ -3,10 +3,17 @@ const EMPLOYEE_HR_VIEW_ROLE_CODES = [
   'deputy_founder',
   'director',
   'corporate_director',
+  'deputy_director',
   'hr',
 ] as const;
 
-const EMPLOYEE_HR_MANAGE_ROLE_CODES = EMPLOYEE_HR_VIEW_ROLE_CODES;
+const EMPLOYEE_HR_MANAGE_ROLE_CODES = [
+  'founder',
+  'deputy_founder',
+  'director',
+  'corporate_director',
+  'hr',
+] as const;
 
 function hasAnyRole(
   roleCodes: string[],
