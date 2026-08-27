@@ -10,13 +10,18 @@ import {
   Min,
 } from 'class-validator';
 
-import { EMPLOYEE_EMPLOYMENT_STATUSES } from '../constants/employee-hr.constants';
+import {
+  EMPLOYEE_EMPLOYMENT_STATUSES,
+  EMPLOYEE_TYPES,
+  EMPLOYEE_WORK_SCHEDULE_CODES,
+} from '../constants/employee-hr.constants';
 
 export const EMPLOYEE_ARCHIVE_STATES = ['active', 'archived', 'all'] as const;
 export const EMPLOYEE_SORT_FIELDS = [
   'fullName',
   'position',
   'employmentStatus',
+  'employeeType',
   'birthDate',
   'createdAt',
   'updatedAt',
@@ -46,6 +51,20 @@ export class ListEmployeesQueryDto {
   @IsOptional()
   @IsIn(EMPLOYEE_EMPLOYMENT_STATUSES)
   employmentStatus?: (typeof EMPLOYEE_EMPLOYMENT_STATUSES)[number];
+
+  @IsOptional()
+  @IsIn(EMPLOYEE_TYPES)
+  employeeType?: (typeof EMPLOYEE_TYPES)[number];
+
+  @IsOptional()
+  @IsIn(EMPLOYEE_WORK_SCHEDULE_CODES)
+  workScheduleCode?: (typeof EMPLOYEE_WORK_SCHEDULE_CODES)[number];
+
+  @IsOptional()
+  @Transform(({ value }) => optionalTrimmedString(value))
+  @IsString()
+  @MaxLength(200)
+  workTimeSearch?: string;
 
   @IsOptional()
   @IsIn(EMPLOYEE_ARCHIVE_STATES)

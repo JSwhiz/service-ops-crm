@@ -47,11 +47,23 @@ test('employee create, validation and optimistic update are production-safe', as
 
   const migratedEmployee = await prisma.employee.findUniqueOrThrow({
     where: { id: SEEDED_EMPLOYEE_IDS.ivan },
-    select: { birthDate: true, position: true, version: true },
+    select: {
+      birthDate: true,
+      position: true,
+      employeeType: true,
+      workScheduleCode: true,
+      workScheduleCustom: true,
+      workTimeText: true,
+      version: true,
+    },
   });
   assert.deepEqual(migratedEmployee, {
     birthDate: null,
     position: null,
+    employeeType: 'regular',
+    workScheduleCode: null,
+    workScheduleCustom: null,
+    workTimeText: null,
     version: 1,
   });
 
@@ -64,6 +76,10 @@ test('employee create, validation and optimistic update are production-safe', as
       phone: '  +79990001122  ',
       position: '  Старший сотрудник  ',
       birthDate: '1992-03-12',
+      employeeType: 'one_time',
+      workScheduleCode: 'custom',
+      workScheduleCustom: 'Пн, Ср и Пт',
+      workTimeText: 'с 10:00 до последнего заказа',
       residenceAddress: '  Москва  ',
       shiftPreferences: '  Дневные смены  ',
       baseDailyRate: 2500,
@@ -79,12 +95,20 @@ test('employee create, validation and optimistic update are production-safe', as
     phone: string | null;
     position: string | null;
     birthDate: string | null;
+    employeeType: string;
+    workScheduleCode: string | null;
+    workScheduleCustom: string | null;
+    workTimeText: string | null;
     version: number;
   };
   assert.equal(created.fullName, `Тестовый сотрудник ${marker}`);
   assert.equal(created.phone, '+79990001122');
   assert.equal(created.position, 'Старший сотрудник');
   assert.equal(created.birthDate, '1992-03-12');
+  assert.equal(created.employeeType, 'one_time');
+  assert.equal(created.workScheduleCode, 'custom');
+  assert.equal(created.workScheduleCustom, 'Пн, Ср и Пт');
+  assert.equal(created.workTimeText, 'с 10:00 до последнего заказа');
   assert.equal(created.version, 1);
 
   const futureBirthDateResponse = await fetch(`${baseUrl}/api/v1/employees`, {
@@ -112,6 +136,7 @@ test('employee create, validation and optimistic update are production-safe', as
       position: 'Руководитель смены',
       phone: '',
       employmentStatus: 'inactive',
+      workScheduleCode: '5_2',
     }),
   });
   assert.equal(updateResponse.status, 200);
@@ -120,10 +145,14 @@ test('employee create, validation and optimistic update are production-safe', as
     position: string | null;
     employmentStatus: string;
     version: number;
+    workScheduleCode: string | null;
+    workScheduleCustom: string | null;
   };
   assert.equal(updated.phone, null);
   assert.equal(updated.position, 'Руководитель смены');
   assert.equal(updated.employmentStatus, 'inactive');
+  assert.equal(updated.workScheduleCode, '5_2');
+  assert.equal(updated.workScheduleCustom, null);
   assert.equal(updated.version, 2);
 
   const conflictResponse = await fetch(`${baseUrl}/api/v1/employees/${created.id}`, {
@@ -180,6 +209,9 @@ test('employee registry filters, pagination and active assignment semantics are 
         position: 'Клинер',
         birthDate: new Date('1990-03-10T00:00:00.000Z'),
         employmentStatus: 'active',
+        employeeType: 'regular',
+        workScheduleCode: '5_2',
+        workTimeText: '08:00–17:00',
       },
       {
         id: ids[1],
@@ -188,6 +220,9 @@ test('employee registry filters, pagination and active assignment semantics are 
         position: 'Менеджер',
         birthDate: new Date('1985-04-11T00:00:00.000Z'),
         employmentStatus: 'active',
+        employeeType: 'one_time',
+        workScheduleCode: 'on_demand',
+        workTimeText: 'по договорённости',
       },
       {
         id: ids[2],
@@ -196,6 +231,8 @@ test('employee registry filters, pagination and active assignment semantics are 
         position: 'Клинер',
         birthDate: new Date('1995-03-12T00:00:00.000Z'),
         employmentStatus: 'inactive',
+        employeeType: 'regular',
+        workScheduleCode: '2_2',
         deletedAt: new Date(),
       },
       {
@@ -205,6 +242,7 @@ test('employee registry filters, pagination and active assignment semantics are 
         position: null,
         birthDate: null,
         employmentStatus: 'active',
+        employeeType: 'one_time',
       },
     ],
   });
@@ -263,6 +301,18 @@ test('employee registry filters, pagination and active assignment semantics are 
     1,
   );
   assert.equal(
+    (await list(`search=${encodeURIComponent(marker)}&employeeType=one_time&archiveState=all`)).total,
+    2,
+  );
+  assert.equal(
+    (await list(`search=${encodeURIComponent(marker)}&workScheduleCode=5_2&archiveState=all`)).total,
+    1,
+  );
+  assert.equal(
+    (await list(`search=${encodeURIComponent(marker)}&workTimeSearch=17%3A00&archiveState=all`)).total,
+    1,
+  );
+  assert.equal(
     (await list(`search=${encodeURIComponent(marker)}&archiveState=archived`)).total,
     1,
   );
@@ -288,6 +338,27 @@ test('employee registry filters, pagination and active assignment semantics are 
     unassigned.items.map((item) => item.id).sort(),
     [ids[1], ids[2], ids[3]].sort(),
   );
+
+  const positionReferencesResponse = await fetch(
+    `${baseUrl}/api/v1/employees/references/positions?search=${encodeURIComponent('Кли')}`,
+    { headers: { Cookie: hrCookie } },
+  );
+  assert.equal(positionReferencesResponse.status, 200);
+  const positionReferences = (await positionReferencesResponse.json()) as Array<{
+    value: string;
+  }>;
+  assert.ok(positionReferences.some((item) => item.value === 'Клинер'));
+
+  const objectReferencesResponse = await fetch(
+    `${baseUrl}/api/v1/employees/references/objects`,
+    { headers: { Cookie: hrCookie } },
+  );
+  assert.equal(objectReferencesResponse.status, 200);
+  const objectReferences = (await objectReferencesResponse.json()) as Array<{
+    id: string;
+    name: string;
+  }>;
+  assert.ok(objectReferences.some((item) => item.id === SEEDED_OBJECT_ID));
 });
 
 test('employee archive and restore preserve history, block active assignments and roll back with audit', async (t) => {

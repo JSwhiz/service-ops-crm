@@ -24,6 +24,11 @@ import {
 import { EmployeeObjectOptionDto } from './dto/employee-object-option.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeVersionDto } from './dto/employee-version.dto';
+import {
+  EmployeeObjectReferenceDto,
+  EmployeePositionReferenceDto,
+  ListEmployeeReferencesQueryDto,
+} from './dto/list-employee-references-query.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import {
@@ -31,7 +36,13 @@ import {
   EMPLOYEE_SUBSTITUTION_STATUSES,
 } from './constants/employee-hr.constants';
 import {
-  canManageEmployeesHr,
+  canArchiveEmployee,
+  canCreateEmployee,
+  canDeleteEmployeeAssignmentAsError,
+  canDeleteEmployeePermanently,
+  canEditEmployee,
+  canManageEmployeeAssignments,
+  canRestoreEmployee,
   canViewEmployeesHr,
 } from './utils/employee-hr-access.util';
 
@@ -130,6 +141,10 @@ export class EmployeesService {
             position: employee.position,
             birthDate: this.formatDateOnly(employee.birthDate),
             employmentStatus: employee.employmentStatus,
+            employeeType: employee.employeeType,
+            workScheduleCode: employee.workScheduleCode,
+            workScheduleCustom: employee.workScheduleCustom,
+            workTimeText: employee.workTimeText,
             baseDailyRate: employee.baseDailyRate,
             version: employee.version,
             isArchived: employee.deletedAt !== null,
@@ -151,13 +166,54 @@ export class EmployeesService {
       limit,
       total,
       totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      capabilities: {
+        canCreate: canCreateEmployee(this.getPermissionCodes(currentUser)),
+      },
     };
+  }
+
+  async listPositionReferences(
+    currentUser: CurrentAuthUser,
+    query: ListEmployeeReferencesQueryDto,
+  ): Promise<EmployeePositionReferenceDto[]> {
+    this.assertViewAccess(currentUser);
+    const searchPattern = query.search ? `%${query.search}%` : null;
+    const rows = await this.prisma.$queryRaw<Array<{ value: string }>>(Prisma.sql`
+      SELECT DISTINCT BTRIM("position") AS "value"
+      FROM "employees"
+      WHERE "position" IS NOT NULL
+        AND BTRIM("position") <> ''
+        ${searchPattern ? Prisma.sql`AND BTRIM("position") ILIKE ${searchPattern}` : Prisma.empty}
+      ORDER BY "value" ASC
+      LIMIT ${query.limit}
+    `);
+
+    return rows.map((row) => ({ value: row.value, label: row.value }));
+  }
+
+  async listObjectReferences(
+    currentUser: CurrentAuthUser,
+    query: ListEmployeeReferencesQueryDto,
+  ): Promise<EmployeeObjectReferenceDto[]> {
+    this.assertViewAccess(currentUser);
+
+    return this.prisma.object.findMany({
+      where: {
+        deletedAt: null,
+        ...(query.search
+          ? { name: { contains: query.search, mode: 'insensitive' as const } }
+          : {}),
+      },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: query.limit,
+    });
   }
 
   async listObjectCandidates(
     currentUser: CurrentAuthUser,
   ): Promise<EmployeeObjectOptionDto[]> {
-    this.assertManageAccess(currentUser);
+    this.assertAssignmentManageAccess(currentUser);
 
     const objects = await this.prisma.object.findMany({
       where: {
@@ -200,8 +256,12 @@ export class EmployeesService {
     currentUser: CurrentAuthUser,
     payload: CreateEmployeeDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
+    this.assertCreateAccess(currentUser);
     const birthDate = this.parseBirthDate(payload.birthDate);
+    const schedule = this.normalizeWorkSchedule({
+      workScheduleCode: payload.workScheduleCode ?? null,
+      workScheduleCustom: payload.workScheduleCustom ?? null,
+    });
 
     const employeeId = await this.prisma.$transaction(async (tx) => {
       const employee = await tx.employee.create({
@@ -210,6 +270,10 @@ export class EmployeesService {
           phone: payload.phone ?? null,
           position: payload.position ?? null,
           birthDate,
+          employeeType: payload.employeeType ?? 'regular',
+          workScheduleCode: schedule.workScheduleCode,
+          workScheduleCustom: schedule.workScheduleCustom,
+          workTimeText: payload.workTimeText ?? null,
           residenceAddress: payload.residenceAddress ?? null,
           shiftPreferences: payload.shiftPreferences ?? null,
           baseDailyRate: payload.baseDailyRate ?? null,
@@ -240,7 +304,7 @@ export class EmployeesService {
     employeeId: string,
     payload: UpdateEmployeeDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
+    this.assertEditAccess(currentUser);
     const birthDate =
       payload.birthDate === undefined
         ? undefined
@@ -259,6 +323,17 @@ export class EmployeesService {
         this.throwVersionConflict();
       }
 
+      const schedule = this.normalizeWorkSchedule({
+        workScheduleCode:
+          payload.workScheduleCode === undefined
+            ? existing.workScheduleCode
+            : payload.workScheduleCode,
+        workScheduleCustom:
+          payload.workScheduleCustom === undefined
+            ? existing.workScheduleCustom
+            : payload.workScheduleCustom,
+      });
+
       const result = await tx.employee.updateMany({
         where: {
           id: employeeId,
@@ -270,6 +345,19 @@ export class EmployeesService {
           ...(payload.phone !== undefined ? { phone: payload.phone } : {}),
           ...(payload.position !== undefined ? { position: payload.position } : {}),
           ...(birthDate !== undefined ? { birthDate } : {}),
+          ...(payload.employeeType !== undefined
+            ? { employeeType: payload.employeeType }
+            : {}),
+          ...(payload.workScheduleCode !== undefined ||
+          payload.workScheduleCustom !== undefined
+            ? {
+                workScheduleCode: schedule.workScheduleCode,
+                workScheduleCustom: schedule.workScheduleCustom,
+              }
+            : {}),
+          ...(payload.workTimeText !== undefined
+            ? { workTimeText: payload.workTimeText }
+            : {}),
           ...(payload.residenceAddress !== undefined
             ? { residenceAddress: payload.residenceAddress }
             : {}),
@@ -324,7 +412,7 @@ export class EmployeesService {
     employeeId: string,
     payload: EmployeeVersionDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
+    this.assertArchiveAccess(currentUser);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -409,7 +497,7 @@ export class EmployeesService {
     employeeId: string,
     payload: EmployeeVersionDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
+    this.assertRestoreAccess(currentUser);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -479,7 +567,7 @@ export class EmployeesService {
     employeeId: string,
     payload: CreateEmployeeAvailabilityDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
+    this.assertEditAccess(currentUser);
     await this.ensureEmployeeExists(employeeId);
 
     const startDate = this.parseAvailabilityBoundary(
@@ -519,7 +607,7 @@ export class EmployeesService {
     employeeId: string,
     payload: CreateEmployeeSubstitutionDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
+    this.assertEditAccess(currentUser);
 
     if (employeeId === payload.substituteEmployeeId) {
       throw new BadRequestException('Employee substitution requires different employees');
@@ -579,7 +667,7 @@ export class EmployeesService {
     employeeId: string,
     payload: AssignEmployeeToObjectDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
+    this.assertAssignmentManageAccess(currentUser);
 
     const [employee, object] = await Promise.all([
       this.ensureEmployeeExists(employeeId),
@@ -639,7 +727,7 @@ export class EmployeesService {
     employeeId: string,
     objectId: string,
   ): Promise<EmployeeResponseDto> {
-    this.assertManageAccess(currentUser);
+    this.assertAssignmentManageAccess(currentUser);
     await this.ensureEmployeeExists(employeeId);
 
     const endedAt = new Date();
@@ -706,6 +794,25 @@ export class EmployeesService {
       );
     }
 
+    if (query.employeeType) {
+      conditions.push(
+        Prisma.sql`employee."employeeType" = ${query.employeeType}`,
+      );
+    }
+
+    if (query.workScheduleCode) {
+      conditions.push(
+        Prisma.sql`employee."workScheduleCode" = ${query.workScheduleCode}`,
+      );
+    }
+
+    if (query.workTimeSearch) {
+      const pattern = `%${query.workTimeSearch}%`;
+      conditions.push(
+        Prisma.sql`COALESCE(employee."workTimeText", '') ILIKE ${pattern}`,
+      );
+    }
+
     if (query.birthMonth) {
       conditions.push(
         Prisma.sql`EXTRACT(MONTH FROM employee."birthDate") = ${query.birthMonth}`,
@@ -740,6 +847,8 @@ export class EmployeesService {
         return Prisma.sql`employee."position"`;
       case 'employmentStatus':
         return Prisma.sql`employee."employmentStatus"`;
+      case 'employeeType':
+        return Prisma.sql`employee."employeeType"`;
       case 'birthDate':
         return Prisma.sql`employee."birthDate"`;
       case 'createdAt':
@@ -758,9 +867,44 @@ export class EmployeesService {
     }
   }
 
-  private assertManageAccess(currentUser: CurrentAuthUser): void {
-    if (!canManageEmployeesHr(this.getPermissionCodes(currentUser))) {
-      throw new ForbiddenException('Employees registry management denied');
+  private assertCreateAccess(currentUser: CurrentAuthUser): void {
+    this.assertPermission(
+      canCreateEmployee(this.getPermissionCodes(currentUser)),
+      'Employee creation denied',
+    );
+  }
+
+  private assertEditAccess(currentUser: CurrentAuthUser): void {
+    this.assertPermission(
+      canEditEmployee(this.getPermissionCodes(currentUser)),
+      'Employee editing denied',
+    );
+  }
+
+  private assertArchiveAccess(currentUser: CurrentAuthUser): void {
+    this.assertPermission(
+      canArchiveEmployee(this.getPermissionCodes(currentUser)),
+      'Employee archive denied',
+    );
+  }
+
+  private assertRestoreAccess(currentUser: CurrentAuthUser): void {
+    this.assertPermission(
+      canRestoreEmployee(this.getPermissionCodes(currentUser)),
+      'Employee restore denied',
+    );
+  }
+
+  private assertAssignmentManageAccess(currentUser: CurrentAuthUser): void {
+    this.assertPermission(
+      canManageEmployeeAssignments(this.getPermissionCodes(currentUser)),
+      'Employee assignment management denied',
+    );
+  }
+
+  private assertPermission(allowed: boolean, message: string): void {
+    if (!allowed) {
+      throw new ForbiddenException(message);
     }
   }
 
@@ -824,6 +968,34 @@ export class EmployeesService {
     return parsed;
   }
 
+  private normalizeWorkSchedule(params: {
+    workScheduleCode: string | null;
+    workScheduleCustom: string | null;
+  }): {
+    workScheduleCode: string | null;
+    workScheduleCustom: string | null;
+  } {
+    if (params.workScheduleCode !== 'custom') {
+      return {
+        workScheduleCode: params.workScheduleCode,
+        workScheduleCustom: null,
+      };
+    }
+
+    const custom = params.workScheduleCustom?.trim();
+
+    if (!custom) {
+      throw new BadRequestException(
+        'workScheduleCustom is required for custom schedule',
+      );
+    }
+
+    return {
+      workScheduleCode: 'custom',
+      workScheduleCustom: custom,
+    };
+  }
+
   private formatDateOnly(value: Date | null): string | null {
     return value?.toISOString().slice(0, 10) ?? null;
   }
@@ -840,6 +1012,10 @@ export class EmployeesService {
     phone: string | null;
     position: string | null;
     birthDate: Date | null;
+    employeeType: string;
+    workScheduleCode: string | null;
+    workScheduleCustom: string | null;
+    workTimeText: string | null;
     residenceAddress: string | null;
     shiftPreferences: string | null;
     baseDailyRate: number | null;
@@ -853,6 +1029,10 @@ export class EmployeesService {
       phone: employee.phone,
       position: employee.position,
       birthDate: this.formatDateOnly(employee.birthDate),
+      employeeType: employee.employeeType,
+      workScheduleCode: employee.workScheduleCode,
+      workScheduleCustom: employee.workScheduleCustom,
+      workTimeText: employee.workTimeText,
       residenceAddress: employee.residenceAddress,
       shiftPreferences: employee.shiftPreferences,
       baseDailyRate: employee.baseDailyRate,
@@ -940,6 +1120,7 @@ export class EmployeesService {
     return {
       id: true,
       name: true,
+      dailyRate: true,
       createdByUserId: true,
       assignments: {
         where: {
@@ -999,6 +1180,10 @@ export class EmployeesService {
       phone: string | null;
       position: string | null;
       birthDate: Date | null;
+      employeeType: string;
+      workScheduleCode: string | null;
+      workScheduleCustom: string | null;
+      workTimeText: string | null;
       residenceAddress: string | null;
       shiftPreferences: string | null;
       baseDailyRate: number | null;
@@ -1015,6 +1200,7 @@ export class EmployeesService {
         object: {
           id: string;
           name: string;
+          dailyRate: number;
           createdByUserId: string;
           assignments: Array<{
             userId: string;
@@ -1029,6 +1215,7 @@ export class EmployeesService {
         object: {
           id: string;
           name: string;
+          dailyRate: number;
           createdByUserId: string;
           assignments: Array<{
             userId: string;
@@ -1067,7 +1254,9 @@ export class EmployeesService {
     },
     currentUser: CurrentAuthUser,
   ): EmployeeResponseDto {
-    const canManage = canManageEmployeesHr(this.getPermissionCodes(currentUser));
+    const permissionCodes = this.getPermissionCodes(currentUser);
+    const canEdit = canEditEmployee(permissionCodes);
+    const canManageAssignments = canManageEmployeeAssignments(permissionCodes);
 
     return {
       id: employee.id,
@@ -1075,6 +1264,10 @@ export class EmployeesService {
       phone: employee.phone,
       position: employee.position,
       birthDate: this.formatDateOnly(employee.birthDate),
+      employeeType: employee.employeeType,
+      workScheduleCode: employee.workScheduleCode,
+      workScheduleCustom: employee.workScheduleCustom,
+      workTimeText: employee.workTimeText,
       residenceAddress: employee.residenceAddress,
       shiftPreferences: employee.shiftPreferences,
       baseDailyRate: employee.baseDailyRate,
@@ -1090,6 +1283,7 @@ export class EmployeesService {
         .map((assignment) => ({
           objectId: assignment.object.id,
           objectName: assignment.object.name,
+          objectDailyRate: assignment.object.dailyRate,
           startDate: assignment.startDate?.toISOString() ?? null,
           endDate: assignment.endDate?.toISOString() ?? null,
           canOpenObjectCard: this.canOpenObjectCard(currentUser, assignment.object),
@@ -1098,6 +1292,7 @@ export class EmployeesService {
         id: item.id,
         objectId: item.object.id,
         objectName: item.object.name,
+        objectDailyRate: item.object.dailyRate,
         startedAt: item.startedAt.toISOString(),
         endedAt: item.endedAt?.toISOString() ?? null,
         canOpenObjectCard: this.canOpenObjectCard(currentUser, item.object),
@@ -1139,13 +1334,40 @@ export class EmployeesService {
         })),
       ].sort((left, right) => (left.startDate < right.startDate ? 1 : -1)),
       capabilities: {
-        canEdit: canManage && employee.deletedAt === null,
-        canArchive: canManage && employee.deletedAt === null,
-        canRestore: canManage && employee.deletedAt !== null,
-        canManageStatus: canManage && employee.deletedAt === null,
-        canManageAvailability: canManage && employee.deletedAt === null,
-        canManageSubstitutions: canManage && employee.deletedAt === null,
-        canManageAssignments: canManage && employee.deletedAt === null,
+        canView: true,
+        canEdit: canEdit && employee.deletedAt === null,
+        canArchive:
+          canArchiveEmployee(permissionCodes) && employee.deletedAt === null,
+        canRestore:
+          canRestoreEmployee(permissionCodes) && employee.deletedAt !== null,
+        canDeletePermanently:
+          canDeleteEmployeePermanently(permissionCodes),
+        canDeleteAssignmentAsError:
+          canDeleteEmployeeAssignmentAsError(permissionCodes),
+        canManageStatus: canEdit && employee.deletedAt === null,
+        canManageAvailability: canEdit && employee.deletedAt === null,
+        canManageSubstitutions: canEdit && employee.deletedAt === null,
+        canManageAssignments:
+          canManageAssignments && employee.deletedAt === null,
+      },
+      lifecycleEligibility: {
+        archive: {
+          eligible:
+            employee.deletedAt === null &&
+            employee.objectAssignments.every((assignment) => !assignment.isActive),
+          blockers: employee.objectAssignments.some(
+            (assignment) => assignment.isActive,
+          )
+            ? [
+                {
+                  code: 'active_object_assignments',
+                  count: employee.objectAssignments.filter(
+                    (assignment) => assignment.isActive,
+                  ).length,
+                },
+              ]
+            : [],
+        },
       },
     };
   }

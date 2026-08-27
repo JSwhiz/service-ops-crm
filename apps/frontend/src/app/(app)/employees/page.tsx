@@ -33,6 +33,7 @@ const EMPTY_RESULT: EmployeeListResponse = {
   limit: PAGE_LIMIT,
   total: 0,
   totalPages: 0,
+  capabilities: { canCreate: false },
 };
 
 function parsePage(value: string | null): number {

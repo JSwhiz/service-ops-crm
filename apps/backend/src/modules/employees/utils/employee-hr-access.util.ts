@@ -16,6 +16,49 @@ function hasPermission(
   return permissionCodes.includes(permissionCode);
 }
 
+export function canCreateEmployee(permissionCodes: string[]): boolean {
+  return hasPermission(permissionCodes, EMPLOYEE_PERMISSION_CODES.create);
+}
+
+export function canEditEmployee(permissionCodes: string[]): boolean {
+  return hasPermission(permissionCodes, EMPLOYEE_PERMISSION_CODES.edit);
+}
+
+export function canArchiveEmployee(permissionCodes: string[]): boolean {
+  return hasPermission(permissionCodes, EMPLOYEE_PERMISSION_CODES.archive);
+}
+
+export function canRestoreEmployee(permissionCodes: string[]): boolean {
+  return hasPermission(permissionCodes, EMPLOYEE_PERMISSION_CODES.restore);
+}
+
+export function canDeleteEmployeePermanently(
+  permissionCodes: string[],
+): boolean {
+  return hasPermission(
+    permissionCodes,
+    EMPLOYEE_PERMISSION_CODES.deletePermanently,
+  );
+}
+
+export function canManageEmployeeAssignments(
+  permissionCodes: string[],
+): boolean {
+  return hasPermission(
+    permissionCodes,
+    EMPLOYEE_PERMISSION_CODES.manageAssignments,
+  );
+}
+
+export function canDeleteEmployeeAssignmentAsError(
+  permissionCodes: string[],
+): boolean {
+  return hasPermission(
+    permissionCodes,
+    EMPLOYEE_PERMISSION_CODES.deleteAssignmentAsError,
+  );
+}
+
 export function canViewEmployeesHr(permissionCodes: string[]): boolean {
   return hasPermission(permissionCodes, EMPLOYEE_PERMISSION_CODES.view);
 }
@@ -30,33 +73,15 @@ export function canManageEmployeesHr(permissionCodes: string[]): boolean {
 export function buildEmployeeGlobalCapabilities(permissionCodes: string[]) {
   return {
     canAccessEmployeesHr: canViewEmployeesHr(permissionCodes),
-    canCreateEmployee: hasPermission(
-      permissionCodes,
-      EMPLOYEE_PERMISSION_CODES.create,
-    ),
-    canEditEmployee: hasPermission(
-      permissionCodes,
-      EMPLOYEE_PERMISSION_CODES.edit,
-    ),
-    canArchiveEmployee: hasPermission(
-      permissionCodes,
-      EMPLOYEE_PERMISSION_CODES.archive,
-    ),
-    canRestoreEmployee: hasPermission(
-      permissionCodes,
-      EMPLOYEE_PERMISSION_CODES.restore,
-    ),
-    canDeleteEmployeePermanently: hasPermission(
-      permissionCodes,
-      EMPLOYEE_PERMISSION_CODES.deletePermanently,
-    ),
-    canManageEmployeeAssignments: hasPermission(
-      permissionCodes,
-      EMPLOYEE_PERMISSION_CODES.manageAssignments,
-    ),
-    canDeleteEmployeeAssignmentAsError: hasPermission(
-      permissionCodes,
-      EMPLOYEE_PERMISSION_CODES.deleteAssignmentAsError,
-    ),
+    canCreateEmployee: canCreateEmployee(permissionCodes),
+    canEditEmployee: canEditEmployee(permissionCodes),
+    canArchiveEmployee: canArchiveEmployee(permissionCodes),
+    canRestoreEmployee: canRestoreEmployee(permissionCodes),
+    canDeleteEmployeePermanently:
+      canDeleteEmployeePermanently(permissionCodes),
+    canManageEmployeeAssignments:
+      canManageEmployeeAssignments(permissionCodes),
+    canDeleteEmployeeAssignmentAsError:
+      canDeleteEmployeeAssignmentAsError(permissionCodes),
   };
 }

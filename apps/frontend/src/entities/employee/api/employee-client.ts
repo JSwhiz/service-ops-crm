@@ -5,7 +5,9 @@ import type {
   EmployeeListQuery,
   EmployeeListResponse,
   EmployeeMutationPayload,
+  EmployeeObjectReference,
   EmployeeObjectOption,
+  EmployeePositionReference,
 } from '../model/employee.types';
 
 export async function listEmployees(
@@ -27,6 +29,18 @@ export async function listEmployees(
 
   if (query.employmentStatus) {
     params.set('employmentStatus', query.employmentStatus);
+  }
+
+  if (query.employeeType) {
+    params.set('employeeType', query.employeeType);
+  }
+
+  if (query.workScheduleCode) {
+    params.set('workScheduleCode', query.workScheduleCode);
+  }
+
+  if (query.workTimeSearch) {
+    params.set('workTimeSearch', query.workTimeSearch);
   }
 
   if (query.archiveState) {
@@ -71,6 +85,30 @@ export async function listEmployeeObjectCandidates(): Promise<EmployeeObjectOpti
   return fetcher<EmployeeObjectOption[]>('/employees/object-candidates', {
     method: 'GET',
   });
+}
+
+export async function listEmployeePositionReferences(
+  search?: string,
+): Promise<EmployeePositionReference[]> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return fetcher<EmployeePositionReference[]>(
+    `/employees/references/positions${suffix}`,
+    { method: 'GET' },
+  );
+}
+
+export async function listEmployeeObjectReferences(
+  search?: string,
+): Promise<EmployeeObjectReference[]> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return fetcher<EmployeeObjectReference[]>(
+    `/employees/references/objects${suffix}`,
+    { method: 'GET' },
+  );
 }
 
 export async function getEmployeeById(id: string): Promise<EmployeeDetail> {

@@ -22,6 +22,11 @@ import { EmployeeListResponseDto } from './dto/employee-list-item.dto';
 import { EmployeeObjectOptionDto } from './dto/employee-object-option.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeVersionDto } from './dto/employee-version.dto';
+import {
+  EmployeeObjectReferenceDto,
+  EmployeePositionReferenceDto,
+  ListEmployeeReferencesQueryDto,
+} from './dto/list-employee-references-query.dto';
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeesService } from './employees.service';
@@ -54,6 +59,22 @@ export class EmployeesController {
     @CurrentUser() user: CurrentAuthUser,
   ): Promise<EmployeeObjectOptionDto[]> {
     return this.employeesService.listObjectCandidates(user);
+  }
+
+  @Get('references/positions')
+  listPositionReferences(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListEmployeeReferencesQueryDto,
+  ): Promise<EmployeePositionReferenceDto[]> {
+    return this.employeesService.listPositionReferences(user, query);
+  }
+
+  @Get('references/objects')
+  listObjectReferences(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListEmployeeReferencesQueryDto,
+  ): Promise<EmployeeObjectReferenceDto[]> {
+    return this.employeesService.listObjectReferences(user, query);
   }
 
   @Get(':id')

@@ -5,6 +5,10 @@ export class EmployeeListItemDto {
   position!: string | null;
   birthDate!: string | null;
   employmentStatus!: string;
+  employeeType!: string;
+  workScheduleCode!: string | null;
+  workScheduleCustom!: string | null;
+  workTimeText!: string | null;
   baseDailyRate!: number | null;
   version!: number;
   isArchived!: boolean;
@@ -23,4 +27,7 @@ export class EmployeeListResponseDto {
   limit!: number;
   total!: number;
   totalPages!: number;
+  capabilities!: {
+    canCreate: boolean;
+  };
 }

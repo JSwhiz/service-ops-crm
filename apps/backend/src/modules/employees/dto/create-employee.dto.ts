@@ -11,7 +11,11 @@ import {
   MinLength,
 } from 'class-validator';
 
-import { EMPLOYEE_EMPLOYMENT_STATUSES } from '../constants/employee-hr.constants';
+import {
+  EMPLOYEE_EMPLOYMENT_STATUSES,
+  EMPLOYEE_TYPES,
+  EMPLOYEE_WORK_SCHEDULE_CODES,
+} from '../constants/employee-hr.constants';
 
 export class CreateEmployeeDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
@@ -41,6 +45,31 @@ export class CreateEmployeeDto {
   @IsDateString({ strict: true, strictSeparator: true })
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   birthDate?: string | null;
+
+  @IsOptional()
+  @IsIn(EMPLOYEE_TYPES)
+  employeeType?: (typeof EMPLOYEE_TYPES)[number];
+
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @IsIn(EMPLOYEE_WORK_SCHEDULE_CODES)
+  workScheduleCode?: (typeof EMPLOYEE_WORK_SCHEDULE_CODES)[number] | null;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() || null : value,
+  )
+  @IsString()
+  @MaxLength(300)
+  workScheduleCustom?: string | null;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() || null : value,
+  )
+  @IsString()
+  @MaxLength(200)
+  workTimeText?: string | null;
 
   @IsOptional()
   @Transform(({ value }) =>

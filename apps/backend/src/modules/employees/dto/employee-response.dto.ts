@@ -9,6 +9,10 @@ export class EmployeeResponseDto {
   baseDailyRate!: number | null;
   notes!: string | null;
   employmentStatus!: string;
+  employeeType!: string;
+  workScheduleCode!: string | null;
+  workScheduleCustom!: string | null;
+  workTimeText!: string | null;
   version!: number;
   isArchived!: boolean;
   deletedAt!: string | null;
@@ -17,6 +21,7 @@ export class EmployeeResponseDto {
   currentObjectAssignments!: Array<{
     objectId: string;
     objectName: string;
+    objectDailyRate: number;
     startDate: string | null;
     endDate: string | null;
     canOpenObjectCard: boolean;
@@ -25,6 +30,7 @@ export class EmployeeResponseDto {
     id: string;
     objectId: string;
     objectName: string;
+    objectDailyRate: number;
     startedAt: string;
     endedAt: string | null;
     canOpenObjectCard: boolean;
@@ -51,12 +57,21 @@ export class EmployeeResponseDto {
     comment: string | null;
   }>;
   capabilities!: {
+    canView: boolean;
     canEdit: boolean;
     canArchive: boolean;
     canRestore: boolean;
+    canDeletePermanently: boolean;
+    canDeleteAssignmentAsError: boolean;
     canManageStatus: boolean;
     canManageAvailability: boolean;
     canManageSubstitutions: boolean;
     canManageAssignments: boolean;
+  };
+  lifecycleEligibility!: {
+    archive: {
+      eligible: boolean;
+      blockers: Array<{ code: string; count: number }>;
+    };
   };
 }
