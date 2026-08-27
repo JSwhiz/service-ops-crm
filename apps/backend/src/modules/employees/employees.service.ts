@@ -1490,6 +1490,7 @@ export class EmployeesService {
     return canViewObjectByScope({
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
       object,
     });
   }

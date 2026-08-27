@@ -14,6 +14,7 @@ interface ObjectStaffingPanelProps {
   onSearchChange: (value: string) => void;
   onAdd: (employeeId: string) => Promise<void>;
   onRemove: (employeeId: string) => Promise<void>;
+  canManageAssignments?: boolean;
   canManageRatePolicy?: boolean;
   onUpdateRatePolicy?: (
     employeeId: string,
@@ -69,6 +70,7 @@ export function ObjectStaffingPanel({
   onSearchChange,
   onAdd,
   onRemove,
+  canManageAssignments = false,
   canManageRatePolicy = false,
   onUpdateRatePolicy,
 }: ObjectStaffingPanelProps): React.JSX.Element {
@@ -80,6 +82,11 @@ export function ObjectStaffingPanel({
       : buildInitialRateForm({
           id: '',
           fullName: '',
+          position: null,
+          baseDailyRate: null,
+          workScheduleCode: null,
+          workScheduleCustom: null,
+          workTimeText: null,
           isAssignedToObject: false,
           ratePolicy: null,
           availability: {
@@ -199,7 +206,7 @@ export function ObjectStaffingPanel({
         </div>
       </div>
 
-      <label style={{ display: 'block', marginBottom: 16 }}>
+      {canManageAssignments ? <label style={{ display: 'block', marginBottom: 16 }}>
         <div style={{ marginBottom: 6 }}>Поиск сотрудника</div>
         <input
           value={search}
@@ -207,7 +214,7 @@ export function ObjectStaffingPanel({
           placeholder="Введите ФИО сотрудника"
           style={{ width: '100%', padding: 10 }}
         />
-      </label>
+      </label> : null}
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Текущий состав</div>
 
@@ -272,6 +279,20 @@ export function ObjectStaffingPanel({
                     </button>
                   ) : null}
                 </div>
+                <div className="page-muted">
+                  {employee.position ?? 'Должность не указана'} · базовая ставка
+                  сотрудника:{' '}
+                  {employee.baseDailyRate === null
+                    ? 'не указана'
+                    : `${employee.baseDailyRate.toLocaleString('ru-RU')} ₽/день`}
+                </div>
+                <div className="page-muted">
+                  График:{' '}
+                  {employee.workScheduleCode === 'custom'
+                    ? employee.workScheduleCustom
+                    : employee.workScheduleCode?.replace('_', '/') ?? 'не указан'}
+                  {employee.workTimeText ? ` · ${employee.workTimeText}` : ''}
+                </div>
                 {employee.availability.isUnavailable ? (
                   <div style={{ color: '#b45309', fontSize: 13 }}>
                     {getAvailabilityExplanation(employee)}
@@ -279,9 +300,11 @@ export function ObjectStaffingPanel({
                 ) : null}
               </div>
 
-              <button type="button" onClick={() => void onRemove(employee.id)}>
-                Убрать
-              </button>
+              {canManageAssignments ? (
+                <button type="button" onClick={() => void onRemove(employee.id)}>
+                  Завершить назначение
+                </button>
+              ) : null}
             </div>
           ))}
         </div>
@@ -523,6 +546,7 @@ export function ObjectStaffingPanel({
         </div>
       )}
 
+      {canManageAssignments ? <>
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Результаты поиска</div>
 
       {searchError ? (
@@ -580,6 +604,7 @@ export function ObjectStaffingPanel({
           ))}
         </div>
       )}
+      </> : null}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   canOverrideFrozenObject,
   hasWideObjectAccess,
 } from './object-access.util';
+import { canManageEmployeeAssignments } from '../../employees/utils/employee-hr-access.util';
 
 interface ObjectCapabilityAssignment {
   userId: string;
@@ -14,6 +15,7 @@ interface ObjectCapabilityAssignment {
 export function buildObjectCapabilities(params: {
   currentUserId: string;
   roleCodes: string[];
+  permissionCodes: string[];
   objectStatus: string;
   createdByUserId: string;
   assignments: ObjectCapabilityAssignment[];
@@ -24,12 +26,20 @@ export function buildObjectCapabilities(params: {
   canManageResponsibles: boolean;
   canManageManagers: boolean;
   canCreateTask: boolean;
+  canViewOperationalSections: boolean;
+  canManageEmployees: boolean;
 } {
   const canManageResponsibles = canManageObjectResponsibles(params.roleCodes);
   const canEdit =
     canEditObject(params.roleCodes) ||
     (params.objectStatus === 'frozen' &&
       canOverrideFrozenObject(params.roleCodes));
+  const hasOperationalScope =
+    hasWideObjectAccess(params.roleCodes) ||
+    params.createdByUserId === params.currentUserId ||
+    params.assignments.some(
+      (assignment) => assignment.userId === params.currentUserId,
+    );
 
   return {
     canEdit,
@@ -38,10 +48,8 @@ export function buildObjectCapabilities(params: {
     canManageResponsibles,
     canManageManagers: canManageResponsibles,
     canCreateTask:
-      hasWideObjectAccess(params.roleCodes) ||
-      params.createdByUserId === params.currentUserId ||
-      params.assignments.some(
-        (assignment) => assignment.userId === params.currentUserId,
-      ),
+      hasOperationalScope,
+    canViewOperationalSections: hasOperationalScope,
+    canManageEmployees: canManageEmployeeAssignments(params.permissionCodes),
   };
 }

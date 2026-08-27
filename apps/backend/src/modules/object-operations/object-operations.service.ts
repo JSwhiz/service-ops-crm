@@ -6,8 +6,9 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
-import { EmployeeAssignmentHistoryService } from '../employees/employee-assignment-history.service';
+import { EmployeesService } from '../employees/employees.service';
 import { EMPLOYEE_SUBSTITUTION_STATUSES } from '../employees/constants/employee-hr.constants';
+import { canManageEmployeeAssignments } from '../employees/utils/employee-hr-access.util';
 import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { EquipmentService } from '../equipment/equipment.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
@@ -140,7 +141,7 @@ interface LinkedOneTimeOrderView {
 export class ObjectOperationsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly assignmentHistoryService: EmployeeAssignmentHistoryService,
+    private readonly employeesService: EmployeesService,
     private readonly inventoryService: InventoryService,
     private readonly equipmentService: EquipmentService,
   ) {}
@@ -397,7 +398,7 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
     objectId: string,
   ): Promise<ObjectEmployeeOptionDto[]> {
-    await this.assertObjectVisible(currentUser, objectId);
+    await this.assertHrObjectProfileVisible(currentUser, objectId);
 
     const dayRange = this.getBusinessDayRange(startOfToday());
     const [object, items] = await Promise.all([
@@ -463,6 +464,11 @@ export class ObjectOperationsService {
       this.mapObjectEmployeeOption({
         employeeId: item.employee.id,
         fullName: item.employee.fullName,
+        position: item.employee.position,
+        baseDailyRate: item.employee.baseDailyRate,
+        workScheduleCode: item.employee.workScheduleCode,
+        workScheduleCustom: item.employee.workScheduleCustom,
+        workTimeText: item.employee.workTimeText,
         isAssignedToObject: true,
         ratePolicy: item,
         ratePolicyFallbackAmount: object?.dailyRate ?? 0,
@@ -645,7 +651,7 @@ export class ObjectOperationsService {
     objectId: string,
     query: ListEmployeeDirectoryQueryDto,
   ): Promise<ObjectEmployeeOptionDto[]> {
-    await this.assertObjectWritable(currentUser, objectId);
+    await this.assertEmployeeAssignmentWritable(currentUser, objectId);
 
     const dayRange = this.getBusinessDayRange(startOfToday());
     const items = await this.prisma.employee.findMany({
@@ -701,6 +707,11 @@ export class ObjectOperationsService {
       this.mapObjectEmployeeOption({
         employeeId: item.id,
         fullName: item.fullName,
+        position: item.position,
+        baseDailyRate: item.baseDailyRate,
+        workScheduleCode: item.workScheduleCode,
+        workScheduleCustom: item.workScheduleCustom,
+        workTimeText: item.workTimeText,
         isAssignedToObject: false,
         availabilityWindows: item.availabilityWindows,
         substitutionsAsPrimary: item.substitutionsAsPrimary,
@@ -714,65 +725,12 @@ export class ObjectOperationsService {
     objectId: string,
     payload: AddObjectEmployeeDto,
   ): Promise<{ success: true }> {
-    await this.assertObjectWritable(currentUser, objectId);
-
-    const object = await this.prisma.object.findFirst({
-      where: {
-        id: objectId,
-        deletedAt: null,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!object) {
-      throw new NotFoundException('Object not found');
-    }
-
-    const employee = await this.prisma.employee.findFirst({
-      where: {
-        id: payload.employeeId,
-        deletedAt: null,
-        employmentStatus: 'active',
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!employee) {
-      throw new NotFoundException('Employee not found');
-    }
-
-    const startedAt = new Date();
-
-    await this.prisma.objectEmployeeAssignment.upsert({
-      where: {
-        objectId_employeeId: {
-          objectId,
-          employeeId: payload.employeeId,
-        },
-      },
-      update: {
-        isActive: true,
-        startDate: startedAt,
-        endDate: null,
-      },
-      create: {
-        objectId,
-        employeeId: payload.employeeId,
-        isActive: true,
-        startDate: startedAt,
-      },
-    });
-
-    await this.assignmentHistoryService.openObjectAssignmentHistory({
-      employeeId: payload.employeeId,
-      objectId,
-      startedAt,
-      actorUserId: currentUser.id,
-    });
+    await this.assertEmployeeAssignmentWritable(currentUser, objectId);
+    await this.employeesService.assignEmployeeToObject(
+      currentUser,
+      payload.employeeId,
+      { objectId },
+    );
 
     return { success: true };
   }
@@ -782,27 +740,12 @@ export class ObjectOperationsService {
     objectId: string,
     employeeId: string,
   ): Promise<{ success: true }> {
-    await this.assertObjectWritable(currentUser, objectId);
-
-    const endedAt = new Date();
-
-    await this.prisma.objectEmployeeAssignment.updateMany({
-      where: {
-        objectId,
-        employeeId,
-      },
-      data: {
-        isActive: false,
-        endDate: endedAt,
-      },
-    });
-
-    await this.assignmentHistoryService.closeObjectAssignmentHistory({
+    await this.assertEmployeeAssignmentWritable(currentUser, objectId);
+    await this.employeesService.removeEmployeeFromObject(
+      currentUser,
       employeeId,
       objectId,
-      endedAt,
-      actorUserId: currentUser.id,
-    });
+    );
 
     return { success: true };
   }
@@ -1447,6 +1390,11 @@ export class ObjectOperationsService {
   private mapObjectEmployeeOption(params: {
     employeeId: string;
     fullName: string;
+    position?: string | null;
+    baseDailyRate?: number | null;
+    workScheduleCode?: string | null;
+    workScheduleCustom?: string | null;
+    workTimeText?: string | null;
     isAssignedToObject: boolean;
     ratePolicy?: {
       ratePolicyType: string | null;
@@ -1536,6 +1484,11 @@ export class ObjectOperationsService {
     return {
       id: params.employeeId,
       fullName: params.fullName,
+      position: params.position ?? null,
+      baseDailyRate: params.baseDailyRate ?? null,
+      workScheduleCode: params.workScheduleCode ?? null,
+      workScheduleCustom: params.workScheduleCustom ?? null,
+      workTimeText: params.workTimeText ?? null,
       isAssignedToObject: params.isAssignedToObject,
       ratePolicy: ratePolicy
         ? {
@@ -1592,6 +1545,44 @@ export class ObjectOperationsService {
       })
     ) {
       throw new ForbiddenException('Access to object operations denied');
+    }
+  }
+
+  private async assertHrObjectProfileVisible(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<void> {
+    const object = await this.prisma.object.findFirst({
+      where: { id: objectId, deletedAt: null },
+      select: {
+        id: true,
+        createdByUserId: true,
+        assignments: {
+          where: { isActive: true },
+          select: { userId: true, isActive: true },
+        },
+      },
+    });
+    if (!object) throw new NotFoundException('Object not found');
+    if (
+      !canViewObjectByScope({
+        currentUserId: currentUser.id,
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: currentUser.permissionCodes,
+        object,
+      })
+    ) {
+      throw new ForbiddenException('Access to employee staffing denied');
+    }
+  }
+
+  private async assertEmployeeAssignmentWritable(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<void> {
+    await this.assertHrObjectProfileVisible(currentUser, objectId);
+    if (!canManageEmployeeAssignments(currentUser.permissionCodes ?? [])) {
+      throw new ForbiddenException('Employee assignment management denied');
     }
   }
 

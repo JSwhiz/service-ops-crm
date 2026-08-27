@@ -1,6 +1,11 @@
 export class ObjectEmployeeOptionDto {
   id!: string;
   fullName!: string;
+  position!: string | null;
+  baseDailyRate!: number | null;
+  workScheduleCode!: string | null;
+  workScheduleCustom!: string | null;
+  workTimeText!: string | null;
   isAssignedToObject!: boolean;
   ratePolicy!: {
     ratePolicyType: string;

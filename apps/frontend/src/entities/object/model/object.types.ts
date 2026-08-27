@@ -8,6 +8,11 @@ export interface ObjectAssignedUser {
 export interface ObjectEmployeeOption {
   id: string;
   fullName: string;
+  position: string | null;
+  baseDailyRate: number | null;
+  workScheduleCode: string | null;
+  workScheduleCustom: string | null;
+  workTimeText: string | null;
   isAssignedToObject: boolean;
   ratePolicy: {
     ratePolicyType: string;
@@ -60,6 +65,15 @@ export interface ServiceObject {
     login: string;
     fullName: string;
   } | null;
+  employees: Array<{
+    id: string;
+    fullName: string;
+    position: string | null;
+    baseDailyRate: number | null;
+    workScheduleCode: string | null;
+    workScheduleCustom: string | null;
+    workTimeText: string | null;
+  }>;
   capabilities: {
     canEdit: boolean;
     canEditDailyRate: boolean;
@@ -67,6 +81,8 @@ export interface ServiceObject {
     canManageResponsibles: boolean;
     canManageManagers: boolean;
     canCreateTask: boolean;
+    canViewOperationalSections: boolean;
+    canManageEmployees: boolean;
   };
 }
 

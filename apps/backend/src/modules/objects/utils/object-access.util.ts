@@ -33,6 +33,8 @@ export const FROZEN_OBJECT_OVERRIDE_ROLES = [
   'director',
 ] as const;
 
+export const OBJECT_HR_VIEW_PERMISSION_CODE = 'objects.view_hr';
+
 function hasAnyRole(
   roleCodes: string[],
   allowed: readonly string[],
@@ -68,9 +70,14 @@ export function canBeObjectManager(roleCodes: string[]): boolean {
   return hasAnyRole(roleCodes, OBJECT_MANAGER_ROLE_CODES);
 }
 
+export function hasHrObjectView(permissionCodes: string[] = []): boolean {
+  return permissionCodes.includes(OBJECT_HR_VIEW_PERMISSION_CODE);
+}
+
 export function canViewObjectByScope(params: {
   currentUserId: string;
   roleCodes: string[];
+  permissionCodes?: string[];
   object: {
     createdByUserId: string;
     assignments: Array<{
@@ -79,7 +86,10 @@ export function canViewObjectByScope(params: {
     }>;
   };
 }): boolean {
-  if (hasWideObjectAccess(params.roleCodes)) {
+  if (
+    hasWideObjectAccess(params.roleCodes) ||
+    hasHrObjectView(params.permissionCodes)
+  ) {
     return true;
   }
 

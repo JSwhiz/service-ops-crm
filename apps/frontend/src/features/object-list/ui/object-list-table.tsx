@@ -85,6 +85,8 @@ export function ObjectListTable({
             <th>Адрес</th>
             <th>Статус</th>
             <th>Сезонность</th>
+            <th>Ставка объекта</th>
+            <th>Сотрудники</th>
             <th>Ответственный</th>
             <th>Менеджеры</th>
             <th aria-sort={getAriaSort('updatedAt', sortBy, sortDirection)}>
@@ -120,6 +122,8 @@ export function ObjectListTable({
                   </span>
                 </td>
                 <td>{getSeasonLabel(item.seasonMode)}</td>
+                <td>{item.dailyRate.toLocaleString('ru-RU')} ₽/день</td>
+                <td>{item.employees.length}</td>
                 <td>
                   {item.responsible
                     ? getUserDisplayName(item.responsible)

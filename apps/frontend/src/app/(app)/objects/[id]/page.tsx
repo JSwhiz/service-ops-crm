@@ -201,22 +201,28 @@ export default function ObjectDetailPage({
       }
 
       setObjectId(resolved.id);
+      const core = await loadCore(resolved.id, cancelled);
+      if (!core || cancelled) return;
 
-      await Promise.all([
-        loadCore(resolved.id, cancelled),
-        loadArrival(resolved.id, cancelled),
-        loadReport(resolved.id, cancelled),
-        loadComments(resolved.id, cancelled),
-        loadFeed(resolved.id, cancelled),
-        loadLinkedOrders(resolved.id, cancelled),
-        loadObjectInventory(resolved.id, cancelled),
-        loadObjectEquipment(resolved.id, cancelled),
-        loadObjectFiles(resolved.id, cancelled),
-        loadTasks(resolved.id, cancelled),
-        loadAssignedEmployees(resolved.id, cancelled),
-        loadAttendance(resolved.id, cancelled),
-        loadDirectory(resolved.id, '', cancelled),
-      ]);
+      const employeeLoads = [loadAssignedEmployees(resolved.id, cancelled)];
+      if (core.capabilities.canManageEmployees) {
+        employeeLoads.push(loadDirectory(resolved.id, '', cancelled));
+      }
+      const operationalLoads = core.capabilities.canViewOperationalSections
+        ? [
+            loadArrival(resolved.id, cancelled),
+            loadReport(resolved.id, cancelled),
+            loadComments(resolved.id, cancelled),
+            loadFeed(resolved.id, cancelled),
+            loadLinkedOrders(resolved.id, cancelled),
+            loadObjectInventory(resolved.id, cancelled),
+            loadObjectEquipment(resolved.id, cancelled),
+            loadObjectFiles(resolved.id, cancelled),
+            loadTasks(resolved.id, cancelled),
+            loadAttendance(resolved.id, cancelled),
+          ]
+        : [];
+      await Promise.all([...employeeLoads, ...operationalLoads]);
     };
 
     void boot();
@@ -289,7 +295,7 @@ export default function ObjectDetailPage({
   }, [objectId, item, canManageResponsibles, canManageManagers]);
 
   useEffect(() => {
-    if (!objectId) {
+    if (!objectId || !item?.capabilities.canManageEmployees) {
       return;
     }
 
@@ -303,9 +309,12 @@ export default function ObjectDetailPage({
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [objectId, employeeSearch]);
+  }, [objectId, employeeSearch, item?.capabilities.canManageEmployees]);
 
-  const loadCore = async (id: string, cancelled = false): Promise<void> => {
+  const loadCore = async (
+    id: string,
+    cancelled = false,
+  ): Promise<ServiceObject | null> => {
     setCoreLoading(true);
     setCoreError(null);
 
@@ -315,12 +324,14 @@ export default function ObjectDetailPage({
       if (!cancelled) {
         setItem(response);
       }
+      return response;
     } catch (error) {
       if (!cancelled) {
         setCoreError(
           getErrorMessage(error, 'Не удалось загрузить карточку объекта.'),
         );
       }
+      return null;
     } finally {
       if (!cancelled) {
         setCoreLoading(false);
@@ -660,7 +671,7 @@ export default function ObjectDetailPage({
         <div className="page-stack">
           <ObjectSummaryCard item={item} />
 
-          <div className="page-card">
+          {item.capabilities.canViewOperationalSections ? <div className="page-card">
             <div className="section-header" style={{ paddingBottom: 0 }}>
               <div>
                 <div className="section-title">Рабочий чат объектов</div>
@@ -670,7 +681,7 @@ export default function ObjectDetailPage({
               </div>
               <Link href="/chats?room=objects">Открыть чат</Link>
             </div>
-          </div>
+          </div> : null}
 
           {canManageObjectStatus ? (
             <ObjectStatusControlPanel
@@ -737,7 +748,7 @@ export default function ObjectDetailPage({
             </div>
           )}
 
-          <div className="detail-grid">
+          {item.capabilities.canViewOperationalSections ? <div className="detail-grid">
             {arrivalLoading ? (
               <ObjectPanelLoading title="Фото прибытия сегодня" />
             ) : arrivalError ? (
@@ -823,7 +834,7 @@ export default function ObjectDetailPage({
                 }}
               />
             )}
-          </div>
+          </div> : null}
 
           {assignedEmployeesLoading ? (
             <ObjectPanelLoading title="Состав сотрудников объекта" />
@@ -842,20 +853,27 @@ export default function ObjectDetailPage({
               onSearchChange={setEmployeeSearch}
               onAdd={async (employeeId) => {
                 await addEmployeeToObject(objectId, employeeId);
-                await Promise.all([
+                const reloads = [
                   loadAssignedEmployees(objectId),
                   loadDirectory(objectId, employeeSearch),
-                  loadAttendance(objectId),
-                ]);
+                ];
+                if (item.capabilities.canViewOperationalSections) {
+                  reloads.push(loadAttendance(objectId));
+                }
+                await Promise.all(reloads);
               }}
               onRemove={async (employeeId) => {
                 await removeEmployeeFromObject(objectId, employeeId);
-                await Promise.all([
+                const reloads = [
                   loadAssignedEmployees(objectId),
                   loadDirectory(objectId, employeeSearch),
-                  loadAttendance(objectId),
-                ]);
+                ];
+                if (item.capabilities.canViewOperationalSections) {
+                  reloads.push(loadAttendance(objectId));
+                }
+                await Promise.all(reloads);
               }}
+              canManageAssignments={item.capabilities.canManageEmployees}
               canManageRatePolicy={item.capabilities.canEditDailyRate}
               onUpdateRatePolicy={async (employeeId, payload) => {
                 await updateObjectEmployeeRatePolicy(objectId, employeeId, payload);
@@ -867,7 +885,7 @@ export default function ObjectDetailPage({
             />
           )}
 
-          {linkedOrdersLoading ? (
+          {item.capabilities.canViewOperationalSections ? <>{linkedOrdersLoading ? (
             <ObjectPanelLoading title="Из разового заказа" />
           ) : linkedOrdersError ? (
             <ObjectPanelError
@@ -996,7 +1014,7 @@ export default function ObjectDetailPage({
             ) : (
               <ObjectFeedList items={feed} />
             )}
-          </div>
+          </div></> : null}
         </div>
       ) : (
         <div className="page-card">Объект не найден.</div>

@@ -30,6 +30,7 @@ import {
   canEditObjectDailyRate,
   canManageObjectResponsibles,
   canOverrideFrozenObject,
+  hasHrObjectView,
   hasWideObjectAccess,
 } from './utils/object-access.util';
 import { buildObjectCapabilities } from './utils/object-capabilities.util';
@@ -40,6 +41,7 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
@@ -70,6 +72,17 @@ interface ObjectView {
   updatedAt: Date;
   createdByUserId: string;
   assignments: ObjectAssignmentView[];
+  employeeAssignments?: Array<{
+    employee: {
+      id: string;
+      fullName: string;
+      position: string | null;
+      baseDailyRate: number | null;
+      workScheduleCode: string | null;
+      workScheduleCustom: string | null;
+      workTimeText: string | null;
+    };
+  }>;
 }
 
 type AuditPrimitive = string | number | boolean | null;
@@ -150,6 +163,7 @@ export class ObjectsService {
             where: { isActive: true },
             include: { user: true },
           },
+          employeeAssignments: this.getEmployeeAssignmentsInclude(),
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       })) as ObjectView[];
@@ -177,6 +191,7 @@ export class ObjectsService {
             where: { isActive: true },
             include: { user: true },
           },
+          employeeAssignments: this.getEmployeeAssignmentsInclude(),
         },
       }),
     ]);
@@ -208,6 +223,7 @@ export class ObjectsService {
             user: true,
           },
         },
+        employeeAssignments: this.getEmployeeAssignmentsInclude(),
       },
     })) as ObjectView | null;
 
@@ -222,7 +238,16 @@ export class ObjectsService {
     currentUser: CurrentAuthUser,
     id: string,
   ): Promise<ObjectAuditLogResponseDto[]> {
-    await this.getObjectById(currentUser, id);
+    const visibleOperationalObject = await this.prisma.object.findFirst({
+      where: {
+        id,
+        ...this.buildOperationalVisibilityWhere(currentUser),
+      },
+      select: { id: true },
+    });
+    if (!visibleOperationalObject) {
+      throw new NotFoundException('Object not found');
+    }
 
     const items = await this.auditService.listObjectAuditLogs(id);
 
@@ -1041,12 +1066,22 @@ export class ObjectsService {
   }
 
   private async buildVisibilityWhere(currentUser: CurrentAuthUser) {
-    const roleCodes = this.getRoleCodes(currentUser);
-
-    if (hasWideObjectAccess(roleCodes)) {
+    if (hasHrObjectView(currentUser.permissionCodes)) {
       return {
         deletedAt: null,
       };
+    }
+
+    return this.buildOperationalVisibilityWhere(currentUser);
+  }
+
+  private buildOperationalVisibilityWhere(
+    currentUser: CurrentAuthUser,
+  ): Prisma.ObjectWhereInput {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    if (hasWideObjectAccess(roleCodes)) {
+      return { deletedAt: null };
     }
 
     return {
@@ -1064,6 +1099,29 @@ export class ObjectsService {
           },
         },
       ],
+    };
+  }
+
+  private getEmployeeAssignmentsInclude() {
+    return {
+      where: {
+        isActive: true,
+        employee: { deletedAt: null },
+      },
+      select: {
+        employee: {
+          select: {
+            id: true,
+            fullName: true,
+            position: true,
+            baseDailyRate: true,
+            workScheduleCode: true,
+            workScheduleCustom: true,
+            workTimeText: true,
+          },
+        },
+      },
+      orderBy: { employee: { fullName: 'asc' as const } },
     };
   }
 
@@ -1191,9 +1249,13 @@ export class ObjectsService {
             fullName: responsible.fullName,
           }
         : null,
+      employees: (item.employeeAssignments ?? []).map(
+        (assignment) => assignment.employee,
+      ),
       capabilities: buildObjectCapabilities({
         currentUserId: currentUser.id,
         roleCodes,
+        permissionCodes: currentUser.permissionCodes ?? [],
         objectStatus: item.status,
         createdByUserId: item.createdByUserId,
         assignments: mappedAssignments,
