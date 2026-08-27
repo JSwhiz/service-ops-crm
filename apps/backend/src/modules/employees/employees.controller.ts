@@ -23,6 +23,10 @@ import { EmployeeObjectOptionDto } from './dto/employee-object-option.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeVersionDto } from './dto/employee-version.dto';
 import {
+  DeleteEmployeeAssignmentAsErrorDto,
+  DeleteEmployeePermanentlyDto,
+} from './dto/delete-employee-record.dto';
+import {
   EmployeeObjectReferenceDto,
   EmployeePositionReferenceDto,
   ListEmployeeReferencesQueryDto,
@@ -129,6 +133,19 @@ export class EmployeesController {
     return this.employeesService.restoreEmployee(user, employeeId, payload);
   }
 
+  @Post(':id/delete-permanently')
+  deleteEmployeePermanently(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') employeeId: string,
+    @Body() payload: DeleteEmployeePermanentlyDto,
+  ): Promise<{ success: true }> {
+    return this.employeesService.deleteEmployeePermanently(
+      user,
+      employeeId,
+      payload,
+    );
+  }
+
   @Post(':id/availability')
   addAvailabilityWindow(
     @CurrentUser() user: CurrentAuthUser,
@@ -166,6 +183,21 @@ export class EmployeesController {
       user,
       employeeId,
       objectId,
+    );
+  }
+
+  @Post(':id/object-assignment-history/:historyId/delete-as-error')
+  deleteObjectAssignmentAsError(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') employeeId: string,
+    @Param('historyId') historyId: string,
+    @Body() payload: DeleteEmployeeAssignmentAsErrorDto,
+  ): Promise<EmployeeResponseDto> {
+    return this.employeesService.deleteObjectAssignmentAsError(
+      user,
+      employeeId,
+      historyId,
+      payload,
     );
   }
 }

@@ -167,6 +167,30 @@ export async function restoreEmployee(
   });
 }
 
+export async function deleteEmployeePermanently(
+  id: string,
+  payload: { expectedVersion: number; reason: string },
+): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/employees/${id}/delete-permanently`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteEmployeeAssignmentAsError(
+  employeeId: string,
+  historyId: string,
+  reason: string,
+): Promise<EmployeeDetail> {
+  return fetcher<EmployeeDetail>(
+    `/employees/${employeeId}/object-assignment-history/${historyId}/delete-as-error`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
 export async function addEmployeeAvailability(
   id: string,
   payload: {

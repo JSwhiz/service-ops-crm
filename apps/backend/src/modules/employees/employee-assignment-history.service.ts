@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -11,8 +12,10 @@ export class EmployeeAssignmentHistoryService {
     objectId: string;
     startedAt: Date;
     actorUserId: string;
-  }): Promise<void> {
-    const existing = await this.prisma.employeeObjectAssignmentHistory.findFirst({
+    tx?: Prisma.TransactionClient;
+  }): Promise<string> {
+    const client = params.tx ?? this.prisma;
+    const existing = await client.employeeObjectAssignmentHistory.findFirst({
       where: {
         employeeId: params.employeeId,
         objectId: params.objectId,
@@ -24,10 +27,10 @@ export class EmployeeAssignmentHistoryService {
     });
 
     if (existing) {
-      return;
+      return existing.id;
     }
 
-    await this.prisma.employeeObjectAssignmentHistory.create({
+    const created = await client.employeeObjectAssignmentHistory.create({
       data: {
         employeeId: params.employeeId,
         objectId: params.objectId,
@@ -35,6 +38,8 @@ export class EmployeeAssignmentHistoryService {
         createdByUserId: params.actorUserId,
       },
     });
+
+    return created.id;
   }
 
   async closeObjectAssignmentHistory(params: {
@@ -42,8 +47,10 @@ export class EmployeeAssignmentHistoryService {
     objectId: string;
     endedAt: Date;
     actorUserId: string;
-  }): Promise<void> {
-    const existing = await this.prisma.employeeObjectAssignmentHistory.findFirst({
+    tx?: Prisma.TransactionClient;
+  }): Promise<string | null> {
+    const client = params.tx ?? this.prisma;
+    const existing = await client.employeeObjectAssignmentHistory.findFirst({
       where: {
         employeeId: params.employeeId,
         objectId: params.objectId,
@@ -58,10 +65,10 @@ export class EmployeeAssignmentHistoryService {
     });
 
     if (!existing) {
-      return;
+      return null;
     }
 
-    await this.prisma.employeeObjectAssignmentHistory.update({
+    await client.employeeObjectAssignmentHistory.update({
       where: {
         id: existing.id,
       },
@@ -70,5 +77,7 @@ export class EmployeeAssignmentHistoryService {
         closedByUserId: params.actorUserId,
       },
     });
+
+    return existing.id;
   }
 }

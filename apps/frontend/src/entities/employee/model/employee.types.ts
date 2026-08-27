@@ -106,12 +106,15 @@ export interface EmployeeDetail {
   createdAt: string;
   updatedAt: string;
   currentObjectAssignments: Array<{
+    assignmentId: string;
+    historyId: string | null;
     objectId: string;
     objectName: string;
     objectDailyRate: number;
     startDate: string | null;
     endDate: string | null;
     canOpenObjectCard: boolean;
+    canDeleteAsError: boolean;
   }>;
   objectAssignmentHistory: Array<{
     id: string;
@@ -157,6 +160,10 @@ export interface EmployeeDetail {
   };
   lifecycleEligibility: {
     archive: {
+      eligible: boolean;
+      blockers: Array<{ code: string; count: number }>;
+    };
+    permanentDelete: {
       eligible: boolean;
       blockers: Array<{ code: string; count: number }>;
     };

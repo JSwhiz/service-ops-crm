@@ -19,6 +19,8 @@ export class EmployeeResponseDto {
   createdAt!: string;
   updatedAt!: string;
   currentObjectAssignments!: Array<{
+    assignmentId: string;
+    historyId: string | null;
     objectId: string;
     objectName: string;
     objectDailyRate: number;
@@ -34,6 +36,7 @@ export class EmployeeResponseDto {
     startedAt: string;
     endedAt: string | null;
     canOpenObjectCard: boolean;
+    canDeleteAsError: boolean;
   }>;
   availabilityWindows!: Array<{
     id: string;
@@ -70,6 +73,10 @@ export class EmployeeResponseDto {
   };
   lifecycleEligibility!: {
     archive: {
+      eligible: boolean;
+      blockers: Array<{ code: string; count: number }>;
+    };
+    permanentDelete: {
       eligible: boolean;
       blockers: Array<{ code: string; count: number }>;
     };

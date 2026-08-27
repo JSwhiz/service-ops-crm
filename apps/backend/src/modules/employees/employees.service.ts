@@ -25,6 +25,10 @@ import { EmployeeObjectOptionDto } from './dto/employee-object-option.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeVersionDto } from './dto/employee-version.dto';
 import {
+  DeleteEmployeeAssignmentAsErrorDto,
+  DeleteEmployeePermanentlyDto,
+} from './dto/delete-employee-record.dto';
+import {
   EmployeeObjectReferenceDto,
   EmployeePositionReferenceDto,
   ListEmployeeReferencesQueryDto,
@@ -249,7 +253,15 @@ export class EmployeesService {
       throw new NotFoundException('Employee not found');
     }
 
-    return this.mapEmployee(employee, currentUser);
+    const permanentDeleteBlockers = canDeleteEmployeePermanently(
+      this.getPermissionCodes(currentUser),
+    )
+      ? await this.prisma.$transaction((tx) =>
+          this.getEmployeeDependencyBlockers(tx, employeeId),
+        )
+      : [];
+
+    return this.mapEmployee(employee, currentUser, permanentDeleteBlockers);
   }
 
   async createEmployee(
@@ -668,55 +680,78 @@ export class EmployeesService {
     payload: AssignEmployeeToObjectDto,
   ): Promise<EmployeeResponseDto> {
     this.assertAssignmentManageAccess(currentUser);
-
-    const [employee, object] = await Promise.all([
-      this.ensureEmployeeExists(employeeId),
-      this.prisma.object.findFirst({
-        where: {
-          id: payload.objectId,
-          deletedAt: null,
-        },
-        select: {
-          id: true,
-        },
-      }),
-    ]);
-
-    if (employee.employmentStatus !== 'active') {
-      throw new ForbiddenException('Only active employees can be assigned to object');
-    }
-
-    if (!object) {
-      throw new NotFoundException('Object not found');
-    }
-
     const startedAt = payload.startDate ? new Date(payload.startDate) : new Date();
 
-    await this.prisma.objectEmployeeAssignment.upsert({
-      where: {
-        objectId_employeeId: {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
+      `;
+      const [employee, object, existingAssignment] = await Promise.all([
+        tx.employee.findFirst({
+          where: { id: employeeId, deletedAt: null },
+          select: { id: true, employmentStatus: true },
+        }),
+        tx.object.findFirst({
+          where: { id: payload.objectId, deletedAt: null },
+          select: { id: true, name: true },
+        }),
+        tx.objectEmployeeAssignment.findUnique({
+          where: {
+            objectId_employeeId: { objectId: payload.objectId, employeeId },
+          },
+        }),
+      ]);
+
+      if (!employee) throw new NotFoundException('Employee not found');
+      if (!object) throw new NotFoundException('Object not found');
+      if (employee.employmentStatus !== 'active') {
+        throw new ForbiddenException(
+          'Only active employees can be assigned to object',
+        );
+      }
+      if (existingAssignment?.isActive) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_ALREADY_ASSIGNED_TO_OBJECT',
+          message: 'Employee is already assigned to this object',
+        });
+      }
+
+      const assignment = await tx.objectEmployeeAssignment.upsert({
+        where: {
+          objectId_employeeId: { objectId: object.id, employeeId },
+        },
+        update: { isActive: true, startDate: startedAt, endDate: null },
+        create: {
           objectId: object.id,
           employeeId,
+          isActive: true,
+          startDate: startedAt,
         },
-      },
-      update: {
-        isActive: true,
-        startDate: startedAt,
-        endDate: null,
-      },
-      create: {
-        objectId: object.id,
-        employeeId,
-        isActive: true,
-        startDate: startedAt,
-      },
-    });
+      });
+      const historyId =
+        await this.assignmentHistoryService.openObjectAssignmentHistory({
+          employeeId,
+          objectId: object.id,
+          startedAt,
+          actorUserId: currentUser.id,
+          tx,
+        });
 
-    await this.assignmentHistoryService.openObjectAssignmentHistory({
-      employeeId,
-      objectId: object.id,
-      startedAt,
-      actorUserId: currentUser.id,
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'employee',
+          entityId: employeeId,
+          actorUserId: currentUser.id,
+          action: 'employee.object_assignment.created',
+          newValues: {
+            assignmentId: assignment.id,
+            historyId,
+            objectId: object.id,
+            startedAt: startedAt.toISOString(),
+          },
+        },
+        tx,
+      );
     });
 
     return this.getEmployeeById(currentUser, employeeId);
@@ -728,29 +763,226 @@ export class EmployeesService {
     objectId: string,
   ): Promise<EmployeeResponseDto> {
     this.assertAssignmentManageAccess(currentUser);
-    await this.ensureEmployeeExists(employeeId);
-
     const endedAt = new Date();
 
-    await this.prisma.objectEmployeeAssignment.updateMany({
-      where: {
-        objectId,
-        employeeId,
-      },
-      data: {
-        isActive: false,
-        endDate: endedAt,
-      },
-    });
-
-    await this.assignmentHistoryService.closeObjectAssignmentHistory({
-      employeeId,
-      objectId,
-      endedAt,
-      actorUserId: currentUser.id,
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "object_employee_assignments"
+        WHERE "employeeId" = ${employeeId} AND "objectId" = ${objectId}
+        FOR UPDATE
+      `;
+      if (locked.length === 0) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_ASSIGNMENT_NOT_ACTIVE',
+          message: 'Employee assignment is not active',
+        });
+      }
+      const existing = await tx.objectEmployeeAssignment.findUnique({
+        where: { objectId_employeeId: { objectId, employeeId } },
+      });
+      if (!existing?.isActive) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_ASSIGNMENT_NOT_ACTIVE',
+          message: 'Employee assignment is not active',
+        });
+      }
+      const result = await tx.objectEmployeeAssignment.updateMany({
+        where: { id: existing.id, isActive: true },
+        data: { isActive: false, endDate: endedAt },
+      });
+      if (result.count !== 1) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_ASSIGNMENT_CONFLICT',
+          message: 'Employee assignment was changed concurrently',
+        });
+      }
+      const historyId =
+        await this.assignmentHistoryService.closeObjectAssignmentHistory({
+          employeeId,
+          objectId,
+          endedAt,
+          actorUserId: currentUser.id,
+          tx,
+        });
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'employee',
+          entityId: employeeId,
+          actorUserId: currentUser.id,
+          action: 'employee.object_assignment.ended',
+          oldValues: {
+            assignmentId: existing.id,
+            historyId,
+            objectId,
+            startDate: existing.startDate?.toISOString() ?? null,
+          },
+          newValues: { endedAt: endedAt.toISOString() },
+        },
+        tx,
+      );
     });
 
     return this.getEmployeeById(currentUser, employeeId);
+  }
+
+  async deleteObjectAssignmentAsError(
+    currentUser: CurrentAuthUser,
+    employeeId: string,
+    historyId: string,
+    payload: DeleteEmployeeAssignmentAsErrorDto,
+  ): Promise<EmployeeResponseDto> {
+    this.assertDeleteAssignmentAsErrorAccess(currentUser);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
+      `;
+      const initialHistory =
+        await tx.employeeObjectAssignmentHistory.findFirst({
+          where: { id: historyId, employeeId },
+        });
+      if (!initialHistory) {
+        throw new NotFoundException('Employee assignment history not found');
+      }
+
+      let currentAssignment: Awaited<
+        ReturnType<typeof tx.objectEmployeeAssignment.findUnique>
+      > = null;
+      if (!initialHistory.endedAt) {
+        await tx.$queryRaw`
+          SELECT "id"
+          FROM "object_employee_assignments"
+          WHERE "employeeId" = ${employeeId}
+            AND "objectId" = ${initialHistory.objectId}
+          FOR UPDATE
+        `;
+        currentAssignment = await tx.objectEmployeeAssignment.findUnique({
+          where: {
+            objectId_employeeId: {
+              employeeId,
+              objectId: initialHistory.objectId,
+            },
+          },
+        });
+      }
+
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "employee_object_assignment_history"
+        WHERE "id" = ${historyId}
+        FOR UPDATE
+      `;
+      const history = await tx.employeeObjectAssignmentHistory.findFirst({
+        where: { id: historyId, employeeId },
+      });
+      if (!history || history.endedAt?.getTime() !== initialHistory.endedAt?.getTime()) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_ASSIGNMENT_CONFLICT',
+          message: 'Employee assignment was changed concurrently',
+        });
+      }
+      if (!history.endedAt && !currentAssignment?.isActive) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_ASSIGNMENT_CONFLICT',
+          message: 'Employee assignment was changed concurrently',
+        });
+      }
+
+      const blockers = await this.getAssignmentOperationalBlockers(tx, {
+        employeeId,
+        objectId: history.objectId,
+        startedAt: history.startedAt,
+        endedAt: history.endedAt,
+      });
+      if (blockers.length > 0) {
+        throw new ConflictException({
+          code: 'ASSIGNMENT_HAS_OPERATIONAL_HISTORY',
+          message:
+            'Назначение уже использовалось в учёте. Удалить запись невозможно. Используйте завершение назначения.',
+          blockers,
+        });
+      }
+
+      if (!history.endedAt && currentAssignment) {
+        await tx.objectEmployeeAssignment.delete({
+          where: { id: currentAssignment.id },
+        });
+      }
+      await tx.employeeObjectAssignmentHistory.delete({
+        where: { id: history.id },
+      });
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'employee',
+          entityId: employeeId,
+          actorUserId: currentUser.id,
+          action: 'employee.object_assignment.deleted_as_error',
+          oldValues: {
+            employeeId,
+            objectId: history.objectId,
+            historyId: history.id,
+            startedAt: history.startedAt.toISOString(),
+            endedAt: history.endedAt?.toISOString() ?? null,
+            currentAssignment: currentAssignment
+              ? {
+                  id: currentAssignment.id,
+                  isActive: currentAssignment.isActive,
+                  startDate: currentAssignment.startDate?.toISOString() ?? null,
+                  endDate: currentAssignment.endDate?.toISOString() ?? null,
+                }
+              : null,
+          },
+          metadata: { reason: payload.reason },
+        },
+        tx,
+      );
+    });
+
+    return this.getEmployeeById(currentUser, employeeId);
+  }
+
+  async deleteEmployeePermanently(
+    currentUser: CurrentAuthUser,
+    employeeId: string,
+    payload: DeleteEmployeePermanentlyDto,
+  ): Promise<{ success: true }> {
+    this.assertDeletePermanentlyAccess(currentUser);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id" FROM "employees" WHERE "id" = ${employeeId} FOR UPDATE
+      `;
+      const employee = await tx.employee.findUnique({ where: { id: employeeId } });
+      if (!employee) throw new NotFoundException('Employee not found');
+      if (employee.version !== payload.expectedVersion) {
+        this.throwVersionConflict();
+      }
+
+      const blockers = await this.getEmployeeDependencyBlockers(tx, employeeId);
+      if (blockers.length > 0) {
+        throw new ConflictException({
+          code: 'EMPLOYEE_HAS_OPERATIONAL_HISTORY',
+          message: 'Employee has operational history and cannot be deleted',
+          blockers,
+        });
+      }
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'employee',
+          entityId: employeeId,
+          actorUserId: currentUser.id,
+          action: 'employee.deleted_permanently',
+          oldValues: this.buildEmployeeAuditSnapshot(employee),
+          metadata: { reason: payload.reason },
+        },
+        tx,
+      );
+      await tx.employee.delete({ where: { id: employeeId } });
+    });
+
+    return { success: true };
   }
 
   private buildEmployeeListConditions(query: ListEmployeesQueryDto): Prisma.Sql[] {
@@ -902,10 +1134,117 @@ export class EmployeesService {
     );
   }
 
+  private assertDeleteAssignmentAsErrorAccess(
+    currentUser: CurrentAuthUser,
+  ): void {
+    this.assertPermission(
+      canDeleteEmployeeAssignmentAsError(
+        this.getPermissionCodes(currentUser),
+      ),
+      'Employee assignment deletion denied',
+    );
+  }
+
+  private assertDeletePermanentlyAccess(currentUser: CurrentAuthUser): void {
+    this.assertPermission(
+      canDeleteEmployeePermanently(this.getPermissionCodes(currentUser)),
+      'Permanent employee deletion denied',
+    );
+  }
+
   private assertPermission(allowed: boolean, message: string): void {
     if (!allowed) {
       throw new ForbiddenException(message);
     }
+  }
+
+  private async getAssignmentOperationalBlockers(
+    tx: Prisma.TransactionClient,
+    params: {
+      employeeId: string;
+      objectId: string;
+      startedAt: Date;
+      endedAt: Date | null;
+    },
+  ): Promise<Array<{ code: string; count: number }>> {
+    const dateWhere = {
+      gte: params.startedAt,
+      ...(params.endedAt ? { lte: params.endedAt } : {}),
+    };
+    const substitutionWhere: Prisma.EmployeeSubstitutionWhereInput = {
+      objectId: params.objectId,
+      OR: [
+        { employeeId: params.employeeId },
+        { substituteEmployeeId: params.employeeId },
+      ],
+      startDate: params.endedAt ? { lte: params.endedAt } : undefined,
+      AND: [{ OR: [{ endDate: null }, { endDate: { gte: params.startedAt } }] }],
+    };
+    const [attendance, timesheetRows, timesheetExceptions, substitutions] =
+      await Promise.all([
+        tx.objectAttendanceFact.count({
+          where: {
+            employeeId: params.employeeId,
+            objectId: params.objectId,
+            operationDate: dateWhere,
+          },
+        }),
+        tx.timesheetEmployeeRow.count({
+          where: {
+            employeeId: params.employeeId,
+            timesheetMonth: { objectId: params.objectId },
+          },
+        }),
+        tx.timesheetManualException.count({
+          where: { employeeId: params.employeeId, objectId: params.objectId },
+        }),
+        tx.employeeSubstitution.count({ where: substitutionWhere }),
+      ]);
+
+    return [
+      { code: 'attendance_facts', count: attendance },
+      { code: 'timesheet_rows', count: timesheetRows },
+      { code: 'timesheet_exceptions', count: timesheetExceptions },
+      { code: 'substitutions', count: substitutions },
+    ].filter((item) => item.count > 0);
+  }
+
+  private async getEmployeeDependencyBlockers(
+    tx: Prisma.TransactionClient,
+    employeeId: string,
+  ): Promise<Array<{ code: string; count: number }>> {
+    const [
+      assignments,
+      assignmentHistory,
+      availability,
+      substitutionsPrimary,
+      substitutionsReplacement,
+      attendance,
+      timesheetRows,
+      timesheetExceptions,
+    ] = await Promise.all([
+      tx.objectEmployeeAssignment.count({ where: { employeeId } }),
+      tx.employeeObjectAssignmentHistory.count({ where: { employeeId } }),
+      tx.employeeAvailabilityWindow.count({ where: { employeeId } }),
+      tx.employeeSubstitution.count({ where: { employeeId } }),
+      tx.employeeSubstitution.count({
+        where: { substituteEmployeeId: employeeId },
+      }),
+      tx.objectAttendanceFact.count({ where: { employeeId } }),
+      tx.timesheetEmployeeRow.count({ where: { employeeId } }),
+      tx.timesheetManualException.count({ where: { employeeId } }),
+    ]);
+
+    return [
+      { code: 'object_assignments', count: assignments },
+      { code: 'assignment_history', count: assignmentHistory },
+      { code: 'availability_windows', count: availability },
+      { code: 'substitutions_primary', count: substitutionsPrimary },
+      { code: 'substitutions_replacement', count: substitutionsReplacement },
+      { code: 'attendance_facts', count: attendance },
+      { code: 'timesheet_rows', count: timesheetRows },
+      { code: 'timesheet_exceptions', count: timesheetExceptions },
+    ].filter((item) => item.count > 0);
   }
 
   private async ensureEmployeeExists(employeeId: string) {
@@ -1022,6 +1361,8 @@ export class EmployeesService {
     notes: string | null;
     employmentStatus: string;
     version: number;
+    createdAt: Date;
+    updatedAt: Date;
     deletedAt: Date | null;
   }): Prisma.InputJsonValue {
     return {
@@ -1039,6 +1380,8 @@ export class EmployeesService {
       notes: employee.notes,
       employmentStatus: employee.employmentStatus,
       version: employee.version,
+      createdAt: employee.createdAt.toISOString(),
+      updatedAt: employee.updatedAt.toISOString(),
       deletedAt: employee.deletedAt?.toISOString() ?? null,
     };
   }
@@ -1194,6 +1537,7 @@ export class EmployeesService {
       updatedAt: Date;
       deletedAt: Date | null;
       objectAssignments: Array<{
+        id: string;
         isActive: boolean;
         startDate: Date | null;
         endDate: Date | null;
@@ -1253,6 +1597,7 @@ export class EmployeesService {
       }>;
     },
     currentUser: CurrentAuthUser,
+    permanentDeleteBlockers: Array<{ code: string; count: number }>,
   ): EmployeeResponseDto {
     const permissionCodes = this.getPermissionCodes(currentUser);
     const canEdit = canEditEmployee(permissionCodes);
@@ -1281,6 +1626,12 @@ export class EmployeesService {
       currentObjectAssignments: employee.objectAssignments
         .filter((assignment) => assignment.isActive)
         .map((assignment) => ({
+          assignmentId: assignment.id,
+          historyId:
+            employee.objectAssignmentHistory.find(
+              (history) =>
+                history.object.id === assignment.object.id && !history.endedAt,
+            )?.id ?? null,
           objectId: assignment.object.id,
           objectName: assignment.object.name,
           objectDailyRate: assignment.object.dailyRate,
@@ -1296,6 +1647,8 @@ export class EmployeesService {
         startedAt: item.startedAt.toISOString(),
         endedAt: item.endedAt?.toISOString() ?? null,
         canOpenObjectCard: this.canOpenObjectCard(currentUser, item.object),
+        canDeleteAsError:
+          canDeleteEmployeeAssignmentAsError(permissionCodes),
       })),
       availabilityWindows: employee.availabilityWindows.map((item) => ({
         id: item.id,
@@ -1367,6 +1720,10 @@ export class EmployeesService {
                 },
               ]
             : [],
+        },
+        permanentDelete: {
+          eligible: permanentDeleteBlockers.length === 0,
+          blockers: permanentDeleteBlockers,
         },
       },
     };
