@@ -1,4 +1,4 @@
-import { fetcher } from '@/shared/api/fetcher';
+import { fetcher } from "@/shared/api/fetcher";
 
 export interface AuthUser {
   id: string;
@@ -23,6 +23,13 @@ export interface AuthUser {
     canApproveOneTimeOrderAvailability?: boolean;
     canAccessEmployeesHr?: boolean;
     canManageEmployeesHr?: boolean;
+    canCreateEmployee?: boolean;
+    canEditEmployee?: boolean;
+    canArchiveEmployee?: boolean;
+    canRestoreEmployee?: boolean;
+    canDeleteEmployeePermanently?: boolean;
+    canManageEmployeeAssignments?: boolean;
+    canDeleteEmployeeAssignmentAsError?: boolean;
     canAccessAccountability?: boolean;
     canViewOwnAccountability?: boolean;
     canIssueAccountabilityFunds?: boolean;
@@ -67,26 +74,26 @@ export interface AuthResponse {
 }
 
 export async function login(payload: LoginPayload): Promise<AuthResponse> {
-  return fetcher<AuthResponse>('/auth/login', {
-    method: 'POST',
+  return fetcher<AuthResponse>("/auth/login", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
 export async function refreshSessionRequest(): Promise<AuthResponse> {
-  return fetcher<AuthResponse>('/auth/refresh', {
-    method: 'POST',
+  return fetcher<AuthResponse>("/auth/refresh", {
+    method: "POST",
   });
 }
 
 export async function getMe(): Promise<AuthUser> {
-  return fetcher<AuthUser>('/auth/me', {
-    method: 'GET',
+  return fetcher<AuthUser>("/auth/me", {
+    method: "GET",
   });
 }
 
 export async function logout(): Promise<{ success: true }> {
-  return fetcher<{ success: true }>('/auth/logout', {
-    method: 'POST',
+  return fetcher<{ success: true }>("/auth/logout", {
+    method: "POST",
   });
 }

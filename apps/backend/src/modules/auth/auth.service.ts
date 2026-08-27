@@ -1,28 +1,28 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { JwtService } from "@nestjs/jwt";
 
 import {
+  buildEmployeeGlobalCapabilities,
   canManageEmployeesHr,
-  canViewEmployeesHr,
-} from '../employees/utils/employee-hr-access.util';
-import { buildApprovalGlobalCapabilities } from '../approvals/utils/approval-capabilities.util';
-import { buildAccountabilityGlobalCapabilities } from '../accountability/utils/accountability-capabilities.util';
-import { buildInventoryGlobalCapabilities } from '../inventory/utils/inventory-capabilities.util';
-import { buildEquipmentGlobalCapabilities } from '../equipment/utils/equipment-capabilities.util';
-import { buildChatGlobalCapabilities } from '../chats/utils/chat-capabilities.util';
-import { buildOneTimeOrderGlobalCapabilities } from '../one-time-orders/utils/one-time-order-capabilities.util';
-import { canCreateObject } from '../objects/utils/object-access.util';
-import { PrismaService } from '../prisma/prisma.service';
-import { UsersService } from '../users-access/users.service';
+} from "../employees/utils/employee-hr-access.util";
+import { buildApprovalGlobalCapabilities } from "../approvals/utils/approval-capabilities.util";
+import { buildAccountabilityGlobalCapabilities } from "../accountability/utils/accountability-capabilities.util";
+import { buildInventoryGlobalCapabilities } from "../inventory/utils/inventory-capabilities.util";
+import { buildEquipmentGlobalCapabilities } from "../equipment/utils/equipment-capabilities.util";
+import { buildChatGlobalCapabilities } from "../chats/utils/chat-capabilities.util";
+import { buildOneTimeOrderGlobalCapabilities } from "../one-time-orders/utils/one-time-order-capabilities.util";
+import { canCreateObject } from "../objects/utils/object-access.util";
+import { PrismaService } from "../prisma/prisma.service";
+import { UsersService } from "../users-access/users.service";
 
-import { LoginDto } from './dto/login.dto';
-import { MeResponseDto } from './dto/me-response.dto';
-import { AuthRequestMeta } from './types/auth-request-meta.type';
-import { parseDurationToMs } from './utils/duration.util';
-import { verifyPassword } from './utils/password-hash.util';
+import { LoginDto } from "./dto/login.dto";
+import { MeResponseDto } from "./dto/me-response.dto";
+import { AuthRequestMeta } from "./types/auth-request-meta.type";
+import { parseDurationToMs } from "./utils/duration.util";
+import { verifyPassword } from "./utils/password-hash.util";
 
-import { AuthSessionsService } from './auth-sessions.service';
+import { AuthSessionsService } from "./auth-sessions.service";
 
 interface IssuedAuthSession {
   accessToken: string;
@@ -63,13 +63,16 @@ export class AuthService {
     const user = await this.usersService.findByLogin(payload.login);
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
-    const hasValidPassword = await this.validatePassword(user, payload.password);
+    const hasValidPassword = await this.validatePassword(
+      user,
+      payload.password,
+    );
 
     if (!hasValidPassword) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     const safeUser = await this.buildMeResponse(
@@ -87,14 +90,14 @@ export class AuthService {
       await this.authSessionsService.findActiveSessionByRawToken(refreshToken);
 
     if (!existingSession) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException("Invalid refresh token");
     }
 
     const user = await this.usersService.findById(existingSession.userId);
 
     if (!user || !user.isActive) {
       await this.authSessionsService.revokeSessionByRawToken(refreshToken);
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException("Invalid refresh token");
     }
 
     const safeUser = await this.buildMeResponse(
@@ -110,7 +113,7 @@ export class AuthService {
     );
 
     if (!rotatedSession) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException("Invalid refresh token");
     }
 
     return {
@@ -126,7 +129,7 @@ export class AuthService {
     const user = await this.usersService.findById(userId);
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('User is not available');
+      throw new UnauthorizedException("User is not available");
     }
 
     return this.buildMeResponse(this.usersService.sanitizeUser(user));
@@ -193,14 +196,14 @@ export class AuthService {
         this.prisma.oneTimeOrderAssignment.findFirst({
           where: {
             userId: user.id,
-            assignmentRoleCode: 'one_time_manager',
+            assignmentRoleCode: "one_time_manager",
             isActive: true,
           },
           select: { id: true },
         }),
         this.prisma.accountabilityFunding.findFirst({
           where: {
-            fundingType: 'one_time_order_receipt',
+            fundingType: "one_time_order_receipt",
             accountabilityAccount: {
               userId: user.id,
             },
@@ -216,8 +219,7 @@ export class AuthService {
       roleCodes: user.roleCodes,
       permissionCodes: user.permissionCodes,
       hasActiveOneTimeManagerAssignment: activeManagerAssignment !== null,
-      hasHistoricalOneTimeOrderReceipt:
-        historicalOneTimeOrderReceipt !== null,
+      hasHistoricalOneTimeOrderReceipt: historicalOneTimeOrderReceipt !== null,
     });
     const inventoryCapabilities = buildInventoryGlobalCapabilities(
       user.roleCodes,
@@ -231,13 +233,16 @@ export class AuthService {
       permissionCodes: user.permissionCodes,
       hasActiveManagerAssignment: activeManagerAssignment !== null,
     });
+    const employeeCapabilities = buildEmployeeGlobalCapabilities(
+      user.permissionCodes,
+    );
 
     return {
       id: user.id,
       login: user.login,
       fullName: user.fullName,
       isActive: user.isActive,
-      roleCode: user.roleCodes[0] ?? 'unknown',
+      roleCode: user.roleCodes[0] ?? "unknown",
       roleCodes: user.roleCodes,
       capabilities: {
         canAccessApprovals: approvalCapabilities.canAccessApprovals,
@@ -252,10 +257,8 @@ export class AuthService {
         canResolveTimesheetApproval:
           approvalCapabilities.canResolveTimesheetApproval,
         canCreateObject: canCreateObject(user.roleCodes),
-        canAccessOneTimeOrders:
-          oneTimeOrderCapabilities.canAccessOneTimeOrders,
-        canCreateOneTimeOrder:
-          oneTimeOrderCapabilities.canCreateOneTimeOrder,
+        canAccessOneTimeOrders: oneTimeOrderCapabilities.canAccessOneTimeOrders,
+        canCreateOneTimeOrder: oneTimeOrderCapabilities.canCreateOneTimeOrder,
         canViewOneTimeOrderCalendar:
           oneTimeOrderCapabilities.canViewOneTimeOrderCalendar,
         canManageOwnOneTimeOrderAvailability:
@@ -264,8 +267,18 @@ export class AuthService {
           oneTimeOrderCapabilities.canManageAnyOneTimeOrderAvailability,
         canApproveOneTimeOrderAvailability:
           oneTimeOrderCapabilities.canApproveOneTimeOrderAvailability,
-        canAccessEmployeesHr: canViewEmployeesHr(user.roleCodes),
-        canManageEmployeesHr: canManageEmployeesHr(user.roleCodes),
+        canAccessEmployeesHr: employeeCapabilities.canAccessEmployeesHr,
+        canManageEmployeesHr: canManageEmployeesHr(user.permissionCodes),
+        canCreateEmployee: employeeCapabilities.canCreateEmployee,
+        canEditEmployee: employeeCapabilities.canEditEmployee,
+        canArchiveEmployee: employeeCapabilities.canArchiveEmployee,
+        canRestoreEmployee: employeeCapabilities.canRestoreEmployee,
+        canDeleteEmployeePermanently:
+          employeeCapabilities.canDeleteEmployeePermanently,
+        canManageEmployeeAssignments:
+          employeeCapabilities.canManageEmployeeAssignments,
+        canDeleteEmployeeAssignmentAsError:
+          employeeCapabilities.canDeleteEmployeeAssignmentAsError,
         canAccessAccountability:
           accountabilityCapabilities.canAccessAccountability,
         canViewOwnAccountability:
@@ -319,14 +332,15 @@ export class AuthService {
 
   private getAccessExpiresAt(): Date {
     return new Date(
-      Date.now() + parseDurationToMs(this.getConfigValue('jwt.accessExpiresIn')),
+      Date.now() +
+        parseDurationToMs(this.getConfigValue("jwt.accessExpiresIn")),
     );
   }
 
   private getRefreshExpiresAt(): Date {
     return new Date(
       Date.now() +
-        parseDurationToMs(this.getConfigValue('jwt.refreshExpiresIn')),
+        parseDurationToMs(this.getConfigValue("jwt.refreshExpiresIn")),
     );
   }
 

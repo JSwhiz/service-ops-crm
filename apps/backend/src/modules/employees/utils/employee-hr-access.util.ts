@@ -1,31 +1,62 @@
-const EMPLOYEE_HR_VIEW_ROLE_CODES = [
-  'founder',
-  'deputy_founder',
-  'director',
-  'corporate_director',
-  'deputy_director',
-  'hr',
-] as const;
+export const EMPLOYEE_PERMISSION_CODES = {
+  view: "employees.view",
+  create: "employees.create",
+  edit: "employees.edit",
+  archive: "employees.archive",
+  restore: "employees.restore",
+  deletePermanently: "employees.delete_permanently",
+  manageAssignments: "employees.assignments.manage",
+  deleteAssignmentAsError: "employees.assignments.delete_error",
+} as const;
 
-const EMPLOYEE_HR_MANAGE_ROLE_CODES = [
-  'founder',
-  'deputy_founder',
-  'director',
-  'corporate_director',
-  'hr',
-] as const;
-
-function hasAnyRole(
-  roleCodes: string[],
-  allowed: readonly string[],
+function hasPermission(
+  permissionCodes: string[],
+  permissionCode: string,
 ): boolean {
-  return roleCodes.some((roleCode) => allowed.includes(roleCode as never));
+  return permissionCodes.includes(permissionCode);
 }
 
-export function canViewEmployeesHr(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, EMPLOYEE_HR_VIEW_ROLE_CODES);
+export function canViewEmployeesHr(permissionCodes: string[]): boolean {
+  return hasPermission(permissionCodes, EMPLOYEE_PERMISSION_CODES.view);
 }
 
-export function canManageEmployeesHr(roleCodes: string[]): boolean {
-  return hasAnyRole(roleCodes, EMPLOYEE_HR_MANAGE_ROLE_CODES);
+export function canManageEmployeesHr(permissionCodes: string[]): boolean {
+  return (
+    hasPermission(permissionCodes, EMPLOYEE_PERMISSION_CODES.create) ||
+    hasPermission(permissionCodes, EMPLOYEE_PERMISSION_CODES.edit)
+  );
+}
+
+export function buildEmployeeGlobalCapabilities(permissionCodes: string[]) {
+  return {
+    canAccessEmployeesHr: canViewEmployeesHr(permissionCodes),
+    canCreateEmployee: hasPermission(
+      permissionCodes,
+      EMPLOYEE_PERMISSION_CODES.create,
+    ),
+    canEditEmployee: hasPermission(
+      permissionCodes,
+      EMPLOYEE_PERMISSION_CODES.edit,
+    ),
+    canArchiveEmployee: hasPermission(
+      permissionCodes,
+      EMPLOYEE_PERMISSION_CODES.archive,
+    ),
+    canRestoreEmployee: hasPermission(
+      permissionCodes,
+      EMPLOYEE_PERMISSION_CODES.restore,
+    ),
+    canDeleteEmployeePermanently: hasPermission(
+      permissionCodes,
+      EMPLOYEE_PERMISSION_CODES.deletePermanently,
+    ),
+    canManageEmployeeAssignments: hasPermission(
+      permissionCodes,
+      EMPLOYEE_PERMISSION_CODES.manageAssignments,
+    ),
+    canDeleteEmployeeAssignmentAsError: hasPermission(
+      permissionCodes,
+      EMPLOYEE_PERMISSION_CODES.deleteAssignmentAsError,
+    ),
+  };
 }

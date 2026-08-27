@@ -447,6 +447,10 @@ model Employee {
   phone              String?
   position           String?
   birthDate          DateTime? @db.Date
+  employeeType       String   @default("regular")
+  workScheduleCode   String?
+  workScheduleCustom String?
+  workTimeText       String?
   residenceAddress   String?
   shiftPreferences   String?
   baseDailyRate      Int?
@@ -470,7 +474,9 @@ model Employee {
   @@index([phone])
   @@index([position])
   @@index([employmentStatus])
+  @@index([employeeType])
   @@index([birthDate])
+  @@index([workScheduleCode])
   @@index([deletedAt])
   @@map("employees")
 }
@@ -486,7 +492,7 @@ model EmployeeObjectAssignmentHistory {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   object    Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
   createdBy User     @relation("EmployeeAssignmentHistoryCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   closedBy  User?    @relation("EmployeeAssignmentHistoryClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
@@ -509,7 +515,7 @@ model EmployeeAvailabilityWindow {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   createdBy User     @relation("EmployeeAvailabilityCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@index([employeeId, startDate])
@@ -531,8 +537,8 @@ model EmployeeSubstitution {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  employee           Employee @relation("EmployeeSubstitutionPrimary", fields: [employeeId], references: [id], onDelete: Cascade)
-  substituteEmployee Employee @relation("EmployeeSubstitutionReplacement", fields: [substituteEmployeeId], references: [id], onDelete: Cascade)
+  employee           Employee @relation("EmployeeSubstitutionPrimary", fields: [employeeId], references: [id], onDelete: Restrict)
+  substituteEmployee Employee @relation("EmployeeSubstitutionReplacement", fields: [substituteEmployeeId], references: [id], onDelete: Restrict)
   object             Object?   @relation(fields: [objectId], references: [id], onDelete: SetNull)
   createdBy          User      @relation("EmployeeSubstitutionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
@@ -583,7 +589,7 @@ model ObjectEmployeeAssignment {
   updatedAt   DateTime @updatedAt
 
   object      Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@unique([objectId, employeeId])
   @@index([objectId])
@@ -1488,7 +1494,7 @@ model ObjectAttendanceFact {
   updatedAt       DateTime @updatedAt
 
   object          Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   createdBy       User?    @relation("ObjectAttendanceFactCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@unique([objectId, employeeId, operationDate])

@@ -41,6 +41,7 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
@@ -752,13 +753,13 @@ export class EmployeesService {
   }
 
   private assertViewAccess(currentUser: CurrentAuthUser): void {
-    if (!canViewEmployeesHr(this.getRoleCodes(currentUser))) {
+    if (!canViewEmployeesHr(this.getPermissionCodes(currentUser))) {
       throw new ForbiddenException('Employees registry access denied');
     }
   }
 
   private assertManageAccess(currentUser: CurrentAuthUser): void {
-    if (!canManageEmployeesHr(this.getRoleCodes(currentUser))) {
+    if (!canManageEmployeesHr(this.getPermissionCodes(currentUser))) {
       throw new ForbiddenException('Employees registry management denied');
     }
   }
@@ -788,6 +789,10 @@ export class EmployeesService {
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private getPermissionCodes(currentUser: CurrentAuthUser): string[] {
+    return currentUser.permissionCodes ?? [];
   }
 
   private parseBirthDate(value: string | null | undefined): Date | null {
@@ -1062,7 +1067,7 @@ export class EmployeesService {
     },
     currentUser: CurrentAuthUser,
   ): EmployeeResponseDto {
-    const canManage = canManageEmployeesHr(this.getRoleCodes(currentUser));
+    const canManage = canManageEmployeesHr(this.getPermissionCodes(currentUser));
 
     return {
       id: employee.id,

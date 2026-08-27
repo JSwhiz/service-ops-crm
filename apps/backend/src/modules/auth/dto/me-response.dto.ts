@@ -21,6 +21,13 @@ export class MeResponseDto {
     canApproveOneTimeOrderAvailability: boolean;
     canAccessEmployeesHr: boolean;
     canManageEmployeesHr: boolean;
+    canCreateEmployee: boolean;
+    canEditEmployee: boolean;
+    canArchiveEmployee: boolean;
+    canRestoreEmployee: boolean;
+    canDeleteEmployeePermanently: boolean;
+    canManageEmployeeAssignments: boolean;
+    canDeleteEmployeeAssignmentAsError: boolean;
     canAccessAccountability: boolean;
     canViewOwnAccountability: boolean;
     canIssueAccountabilityFunds: boolean;
