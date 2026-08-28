@@ -2,12 +2,15 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import {
   addEmployeeAvailability,
   addEmployeeSubstitution,
   archiveEmployee,
   assignEmployeeToObject,
+  deleteEmployeeAssignmentAsError,
+  deleteEmployeePermanently,
   getEmployeeById,
   listEmployeeObjectCandidates,
   listEmployees,
@@ -15,25 +18,27 @@ import {
   restoreEmployee,
   updateEmployee,
 } from '@/entities/employee/api/employee-client';
+import {
+  formatEmployeeDate,
+  formatEmployeeRate,
+  getEmployeeAge,
+  getEmployeeScheduleLabel,
+  getEmployeeStatusLabel,
+  getEmployeeTypeLabel,
+} from '@/entities/employee/lib/employee-presentation';
 import type {
   EmployeeDetail,
   EmployeeListItem,
   EmployeeObjectOption,
 } from '@/entities/employee/model/employee.types';
+import {
+  EmployeeFormFields,
+  type EmployeeFormValue,
+} from '@/features/employee-form/employee-form-fields';
 import { ApiError } from '@/shared/api/fetcher';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-
-function getEmploymentStatusLabel(status: string): string {
-  switch (status) {
-    case 'active':
-      return 'Активен';
-    case 'inactive':
-      return 'Неактивен';
-    default:
-      return status;
-  }
-}
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 function getAvailabilityStatusLabel(status: string): string {
   switch (status) {
@@ -89,13 +94,21 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function formatDateOnly(value: string | null): string {
-  if (!value) return '—';
-  const [year, month, day] = value.split('-');
-  return year && month && day ? `${day}.${month}.${year}` : value;
+function getDependencyLabel(code: string): string {
+  const labels: Record<string, string> = {
+    object_assignments: 'назначения на объекты',
+    assignment_history: 'история назначений',
+    availability_windows: 'окна доступности',
+    substitutions_primary: 'подмены основного сотрудника',
+    substitutions_replacement: 'подмены заменяющего сотрудника',
+    attendance_facts: 'записи посещаемости',
+    timesheet_rows: 'строки табеля',
+    timesheet_exceptions: 'исключения табеля',
+  };
+  return labels[code] ?? 'рабочая история';
 }
 
-function buildEditForm(employee: EmployeeDetail) {
+function buildEditForm(employee: EmployeeDetail): EmployeeFormValue {
   return {
     fullName: employee.fullName,
     phone: employee.phone ?? '',
@@ -108,6 +121,10 @@ function buildEditForm(employee: EmployeeDetail) {
         ? String(employee.baseDailyRate)
         : '',
     employmentStatus: employee.employmentStatus,
+    employeeType: employee.employeeType,
+    workScheduleCode: employee.workScheduleCode ?? '',
+    workScheduleCustom: employee.workScheduleCustom ?? '',
+    workTimeText: employee.workTimeText ?? '',
     notes: employee.notes ?? '',
   };
 }
@@ -117,6 +134,7 @@ export default function EmployeeDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const router = useRouter();
   const { user } = useAuth();
   const canAccessEmployeesHr = user?.capabilities?.canAccessEmployeesHr ?? false;
 
@@ -134,7 +152,7 @@ export default function EmployeeDetailPage({
   const [hasVersionConflict, setHasVersionConflict] = useState(false);
   const [isActionPending, setIsActionPending] = useState(false);
 
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<EmployeeFormValue>({
     fullName: '',
     phone: '',
     position: '',
@@ -143,8 +161,20 @@ export default function EmployeeDetailPage({
     shiftPreferences: '',
     baseDailyRate: '',
     employmentStatus: 'active',
+    employeeType: 'regular',
+    workScheduleCode: '',
+    workScheduleCustom: '',
+    workTimeText: '',
     notes: '',
   });
+  const [assignmentDeleteTarget, setAssignmentDeleteTarget] = useState<{
+    historyId: string;
+    objectName: string;
+    period: string;
+  } | null>(null);
+  const [assignmentDeleteReason, setAssignmentDeleteReason] = useState('');
+  const [permanentDeleteOpen, setPermanentDeleteOpen] = useState(false);
+  const [permanentDeleteReason, setPermanentDeleteReason] = useState('');
   const [assignmentObjectId, setAssignmentObjectId] = useState('');
   const [availabilityForm, setAvailabilityForm] = useState({
     availabilityMode: 'full_day',
@@ -321,7 +351,7 @@ export default function EmployeeDetailPage({
             </div>
           ) : null}
 
-          <div className="page-card" style={{ display: 'grid', gap: 12 }}>
+          <div className="page-card employee-detail-summary">
             <div className="section-header">
               <div>
                 <div style={{ fontSize: 24, fontWeight: 700 }}>{item.fullName}</div>
@@ -333,9 +363,8 @@ export default function EmployeeDetailPage({
                   >
                     {item.isArchived ? 'Архивная карточка' : 'Активная карточка'}
                   </span>
-                  <span className="page-muted">
-                    {getEmploymentStatusLabel(item.employmentStatus)}
-                  </span>
+                  <span className="employee-type-badge">{getEmployeeTypeLabel(item.employeeType)}</span>
+                  <span className="page-muted">{getEmployeeStatusLabel(item.employmentStatus)}</span>
                 </div>
               </div>
 
@@ -346,7 +375,7 @@ export default function EmployeeDetailPage({
                     className="button-danger"
                     disabled={isActionPending}
                     onClick={async () => {
-                      if (!window.confirm('Архивировать карточку сотрудника?')) return;
+                      if (!window.confirm('Перенести сотрудника в архив?')) return;
 
                       setActionError(null);
                       setIsActionPending(true);
@@ -430,58 +459,31 @@ export default function EmployeeDetailPage({
               </div>
             ) : null}
 
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              }}
-            >
-              <div>
-                <div className="page-muted">Телефон</div>
-                <div>{item.phone ?? '—'}</div>
-              </div>
-              <div>
-                <div className="page-muted">Должность</div>
-                <div>{item.position ?? '—'}</div>
-              </div>
-              <div>
-                <div className="page-muted">Дата рождения</div>
-                <div>{formatDateOnly(item.birthDate)}</div>
-              </div>
-              <div>
-                <div className="page-muted">Место проживания</div>
-                <div>{item.residenceAddress ?? '—'}</div>
-              </div>
-              <div>
-                <div className="page-muted">Базовая ставка</div>
-                <div>{item.baseDailyRate ?? '—'}</div>
-              </div>
-              <div>
-                <div className="page-muted">Создана</div>
-                <div>{new Date(item.createdAt).toLocaleString('ru-RU')}</div>
-              </div>
-              <div>
-                <div className="page-muted">Изменена</div>
-                <div>{new Date(item.updatedAt).toLocaleString('ru-RU')}</div>
-              </div>
+            <div className="employee-detail-sections">
+              <section><h3>Контактные данные</h3><dl>
+                <div><dt>Телефон</dt><dd>{item.phone ?? '—'}</dd></div>
+                <div><dt>Дата рождения</dt><dd>{formatEmployeeDate(item.birthDate)}{getEmployeeAge(item.birthDate) !== null ? ` · ${getEmployeeAge(item.birthDate)} лет` : ''}</dd></div>
+                <div><dt>Адрес проживания</dt><dd>{item.residenceAddress ?? '—'}</dd></div>
+              </dl></section>
+              <section><h3>Работа</h3><dl>
+                <div><dt>Должность</dt><dd>{item.position ?? '—'}</dd></div>
+                <div><dt>Тип</dt><dd>{getEmployeeTypeLabel(item.employeeType)}</dd></div>
+                <div><dt>Статус</dt><dd>{getEmployeeStatusLabel(item.employmentStatus)}</dd></div>
+                <div><dt>Базовая ставка сотрудника за день</dt><dd>{formatEmployeeRate(item.baseDailyRate)}</dd></div>
+              </dl></section>
+              <section><h3>График</h3><dl>
+                <div><dt>График работы</dt><dd>{getEmployeeScheduleLabel(item.workScheduleCode, item.workScheduleCustom)}</dd></div>
+                <div><dt>Время работы</dt><dd>{item.workTimeText ?? '—'}</dd></div>
+                <div><dt>Предпочтения по сменам</dt><dd>{item.shiftPreferences ?? '—'}</dd></div>
+              </dl></section>
+              <section><h3>Примечание</h3><div>{item.notes ?? '—'}</div></section>
             </div>
-
-            <div>
-              <div className="page-muted">Пожелания по выходам</div>
-              <div>{item.shiftPreferences ?? '—'}</div>
-            </div>
-
-            <div>
-              <div className="page-muted">Комментарий</div>
-              <div>{item.notes ?? '—'}</div>
-            </div>
+            <div className="employee-record-meta">Создана {new Date(item.createdAt).toLocaleString('ru-RU')} · изменена {new Date(item.updatedAt).toLocaleString('ru-RU')}</div>
           </div>
 
           {item.capabilities.canEdit ? (
             <form
-              className="page-card"
-              style={{ display: 'grid', gap: 12 }}
+              className="page-card employee-edit-form"
               onSubmit={async (event) => {
                 event.preventDefault();
                 setActionError(null);
@@ -501,6 +503,10 @@ export default function EmployeeDetailPage({
                       ? Number(editForm.baseDailyRate)
                       : null,
                     employmentStatus: editForm.employmentStatus,
+                    employeeType: editForm.employeeType,
+                    workScheduleCode: editForm.workScheduleCode || null,
+                    workScheduleCustom: editForm.workScheduleCustom.trim() || null,
+                    workTimeText: editForm.workTimeText.trim() || null,
                     notes: editForm.notes.trim() || null,
                   });
                   setItem(updated);
@@ -531,119 +537,7 @@ export default function EmployeeDetailPage({
                 </div>
               </div>
 
-              <div className="employee-form-grid">
-                <label>
-                  <span className="detail-label">ФИО</span>
-                  <input
-                    value={editForm.fullName}
-                    maxLength={200}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, fullName: event.target.value }))
-                    }
-                    required
-                  />
-                </label>
-                <label>
-                  <span className="detail-label">Телефон</span>
-                  <input
-                    value={editForm.phone}
-                    maxLength={50}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, phone: event.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span className="detail-label">Должность</span>
-                  <input
-                    value={editForm.position}
-                    maxLength={150}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, position: event.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span className="detail-label">Дата рождения</span>
-                  <input
-                    type="date"
-                    value={editForm.birthDate}
-                    max={new Date().toISOString().slice(0, 10)}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, birthDate: event.target.value }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span className="detail-label">Место проживания</span>
-                  <input
-                    value={editForm.residenceAddress}
-                    maxLength={1000}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        residenceAddress: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span className="detail-label">Базовая ставка</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={editForm.baseDailyRate}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        baseDailyRate: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span className="detail-label">Статус работы</span>
-                  <select
-                    value={editForm.employmentStatus}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({
-                        ...prev,
-                        employmentStatus: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="active">Работает</option>
-                    <option value="inactive">Неактивен</option>
-                  </select>
-                </label>
-              </div>
-
-              <label>
-                <span className="detail-label">Пожелания по выходам</span>
-              <textarea
-                value={editForm.shiftPreferences}
-                maxLength={2000}
-                onChange={(event) =>
-                  setEditForm((prev) => ({
-                    ...prev,
-                    shiftPreferences: event.target.value,
-                  }))
-                }
-                style={{ minHeight: 90, padding: 10 }}
-              />
-              </label>
-              <label>
-                <span className="detail-label">Примечание</span>
-              <textarea
-                value={editForm.notes}
-                maxLength={4000}
-                onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, notes: event.target.value }))
-                }
-                style={{ minHeight: 90, padding: 10 }}
-              />
-              </label>
+              <EmployeeFormFields value={editForm} onChange={setEditForm} disabled={isActionPending} />
 
               <div className="action-row">
                 <button type="submit" disabled={isActionPending}>
@@ -665,8 +559,9 @@ export default function EmployeeDetailPage({
             </form>
           ) : null}
 
-          <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ fontWeight: 600 }}>Текущие объекты</div>
+          <div className="page-card employee-assignment-section">
+            <div className="section-header"><div><div className="section-title">Текущие объекты</div>
+              <div className="section-subtitle">Ставка объекта показана отдельно от базовой ставки сотрудника.</div></div></div>
 
             {item.currentObjectAssignments.length === 0 ? (
               <div className="page-muted">Активных назначений пока нет.</div>
@@ -690,6 +585,7 @@ export default function EmployeeDetailPage({
                     <div className="page-muted">
                       С: {assignment.startDate ? new Date(assignment.startDate).toLocaleDateString('ru-RU') : '—'}
                     </div>
+                    <div className="page-muted">Дневная ставка объекта: {formatEmployeeRate(assignment.objectDailyRate)}</div>
                   </div>
 
                   {item.capabilities.canManageAssignments ? (
@@ -722,18 +618,18 @@ export default function EmployeeDetailPage({
             {item.capabilities.canManageAssignments ? (
               <div style={{ display: 'grid', gap: 8 }}>
                 <div className="page-muted">Назначить на объект</div>
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <select
+                <div className="employee-assignment-action">
+                  <SearchableSelect
+                    label="Объект"
                     value={assignmentObjectId}
-                    onChange={(event) => setAssignmentObjectId(event.target.value)}
-                    style={{ padding: 10, minWidth: 260 }}
-                  >
-                    {availableObjectCandidates.map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.name} ({candidate.status})
-                      </option>
-                    ))}
-                  </select>
+                    options={availableObjectCandidates.map((candidate) => ({
+                      value: candidate.id,
+                      label: candidate.name,
+                      searchText: candidate.status,
+                    }))}
+                    placeholder="Выберите объект"
+                    onChange={setAssignmentObjectId}
+                  />
                   <button
                     type="button"
                     disabled={!assignmentObjectId}
@@ -760,7 +656,7 @@ export default function EmployeeDetailPage({
             ) : null}
           </div>
 
-          <div className="page-card" style={{ display: 'grid', gap: 12 }}>
+          <div className="page-card employee-assignment-section">
             <div className="section-header">
               <div>
                 <div className="section-title">История назначений</div>
@@ -774,18 +670,30 @@ export default function EmployeeDetailPage({
             ) : (
               <div className="record-list local-scroll local-scroll--sm">
                 {item.objectAssignmentHistory.map((historyItem) => (
-                  <div key={historyItem.id} className="record-card">
-                    {renderObjectReference({
-                      objectId: historyItem.objectId,
-                      objectName: historyItem.objectName,
-                      canOpenObjectCard: historyItem.canOpenObjectCard,
-                    })}
-                    <div className="page-muted">
-                      {new Date(historyItem.startedAt).toLocaleDateString('ru-RU')} —{' '}
-                      {historyItem.endedAt
-                        ? new Date(historyItem.endedAt).toLocaleDateString('ru-RU')
-                        : 'по настоящее время'}
+                  <div key={historyItem.id} className="record-card employee-history-row">
+                    <div>
+                      {renderObjectReference({
+                        objectId: historyItem.objectId,
+                        objectName: historyItem.objectName,
+                        canOpenObjectCard: historyItem.canOpenObjectCard,
+                      })}
+                      <div className="page-muted">
+                        {new Date(historyItem.startedAt).toLocaleDateString('ru-RU')} —{' '}
+                        {historyItem.endedAt ? new Date(historyItem.endedAt).toLocaleDateString('ru-RU') : 'по настоящее время'}
+                        {' · '}{historyItem.endedAt ? 'Завершено' : 'Активно'}
+                      </div>
+                      <div className="page-muted">Дневная ставка объекта: {formatEmployeeRate(historyItem.objectDailyRate)}</div>
                     </div>
+                    {historyItem.canDeleteAsError ? (
+                      <button type="button" className="button-danger" onClick={() => {
+                        setAssignmentDeleteReason('');
+                        setAssignmentDeleteTarget({
+                          historyId: historyItem.id,
+                          objectName: historyItem.objectName,
+                          period: `${new Date(historyItem.startedAt).toLocaleDateString('ru-RU')} — ${historyItem.endedAt ? new Date(historyItem.endedAt).toLocaleDateString('ru-RU') : 'по настоящее время'}`,
+                        });
+                      }}>Удалить объект</button>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -1091,6 +999,90 @@ export default function EmployeeDetailPage({
               </form>
             ) : null}
           </div>
+
+          {item.capabilities.canDeletePermanently ? (
+            <section className="page-card employee-danger-zone">
+              <div>
+                <div className="section-title">Опасная зона</div>
+                <div className="section-subtitle">Только для карточек, созданных ошибочно. Сотрудника с рабочей историей удалить нельзя.</div>
+              </div>
+              {item.lifecycleEligibility.permanentDelete.blockers.length > 0 ? (
+                <div className="inline-notice inline-notice--warning">
+                  Полное удаление недоступно: {item.lifecycleEligibility.permanentDelete.blockers
+                    .map((blocker) => `${getDependencyLabel(blocker.code)} (${blocker.count})`).join(', ')}.
+                </div>
+              ) : null}
+              <button type="button" className="button-danger" disabled={!item.lifecycleEligibility.permanentDelete.eligible}
+                onClick={() => { setPermanentDeleteReason(''); setPermanentDeleteOpen(true); }}>
+                Удалить сотрудника полностью
+              </button>
+            </section>
+          ) : null}
+
+          {assignmentDeleteTarget ? (
+            <div className="employee-modal" role="dialog" aria-modal="true" aria-labelledby="assignment-delete-title">
+              <button type="button" className="employee-modal__backdrop" aria-label="Закрыть" onClick={() => setAssignmentDeleteTarget(null)} />
+              <form className="page-card employee-modal__panel" onSubmit={async (event) => {
+                event.preventDefault();
+                setIsActionPending(true);
+                setActionError(null);
+                try {
+                  const updated = await deleteEmployeeAssignmentAsError(item.id, assignmentDeleteTarget.historyId, assignmentDeleteReason.trim());
+                  setItem(updated);
+                  setAssignmentDeleteTarget(null);
+                } catch (error) {
+                  if (error instanceof ApiError && error.code === 'ASSIGNMENT_HAS_OPERATIONAL_HISTORY') {
+                    setActionError('Удалить назначение нельзя: оно уже использовалось в учёте. Завершите назначение вместо удаления.');
+                  } else {
+                    setActionError(getErrorMessage(error, 'Не удалось удалить ошибочное назначение.'));
+                  }
+                } finally {
+                  setIsActionPending(false);
+                }
+              }}>
+                <div><div className="section-title" id="assignment-delete-title">Удалить назначение на объект?</div>
+                  <div className="section-subtitle">{item.fullName} · {assignmentDeleteTarget.objectName} · {assignmentDeleteTarget.period}</div></div>
+                <div className="inline-notice inline-notice--warning">Удаляется только запись назначения сотрудника. Сам объект останется в системе. Используйте действие только для ошибочно заведённой записи.</div>
+                <label><span className="detail-label">Причина удаления *</span><textarea required minLength={5} maxLength={500}
+                  value={assignmentDeleteReason} onChange={(event) => setAssignmentDeleteReason(event.target.value)} /></label>
+                <div className="action-row"><button type="submit" className="button-danger" disabled={isActionPending || assignmentDeleteReason.trim().length < 5}>Удалить запись</button>
+                  <button type="button" className="button-secondary" disabled={isActionPending} onClick={() => setAssignmentDeleteTarget(null)}>Отмена</button></div>
+              </form>
+            </div>
+          ) : null}
+
+          {permanentDeleteOpen ? (
+            <div className="employee-modal" role="dialog" aria-modal="true" aria-labelledby="employee-delete-title">
+              <button type="button" className="employee-modal__backdrop" aria-label="Закрыть" onClick={() => setPermanentDeleteOpen(false)} />
+              <form className="page-card employee-modal__panel" onSubmit={async (event) => {
+                event.preventDefault();
+                setIsActionPending(true);
+                setActionError(null);
+                try {
+                  await deleteEmployeePermanently(item.id, { expectedVersion: item.version, reason: permanentDeleteReason.trim() });
+                  router.replace('/employees?deleted=1');
+                } catch (error) {
+                  if (error instanceof ApiError && error.code === 'EMPLOYEE_VERSION_CONFLICT') {
+                    setHasVersionConflict(true);
+                    setActionError('Карточка сотрудника была изменена другим пользователем.');
+                  } else {
+                    setActionError(getErrorMessage(error, 'Не удалось полностью удалить карточку сотрудника.'));
+                  }
+                  setPermanentDeleteOpen(false);
+                } finally {
+                  setIsActionPending(false);
+                }
+              }}>
+                <div><div className="section-title" id="employee-delete-title">Полностью удалить карточку сотрудника?</div>
+                  <div className="section-subtitle">{item.fullName}</div></div>
+                <div className="inline-notice inline-notice--warning">Действие предназначено только для ошибочно заведённой карточки. После удаления восстановить её через интерфейс невозможно.</div>
+                <label><span className="detail-label">Причина удаления *</span><textarea required minLength={5} maxLength={500}
+                  value={permanentDeleteReason} onChange={(event) => setPermanentDeleteReason(event.target.value)} /></label>
+                <div className="action-row"><button type="submit" className="button-danger" disabled={isActionPending || permanentDeleteReason.trim().length < 5}>Удалить полностью</button>
+                  <button type="button" className="button-secondary" disabled={isActionPending} onClick={() => setPermanentDeleteOpen(false)}>Отмена</button></div>
+              </form>
+            </div>
+          ) : null}
         </div>
       )}
     </>

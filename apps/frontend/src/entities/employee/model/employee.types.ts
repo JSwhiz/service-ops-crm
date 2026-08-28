@@ -114,7 +114,6 @@ export interface EmployeeDetail {
     startDate: string | null;
     endDate: string | null;
     canOpenObjectCard: boolean;
-    canDeleteAsError: boolean;
   }>;
   objectAssignmentHistory: Array<{
     id: string;
@@ -124,6 +123,7 @@ export interface EmployeeDetail {
     startedAt: string;
     endedAt: string | null;
     canOpenObjectCard: boolean;
+    canDeleteAsError: boolean;
   }>;
   availabilityWindows: Array<{
     id: string;
