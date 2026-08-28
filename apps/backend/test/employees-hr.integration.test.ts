@@ -20,6 +20,23 @@ test('hr can create employee card and manage shared employee domain actions', as
 
   t.after(async () => {
     if (createdEmployeeId) {
+      await prisma.employeeSubstitution.deleteMany({
+        where: {
+          OR: [
+            { employeeId: createdEmployeeId },
+            { substituteEmployeeId: createdEmployeeId },
+          ],
+        },
+      });
+      await prisma.employeeAvailabilityWindow.deleteMany({
+        where: { employeeId: createdEmployeeId },
+      });
+      await prisma.objectEmployeeAssignment.deleteMany({
+        where: { employeeId: createdEmployeeId },
+      });
+      await prisma.employeeObjectAssignmentHistory.deleteMany({
+        where: { employeeId: createdEmployeeId },
+      });
       await prisma.employee.deleteMany({
         where: {
           id: createdEmployeeId,
@@ -211,12 +228,12 @@ test('hr can create employee card and manage shared employee domain actions', as
 
   assert.ok(
     employeeDetail.currentObjectAssignments.every(
-      (assignment) => assignment.canOpenObjectCard === false,
+      (assignment) => assignment.canOpenObjectCard === true,
     ),
   );
   assert.ok(
     employeeDetail.objectAssignmentHistory.every(
-      (assignment) => assignment.canOpenObjectCard === false,
+      (assignment) => assignment.canOpenObjectCard === true,
     ),
   );
 
@@ -234,7 +251,7 @@ test('hr can create employee card and manage shared employee domain actions', as
   );
 });
 
-test('manager cannot access employees registry', async (t) => {
+test('manager has read-only access to employees registry', async (t) => {
   const { app, baseUrl } = await createTestApp();
   const managerCookie = await loginAndGetCookieHeader({
     baseUrl,
@@ -252,7 +269,21 @@ test('manager cannot access employees registry', async (t) => {
     },
   });
 
-  assert.equal(response.status, 403);
+  assert.equal(response.status, 200);
+  const registry = (await response.json()) as {
+    capabilities: { canCreate: boolean };
+  };
+  assert.equal(registry.capabilities.canCreate, false);
+
+  const createResponse = await fetch(`${baseUrl}/api/v1/employees`, {
+    method: 'POST',
+    headers: {
+      Cookie: managerCookie,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fullName: 'Недоступное создание менеджером' }),
+  });
+  assert.equal(createResponse.status, 403);
 
   const objectCandidatesResponse = await fetch(
     `${baseUrl}/api/v1/employees/object-candidates`,
@@ -266,7 +297,8 @@ test('manager cannot access employees registry', async (t) => {
   assert.equal(objectCandidatesResponse.status, 403);
 });
 
-test('deputy director can view employees registry without managing it', async (t) => {
+test('deputy director can create and manage employee cards', async (t) => {
+  const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const deputyDirectorCookie = await loginAndGetCookieHeader({
     baseUrl,
@@ -274,8 +306,16 @@ test('deputy director can view employees registry without managing it', async (t
     password: 'deputy123',
   });
 
+  let createdEmployeeId: string | null = null;
   t.after(async () => {
+    if (createdEmployeeId) {
+      await prisma.auditEvent.deleteMany({
+        where: { entityType: 'employee', entityId: createdEmployeeId },
+      });
+      await prisma.employee.deleteMany({ where: { id: createdEmployeeId } });
+    }
     await app.close();
+    await prisma.$disconnect();
   });
 
   const listResponse = await fetch(`${baseUrl}/api/v1/employees`, {
@@ -293,10 +333,17 @@ test('deputy director can view employees registry without managing it', async (t
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      fullName: `Недоступное создание ${Date.now()}`,
+      fullName: `Сотрудник заместителя ${Date.now()}`,
       employmentStatus: 'active',
     }),
   });
 
-  assert.equal(createResponse.status, 403);
+  assert.equal(createResponse.status, 201);
+  const created = (await createResponse.json()) as {
+    id: string;
+    capabilities: { canEdit: boolean; canDeletePermanently: boolean };
+  };
+  createdEmployeeId = created.id;
+  assert.equal(created.capabilities.canEdit, true);
+  assert.equal(created.capabilities.canDeletePermanently, true);
 });

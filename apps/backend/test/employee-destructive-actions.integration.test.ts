@@ -154,6 +154,33 @@ test('permanent employee deletion requires permission and an empty dependency gr
       employmentStatus: 'active',
     },
   });
+  const missingReason = await fetch(
+    `${baseUrl}/api/v1/employees/${clean.id}/delete-permanently`,
+    {
+      method: 'POST',
+      headers: authHeaders(founderCookie),
+      body: JSON.stringify({ expectedVersion: clean.version, reason: '' }),
+    },
+  );
+  assert.equal(missingReason.status, 400);
+
+  const staleDelete = await fetch(
+    `${baseUrl}/api/v1/employees/${clean.id}/delete-permanently`,
+    {
+      method: 'POST',
+      headers: authHeaders(founderCookie),
+      body: JSON.stringify({
+        expectedVersion: clean.version + 1,
+        reason: 'Устаревшая версия карточки',
+      }),
+    },
+  );
+  assert.equal(staleDelete.status, 409);
+  assert.equal(
+    ((await staleDelete.json()) as { code?: string }).code,
+    'EMPLOYEE_VERSION_CONFLICT',
+  );
+
   const denied = await fetch(
     `${baseUrl}/api/v1/employees/${clean.id}/delete-permanently`,
     {
@@ -183,15 +210,42 @@ test('permanent employee deletion requires permission and an empty dependency gr
     await prisma.employee.count({ where: { id: clean.id } }),
     0,
   );
-  assert.ok(
-    await prisma.auditEvent.findFirst({
+  const deleteAudit = await prisma.auditEvent.findFirst({
       where: {
         entityType: 'employee',
         entityId: clean.id,
         action: 'employee.deleted_permanently',
       },
-    }),
+    });
+  assert.ok(deleteAudit);
+  assert.equal(
+    (deleteAudit.oldValues as { fullName?: string } | null)?.fullName,
+    clean.fullName,
   );
+  assert.equal(
+    (deleteAudit.metadata as { reason?: string } | null)?.reason,
+    'Ошибочная карточка сотрудника',
+  );
+
+  const archived = await prisma.employee.create({
+    data: {
+      fullName: `Archived delete ${randomUUID().slice(0, 8)}`,
+      employmentStatus: 'inactive',
+      deletedAt: new Date(),
+    },
+  });
+  const archivedDelete = await fetch(
+    `${baseUrl}/api/v1/employees/${archived.id}/delete-permanently`,
+    {
+      method: 'POST',
+      headers: authHeaders(founderCookie),
+      body: JSON.stringify({
+        expectedVersion: archived.version,
+        reason: 'Ошибочная архивная карточка',
+      }),
+    },
+  );
+  assert.equal(archivedDelete.status, 201);
 
   const used = await prisma.employee.create({
     data: {
@@ -228,5 +282,195 @@ test('permanent employee deletion requires permission and an empty dependency gr
     blockedBody.blockers?.some(
       (blocker) => blocker.code === 'object_assignments' && blocker.count === 1,
     ),
+  );
+
+  const rollbackEmployee = await prisma.employee.create({
+    data: {
+      fullName: `Audit rollback ${randomUUID().slice(0, 8)}`,
+      employmentStatus: 'active',
+    },
+  });
+  await prisma.$executeRawUnsafe(`
+    CREATE FUNCTION fail_employee_delete_audit()
+    RETURNS trigger AS $$
+    BEGIN
+      IF NEW."action" = 'employee.deleted_permanently' THEN
+        RAISE EXCEPTION 'forced employee delete audit failure';
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TRIGGER fail_employee_delete_audit_trigger
+    BEFORE INSERT ON "audit_events"
+    FOR EACH ROW EXECUTE FUNCTION fail_employee_delete_audit()
+  `);
+  try {
+    const failedDelete = await fetch(
+      `${baseUrl}/api/v1/employees/${rollbackEmployee.id}/delete-permanently`,
+      {
+        method: 'POST',
+        headers: authHeaders(founderCookie),
+        body: JSON.stringify({
+          expectedVersion: rollbackEmployee.version,
+          reason: 'Проверка атомарности аудита',
+        }),
+      },
+    );
+    assert.equal(failedDelete.status, 500);
+    assert.equal(
+      await prisma.employee.count({ where: { id: rollbackEmployee.id } }),
+      1,
+    );
+  } finally {
+    await prisma.$executeRawUnsafe(
+      'DROP TRIGGER IF EXISTS fail_employee_delete_audit_trigger ON "audit_events"',
+    );
+    await prisma.$executeRawUnsafe(
+      'DROP FUNCTION IF EXISTS fail_employee_delete_audit()',
+    );
+  }
+});
+
+test('permanent delete exposes every protected dependency and database constraints remain restrictive', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const founderCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'founder',
+    password: 'founder123',
+  });
+  const founder = await prisma.user.findUniqueOrThrow({
+    where: { login: 'founder' },
+    select: { id: true },
+  });
+
+  t.after(async () => {
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const employee = await prisma.employee.create({
+    data: {
+      fullName: `All dependencies ${randomUUID().slice(0, 8)}`,
+      employmentStatus: 'active',
+    },
+  });
+  const counterpart = await prisma.employee.create({
+    data: {
+      fullName: `Dependency counterpart ${randomUUID().slice(0, 8)}`,
+      employmentStatus: 'active',
+    },
+  });
+  await prisma.objectEmployeeAssignment.create({
+    data: {
+      employeeId: employee.id,
+      objectId: SEEDED_OBJECT_ID,
+      isActive: true,
+    },
+  });
+  await prisma.employeeObjectAssignmentHistory.create({
+    data: {
+      employeeId: employee.id,
+      objectId: SEEDED_OBJECT_ID,
+      startedAt: new Date('2098-01-01T00:00:00.000Z'),
+      createdByUserId: founder.id,
+    },
+  });
+  await prisma.employeeAvailabilityWindow.create({
+    data: {
+      employeeId: employee.id,
+      startDate: new Date('2098-01-01T00:00:00.000Z'),
+      availabilityStatus: 'unavailable',
+      createdByUserId: founder.id,
+    },
+  });
+  await prisma.employeeSubstitution.createMany({
+    data: [
+      {
+        employeeId: employee.id,
+        substituteEmployeeId: counterpart.id,
+        startDate: new Date('2098-01-02T00:00:00.000Z'),
+        status: 'planned',
+        reason: 'Primary dependency',
+        createdByUserId: founder.id,
+      },
+      {
+        employeeId: counterpart.id,
+        substituteEmployeeId: employee.id,
+        startDate: new Date('2098-01-03T00:00:00.000Z'),
+        status: 'planned',
+        reason: 'Replacement dependency',
+        createdByUserId: founder.id,
+      },
+    ],
+  });
+  await prisma.objectAttendanceFact.create({
+    data: {
+      employeeId: employee.id,
+      objectId: SEEDED_OBJECT_ID,
+      operationDate: new Date('2098-01-04T00:00:00.000Z'),
+      dailyRateSnapshot: 1000,
+    },
+  });
+  const timesheetMonth = await prisma.timesheetMonth.create({
+    data: {
+      objectId: SEEDED_OBJECT_ID,
+      year: 2098,
+      month: 1,
+      createdByUserId: founder.id,
+    },
+  });
+  await prisma.timesheetEmployeeRow.create({
+    data: {
+      timesheetMonthId: timesheetMonth.id,
+      employeeId: employee.id,
+      employeeNameSnapshot: employee.fullName,
+    },
+  });
+  await prisma.timesheetManualException.create({
+    data: {
+      objectId: SEEDED_OBJECT_ID,
+      employeeId: employee.id,
+      year: 2098,
+      month: 1,
+      dayOfMonth: 5,
+      requestedDayValue: 1500,
+      currentDayValueSnapshot: 1000,
+      comment: 'Dependency guard',
+      requestedByUserId: founder.id,
+    },
+  });
+
+  await assert.rejects(prisma.employee.delete({ where: { id: employee.id } }));
+
+  const response = await fetch(
+    `${baseUrl}/api/v1/employees/${employee.id}/delete-permanently`,
+    {
+      method: 'POST',
+      headers: authHeaders(founderCookie),
+      body: JSON.stringify({
+        expectedVersion: employee.version,
+        reason: 'Проверка полного dependency graph',
+      }),
+    },
+  );
+  assert.equal(response.status, 409);
+  const body = (await response.json()) as {
+    blockers?: Array<{ code: string; count: number }>;
+  };
+  assert.deepEqual(
+    new Set(body.blockers?.map((blocker) => blocker.code)),
+    new Set([
+      'object_assignments',
+      'assignment_history',
+      'availability_windows',
+      'substitutions_primary',
+      'substitutions_replacement',
+      'attendance_facts',
+      'timesheet_rows',
+      'timesheet_exceptions',
+    ]),
   );
 });

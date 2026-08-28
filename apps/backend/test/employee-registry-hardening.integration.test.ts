@@ -128,6 +128,36 @@ test('employee create, validation and optimistic update are production-safe', as
   });
   assert.equal(invalidTrimResponse.status, 400);
 
+  for (const payload of [
+    { fullName: 'Неверный тип', employeeType: 'contractor' },
+    { fullName: 'Неверный график', workScheduleCode: '4_4' },
+    { fullName: 'Пустой свой график', workScheduleCode: 'custom' },
+    { fullName: 'Отрицательная ставка', baseDailyRate: -1 },
+  ]) {
+    const invalidResponse = await fetch(`${baseUrl}/api/v1/employees`, {
+      method: 'POST',
+      headers: authHeaders(hrCookie),
+      body: JSON.stringify(payload),
+    });
+    assert.equal(invalidResponse.status, 400, JSON.stringify(payload));
+  }
+
+  const zeroRateResponse = await fetch(`${baseUrl}/api/v1/employees`, {
+    method: 'POST',
+    headers: authHeaders(hrCookie),
+    body: JSON.stringify({
+      fullName: `Нулевая ставка ${marker}`,
+      employeeType: 'regular',
+      baseDailyRate: 0,
+    }),
+  });
+  assert.equal(zeroRateResponse.status, 201);
+  assert.equal(
+    ((await zeroRateResponse.json()) as { baseDailyRate: number | null })
+      .baseDailyRate,
+    0,
+  );
+
   const updateResponse = await fetch(`${baseUrl}/api/v1/employees/${created.id}`, {
     method: 'PATCH',
     headers: authHeaders(hrCookie),
