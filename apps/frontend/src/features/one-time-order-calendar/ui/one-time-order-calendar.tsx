@@ -138,7 +138,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
       const root = calendarRootRef.current;
       const grid = root?.querySelector<HTMLElement>('.one-time-calendar__grid-shell');
       const desktopToday = grid?.querySelector<HTMLElement>('[data-today="true"]');
-      if (grid && desktopToday) {
+      if (grid && desktopToday && grid.clientWidth > 0 && grid.getClientRects().length > 0) {
         grid.scrollLeft = Math.max(
           0,
           desktopToday.offsetLeft - grid.clientWidth / 2 + desktopToday.clientWidth / 2,

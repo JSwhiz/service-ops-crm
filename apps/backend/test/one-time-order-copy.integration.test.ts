@@ -268,6 +268,18 @@ test('one-time order copy is scoped, atomic and resets lifecycle data', async (t
   assert.equal(copied.accountabilityFundings.length, 0);
   assert.equal(copied.accountabilityExpenses.length, 0);
 
+  const systemMessages = await prisma.chatMessage.findMany({
+    where: {
+      text: `Создан разовый заказ: ${copied.title}`,
+      chatRoom: { code: { in: ['one_time_orders', 'leadership'] } },
+    },
+    select: { chatRoom: { select: { code: true } } },
+  });
+  assert.deepEqual(
+    systemMessages.map((message) => message.chatRoom.code).sort(),
+    ['leadership', 'one_time_orders'],
+  );
+
   const audit = await prisma.auditEvent.findFirstOrThrow({
     where: {
       entityType: 'one_time_order',

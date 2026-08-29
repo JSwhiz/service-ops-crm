@@ -5,7 +5,6 @@ import { canCorrectAccountabilityReceipt } from '../../accountability/utils/acco
 
 import {
   canAccessOneTimeOrders,
-  canBeOneTimeOrderManager,
   canCreateOneTimeOrder,
   canManageOneTimeOrderManagers,
   hasActiveOneTimeOrderAssignment,
@@ -31,7 +30,7 @@ export interface OneTimeOrderGlobalCapabilities {
 export function buildOneTimeOrderGlobalCapabilities(params: {
   roleCodes: string[];
   permissionCodes?: string[];
-  hasActiveManagerAssignment?: boolean;
+  isConfiguredCalendarManager?: boolean;
 }): OneTimeOrderGlobalCapabilities {
   const canManageAnyAvailability = hasOneTimeOrderPermission(
     params.permissionCodes,
@@ -42,8 +41,7 @@ export function buildOneTimeOrderGlobalCapabilities(params: {
     ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
   );
   const canManageOwnAvailability =
-    canBeOneTimeOrderManager(params.roleCodes) ||
-    params.hasActiveManagerAssignment === true;
+    params.isConfiguredCalendarManager === true;
   const canAccess = canAccessOneTimeOrders(
     params.roleCodes,
     params.permissionCodes,

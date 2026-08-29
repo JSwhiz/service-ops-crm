@@ -84,6 +84,11 @@ export class OneTimeManagerAvailabilityService {
     currentUser: CurrentAuthUser,
     payload: CreateOneTimeManagerAvailabilityRequestDto,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
+    if (!(await isOneTimeOrderCalendarManager(this.prisma, currentUser.id))) {
+      throw new ForbiddenException(
+        'User is not configured for the one-time order calendar',
+      );
+    }
     await this.assertEligibleManager(currentUser.id);
     const range = normalizeAvailabilityDateRange(payload.startDate, payload.endDate);
     const requestComment = payload.comment?.trim() || null;

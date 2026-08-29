@@ -116,6 +116,23 @@ test('one-time order capabilities separate operational, financial and calendar a
     hr1: hrCookie,
   };
 
+  const hiddenAvailabilityResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/calendar/availability-requests`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        entryType: 'day_off',
+        startDate: '2044-05-01',
+        endDate: '2044-05-01',
+      }),
+    },
+  );
+  assert.equal(hiddenAvailabilityResponse.status, 403);
+
   const getOrder = async (cookie: string, orderId = creatorOrder.id) => {
     const response = await fetch(
       `${baseUrl}/api/v1/one-time-orders/${orderId}`,

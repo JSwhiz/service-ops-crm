@@ -191,13 +191,20 @@ export class AuthService {
   private async buildMeResponse(
     user: SanitizedAuthUserRecord,
   ): Promise<MeResponseDto> {
-    const [activeManagerAssignment, historicalOneTimeOrderReceipt] =
+    const [activeManagerAssignment, calendarManagerProfile, historicalOneTimeOrderReceipt] =
       await Promise.all([
         this.prisma.oneTimeOrderAssignment.findFirst({
           where: {
             userId: user.id,
             assignmentRoleCode: "one_time_manager",
             isActive: true,
+          },
+          select: { id: true },
+        }),
+        this.prisma.oneTimeOrderCalendarManager.findFirst({
+          where: {
+            userId: user.id,
+            isVisible: true,
           },
           select: { id: true },
         }),
@@ -231,7 +238,7 @@ export class AuthService {
     const oneTimeOrderCapabilities = buildOneTimeOrderGlobalCapabilities({
       roleCodes: user.roleCodes,
       permissionCodes: user.permissionCodes,
-      hasActiveManagerAssignment: activeManagerAssignment !== null,
+      isConfiguredCalendarManager: calendarManagerProfile !== null,
     });
     const employeeCapabilities = buildEmployeeGlobalCapabilities(
       user.permissionCodes,

@@ -935,14 +935,23 @@ export class OneTimeOrdersService {
       return order as OneTimeOrderView;
     });
 
+    const systemMessagePayload = {
+      oneTimeOrderId: created.id,
+      status: created.status,
+      linkedObjectId: created.linkedObjectId,
+      sourceOneTimeOrderId,
+    };
     await this.chatsService.createSystemMessage(
       'one_time_orders',
-      `Создана копия разового заказа: ${created.title}`,
-      {
-        entityType: 'one_time_order',
-        entityId: created.id,
-        eventType: 'one_time_order.copied',
-      },
+      `Создан разовый заказ: ${created.title}`,
+      systemMessagePayload,
+      currentUser.id,
+    );
+    await this.chatsService.createSystemMessage(
+      'leadership',
+      `Создан разовый заказ: ${created.title}`,
+      systemMessagePayload,
+      currentUser.id,
     );
 
     return this.mapOrder(created, currentUser);
@@ -1029,7 +1038,10 @@ export class OneTimeOrdersService {
       contactPhone:
         payload.contactPhone === undefined ? undefined : payload.contactPhone?.trim() || null,
       agreedSum: payload.agreedSum,
-      plannedPaymentMethod: payload.plannedPaymentMethod,
+      plannedPaymentMethod:
+        payload.plannedPaymentMethod === null
+          ? undefined
+          : payload.plannedPaymentMethod,
       financialNotes:
         payload.financialNotes === undefined
           ? undefined

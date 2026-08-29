@@ -314,6 +314,20 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
       plannedPaymentMethod,
     );
   }
+  const nullPaymentMethodPatch = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${orderId}`,
+    {
+      method: 'PATCH',
+      headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plannedPaymentMethod: null }),
+    },
+  );
+  assert.equal(nullPaymentMethodPatch.status, 200);
+  assert.equal(
+    ((await nullPaymentMethodPatch.json()) as { plannedPaymentMethod: string })
+      .plannedPaymentMethod,
+    'other',
+  );
   assert.equal(
     await prisma.oneTimeOrderCompletionPayment.count({
       where: { oneTimeOrderId: orderId },

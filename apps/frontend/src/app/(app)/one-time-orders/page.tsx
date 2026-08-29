@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   listOneTimeOrderManagerReferences,
@@ -64,6 +64,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   const [selectedObject, setSelectedObject] = useState<SearchableSelectOption | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestSequenceRef = useRef(0);
 
   const replaceQuery = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -95,15 +96,25 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   }, [linkedObjectId, reviewOnly]);
 
   useEffect(() => {
-    if (canAccess === false && !canViewReviews) return setIsLoading(false);
-    let cancelled = false;
+    const requestSequence = ++requestSequenceRef.current;
+    if (canAccess === false && !canViewReviews) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     const request = reviewOnly
-      ? listOneTimeOrderReviews({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: PAGE_LIMIT }).then(setReviews)
-      : listOneTimeOrders({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, linkedObjectId: linkedObjectId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: PAGE_LIMIT, sortBy, sortDirection }).then(setResult);
-    void request.catch(() => { if (!cancelled) setError(reviewOnly ? 'Не удалось загрузить отзывы.' : 'Не удалось загрузить разовые заказы.'); }).finally(() => { if (!cancelled) setIsLoading(false); });
-    return () => { cancelled = true; };
+      ? listOneTimeOrderReviews({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: PAGE_LIMIT }).then((next) => {
+          if (requestSequenceRef.current === requestSequence) setReviews(next);
+        })
+      : listOneTimeOrders({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, linkedObjectId: linkedObjectId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: PAGE_LIMIT, sortBy, sortDirection }).then((next) => {
+          if (requestSequenceRef.current === requestSequence) setResult(next);
+        });
+    void request.catch(() => {
+      if (requestSequenceRef.current === requestSequence) setError(reviewOnly ? 'Не удалось загрузить отзывы.' : 'Не удалось загрузить разовые заказы.');
+    }).finally(() => {
+      if (requestSequenceRef.current === requestSequence) setIsLoading(false);
+    });
   }, [canAccess, canViewReviews, dateFrom, dateTo, linkedObjectId, managerUserId, page, query, reviewOnly, sortBy, sortDirection, status]);
 
   const total = reviewOnly ? reviews.total : result.total;
