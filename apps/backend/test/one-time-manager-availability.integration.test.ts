@@ -26,8 +26,8 @@ test('one-time manager availability supports requests, approvals and history', a
   const { app, baseUrl } = await createTestApp();
   const [founder, managerOne, managerTwo, calendarManager, hiddenManager] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'drozdovskiy' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'berendyakov' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'eliseeva' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'gerasimov' } }),
   ]);
@@ -91,13 +91,13 @@ test('one-time manager availability supports requests, approvals and history', a
       }),
       loginAndGetCookieHeader({
         baseUrl,
-        login: 'manager1',
-        password: 'manager123',
+        login: 'drozdovskiy',
+        password: 'drozdovskiy123',
       }),
       loginAndGetCookieHeader({
         baseUrl,
-        login: 'manager2',
-        password: 'manager123',
+        login: 'berendyakov',
+        password: 'berendyakov123',
       }),
       loginAndGetCookieHeader({
         baseUrl,
