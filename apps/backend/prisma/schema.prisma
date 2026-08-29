@@ -96,6 +96,12 @@ model User {
   createdEmployeeSubstitutions EmployeeSubstitution[] @relation("EmployeeSubstitutionCreatedBy")
   createdEmployeeAssignmentHistory EmployeeObjectAssignmentHistory[] @relation("EmployeeAssignmentHistoryCreatedBy")
   closedEmployeeAssignmentHistory  EmployeeObjectAssignmentHistory[] @relation("EmployeeAssignmentHistoryClosedBy")
+  createdCandidates                 Candidate[] @relation("CandidateCreatedBy")
+  candidateManagerAssignments       CandidateManagerAssignment[] @relation("CandidateAssignmentManager")
+  assignedCandidateManagers         CandidateManagerAssignment[] @relation("CandidateAssignmentAssignedBy")
+  endedCandidateAssignments         CandidateManagerAssignment[] @relation("CandidateAssignmentEndedBy")
+  candidateResponses                CandidateResponse[] @relation("CandidateResponseAuthor")
+  notifications                     Notification[] @relation("NotificationRecipient")
 
   @@map("users")
 }
@@ -548,6 +554,98 @@ model EmployeeSubstitution {
   @@index([objectId])
   @@index([status])
   @@map("employee_substitutions")
+}
+
+model Candidate {
+  id              String   @id @default(uuid())
+  fullName        String
+  phone           String?
+  comment         String?
+  candidateType   String   @default("regular")
+  status          String   @default("new")
+  createdByUserId String
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  createdBy   User                         @relation("CandidateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  assignments CandidateManagerAssignment[]
+  responses   CandidateResponse[]
+
+  @@index([fullName])
+  @@index([phone])
+  @@index([candidateType])
+  @@index([status])
+  @@index([createdByUserId])
+  @@index([deletedAt])
+  @@index([updatedAt])
+  @@map("candidates")
+}
+
+model CandidateManagerAssignment {
+  id               String   @id @default(uuid())
+  candidateId      String
+  managerUserId    String
+  assignedByUserId String
+  assignedAt       DateTime @default(now())
+  responseDueAt    DateTime
+  firstRespondedAt DateTime?
+  reminderSentAt   DateTime?
+  endedAt          DateTime?
+  endedByUserId    String?
+
+  candidate  Candidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  manager    User      @relation("CandidateAssignmentManager", fields: [managerUserId], references: [id], onDelete: Restrict)
+  assignedBy User      @relation("CandidateAssignmentAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
+  endedBy    User?     @relation("CandidateAssignmentEndedBy", fields: [endedByUserId], references: [id], onDelete: SetNull)
+  responses  CandidateResponse[]
+
+  @@index([candidateId, assignedAt])
+  @@index([managerUserId, endedAt])
+  @@index([responseDueAt, firstRespondedAt, reminderSentAt, endedAt])
+  @@index([assignedByUserId])
+  @@index([endedByUserId])
+  @@map("candidate_manager_assignments")
+}
+
+model CandidateResponse {
+  id           String   @id @default(uuid())
+  candidateId  String
+  assignmentId String?
+  authorUserId String
+  text         String
+  createdAt    DateTime @default(now())
+
+  candidate  Candidate                   @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  assignment CandidateManagerAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  author     User                        @relation("CandidateResponseAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+
+  @@index([candidateId, createdAt])
+  @@index([assignmentId])
+  @@index([authorUserId])
+  @@map("candidate_responses")
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  recipientUserId String
+  type            String
+  title           String
+  body            String?
+  entityType      String?
+  entityId        String?
+  targetUrl       String?
+  dedupeKey       String?
+  readAt          DateTime?
+  createdAt       DateTime @default(now())
+
+  recipient User @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+
+  @@unique([recipientUserId, dedupeKey])
+  @@index([recipientUserId, readAt, createdAt])
+  @@index([entityType, entityId])
+  @@map("notifications")
 }
 
 model ObjectAuditLog {

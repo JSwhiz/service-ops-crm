@@ -160,6 +160,9 @@ test('/auth/me returns fresh MeResponseDto capabilities from DB', async (t) => {
 
   assert.equal(loginPayload.user.login, 'auth_me_runtime_user');
   assert.equal(loginPayload.user.capabilities.canCreateObject, false);
+  assert.equal(loginPayload.user.capabilities.canAccessCandidates, true);
+  assert.equal(loginPayload.user.capabilities.canManageCandidates, false);
+  assert.equal(loginPayload.user.capabilities.canRespondToCandidates, true);
   assert.equal(typeof loginPayload.user.capabilities.canAccessChats, 'boolean');
   assert.equal(
     typeof loginPayload.user.capabilities.canAccessInventory,
@@ -216,6 +219,17 @@ test('/auth/me returns fresh MeResponseDto capabilities from DB', async (t) => {
   assert.equal(assignedMeResponse.status, 200);
   assert.equal(
     ((await assignedMeResponse.json()) as MePayload).capabilities
+      .canManageOwnOneTimeOrderAvailability,
+    false,
+  );
+
+  await prisma.oneTimeOrderCalendarManager.create({
+    data: { userId, isVisible: true, sortOrder: 999 },
+  });
+  const rosterMeResponse = await getMe({ baseUrl, cookieHeader });
+  assert.equal(rosterMeResponse.status, 200);
+  assert.equal(
+    ((await rosterMeResponse.json()) as MePayload).capabilities
       .canManageOwnOneTimeOrderAvailability,
     true,
   );

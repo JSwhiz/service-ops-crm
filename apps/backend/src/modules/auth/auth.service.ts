@@ -12,6 +12,7 @@ import { buildInventoryGlobalCapabilities } from "../inventory/utils/inventory-c
 import { buildEquipmentGlobalCapabilities } from "../equipment/utils/equipment-capabilities.util";
 import { buildChatGlobalCapabilities } from "../chats/utils/chat-capabilities.util";
 import { buildOneTimeOrderGlobalCapabilities } from "../one-time-orders/utils/one-time-order-capabilities.util";
+import { buildCandidateGlobalCapabilities } from "../candidates/utils/candidate-access.util";
 import { canCreateObject } from "../objects/utils/object-access.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users-access/users.service";
@@ -243,6 +244,9 @@ export class AuthService {
     const employeeCapabilities = buildEmployeeGlobalCapabilities(
       user.permissionCodes,
     );
+    const candidateCapabilities = buildCandidateGlobalCapabilities(
+      user.permissionCodes,
+    );
 
     return {
       id: user.id,
@@ -252,6 +256,9 @@ export class AuthService {
       roleCode: user.roleCodes[0] ?? "unknown",
       roleCodes: user.roleCodes,
       capabilities: {
+        canAccessCandidates: candidateCapabilities.canAccessCandidates,
+        canManageCandidates: candidateCapabilities.canManageCandidates,
+        canRespondToCandidates: candidateCapabilities.canRespondToCandidates,
         canAccessApprovals: approvalCapabilities.canAccessApprovals,
         canResolveTaskResultApproval:
           approvalCapabilities.canResolveTaskResultApproval,

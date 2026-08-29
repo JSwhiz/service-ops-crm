@@ -6,6 +6,9 @@ export class MeResponseDto {
   roleCodes!: string[];
   isActive!: boolean;
   capabilities!: {
+    canAccessCandidates: boolean;
+    canManageCandidates: boolean;
+    canRespondToCandidates: boolean;
     canAccessApprovals: boolean;
     canResolveTaskResultApproval: boolean;
     canResolveInventoryApproval: boolean;
