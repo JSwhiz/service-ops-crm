@@ -3,6 +3,7 @@ import {
   canEditObjectDailyRate,
   canManageObjectResponsibles,
   canOverrideFrozenObject,
+  hasHrObjectView,
   hasWideObjectAccess,
 } from './object-access.util';
 import { canManageEmployeeAssignments } from '../../employees/utils/employee-hr-access.util';
@@ -26,6 +27,7 @@ export function buildObjectCapabilities(params: {
   canManageResponsibles: boolean;
   canManageManagers: boolean;
   canCreateTask: boolean;
+  canViewBasicProfile: boolean;
   canViewOperationalSections: boolean;
   canManageEmployees: boolean;
 } {
@@ -49,6 +51,8 @@ export function buildObjectCapabilities(params: {
     canManageManagers: canManageResponsibles,
     canCreateTask:
       hasOperationalScope,
+    canViewBasicProfile:
+      hasOperationalScope || hasHrObjectView(params.permissionCodes),
     canViewOperationalSections: hasOperationalScope,
     canManageEmployees: canManageEmployeeAssignments(params.permissionCodes),
   };

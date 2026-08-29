@@ -22,6 +22,7 @@ import {
 } from '../one-time-orders/utils/one-time-order-access.util';
 import {
   canEditObjectDailyRate,
+  canViewObjectBasicProfile,
   canViewObjectByScope,
 } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -1565,7 +1566,7 @@ export class ObjectOperationsService {
     });
     if (!object) throw new NotFoundException('Object not found');
     if (
-      !canViewObjectByScope({
+      !canViewObjectBasicProfile({
         currentUserId: currentUser.id,
         roleCodes: this.getRoleCodes(currentUser),
         permissionCodes: currentUser.permissionCodes,

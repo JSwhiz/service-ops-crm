@@ -101,9 +101,11 @@ export async function listEmployeePositionReferences(
 
 export async function listEmployeeObjectReferences(
   search?: string,
+  selectedId?: string,
 ): Promise<EmployeeObjectReference[]> {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
+  if (selectedId) params.set('selectedId', selectedId);
   const suffix = params.toString() ? `?${params.toString()}` : '';
   return fetcher<EmployeeObjectReference[]>(
     `/employees/references/objects${suffix}`,

@@ -12,7 +12,7 @@ import {
   deleteEmployeeAssignmentAsError,
   deleteEmployeePermanently,
   getEmployeeById,
-  listEmployeeObjectCandidates,
+  listEmployeeObjectReferences,
   listEmployees,
   removeEmployeeFromObject,
   restoreEmployee,
@@ -29,7 +29,7 @@ import {
 import type {
   EmployeeDetail,
   EmployeeListItem,
-  EmployeeObjectOption,
+  EmployeeObjectReference,
 } from '@/entities/employee/model/employee.types';
 import {
   EmployeeFormFields,
@@ -140,7 +140,7 @@ export default function EmployeeDetailPage({
 
   const [employeeId, setEmployeeId] = useState('');
   const [item, setItem] = useState<EmployeeDetail | null>(null);
-  const [objectCandidates, setObjectCandidates] = useState<EmployeeObjectOption[]>(
+  const [objectCandidates, setObjectCandidates] = useState<EmployeeObjectReference[]>(
     [],
   );
   const [employeeCandidates, setEmployeeCandidates] = useState<EmployeeListItem[]>(
@@ -202,8 +202,8 @@ export default function EmployeeDetailPage({
 
     const [objects, employees] = await Promise.all([
       needsObjectCandidates
-        ? listEmployeeObjectCandidates()
-        : Promise.resolve<EmployeeObjectOption[]>([]),
+        ? listEmployeeObjectReferences()
+        : Promise.resolve<EmployeeObjectReference[]>([]),
       needsEmployeeCandidates
         ? listEmployees({
             employmentStatus: 'active',
@@ -218,7 +218,7 @@ export default function EmployeeDetailPage({
     setEmployeeCandidates(employees);
     setEditForm(buildEditForm(employee));
     setHasVersionConflict(false);
-    setAssignmentObjectId(objects[0]?.id ?? '');
+    setAssignmentObjectId('');
   };
 
   useEffect(() => {
@@ -625,9 +625,21 @@ export default function EmployeeDetailPage({
                     options={availableObjectCandidates.map((candidate) => ({
                       value: candidate.id,
                       label: candidate.name,
-                      searchText: candidate.status,
                     }))}
                     placeholder="Выберите объект"
+                    asyncSearch={async (query) => {
+                      const currentIds = new Set(
+                        item.currentObjectAssignments.map(
+                          (assignment) => assignment.objectId,
+                        ),
+                      );
+                      return (await listEmployeeObjectReferences(query))
+                        .filter((object) => !currentIds.has(object.id))
+                        .map((object) => ({
+                          value: object.id,
+                          label: object.name,
+                        }));
+                    }}
                     onChange={setAssignmentObjectId}
                   />
                   <button
@@ -639,6 +651,7 @@ export default function EmployeeDetailPage({
                           objectId: assignmentObjectId,
                         });
                         setItem(updated);
+                        setAssignmentObjectId('');
                       } catch (error) {
                         setActionError(
                           getErrorMessage(
@@ -922,22 +935,23 @@ export default function EmployeeDetailPage({
                     </option>
                   ))}
                 </select>
-                <select
+                <SearchableSelect
+                  label="Объект подмены"
                   value={substitutionForm.objectId}
-                  onChange={(event) =>
-                    setSubstitutionForm((prev) => ({
-                      ...prev,
-                      objectId: event.target.value,
-                    }))
+                  options={objectCandidates.map((candidate) => ({
+                    value: candidate.id,
+                    label: candidate.name,
+                  }))}
+                  placeholder="Без привязки к объекту"
+                  asyncSearch={async (query) =>
+                    (await listEmployeeObjectReferences(query)).map(
+                      (object) => ({ value: object.id, label: object.name }),
+                    )
                   }
-                >
-                  <option value="">Без привязки к объекту</option>
-                  {objectCandidates.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(objectId) =>
+                    setSubstitutionForm((prev) => ({ ...prev, objectId }))
+                  }
+                />
                 <input
                   type="datetime-local"
                   value={substitutionForm.startDate}

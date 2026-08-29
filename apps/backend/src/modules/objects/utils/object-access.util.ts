@@ -77,7 +77,6 @@ export function hasHrObjectView(permissionCodes: string[] = []): boolean {
 export function canViewObjectByScope(params: {
   currentUserId: string;
   roleCodes: string[];
-  permissionCodes?: string[];
   object: {
     createdByUserId: string;
     assignments: Array<{
@@ -86,10 +85,7 @@ export function canViewObjectByScope(params: {
     }>;
   };
 }): boolean {
-  if (
-    hasWideObjectAccess(params.roleCodes) ||
-    hasHrObjectView(params.permissionCodes)
-  ) {
+  if (hasWideObjectAccess(params.roleCodes)) {
     return true;
   }
 
@@ -101,5 +97,27 @@ export function canViewObjectByScope(params: {
     (assignment) =>
       assignment.userId === params.currentUserId &&
       assignment.isActive !== false,
+  );
+}
+
+export function canViewObjectBasicProfile(params: {
+  currentUserId: string;
+  roleCodes: string[];
+  permissionCodes?: string[];
+  object: {
+    createdByUserId: string;
+    assignments: Array<{
+      userId: string;
+      isActive?: boolean;
+    }>;
+  };
+}): boolean {
+  return (
+    hasHrObjectView(params.permissionCodes) ||
+    canViewObjectByScope({
+      currentUserId: params.currentUserId,
+      roleCodes: params.roleCodes,
+      object: params.object,
+    })
   );
 }

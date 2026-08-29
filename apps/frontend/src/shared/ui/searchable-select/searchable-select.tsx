@@ -19,6 +19,10 @@ interface SearchableSelectProps {
   disabled?: boolean;
   loading?: boolean;
   clearable?: boolean;
+  asyncSearch?: (
+    query: string,
+  ) => Promise<SearchableSelectOption[]>;
+  selectedOption?: SearchableSelectOption | null;
 }
 
 export function SearchableSelect({
@@ -32,21 +36,51 @@ export function SearchableSelect({
   disabled = false,
   loading = false,
   clearable = true,
+  asyncSearch,
+  selectedOption = null,
 }: SearchableSelectProps): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const asyncSearchRef = useRef(asyncSearch);
+  const optionsRef = useRef(options);
+  const requestSequenceRef = useRef(0);
+  const optionCacheRef = useRef(new Map<string, SearchableSelectOption>());
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
-  const selected = options.find((option) => option.value === value) ?? null;
+  const [asyncOptions, setAsyncOptions] = useState(options);
+  const [isAsyncLoading, setIsAsyncLoading] = useState(false);
+  const [asyncError, setAsyncError] = useState(false);
+
+  optionsRef.current = options;
+
+  for (const option of options) {
+    optionCacheRef.current.set(option.value, option);
+  }
+  if (selectedOption) {
+    optionCacheRef.current.set(selectedOption.value, selectedOption);
+  }
+
+  const selected =
+    options.find((option) => option.value === value) ??
+    asyncOptions.find((option) => option.value === value) ??
+    selectedOption ??
+    optionCacheRef.current.get(value) ??
+    null;
   const normalizedQuery = query.trim().toLocaleLowerCase('ru');
-  const visibleOptions = normalizedQuery
-    ? options.filter((option) =>
-        `${option.label} ${option.searchText ?? ''}`
-          .toLocaleLowerCase('ru')
-          .includes(normalizedQuery),
-      )
-    : options;
+  const visibleOptions = asyncSearch
+    ? asyncOptions
+    : normalizedQuery
+      ? options.filter((option) =>
+          `${option.label} ${option.searchText ?? ''}`
+            .toLocaleLowerCase('ru')
+            .includes(normalizedQuery),
+        )
+      : options;
+
+  useEffect(() => {
+    asyncSearchRef.current = asyncSearch;
+  }, [asyncSearch]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent): void => {
@@ -60,8 +94,52 @@ export function SearchableSelect({
     if (!isOpen) return;
     setQuery('');
     setActiveIndex(0);
+    setAsyncOptions(optionsRef.current);
+    setAsyncError(false);
     window.requestAnimationFrame(() => searchRef.current?.focus());
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !asyncSearchRef.current) {
+      setIsAsyncLoading(false);
+      return;
+    }
+
+    const requestSequence = ++requestSequenceRef.current;
+    setIsAsyncLoading(true);
+    setAsyncError(false);
+    const timeout = window.setTimeout(() => {
+      const search = asyncSearchRef.current;
+      if (!search) return;
+
+      void search(query.trim())
+        .then((nextOptions) => {
+          if (requestSequence !== requestSequenceRef.current) return;
+          for (const option of nextOptions) {
+            optionCacheRef.current.set(option.value, option);
+          }
+          setAsyncOptions(nextOptions);
+          setActiveIndex(0);
+        })
+        .catch(() => {
+          if (requestSequence !== requestSequenceRef.current) return;
+          setAsyncOptions([]);
+          setAsyncError(true);
+        })
+        .finally(() => {
+          if (requestSequence === requestSequenceRef.current) {
+            setIsAsyncLoading(false);
+          }
+        });
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeout);
+      if (requestSequence === requestSequenceRef.current) {
+        requestSequenceRef.current += 1;
+      }
+    };
+  }, [isOpen, query]);
 
   const choose = (nextValue: string): void => {
     onChange(nextValue);
@@ -119,7 +197,13 @@ export function SearchableSelect({
                 Очистить выбор
               </button>
             ) : null}
-            {visibleOptions.length === 0 ? (
+            {isAsyncLoading ? (
+              <div className="searchable-select__empty">Загрузка...</div>
+            ) : asyncError ? (
+              <div className="searchable-select__empty">
+                Не удалось загрузить варианты
+              </div>
+            ) : visibleOptions.length === 0 ? (
               <div className="searchable-select__empty">{emptyText}</div>
             ) : (
               visibleOptions.map((option, index) => (

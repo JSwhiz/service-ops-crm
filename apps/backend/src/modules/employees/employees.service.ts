@@ -9,7 +9,7 @@ import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { canViewObjectByScope } from '../objects/utils/object-access.util';
+import { canViewObjectBasicProfile } from '../objects/utils/object-access.util';
 
 import { EmployeeAssignmentHistoryService } from './employee-assignment-history.service';
 import { CreateEmployeeAvailabilityDto } from './dto/create-employee-availability.dto';
@@ -201,17 +201,34 @@ export class EmployeesService {
   ): Promise<EmployeeObjectReferenceDto[]> {
     this.assertViewAccess(currentUser);
 
-    return this.prisma.object.findMany({
-      where: {
-        deletedAt: null,
-        ...(query.search
-          ? { name: { contains: query.search, mode: 'insensitive' as const } }
-          : {}),
-      },
-      select: { id: true, name: true },
-      orderBy: [{ name: 'asc' }, { id: 'asc' }],
-      take: query.limit,
-    });
+    const [objects, selectedObject] = await Promise.all([
+      this.prisma.object.findMany({
+        where: {
+          deletedAt: null,
+          ...(query.search
+            ? { name: { contains: query.search, mode: 'insensitive' as const } }
+            : {}),
+        },
+        select: { id: true, name: true },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        take: query.limit,
+      }),
+      query.selectedId
+        ? this.prisma.object.findFirst({
+            where: { id: query.selectedId, deletedAt: null },
+            select: { id: true, name: true },
+          })
+        : null,
+    ]);
+
+    if (
+      selectedObject &&
+      !objects.some((object) => object.id === selectedObject.id)
+    ) {
+      return [selectedObject, ...objects];
+    }
+
+    return objects;
   }
 
   async listObjectCandidates(
@@ -849,23 +866,21 @@ export class EmployeesService {
       let currentAssignment: Awaited<
         ReturnType<typeof tx.objectEmployeeAssignment.findUnique>
       > = null;
-      if (!initialHistory.endedAt) {
-        await tx.$queryRaw`
-          SELECT "id"
-          FROM "object_employee_assignments"
-          WHERE "employeeId" = ${employeeId}
-            AND "objectId" = ${initialHistory.objectId}
-          FOR UPDATE
-        `;
-        currentAssignment = await tx.objectEmployeeAssignment.findUnique({
-          where: {
-            objectId_employeeId: {
-              employeeId,
-              objectId: initialHistory.objectId,
-            },
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "object_employee_assignments"
+        WHERE "employeeId" = ${employeeId}
+          AND "objectId" = ${initialHistory.objectId}
+        FOR UPDATE
+      `;
+      currentAssignment = await tx.objectEmployeeAssignment.findUnique({
+        where: {
+          objectId_employeeId: {
+            employeeId,
+            objectId: initialHistory.objectId,
           },
-        });
-      }
+        },
+      });
 
       await tx.$queryRaw`
         SELECT "id"
@@ -882,7 +897,14 @@ export class EmployeesService {
           message: 'Employee assignment was changed concurrently',
         });
       }
-      if (!history.endedAt && !currentAssignment?.isActive) {
+      const assignmentMatchesHistory = this.assignmentMatchesHistory(
+        currentAssignment,
+        history,
+      );
+      if (
+        !history.endedAt &&
+        (!currentAssignment?.isActive || !assignmentMatchesHistory)
+      ) {
         throw new ConflictException({
           code: 'EMPLOYEE_ASSIGNMENT_CONFLICT',
           message: 'Employee assignment was changed concurrently',
@@ -904,7 +926,13 @@ export class EmployeesService {
         });
       }
 
-      if (!history.endedAt && currentAssignment) {
+      if (
+        currentAssignment &&
+        ((!history.endedAt && assignmentMatchesHistory) ||
+          (history.endedAt &&
+            !currentAssignment.isActive &&
+            assignmentMatchesHistory))
+      ) {
         await tx.objectEmployeeAssignment.delete({
           where: { id: currentAssignment.id },
         });
@@ -1167,9 +1195,10 @@ export class EmployeesService {
       endedAt: Date | null;
     },
   ): Promise<Array<{ code: string; count: number }>> {
+    const assignmentEnd = params.endedAt ?? new Date();
     const dateWhere = {
       gte: params.startedAt,
-      ...(params.endedAt ? { lte: params.endedAt } : {}),
+      lte: assignmentEnd,
     };
     const substitutionWhere: Prisma.EmployeeSubstitutionWhereInput = {
       objectId: params.objectId,
@@ -1177,10 +1206,15 @@ export class EmployeesService {
         { employeeId: params.employeeId },
         { substituteEmployeeId: params.employeeId },
       ],
-      startDate: params.endedAt ? { lte: params.endedAt } : undefined,
+      startDate: { lte: assignmentEnd },
       AND: [{ OR: [{ endDate: null }, { endDate: { gte: params.startedAt } }] }],
     };
-    const [attendance, timesheetRows, timesheetExceptions, substitutions] =
+    const [
+      attendance,
+      timesheetRowsResult,
+      timesheetExceptionsResult,
+      substitutions,
+    ] =
       await Promise.all([
         tx.objectAttendanceFact.count({
           where: {
@@ -1189,17 +1223,34 @@ export class EmployeesService {
             operationDate: dateWhere,
           },
         }),
-        tx.timesheetEmployeeRow.count({
-          where: {
-            employeeId: params.employeeId,
-            timesheetMonth: { objectId: params.objectId },
-          },
-        }),
-        tx.timesheetManualException.count({
-          where: { employeeId: params.employeeId, objectId: params.objectId },
-        }),
+        tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+          SELECT COUNT(*)::int AS "count"
+          FROM "timesheet_employee_rows" AS "row"
+          INNER JOIN "timesheet_months" AS "month"
+            ON "month"."id" = "row"."timesheetMonthId"
+          WHERE "row"."employeeId" = ${params.employeeId}
+            AND "month"."objectId" = ${params.objectId}
+            AND make_date("month"."year", "month"."month", 1)
+              <= (${assignmentEnd}::timestamptz AT TIME ZONE 'UTC')::date
+            AND (
+              make_date("month"."year", "month"."month", 1)
+              + INTERVAL '1 month - 1 day'
+            )::date >= (${params.startedAt}::timestamptz AT TIME ZONE 'UTC')::date
+        `),
+        tx.$queryRaw<Array<{ count: number }>>(Prisma.sql`
+          SELECT COUNT(*)::int AS "count"
+          FROM "timesheet_manual_exceptions"
+          WHERE "employeeId" = ${params.employeeId}
+            AND "objectId" = ${params.objectId}
+            AND make_date("year", "month", "dayOfMonth")
+              BETWEEN (${params.startedAt}::timestamptz AT TIME ZONE 'UTC')::date
+                AND (${assignmentEnd}::timestamptz AT TIME ZONE 'UTC')::date
+        `),
         tx.employeeSubstitution.count({ where: substitutionWhere }),
       ]);
+
+    const timesheetRows = timesheetRowsResult[0]?.count ?? 0;
+    const timesheetExceptions = timesheetExceptionsResult[0]?.count ?? 0;
 
     return [
       { code: 'attendance_facts', count: attendance },
@@ -1207,6 +1258,32 @@ export class EmployeesService {
       { code: 'timesheet_exceptions', count: timesheetExceptions },
       { code: 'substitutions', count: substitutions },
     ].filter((item) => item.count > 0);
+  }
+
+  private assignmentMatchesHistory(
+    assignment: {
+      startDate: Date | null;
+      endDate: Date | null;
+    } | null,
+    history: {
+      startedAt: Date;
+      endedAt: Date | null;
+    },
+  ): boolean {
+    if (!assignment) return false;
+
+    return (
+      this.timestampsMatch(assignment.startDate, history.startedAt) &&
+      this.timestampsMatch(assignment.endDate, history.endedAt)
+    );
+  }
+
+  private timestampsMatch(
+    left: Date | null,
+    right: Date | null,
+  ): boolean {
+    if (!left || !right) return left === right;
+    return Math.abs(left.getTime() - right.getTime()) <= 1_000;
   }
 
   private async getEmployeeDependencyBlockers(
@@ -1487,7 +1564,7 @@ export class EmployeesService {
       }>;
     },
   ): boolean {
-    return canViewObjectByScope({
+    return canViewObjectBasicProfile({
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
       permissionCodes: this.getPermissionCodes(currentUser),

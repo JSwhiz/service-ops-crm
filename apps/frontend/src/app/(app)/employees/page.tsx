@@ -77,6 +77,24 @@ function getErrorMessage(error: unknown): string {
     : 'Не удалось загрузить реестр сотрудников.';
 }
 
+async function searchObjectOptions(
+  query: string,
+): Promise<SearchableSelectOption[]> {
+  return (await listEmployeeObjectReferences(query)).map((object) => ({
+    value: object.id,
+    label: object.name,
+  }));
+}
+
+async function searchPositionOptions(
+  query: string,
+): Promise<SearchableSelectOption[]> {
+  return (await listEmployeePositionReferences(query)).map((item) => ({
+    value: item.value,
+    label: item.label,
+  }));
+}
+
 function getRegistryTab(
   employeeType: string,
   archiveState: EmployeeArchiveState,
@@ -149,11 +167,18 @@ export default function EmployeesPage(): React.JSX.Element {
     if (!canAccessEmployeesHr) return;
     let cancelled = false;
     setIsLoadingReferences(true);
-    void Promise.all([listEmployeeObjectReferences(), listEmployeePositionReferences()])
+    void Promise.all([
+      listEmployeeObjectReferences(undefined, objectId || undefined),
+      listEmployeePositionReferences(),
+    ])
       .then(([nextObjects, nextPositions]) => {
         if (!cancelled) {
           setObjects(nextObjects);
-          setPositions(nextPositions);
+          setPositions(
+            position && !nextPositions.some((item) => item.value === position)
+              ? [{ value: position, label: position }, ...nextPositions]
+              : nextPositions,
+          );
         }
       })
       .finally(() => {
@@ -162,7 +187,7 @@ export default function EmployeesPage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [canAccessEmployeesHr]);
+  }, [canAccessEmployeesHr, objectId, position]);
 
   useEffect(() => {
     if (!canAccessEmployeesHr) {
@@ -223,9 +248,11 @@ export default function EmployeesPage(): React.JSX.Element {
     <div className="employee-filter-grid">
       <SearchableSelect label="Объект" value={objectId} options={objectOptions}
         placeholder="Все объекты" loading={isLoadingReferences}
+        asyncSearch={searchObjectOptions}
         onChange={(value) => replaceQuery({ objectId: value || null, page: null })} />
       <SearchableSelect label="Должность" value={position} options={positionOptions}
         placeholder="Все должности" loading={isLoadingReferences}
+        asyncSearch={searchPositionOptions}
         onChange={(value) => replaceQuery({ position: value || null, page: null })} />
       <SearchableSelect label="Статус работы" value={employmentStatus}
         placeholder="Все статусы" options={[{ value: 'active', label: 'Работает' }, { value: 'inactive', label: 'Неактивен' }]}

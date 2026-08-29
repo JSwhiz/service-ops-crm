@@ -6,7 +6,11 @@ import { PrismaClient } from '@prisma/client';
 
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
-import { SEEDED_OBJECT_ID } from './helpers/core-fixtures';
+import {
+  cleanupCoreTestObject,
+  createCoreTestObject,
+  SEEDED_OBJECT_ID,
+} from './helpers/core-fixtures';
 
 test('HR object access is read-only except employee staffing', async (t) => {
   const prisma = new PrismaClient();
@@ -34,6 +38,7 @@ test('HR object access is read-only except employee staffing', async (t) => {
       employees: Array<{ baseDailyRate: number | null }>;
       capabilities: {
         canEdit: boolean;
+        canViewBasicProfile: boolean;
         canViewOperationalSections: boolean;
         canManageEmployees: boolean;
       };
@@ -44,6 +49,7 @@ test('HR object access is read-only except employee staffing', async (t) => {
   assert.equal(typeof listedObject.dailyRate, 'number');
   assert.ok(Array.isArray(listedObject.employees));
   assert.equal(listedObject.capabilities.canEdit, false);
+  assert.equal(listedObject.capabilities.canViewBasicProfile, true);
   assert.equal(listedObject.capabilities.canViewOperationalSections, false);
   assert.equal(listedObject.capabilities.canManageEmployees, true);
 
@@ -67,14 +73,35 @@ test('HR object access is read-only except employee staffing', async (t) => {
   });
   assert.equal(createResponse.status, 403);
 
-  const [commentsResponse, auditResponse] = await Promise.all([
+  const [
+    commentsResponse,
+    auditResponse,
+    reportResponse,
+    inventoryResponse,
+    equipmentResponse,
+    updateResponse,
+  ] = await Promise.all([
     fetch(`${baseUrl}/api/v1/objects/${SEEDED_OBJECT_ID}/comments`, {
       headers,
     }),
     fetch(`${baseUrl}/api/v1/objects/${SEEDED_OBJECT_ID}/audit`, { headers }),
+    fetch(`${baseUrl}/api/v1/objects/${SEEDED_OBJECT_ID}/daily-report/today`, {
+      headers,
+    }),
+    fetch(`${baseUrl}/api/v1/inventory/items`, { headers }),
+    fetch(`${baseUrl}/api/v1/equipment/catalog`, { headers }),
+    fetch(`${baseUrl}/api/v1/objects/${SEEDED_OBJECT_ID}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ name: 'HR cannot edit' }),
+    }),
   ]);
   assert.equal(commentsResponse.status, 403);
   assert.equal(auditResponse.status, 404);
+  assert.equal(reportResponse.status, 403);
+  assert.equal(inventoryResponse.status, 403);
+  assert.equal(equipmentResponse.status, 403);
+  assert.equal(updateResponse.status, 403);
 
   const employee = await prisma.employee.create({
     data: {
@@ -126,4 +153,56 @@ test('HR object access is read-only except employee staffing', async (t) => {
     { method: 'DELETE', headers },
   );
   assert.equal(removeResponse.status, 200);
+});
+
+test('direct objects.view_hr permission grants only basic object visibility', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const managerCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'manager1',
+    password: 'manager123',
+  });
+  const manager = await prisma.user.findUniqueOrThrow({
+    where: { login: 'manager1' },
+    select: { id: true },
+  });
+  const permission = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'objects.view_hr' },
+    select: { id: true },
+  });
+  const { objectId } = await createCoreTestObject(prisma);
+
+  t.after(async () => {
+    await cleanupCoreTestObject(prisma, objectId);
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const before = await fetch(`${baseUrl}/api/v1/objects/${objectId}`, {
+    headers: { Cookie: managerCookie },
+  });
+  assert.equal(before.status, 404);
+
+  await prisma.userPermission.create({
+    data: { userId: manager.id, permissionId: permission.id },
+  });
+  const basic = await fetch(`${baseUrl}/api/v1/objects/${objectId}`, {
+    headers: { Cookie: managerCookie },
+  });
+  assert.equal(basic.status, 200);
+  const body = (await basic.json()) as {
+    capabilities: {
+      canViewBasicProfile: boolean;
+      canViewOperationalSections: boolean;
+    };
+  };
+  assert.equal(body.capabilities.canViewBasicProfile, true);
+  assert.equal(body.capabilities.canViewOperationalSections, false);
+
+  const report = await fetch(
+    `${baseUrl}/api/v1/objects/${objectId}/daily-report/today`,
+    { headers: { Cookie: managerCookie } },
+  );
+  assert.equal(report.status, 403);
 });

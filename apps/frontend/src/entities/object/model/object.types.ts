@@ -81,6 +81,7 @@ export interface ServiceObject {
     canManageResponsibles: boolean;
     canManageManagers: boolean;
     canCreateTask: boolean;
+    canViewBasicProfile: boolean;
     canViewOperationalSections: boolean;
     canManageEmployees: boolean;
   };

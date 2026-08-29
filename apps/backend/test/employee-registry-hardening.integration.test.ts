@@ -4,7 +4,12 @@ import test from 'node:test';
 
 import { PrismaClient } from '@prisma/client';
 
-import { SEEDED_EMPLOYEE_IDS, SEEDED_OBJECT_ID } from './helpers/core-fixtures';
+import {
+  cleanupCoreTestObject,
+  createCoreTestObject,
+  SEEDED_EMPLOYEE_IDS,
+  SEEDED_OBJECT_ID,
+} from './helpers/core-fixtures';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
 
@@ -157,6 +162,34 @@ test('employee create, validation and optimistic update are production-safe', as
       .baseDailyRate,
     0,
   );
+
+  const integerRateResponse = await fetch(`${baseUrl}/api/v1/employees`, {
+    method: 'POST',
+    headers: authHeaders(hrCookie),
+    body: JSON.stringify({
+      fullName: `Целая ставка ${marker}`,
+      baseDailyRate: 3500,
+      workScheduleCode: 'custom',
+      workScheduleCustom: 'Г'.repeat(300),
+    }),
+  });
+  assert.equal(integerRateResponse.status, 201);
+
+  for (const payload of [
+    { fullName: `Дробная ставка ${marker}`, baseDailyRate: 3500.5 },
+    {
+      fullName: `Длинный график ${marker}`,
+      workScheduleCode: 'custom',
+      workScheduleCustom: 'Г'.repeat(301),
+    },
+  ]) {
+    const invalidResponse = await fetch(`${baseUrl}/api/v1/employees`, {
+      method: 'POST',
+      headers: authHeaders(hrCookie),
+      body: JSON.stringify(payload),
+    });
+    assert.equal(invalidResponse.status, 400);
+  }
 
   const updateResponse = await fetch(`${baseUrl}/api/v1/employees/${created.id}`, {
     method: 'PATCH',
@@ -389,6 +422,73 @@ test('employee registry filters, pagination and active assignment semantics are 
     name: string;
   }>;
   assert.ok(objectReferences.some((item) => item.id === SEEDED_OBJECT_ID));
+
+  const founder = await prisma.user.findUniqueOrThrow({
+    where: { login: 'founder' },
+    select: { id: true },
+  });
+  const referenceMarker = randomUUID().slice(0, 8);
+  await prisma.object.createMany({
+    data: Array.from({ length: 55 }, (_, index) => ({
+      name: `AAA reference ${referenceMarker} ${String(index).padStart(2, '0')}`,
+      address: 'Reference test',
+      status: 'active',
+      createdByUserId: founder.id,
+    })),
+  });
+  const lateObject = await prisma.object.create({
+    data: {
+      name: `ZZZ searchable ${referenceMarker}`,
+      address: 'Reference test',
+      status: 'active',
+      createdByUserId: founder.id,
+    },
+  });
+  const searchedObjectsResponse = await fetch(
+    `${baseUrl}/api/v1/employees/references/objects?search=${encodeURIComponent(lateObject.name)}`,
+    { headers: { Cookie: hrCookie } },
+  );
+  assert.equal(searchedObjectsResponse.status, 200);
+  const searchedObjects = (await searchedObjectsResponse.json()) as Array<{
+    id: string;
+  }>;
+  assert.ok(searchedObjects.some((item) => item.id === lateObject.id));
+  const selectedObjectResponse = await fetch(
+    `${baseUrl}/api/v1/employees/references/objects?selectedId=${lateObject.id}`,
+    { headers: { Cookie: hrCookie } },
+  );
+  assert.equal(selectedObjectResponse.status, 200);
+  assert.ok(
+    ((await selectedObjectResponse.json()) as Array<{ id: string }>).some(
+      (item) => item.id === lateObject.id,
+    ),
+  );
+
+  await prisma.employee.createMany({
+    data: Array.from({ length: 55 }, (_, index) => ({
+      fullName: `Position reference ${referenceMarker} ${index}`,
+      position: `AAA position ${referenceMarker} ${String(index).padStart(2, '0')}`,
+      employmentStatus: 'active',
+    })),
+  });
+  const latePosition = `ZZZ position ${referenceMarker}`;
+  await prisma.employee.create({
+    data: {
+      fullName: `Late position ${referenceMarker}`,
+      position: latePosition,
+      employmentStatus: 'active',
+    },
+  });
+  const searchedPositionsResponse = await fetch(
+    `${baseUrl}/api/v1/employees/references/positions?search=${encodeURIComponent(latePosition)}`,
+    { headers: { Cookie: hrCookie } },
+  );
+  assert.equal(searchedPositionsResponse.status, 200);
+  assert.ok(
+    ((await searchedPositionsResponse.json()) as Array<{ value: string }>).some(
+      (item) => item.value === latePosition,
+    ),
+  );
 });
 
 test('employee archive and restore preserve history, block active assignments and roll back with audit', async (t) => {
@@ -549,4 +649,97 @@ test('employee archive and restore preserve history, block active assignments an
     })
   ).map((event) => event.action);
   assert.deepEqual(auditActions, ['employee.archived', 'employee.restored']);
+});
+
+test('approved object archive closes employee staffing without deleting history', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const [founderCookie, hrCookie] = await Promise.all([
+    loginAndGetCookieHeader({ baseUrl, login: 'founder', password: 'founder123' }),
+    loginAndGetCookieHeader({ baseUrl, login: 'hr1', password: 'hr123' }),
+  ]);
+  const founder = await prisma.user.findUniqueOrThrow({
+    where: { login: 'founder' },
+    select: { id: true },
+  });
+  const { objectId } = await createCoreTestObject(prisma);
+
+  t.after(async () => {
+    await cleanupCoreTestObject(prisma, objectId);
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const employee = await prisma.employee.create({
+    data: { fullName: `Archived object ${randomUUID()}`, employmentStatus: 'active' },
+  });
+  const startedAt = new Date('2026-01-01T00:00:00.000Z');
+  const assignment = await prisma.objectEmployeeAssignment.create({
+    data: { objectId, employeeId: employee.id, isActive: true, startDate: startedAt },
+  });
+  const history = await prisma.employeeObjectAssignmentHistory.create({
+    data: {
+      objectId,
+      employeeId: employee.id,
+      startedAt,
+      createdByUserId: founder.id,
+    },
+  });
+
+  const requestResponse = await fetch(`${baseUrl}/api/v1/objects/${objectId}/status`, {
+    method: 'PATCH',
+    headers: authHeaders(founderCookie),
+    body: JSON.stringify({ status: 'archived' }),
+  });
+  assert.equal(requestResponse.status, 200);
+  const request = (await requestResponse.json()) as { id: string };
+  const approveResponse = await fetch(
+    `${baseUrl}/api/v1/approvals/${request.id}/approve`,
+    {
+      method: 'POST',
+      headers: authHeaders(founderCookie),
+      body: JSON.stringify({}),
+    },
+  );
+  assert.equal(approveResponse.status, 200);
+
+  const closedAssignment = await prisma.objectEmployeeAssignment.findUniqueOrThrow({
+    where: { id: assignment.id },
+  });
+  assert.equal(closedAssignment.isActive, false);
+  assert.ok(closedAssignment.endDate);
+  const closedHistory = await prisma.employeeObjectAssignmentHistory.findUniqueOrThrow({
+    where: { id: history.id },
+  });
+  assert.ok(closedHistory.endedAt);
+  assert.equal(closedHistory.closedByUserId, founder.id);
+
+  const cardResponse = await fetch(`${baseUrl}/api/v1/employees/${employee.id}`, {
+    headers: { Cookie: hrCookie },
+  });
+  assert.equal(cardResponse.status, 200);
+  const card = (await cardResponse.json()) as {
+    version: number;
+    currentObjectAssignments: unknown[];
+    objectAssignmentHistory: Array<{ id: string }>;
+  };
+  assert.equal(card.currentObjectAssignments.length, 0);
+  assert.ok(card.objectAssignmentHistory.some((item) => item.id === history.id));
+
+  const archiveEmployeeResponse = await fetch(
+    `${baseUrl}/api/v1/employees/${employee.id}/archive`,
+    {
+      method: 'POST',
+      headers: authHeaders(hrCookie),
+      body: JSON.stringify({ expectedVersion: card.version }),
+    },
+  );
+  assert.equal(archiveEmployeeResponse.status, 201);
+  assert.ok(await prisma.auditEvent.findFirst({
+    where: {
+      entityType: 'employee',
+      entityId: employee.id,
+      action: 'employee.object_assignment.ended_on_object_archive',
+    },
+  }));
 });

@@ -89,7 +89,7 @@ export function EmployeeFormFields({
           </label>
           <label>
             <span className="detail-label">Базовая ставка за день</span>
-            <input type="number" min="0" step="0.01" value={value.baseDailyRate} onChange={(event) => update('baseDailyRate', event.target.value)} />
+            <input type="number" min="0" step="1" value={value.baseDailyRate} onChange={(event) => update('baseDailyRate', event.target.value)} />
           </label>
         </div>
       </fieldset>
@@ -110,7 +110,7 @@ export function EmployeeFormFields({
           {value.workScheduleCode === 'custom' ? (
             <label>
               <span className="detail-label">Описание графика *</span>
-              <input value={value.workScheduleCustom} maxLength={500} required
+              <input value={value.workScheduleCustom} maxLength={300} required
                 placeholder="Например: Пн, Ср, Пт и каждая вторая суббота"
                 onChange={(event) => update('workScheduleCustom', event.target.value)} />
             </label>

@@ -712,6 +712,12 @@ export class ObjectsService {
       nextStatus: string;
     },
   ): Promise<void> {
+    await tx.$queryRaw`
+      SELECT "id"
+      FROM "objects"
+      WHERE "id" = ${params.objectId}
+      FOR UPDATE
+    `;
     const object = await tx.object.findFirst({
       where: {
         id: params.objectId,
@@ -731,6 +737,84 @@ export class ObjectsService {
       throw new ConflictException(
         'Object status changed after approval request was created',
       );
+    }
+
+    if (params.nextStatus === 'archived') {
+      const lifecycleAt = new Date();
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "object_employee_assignments"
+        WHERE "objectId" = ${params.objectId}
+          AND "isActive" = true
+        FOR UPDATE
+      `;
+      const activeAssignments = await tx.objectEmployeeAssignment.findMany({
+        where: {
+          objectId: params.objectId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          employeeId: true,
+          startDate: true,
+        },
+      });
+
+      if (activeAssignments.length > 0) {
+        const assignmentIds = activeAssignments.map((assignment) => assignment.id);
+        const employeeIds = activeAssignments.map(
+          (assignment) => assignment.employeeId,
+        );
+        const closedAssignments = await tx.objectEmployeeAssignment.updateMany({
+          where: {
+            id: { in: assignmentIds },
+            isActive: true,
+          },
+          data: {
+            isActive: false,
+            endDate: lifecycleAt,
+          },
+        });
+        if (closedAssignments.count !== activeAssignments.length) {
+          throw new ConflictException(
+            'Object employee assignments changed concurrently',
+          );
+        }
+
+        await tx.employeeObjectAssignmentHistory.updateMany({
+          where: {
+            objectId: params.objectId,
+            employeeId: { in: employeeIds },
+            endedAt: null,
+          },
+          data: {
+            endedAt: lifecycleAt,
+            closedByUserId: params.actorUserId,
+          },
+        });
+
+        for (const assignment of activeAssignments) {
+          await this.auditService.writeAuditEvent(
+            {
+              entityType: 'employee',
+              entityId: assignment.employeeId,
+              actorUserId: params.actorUserId,
+              action: 'employee.object_assignment.ended_on_object_archive',
+              oldValues: {
+                assignmentId: assignment.id,
+                objectId: params.objectId,
+                isActive: true,
+                startDate: assignment.startDate?.toISOString() ?? null,
+              },
+              newValues: {
+                isActive: false,
+                endedAt: lifecycleAt.toISOString(),
+              },
+            },
+            tx,
+          );
+        }
+      }
     }
 
     await tx.object.update({

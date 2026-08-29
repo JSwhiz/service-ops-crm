@@ -131,6 +131,247 @@ test('erroneous assignment deletion is guarded, audited and concurrency-safe', a
   );
 });
 
+test('erroneous assignment blockers are limited to the assignment period', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const hrCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'hr1',
+    password: 'hr123',
+  });
+  const hr = await prisma.user.findUniqueOrThrow({
+    where: { login: 'hr1' },
+    select: { id: true },
+  });
+  const counterpart = await prisma.employee.create({
+    data: { fullName: `Counterpart ${randomUUID()}`, employmentStatus: 'active' },
+  });
+  const startedAt = new Date('2025-01-10T00:00:00.000Z');
+  const endedAt = new Date('2025-01-20T23:59:59.000Z');
+
+  t.after(async () => {
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const runCase = async (
+    setup: (employeeId: string) => Promise<void>,
+    expectedStatus: 201 | 409,
+  ): Promise<void> => {
+    const employee = await prisma.employee.create({
+      data: {
+        fullName: `Period guard ${randomUUID()}`,
+        employmentStatus: 'active',
+      },
+    });
+    await prisma.objectEmployeeAssignment.create({
+      data: {
+        employeeId: employee.id,
+        objectId: SEEDED_OBJECT_ID,
+        isActive: false,
+        startDate: startedAt,
+        endDate: endedAt,
+      },
+    });
+    const history = await prisma.employeeObjectAssignmentHistory.create({
+      data: {
+        employeeId: employee.id,
+        objectId: SEEDED_OBJECT_ID,
+        startedAt,
+        endedAt,
+        createdByUserId: hr.id,
+        closedByUserId: hr.id,
+      },
+    });
+    await setup(employee.id);
+    const response = await fetch(
+      `${baseUrl}/api/v1/employees/${employee.id}/object-assignment-history/${history.id}/delete-as-error`,
+      {
+        method: 'POST',
+        headers: authHeaders(hrCookie),
+        body: JSON.stringify({ reason: 'Проверка периода назначения' }),
+      },
+    );
+    assert.equal(response.status, expectedStatus);
+  };
+
+  const attendance = (operationDate: string) => (employeeId: string) =>
+    prisma.objectAttendanceFact.create({
+      data: {
+        employeeId,
+        objectId: SEEDED_OBJECT_ID,
+        operationDate: new Date(operationDate),
+        dailyRateSnapshot: 1000,
+      },
+    }).then(() => undefined);
+  await runCase(attendance('2025-01-15T00:00:00.000Z'), 409);
+  await runCase(attendance('2025-02-01T00:00:00.000Z'), 201);
+  await runCase(attendance('2024-12-31T00:00:00.000Z'), 201);
+
+  const timesheet = (year: number, month: number) => async (employeeId: string) => {
+    const sheet = await prisma.timesheetMonth.upsert({
+      where: { objectId_year_month: { objectId: SEEDED_OBJECT_ID, year, month } },
+      update: {},
+      create: { objectId: SEEDED_OBJECT_ID, year, month, createdByUserId: hr.id },
+    });
+    await prisma.timesheetEmployeeRow.create({
+      data: {
+        timesheetMonthId: sheet.id,
+        employeeId,
+        employeeNameSnapshot: 'Period test',
+      },
+    });
+  };
+  await runCase(timesheet(2025, 1), 409);
+  await runCase(timesheet(2025, 2), 201);
+  await runCase(timesheet(2026, 1), 201);
+
+  const manualException = (year: number, month: number, dayOfMonth: number) =>
+    (employeeId: string) => prisma.timesheetManualException.create({
+      data: {
+        objectId: SEEDED_OBJECT_ID,
+        employeeId,
+        year,
+        month,
+        dayOfMonth,
+        requestedDayValue: 1000,
+        currentDayValueSnapshot: 0,
+        comment: 'Period test',
+        requestedByUserId: hr.id,
+      },
+    }).then(() => undefined);
+  await runCase(manualException(2025, 1, 15), 409);
+  await runCase(manualException(2025, 2, 1), 201);
+
+  const substitution = (startDate: string, endDate: string) =>
+    (employeeId: string) => prisma.employeeSubstitution.create({
+      data: {
+        employeeId,
+        substituteEmployeeId: counterpart.id,
+        objectId: SEEDED_OBJECT_ID,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        status: 'planned',
+        reason: 'Period test',
+        createdByUserId: hr.id,
+      },
+    }).then(() => undefined);
+  await runCase(
+    substitution('2025-01-05T00:00:00.000Z', '2025-01-12T00:00:00.000Z'),
+    409,
+  );
+  await runCase(
+    substitution('2025-02-01T00:00:00.000Z', '2025-02-05T00:00:00.000Z'),
+    201,
+  );
+});
+
+test('erroneous history deletion removes only its matching canonical lifecycle', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const [hrCookie, founderCookie] = await Promise.all([
+    loginAndGetCookieHeader({ baseUrl, login: 'hr1', password: 'hr123' }),
+    loginAndGetCookieHeader({ baseUrl, login: 'founder', password: 'founder123' }),
+  ]);
+  const hr = await prisma.user.findUniqueOrThrow({
+    where: { login: 'hr1' },
+    select: { id: true },
+  });
+  const objectCount = await prisma.object.count();
+
+  t.after(async () => {
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const deleteHistory = (employeeId: string, historyId: string) => fetch(
+    `${baseUrl}/api/v1/employees/${employeeId}/object-assignment-history/${historyId}/delete-as-error`,
+    {
+      method: 'POST',
+      headers: authHeaders(hrCookie),
+      body: JSON.stringify({ reason: 'Ошибочное назначение' }),
+    },
+  );
+
+  const removable = await prisma.employee.create({
+    data: { fullName: `Orphan ${randomUUID()}`, employmentStatus: 'active' },
+  });
+  const oldStart = new Date('2025-01-01T00:00:00.000Z');
+  const oldEnd = new Date('2025-01-31T00:00:00.000Z');
+  const orphan = await prisma.objectEmployeeAssignment.create({
+    data: {
+      employeeId: removable.id,
+      objectId: SEEDED_OBJECT_ID,
+      isActive: false,
+      startDate: oldStart,
+      endDate: oldEnd,
+    },
+  });
+  const removableHistory = await prisma.employeeObjectAssignmentHistory.create({
+    data: {
+      employeeId: removable.id,
+      objectId: SEEDED_OBJECT_ID,
+      startedAt: oldStart,
+      endedAt: oldEnd,
+      createdByUserId: hr.id,
+      closedByUserId: hr.id,
+    },
+  });
+  assert.equal((await deleteHistory(removable.id, removableHistory.id)).status, 201);
+  assert.equal(await prisma.objectEmployeeAssignment.count({ where: { id: orphan.id } }), 0);
+  const fresh = await prisma.employee.findUniqueOrThrow({ where: { id: removable.id } });
+  const hardDelete = await fetch(
+    `${baseUrl}/api/v1/employees/${removable.id}/delete-permanently`,
+    {
+      method: 'POST',
+      headers: authHeaders(founderCookie),
+      body: JSON.stringify({ expectedVersion: fresh.version, reason: 'Ошибочная пустая карточка' }),
+    },
+  );
+  assert.equal(hardDelete.status, 201);
+
+  for (const newerIsActive of [true, false]) {
+    const employee = await prisma.employee.create({
+      data: { fullName: `Reassigned ${randomUUID()}`, employmentStatus: 'active' },
+    });
+    const history = await prisma.employeeObjectAssignmentHistory.create({
+      data: {
+        employeeId: employee.id,
+        objectId: SEEDED_OBJECT_ID,
+        startedAt: oldStart,
+        endedAt: oldEnd,
+        createdByUserId: hr.id,
+        closedByUserId: hr.id,
+      },
+    });
+    const newerStart = new Date('2025-03-01T00:00:00.000Z');
+    const newerEnd = newerIsActive ? null : new Date('2025-03-31T00:00:00.000Z');
+    const canonical = await prisma.objectEmployeeAssignment.create({
+      data: {
+        employeeId: employee.id,
+        objectId: SEEDED_OBJECT_ID,
+        isActive: newerIsActive,
+        startDate: newerStart,
+        endDate: newerEnd,
+      },
+    });
+    await prisma.employeeObjectAssignmentHistory.create({
+      data: {
+        employeeId: employee.id,
+        objectId: SEEDED_OBJECT_ID,
+        startedAt: newerStart,
+        endedAt: newerEnd,
+        createdByUserId: hr.id,
+        ...(newerEnd ? { closedByUserId: hr.id } : {}),
+      },
+    });
+    assert.equal((await deleteHistory(employee.id, history.id)).status, 201);
+    assert.equal(await prisma.objectEmployeeAssignment.count({ where: { id: canonical.id } }), 1);
+  }
+
+  assert.equal(await prisma.object.count(), objectCount);
+});
+
 test('permanent employee deletion requires permission and an empty dependency graph', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
