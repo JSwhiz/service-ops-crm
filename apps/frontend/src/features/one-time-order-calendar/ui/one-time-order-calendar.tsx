@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   approveOneTimeManagerAvailability,
@@ -11,6 +11,7 @@ import {
   createOwnOneTimeManagerAvailability,
   downloadOneTimeOrderCalendarExcel,
   getOneTimeOrderCalendar,
+  listOneTimeOrderCalendarManagers,
   rejectOneTimeManagerAvailability,
   updateOneTimeManagerAvailability,
 } from '@/entities/one-time-order/api/one-time-order-client';
@@ -21,7 +22,6 @@ import type {
   OneTimeOrderCalendarManager,
   OneTimeOrderCalendarResponse,
 } from '@/entities/one-time-order/model/one-time-order.types';
-import { listOneTimeOrderManagerCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserDisplayName } from '@/shared/lib/display-name';
@@ -129,6 +129,26 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const calendarRootRef = useRef<HTMLDivElement | null>(null);
+  const lastTodayScrollKeyRef = useRef<string | null>(null);
+
+  const scrollTodayIntoView = (): void => {
+    window.requestAnimationFrame(() => {
+      const root = calendarRootRef.current;
+      const grid = root?.querySelector<HTMLElement>('.one-time-calendar__grid-shell');
+      const desktopToday = grid?.querySelector<HTMLElement>('[data-today="true"]');
+      if (grid && desktopToday) {
+        grid.scrollLeft = Math.max(
+          0,
+          desktopToday.offsetLeft - grid.clientWidth / 2 + desktopToday.clientWidth / 2,
+        );
+        return;
+      }
+      root
+        ?.querySelector<HTMLElement>('.one-time-calendar__mobile [data-today="true"]')
+        ?.scrollIntoView({ block: 'center', behavior: 'auto' });
+    });
+  };
 
   const replaceQuery = (nextMonth: string, nextManagerId = managerUserId): void => {
     const query = new URLSearchParams();
@@ -181,10 +201,30 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
 
   useEffect(() => {
     if (!canView) return;
-    void listOneTimeOrderManagerCandidates()
-      .then(setManagerOptions)
+    void listOneTimeOrderCalendarManagers()
+      .then((items) =>
+        setManagerOptions(
+          items.map((item) => ({
+            ...item,
+            roleCode: '',
+            roleCodes: [],
+            isActive: true,
+          })),
+        ),
+      )
       .catch(() => setManagerOptions([]));
   }, [canView]);
+
+  useEffect(() => {
+    if (!calendar || month !== getCurrentMonth()) {
+      if (month !== getCurrentMonth()) lastTodayScrollKeyRef.current = null;
+      return;
+    }
+    const key = `${month}:${managerUserId}`;
+    if (lastTodayScrollKeyRef.current === key) return;
+    lastTodayScrollKeyRef.current = key;
+    scrollTodayIntoView();
+  }, [calendar, managerUserId, month]);
 
   const openAvailabilityForm = (
     mode: AvailabilityFormState['mode'],
@@ -313,7 +353,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
         })) ?? [];
 
   return (
-    <div className="one-time-calendar">
+    <div className="one-time-calendar" ref={calendarRootRef}>
       <div className="page-card one-time-calendar__toolbar">
         <div className="one-time-calendar__month-nav">
           <button type="button" onClick={() => replaceQuery(shiftMonth(month, -1))}>
@@ -328,7 +368,14 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
           <button type="button" onClick={() => replaceQuery(shiftMonth(month, 1))}>
             Вперед
           </button>
-          <button type="button" onClick={() => replaceQuery(getCurrentMonth())}>
+          <button
+            type="button"
+            onClick={() => {
+              const currentMonth = getCurrentMonth();
+              if (month === currentMonth) scrollTodayIntoView();
+              else replaceQuery(currentMonth);
+            }}
+          >
             Текущий месяц
           </button>
         </div>

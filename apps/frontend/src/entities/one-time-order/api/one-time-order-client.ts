@@ -376,6 +376,15 @@ export async function getOneTimeOrderCalendar(params: {
   );
 }
 
+export async function listOneTimeOrderCalendarManagers(
+  search?: string,
+): Promise<Array<{ id: string; login: string; fullName: string }>> {
+  return fetcher<Array<{ id: string; login: string; fullName: string }>>(
+    `/one-time-orders/calendar/managers${buildQuery({ search })}`,
+    { method: 'GET' },
+  );
+}
+
 export async function downloadOneTimeOrderCalendarExcel(params: {
   month: string;
   managerUserId?: string;

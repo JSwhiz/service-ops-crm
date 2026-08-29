@@ -43,10 +43,11 @@ test('one-time order calendar expands ranges and protects pending availability',
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const marker = `calendar-${Date.now()}`;
-  const [founder, managerOne, managerTwo] = await Promise.all([
+  const [founder, managerOne, managerTwo, hiddenManager] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'drozdovskiy' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'berendyakov' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'gerasimov' } }),
   ]);
   const inactiveManager = await prisma.user.create({
     data: {
@@ -112,6 +113,13 @@ test('one-time order calendar expands ranges and protects pending availability',
       end: '2032-07-14',
       managers: [managerTwo.id],
     },
+    {
+      title: `${marker}-hidden-manager`,
+      status: 'planned',
+      start: '2032-07-15',
+      end: '2032-07-15',
+      managers: [hiddenManager.id],
+    },
   ];
   const orders = await Promise.all(
     orderData.map((item) =>
@@ -145,6 +153,18 @@ test('one-time order calendar expands ranges and protects pending availability',
         status: 'approved',
         requestComment: 'Приватный комментарий отпуска',
         resolutionComment: 'Приватное решение по отпуску',
+        requestedByUserId: founder.id,
+        resolvedByUserId: founder.id,
+        resolvedAt: new Date(),
+      },
+    }),
+    prisma.oneTimeManagerAvailability.create({
+      data: {
+        userId: hiddenManager.id,
+        entryType: 'day_off',
+        startDate: new Date('2032-07-15T00:00:00.000Z'),
+        endDate: new Date('2032-07-15T00:00:00.000Z'),
+        status: 'approved',
         requestedByUserId: founder.id,
         resolvedByUserId: founder.id,
         resolvedAt: new Date(),
@@ -194,13 +214,13 @@ test('one-time order calendar expands ranges and protects pending availability',
     }),
     loginAndGetCookieHeader({
       baseUrl,
-      login: 'manager1',
-      password: 'manager123',
+        login: 'drozdovskiy',
+        password: 'drozdovskiy123',
     }),
     loginAndGetCookieHeader({
       baseUrl,
-      login: 'manager2',
-      password: 'manager123',
+        login: 'berendyakov',
+        password: 'berendyakov123',
     }),
     loginAndGetCookieHeader({
       baseUrl,
@@ -223,6 +243,21 @@ test('one-time order calendar expands ranges and protects pending availability',
   );
   assert.equal(leadershipCalendar.month, '2032-07');
   assert.equal(leadershipCalendar.daysInMonth, 31);
+  assert.deepEqual(
+    leadershipCalendar.managers.map((row) => row.user.fullName),
+    [
+      'Дроздовский Александр Александрович',
+      'Берендяков Роман Вячеславович',
+      'Гомонова Мария Николаевна',
+      'Сычева Кристина Александровна',
+      'Елисеева Оксана Анатольевна',
+      'Милов Евгений Юрьевич',
+    ],
+  );
+  assert.equal(
+    leadershipCalendar.managers.some((row) => row.user.id === hiddenManager.id),
+    false,
+  );
   const managerOneRow = leadershipCalendar.managers.find(
     (row) => row.user.id === managerOne.id,
   )!;
@@ -336,6 +371,12 @@ test('one-time order calendar expands ranges and protects pending availability',
     [managerTwo.id],
   );
   assert.equal(filteredCalendar.managers[0]?.workedDays, 3);
+
+  const hiddenManagerCalendar = await getCalendar(
+    founderCookie,
+    `month=2032-07&managerUserId=${hiddenManager.id}`,
+  );
+  assert.deepEqual(hiddenManagerCalendar.managers, []);
 
   const hrCalendar = await getCalendar(hrCookie);
   assert.equal(

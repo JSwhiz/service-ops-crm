@@ -428,6 +428,34 @@ async function main(): Promise<void> {
 
   }
 
+  const calendarManagerLogins = [
+    "drozdovskiy",
+    "berendyakov",
+    "gomonova",
+    "sycheva",
+    "eliseeva",
+    "milov",
+  ];
+  const calendarManagers = await prisma.user.findMany({
+    where: { login: { in: calendarManagerLogins } },
+    select: { id: true, login: true },
+  });
+
+  for (const calendarManager of calendarManagers) {
+    await prisma.oneTimeOrderCalendarManager.upsert({
+      where: { userId: calendarManager.id },
+      update: {
+        isVisible: true,
+        sortOrder: calendarManagerLogins.indexOf(calendarManager.login) + 1,
+      },
+      create: {
+        userId: calendarManager.id,
+        isVisible: true,
+        sortOrder: calendarManagerLogins.indexOf(calendarManager.login) + 1,
+      },
+    });
+  }
+
   await prisma.userRole.upsert({
     where: {
       userId_roleId: {

@@ -34,6 +34,7 @@ import {
   formatAvailabilityDate,
   normalizeAvailabilityDateRange,
 } from './utils/one-time-manager-availability-date.util';
+import { isOneTimeOrderCalendarManager } from './utils/one-time-order-calendar-roster.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -163,6 +164,11 @@ export class OneTimeManagerAvailabilityService {
     payload: CreateOneTimeManagerAvailabilityDirectDto,
   ): Promise<OneTimeManagerAvailabilityResponseDto> {
     this.assertCanManage(currentUser);
+    if (!(await isOneTimeOrderCalendarManager(this.prisma, payload.userId))) {
+      throw new ForbiddenException(
+        'User is not configured for the one-time order calendar',
+      );
+    }
     await this.assertEligibleManager(payload.userId);
     const range = normalizeAvailabilityDateRange(payload.startDate, payload.endDate);
     const requestComment = payload.comment?.trim() || null;

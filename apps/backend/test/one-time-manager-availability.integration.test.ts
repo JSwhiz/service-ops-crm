@@ -24,12 +24,14 @@ const END = new Date('2032-01-01T00:00:00.000Z');
 test('one-time manager availability supports requests, approvals and history', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
-  const [founder, managerOne, managerTwo] = await Promise.all([
+  const [founder, managerOne, managerTwo, calendarManager, hiddenManager] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'eliseeva' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'gerasimov' } }),
   ]);
-  const userIds = [managerOne.id, managerTwo.id];
+  const userIds = [managerOne.id, managerTwo.id, calendarManager.id];
 
   const cleanup = async () => {
     const entries = await prisma.oneTimeManagerAvailability.findMany({
@@ -140,6 +142,18 @@ test('one-time manager availability supports requests, approvals and history', a
   });
   assert.equal(managerCreatesForOther.status, 403);
 
+  const hiddenManagerDirect = await fetch(`${availabilityUrl}/direct`, {
+    method: 'POST',
+    headers: { Cookie: hrCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: hiddenManager.id,
+      entryType: 'day_off',
+      startDate: '2031-01-20',
+      endDate: '2031-01-20',
+    }),
+  });
+  assert.equal(hiddenManagerDirect.status, 403);
+
   const managerApprovesSelf = await fetch(
     `${availabilityUrl}/${ownRequest.id}/approve`,
     {
@@ -201,7 +215,7 @@ test('one-time manager availability supports requests, approvals and history', a
     method: 'POST',
     headers: { Cookie: hrCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      userId: managerOne.id,
+      userId: calendarManager.id,
       entryType: 'day_off',
       startDate: '2031-03-01',
       endDate: '2031-03-03',
@@ -217,7 +231,7 @@ test('one-time manager availability supports requests, approvals and history', a
     method: 'POST',
     headers: { Cookie: hrCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      userId: managerOne.id,
+      userId: calendarManager.id,
       entryType: 'sick_leave',
       startDate: '2031-03-03',
       endDate: '2031-03-04',

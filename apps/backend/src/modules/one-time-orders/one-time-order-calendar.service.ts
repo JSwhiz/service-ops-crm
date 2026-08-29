@@ -25,8 +25,8 @@ import {
   hasOneTimeOrderPermission,
   ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
   ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION,
-  ONE_TIME_ORDER_MANAGER_ROLE_CODES,
 } from './utils/one-time-order-access.util';
+import { listOneTimeOrderCalendarRoster } from './utils/one-time-order-calendar-roster.util';
 import { formatAvailabilityDate } from './utils/one-time-manager-availability-date.util';
 
 interface CurrentAuthUser {
@@ -39,19 +39,20 @@ interface CurrentAuthUser {
   isActive: boolean;
 }
 
-interface CalendarManager {
-  id: string;
-  login: string;
-  fullName: string;
-  isActive: boolean;
-  deletedAt: Date | null;
-}
-
 @Injectable()
 export class OneTimeOrderCalendarService {
   private readonly logger = new Logger(OneTimeOrderCalendarService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async listManagers(
+    currentUser: CurrentAuthUser,
+    search?: string,
+  ): Promise<Array<{ id: string; login: string; fullName: string }>> {
+    await this.assertCanViewCalendar(currentUser);
+    const users = await listOneTimeOrderCalendarRoster(this.prisma, { search });
+    return users.map(({ id, login, fullName }) => ({ id, login, fullName }));
+  }
 
   async exportCalendar(
     currentUser: CurrentAuthUser,
@@ -201,25 +202,14 @@ export class OneTimeOrderCalendarService {
         ? {}
         : { status: { not: 'cancelled' } };
 
-    const [eligibleUsers, orders] = await Promise.all([
-      this.prisma.user.findMany({
-        where: {
-          isActive: true,
-          deletedAt: null,
-          roles: {
-            some: { role: { code: { in: [...ONE_TIME_ORDER_MANAGER_ROLE_CODES] } } },
-          },
-          ...(query.managerUserId ? { id: query.managerUserId } : {}),
-        },
-        select: {
-          id: true,
-          login: true,
-          fullName: true,
-          isActive: true,
-          deletedAt: true,
-        },
-      }),
-      this.prisma.oneTimeOrder.findMany({
+    const eligibleUsers = await listOneTimeOrderCalendarRoster(this.prisma, {
+      managerUserId: query.managerUserId,
+    });
+    const managerIds = eligibleUsers.map((user) => user.id);
+    const orders =
+      managerIds.length === 0
+        ? []
+        : await this.prisma.oneTimeOrder.findMany({
         where: {
           executionStartDate: { lte: monthEnd },
           executionEndDate: { gte: monthStart },
@@ -228,7 +218,7 @@ export class OneTimeOrderCalendarService {
             some: {
               assignmentRoleCode: 'one_time_manager',
               isActive: true,
-              ...(query.managerUserId ? { userId: query.managerUserId } : {}),
+              userId: { in: managerIds },
             },
           },
         },
@@ -244,6 +234,7 @@ export class OneTimeOrderCalendarService {
             where: {
               assignmentRoleCode: 'one_time_manager',
               isActive: true,
+              userId: { in: managerIds },
               user: { isActive: true, deletedAt: null },
             },
             select: {
@@ -261,8 +252,7 @@ export class OneTimeOrderCalendarService {
           },
         },
         orderBy: [{ executionStartDate: 'asc' }, { id: 'asc' }],
-      }),
-    ]);
+      });
 
     const accessibleOrderIds = new Set(
       orders.length === 0
@@ -280,19 +270,6 @@ export class OneTimeOrderCalendarService {
           ).map((order) => order.id),
     );
 
-    const managers = new Map<string, CalendarManager>();
-    for (const user of eligibleUsers) managers.set(user.id, user);
-    for (const order of orders) {
-      for (const assignment of order.assignments) {
-        if (
-          !query.managerUserId ||
-          assignment.userId === query.managerUserId
-        ) {
-          managers.set(assignment.userId, assignment.user);
-        }
-      }
-    }
-    const managerIds = [...managers.keys()];
     const availabilityEntries =
       managerIds.length === 0
         ? []
@@ -340,9 +317,7 @@ export class OneTimeOrderCalendarService {
     return {
       month: query.month,
       daysInMonth,
-      managers: [...managers.values()]
-        .sort((left, right) => left.fullName.localeCompare(right.fullName, 'ru'))
-        .map((manager) => {
+      managers: eligibleUsers.map((manager) => {
           const managerOrders = (ordersByManagerId.get(manager.id) ?? []).filter((order) => {
             if (!accessibleOrderIds.has(order.id)) {
               return order.status !== 'cancelled';
@@ -459,6 +434,11 @@ export class OneTimeOrderCalendarService {
       : query.includeCancelled
         ? {}
         : { status: { not: 'cancelled' } };
+    const roster = await listOneTimeOrderCalendarRoster(this.prisma, {
+      managerUserId: query.managerUserId,
+    });
+    const rosterUserIds = roster.map((user) => user.id);
+    if (rosterUserIds.length === 0) return [];
     const orders = await this.prisma.oneTimeOrder.findMany({
       where: {
         AND: [
@@ -467,17 +447,13 @@ export class OneTimeOrderCalendarService {
             executionStartDate: { lte: monthEnd },
             executionEndDate: { gte: monthStart },
             ...statusWhere,
-            ...(query.managerUserId
-              ? {
-                  assignments: {
-                    some: {
-                      userId: query.managerUserId,
-                      assignmentRoleCode: 'one_time_manager',
-                      isActive: true,
-                    },
-                  },
-                }
-              : {}),
+            assignments: {
+              some: {
+                userId: { in: rosterUserIds },
+                assignmentRoleCode: 'one_time_manager',
+                isActive: true,
+              },
+            },
           },
         ],
       },
@@ -497,6 +473,7 @@ export class OneTimeOrderCalendarService {
           where: {
             assignmentRoleCode: 'one_time_manager',
             isActive: true,
+            userId: { in: rosterUserIds },
             user: { isActive: true, deletedAt: null },
           },
           select: { user: { select: { fullName: true } } },

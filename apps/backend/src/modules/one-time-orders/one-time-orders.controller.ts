@@ -34,6 +34,7 @@ import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
 import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
 import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dto';
 import { ListOneTimeOrderCalendarQueryDto } from './dto/list-one-time-order-calendar-query.dto';
+import { ListOneTimeOrderCalendarManagersQueryDto } from './dto/list-one-time-order-calendar-managers-query.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
@@ -111,6 +112,14 @@ export class OneTimeOrdersController {
     @Query() query: ListOneTimeOrderCalendarQueryDto,
   ): Promise<OneTimeOrderCalendarResponseDto> {
     return this.oneTimeOrderCalendarService.getCalendar(user, query);
+  }
+
+  @Get('calendar/managers')
+  listCalendarManagers(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListOneTimeOrderCalendarManagersQueryDto,
+  ): Promise<Array<{ id: string; login: string; fullName: string }>> {
+    return this.oneTimeOrderCalendarService.listManagers(user, query.search);
   }
 
   @Post('calendar/check-conflicts')
