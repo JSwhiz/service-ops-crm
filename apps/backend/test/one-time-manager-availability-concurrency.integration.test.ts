@@ -20,8 +20,8 @@ test('one-time manager availability resolves atomically under concurrency', asyn
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const [managerOne, managerTwo] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'drozdovskiy' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'berendyakov' } }),
   ]);
   const userIds = [managerOne.id, managerTwo.id];
 
@@ -69,13 +69,13 @@ test('one-time manager availability resolves atomically under concurrency', asyn
     await Promise.all([
       loginAndGetCookieHeader({
         baseUrl,
-        login: 'manager1',
-        password: 'manager123',
+        login: 'drozdovskiy',
+        password: 'drozdovskiy123',
       }),
       loginAndGetCookieHeader({
         baseUrl,
-        login: 'manager2',
-        password: 'manager123',
+        login: 'berendyakov',
+        password: 'berendyakov123',
       }),
       loginAndGetCookieHeader({
         baseUrl,

@@ -121,6 +121,7 @@ test('financial history rejects destructive deletes and direct mutations', async
       status: 'in_progress',
       contactName: 'Заказчик',
       agreedSum: 1000,
+      plannedPaymentMethod: 'cash',
       managerUserIds: [manager.id],
     },
   );

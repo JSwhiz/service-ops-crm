@@ -316,6 +316,7 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
       title: `Equipment linked order ${Date.now()}`,
       executionAddress: 'Москва, equipment test, 1',
       contactName: 'Equipment contact',
+      plannedPaymentMethod: 'cash',
       managerUserIds: [managerTwo.id],
     }),
   });

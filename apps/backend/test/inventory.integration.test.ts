@@ -277,6 +277,7 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
       linkedObjectId: SEEDED_OBJECT_ID,
       contactName: 'Складской контакт',
       agreedSum: 10000,
+      plannedPaymentMethod: 'cash',
     }),
   });
 
