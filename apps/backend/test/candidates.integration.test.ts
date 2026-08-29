@@ -71,6 +71,9 @@ test('candidate registry, access, assignment and immutable response flow', async
     prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'berendyakov' } }),
   ]);
+  const founderUser = await prisma.user.findUniqueOrThrow({ where: { login: 'founder' } });
+  const invalidAssignment = await request(baseUrl, hrCookie, `/candidates/${candidate.id}/assignments`, { method: 'POST', body: JSON.stringify({ managerUserId: founderUser.id, expectedVersion: candidate.version }) });
+  assert.equal(invalidAssignment.status, 409);
   const assign = await request(baseUrl, hrCookie, `/candidates/${candidate.id}/assignments`, { method: 'POST', body: JSON.stringify({ managerUserId: managerOne.id, expectedVersion: candidate.version }) });
   assert.equal(assign.status, 201);
   candidate = await assign.json();
@@ -117,5 +120,12 @@ test('candidate registry, access, assignment and immutable response flow', async
   await prisma.userPermission.createMany({ data: permissions.map((permission) => ({ userId: noRole.id, permissionId: permission.id })) });
   const directCookie = await loginAndGetCookieHeader({ baseUrl, login: noRole.login, password: 'direct123' });
   assert.equal((await request(baseUrl, directCookie, '/candidates')).status, 200);
-  assert.equal((await request(baseUrl, directCookie, `/candidates/${reserveId}/responses`, { method: 'POST', body: JSON.stringify({ text: 'Direct permission response' }) })).status, 201);
+  const directResponse = await request(baseUrl, directCookie, `/candidates/${reserveId}/responses`, { method: 'POST', body: JSON.stringify({ text: 'Direct permission response' }) });
+  assert.equal(directResponse.status, 201);
+  const reserveAfterResponse = (await directResponse.json()) as { version: number };
+  assert.equal((await request(baseUrl, hrCookie, `/candidates/${reserveId}/archive`, { method: 'POST', body: JSON.stringify({ expectedVersion: reserveAfterResponse.version }) })).status, 201);
+  const archivedReserve = await request(baseUrl, managerCookie, '/candidates?candidateType=reserve&archiveState=archived');
+  assert.deepEqual(((await archivedReserve.json()) as { items: Array<{ id: string }> }).items.map((item) => item.id), [reserveId]);
+  const activeReserve = await request(baseUrl, managerCookie, '/candidates?candidateType=reserve&archiveState=active');
+  assert.equal(((await activeReserve.json()) as { total: number }).total, 0);
 });

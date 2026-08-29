@@ -263,3 +263,15 @@ Sprint 1 closeout считается завершенным только есл�
 - upload в `object_arrival_photo`, `object_daily_report`, `object_comment` наследует текущий writable bridge object-operations;
 - upload в `task` наследует task-scoped access;
 - прямой публичный storage URL не считается каноническим access path, базовый runtime path — backend download proxy.
+
+---
+
+## 15. Candidates
+
+| Action | founder | deputy_founder | director | corporate_director | deputy_director | hr | operation_manager | manager |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| View | yes | yes | yes | yes | yes | yes | yes | yes |
+| Manage | yes | yes | yes | yes | yes | yes | no | no |
+| Respond | no | no | no | no | no | no | yes | yes |
+
+Адресные permissions `candidates.view`, `candidates.manage`, `candidates.respond` расширяют соответствующее действие. Назначаемый менеджер должен оставаться активным `manager` или `operation_manager` независимо от direct permission.

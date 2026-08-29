@@ -53,6 +53,7 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
   assert.equal(listPayload.totalPages, 2);
   assert.equal(listPayload.items[0]?.targetUrl, `/candidates/${candidate.id}`);
   assert.equal((await api(baseUrl, managerTwoCookie, '/notifications/unread-count').then((response) => response.json()) as { count: number }).count, 0);
+  assert.equal((await api(baseUrl, managerTwoCookie, `/notifications/${listPayload.items[0]!.id}/read`, { method: 'POST' })).status, 404);
 
   const markRead = await api(baseUrl, managerCookie, `/notifications/${listPayload.items[0]!.id}/read`, { method: 'POST' });
   assert.equal(markRead.status, 201);
@@ -81,4 +82,17 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
   await prisma.candidateManagerAssignment.update({ where: { id: oldAssignmentId }, data: { responseDueAt: overdueAt } });
   assert.equal(await workerOne.processOverdueAssignments(), 0);
   assert.equal(await prisma.notification.count({ where: { type: 'candidate.response_overdue', entityId: reassignCandidate.id } }), 0);
+
+  for (const terminalAction of ['accepted', 'rejected', 'archive'] as const) {
+    const terminalCandidate = await api(baseUrl, hrCookie, '/candidates', { method: 'POST', body: JSON.stringify({ fullName: `Terminal ${terminalAction}`, candidateType: 'regular' }) }).then((response) => response.json()) as any;
+    const terminalAssigned = await api(baseUrl, hrCookie, `/candidates/${terminalCandidate.id}/assignments`, { method: 'POST', body: JSON.stringify({ managerUserId: managerOne.id, expectedVersion: terminalCandidate.version }) }).then((response) => response.json()) as any;
+    const terminalAssignmentId = terminalAssigned.currentAssignment.id as string;
+    const terminalResponse = terminalAction === 'archive'
+      ? await api(baseUrl, hrCookie, `/candidates/${terminalCandidate.id}/archive`, { method: 'POST', body: JSON.stringify({ expectedVersion: terminalAssigned.version }) })
+      : await api(baseUrl, hrCookie, `/candidates/${terminalCandidate.id}/status`, { method: 'POST', body: JSON.stringify({ status: terminalAction, expectedVersion: terminalAssigned.version }) });
+    assert.equal(terminalResponse.status, 201);
+    await prisma.candidateManagerAssignment.update({ where: { id: terminalAssignmentId }, data: { responseDueAt: overdueAt } });
+    assert.equal(await workerOne.processOverdueAssignments(), 0);
+    assert.equal(await prisma.notification.count({ where: { type: 'candidate.response_overdue', entityId: terminalCandidate.id } }), 0);
+  }
 });
