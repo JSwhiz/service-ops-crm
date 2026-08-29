@@ -3,7 +3,10 @@ import React from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
-import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import {
+  getOneTimeOrderPlannedPaymentMethodLabel,
+  getOneTimeOrderStatusLabel,
+} from '@/shared/lib/one-time-order-presentation';
 
 export function OneTimeOrderSummaryCard({
   item,
@@ -47,6 +50,16 @@ export function OneTimeOrderSummaryCard({
           value={
             item.agreedSum !== null
               ? `${item.agreedSum.toLocaleString('ru-RU')} ₽`
+              : '—'
+          }
+        />
+        <Field
+          label="Плановый способ оплаты"
+          value={
+            item.plannedPaymentMethod
+              ? getOneTimeOrderPlannedPaymentMethodLabel(
+                  item.plannedPaymentMethod,
+                )
               : '—'
           }
         />

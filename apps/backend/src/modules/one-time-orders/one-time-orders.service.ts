@@ -114,6 +114,7 @@ interface OneTimeOrderView {
   contactName: string;
   contactPhone: string | null;
   agreedSum: number | null;
+  plannedPaymentMethod: string | null;
   financialNotes: string | null;
   expenseNotes: string | null;
   reviewText: string | null;
@@ -546,6 +547,7 @@ export class OneTimeOrdersService {
           contactName: payload.contactName.trim(),
           contactPhone: payload.contactPhone?.trim() || null,
           agreedSum: payload.agreedSum ?? null,
+          plannedPaymentMethod: payload.plannedPaymentMethod,
           financialNotes: payload.financialNotes?.trim() || null,
           expenseNotes: payload.expenseNotes?.trim() || null,
           createdByUserId: currentUser.id,
@@ -578,6 +580,7 @@ export class OneTimeOrdersService {
           title: order.title,
           status: order.status,
           linkedObjectId: order.linkedObjectId,
+          plannedPaymentMethod: order.plannedPaymentMethod,
         },
       });
 
@@ -633,6 +636,7 @@ export class OneTimeOrdersService {
     ].some((value) => value !== undefined);
     const hasFinancialUpdate = [
       payload.agreedSum,
+      payload.plannedPaymentMethod,
       payload.financialNotes,
       payload.expenseNotes,
     ].some((value) => value !== undefined);
@@ -688,6 +692,7 @@ export class OneTimeOrdersService {
       contactPhone:
         payload.contactPhone === undefined ? undefined : payload.contactPhone?.trim() || null,
       agreedSum: payload.agreedSum,
+      plannedPaymentMethod: payload.plannedPaymentMethod,
       financialNotes:
         payload.financialNotes === undefined
           ? undefined
@@ -746,6 +751,9 @@ export class OneTimeOrdersService {
             : {}),
           ...(nextValues.agreedSum !== undefined
             ? { agreedSum: nextValues.agreedSum }
+            : {}),
+          ...(nextValues.plannedPaymentMethod !== undefined
+            ? { plannedPaymentMethod: nextValues.plannedPaymentMethod }
             : {}),
           ...(nextValues.financialNotes !== undefined
             ? { financialNotes: nextValues.financialNotes }
@@ -2963,6 +2971,7 @@ export class OneTimeOrdersService {
       contactName: order.contactName,
       contactPhone: order.contactPhone,
       agreedSum: order.agreedSum,
+      plannedPaymentMethod: order.plannedPaymentMethod,
       financialNotes: order.financialNotes,
       expenseNotes: order.expenseNotes,
       reviewText: order.reviewText,
@@ -3713,6 +3722,7 @@ export class OneTimeOrdersService {
       | 'contactName'
       | 'contactPhone'
       | 'agreedSum'
+      | 'plannedPaymentMethod'
       | 'financialNotes'
       | 'expenseNotes'
       | 'linkedObjectId'
@@ -3724,6 +3734,7 @@ export class OneTimeOrdersService {
       'contactName',
       'contactPhone',
       'agreedSum',
+      'plannedPaymentMethod',
       'financialNotes',
       'expenseNotes',
       'linkedObjectId',

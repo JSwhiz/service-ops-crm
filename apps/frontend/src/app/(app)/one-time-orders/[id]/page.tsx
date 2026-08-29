@@ -147,6 +147,7 @@ export default function OneTimeOrderDetailPage({
             contactName: item.contactName,
             contactPhone: item.contactPhone ?? undefined,
             agreedSum: item.agreedSum ?? undefined,
+            plannedPaymentMethod: item.plannedPaymentMethod ?? undefined,
             financialNotes: item.financialNotes ?? undefined,
             expenseNotes: item.expenseNotes ?? undefined,
           }

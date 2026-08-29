@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 
 import { ONE_TIME_ORDER_STATUSES } from '../types/one-time-order-status.type';
+import { ONE_TIME_ORDER_PAYMENT_METHODS } from '../types/one-time-order-payment-method.type';
 
 export class CreateOneTimeOrderDto {
   @IsString()
@@ -58,6 +59,9 @@ export class CreateOneTimeOrderDto {
   @IsInt()
   @Min(0)
   agreedSum?: number;
+
+  @IsIn(ONE_TIME_ORDER_PAYMENT_METHODS)
+  plannedPaymentMethod!: (typeof ONE_TIME_ORDER_PAYMENT_METHODS)[number];
 
   @IsOptional()
   @IsString()

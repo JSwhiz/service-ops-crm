@@ -10,6 +10,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import {
+  ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS,
   ONE_TIME_ORDER_STATUS_OPTIONS,
 } from '@/shared/lib/one-time-order-presentation';
 
@@ -24,6 +25,7 @@ type OneTimeOrderFormPayload = {
   contactName: string;
   contactPhone?: string;
   agreedSum?: number;
+  plannedPaymentMethod?: CreateOneTimeOrderPayload['plannedPaymentMethod'];
   financialNotes?: string;
   expenseNotes?: string;
   managerUserIds?: string[];
@@ -35,6 +37,7 @@ export function OneTimeOrderForm({
   initialValue,
   canSelectLinkedObject,
   canEditFinancialFields = true,
+  requirePlannedPaymentMethod = false,
   includeManagers,
   allowStatusEdit,
   submitLabel,
@@ -45,6 +48,7 @@ export function OneTimeOrderForm({
   initialValue?: Partial<CreateOneTimeOrderPayload>;
   canSelectLinkedObject: boolean;
   canEditFinancialFields?: boolean;
+  requirePlannedPaymentMethod?: boolean;
   includeManagers: boolean;
   allowStatusEdit: boolean;
   submitLabel: string;
@@ -72,6 +76,7 @@ export function OneTimeOrderForm({
       initialValue?.agreedSum !== undefined && initialValue?.agreedSum !== null
         ? String(initialValue.agreedSum)
         : '',
+    plannedPaymentMethod: initialValue?.plannedPaymentMethod ?? '',
     financialNotes: initialValue?.financialNotes ?? '',
     expenseNotes: initialValue?.expenseNotes ?? '',
     managerUserIds: initialValue?.managerUserIds ?? ([] as string[]),
@@ -114,6 +119,9 @@ export function OneTimeOrderForm({
         ...(canEditFinancialFields
           ? {
               agreedSum: form.agreedSum ? Number(form.agreedSum) : undefined,
+              plannedPaymentMethod:
+                (form.plannedPaymentMethod as CreateOneTimeOrderPayload['plannedPaymentMethod']) ||
+                undefined,
               financialNotes: form.financialNotes || undefined,
               expenseNotes: form.expenseNotes || undefined,
             }
@@ -314,18 +322,41 @@ export function OneTimeOrderForm({
         </label>
 
         {canEditFinancialFields ? (
-          <label>
-            <div style={{ marginBottom: 6 }}>Согласованная сумма</div>
-            <input
-              type="number"
-              min={0}
-              value={form.agreedSum}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, agreedSum: event.target.value }))
-              }
-              style={{ width: '100%', padding: 10 }}
-            />
-          </label>
+          <>
+            <label>
+              <div style={{ marginBottom: 6 }}>Согласованная сумма</div>
+              <input
+                type="number"
+                min={0}
+                value={form.agreedSum}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, agreedSum: event.target.value }))
+                }
+                style={{ width: '100%', padding: 10 }}
+              />
+            </label>
+            <label>
+              <div style={{ marginBottom: 6 }}>Плановый способ оплаты</div>
+              <select
+                value={form.plannedPaymentMethod}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    plannedPaymentMethod: event.target.value,
+                  }))
+                }
+                required={requirePlannedPaymentMethod}
+                style={{ width: '100%', padding: 10 }}
+              >
+                <option value="">Не указан</option>
+                {ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
         ) : null}
 
         <label style={{ gridColumn: '1 / -1' }}>

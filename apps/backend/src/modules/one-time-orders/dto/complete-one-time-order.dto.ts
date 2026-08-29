@@ -14,12 +14,9 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-export const ONE_TIME_ORDER_PAYMENT_METHODS = [
-  'cash',
-  'personal_card_transfer',
-  'organization_transfer',
-  'other',
-] as const;
+import { ONE_TIME_ORDER_PAYMENT_METHODS } from '../types/one-time-order-payment-method.type';
+
+export { ONE_TIME_ORDER_PAYMENT_METHODS } from '../types/one-time-order-payment-method.type';
 
 export const ONE_TIME_ORDER_PAYMENT_DESTINATIONS = [
   'manager_accountability',

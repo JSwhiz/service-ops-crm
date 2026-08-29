@@ -23,6 +23,7 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
   ]);
 
   let orderId: string | null = null;
+  let legacyOrderId: string | null = null;
   let commentId: string | null = null;
   let reportId: string | null = null;
   let photoId: string | null = null;
@@ -161,6 +162,10 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
       });
     }
 
+    if (legacyOrderId) {
+      await prisma.oneTimeOrder.deleteMany({ where: { id: legacyOrderId } });
+    }
+
     await prisma.objectAssignment.deleteMany({
       where: {
         objectId: SEEDED_OBJECT_ID,
@@ -191,6 +196,54 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
     }),
   ]);
 
+  const requiredCreateFields = {
+    title: `Payment validation ${Date.now()}`,
+    executionAddress: 'Москва, проверка способа оплаты',
+    contactName: 'Тестовый контакт',
+  };
+  const missingPaymentMethod = await fetch(
+    `${baseUrl}/api/v1/one-time-orders`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify(requiredCreateFields),
+    },
+  );
+  assert.equal(missingPaymentMethod.status, 400);
+  const invalidPaymentMethod = await fetch(
+    `${baseUrl}/api/v1/one-time-orders`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...requiredCreateFields,
+        plannedPaymentMethod: 'crypto',
+      }),
+    },
+  );
+  assert.equal(invalidPaymentMethod.status, 400);
+
+  const legacyOrder = await prisma.oneTimeOrder.create({
+    data: {
+      title: `Legacy payment method ${Date.now()}`,
+      executionAddress: 'Москва',
+      status: 'new',
+      contactName: 'Legacy contact',
+      createdByUserId: managerOne.id,
+    },
+  });
+  legacyOrderId = legacyOrder.id;
+  const legacyResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${legacyOrder.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(legacyResponse.status, 200);
+  assert.equal(
+    ((await legacyResponse.json()) as { plannedPaymentMethod: string | null })
+      .plannedPaymentMethod,
+    null,
+  );
+
   const createResponse = await fetch(`${baseUrl}/api/v1/one-time-orders`, {
     method: 'POST',
     headers: {
@@ -207,6 +260,7 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
       contactName: 'Тестовый контакт',
       contactPhone: '+79995550000',
       agreedSum: 15000,
+      plannedPaymentMethod: 'cash',
       financialNotes: 'Согласовано устно',
       expenseNotes: 'Расходы уточняются',
       managerUserIds: [managerOne.id],
@@ -217,12 +271,73 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   const createdOrder = (await createResponse.json()) as {
     id: string;
+    plannedPaymentMethod: string | null;
     linkedObject: { id: string; canOpenObjectCard: boolean } | null;
     managers: Array<{ userId: string }>;
   };
 
   orderId = createdOrder.id;
+  assert.equal(createdOrder.plannedPaymentMethod, 'cash');
   assert.equal(createdOrder.linkedObject?.id, SEEDED_OBJECT_ID);
+
+  const operationalFinancialPatch = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${orderId}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: managerOneCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ plannedPaymentMethod: 'other' }),
+    },
+  );
+  assert.equal(operationalFinancialPatch.status, 403);
+
+  for (const plannedPaymentMethod of [
+    'cash',
+    'personal_card_transfer',
+    'organization_transfer',
+    'other',
+  ]) {
+    const updatePaymentMethod = await fetch(
+      `${baseUrl}/api/v1/one-time-orders/${orderId}`,
+      {
+        method: 'PATCH',
+        headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plannedPaymentMethod }),
+      },
+    );
+    assert.equal(updatePaymentMethod.status, 200);
+    assert.equal(
+      ((await updatePaymentMethod.json()) as { plannedPaymentMethod: string })
+        .plannedPaymentMethod,
+      plannedPaymentMethod,
+    );
+  }
+  assert.equal(
+    await prisma.oneTimeOrderCompletionPayment.count({
+      where: { oneTimeOrderId: orderId },
+    }),
+    0,
+  );
+  assert.equal(
+    await prisma.accountabilityFunding.count({
+      where: { oneTimeOrderId: orderId },
+    }),
+    0,
+  );
+  const plannedMethodAudit = await prisma.auditEvent.findFirst({
+    where: {
+      entityType: 'one_time_order',
+      entityId: orderId,
+      action: 'one_time_order.updated',
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  assert.match(
+    JSON.stringify(plannedMethodAudit?.metadata),
+    /plannedPaymentMethod/,
+  );
   assert.equal(createdOrder.linkedObject?.canOpenObjectCard, true);
   assert.ok(createdOrder.managers.some((manager) => manager.userId === managerOne.id));
 

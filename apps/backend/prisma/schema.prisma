@@ -663,6 +663,7 @@ model OneTimeOrder {
   contactName       String
   contactPhone      String?
   agreedSum         Int?
+  plannedPaymentMethod String?
   financialNotes    String?
   expenseNotes      String?
   reviewText        String?

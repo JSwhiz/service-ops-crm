@@ -109,10 +109,14 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
               : {}),
           }}
           canSelectLinkedObject
+          requirePlannedPaymentMethod
           includeManagers
           allowStatusEdit
           submitLabel="Создать заказ"
           onSubmit={async (payload) => {
+            if (!payload.plannedPaymentMethod) {
+              throw new Error('Укажите плановый способ оплаты');
+            }
             let conflictFingerprint: string | undefined;
             if (
               payload.executionStartDate &&
@@ -145,6 +149,7 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
             }
             const created = await createOneTimeOrder({
               ...payload,
+              plannedPaymentMethod: payload.plannedPaymentMethod,
               conflictFingerprint,
             });
             router.push(`/one-time-orders/${created.id}`);

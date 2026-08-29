@@ -1,5 +1,6 @@
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -7,6 +8,8 @@ import {
   MinLength,
   Matches,
 } from 'class-validator';
+
+import { ONE_TIME_ORDER_PAYMENT_METHODS } from '../types/one-time-order-payment-method.type';
 
 export class UpdateOneTimeOrderDto {
   @IsOptional()
@@ -52,6 +55,10 @@ export class UpdateOneTimeOrderDto {
   @IsInt()
   @Min(0)
   agreedSum?: number | null;
+
+  @IsOptional()
+  @IsIn(ONE_TIME_ORDER_PAYMENT_METHODS)
+  plannedPaymentMethod?: (typeof ONE_TIME_ORDER_PAYMENT_METHODS)[number] | null;
 
   @IsOptional()
   @IsString()

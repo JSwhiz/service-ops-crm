@@ -19,6 +19,7 @@ export interface OneTimeOrderItem {
   contactName: string;
   contactPhone: string | null;
   agreedSum: number | null;
+  plannedPaymentMethod: OneTimeOrderPaymentMethod | null;
   financialNotes: string | null;
   expenseNotes: string | null;
   reviewText: string | null;
@@ -337,6 +338,7 @@ export interface CreateOneTimeOrderPayload {
   contactName: string;
   contactPhone?: string;
   agreedSum?: number;
+  plannedPaymentMethod: OneTimeOrderPaymentMethod;
   financialNotes?: string;
   expenseNotes?: string;
   managerUserIds?: string[];
@@ -354,6 +356,7 @@ export interface UpdateOneTimeOrderPayload {
   contactName?: string;
   contactPhone?: string | null;
   agreedSum?: number | null;
+  plannedPaymentMethod?: OneTimeOrderPaymentMethod | null;
   financialNotes?: string | null;
   expenseNotes?: string | null;
   conflictFingerprint?: string;

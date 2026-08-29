@@ -11,6 +11,7 @@ export class OneTimeOrderResponseDto {
   contactName!: string;
   contactPhone!: string | null;
   agreedSum!: number | null;
+  plannedPaymentMethod!: string | null;
   financialNotes!: string | null;
   expenseNotes!: string | null;
   reviewText!: string | null;

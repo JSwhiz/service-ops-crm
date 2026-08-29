@@ -6,6 +6,23 @@ export const ONE_TIME_ORDER_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Отменен' },
 ] as const;
 
+export const ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS = [
+  { value: 'cash', label: 'Наличные' },
+  { value: 'personal_card_transfer', label: 'Перевод на личную карту' },
+  { value: 'organization_transfer', label: 'Перевод организации' },
+  { value: 'other', label: 'Другое' },
+] as const;
+
+export function getOneTimeOrderPlannedPaymentMethodLabel(
+  method: string,
+): string {
+  return (
+    ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS.find(
+      (item) => item.value === method,
+    )?.label ?? method
+  );
+}
+
 export function getOneTimeOrderStatusLabel(status: string): string {
   return (
     ONE_TIME_ORDER_STATUS_OPTIONS.find((item) => item.value === status)?.label ??
