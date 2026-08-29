@@ -67,7 +67,10 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
 
   const replaceQuery = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(updates)) value ? next.set(key, value) : next.delete(key);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
     const serialized = next.toString();
     router.replace(serialized ? `${pathname}?${serialized}` : pathname, { scroll: false });
   };

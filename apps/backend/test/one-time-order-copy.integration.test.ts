@@ -14,10 +14,9 @@ test('one-time order copy is scoped, atomic and resets lifecycle data', async (t
     await prisma.$disconnect();
   });
   const marker = `copy-order-${Date.now()}`;
-  const [founder, managerOne, managerTwo, managerRole] = await Promise.all([
+  const [founder, managerOne, managerRole] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
     prisma.role.findUniqueOrThrow({ where: { code: 'manager' } }),
   ]);
   const inactiveManager = await prisma.user.create({
