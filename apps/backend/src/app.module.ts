@@ -33,6 +33,7 @@ import { AccountabilityModule } from './modules/accountability/accountability.mo
 import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ChatsModule } from './modules/chats/chats.module';
+import { CandidatesModule } from './modules/candidates/candidates.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { EquipmentModule } from './modules/equipment/equipment.module';
 import { FilesModule } from './modules/files/files.module';
@@ -41,6 +42,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { ObjectOperationsModule } from './modules/object-operations/object-operations.module';
 import { ObjectsModule } from './modules/objects/objects.module';
 import { OneTimeOrdersModule } from './modules/one-time-orders/one-time-orders.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { StorageModule } from './modules/storage/storage.module';
@@ -67,6 +69,7 @@ const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
     ApprovalsModule,
     AuthModule,
     ChatsModule,
+    CandidatesModule,
     EmployeesModule,
     EquipmentModule,
     HealthModule,
@@ -74,6 +77,7 @@ const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
     FilesModule,
     ObjectsModule,
     OneTimeOrdersModule,
+    NotificationsModule,
     ObjectOperationsModule,
     TasksModule,
     TimesheetsModule,
