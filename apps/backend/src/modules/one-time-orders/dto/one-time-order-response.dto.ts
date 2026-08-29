@@ -64,6 +64,7 @@ export class OneTimeOrderResponseDto {
     canAttachFiles: boolean;
     canCreateTask: boolean;
     canEditReview: boolean;
+    canCopy: boolean;
     canViewCalendar: boolean;
     canManageOwnAvailability: boolean;
     canManageAnyAvailability: boolean;

@@ -4,6 +4,7 @@ import { appConfig } from '@/shared/config/app-config';
 
 import type {
   CreateOneTimeOrderPayload,
+  CopyOneTimeOrderPayload,
   CompleteOneTimeOrderPayload,
   CorrectOneTimeOrderPaymentPayload,
   OneTimeOrderCommentItem,
@@ -121,6 +122,16 @@ export async function createOneTimeOrder(
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export async function copyOneTimeOrder(
+  sourceOneTimeOrderId: string,
+  payload: CopyOneTimeOrderPayload,
+): Promise<OneTimeOrderItem> {
+  return fetcher<OneTimeOrderItem>(
+    `/one-time-orders/${sourceOneTimeOrderId}/copy`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
 }
 
 export async function updateOneTimeOrder(

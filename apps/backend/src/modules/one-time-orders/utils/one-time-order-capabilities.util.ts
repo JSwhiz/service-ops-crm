@@ -81,6 +81,7 @@ export interface OneTimeOrderCapabilities {
   canAttachFiles: boolean;
   canCreateTask: boolean;
   canEditReview: boolean;
+  canCopy: boolean;
   canViewCalendar: boolean;
   canManageOwnAvailability: boolean;
   canManageAnyAvailability: boolean;
@@ -155,6 +156,10 @@ export function buildOneTimeOrderCapabilities(params: {
     canEditReview: hasOneTimeOrderPermission(
       params.permissionCodes,
       ONE_TIME_ORDER_REVIEW_EDIT_PERMISSION,
+    ),
+    canCopy: canCreateOneTimeOrder(
+      params.roleCodes,
+      params.permissionCodes,
     ),
     canViewCalendar:
       canAccessOneTimeOrders(params.roleCodes, params.permissionCodes) ||

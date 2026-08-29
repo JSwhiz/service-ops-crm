@@ -39,6 +39,7 @@ import {
 import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
+import { CopyOneTimeOrderDto } from './dto/copy-one-time-order.dto';
 import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
 import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
@@ -606,6 +607,138 @@ export class OneTimeOrdersService {
         linkedObjectId: created.linkedObjectId,
       },
       currentUser.id,
+    );
+
+    return this.mapOrder(created, currentUser);
+  }
+
+  async copyOrder(
+    currentUser: CurrentAuthUser,
+    sourceOneTimeOrderId: string,
+    payload: CopyOneTimeOrderDto,
+  ): Promise<OneTimeOrderResponseDto> {
+    const source = await this.prisma.oneTimeOrder.findFirst({
+      where: {
+        id: sourceOneTimeOrderId,
+        ...buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        }),
+      },
+      select: { id: true },
+    });
+    if (!source) {
+      throw new NotFoundException('One-time order not found');
+    }
+    if (
+      !canCreateOneTimeOrder(
+        this.getRoleCodes(currentUser),
+        this.getPermissionCodes(currentUser),
+      )
+    ) {
+      throw new ForbiddenException('One-time order creation denied');
+    }
+
+    await this.ensureLinkedObjectExists(payload.linkedObjectId ?? null);
+    const dateRange = normalizeOneTimeOrderDateRange({
+      executionStartDate: payload.executionStartDate,
+      executionEndDate: payload.executionEndDate,
+      executionDate: payload.executionDate,
+    });
+    const managerUserIds = Array.from(
+      new Set((payload.managerUserIds ?? []).filter(Boolean)),
+    );
+    const managerUsers = await this.loadCopyManagerUsers(managerUserIds);
+    const specificationItems = payload.specificationItems
+      .map((item) => ({
+        title: item.title.trim(),
+        description: item.description?.trim() || null,
+        requiresAttachment: item.requiresAttachment ?? false,
+      }))
+      .filter((item) => item.title.length > 0);
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const conflictResult = await this.checkScheduleConflicts(
+        tx,
+        currentUser,
+        {
+          executionStartDate: dateRange.executionStartDate,
+          executionEndDate: dateRange.executionEndDate,
+          managerUserIds: managerUsers.map((user) => user.id),
+          conflictFingerprint: payload.conflictFingerprint,
+        },
+      );
+      const order = await tx.oneTimeOrder.create({
+        data: {
+          title: payload.title.trim(),
+          executionAddress: payload.executionAddress.trim(),
+          linkedObjectId: payload.linkedObjectId ?? null,
+          status: 'new',
+          description: payload.description?.trim() || null,
+          executionDate: dateRange.executionStartDate,
+          executionStartDate: dateRange.executionStartDate,
+          executionEndDate: dateRange.executionEndDate,
+          contactName: payload.contactName.trim(),
+          contactPhone: payload.contactPhone?.trim() || null,
+          agreedSum: payload.agreedSum ?? null,
+          plannedPaymentMethod: payload.plannedPaymentMethod,
+          financialNotes: payload.financialNotes?.trim() || null,
+          expenseNotes: payload.expenseNotes?.trim() || null,
+          workCycle: 1,
+          createdByUserId: currentUser.id,
+          assignments: managerUsers.length
+            ? {
+                create: managerUsers.map((user) => ({
+                  userId: user.id,
+                  assignmentRoleCode: 'one_time_manager',
+                  isActive: true,
+                })),
+              }
+            : undefined,
+          specificationItems: specificationItems.length
+            ? {
+                create: specificationItems.map((item, sortOrder) => ({
+                  ...item,
+                  sortOrder,
+                  isCompleted: false,
+                  createdByUserId: currentUser.id,
+                })),
+              }
+            : undefined,
+        },
+        include: this.getOrderInclude(),
+      });
+
+      await this.writeScheduleConflictOverrideAudit(tx, currentUser, order.id, {
+        executionStartDate: dateRange.executionStartDate,
+        executionEndDate: dateRange.executionEndDate,
+        managerUserIds: managerUsers.map((user) => user.id),
+        conflictResult,
+      });
+      await this.writeAuditEvent(tx, {
+        entityType: 'one_time_order',
+        entityId: order.id,
+        actorUserId: currentUser.id,
+        action: 'one_time_order.copied',
+        newValues: {
+          title: order.title,
+          status: order.status,
+          sourceOneTimeOrderId,
+        },
+        metadata: { sourceOneTimeOrderId },
+      });
+      return order as OneTimeOrderView;
+    });
+
+    await this.chatsService.createSystemMessage(
+      'one_time_orders',
+      `Создана копия разового заказа: ${created.title}`,
+      {
+        entityType: 'one_time_order',
+        entityId: created.id,
+        eventType: 'one_time_order.copied',
+      },
     );
 
     return this.mapOrder(created, currentUser);
@@ -2749,6 +2882,27 @@ export class OneTimeOrdersService {
     }
 
     return users;
+  }
+
+  private async loadCopyManagerUsers(userIds: string[]) {
+    if (userIds.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        id: { in: userIds },
+        deletedAt: null,
+        isActive: true,
+      },
+      include: {
+        roles: { include: { role: true } },
+      },
+    });
+
+    return users.filter((user) =>
+      canBeOneTimeOrderManager(
+        user.roles.map((item) => item.role.code),
+      ),
+    );
   }
 
   private getOrderInclude() {

@@ -7,8 +7,15 @@ import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import {
   checkOneTimeOrderConflicts,
+  copyOneTimeOrder,
   createOneTimeOrder,
+  getOneTimeOrderById,
+  listOneTimeOrderSpecificationItems,
 } from '@/entities/one-time-order/api/one-time-order-client';
+import type {
+  CreateOneTimeOrderPayload,
+  OneTimeOrderSpecificationItem,
+} from '@/entities/one-time-order/model/one-time-order.types';
 import { OneTimeOrderForm } from '@/features/one-time-order-form/ui/one-time-order-form';
 import {
   listOneTimeOrderManagerCandidates,
@@ -32,9 +39,16 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
   const { user } = useAuth();
   const canCreateOneTimeOrder =
     user?.capabilities?.canCreateOneTimeOrder ?? false;
+  const copyFromId = searchParams.get('copyFrom');
 
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [managerOptions, setManagerOptions] = useState<SystemUserOption[]>([]);
+  const [initialValue, setInitialValue] = useState<
+    Partial<CreateOneTimeOrderPayload> | undefined
+  >();
+  const [copySpecificationItems, setCopySpecificationItems] = useState<
+    OneTimeOrderSpecificationItem[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,14 +65,63 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
       setError(null);
 
       try {
-        const [loadedObjects, loadedManagers] = await Promise.all([
+        const [loadedObjects, loadedManagers, copySource, sourceSpecification] =
+          await Promise.all([
           listObjects(),
           listOneTimeOrderManagerCandidates(),
+          copyFromId ? getOneTimeOrderById(copyFromId) : Promise.resolve(null),
+          copyFromId
+            ? listOneTimeOrderSpecificationItems(copyFromId)
+            : Promise.resolve([]),
         ]);
 
         if (!cancelled) {
           setObjects(loadedObjects);
           setManagerOptions(loadedManagers);
+          setCopySpecificationItems(sourceSpecification);
+          if (copySource) {
+            const eligibleManagerIds = new Set(
+              loadedManagers.map((manager) => manager.id),
+            );
+            setInitialValue({
+              title: `Копия — ${copySource.title}`,
+              executionAddress: copySource.executionAddress,
+              linkedObjectId:
+                copySource.linkedObject &&
+                loadedObjects.some(
+                  (object) => object.id === copySource.linkedObject?.id,
+                )
+                  ? copySource.linkedObject.id
+                  : null,
+              status: 'new',
+              description: copySource.description ?? undefined,
+              executionStartDate: copySource.executionStartDate,
+              executionEndDate: copySource.executionEndDate,
+              contactName: copySource.contactName,
+              contactPhone: copySource.contactPhone ?? undefined,
+              agreedSum: copySource.agreedSum ?? undefined,
+              plannedPaymentMethod:
+                copySource.plannedPaymentMethod ?? undefined,
+              financialNotes: copySource.financialNotes ?? undefined,
+              expenseNotes: copySource.expenseNotes ?? undefined,
+              managerUserIds: copySource.managers
+                .map((manager) => manager.userId)
+                .filter((managerId) => eligibleManagerIds.has(managerId)),
+            });
+          } else {
+            setInitialValue({
+              ...(searchParams.get('date') &&
+              /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('date')!)
+                ? {
+                    executionStartDate: searchParams.get('date'),
+                    executionEndDate: searchParams.get('date'),
+                  }
+                : {}),
+              ...(searchParams.get('managerUserId')
+                ? { managerUserIds: [searchParams.get('managerUserId')!] }
+                : {}),
+            });
+          }
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -78,11 +141,13 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [canCreateOneTimeOrder]);
+  }, [canCreateOneTimeOrder, copyFromId, searchParams]);
 
   return (
     <>
-      <PageTitle title="Создать разовый заказ" />
+      <PageTitle
+        title={copyFromId ? 'Скопировать разовый заказ' : 'Создать разовый заказ'}
+      />
 
       {!canCreateOneTimeOrder ? (
         <div className="page-card">У вас нет права создавать разовые заказы.</div>
@@ -96,23 +161,18 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
         <OneTimeOrderForm
           objects={objects}
           managerOptions={managerOptions}
-          initialValue={{
-            ...(searchParams.get('date') &&
-            /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get('date')!)
-              ? {
-                  executionStartDate: searchParams.get('date'),
-                  executionEndDate: searchParams.get('date'),
-                }
-              : {}),
-            ...(searchParams.get('managerUserId')
-              ? { managerUserIds: [searchParams.get('managerUserId')!] }
-              : {}),
-          }}
+          initialValue={initialValue}
+          includeSpecificationItems={Boolean(copyFromId)}
+          initialSpecificationItems={copySpecificationItems.map((item) => ({
+            title: item.title,
+            description: item.description,
+            requiresAttachment: item.requiresAttachment,
+          }))}
           canSelectLinkedObject
           requirePlannedPaymentMethod
           includeManagers
           allowStatusEdit
-          submitLabel="Создать заказ"
+          submitLabel={copyFromId ? 'Создать копию' : 'Создать заказ'}
           onSubmit={async (payload) => {
             if (!payload.plannedPaymentMethod) {
               throw new Error('Укажите плановый способ оплаты');
@@ -147,11 +207,17 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
                 conflictFingerprint = result.conflictFingerprint;
               }
             }
-            const created = await createOneTimeOrder({
+            const createPayload = {
               ...payload,
               plannedPaymentMethod: payload.plannedPaymentMethod,
               conflictFingerprint,
-            });
+            };
+            const created = copyFromId
+              ? await copyOneTimeOrder(copyFromId, {
+                  ...createPayload,
+                  specificationItems: payload.specificationItems ?? [],
+                })
+              : await createOneTimeOrder(createPayload);
             router.push(`/one-time-orders/${created.id}`);
           }}
         />

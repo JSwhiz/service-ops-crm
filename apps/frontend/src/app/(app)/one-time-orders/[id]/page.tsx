@@ -302,6 +302,17 @@ export default function OneTimeOrderDetailPage({
         <div className="page-stack">
           <OneTimeOrderSummaryCard item={item} />
 
+          {item.capabilities.canCopy ? (
+            <div className="action-row">
+              <Link
+                className="button-link"
+                href={`/one-time-orders/new?copyFrom=${item.id}`}
+              >
+                Скопировать заказ
+              </Link>
+            </div>
+          ) : null}
+
           <OneTimeOrderCompletionPanel
             item={item}
             completions={completions}

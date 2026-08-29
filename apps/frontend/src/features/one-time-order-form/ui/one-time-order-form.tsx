@@ -29,6 +29,11 @@ type OneTimeOrderFormPayload = {
   financialNotes?: string;
   expenseNotes?: string;
   managerUserIds?: string[];
+  specificationItems?: Array<{
+    title: string;
+    description?: string | null;
+    requiresAttachment?: boolean;
+  }>;
 };
 
 export function OneTimeOrderForm({
@@ -38,6 +43,8 @@ export function OneTimeOrderForm({
   canSelectLinkedObject,
   canEditFinancialFields = true,
   requirePlannedPaymentMethod = false,
+  includeSpecificationItems = false,
+  initialSpecificationItems = [],
   includeManagers,
   allowStatusEdit,
   submitLabel,
@@ -49,6 +56,12 @@ export function OneTimeOrderForm({
   canSelectLinkedObject: boolean;
   canEditFinancialFields?: boolean;
   requirePlannedPaymentMethod?: boolean;
+  includeSpecificationItems?: boolean;
+  initialSpecificationItems?: Array<{
+    title: string;
+    description: string | null;
+    requiresAttachment: boolean;
+  }>;
   includeManagers: boolean;
   allowStatusEdit: boolean;
   submitLabel: string;
@@ -82,6 +95,9 @@ export function OneTimeOrderForm({
     managerUserIds: initialValue?.managerUserIds ?? ([] as string[]),
   });
   const [error, setError] = useState<string | null>(null);
+  const [specificationItems, setSpecificationItems] = useState(
+    initialSpecificationItems.map((item) => ({ ...item })),
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleToggleManager = (userId: string): void => {
@@ -135,6 +151,9 @@ export function OneTimeOrderForm({
           ? {
               managerUserIds: form.managerUserIds,
             }
+          : {}),
+        ...(includeSpecificationItems
+          ? { specificationItems }
           : {}),
       });
     } catch {
@@ -447,6 +466,102 @@ export function OneTimeOrderForm({
                 ))}
               </div>
             )}
+          </div>
+        ) : null}
+
+        {includeSpecificationItems ? (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <div className="section-header" style={{ marginBottom: 10 }}>
+              <div>
+                <div className="section-title">Техническое задание копии</div>
+                <div className="section-subtitle">
+                  Выполнение и вложения исходного заказа не копируются.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() =>
+                  setSpecificationItems((items) => [
+                    ...items,
+                    { title: '', description: null, requiresAttachment: false },
+                  ])
+                }
+              >
+                Добавить пункт
+              </button>
+            </div>
+            <div className="record-list">
+              {specificationItems.map((item, index) => (
+                <div className="record-item" key={index}>
+                  <label>
+                    <div style={{ marginBottom: 6 }}>Название пункта</div>
+                    <input
+                      value={item.title}
+                      maxLength={500}
+                      required
+                      onChange={(event) =>
+                        setSpecificationItems((items) =>
+                          items.map((current, itemIndex) =>
+                            itemIndex === index
+                              ? { ...current, title: event.target.value }
+                              : current,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label>
+                    <div style={{ marginBottom: 6 }}>Описание</div>
+                    <textarea
+                      value={item.description ?? ''}
+                      rows={2}
+                      onChange={(event) =>
+                        setSpecificationItems((items) =>
+                          items.map((current, itemIndex) =>
+                            itemIndex === index
+                              ? { ...current, description: event.target.value }
+                              : current,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <div className="action-row">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={item.requiresAttachment}
+                        onChange={(event) =>
+                          setSpecificationItems((items) =>
+                            items.map((current, itemIndex) =>
+                              itemIndex === index
+                                ? {
+                                    ...current,
+                                    requiresAttachment: event.target.checked,
+                                  }
+                                : current,
+                            ),
+                          )
+                        }
+                      />{' '}
+                      Требуется вложение
+                    </label>
+                    <button
+                      type="button"
+                      className="button-quiet"
+                      onClick={() =>
+                        setSpecificationItems((items) =>
+                          items.filter((_current, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                    >
+                      Убрать
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
       </div>

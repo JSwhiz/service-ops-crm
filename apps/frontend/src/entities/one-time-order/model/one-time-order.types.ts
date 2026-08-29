@@ -68,6 +68,7 @@ export interface OneTimeOrderItem {
     canAttachFiles: boolean;
     canCreateTask: boolean;
     canEditReview: boolean;
+    canCopy: boolean;
     canViewCalendar: boolean;
     canManageOwnAvailability: boolean;
     canManageAnyAvailability: boolean;
@@ -343,6 +344,14 @@ export interface CreateOneTimeOrderPayload {
   expenseNotes?: string;
   managerUserIds?: string[];
   conflictFingerprint?: string;
+}
+
+export interface CopyOneTimeOrderPayload extends CreateOneTimeOrderPayload {
+  specificationItems: Array<{
+    title: string;
+    description?: string | null;
+    requiresAttachment?: boolean;
+  }>;
 }
 
 export interface UpdateOneTimeOrderPayload {
