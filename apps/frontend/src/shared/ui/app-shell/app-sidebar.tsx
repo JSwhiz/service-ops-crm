@@ -18,6 +18,7 @@ export function AppSidebar(): React.JSX.Element {
   const canAccessInventory = user?.capabilities?.canAccessInventory ?? false;
   const canAccessEquipment = user?.capabilities?.canAccessEquipment ?? false;
   const canAccessChats = user?.capabilities?.canAccessChats ?? false;
+  const canAccessCandidates = user?.capabilities?.canAccessCandidates ?? false;
 
   return (
     <aside className="app-sidebar">
@@ -50,6 +51,7 @@ export function AppSidebar(): React.JSX.Element {
         ) : null}
         <NavLink href="/tasks" label="Задачи" />
         <NavLink href="/timesheet" label="Табель" />
+        {canAccessCandidates ? <NavLink href="/candidates" label="Кандидаты" /> : null}
         {canAccessEmployeesHr ? (
           <NavLink href="/employees" label="Сотрудники" />
         ) : null}

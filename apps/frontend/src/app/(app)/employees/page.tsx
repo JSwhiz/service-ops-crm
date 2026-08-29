@@ -293,6 +293,7 @@ export default function EmployeesPage(): React.JSX.Element {
             {([['all', 'Все сотрудники'], ['regular', 'Постоянные'], ['one_time', 'Разовые'], ['archived', 'Архив']] as const)
               .map(([value, label]) => <button key={value} type="button" className={tab === value ? 'is-active' : undefined}
                 aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}>{label}</button>)}
+            {user?.capabilities?.canAccessCandidates ? <Link href="/employees/reserve">Резерв</Link> : null}
           </nav>
 
           <section className="page-card employee-search-row">
