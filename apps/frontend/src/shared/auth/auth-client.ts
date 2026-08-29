@@ -17,6 +17,7 @@ export interface AuthUser {
     canCreateObject: boolean;
     canAccessOneTimeOrders?: boolean;
     canCreateOneTimeOrder?: boolean;
+    canViewAllOneTimeOrderReviews?: boolean;
     canViewOneTimeOrderCalendar?: boolean;
     canManageOwnOneTimeOrderAvailability?: boolean;
     canManageAnyOneTimeOrderAvailability?: boolean;

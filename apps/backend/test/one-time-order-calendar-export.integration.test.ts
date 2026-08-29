@@ -12,8 +12,8 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
   const marker = `calendar-export-${Date.now()}`;
   const [founder, managerOne, managerTwo] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'drozdovskiy' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'berendyakov' } }),
   ]);
   const orders = await Promise.all([
     prisma.oneTimeOrder.create({
@@ -107,13 +107,13 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
     }),
     loginAndGetCookieHeader({
       baseUrl,
-      login: 'manager1',
-      password: 'manager123',
+      login: 'drozdovskiy',
+      password: 'drozdovskiy123',
     }),
     loginAndGetCookieHeader({
       baseUrl,
-      login: 'manager2',
-      password: 'manager123',
+      login: 'berendyakov',
+      password: 'berendyakov123',
     }),
   ]);
   const exportCalendar = async (cookie: string, query: string) => {
@@ -183,6 +183,8 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
   );
   assert.match(leadership.raw, new RegExp(`${marker}-hidden`));
   assert.match(leadership.raw, /Отменённый заказ/);
+  assert.match(leadership.raw, /День недели/);
+  assert.match(leadership.raw, /10 Чт/);
 
   const managerFiltered = await exportCalendar(
     founderCookie,

@@ -43,6 +43,8 @@ import { CopyOneTimeOrderDto } from './dto/copy-one-time-order.dto';
 import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
 import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
+import { ListOneTimeOrderReviewsQueryDto } from './dto/list-one-time-order-reviews-query.dto';
+import { ListOneTimeOrderReferencesQueryDto } from './dto/list-one-time-order-references-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
 import { OneTimeOrderCompletionResponseDto } from './dto/one-time-order-completion-response.dto';
@@ -54,6 +56,7 @@ import {
 } from './dto/one-time-order-list-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
+import { OneTimeOrderReviewListResponseDto } from './dto/one-time-order-review-list-response.dto';
 import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
 import { ReorderOneTimeOrderSpecificationItemsDto } from './dto/reorder-one-time-order-specification-items.dto';
 import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
@@ -72,6 +75,10 @@ import {
   buildOneTimeOrderAccessWhere,
   canBeOneTimeOrderManager,
   canCreateOneTimeOrder,
+  canAccessOneTimeOrders,
+  hasOneTimeOrderPermission,
+  hasWideOneTimeOrderAccess,
+  ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION,
 } from './utils/one-time-order-access.util';
 
 interface CurrentAuthUser {
@@ -475,6 +482,203 @@ export class OneTimeOrdersService {
       total,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async listReviews(
+    currentUser: CurrentAuthUser,
+    query: ListOneTimeOrderReviewsQueryDto,
+  ): Promise<OneTimeOrderReviewListResponseDto> {
+    this.assertCanViewAllReviews(currentUser);
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const search = query.q?.trim();
+    const clauses: Prisma.OneTimeOrderWhereInput[] = [
+      { OR: [{ reviewText: { not: null } }, { reviewRating: { not: null } }] },
+    ];
+    if (query.status) clauses.push({ status: query.status });
+    if (query.managerUserId) {
+      clauses.push({
+        assignments: {
+          some: {
+            userId: query.managerUserId,
+            assignmentRoleCode: 'one_time_manager',
+            isActive: true,
+          },
+        },
+      });
+    }
+    if (query.dateFrom) {
+      clauses.push({
+        executionEndDate: { gte: this.parseRegistryDate(query.dateFrom) },
+      });
+    }
+    if (query.dateTo) {
+      clauses.push({
+        executionStartDate: { lte: this.parseRegistryDate(query.dateTo) },
+      });
+    }
+    if (search) {
+      clauses.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { reviewText: { contains: search, mode: 'insensitive' } },
+          {
+            assignments: {
+              some: {
+                assignmentRoleCode: 'one_time_manager',
+                isActive: true,
+                user: {
+                  OR: [
+                    { fullName: { contains: search, mode: 'insensitive' } },
+                    { login: { contains: search, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      });
+    }
+    const where: Prisma.OneTimeOrderWhereInput = { AND: clauses };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.oneTimeOrder.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          executionStartDate: true,
+          executionEndDate: true,
+          executionDate: true,
+          status: true,
+          reviewRating: true,
+          reviewText: true,
+          reviewUpdatedAt: true,
+          assignments: {
+            where: {
+              assignmentRoleCode: 'one_time_manager',
+              isActive: true,
+              user: { isActive: true, deletedAt: null },
+            },
+            select: {
+              user: { select: { id: true, login: true, fullName: true } },
+            },
+          },
+        },
+        orderBy: [{ reviewUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.oneTimeOrder.count({ where }),
+    ]);
+
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        title: item.title,
+        executionStartDate: formatBusinessDate(
+          item.executionStartDate ?? item.executionDate,
+        ),
+        executionEndDate: formatBusinessDate(
+          item.executionEndDate ?? item.executionStartDate ?? item.executionDate,
+        ),
+        status: item.status,
+        managers: item.assignments.map(({ user }) => ({
+          userId: user.id,
+          login: user.login,
+          fullName: user.fullName,
+        })),
+        reviewRating: item.reviewRating,
+        reviewText: item.reviewText,
+        reviewUpdatedAt: item.reviewUpdatedAt?.toISOString() ?? null,
+      })),
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async listManagerReferences(
+    currentUser: CurrentAuthUser,
+    query: ListOneTimeOrderReferencesQueryDto,
+  ): Promise<Array<{ id: string; login: string; fullName: string }>> {
+    const canAccessRegistry = canAccessOneTimeOrders(
+      this.getRoleCodes(currentUser),
+      this.getPermissionCodes(currentUser),
+    );
+    if (!canAccessRegistry) this.assertCanViewAllReviews(currentUser);
+    const accessWhere: Prisma.OneTimeOrderWhereInput = canAccessRegistry
+      ? buildOneTimeOrderAccessWhere({
+          currentUserId: currentUser.id,
+          roleCodes: this.getRoleCodes(currentUser),
+          permissionCodes: this.getPermissionCodes(currentUser),
+        })
+      : {
+          OR: [
+            { reviewText: { not: null } },
+            { reviewRating: { not: null } },
+          ],
+        };
+    const search = query.search?.trim();
+    return this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+        oneTimeOrderAssignments: {
+          some: {
+            assignmentRoleCode: 'one_time_manager',
+            isActive: true,
+            oneTimeOrder: accessWhere,
+          },
+        },
+        ...(search
+          ? {
+              OR: [
+                { fullName: { contains: search, mode: 'insensitive' as const } },
+                { login: { contains: search, mode: 'insensitive' as const } },
+                ...(query.selectedId ? [{ id: query.selectedId }] : []),
+              ],
+            }
+          : query.selectedId
+            ? { OR: [{ id: query.selectedId }] }
+            : {}),
+      },
+      select: { id: true, login: true, fullName: true },
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      take: 30,
+    });
+  }
+
+  async listObjectReferences(
+    currentUser: CurrentAuthUser,
+    query: ListOneTimeOrderReferencesQueryDto,
+  ): Promise<Array<{ id: string; name: string }>> {
+    this.assertCanAccessRegistry(currentUser);
+    const accessWhere = buildOneTimeOrderAccessWhere({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+    });
+    const search = query.search?.trim();
+    return this.prisma.object.findMany({
+      where: {
+        deletedAt: null,
+        linkedOneTimeOrders: { some: accessWhere },
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                ...(query.selectedId ? [{ id: query.selectedId }] : []),
+              ],
+            }
+          : query.selectedId
+            ? { OR: [{ id: query.selectedId }] }
+            : {}),
+      },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: 30,
+    });
   }
 
   async getOrderById(
@@ -3934,6 +4138,29 @@ export class OneTimeOrdersService {
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
+  }
+
+  private assertCanViewAllReviews(currentUser: CurrentAuthUser): void {
+    if (
+      !hasWideOneTimeOrderAccess(this.getRoleCodes(currentUser)) &&
+      !hasOneTimeOrderPermission(
+        this.getPermissionCodes(currentUser),
+        ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION,
+      )
+    ) {
+      throw new ForbiddenException('One-time order review registry access denied');
+    }
+  }
+
+  private assertCanAccessRegistry(currentUser: CurrentAuthUser): void {
+    if (
+      !canAccessOneTimeOrders(
+        this.getRoleCodes(currentUser),
+        this.getPermissionCodes(currentUser),
+      )
+    ) {
+      throw new ForbiddenException('One-time order registry access denied');
+    }
   }
 
   private getPermissionCodes(currentUser: CurrentAuthUser): string[] {

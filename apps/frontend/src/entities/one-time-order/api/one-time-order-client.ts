@@ -18,7 +18,10 @@ import type {
   OneTimeOrderCompletion,
   OneTimeOrderListResponse,
   OneTimeOrderPhotoItem,
+  OneTimeOrderObjectReference,
+  OneTimeOrderReviewListResponse,
   OneTimeOrderSpecificationItem,
+  OneTimeOrderUserReference,
   UpdateOneTimeOrderPayload,
 } from '../model/one-time-order.types';
 
@@ -43,7 +46,7 @@ export interface ListOneTimeOrdersParams {
   sortDirection?: 'asc' | 'desc';
 }
 
-function buildQuery(params?: ListOneTimeOrdersParams): string {
+function buildQuery(params?: object): string {
   if (!params) {
     return '';
   }
@@ -69,6 +72,41 @@ export async function listOneTimeOrders(
     {
       method: 'GET',
     },
+  );
+}
+
+export async function listOneTimeOrderReviews(params?: {
+  q?: string;
+  status?: string;
+  managerUserId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+}): Promise<OneTimeOrderReviewListResponse> {
+  return fetcher<OneTimeOrderReviewListResponse>(
+    `/one-time-orders/reviews${buildQuery(params)}`,
+    { method: 'GET' },
+  );
+}
+
+export async function listOneTimeOrderManagerReferences(params?: {
+  search?: string;
+  selectedId?: string;
+}): Promise<OneTimeOrderUserReference[]> {
+  return fetcher<OneTimeOrderUserReference[]>(
+    `/one-time-orders/references/managers${buildQuery(params)}`,
+    { method: 'GET' },
+  );
+}
+
+export async function listOneTimeOrderObjectReferences(params?: {
+  search?: string;
+  selectedId?: string;
+}): Promise<OneTimeOrderObjectReference[]> {
+  return fetcher<OneTimeOrderObjectReference[]>(
+    `/one-time-orders/references/objects${buildQuery(params)}`,
+    { method: 'GET' },
   );
 }
 

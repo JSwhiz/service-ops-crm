@@ -155,6 +155,10 @@ async function main(): Promise<void> {
       name: "Редактирование отзывов разовых заказов",
     },
     {
+      code: "one_time_order.review.view_all",
+      name: "Просмотр отзывов всех разовых заказов",
+    },
+    {
       code: "one_time_order.calendar.approve_availability",
       name: "Подтверждение доступности менеджеров разовых заказов",
     },
@@ -207,6 +211,10 @@ async function main(): Promise<void> {
         "expense.approve",
         "accountability.closure.approve",
       ],
+    },
+    {
+      roles: [deputyDirectorRole],
+      permissionCodes: ["one_time_order.review.view_all"],
     },
     {
       roles: [founderRole, directorRole],

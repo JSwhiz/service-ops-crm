@@ -20,6 +20,8 @@ export const ONE_TIME_ORDER_MANAGEMENT_ROLE_CODES = LEADERSHIP_OBJECT_ROLE_CODES
 
 export const ONE_TIME_ORDER_REVIEW_EDIT_PERMISSION =
   'one_time_order.review.edit';
+export const ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION =
+  'one_time_order.review.view_all';
 export const ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION =
   'one_time_order.calendar.approve_availability';
 export const ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION =

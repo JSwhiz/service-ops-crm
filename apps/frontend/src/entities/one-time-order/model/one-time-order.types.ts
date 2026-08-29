@@ -225,6 +225,41 @@ export interface OneTimeOrderListResponse {
   totalPages: number;
 }
 
+export interface OneTimeOrderReviewListItem {
+  id: string;
+  title: string;
+  executionStartDate: string | null;
+  executionEndDate: string | null;
+  status: string;
+  managers: Array<{
+    userId: string;
+    login: string;
+    fullName: string;
+  }>;
+  reviewRating: number | null;
+  reviewText: string | null;
+  reviewUpdatedAt: string | null;
+}
+
+export interface OneTimeOrderReviewListResponse {
+  items: OneTimeOrderReviewListItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface OneTimeOrderUserReference {
+  id: string;
+  login: string;
+  fullName: string;
+}
+
+export interface OneTimeOrderObjectReference {
+  id: string;
+  name: string;
+}
+
 export interface OneTimeOrderCommentItem {
   id: string;
   oneTimeOrderId: string;

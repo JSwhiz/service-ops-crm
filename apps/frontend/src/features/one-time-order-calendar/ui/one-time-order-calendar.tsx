@@ -26,6 +26,7 @@ import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 const AVAILABILITY_OPTIONS: Array<{
   value: OneTimeOrderAvailabilityType;
@@ -379,20 +380,26 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             Текущий месяц
           </button>
         </div>
-        <label className="one-time-calendar__manager-filter">
-          <span>Менеджер</span>
-          <select
+        <div className="one-time-calendar__manager-filter">
+          <SearchableSelect
+            label="Менеджер"
             value={managerUserId}
-            onChange={(event) => replaceQuery(month, event.target.value)}
-          >
-            <option value="">Все менеджеры</option>
-            {availableManagers.map((manager) => (
-              <option key={manager.id} value={manager.id}>
-                {getUserDisplayName(manager)}
-              </option>
-            ))}
-          </select>
-        </label>
+            options={availableManagers.map((manager) => ({
+              value: manager.id,
+              label: getUserDisplayName(manager),
+              searchText: manager.login,
+            }))}
+            onChange={(value) => replaceQuery(month, value)}
+            placeholder="Все менеджеры"
+            asyncSearch={async (search) =>
+              (await listOneTimeOrderCalendarManagers(search)).map((manager) => ({
+                value: manager.id,
+                label: manager.fullName || manager.login,
+                searchText: manager.login,
+              }))
+            }
+          />
+        </div>
         <div className="action-row one-time-calendar__actions">
           <button
             type="button"

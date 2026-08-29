@@ -37,6 +37,8 @@ import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dt
 import { ListOneTimeOrderCalendarQueryDto } from './dto/list-one-time-order-calendar-query.dto';
 import { ListOneTimeOrderCalendarManagersQueryDto } from './dto/list-one-time-order-calendar-managers-query.dto';
 import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
+import { ListOneTimeOrderReferencesQueryDto } from './dto/list-one-time-order-references-query.dto';
+import { ListOneTimeOrderReviewsQueryDto } from './dto/list-one-time-order-reviews-query.dto';
 import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
 import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
 import { OneTimeOrderCompletionResponseDto } from './dto/one-time-order-completion-response.dto';
@@ -47,6 +49,7 @@ import { OneTimeOrderConflictResponseDto } from './dto/one-time-order-conflict-r
 import { OneTimeManagerAvailabilityResponseDto } from './dto/one-time-manager-availability-response.dto';
 import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
+import { OneTimeOrderReviewListResponseDto } from './dto/one-time-order-review-list-response.dto';
 import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
 import { ReorderOneTimeOrderSpecificationItemsDto } from './dto/reorder-one-time-order-specification-items.dto';
 import {
@@ -207,6 +210,30 @@ export class OneTimeOrdersController {
     @Query() query: ListOneTimeOrdersQueryDto,
   ): Promise<OneTimeOrderListResponseDto> {
     return this.oneTimeOrdersService.listOrders(user, query);
+  }
+
+  @Get('reviews')
+  listReviews(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListOneTimeOrderReviewsQueryDto,
+  ): Promise<OneTimeOrderReviewListResponseDto> {
+    return this.oneTimeOrdersService.listReviews(user, query);
+  }
+
+  @Get('references/managers')
+  listManagerReferences(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListOneTimeOrderReferencesQueryDto,
+  ): Promise<Array<{ id: string; login: string; fullName: string }>> {
+    return this.oneTimeOrdersService.listManagerReferences(user, query);
+  }
+
+  @Get('references/objects')
+  listObjectReferences(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListOneTimeOrderReferencesQueryDto,
+  ): Promise<Array<{ id: string; name: string }>> {
+    return this.oneTimeOrdersService.listObjectReferences(user, query);
   }
 
   @Get(':id')

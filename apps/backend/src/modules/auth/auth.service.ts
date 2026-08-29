@@ -259,6 +259,8 @@ export class AuthService {
         canCreateObject: canCreateObject(user.roleCodes),
         canAccessOneTimeOrders: oneTimeOrderCapabilities.canAccessOneTimeOrders,
         canCreateOneTimeOrder: oneTimeOrderCapabilities.canCreateOneTimeOrder,
+        canViewAllOneTimeOrderReviews:
+          oneTimeOrderCapabilities.canViewAllOneTimeOrderReviews,
         canViewOneTimeOrderCalendar:
           oneTimeOrderCapabilities.canViewOneTimeOrderCalendar,
         canManageOwnOneTimeOrderAvailability:

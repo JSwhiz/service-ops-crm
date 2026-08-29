@@ -63,13 +63,16 @@ export class OneTimeOrderCalendarService {
       currentUser,
       query,
     );
+    const [year, month] = query.month.split('-').map(Number);
     const calendarRows: XlsxCell[][] = [
       [{ value: `Календарь разовых заказов · ${query.month}`, styleId: 1 }],
       [],
       [
         { value: 'Менеджер', styleId: 1 },
         ...Array.from({ length: calendar.daysInMonth }, (_unused, index) => ({
-          value: index + 1,
+          value: `${index + 1} ${this.getWeekdayLabel(
+            new Date(Date.UTC(year!, month! - 1, index + 1)),
+          )}`,
           styleId: 1,
         })),
         { value: 'Отработано дней', styleId: 1 },
@@ -107,7 +110,9 @@ export class OneTimeOrderCalendarService {
       [
         { value: 'Название', styleId: 1 },
         { value: 'Дата начала', styleId: 1 },
+        { value: 'День недели', styleId: 1 },
         { value: 'Дата окончания', styleId: 1 },
+        { value: 'День недели', styleId: 1 },
         { value: 'Длительность', styleId: 1 },
         { value: 'Статус', styleId: 1 },
         { value: 'Адрес', styleId: 1 },
@@ -123,7 +128,9 @@ export class OneTimeOrderCalendarService {
       ...accessibleOrders.map((order) => [
         order.title,
         formatAvailabilityDate(order.executionStartDate!),
+        this.getWeekdayLabel(order.executionStartDate!),
         formatAvailabilityDate(order.executionEndDate!),
+        this.getWeekdayLabel(order.executionEndDate!),
         this.getDurationDays(order.executionStartDate!, order.executionEndDate!),
         this.getOrderStatusLabel(order.status),
         order.executionAddress,
@@ -173,7 +180,7 @@ export class OneTimeOrderCalendarService {
         {
           name: 'Заказы',
           rows: orderRows,
-          columnWidths: [32, 13, 13, 12, 14, 28, 24, 28, 24, 18, 10, 36, 14, 16],
+          columnWidths: [32, 13, 13, 13, 13, 12, 14, 28, 24, 28, 24, 18, 10, 36, 14, 16],
           freeze: { rows: 1, columns: 1 },
           pageSetup: {
             orientation: 'landscape',
@@ -583,6 +590,10 @@ export class OneTimeOrderCalendarService {
     return (
       Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1
     );
+  }
+
+  private getWeekdayLabel(date: Date): string {
+    return ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][date.getUTCDay()]!;
   }
 
   private isWeekend(date: string): boolean {

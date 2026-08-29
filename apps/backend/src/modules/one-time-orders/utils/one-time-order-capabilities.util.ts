@@ -14,11 +14,14 @@ import {
   ONE_TIME_ORDER_CALENDAR_APPROVE_PERMISSION,
   ONE_TIME_ORDER_CALENDAR_MANAGE_PERMISSION,
   ONE_TIME_ORDER_REVIEW_EDIT_PERMISSION,
+  ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION,
+  hasWideOneTimeOrderAccess,
 } from './one-time-order-access.util';
 
 export interface OneTimeOrderGlobalCapabilities {
   canAccessOneTimeOrders: boolean;
   canCreateOneTimeOrder: boolean;
+  canViewAllOneTimeOrderReviews: boolean;
   canViewOneTimeOrderCalendar: boolean;
   canManageOwnOneTimeOrderAvailability: boolean;
   canManageAnyOneTimeOrderAvailability: boolean;
@@ -52,6 +55,12 @@ export function buildOneTimeOrderGlobalCapabilities(params: {
       params.roleCodes,
       params.permissionCodes,
     ),
+    canViewAllOneTimeOrderReviews:
+      hasWideOneTimeOrderAccess(params.roleCodes) ||
+      hasOneTimeOrderPermission(
+        params.permissionCodes,
+        ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION,
+      ),
     canViewOneTimeOrderCalendar:
       canAccess ||
       canManageOwnAvailability ||
