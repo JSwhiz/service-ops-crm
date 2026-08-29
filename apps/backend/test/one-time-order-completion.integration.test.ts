@@ -107,6 +107,7 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
         status: 'in_progress',
         contactName: 'Тестовый заказчик',
         agreedSum: 10000,
+        plannedPaymentMethod: 'cash',
         managerUserIds,
       },
     );
@@ -155,6 +156,7 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
       executionAddress: 'Москва, закрытый заказ',
       status: 'completed',
       contactName: 'Тестовый заказчик',
+      plannedPaymentMethod: 'cash',
     },
   );
   assert.equal(invalidCreate.status, 409);

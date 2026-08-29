@@ -161,6 +161,7 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
         status: 'in_progress',
         contactName: 'Тестовый заказчик',
         agreedSum: params.agreedSum,
+        plannedPaymentMethod: 'cash',
         managerUserIds: params.managerUserIds,
       },
     );

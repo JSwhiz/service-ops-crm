@@ -126,6 +126,7 @@ test('completion payments expose only permitted financial details', async (t) =>
       status: 'in_progress',
       contactName: 'Заказчик',
       agreedSum: 35000,
+      plannedPaymentMethod: 'cash',
       managerUserIds: [managerA.id, managerB.id],
     }),
   });

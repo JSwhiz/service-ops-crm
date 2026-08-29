@@ -16,35 +16,25 @@ interface CalendarResponse {
   }>;
 }
 
-test('one-time order calendar handles 100 managers and 1000 monthly orders', async (t) => {
+test('one-time order calendar handles the configured roster and 1000 monthly orders', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const marker = `calendar-scale-${Date.now()}`;
-  const [founder, managerRole] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
-    prisma.role.findUniqueOrThrow({ where: { code: 'manager' } }),
-  ]);
-  const managerIds = Array.from({ length: 100 }, () => randomUUID());
+  const founder = await prisma.user.findUniqueOrThrow({ where: { login: 'founder' } });
+  const roster = await prisma.oneTimeOrderCalendarManager.findMany({
+    where: { isVisible: true },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+  });
+  const managerIds = roster.map(({ userId }) => userId);
+  assert.equal(managerIds.length, 6);
   const orderIds = Array.from({ length: 1000 }, () => randomUUID());
 
   t.after(async () => {
     await prisma.oneTimeOrder.deleteMany({ where: { id: { in: orderIds } } });
-    await prisma.user.deleteMany({ where: { id: { in: managerIds } } });
     await app.close();
     await prisma.$disconnect();
   });
 
-  await prisma.user.createMany({
-    data: managerIds.map((id, index) => ({
-      id,
-      login: `${marker}-${index}`,
-      fullName: `${marker} Менеджер ${String(index).padStart(3, '0')}`,
-      isActive: true,
-    })),
-  });
-  await prisma.userRole.createMany({
-    data: managerIds.map((userId) => ({ userId, roleId: managerRole.id })),
-  });
   await prisma.oneTimeOrder.createMany({
     data: orderIds.map((id, index) => {
       const day = (index % 31) + 1;
@@ -83,11 +73,9 @@ test('one-time order calendar handles 100 managers and 1000 monthly orders', asy
 
   assert.equal(response.status, 200);
   const calendar = (await response.json()) as CalendarResponse;
-  const benchmarkManagers = calendar.managers.filter((manager) =>
-    manager.user.fullName.startsWith(marker),
-  );
+  const benchmarkManagers = calendar.managers;
   assert.equal(calendar.daysInMonth, 31);
-  assert.equal(benchmarkManagers.length, 100);
+  assert.equal(benchmarkManagers.length, 6);
   assert.equal(
     benchmarkManagers.reduce((total, manager) => total + manager.orderCount, 0),
     1000,

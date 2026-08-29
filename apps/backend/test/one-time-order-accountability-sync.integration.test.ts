@@ -159,6 +159,7 @@ test('one-time order receipts update accountability atomically and use ledger di
         status: 'in_progress',
         contactName: 'Тестовый заказчик',
         agreedSum,
+        plannedPaymentMethod: 'cash',
         managerUserIds: recipients.map((user) => user.id),
       },
     );

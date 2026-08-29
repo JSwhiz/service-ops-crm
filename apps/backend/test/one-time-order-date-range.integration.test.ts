@@ -49,6 +49,7 @@ test('one-time order execution dates support empty, single and multi-day ranges'
         title: `Date range ${marker}`,
         executionAddress: 'Москва, тестовый адрес',
         contactName: 'Тестовый контакт',
+        plannedPaymentMethod: 'cash',
         ...dates,
       }),
     });

@@ -149,6 +149,7 @@ test('one-time order completion validates and stores actual payment rows', async
         executionAddress: 'Москва, адрес оплаты',
         status: 'in_progress',
         contactName: 'Тестовый заказчик',
+        plannedPaymentMethod: 'cash',
         ...(agreedSum === undefined ? {} : { agreedSum }),
         managerUserIds,
       },

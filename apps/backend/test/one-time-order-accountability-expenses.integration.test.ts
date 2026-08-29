@@ -134,6 +134,7 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
       status: 'in_progress',
       contactName: 'Заказчик',
       agreedSum: 2000,
+      plannedPaymentMethod: 'cash',
       managerUserIds: [managers[0]!.id, managers[1]!.id],
     },
   );
@@ -270,6 +271,7 @@ test('one-time order expenses keep own scope safe files and ledger balances', as
       executionAddress: 'Москва, текущая поездка',
       status: 'in_progress',
       contactName: 'Заказчик текущей поездки',
+      plannedPaymentMethod: 'cash',
       managerUserIds: [managers[1]!.id],
     },
   );

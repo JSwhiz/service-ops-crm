@@ -323,6 +323,7 @@ test('one-time order schedule conflicts require an explicit override', async (t)
     executionStartDate: '2040-04-11',
     executionEndDate: '2040-04-11',
     contactName: 'Контакт',
+    plannedPaymentMethod: 'cash',
     managerUserIds: [managerOne.id],
   };
   const blockedCreate = await jsonRequest('', 'POST', founderCookie, createPayload);
