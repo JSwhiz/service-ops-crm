@@ -16,9 +16,18 @@ import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-re
 
 import { CreateTimesheetManualExceptionDto } from './dto/create-timesheet-manual-exception.dto';
 import { GetTimesheetQueryDto } from './dto/get-timesheet-query.dto';
+import {
+  GetTimesheetOverviewQueryDto,
+  ListTimesheetOverviewEmployeesQueryDto,
+  ListTimesheetOverviewObjectsQueryDto,
+} from './dto/get-timesheet-overview-query.dto';
 import { ListTimesheetCorrectionsQueryDto } from './dto/list-timesheet-corrections-query.dto';
 import { TimesheetCorrectionItemDto } from './dto/timesheet-correction-item.dto';
 import { TimesheetResponseDto } from './dto/timesheet-response.dto';
+import {
+  TimesheetOverviewReferenceDto,
+  TimesheetOverviewResponseDto,
+} from './dto/timesheet-overview-response.dto';
 import { UpsertTimesheetEntryDto } from './dto/upsert-timesheet-entry.dto';
 import { TimesheetsService } from './timesheets.service';
 
@@ -51,6 +60,50 @@ export class TimesheetsController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<StreamableFile> {
     const exportFile = await this.timesheetsService.exportTimesheet(user, query);
+
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${exportFile.fileName}"`,
+    );
+
+    return new StreamableFile(exportFile.buffer);
+  }
+
+  @Get('overview')
+  getOverview(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: GetTimesheetOverviewQueryDto,
+  ): Promise<TimesheetOverviewResponseDto> {
+    return this.timesheetsService.getOverview(user, query);
+  }
+
+  @Get('overview/references/objects')
+  listOverviewObjects(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListTimesheetOverviewObjectsQueryDto,
+  ): Promise<TimesheetOverviewReferenceDto[]> {
+    return this.timesheetsService.listOverviewObjects(user, query);
+  }
+
+  @Get('overview/references/employees')
+  listOverviewEmployees(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: ListTimesheetOverviewEmployeesQueryDto,
+  ): Promise<TimesheetOverviewReferenceDto[]> {
+    return this.timesheetsService.listOverviewEmployees(user, query);
+  }
+
+  @Get('overview/export')
+  async exportOverview(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query() query: GetTimesheetOverviewQueryDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const exportFile = await this.timesheetsService.exportOverview(user, query);
 
     response.setHeader(
       'Content-Type',

@@ -17,9 +17,18 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateTimesheetManualExceptionDto } from './dto/create-timesheet-manual-exception.dto';
 import { GetTimesheetQueryDto } from './dto/get-timesheet-query.dto';
+import {
+  GetTimesheetOverviewQueryDto,
+  ListTimesheetOverviewEmployeesQueryDto,
+  ListTimesheetOverviewObjectsQueryDto,
+} from './dto/get-timesheet-overview-query.dto';
 import { ListTimesheetCorrectionsQueryDto } from './dto/list-timesheet-corrections-query.dto';
 import { TimesheetCorrectionItemDto } from './dto/timesheet-correction-item.dto';
 import { TimesheetResponseDto } from './dto/timesheet-response.dto';
+import {
+  TimesheetOverviewReferenceDto,
+  TimesheetOverviewResponseDto,
+} from './dto/timesheet-overview-response.dto';
 import { UpsertTimesheetEntryDto } from './dto/upsert-timesheet-entry.dto';
 import type { TimesheetRatePolicySnapshot } from './types/timesheet-rate-policy.type';
 import {
@@ -411,6 +420,405 @@ export class TimesheetsService {
         { name: 'Отклонения', rows: deviationRows },
         { name: 'Сводка', rows: summaryRows },
       ]),
+    };
+  }
+
+  async getOverview(
+    currentUser: CurrentAuthUser,
+    query: GetTimesheetOverviewQueryDto,
+  ): Promise<TimesheetOverviewResponseDto> {
+    if (query.objectId) {
+      await this.assertAccess(currentUser, query.objectId);
+    }
+
+    const objectWhere = this.buildTimesheetObjectWhere(currentUser, query.objectId);
+    const objects = await this.prisma.object.findMany({
+      where: objectWhere,
+      select: { id: true, name: true, dailyRate: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    });
+    const objectIds = objects.map((object) => object.id);
+    const daysInMonth = this.getDaysInMonth(query.year, query.month);
+
+    if (objectIds.length === 0) {
+      return this.emptyOverview(currentUser, query, daysInMonth);
+    }
+
+    const employeeFilter = query.employeeId
+      ? { employeeId: query.employeeId }
+      : {};
+    const [months, assignments, facts] = await Promise.all([
+      this.prisma.timesheetMonth.findMany({
+        where: {
+          objectId: { in: objectIds },
+          year: query.year,
+          month: query.month,
+        },
+        select: {
+          objectId: true,
+          rows: {
+            where: employeeFilter,
+            select: {
+              employeeId: true,
+              employeeNameSnapshot: true,
+              entries: { orderBy: { dayOfMonth: 'asc' } },
+            },
+          },
+        },
+      }),
+      this.prisma.objectEmployeeAssignment.findMany({
+        where: {
+          objectId: { in: objectIds },
+          isActive: true,
+          ...employeeFilter,
+        },
+        include: {
+          employee: { select: { id: true, fullName: true } },
+        },
+      }),
+      this.prisma.objectAttendanceFact.findMany({
+        where: {
+          objectId: { in: objectIds },
+          operationDate: this.getMonthRange(query.year, query.month),
+          ...employeeFilter,
+        },
+        include: {
+          employee: { select: { id: true, fullName: true } },
+        },
+        orderBy: { operationDate: 'asc' },
+      }),
+    ]);
+
+    const objectById = new Map(objects.map((object) => [object.id, object]));
+    const assignmentByPair = new Map(
+      assignments.map((assignment) => [
+        this.buildOverviewPairKey(assignment.objectId, assignment.employeeId),
+        assignment,
+      ]),
+    );
+    const rowByPair = new Map<string, (typeof months)[number]['rows'][number]>();
+    const factsByPair = new Map<string, typeof facts>();
+    const employeeNameByPair = new Map<string, string>();
+    const pairKeys = new Set<string>();
+
+    for (const month of months) {
+      for (const row of month.rows) {
+        const key = this.buildOverviewPairKey(month.objectId, row.employeeId);
+        pairKeys.add(key);
+        rowByPair.set(key, row);
+        employeeNameByPair.set(key, row.employeeNameSnapshot);
+      }
+    }
+
+    for (const assignment of assignments) {
+      const key = this.buildOverviewPairKey(
+        assignment.objectId,
+        assignment.employeeId,
+      );
+      pairKeys.add(key);
+      employeeNameByPair.set(key, assignment.employee.fullName);
+    }
+
+    for (const fact of facts) {
+      const key = this.buildOverviewPairKey(fact.objectId, fact.employeeId);
+      pairKeys.add(key);
+      employeeNameByPair.set(key, fact.employee.fullName);
+      const current = factsByPair.get(key) ?? [];
+      current.push(fact);
+      factsByPair.set(key, current);
+    }
+
+    const mappedRows = [...pairKeys].map((key) => {
+      const [objectId, employeeId] = key.split(':');
+      if (!objectId || !employeeId) {
+        throw new NotFoundException('Timesheet row is invalid');
+      }
+      const object = objectById.get(objectId);
+      if (!object) {
+        throw new NotFoundException('Object not found');
+      }
+      const storedRow = rowByPair.get(key);
+      const assignment = assignmentByPair.get(key);
+      const pairFacts = factsByPair.get(key) ?? [];
+      const entriesByDay = new Map(
+        (storedRow?.entries ?? []).map((entry) => [entry.dayOfMonth, entry]),
+      );
+      const storedPolicy = (storedRow?.entries ?? [])
+        .map((entry) => parseRatePolicySnapshot(entry.ratePolicySnapshot))
+        .find((policy) => policy !== null);
+      const factPolicy = pairFacts
+        .map((fact) => parseRatePolicySnapshot(fact.ratePolicySnapshot))
+        .find((policy) => policy !== null);
+      const policy = assignment
+        ? normalizeRatePolicy(assignment, object.dailyRate)
+        : storedPolicy ?? factPolicy ?? normalizeRatePolicy(null, object.dailyRate);
+      const calculated = calculateTimesheetAutoValues({
+        year: query.year,
+        month: query.month,
+        daysInMonth,
+        policy,
+        facts: pairFacts.map((fact) => ({
+          dayOfMonth: fact.operationDate.getDate(),
+          dailyRateSnapshot: fact.dailyRateSnapshot,
+          workedHours: fact.workedHours,
+          ratePolicySnapshot: fact.ratePolicySnapshot,
+        })),
+      });
+      const factDays = new Set(pairFacts.map((fact) => fact.operationDate.getDate()));
+      const entries = Array.from({ length: daysInMonth }, (_unused, index) => {
+        const dayOfMonth = index + 1;
+        const stored = entriesByDay.get(dayOfMonth);
+        const automatic = calculated.get(dayOfMonth);
+        const autoValue =
+          automatic?.autoValue ??
+          stored?.autoValue ??
+          (stored?.isChangedManually ? 0 : stored?.dayValue ?? 0);
+        const finalValue = stored?.isChangedManually
+          ? stored.dayValue
+          : automatic?.autoValue ?? stored?.dayValue ?? 0;
+
+        return {
+          dayOfMonth,
+          finalValue,
+          autoValue,
+          manualValue: stored?.isChangedManually ? stored.dayValue : null,
+          isChangedManually: stored?.isChangedManually ?? false,
+          hasFact: factDays.has(dayOfMonth),
+          workedHours: stored?.workedHours ?? automatic?.workedHours ?? null,
+          comment: stored?.comment ?? null,
+          calculationExplanation:
+            stored?.calculationExplanation ??
+            automatic?.calculationExplanation ??
+            null,
+        };
+      });
+      const totals = calculateTimesheetPeriodTotals(entries);
+
+      return {
+        objectId,
+        objectName: object.name,
+        employeeId,
+        employeeName: employeeNameByPair.get(key) ?? 'Сотрудник',
+        entries,
+        advanceTotal: totals.advanceTotal,
+        salaryTotal: totals.salaryTotal,
+        monthTotal: totals.monthTotal,
+      };
+    });
+
+    mappedRows.sort(
+      (left, right) =>
+        left.objectName.localeCompare(right.objectName, 'ru') ||
+        left.employeeName.localeCompare(right.employeeName, 'ru') ||
+        left.employeeId.localeCompare(right.employeeId),
+    );
+    const totals = calculateTimesheetPeriodTotals(
+      mappedRows.flatMap((row) => row.entries),
+    );
+
+    return {
+      year: query.year,
+      month: query.month,
+      daysInMonth,
+      rows: mappedRows,
+      totals,
+      capabilities: {
+        canManualCorrection: canManuallyCorrectTimesheet(
+          this.getRoleCodes(currentUser),
+        ),
+        canExport: true,
+      },
+    };
+  }
+
+  async listOverviewObjects(
+    currentUser: CurrentAuthUser,
+    query: ListTimesheetOverviewObjectsQueryDto,
+  ): Promise<TimesheetOverviewReferenceDto[]> {
+    const objects = await this.prisma.object.findMany({
+      where: {
+        ...this.buildTimesheetObjectWhere(currentUser),
+        ...(query.selectedId
+          ? { id: query.selectedId }
+          : query.q
+            ? { name: { contains: query.q, mode: 'insensitive' } }
+            : {}),
+      },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: 30,
+    });
+
+    return objects;
+  }
+
+  async listOverviewEmployees(
+    currentUser: CurrentAuthUser,
+    query: ListTimesheetOverviewEmployeesQueryDto,
+  ): Promise<TimesheetOverviewReferenceDto[]> {
+    if (query.objectId) {
+      await this.assertAccess(currentUser, query.objectId);
+    }
+    const objects = await this.prisma.object.findMany({
+      where: this.buildTimesheetObjectWhere(currentUser, query.objectId),
+      select: { id: true },
+    });
+    const objectIds = objects.map((object) => object.id);
+    if (objectIds.length === 0) {
+      return [];
+    }
+
+    const [months, assignments, facts] = await Promise.all([
+      this.prisma.timesheetMonth.findMany({
+        where: {
+          objectId: { in: objectIds },
+          year: query.year,
+          month: query.month,
+        },
+        select: { rows: { select: { employeeId: true } } },
+      }),
+      this.prisma.objectEmployeeAssignment.findMany({
+        where: { objectId: { in: objectIds }, isActive: true },
+        select: { employeeId: true },
+      }),
+      this.prisma.objectAttendanceFact.findMany({
+        where: {
+          objectId: { in: objectIds },
+          operationDate: this.getMonthRange(query.year, query.month),
+        },
+        select: { employeeId: true },
+      }),
+    ]);
+    const employeeIds = [
+      ...new Set([
+        ...months.flatMap((month) => month.rows.map((row) => row.employeeId)),
+        ...assignments.map((assignment) => assignment.employeeId),
+        ...facts.map((fact) => fact.employeeId),
+      ]),
+    ];
+
+    const employees = await this.prisma.employee.findMany({
+      where: {
+        id: {
+          in: query.selectedId
+            ? employeeIds.filter((id) => id === query.selectedId)
+            : employeeIds,
+        },
+        ...(!query.selectedId && query.q
+          ? {
+              OR: [
+                { fullName: { contains: query.q, mode: 'insensitive' } },
+                { phone: { contains: query.q, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      select: { id: true, fullName: true },
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      take: 30,
+    });
+
+    return employees.map((employee) => ({
+      id: employee.id,
+      name: employee.fullName,
+    }));
+  }
+
+  async exportOverview(
+    currentUser: CurrentAuthUser,
+    query: GetTimesheetOverviewQueryDto,
+  ): Promise<{ fileName: string; buffer: Buffer }> {
+    const overview = await this.getOverview(currentUser, query);
+    const days = Array.from(
+      { length: overview.daysInMonth },
+      (_unused, index) => index + 1,
+    );
+    const firstDataRow = 4;
+    const lastDataRow = firstDataRow + overview.rows.length - 1;
+    const lastDayColumnIndex = days.length + 2;
+    const advanceColumnIndex = lastDayColumnIndex + 1;
+    const salaryColumnIndex = lastDayColumnIndex + 2;
+    const totalColumnIndex = lastDayColumnIndex + 3;
+    const advanceColumnName = this.toExcelColumnName(advanceColumnIndex);
+    const salaryColumnName = this.toExcelColumnName(salaryColumnIndex);
+    const totalColumnName = this.toExcelColumnName(totalColumnIndex);
+    const day15ColumnName = this.toExcelColumnName(17);
+    const day16ColumnName = this.toExcelColumnName(18);
+
+    const rows: XlsxCell[][] = [
+      [`Период: ${String(overview.month).padStart(2, '0')}.${overview.year}`],
+      [],
+      [
+        { value: 'Объект', styleId: 1 },
+        { value: 'Сотрудник', styleId: 1 },
+        ...days.map((day) => ({ value: day, styleId: 1 })),
+        { value: 'Аванс', styleId: 1 },
+        { value: 'ЗП', styleId: 1 },
+        { value: 'Итого', styleId: 1 },
+      ],
+      ...overview.rows.map((row, index) => {
+        const excelRow = firstDataRow + index;
+        return [
+          row.objectName,
+          row.employeeName,
+          ...row.entries.map((entry) => ({
+            value: entry.finalValue,
+            styleId: entry.isChangedManually ? 2 : undefined,
+          })),
+          {
+            formula: `SUM(C${excelRow}:${day15ColumnName}${excelRow})`,
+            value: row.advanceTotal,
+          },
+          {
+            formula: `SUM(${day16ColumnName}${excelRow}:${this.toExcelColumnName(lastDayColumnIndex)}${excelRow})`,
+            value: row.salaryTotal,
+          },
+          {
+            formula: `${advanceColumnName}${excelRow}+${salaryColumnName}${excelRow}`,
+            value: row.monthTotal,
+          },
+        ];
+      }),
+      [
+        { value: 'ИТОГО', styleId: 1 },
+        '',
+        ...days.map((_day, index) => ({
+          formula:
+            overview.rows.length > 0
+              ? `SUM(${this.toExcelColumnName(index + 3)}${firstDataRow}:${this.toExcelColumnName(index + 3)}${lastDataRow})`
+              : undefined,
+          value: overview.rows.reduce(
+            (sum, row) => sum + (row.entries[index]?.finalValue ?? 0),
+            0,
+          ),
+        })),
+        {
+          formula:
+            overview.rows.length > 0
+              ? `SUM(${advanceColumnName}${firstDataRow}:${advanceColumnName}${lastDataRow})`
+              : undefined,
+          value: overview.totals.advanceTotal,
+        },
+        {
+          formula:
+            overview.rows.length > 0
+              ? `SUM(${salaryColumnName}${firstDataRow}:${salaryColumnName}${lastDataRow})`
+              : undefined,
+          value: overview.totals.salaryTotal,
+        },
+        {
+          formula:
+            overview.rows.length > 0
+              ? `SUM(${totalColumnName}${firstDataRow}:${totalColumnName}${lastDataRow})`
+              : undefined,
+          value: overview.totals.monthTotal,
+        },
+      ],
+    ];
+
+    return {
+      fileName: `timesheet-overview-${overview.year}-${String(overview.month).padStart(2, '0')}.xlsx`,
+      buffer: createSimpleXlsxWorkbook([{ name: 'Табель', rows }]),
     };
   }
 
@@ -1065,6 +1473,53 @@ export class TimesheetsService {
     if (!assignment) {
       throw new ForbiddenException('Access to timesheet denied');
     }
+  }
+
+  private buildTimesheetObjectWhere(
+    currentUser: CurrentAuthUser,
+    objectId?: string,
+  ): Prisma.ObjectWhereInput {
+    const roleCodes = this.getRoleCodes(currentUser);
+
+    return {
+      deletedAt: null,
+      ...(objectId ? { id: objectId } : {}),
+      ...(hasWideTimesheetAccess(roleCodes)
+        ? {}
+        : {
+            assignments: {
+              some: {
+                userId: currentUser.id,
+                isActive: true,
+                assignmentRoleCode: { in: ['manager', 'responsible'] },
+              },
+            },
+          }),
+    };
+  }
+
+  private emptyOverview(
+    currentUser: CurrentAuthUser,
+    query: GetTimesheetOverviewQueryDto,
+    daysInMonth: number,
+  ): TimesheetOverviewResponseDto {
+    return {
+      year: query.year,
+      month: query.month,
+      daysInMonth,
+      rows: [],
+      totals: { advanceTotal: 0, salaryTotal: 0, monthTotal: 0 },
+      capabilities: {
+        canManualCorrection: canManuallyCorrectTimesheet(
+          this.getRoleCodes(currentUser),
+        ),
+        canExport: true,
+      },
+    };
+  }
+
+  private buildOverviewPairKey(objectId: string, employeeId: string): string {
+    return `${objectId}:${employeeId}`;
   }
 
   private assertManualCorrectionAccess(currentUser: CurrentAuthUser): void {
