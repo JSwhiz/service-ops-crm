@@ -115,6 +115,16 @@ test('candidate registry, access, assignment and immutable response flow', async
   assert.equal(candidate.assignments.filter((item: { endedAt: string | null }) => !item.endedAt).length, 1);
   assert.equal(candidate.assignments.length, 2);
 
+  const accepted = await request(baseUrl, hrCookie, `/candidates/${candidate.id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status: 'accepted', expectedVersion: candidate.version }),
+  });
+  assert.equal(accepted.status, 201);
+  candidate = await accepted.json();
+  assert.equal(candidate.currentAssignment, null);
+  assert.equal(candidate.slaState, 'unassigned');
+  assert.ok(candidate.assignments.some((item: { firstRespondedAt: string | null }) => item.firstRespondedAt));
+
   const noRole = await prisma.user.create({ data: { login: `candidate-direct-${Date.now()}`, fullName: 'Direct Permission User', passwordHash: await hashPassword('direct123'), isActive: true } });
   const permissions = await prisma.permission.findMany({ where: { code: { in: ['candidates.view', 'candidates.respond'] } } });
   await prisma.userPermission.createMany({ data: permissions.map((permission) => ({ userId: noRole.id, permissionId: permission.id })) });

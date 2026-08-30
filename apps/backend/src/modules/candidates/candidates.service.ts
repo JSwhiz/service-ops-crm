@@ -245,7 +245,7 @@ export class CandidatesService {
       version: candidate.version, deletedAt: candidate.deletedAt?.toISOString() ?? null,
       updatedAt: candidate.updatedAt.toISOString(),
       currentAssignment: currentAssignment ? this.mapAssignment(currentAssignment) : null,
-      slaState: currentAssignment ? currentAssignment.firstRespondedAt ? 'responded' : currentAssignment.responseDueAt <= now ? 'overdue' : 'awaiting_response' : assignment?.firstRespondedAt ? 'responded' : 'unassigned',
+      slaState: currentAssignment ? currentAssignment.firstRespondedAt ? 'responded' : currentAssignment.responseDueAt <= now ? 'overdue' : 'awaiting_response' : 'unassigned',
     };
   }
 
