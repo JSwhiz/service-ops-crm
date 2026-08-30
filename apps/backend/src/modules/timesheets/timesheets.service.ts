@@ -38,6 +38,7 @@ import type {
 } from './utils/timesheet-rate-policy.util';
 import { createSimpleXlsxWorkbook } from './utils/simple-xlsx.util';
 import type { XlsxCell } from './utils/simple-xlsx.util';
+import { calculateTimesheetPeriodTotals } from './utils/timesheet-totals.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -198,10 +199,14 @@ export class TimesheetsService {
         },
       );
 
+      const totals = calculateTimesheetPeriodTotals(fullEntries);
+
       return {
         employeeId: row.employeeId,
         employeeName: row.employeeNameSnapshot,
-        rowTotal: fullEntries.reduce((sum, item) => sum + item.finalValue, 0),
+        advanceTotal: totals.advanceTotal,
+        salaryTotal: totals.salaryTotal,
+        rowTotal: totals.monthTotal,
         ratePolicy: {
           ...ratePolicy,
           label: getRatePolicyLabel(ratePolicy),
@@ -209,6 +214,10 @@ export class TimesheetsService {
         entries: fullEntries,
       };
     });
+
+    const totals = calculateTimesheetPeriodTotals(
+      mappedRows.flatMap((row) => row.entries),
+    );
 
     return {
       objectId: object.id,
@@ -218,7 +227,9 @@ export class TimesheetsService {
       month: query.month,
       status: monthContainer.status,
       daysInMonth: daysInSelectedMonth,
-      monthTotal: mappedRows.reduce((sum, row) => sum + row.rowTotal, 0),
+      advanceTotal: totals.advanceTotal,
+      salaryTotal: totals.salaryTotal,
+      monthTotal: totals.monthTotal,
       capabilities: {
         canManualCorrection: canManuallyCorrectTimesheet(
           this.getRoleCodes(currentUser),
@@ -238,7 +249,14 @@ export class TimesheetsService {
       (_unused, index) => index + 1,
     );
     const lastDayColumnIndex = dayHeaders.length + 1;
-    const totalColumnName = this.toExcelColumnName(lastDayColumnIndex + 1);
+    const advanceColumnIndex = lastDayColumnIndex + 1;
+    const salaryColumnIndex = lastDayColumnIndex + 2;
+    const totalColumnIndex = lastDayColumnIndex + 3;
+    const advanceColumnName = this.toExcelColumnName(advanceColumnIndex);
+    const salaryColumnName = this.toExcelColumnName(salaryColumnIndex);
+    const totalColumnName = this.toExcelColumnName(totalColumnIndex);
+    const day15ColumnName = this.toExcelColumnName(Math.min(15, dayHeaders.length) + 1);
+    const day16ColumnName = this.toExcelColumnName(Math.min(16, dayHeaders.length) + 1);
 
     const mainRows: XlsxCell[][] = [
       [`Объект: ${timesheet.objectName}`],
@@ -247,6 +265,8 @@ export class TimesheetsService {
       [
         { value: 'Сотрудник', styleId: 1 },
         ...dayHeaders.map((day) => ({ value: day, styleId: 1 })),
+        { value: 'Аванс', styleId: 1 },
+        { value: 'ЗП', styleId: 1 },
         { value: 'Итого', styleId: 1 },
       ],
       ...timesheet.rows.map((row, rowIndex) => {
@@ -258,7 +278,15 @@ export class TimesheetsService {
             styleId: entry.isChangedManually ? 2 : undefined,
           })),
           {
-            formula: `SUM(B${excelRowNumber}:${this.toExcelColumnName(lastDayColumnIndex)}${excelRowNumber})`,
+            formula: `SUM(B${excelRowNumber}:${day15ColumnName}${excelRowNumber})`,
+            value: row.advanceTotal,
+          },
+          {
+            formula: `SUM(${day16ColumnName}${excelRowNumber}:${this.toExcelColumnName(lastDayColumnIndex)}${excelRowNumber})`,
+            value: row.salaryTotal,
+          },
+          {
+            formula: `${advanceColumnName}${excelRowNumber}+${salaryColumnName}${excelRowNumber}`,
             value: row.rowTotal,
           },
         ];
@@ -272,6 +300,14 @@ export class TimesheetsService {
             0,
           ),
         })),
+        {
+          formula: `SUM(${advanceColumnName}5:${advanceColumnName}${timesheet.rows.length + 4})`,
+          value: timesheet.advanceTotal,
+        },
+        {
+          formula: `SUM(${salaryColumnName}5:${salaryColumnName}${timesheet.rows.length + 4})`,
+          value: timesheet.salaryTotal,
+        },
         {
           formula: `SUM(${totalColumnName}5:${totalColumnName}${timesheet.rows.length + 4})`,
           value: timesheet.monthTotal,
@@ -343,6 +379,8 @@ export class TimesheetsService {
         ),
       ],
       ['Всего итог', timesheet.monthTotal],
+      ['Аванс', timesheet.advanceTotal],
+      ['ЗП', timesheet.salaryTotal],
       [
         'Сумма отклонений',
         timesheet.rows.reduce(

@@ -8,6 +8,8 @@ export class TimesheetResponseDto {
   month!: number;
   status!: string;
   daysInMonth!: number;
+  advanceTotal!: number;
+  salaryTotal!: number;
   monthTotal!: number;
   capabilities!: {
     canManualCorrection: boolean;
@@ -15,6 +17,8 @@ export class TimesheetResponseDto {
   rows!: Array<{
     employeeId: string;
     employeeName: string;
+    advanceTotal: number;
+    salaryTotal: number;
     rowTotal: number;
     entries: Array<{
       dayOfMonth: number;
