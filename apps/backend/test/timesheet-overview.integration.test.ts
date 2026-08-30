@@ -142,6 +142,21 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     assert.equal(correction.status, 201);
   }
 
+  const objectTimesheet = (await (
+    await api(
+      baseUrl,
+      founderCookie,
+      `/timesheets?objectId=${first.objectId}&year=${year}&month=${month}`,
+    )
+  ).json()) as {
+    advanceTotal: number;
+    salaryTotal: number;
+    monthTotal: number;
+  };
+  assert.equal(objectTimesheet.advanceTotal, 5600);
+  assert.equal(objectTimesheet.salaryTotal, 8800);
+  assert.equal(objectTimesheet.monthTotal, 14400);
+
   await prisma.objectEmployeeAssignment.update({
     where: {
       objectId_employeeId: {
@@ -258,6 +273,23 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     ).status,
     403,
   );
+  const hiddenObjectReference = await api(
+    baseUrl,
+    managerCookie,
+    `/timesheets/overview/references/objects?selectedId=${second.objectId}`,
+  );
+  assert.deepEqual(await hiddenObjectReference.json(), []);
+
+  const objectSearch = await api(
+    baseUrl,
+    deputyCookie,
+    `/timesheets/overview/references/objects?q=${encodeURIComponent(firstObject.name)}`,
+  );
+  assert.ok(
+    ((await objectSearch.json()) as Array<{ id: string }>).some(
+      (item) => item.id === first.objectId,
+    ),
+  );
 
   const references = await api(
     baseUrl,
@@ -288,6 +320,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
   assert.ok(workbookText.indexOf('Аванс') < workbookText.indexOf('ЗП'));
   assert.ok(workbookText.indexOf('ЗП') < workbookText.indexOf('Итого'));
   assert.match(workbookText, /ИТОГО/);
+  assert.match(workbookText, new RegExp(String(firstIvan.monthTotal)));
   assert.match(workbookText, new RegExp(firstObject.name));
   assert.doesNotMatch(workbookText, new RegExp(secondObject.name));
 });

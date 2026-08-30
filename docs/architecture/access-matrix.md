@@ -98,6 +98,7 @@
 | Action                                       | leadership circle | deputy_director              | responsible | manager |
 | -------------------------------------------- | ----------------- | ---------------------------- | ----------- | ------- |
 | View timesheet                               | yes               | yes if allowed operationally | yes         | yes     |
+| View/export all-object monthly overview      | yes               | yes                          | scoped      | scoped  |
 | Operate attendance-linked timesheet workflow | yes               | yes if allowed operationally | yes         | yes     |
 
 ### 6.2. Manual correction

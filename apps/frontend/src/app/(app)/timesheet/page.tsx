@@ -90,6 +90,14 @@ export default function TimesheetPage(): React.JSX.Element {
   };
 
   useEffect(() => {
+    if (searchParams.has('year') && searchParams.has('month')) return;
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('year', String(year));
+    next.set('month', String(month));
+    router.replace(`${pathname}?${next.toString()}`);
+  }, [month, pathname, router, searchParams, year]);
+
+  useEffect(() => {
     const requestId = ++overviewRequestRef.current;
     setLoading(true);
     setError(null);

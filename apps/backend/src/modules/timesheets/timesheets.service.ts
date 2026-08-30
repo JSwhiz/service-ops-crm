@@ -818,7 +818,19 @@ export class TimesheetsService {
 
     return {
       fileName: `timesheet-overview-${overview.year}-${String(overview.month).padStart(2, '0')}.xlsx`,
-      buffer: createSimpleXlsxWorkbook([{ name: 'Табель', rows }]),
+      buffer: createSimpleXlsxWorkbook([
+        {
+          name: 'Табель',
+          rows,
+          columnWidths: [28, 30, ...days.map(() => 10), 16, 16, 18],
+          freeze: { rows: 3, columns: 2 },
+          pageSetup: {
+            orientation: 'landscape',
+            fitToWidth: 1,
+            fitToHeight: 0,
+          },
+        },
+      ]),
     };
   }
 
