@@ -19,6 +19,8 @@ export interface TimesheetEntry {
 export interface TimesheetRow {
   employeeId: string;
   employeeName: string;
+  advanceTotal: number;
+  salaryTotal: number;
   rowTotal: number;
   ratePolicy: TimesheetRatePolicy;
   entries: TimesheetEntry[];
@@ -46,11 +48,57 @@ export interface TimesheetMonth {
   month: number;
   status: string;
   daysInMonth: number;
+  advanceTotal: number;
+  salaryTotal: number;
   monthTotal: number;
   capabilities: {
     canManualCorrection: boolean;
   };
   rows: TimesheetRow[];
+}
+
+export interface TimesheetOverviewEntry {
+  dayOfMonth: number;
+  finalValue: number;
+  autoValue: number;
+  manualValue: number | null;
+  isChangedManually: boolean;
+  hasFact: boolean;
+  workedHours: number | null;
+  comment: string | null;
+  calculationExplanation: string | null;
+}
+
+export interface TimesheetOverviewRow {
+  objectId: string;
+  objectName: string;
+  employeeId: string;
+  employeeName: string;
+  entries: TimesheetOverviewEntry[];
+  advanceTotal: number;
+  salaryTotal: number;
+  monthTotal: number;
+}
+
+export interface TimesheetOverview {
+  year: number;
+  month: number;
+  daysInMonth: number;
+  rows: TimesheetOverviewRow[];
+  totals: {
+    advanceTotal: number;
+    salaryTotal: number;
+    monthTotal: number;
+  };
+  capabilities: {
+    canManualCorrection: boolean;
+    canExport: boolean;
+  };
+}
+
+export interface TimesheetOverviewReference {
+  id: string;
+  name: string;
 }
 
 export interface TimesheetCorrectionItem {

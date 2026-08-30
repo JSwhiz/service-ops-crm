@@ -5,7 +5,83 @@ import { appConfig } from '@/shared/config/app-config';
 import type {
   TimesheetCorrectionItem,
   TimesheetMonth,
+  TimesheetOverview,
+  TimesheetOverviewReference,
 } from '../model/timesheet.types';
+
+function buildOverviewQuery(params: {
+  year: number;
+  month: number;
+  objectId?: string;
+  employeeId?: string;
+}): URLSearchParams {
+  const query = new URLSearchParams({
+    year: String(params.year),
+    month: String(params.month),
+  });
+  if (params.objectId) query.set('objectId', params.objectId);
+  if (params.employeeId) query.set('employeeId', params.employeeId);
+  return query;
+}
+
+export async function getTimesheetOverview(params: {
+  year: number;
+  month: number;
+  objectId?: string;
+  employeeId?: string;
+}): Promise<TimesheetOverview> {
+  return fetcher<TimesheetOverview>(
+    `/timesheets/overview?${buildOverviewQuery(params).toString()}`,
+    { method: 'GET' },
+  );
+}
+
+export async function listTimesheetOverviewObjects(params: {
+  q?: string;
+  selectedId?: string;
+}): Promise<TimesheetOverviewReference[]> {
+  const query = new URLSearchParams();
+  if (params.q) query.set('q', params.q);
+  if (params.selectedId) query.set('selectedId', params.selectedId);
+  return fetcher<TimesheetOverviewReference[]>(
+    `/timesheets/overview/references/objects?${query.toString()}`,
+    { method: 'GET' },
+  );
+}
+
+export async function listTimesheetOverviewEmployees(params: {
+  year: number;
+  month: number;
+  objectId?: string;
+  q?: string;
+  selectedId?: string;
+}): Promise<TimesheetOverviewReference[]> {
+  const query = buildOverviewQuery(params);
+  if (params.q) query.set('q', params.q);
+  if (params.selectedId) query.set('selectedId', params.selectedId);
+  return fetcher<TimesheetOverviewReference[]>(
+    `/timesheets/overview/references/employees?${query.toString()}`,
+    { method: 'GET' },
+  );
+}
+
+export async function downloadTimesheetOverviewExcel(params: {
+  year: number;
+  month: number;
+  objectId?: string;
+  employeeId?: string;
+}): Promise<Blob> {
+  const response = await fetch(
+    `${appConfig.apiUrl}/timesheets/overview/export?${buildOverviewQuery(params).toString()}`,
+    { method: 'GET', credentials: 'include' },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `GET /timesheets/overview/export failed with status ${response.status}`,
+    );
+  }
+  return response.blob();
+}
 
 export async function getTimesheet(params: {
   objectId: string;
