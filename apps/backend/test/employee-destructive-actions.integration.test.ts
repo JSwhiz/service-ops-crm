@@ -125,10 +125,28 @@ test('erroneous assignment deletion is guarded, audited and concurrency-safe', a
       },
     ),
   ]);
-  assert.deepEqual(
-    [endResponse.status, concurrentDeleteResponse.status].sort((a, b) => a - b),
-    [200, 409],
+  assert.equal(endResponse.status, 200);
+  assert.ok(
+    concurrentDeleteResponse.status === 201 ||
+      concurrentDeleteResponse.status === 409,
   );
+
+  const [assignmentAfterRace, historyAfterRace] = await Promise.all([
+    prisma.objectEmployeeAssignment.findUnique({
+      where: { id: concurrent.assignment.id },
+    }),
+    prisma.employeeObjectAssignmentHistory.findUnique({
+      where: { id: concurrent.history.id },
+    }),
+  ]);
+  if (concurrentDeleteResponse.status === 201) {
+    assert.equal(assignmentAfterRace, null);
+    assert.equal(historyAfterRace, null);
+  } else {
+    assert.equal(assignmentAfterRace?.isActive, false);
+    assert.ok(assignmentAfterRace?.endDate);
+    assert.ok(historyAfterRace?.endedAt);
+  }
 });
 
 test('erroneous assignment blockers are limited to the assignment period', async (t) => {
