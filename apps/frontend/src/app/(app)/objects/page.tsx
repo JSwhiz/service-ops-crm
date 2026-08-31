@@ -140,10 +140,10 @@ export default function ObjectsPage(): React.JSX.Element {
   };
 
   return (
-    <>
+    <div className="workspace-page object-registry">
       <PageTitle title="Объекты" />
 
-      <div className="page-card section-header">
+      <section className="page-card workspace-surface section-header registry-header">
         <div>
           <div style={{ fontWeight: 700 }}>Реестр объектов</div>
           <div className="page-muted" style={{ marginTop: 4 }}>
@@ -158,16 +158,10 @@ export default function ObjectsPage(): React.JSX.Element {
             Создать объект
           </Link>
         ) : null}
-      </div>
+      </section>
 
       <div
-        className="page-card"
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns:
-            'repeat(auto-fit, minmax(min(240px, 100%), 1fr))',
-        }}
+        className="page-card workspace-surface filter-panel object-registry-filters"
       >
         <label>
           <div style={{ marginBottom: 6 }}>Поиск</div>
@@ -175,7 +169,6 @@ export default function ObjectsPage(): React.JSX.Element {
             type="search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            style={{ width: '100%', padding: 10 }}
             placeholder="Название, адрес, ответственный или менеджер"
           />
         </label>
@@ -187,7 +180,6 @@ export default function ObjectsPage(): React.JSX.Element {
             onChange={(event) =>
               replaceQuery({ status: event.target.value || null, page: null })
             }
-            style={{ width: '100%', padding: 10 }}
           >
             <option value="">Все статусы</option>
             <option value="active">Активный</option>
@@ -198,11 +190,11 @@ export default function ObjectsPage(): React.JSX.Element {
       </div>
 
       {isLoading ? (
-        <div className="page-card" aria-live="polite">
+        <div className="page-card workspace-surface workspace-empty" aria-live="polite">
           Загрузка списка объектов...
         </div>
       ) : error ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <div className="page-card workspace-surface inline-notice inline-notice--warning">
           {error}
         </div>
       ) : (
@@ -215,7 +207,7 @@ export default function ObjectsPage(): React.JSX.Element {
           />
 
           {result.totalPages > 1 ? (
-            <div className="page-card object-registry-pagination">
+            <div className="page-card workspace-surface object-registry-pagination">
               <span className="page-muted">
                 Страница {result.page} из {result.totalPages}
               </span>
@@ -245,6 +237,6 @@ export default function ObjectsPage(): React.JSX.Element {
           ) : null}
         </>
       )}
-    </>
+    </div>
   );
 }

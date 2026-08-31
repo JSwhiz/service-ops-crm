@@ -658,20 +658,20 @@ export default function ObjectDetailPage({
   };
 
   return (
-    <>
+    <div className="workspace-page object-detail-page">
       <PageTitle title={item ? item.name : 'Карточка объекта'} />
 
       {coreLoading ? (
-        <div className="page-card">Загрузка...</div>
+        <div className="page-card workspace-surface workspace-empty">Загрузка...</div>
       ) : coreError ? (
         <div className="page-card" style={{ color: '#b91c1c' }}>
           {coreError}
         </div>
       ) : item ? (
-        <div className="page-stack">
+        <div className="page-stack object-detail-workspace">
           <ObjectSummaryCard item={item} />
 
-          {item.capabilities.canViewOperationalSections ? <div className="page-card">
+          {item.capabilities.canViewOperationalSections ? <div className="page-card workspace-surface">
             <div className="section-header" style={{ paddingBottom: 0 }}>
               <div>
                 <div className="section-title">Рабочий чат объектов</div>
@@ -1017,8 +1017,8 @@ export default function ObjectDetailPage({
           </div></> : null}
         </div>
       ) : (
-        <div className="page-card">Объект не найден.</div>
+        <div className="page-card workspace-surface workspace-empty">Объект не найден.</div>
       )}
-    </>
+    </div>
   );
 }

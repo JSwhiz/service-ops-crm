@@ -45,7 +45,7 @@ export function ObjectSummaryCard({
   const allowEdit = item.capabilities.canEdit;
 
   return (
-    <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
+    <div className="page-card workspace-surface hero-card" style={{ display: 'grid', gap: 18 }}>
       <div className="section-header">
         <div>
           <div className="hero-title">{item.name}</div>

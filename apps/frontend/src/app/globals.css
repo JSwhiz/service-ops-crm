@@ -573,6 +573,182 @@ a:hover {
   gap: 18px;
 }
 
+.workspace-page {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.workspace-page > .page-title {
+  margin-bottom: 2px;
+}
+
+.workspace-surface.page-card {
+  border-color: #e9e9e7;
+  border-radius: 11px;
+  padding: 16px;
+  background: #ffffff;
+  box-shadow: none;
+  animation: none;
+  transition: border-color 140ms ease;
+}
+
+.workspace-surface.page-card:hover {
+  border-color: #dededb;
+  box-shadow: none;
+}
+
+.workspace-page .registry-header {
+  align-items: center;
+  padding-block: 14px;
+}
+
+.workspace-page .registry-header .section-subtitle,
+.workspace-page .registry-header .page-muted {
+  margin-top: 3px;
+}
+
+.filter-panel {
+  display: grid;
+  gap: 12px;
+  align-items: end;
+  background: #fbfbfa !important;
+}
+
+.filter-panel label {
+  min-width: 0;
+}
+
+.filter-panel label > span,
+.filter-panel label > div:first-child {
+  color: #787774;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.filter-panel input,
+.filter-panel select {
+  width: 100%;
+  min-width: 0;
+  border-color: #dededb;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.data-table-shell.page-card {
+  overflow-x: auto;
+  padding: 0;
+}
+
+.workspace-page .data-table,
+.workspace-page .object-registry-table,
+.workspace-page .one-time-order-registry-table,
+.workspace-page .employee-registry-table,
+.workspace-page .task-table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace-page .data-table th,
+.workspace-page .data-table td,
+.workspace-page .object-registry-table th,
+.workspace-page .object-registry-table td,
+.workspace-page .one-time-order-registry-table th,
+.workspace-page .one-time-order-registry-table td,
+.workspace-page .employee-registry-table th,
+.workspace-page .employee-registry-table td,
+.workspace-page .task-table th,
+.workspace-page .task-table td {
+  border-bottom-color: #eeeeec;
+  padding: 10px 12px;
+}
+
+.workspace-page .data-table th,
+.workspace-page .object-registry-table th,
+.workspace-page .one-time-order-registry-table th,
+.workspace-page .employee-registry-table th,
+.workspace-page .task-table th {
+  background: #f7f7f5;
+  color: #787774;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+}
+
+.workspace-page .data-table tbody tr,
+.workspace-page .object-registry-table tbody tr,
+.workspace-page .one-time-order-registry-table tbody tr,
+.workspace-page .employee-registry-table tbody tr,
+.workspace-page .task-table tbody tr {
+  transition: background-color 120ms ease;
+}
+
+.workspace-page .data-table tbody tr:hover,
+.workspace-page .object-registry-table tbody tr:hover,
+.workspace-page .one-time-order-registry-table tbody tr:hover,
+.workspace-page .employee-registry-table tbody tr:hover,
+.workspace-page .task-table tbody tr:hover {
+  background: #fafaf9;
+}
+
+.workspace-page .status-pill {
+  padding: 3px 8px;
+  border-width: 1px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workspace-page .status-pill::before {
+  width: 6px;
+  height: 6px;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  overflow: hidden;
+  border: 1px solid #e9e9e7;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.summary-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-right: 1px solid #e9e9e7;
+}
+
+.summary-item:last-child {
+  border-right: 0;
+}
+
+.summary-item span {
+  color: #787774;
+  font-size: 12px;
+}
+
+.summary-item strong {
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace-page button:active:not(:disabled),
+.workspace-page .button-link:active {
+  transform: scale(0.98);
+}
+
+.workspace-empty {
+  min-height: 96px;
+  display: grid;
+  align-content: center;
+  color: var(--text-muted);
+}
+
 .panel-grid {
   display: grid;
   gap: 18px;
@@ -1366,6 +1542,55 @@ tbody tr:hover {
 .object-table-scroll {
   overflow-x: auto;
   padding: 0;
+}
+
+.object-registry-filters {
+  grid-template-columns: minmax(260px, 2fr) minmax(180px, 1fr);
+}
+
+.object-detail-page .page-card {
+  border-color: #e9e9e7;
+  border-radius: 11px;
+  box-shadow: none;
+  animation: none;
+}
+
+.object-detail-page .page-card:hover {
+  border-color: #dededb;
+  box-shadow: none;
+}
+
+.object-detail-page .hero-card::before {
+  display: none;
+}
+
+.object-detail-page .hero-card .detail-grid {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #e9e9e7;
+  border-radius: 10px;
+}
+
+.object-detail-page .hero-card .detail-field {
+  padding: 12px 14px;
+  border-right: 1px solid #e9e9e7;
+}
+
+.object-detail-page .hero-card .detail-field:last-child {
+  border-right: 0;
+}
+
+.object-detail-page .record-card {
+  border-color: #e9e9e7;
+  border-radius: 10px;
+  background: #fbfbfa;
+  box-shadow: none;
+}
+
+.dashboard-workspace .page-muted {
+  max-width: 680px;
+  margin: 6px 0 0;
+  line-height: 1.5;
 }
 
 .object-registry-table {

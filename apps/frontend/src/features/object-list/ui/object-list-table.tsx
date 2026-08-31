@@ -55,7 +55,7 @@ export function ObjectListTable({
   const router = useRouter();
 
   if (!items.length) {
-    return <div className="page-card">Объекты не найдены.</div>;
+    return <div className="page-card workspace-surface workspace-empty">Объекты не найдены.</div>;
   }
 
   const renderSortButton = (
@@ -74,7 +74,7 @@ export function ObjectListTable({
   );
 
   return (
-    <div className="page-card object-table-scroll">
+    <div className="page-card workspace-surface data-table-shell object-table-scroll">
       <table className="object-registry-table">
         <thead>
           <tr>
