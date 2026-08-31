@@ -184,8 +184,8 @@ export default function TaskDetailPage({
   const activeAssignees = item.assignees.filter((assignee) => assignee.isActive);
 
   return (
-    <div className="page-stack">
-      <div className="task-page-heading">
+    <div className="page-stack workspace-page task-detail-page">
+      <div className="page-card workspace-surface task-page-heading registry-header">
         <PageTitle title="Карточка задачи" />
         <div className="action-row">
           {item.capabilities.canEdit ? <button type="button" disabled={isActionBusy} onClick={() => void openEditor()}>Редактировать</button> : null}

@@ -4645,3 +4645,130 @@ tbody tr:hover {
     border-radius: 16px 16px 0 0;
   }
 }
+
+.task-detail-page .page-card {
+  border-color: #e9e9e7;
+  border-radius: 11px;
+  box-shadow: none;
+  animation: none;
+}
+
+.task-detail-page .page-card:hover {
+  border-color: #dededb;
+  box-shadow: none;
+}
+
+.task-detail-page .record-card {
+  border-color: #e9e9e7;
+  border-radius: 10px;
+  background: #fbfbfa;
+  box-shadow: none;
+}
+
+.task-registry .task-primary-link {
+  min-height: 36px;
+  padding: 8px 13px;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.task-registry .task-pagination {
+  justify-content: space-between;
+}
+
+@media (max-width: 900px) {
+  .workspace-page .filter-panel,
+  .object-registry-filters,
+  .one-time-order-registry-filters,
+  .one-time-calendar__toolbar,
+  .task-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace-page .task-field--search {
+    grid-column: 1 / -1;
+  }
+
+  .object-detail-page .hero-card .detail-grid,
+  .order-detail-page .hero-card .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .object-detail-page .hero-card .detail-field:nth-child(2n),
+  .order-detail-page .hero-card .detail-field:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .candidate-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .candidate-summary > div:nth-child(2n) {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace-page {
+    gap: 12px;
+  }
+
+  .workspace-surface.page-card {
+    padding: 14px;
+  }
+
+  .workspace-page .registry-header,
+  .workspace-page .task-page-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace-page .filter-panel,
+  .object-registry-filters,
+  .one-time-order-registry-filters,
+  .one-time-calendar__toolbar,
+  .task-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .object-detail-page .hero-card .detail-grid,
+  .order-detail-page .hero-card .detail-grid,
+  .candidate-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .object-detail-page .hero-card .detail-field,
+  .order-detail-page .hero-card .detail-field,
+  .candidate-summary > div {
+    border-right: 0;
+    border-bottom: 1px solid #e9e9e7;
+  }
+
+  .object-detail-page .hero-card .detail-field:last-child,
+  .order-detail-page .hero-card .detail-field:last-child,
+  .candidate-summary > div:last-child {
+    border-bottom: 0;
+  }
+
+  .summary-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summary-item {
+    border-right: 0;
+    border-bottom: 1px solid #e9e9e7;
+  }
+
+  .summary-item:last-child {
+    border-bottom: 0;
+  }
+
+  .employee-detail-page .employee-detail-sections section {
+    border-right: 0;
+  }
+
+  .task-registry .task-pagination {
+    justify-content: center;
+  }
+}

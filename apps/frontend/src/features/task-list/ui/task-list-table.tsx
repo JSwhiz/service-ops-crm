@@ -11,11 +11,11 @@ import {
 
 export function TaskListTable({ items, embedded = false }: { items: TaskItem[]; embedded?: boolean }): React.JSX.Element {
   if (items.length === 0) {
-    return <div className={embedded ? 'page-muted' : 'page-card page-muted'}>Задачи не найдены.</div>;
+    return <div className={embedded ? 'page-muted' : 'page-card workspace-surface workspace-empty'}>Задачи не найдены.</div>;
   }
 
   return (
-    <div className={embedded ? 'task-table-scroll' : 'page-card task-table-scroll'}>
+    <div className={embedded ? 'task-table-scroll' : 'page-card workspace-surface data-table-shell task-table-scroll'}>
       <table className="task-table">
         <thead>
           <tr>

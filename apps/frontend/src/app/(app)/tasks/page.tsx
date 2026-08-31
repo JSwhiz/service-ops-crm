@@ -92,9 +92,10 @@ function TasksRegistry(): React.JSX.Element {
   };
 
   return (
-    <div className="page-stack">
-      <div className="task-page-heading">
-        <div><PageTitle title="Задачи" /><div className="page-muted">{result.total} доступных задач</div></div>
+    <div className="page-stack workspace-page task-registry">
+      <PageTitle title="Задачи" />
+      <div className="page-card workspace-surface task-page-heading registry-header">
+        <div><div className="section-title">Реестр задач</div><div className="page-muted">{result.total} доступных задач</div></div>
         <Link className="task-primary-link" href="/tasks/new">Создать задачу</Link>
       </div>
       <TaskFilters value={filters} objects={objects} users={users} onChange={updateQuery} />
@@ -102,7 +103,7 @@ function TasksRegistry(): React.JSX.Element {
         <div className="page-card task-error" role="alert">{error}</div>
       ) : <TaskListTable items={result.items} />}
       {!isLoading && result.totalPages > 1 ? (
-        <div className="task-pagination" aria-label="Пагинация задач">
+        <div className="page-card workspace-surface task-pagination" aria-label="Пагинация задач">
           <button type="button" disabled={result.page <= 1} onClick={() => updateQuery({ page: result.page - 1 })}>Назад</button>
           <span>Страница {result.page} из {result.totalPages}</span>
           <button type="button" disabled={result.page >= result.totalPages} onClick={() => updateQuery({ page: result.page + 1 })}>Далее</button>

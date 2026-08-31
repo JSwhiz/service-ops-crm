@@ -30,7 +30,7 @@ export function TaskFilters({
   onChange: (next: Partial<TaskFilterValue>) => void;
 }): React.JSX.Element {
   return (
-    <div className="page-card task-filters">
+    <div className="page-card workspace-surface filter-panel task-filters">
       <label className="task-field task-field--search">
         <span>Поиск</span>
         <input
