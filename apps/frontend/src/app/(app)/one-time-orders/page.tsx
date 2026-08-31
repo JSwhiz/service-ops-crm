@@ -125,12 +125,12 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     return <><PageTitle title="Разовые заказы" /><div className="page-card">У вас нет доступа к модулю разовых заказов.</div></>;
   }
 
-  return <div className="page-stack">
+  return <div className="page-stack workspace-page one-time-order-registry">
     <PageTitle title={reviewOnly ? 'Отзывы по разовым заказам' : 'Разовые заказы'} />
-    <div className="page-card section-header"><div><div className="section-title">{reviewOnly ? 'Реестр отзывов' : 'Реестр разовых заказов'}</div><div className="page-muted">Доступно: {total}</div></div>
+    <div className="page-card workspace-surface section-header registry-header"><div><div className="section-title">{reviewOnly ? 'Реестр отзывов' : 'Реестр разовых заказов'}</div><div className="page-muted">Доступно: {total}</div></div>
       {!reviewOnly ? <div className="action-row">{canViewCalendar ? <Link className="button-link" href="/one-time-orders/calendar">Календарь</Link> : null}{canCreate ? <Link className="button-link" href="/one-time-orders/new">Создать заказ</Link> : null}</div> : null}
     </div>
-    <div className="page-card one-time-order-registry-filters">
+    <div className="page-card workspace-surface filter-panel one-time-order-registry-filters">
       <label><span>Поиск</span><input type="search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder={reviewOnly ? 'Заказ, менеджер или текст отзыва' : 'Заказ, адрес, контакт, объект, менеджер, отзыв'} /></label>
       <SearchableSelect label="Статус" value={status} options={STATUS_OPTIONS} onChange={(value) => replaceQuery({ status: value || null, page: null })} placeholder="Все статусы" />
       <SearchableSelect label="Менеджер" value={managerUserId} options={[]} selectedOption={selectedManager} onChange={(value) => replaceQuery({ managerUserId: value || null, page: null })} placeholder="Все менеджеры" asyncSearch={async (search) => (await listOneTimeOrderManagerReferences({ search })).map((item) => ({ value: item.id, label: item.fullName || item.login, searchText: item.login }))} />
@@ -139,13 +139,13 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
       <label><span>Период по</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => replaceQuery({ dateTo: event.target.value || null, page: null })} /></label>
       <button type="button" onClick={() => { setSearchInput(''); router.replace(pathname, { scroll: false }); }}>Сбросить</button>
     </div>
-    {isLoading ? <div className="page-card">Загрузка...</div> : error ? <div className="page-card" style={{ color: '#b91c1c' }}>{error}</div> : reviewOnly ? <ReviewTable reviews={reviews} /> : <OneTimeOrderListTable items={result.items} sortBy={sortBy} sortDirection={sortDirection} onSort={(field) => replaceQuery({ sortBy: field, sortDirection: field === sortBy ? (sortDirection === 'asc' ? 'desc' : 'asc') : field === 'title' ? 'asc' : 'desc', page: null })} />}
-    {!isLoading && totalPages > 1 ? <div className="object-registry-pagination"><button type="button" disabled={currentPage <= 1} onClick={() => replaceQuery({ page: String(currentPage - 1) })}>Назад</button><span>Страница {currentPage} из {totalPages}</span><button type="button" disabled={currentPage >= totalPages} onClick={() => replaceQuery({ page: String(currentPage + 1) })}>Далее</button></div> : null}
+    {isLoading ? <div className="page-card workspace-surface workspace-empty">Загрузка...</div> : error ? <div className="page-card workspace-surface inline-notice inline-notice--warning">{error}</div> : reviewOnly ? <ReviewTable reviews={reviews} /> : <OneTimeOrderListTable items={result.items} sortBy={sortBy} sortDirection={sortDirection} onSort={(field) => replaceQuery({ sortBy: field, sortDirection: field === sortBy ? (sortDirection === 'asc' ? 'desc' : 'asc') : field === 'title' ? 'asc' : 'desc', page: null })} />}
+    {!isLoading && totalPages > 1 ? <div className="page-card workspace-surface object-registry-pagination"><button type="button" disabled={currentPage <= 1} onClick={() => replaceQuery({ page: String(currentPage - 1) })}>Назад</button><span>Страница {currentPage} из {totalPages}</span><button type="button" disabled={currentPage >= totalPages} onClick={() => replaceQuery({ page: String(currentPage + 1) })}>Далее</button></div> : null}
   </div>;
 }
 
 function ReviewTable({ reviews }: { reviews: OneTimeOrderReviewListResponse }): React.JSX.Element {
-  return <div className="page-card table-scroll"><table className="data-table"><thead><tr><th>Заказ</th><th>Период</th><th>Статус</th><th>Менеджеры</th><th>Оценка</th><th>Отзыв</th></tr></thead><tbody>
+  return <div className="page-card workspace-surface data-table-shell table-scroll"><table className="data-table"><thead><tr><th>Заказ</th><th>Период</th><th>Статус</th><th>Менеджеры</th><th>Оценка</th><th>Отзыв</th></tr></thead><tbody>
     {reviews.items.length === 0 ? <tr><td colSpan={6} className="page-muted">Отзывы не найдены.</td></tr> : reviews.items.map((item) => <tr key={item.id}><td><strong>{item.title}</strong></td><td>{formatDate(item.executionStartDate)} – {formatDate(item.executionEndDate)}</td><td>{getOneTimeOrderStatusLabel(item.status)}</td><td>{item.managers.map((manager) => manager.fullName || manager.login).join(', ') || 'Не назначены'}</td><td>{item.reviewRating ?? '—'}</td><td>{item.reviewText ?? '—'}</td></tr>)}
   </tbody></table></div>;
 }

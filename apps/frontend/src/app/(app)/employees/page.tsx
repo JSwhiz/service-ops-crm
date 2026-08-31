@@ -283,8 +283,8 @@ export default function EmployeesPage(): React.JSX.Element {
       {!canAccessEmployeesHr ? (
         <div className="page-card inline-notice inline-notice--warning">У вас нет доступа к HR-контуру сотрудников.</div>
       ) : (
-        <div className="page-stack employee-registry">
-          <section className="page-card section-header"><div><div className="section-title">Реестр сотрудников</div>
+        <div className="page-stack workspace-page employee-registry">
+          <section className="page-card workspace-surface section-header registry-header"><div><div className="section-title">Реестр сотрудников</div>
             <div className="section-subtitle">Контакты, графики и текущие назначения в одном списке.</div></div>
             {result.capabilities.canCreate ? <Link className="button-link" href="/employees/new">Добавить сотрудника</Link> : null}
           </section>
@@ -296,7 +296,7 @@ export default function EmployeesPage(): React.JSX.Element {
             {user?.capabilities?.canAccessCandidates ? <Link href="/employees/reserve">Резерв</Link> : null}
           </nav>
 
-          <section className="page-card employee-search-row">
+          <section className="page-card workspace-surface employee-search-row">
             <label className="employee-main-search"><span className="detail-label">Поиск</span>
               <input type="search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)}
                 placeholder="Поиск по ФИО или телефону" /></label>
@@ -304,7 +304,7 @@ export default function EmployeesPage(): React.JSX.Element {
               Фильтры{activeFilterCount ? ` · ${activeFilterCount}` : ''}</button>
           </section>
 
-          <section className="page-card employee-filter-panel">{filterFields}<div className="action-row">
+          <section className="page-card workspace-surface filter-panel employee-filter-panel">{filterFields}<div className="action-row">
             <button type="button" className="button-secondary" onClick={() => router.replace(pathname, { scroll: false })}>
               Сбросить фильтры{activeFilterCount ? ` (${activeFilterCount})` : ''}</button></div></section>
 
@@ -320,7 +320,7 @@ export default function EmployeesPage(): React.JSX.Element {
               <button type="button" className="button-secondary" onClick={() => setReloadKey((current) => current + 1)}>Повторить</button></div>
             : result.items.length === 0 ? <div className="page-card">{querySearch || activeFilterCount
               ? 'По выбранным фильтрам сотрудников нет.' : 'Сотрудники не найдены.'}</div>
-            : <><div className="page-card employee-table-wrap"><table className="employee-registry-table"><thead><tr>
+            : <><div className="page-card workspace-surface data-table-shell employee-table-wrap"><table className="employee-registry-table"><thead><tr>
               <th>ФИО</th><th>Телефон</th><th>Должность</th><th>Тип</th><th>Статус</th><th>Дата рождения</th>
               <th>График</th><th>Время работы</th><th>Ставка за день</th><th>Текущие объекты</th><th>Изменён</th>
             </tr></thead><tbody>{result.items.map((item) => <tr key={item.id} tabIndex={0}
@@ -339,7 +339,7 @@ export default function EmployeesPage(): React.JSX.Element {
                 <div className="employee-object-chips">{item.currentObjects.length ? item.currentObjects.map((object) => <span key={object.id}>{object.name}</span>) : <span>Без объекта</span>}</div>
               </Link>)}</div></>}
 
-          {result.total > 0 ? <div className="page-card pagination-row"><span className="page-muted">{firstItem}–{lastItem} из {result.total}</span>
+          {result.total > 0 ? <div className="page-card workspace-surface pagination-row"><span className="page-muted">{firstItem}–{lastItem} из {result.total}</span>
             <SearchableSelect label="На странице" value={String(limit)} clearable={false}
               options={[25, 50, 100].map((value) => ({ value: String(value), label: String(value) }))}
               onChange={(value) => replaceQuery({ limit: value === String(DEFAULT_LIMIT) ? null : value, page: null })} />

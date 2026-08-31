@@ -355,7 +355,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
 
   return (
     <div className="one-time-calendar" ref={calendarRootRef}>
-      <div className="page-card one-time-calendar__toolbar">
+      <div className="page-card workspace-surface filter-panel one-time-calendar__toolbar">
         <div className="one-time-calendar__month-nav">
           <button type="button" onClick={() => replaceQuery(shiftMonth(month, -1))}>
             Назад
@@ -461,7 +461,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
         <div className="page-card page-muted">Менеджеры за выбранный период не найдены.</div>
       ) : (
         <>
-          <div className="page-card one-time-calendar__grid-shell">
+          <div className="page-card workspace-surface data-table-shell one-time-calendar__grid-shell">
             <table className="one-time-calendar__grid">
               <thead>
                 <tr>

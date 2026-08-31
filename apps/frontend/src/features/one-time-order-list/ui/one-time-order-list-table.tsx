@@ -20,7 +20,7 @@ export function OneTimeOrderListTable({
   onSort: (field: OneTimeOrderSortField) => void;
 }): React.JSX.Element {
   if (items.length === 0) {
-    return <div className="page-card page-muted">Разовые заказы не найдены.</div>;
+    return <div className="page-card workspace-surface workspace-empty">Разовые заказы не найдены.</div>;
   }
 
   const sortButton = (
@@ -38,7 +38,7 @@ export function OneTimeOrderListTable({
   );
 
   return (
-    <div className="page-card one-time-order-table-scroll">
+    <div className="page-card workspace-surface data-table-shell one-time-order-table-scroll">
       <table className="one-time-order-registry-table">
         <thead>
           <tr>

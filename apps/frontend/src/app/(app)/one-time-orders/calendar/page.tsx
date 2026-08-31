@@ -8,8 +8,8 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 export default function OneTimeOrderCalendarPage(): React.JSX.Element {
   return (
-    <div className="page-stack">
-      <div className="section-header">
+    <div className="page-stack workspace-page one-time-calendar-page">
+      <div className="page-card workspace-surface section-header registry-header">
         <PageTitle title="Календарь разовых заказов" />
         <Link href="/one-time-orders">К реестру</Link>
       </div>

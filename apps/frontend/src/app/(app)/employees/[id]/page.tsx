@@ -298,7 +298,7 @@ export default function EmployeeDetailPage({
   };
 
   return (
-    <>
+    <div className="workspace-page employee-detail-page">
       <PageTitle title={item ? item.fullName : 'Карточка сотрудника'} />
 
       {!canAccessEmployeesHr ? (
@@ -314,7 +314,7 @@ export default function EmployeeDetailPage({
       ) : !item ? (
         <div className="page-card">Сотрудник не найден.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div className="page-stack employee-detail-workspace">
           {actionError ? (
             <div className="page-card" style={{ color: '#b91c1c' }}>
               {actionError}
@@ -1099,6 +1099,6 @@ export default function EmployeeDetailPage({
           ) : null}
         </div>
       )}
-    </>
+    </div>
   );
 }

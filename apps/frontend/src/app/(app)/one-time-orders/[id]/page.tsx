@@ -289,17 +289,17 @@ export default function OneTimeOrderDetailPage({
   };
 
   return (
-    <>
+    <div className="workspace-page order-detail-page">
       <PageTitle title={item ? item.title : 'Разовый заказ'} />
 
       {isLoading ? (
-        <div className="page-card">Загрузка...</div>
+        <div className="page-card workspace-empty">Загрузка...</div>
       ) : error ? (
         <div className="page-card" style={{ color: '#b91c1c' }}>
           {error}
         </div>
       ) : item ? (
-        <div className="page-stack">
+        <div className="page-stack order-detail-workspace">
           <OneTimeOrderSummaryCard item={item} />
 
           {item.capabilities.canCopy ? (
@@ -649,8 +649,8 @@ export default function OneTimeOrderDetailPage({
           <OneTimeOrderHistoryList items={history} />
         </div>
       ) : (
-        <div className="page-card">Разовый заказ не найден.</div>
+        <div className="page-card workspace-empty">Разовый заказ не найден.</div>
       )}
-    </>
+    </div>
   );
 }
