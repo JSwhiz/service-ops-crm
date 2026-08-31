@@ -19,6 +19,7 @@ function getEntryTitle(entry: TimesheetOverviewEntry): string {
   return [
     `Авто: ${entry.autoValue}`,
     `Итог: ${entry.finalValue}`,
+    entry.difference !== 0 ? `Отклонение: ${entry.difference}` : null,
     entry.workedHours !== null ? `Часы: ${entry.workedHours}` : null,
     entry.comment,
     entry.calculationExplanation,

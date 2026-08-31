@@ -156,6 +156,9 @@ export class TimesheetsService {
         row.entries.map((entry) => [entry.dayOfMonth, entry]),
       );
       const ratePolicy =
+        row.entries
+          .map((entry) => parseRatePolicySnapshot(entry.ratePolicySnapshot))
+          .find((policy) => policy !== null) ??
         policyByEmployeeId.get(row.employeeId) ??
         normalizeRatePolicy(null, object.dailyRate);
       const autoValues = calculateTimesheetAutoValues({
@@ -172,18 +175,18 @@ export class TimesheetsService {
           const dayOfMonth = index + 1;
           const existing = entriesByDay.get(dayOfMonth);
           const calculated = autoValues.get(dayOfMonth);
-          const autoValue =
-            existing?.autoValue ??
-            calculated?.autoValue ??
-            (existing?.isChangedManually ? 0 : existing?.dayValue ?? 0);
-          const finalValue = existing?.dayValue ?? calculated?.autoValue ?? 0;
-          const manualValue = existing?.isChangedManually
+          const autoValue = existing
+            ? existing.autoValue
+            : calculated?.autoValue ?? 0;
+          const finalValue = existing
             ? existing.dayValue
+            : calculated?.autoValue ?? 0;
+          const manualValue = existing?.isChangedManually
+            ? existing.manualValue ?? existing.dayValue
             : null;
-          const ratePolicySnapshot =
-            this.normalizeStoredPolicySnapshot(
-              existing?.ratePolicySnapshot ?? null,
-            ) ?? calculated?.ratePolicySnapshot ?? ratePolicy;
+          const ratePolicySnapshot = existing
+            ? this.normalizeStoredPolicySnapshot(existing.ratePolicySnapshot)
+            : calculated?.ratePolicySnapshot ?? ratePolicy;
 
           return {
             dayOfMonth,
@@ -195,12 +198,13 @@ export class TimesheetsService {
             comment: existing?.comment ?? null,
             isChangedManually: existing?.isChangedManually ?? false,
             hasFact: factSet.has(`${row.employeeId}:${dayOfMonth}`),
-            workedHours: existing?.workedHours ?? calculated?.workedHours ?? null,
+            workedHours: existing
+              ? existing.workedHours
+              : calculated?.workedHours ?? null,
             ratePolicySnapshot,
-            calculationExplanation:
-              existing?.calculationExplanation ??
-              calculated?.calculationExplanation ??
-              null,
+            calculationExplanation: existing
+              ? existing.calculationExplanation
+              : calculated?.calculationExplanation ?? null,
             updatedAt: existing?.updatedAt.toISOString() ?? null,
             updatedByUserId: existing?.updatedBy?.id ?? null,
             updatedByUserName: existing?.updatedBy?.fullName ?? null,
@@ -447,7 +451,7 @@ export class TimesheetsService {
     const employeeFilter = query.employeeId
       ? { employeeId: query.employeeId }
       : {};
-    const [months, assignments, facts] = await Promise.all([
+    const [months, assignments, assignmentHistory, facts] = await Promise.all([
       this.prisma.timesheetMonth.findMany({
         where: {
           objectId: { in: objectIds },
@@ -467,11 +471,23 @@ export class TimesheetsService {
         },
       }),
       this.prisma.objectEmployeeAssignment.findMany({
-        where: {
-          objectId: { in: objectIds },
-          isActive: true,
-          ...employeeFilter,
+        where: this.buildCurrentAssignmentPeriodWhere({
+          objectIds,
+          year: query.year,
+          month: query.month,
+          employeeId: query.employeeId,
+        }),
+        include: {
+          employee: { select: { id: true, fullName: true } },
         },
+      }),
+      this.prisma.employeeObjectAssignmentHistory.findMany({
+        where: this.buildAssignmentHistoryPeriodWhere({
+          objectIds,
+          year: query.year,
+          month: query.month,
+          employeeId: query.employeeId,
+        }),
         include: {
           employee: { select: { id: true, fullName: true } },
         },
@@ -519,6 +535,12 @@ export class TimesheetsService {
       employeeNameByPair.set(key, assignment.employee.fullName);
     }
 
+    for (const history of assignmentHistory) {
+      const key = this.buildOverviewPairKey(history.objectId, history.employeeId);
+      pairKeys.add(key);
+      employeeNameByPair.set(key, history.employee.fullName);
+    }
+
     for (const fact of facts) {
       const key = this.buildOverviewPairKey(fact.objectId, fact.employeeId);
       pairKeys.add(key);
@@ -549,9 +571,12 @@ export class TimesheetsService {
       const factPolicy = pairFacts
         .map((fact) => parseRatePolicySnapshot(fact.ratePolicySnapshot))
         .find((policy) => policy !== null);
-      const policy = assignment
-        ? normalizeRatePolicy(assignment, object.dailyRate)
-        : storedPolicy ?? factPolicy ?? normalizeRatePolicy(null, object.dailyRate);
+      const policy =
+        storedPolicy ??
+        factPolicy ??
+        (assignment
+          ? normalizeRatePolicy(assignment, object.dailyRate)
+          : normalizeRatePolicy(null, object.dailyRate));
       const calculated = calculateTimesheetAutoValues({
         year: query.year,
         month: query.month,
@@ -569,27 +594,35 @@ export class TimesheetsService {
         const dayOfMonth = index + 1;
         const stored = entriesByDay.get(dayOfMonth);
         const automatic = calculated.get(dayOfMonth);
-        const autoValue =
-          automatic?.autoValue ??
-          stored?.autoValue ??
-          (stored?.isChangedManually ? 0 : stored?.dayValue ?? 0);
-        const finalValue = stored?.isChangedManually
+        const autoValue = stored
+          ? stored.autoValue
+          : automatic?.autoValue ?? 0;
+        const finalValue = stored
           ? stored.dayValue
-          : automatic?.autoValue ?? stored?.dayValue ?? 0;
+          : automatic?.autoValue ?? 0;
+        const manualValue = stored?.isChangedManually
+          ? stored.manualValue ?? stored.dayValue
+          : null;
+        const ratePolicySnapshot = stored
+          ? this.normalizeStoredPolicySnapshot(stored.ratePolicySnapshot)
+          : automatic?.ratePolicySnapshot ?? policy;
 
         return {
           dayOfMonth,
           finalValue,
           autoValue,
-          manualValue: stored?.isChangedManually ? stored.dayValue : null,
+          manualValue,
+          difference: finalValue - autoValue,
           isChangedManually: stored?.isChangedManually ?? false,
           hasFact: factDays.has(dayOfMonth),
-          workedHours: stored?.workedHours ?? automatic?.workedHours ?? null,
+          workedHours: stored
+            ? stored.workedHours
+            : automatic?.workedHours ?? null,
+          ratePolicySnapshot,
           comment: stored?.comment ?? null,
-          calculationExplanation:
-            stored?.calculationExplanation ??
-            automatic?.calculationExplanation ??
-            null,
+          calculationExplanation: stored
+            ? stored.calculationExplanation
+            : automatic?.calculationExplanation ?? null,
         };
       });
       const totals = calculateTimesheetPeriodTotals(entries);
@@ -668,7 +701,7 @@ export class TimesheetsService {
       return [];
     }
 
-    const [months, assignments, facts] = await Promise.all([
+    const [months, assignments, assignmentHistory, facts] = await Promise.all([
       this.prisma.timesheetMonth.findMany({
         where: {
           objectId: { in: objectIds },
@@ -678,7 +711,19 @@ export class TimesheetsService {
         select: { rows: { select: { employeeId: true } } },
       }),
       this.prisma.objectEmployeeAssignment.findMany({
-        where: { objectId: { in: objectIds }, isActive: true },
+        where: this.buildCurrentAssignmentPeriodWhere({
+          objectIds,
+          year: query.year,
+          month: query.month,
+        }),
+        select: { employeeId: true },
+      }),
+      this.prisma.employeeObjectAssignmentHistory.findMany({
+        where: this.buildAssignmentHistoryPeriodWhere({
+          objectIds,
+          year: query.year,
+          month: query.month,
+        }),
         select: { employeeId: true },
       }),
       this.prisma.objectAttendanceFact.findMany({
@@ -693,6 +738,7 @@ export class TimesheetsService {
       ...new Set([
         ...months.flatMap((month) => month.rows.map((row) => row.employeeId)),
         ...assignments.map((assignment) => assignment.employeeId),
+        ...assignmentHistory.map((history) => history.employeeId),
         ...facts.map((fact) => fact.employeeId),
       ]),
     ];
@@ -1534,6 +1580,52 @@ export class TimesheetsService {
     return `${objectId}:${employeeId}`;
   }
 
+  private buildCurrentAssignmentPeriodWhere(params: {
+    objectIds: string[];
+    year: number;
+    month: number;
+    employeeId?: string;
+  }): Prisma.ObjectEmployeeAssignmentWhereInput {
+    const { start, endExclusive } = this.getMonthBounds(
+      params.year,
+      params.month,
+    );
+
+    return {
+      objectId: { in: params.objectIds },
+      isActive: true,
+      ...(params.employeeId ? { employeeId: params.employeeId } : {}),
+      AND: [
+        {
+          OR: [
+            { startDate: { lt: endExclusive } },
+            { startDate: null, createdAt: { lt: endExclusive } },
+          ],
+        },
+        { OR: [{ endDate: null }, { endDate: { gte: start } }] },
+      ],
+    };
+  }
+
+  private buildAssignmentHistoryPeriodWhere(params: {
+    objectIds: string[];
+    year: number;
+    month: number;
+    employeeId?: string;
+  }): Prisma.EmployeeObjectAssignmentHistoryWhereInput {
+    const { start, endExclusive } = this.getMonthBounds(
+      params.year,
+      params.month,
+    );
+
+    return {
+      objectId: { in: params.objectIds },
+      ...(params.employeeId ? { employeeId: params.employeeId } : {}),
+      startedAt: { lt: endExclusive },
+      OR: [{ endedAt: null }, { endedAt: { gte: start } }],
+    };
+  }
+
   private assertManualCorrectionAccess(currentUser: CurrentAuthUser): void {
     const roleCodes = this.getRoleCodes(currentUser);
 
@@ -1583,14 +1675,26 @@ export class TimesheetsService {
       },
     });
 
-    const [activeAssignments, monthAttendanceFacts] = await Promise.all([
+    const [activeAssignments, assignmentHistory, monthAttendanceFacts] =
+      await Promise.all([
       client.objectEmployeeAssignment.findMany({
-        where: {
-          objectId,
-          isActive: true,
-        },
+        where: this.buildCurrentAssignmentPeriodWhere({
+          objectIds: [objectId],
+          year,
+          month,
+        }),
         include: {
           employee: true,
+        },
+      }),
+      client.employeeObjectAssignmentHistory.findMany({
+        where: this.buildAssignmentHistoryPeriodWhere({
+          objectIds: [objectId],
+          year,
+          month,
+        }),
+        select: {
+          employeeId: true,
         },
       }),
       client.objectAttendanceFact.findMany({
@@ -1607,6 +1711,7 @@ export class TimesheetsService {
     const employeeIds = Array.from(
       new Set([
         ...activeAssignments.map((assignment) => assignment.employeeId),
+        ...assignmentHistory.map((history) => history.employeeId),
         ...monthAttendanceFacts.map((fact) => fact.employeeId),
       ]),
     );
@@ -1713,6 +1818,9 @@ export class TimesheetsService {
         row.entries.map((entry) => [entry.dayOfMonth, entry]),
       );
       const ratePolicy =
+        row.entries
+          .map((entry) => parseRatePolicySnapshot(entry.ratePolicySnapshot))
+          .find((policy) => policy !== null) ??
         policyByEmployeeId.get(row.employeeId) ??
         normalizeRatePolicy(null, row.employee.baseDailyRate ?? object.dailyRate);
       const autoValues = calculateTimesheetAutoValues({
@@ -1729,137 +1837,28 @@ export class TimesheetsService {
         const hasAutoValue = Boolean(calculatedDay) && autoValue !== 0;
         const existing = entriesByDay.get(dayOfMonth);
 
-        if (hasAutoValue) {
-          if (!existing) {
-            operations.push(
-              this.prisma.timesheetDayEntry.create({
-                data: {
-                  rowId: row.id,
-                  dayOfMonth,
-                  dayValue: autoValue,
-                  autoValue,
-                  manualValue: null,
-                  difference: 0,
-                  comment: null,
-                  isChangedManually: false,
-                  workedHours: calculatedDay?.workedHours ?? null,
-                  ratePolicySnapshot: this.policySnapshotToJson(
-                    calculatedDay?.ratePolicySnapshot,
-                  ),
-                  calculationExplanation:
-                    calculatedDay?.calculationExplanation ?? null,
-                },
-              }),
-            );
-            continue;
-          }
-
-          if (!existing.isChangedManually) {
-            if (
-              existing.dayValue !== autoValue ||
-              existing.autoValue !== autoValue ||
-              existing.comment !== null
-            ) {
-              operations.push(
-                this.prisma.timesheetDayEntry.update({
-                  where: {
-                    id: existing.id,
-                  },
-                  data: {
-                    dayValue: autoValue,
-                    autoValue,
-                    manualValue: null,
-                    difference: 0,
-                    comment: null,
-                    isChangedManually: false,
-                    workedHours: calculatedDay?.workedHours ?? null,
-                    ratePolicySnapshot: this.policySnapshotToJson(
-                      calculatedDay?.ratePolicySnapshot,
-                    ),
-                    calculationExplanation:
-                      calculatedDay?.calculationExplanation ?? null,
-                  },
-                }),
-              );
-            }
-
-            continue;
-          }
-
-          const hasMeaningfulManualComment =
-            typeof existing.comment === 'string' &&
-            existing.comment.trim().length > 0;
-
-          if (!hasMeaningfulManualComment) {
-            operations.push(
-              this.prisma.timesheetDayEntry.update({
-                where: {
-                  id: existing.id,
-                },
-                data: {
-                  dayValue: autoValue,
-                  autoValue,
-                  manualValue: null,
-                  difference: 0,
-                  comment: null,
-                  isChangedManually: false,
-                  workedHours: calculatedDay?.workedHours ?? null,
-                  ratePolicySnapshot: this.policySnapshotToJson(
-                    calculatedDay?.ratePolicySnapshot,
-                  ),
-                  calculationExplanation:
-                    calculatedDay?.calculationExplanation ?? null,
-                },
-              }),
-            );
-          }
-
-          if (hasMeaningfulManualComment) {
-            operations.push(
-              this.prisma.timesheetDayEntry.update({
-                where: {
-                  id: existing.id,
-                },
-                data: {
-                  autoValue,
-                  manualValue: existing.dayValue,
-                  difference: existing.dayValue - autoValue,
-                  workedHours: calculatedDay?.workedHours ?? null,
-                  ratePolicySnapshot: this.policySnapshotToJson(
-                    calculatedDay?.ratePolicySnapshot,
-                  ),
-                  calculationExplanation:
-                    calculatedDay?.calculationExplanation ?? null,
-                },
-              }),
-            );
-          }
-
+        if (existing) {
           continue;
         }
 
-        if (existing && !existing.isChangedManually) {
+        if (hasAutoValue) {
           operations.push(
-            this.prisma.timesheetDayEntry.delete({
-              where: {
-                id: existing.id,
-              },
-            }),
-          );
-        }
-
-        if (existing?.isChangedManually) {
-          operations.push(
-            this.prisma.timesheetDayEntry.update({
-              where: {
-                id: existing.id,
-              },
+            this.prisma.timesheetDayEntry.create({
               data: {
-                autoValue: 0,
-                manualValue: existing.dayValue,
-                difference: existing.dayValue,
-                workedHours: null,
-                calculationExplanation: null,
+                rowId: row.id,
+                dayOfMonth,
+                dayValue: autoValue,
+                autoValue,
+                manualValue: null,
+                difference: 0,
+                comment: null,
+                isChangedManually: false,
+                workedHours: calculatedDay?.workedHours ?? null,
+                ratePolicySnapshot: this.policySnapshotToJson(
+                  calculatedDay?.ratePolicySnapshot,
+                ),
+                calculationExplanation:
+                  calculatedDay?.calculationExplanation ?? null,
               },
             }),
           );
@@ -2085,10 +2084,22 @@ export class TimesheetsService {
     return new Date(year, month, 0).getDate();
   }
 
-  private getMonthRange(year: number, month: number) {
+  private getMonthBounds(
+    year: number,
+    month: number,
+  ): { start: Date; endExclusive: Date } {
     return {
-      gte: new Date(year, month - 1, 1),
-      lt: new Date(year, month, 1),
+      start: new Date(year, month - 1, 1),
+      endExclusive: new Date(year, month, 1),
+    };
+  }
+
+  private getMonthRange(year: number, month: number) {
+    const { start, endExclusive } = this.getMonthBounds(year, month);
+
+    return {
+      gte: start,
+      lt: endExclusive,
     };
   }
 

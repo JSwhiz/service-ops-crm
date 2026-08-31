@@ -62,9 +62,11 @@ export interface TimesheetOverviewEntry {
   finalValue: number;
   autoValue: number;
   manualValue: number | null;
+  difference: number;
   isChangedManually: boolean;
   hasFact: boolean;
   workedHours: number | null;
+  ratePolicySnapshot: Record<string, unknown> | null;
   comment: string | null;
   calculationExplanation: string | null;
 }

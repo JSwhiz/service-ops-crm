@@ -1,3 +1,5 @@
+import type { TimesheetRatePolicySnapshot } from '../types/timesheet-rate-policy.type';
+
 export class TimesheetOverviewResponseDto {
   year!: number;
   month!: number;
@@ -12,9 +14,11 @@ export class TimesheetOverviewResponseDto {
       finalValue: number;
       autoValue: number;
       manualValue: number | null;
+      difference: number;
       isChangedManually: boolean;
       hasFact: boolean;
       workedHours: number | null;
+      ratePolicySnapshot: TimesheetRatePolicySnapshot | null;
       comment: string | null;
       calculationExplanation: string | null;
     }>;

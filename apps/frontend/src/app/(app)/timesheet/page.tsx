@@ -72,6 +72,8 @@ export default function TimesheetPage(): React.JSX.Element {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const overviewRequestRef = useRef(0);
   const detailRequestRef = useRef(0);
+  const objectReferenceRequestRef = useRef(0);
+  const employeeReferenceRequestRef = useRef(0);
   const [exceptionEmployeeId, setExceptionEmployeeId] = useState('');
   const [exceptionDayOfMonth, setExceptionDayOfMonth] = useState('1');
   const [exceptionDayValue, setExceptionDayValue] = useState('0');
@@ -157,19 +159,26 @@ export default function TimesheetPage(): React.JSX.Element {
   }, [month, objectId, refreshVersion, year]);
 
   useEffect(() => {
+    const requestId = ++objectReferenceRequestRef.current;
     if (!objectId) {
       setSelectedObject(null);
       return;
     }
     void listTimesheetOverviewObjects({ selectedId: objectId })
       .then((items) => {
+        if (requestId !== objectReferenceRequestRef.current) return;
         const item = items[0];
         setSelectedObject(item ? { value: item.id, label: item.name } : null);
       })
-      .catch(() => setSelectedObject(null));
+      .catch(() => {
+        if (requestId === objectReferenceRequestRef.current) {
+          setSelectedObject(null);
+        }
+      });
   }, [objectId]);
 
   useEffect(() => {
+    const requestId = ++employeeReferenceRequestRef.current;
     if (!employeeId) {
       setSelectedEmployee(null);
       return;
@@ -181,10 +190,15 @@ export default function TimesheetPage(): React.JSX.Element {
       selectedId: employeeId,
     })
       .then((items) => {
+        if (requestId !== employeeReferenceRequestRef.current) return;
         const item = items[0];
         setSelectedEmployee(item ? { value: item.id, label: item.name } : null);
       })
-      .catch(() => setSelectedEmployee(null));
+      .catch(() => {
+        if (requestId === employeeReferenceRequestRef.current) {
+          setSelectedEmployee(null);
+        }
+      });
   }, [employeeId, month, objectId, year]);
 
   const submitException = (event: React.FormEvent<HTMLFormElement>): void => {
