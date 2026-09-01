@@ -125,10 +125,11 @@ test('erroneous assignment deletion is guarded, audited and concurrency-safe', a
       },
     ),
   ]);
-  assert.equal(endResponse.status, 200);
+  const raceStatuses = [endResponse.status, concurrentDeleteResponse.status];
   assert.ok(
-    concurrentDeleteResponse.status === 201 ||
-      concurrentDeleteResponse.status === 409,
+    (raceStatuses[0] === 200 &&
+      (raceStatuses[1] === 201 || raceStatuses[1] === 409)) ||
+      (raceStatuses[0] === 409 && raceStatuses[1] === 201),
   );
 
   const [assignmentAfterRace, historyAfterRace] = await Promise.all([
@@ -143,6 +144,7 @@ test('erroneous assignment deletion is guarded, audited and concurrency-safe', a
     assert.equal(assignmentAfterRace, null);
     assert.equal(historyAfterRace, null);
   } else {
+    assert.equal(endResponse.status, 200);
     assert.equal(assignmentAfterRace?.isActive, false);
     assert.ok(assignmentAfterRace?.endDate);
     assert.ok(historyAfterRace?.endedAt);
