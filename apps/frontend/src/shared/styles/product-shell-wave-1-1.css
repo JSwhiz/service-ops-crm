@@ -188,6 +188,40 @@
   transform: translateY(-50%);
 }
 
+/* Desktop navigation is viewport-owned, not document-flow-owned. The main area
+ * is offset by the same semantic sidebar width, so scrolling long workspaces
+ * never moves the rail and expand/collapse remains geometrically stable. */
+@media (min-width: 761px) {
+  .app-shell {
+    display: block;
+    min-height: 100vh;
+  }
+
+  .app-shell .app-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--ui-sidebar-collapsed);
+    height: 100dvh;
+    z-index: 50;
+    transition: width var(--ui-duration-normal) var(--ui-ease-standard);
+  }
+
+  .app-shell[data-sidebar-expanded='true'] .app-sidebar {
+    width: var(--ui-sidebar-expanded);
+  }
+
+  .app-shell .app-main {
+    width: auto;
+    min-width: 0;
+    margin-left: var(--ui-sidebar-collapsed);
+    transition: margin-left var(--ui-duration-normal) var(--ui-ease-standard);
+  }
+
+  .app-shell[data-sidebar-expanded='true'] .app-main {
+    margin-left: var(--ui-sidebar-expanded);
+  }
+}
+
 @media (max-width: 760px) {
   .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link,
   .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-main,
