@@ -1,34 +1,148 @@
-"use client";
+'use client';
 
-import React from "react";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import React, { useEffect, useRef, useState } from 'react';
 
-import { useAuth } from "@/shared/auth/use-auth";
-import {
-  getUserDisplayName,
-  getUserRoleLabel,
-} from "@/shared/lib/display-name";
-import { UserAvatar } from "@/shared/ui/user-avatar/user-avatar";
-import { NotificationBell } from "@/features/notification-bell/ui/notification-bell";
+import { NotificationBell } from '@/features/notification-bell/ui/notification-bell';
+import { useAuth } from '@/shared/auth/use-auth';
+import { getUserDisplayName, getUserRoleLabel } from '@/shared/lib/display-name';
+import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
+
+const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
+  ['/dashboard', 'Рабочий стол'],
+  ['/approvals', 'Согласования'],
+  ['/objects', 'Объекты'],
+  ['/one-time-orders', 'Разовые заказы'],
+  ['/accountability', 'Подотчет'],
+  ['/inventory', 'Расходники'],
+  ['/equipment', 'Оборудование'],
+  ['/tasks', 'Задачи'],
+  ['/timesheet', 'Табель'],
+  ['/candidates', 'Кандидаты'],
+  ['/employees', 'Сотрудники'],
+  ['/chats', 'Чаты'],
+  ['/settings', 'Настройки'],
+];
+
+function getRouteTitle(pathname: string): string {
+  return ROUTE_TITLES.find(([route]) => pathname === route || pathname.startsWith(`${route}/`))?.[1] ?? 'Рабочая система';
+}
+
+function ChatIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 11.5a8 8 0 0 1-8.5 8 8.8 8.8 0 0 1-3.8-.9L3 20l1.4-4.3A8 8 0 1 1 21 11.5Z" />
+      <path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01" />
+    </svg>
+  );
+}
+
+function ChevronIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m7 9.5 5 5 5-5" />
+    </svg>
+  );
+}
 
 export function AppHeader(): React.JSX.Element {
+  const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
+  const canAccessChats = user?.capabilities?.canAccessChats ?? false;
+  const displayName = getUserDisplayName(user);
+  const roleLabel = getUserRoleLabel(user?.roleCode);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+
+    const handlePointerDown = (event: MouseEvent): void => {
+      if (!accountRef.current?.contains(event.target as Node)) {
+        setAccountOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setAccountOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [accountOpen]);
+
+  useEffect(() => {
+    setAccountOpen(false);
+  }, [pathname]);
 
   return (
     <header className="app-header">
-      <div className="app-header__title">Рабочая система</div>
-      <div className="app-header__meta">
+      <div className="app-header__context">
+        <div className="app-header__title">{getRouteTitle(pathname)}</div>
+        <div className="app-header__workspace-label">Service Ops CRM</div>
+      </div>
+
+      <div className="app-header__actions">
+        {canAccessChats ? (
+          <Link
+            href="/chats"
+            className={`app-header__icon-link${pathname.startsWith('/chats') ? ' app-header__icon-link--active' : ''}`}
+            aria-label="Открыть чаты"
+            title="Чаты"
+          >
+            <ChatIcon />
+          </Link>
+        ) : null}
+
         {user ? <NotificationBell /> : null}
-        {user ? <UserAvatar fullName={getUserDisplayName(user)} /> : null}
-        <span className="status-pill">{getUserRoleLabel(user?.roleCode)}</span>
-        <span>{getUserDisplayName(user)}</span>
-        <button
-          type="button"
-          onClick={() => {
-            void logout();
-          }}
-        >
-          Выйти
-        </button>
+
+        {user ? <span className="app-header__separator" aria-hidden="true" /> : null}
+
+        {user ? (
+          <div className="app-header__account" ref={accountRef}>
+            <button
+              type="button"
+              className="app-header__account-trigger"
+              onClick={() => setAccountOpen((current) => !current)}
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+            >
+              <UserAvatar fullName={displayName} size="small" />
+              <span className="app-header__account-copy">
+                <span className="app-header__account-name">{displayName}</span>
+                <span className="app-header__account-role">{roleLabel}</span>
+              </span>
+              <span className="app-header__account-chevron"><ChevronIcon /></span>
+            </button>
+
+            {accountOpen ? (
+              <div className="app-header__account-menu" role="menu">
+                <div className="app-header__account-summary">
+                  <strong>{displayName}</strong>
+                  <span>{roleLabel}</span>
+                </div>
+                <Link className="app-header__menu-link" href="/settings" role="menuitem">
+                  Настройки
+                </Link>
+                <button
+                  type="button"
+                  className="app-header__logout"
+                  role="menuitem"
+                  onClick={() => {
+                    setAccountOpen(false);
+                    void logout();
+                  }}
+                >
+                  Выйти
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </header>
   );
