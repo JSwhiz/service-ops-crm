@@ -125,6 +125,13 @@
   padding: 0;
 }
 
+/* An opacity-hidden label still participates in flex layout and pulls the icon
+ * left. Remove it from the compact rail layout entirely; expanded mode keeps the
+ * original animated label behavior from product-shell.css. */
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link-label {
+  display: none;
+}
+
 /* Slightly larger icon slot improves optical weight while preserving a square,
  * non-shrinking glyph box for every navigation item. */
 .app-shell .app-sidebar__link-icon {
