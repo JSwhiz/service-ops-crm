@@ -30,6 +30,7 @@ import {
 } from './dto/timesheet-overview-response.dto';
 import { UpsertTimesheetEntryDto } from './dto/upsert-timesheet-entry.dto';
 import { TimesheetsService } from './timesheets.service';
+import { assertTimesheetDateEditable } from './utils/timesheet-edit-window.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -130,6 +131,7 @@ export class TimesheetsController {
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: UpsertTimesheetEntryDto,
   ): Promise<TimesheetResponseDto> {
+    assertTimesheetDateEditable(payload);
     return this.timesheetsService.upsertEntry(user, payload);
   }
 
@@ -138,6 +140,7 @@ export class TimesheetsController {
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: CreateTimesheetManualExceptionDto,
   ): Promise<ApprovalRequestResponseDto> {
+    assertTimesheetDateEditable(payload);
     return this.timesheetsService.requestManualException(user, payload);
   }
 }
