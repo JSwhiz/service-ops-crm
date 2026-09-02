@@ -6,7 +6,14 @@ import type { TimesheetCorrectionItem } from '@/entities/timesheet/model/timeshe
 
 interface TimesheetCorrectionsPanelProps {
   items: TimesheetCorrectionItem[];
+  employeeName?: string | null;
 }
+
+const moneyFormatter = new Intl.NumberFormat('ru-RU', {
+  style: 'currency',
+  currency: 'RUB',
+  maximumFractionDigits: 0,
+});
 
 function formatDateTime(value: string): string {
   const date = new Date(value);
@@ -24,81 +31,64 @@ function formatDateTime(value: string): string {
   }).format(date);
 }
 
+function formatDay(day: number): string {
+  return `${String(day).padStart(2, '0')} число`;
+}
+
 export function TimesheetCorrectionsPanel({
   items,
+  employeeName = null,
 }: TimesheetCorrectionsPanelProps): React.JSX.Element {
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div style={{ fontWeight: 600, fontSize: 18 }}>
-        Ручные корректировки табеля
+    <section className="timesheet-corrections-panel" aria-label="Ручные корректировки табеля">
+      <div className="timesheet-corrections-panel__header">
+        <div>
+          <h3>Ручные корректировки</h3>
+          <p>
+            {employeeName
+              ? `Для сотрудника ${employeeName}`
+              : 'Изменения выплат за выбранный объект и период'}
+          </p>
+        </div>
+        <span className="timesheet-corrections-panel__count">{items.length}</span>
       </div>
 
       {items.length === 0 ? (
-        <div className="page-muted">
-          За выбранный месяц ручных корректировок нет.
+        <div className="timesheet-corrections-panel__empty">
+          Ручных корректировок для текущей выборки нет.
         </div>
       ) : (
-        <div className="record-list local-scroll">
+        <div className="timesheet-corrections-list">
           {items.map((item) => (
-            <div
+            <article
               key={`${item.employeeId}-${item.dayOfMonth}`}
-              style={{
-                border: '1px solid #dbe3ee',
-                borderRadius: 12,
-                padding: 12,
-                display: 'grid',
-                gap: 8,
-                background: item.hasFact ? '#eff6ff' : '#ffffff',
-              }}
+              className="timesheet-correction-row"
             >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  flexWrap: 'wrap',
-                }}
-              >
-                <div style={{ fontWeight: 600 }}>{item.employeeName}</div>
-                <div className="page-muted">День: {item.dayOfMonth}</div>
+              <div className="timesheet-correction-row__date">
+                <span>{formatDay(item.dayOfMonth)}</span>
+                <small>{item.hasFact ? 'Есть факт присутствия' : 'Без факта присутствия'}</small>
               </div>
 
-              <div
-                style={{
-                  display: 'grid',
-                  gap: 8,
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                }}
-              >
-                <div>
-                  <div className="page-muted">Значение</div>
-                  <div>{item.dayValue}</div>
+              <div className="timesheet-correction-row__main">
+                <div className="timesheet-correction-row__topline">
+                  <strong>{item.employeeName}</strong>
+                  <span className="timesheet-correction-row__amount">
+                    {moneyFormatter.format(item.dayValue)}
+                  </span>
                 </div>
-
-                <div>
-                  <div className="page-muted">Факт присутствия</div>
-                  <div>{item.hasFact ? 'Есть' : 'Нет'}</div>
-                </div>
-
-                <div>
-                  <div className="page-muted">Последнее изменение</div>
-                  <div>{formatDateTime(item.updatedAt)}</div>
-                </div>
-
-                <div>
-                  <div className="page-muted">Изменил</div>
-                  <div>{item.updatedByUserName ?? 'Неизвестно'}</div>
-                </div>
+                <p className="timesheet-correction-row__comment">
+                  {item.comment?.trim() || 'Без комментария'}
+                </p>
               </div>
 
-              <div>
-                <div className="page-muted">Комментарий</div>
-                <div>{item.comment ?? 'Комментарий отсутствует'}</div>
+              <div className="timesheet-correction-row__audit">
+                <span>{item.updatedByUserName ?? 'Неизвестный пользователь'}</span>
+                <time dateTime={item.updatedAt}>{formatDateTime(item.updatedAt)}</time>
               </div>
-            </div>
+            </article>
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 }
