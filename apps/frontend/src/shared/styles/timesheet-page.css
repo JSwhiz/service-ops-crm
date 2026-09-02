@@ -1,0 +1,294 @@
+/* Service Ops CRM — Timesheet workspace polish */
+
+/* The timesheet is a dense operational surface and intentionally uses more of
+ * the viewport than ordinary detail pages. */
+.app-content:has(.timesheet-page) {
+  max-width: none;
+  padding: 18px 24px 28px;
+}
+
+.timesheet-page {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.timesheet-page .page-card,
+.timesheet-page .timesheet-card,
+.timesheet-page .timesheet-corrections-panel {
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  box-shadow: none;
+}
+
+.timesheet-page .page-card:hover,
+.timesheet-page .timesheet-card:hover {
+  border-color: var(--ui-border);
+  box-shadow: none;
+  transform: none;
+}
+
+.timesheet-overview-filters {
+  grid-template-columns: minmax(220px, 0.72fr) minmax(300px, 1fr) minmax(300px, 1fr) auto;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--ui-radius-md) !important;
+  background: var(--ui-surface);
+}
+
+.timesheet-overview-filters > label,
+.timesheet-overview-filters .searchable-select {
+  gap: 5px;
+}
+
+.timesheet-page .detail-label {
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.timesheet-overview-filters input[type='month'],
+.timesheet-page .searchable-select__trigger {
+  min-height: 40px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: none;
+}
+
+.timesheet-overview-filters input[type='month'] {
+  width: 100%;
+  padding: 0 11px;
+}
+
+.timesheet-overview-filters input[type='month']:hover,
+.timesheet-page .searchable-select__trigger:hover:not(:disabled) {
+  border-color: var(--ui-border-hover);
+  background: var(--ui-surface);
+  box-shadow: none;
+  transform: none;
+}
+
+.timesheet-overview-filters input[type='month']:focus,
+.timesheet-overview-filters input[type='month']:focus-visible,
+.timesheet-page .searchable-select__trigger:focus,
+.timesheet-page .searchable-select__trigger:focus-visible {
+  outline: 0;
+  border-color: var(--ui-focus-border);
+  box-shadow: var(--ui-focus-ring);
+}
+
+.timesheet-page .searchable-select__trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 11px;
+  text-align: left;
+  font-weight: 550;
+}
+
+.timesheet-page .searchable-select__trigger > span:last-child {
+  flex: 0 0 auto;
+  color: var(--ui-text-tertiary);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.timesheet-page .searchable-select__popover {
+  z-index: 180;
+  top: calc(100% + 6px);
+  width: max(100%, 280px);
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-popover);
+}
+
+.timesheet-page .searchable-select__popover input {
+  width: 100%;
+  min-height: 38px;
+  margin: 0 0 5px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: none;
+}
+
+.timesheet-page .searchable-select__popover input:focus,
+.timesheet-page .searchable-select__popover input:focus-visible {
+  outline: 0;
+  border-color: var(--ui-focus-border);
+  box-shadow: var(--ui-focus-ring);
+}
+
+.timesheet-page .searchable-select__options {
+  max-height: min(320px, 42vh);
+  overflow-y: auto;
+  padding: 1px;
+}
+
+.timesheet-page .searchable-select__options button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  box-shadow: none;
+  font-size: var(--ui-text-sm);
+  font-weight: 550;
+  text-align: left;
+  transform: none;
+}
+
+.timesheet-page .searchable-select__options button:hover:not(:disabled),
+.timesheet-page .searchable-select__options button.is-active,
+.timesheet-page .searchable-select__options button[aria-selected='true'] {
+  border: 0;
+  background: var(--ui-accent-subtle);
+  color: var(--ui-text);
+  box-shadow: none;
+  transform: none;
+}
+
+.timesheet-page .searchable-select__empty {
+  padding: 10px;
+  color: var(--ui-text-tertiary);
+  font-size: var(--ui-text-sm);
+}
+
+.timesheet-export-button {
+  min-width: 138px;
+  align-self: end;
+  white-space: nowrap;
+}
+
+.timesheet-export-button svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+/* Manual correction is represented by typography only. Legacy timesheet CSS
+ * used !important blue fills for changed cells, so this override must match it. */
+.timesheet-page .timesheet-table td.timesheet-table__changed-cell,
+.timesheet-page .timesheet-table td.timesheet-table__fact-cell.timesheet-table__changed-cell {
+  background: transparent !important;
+}
+
+.timesheet-page .timesheet-table td.timesheet-table__changed-cell .timesheet-cell-trigger:not(.is-selected),
+.timesheet-page .timesheet-table td.timesheet-table__fact-cell.timesheet-table__changed-cell .timesheet-cell-trigger:not(.is-selected) {
+  background: transparent !important;
+}
+
+.timesheet-page .timesheet-overview__table td.is-manual,
+.timesheet-page .timesheet-overview__table td.is-manual .timesheet-cell-trigger:not(.is-selected) {
+  background: transparent !important;
+}
+
+.timesheet-page .timesheet-overview,
+.timesheet-page .timesheet-object-detail {
+  margin: 0;
+}
+
+.timesheet-page .timesheet-overview__totals {
+  margin: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  overflow: hidden;
+  background: var(--ui-surface);
+}
+
+.timesheet-page .timesheet-overview__totals > div {
+  padding: 10px 14px;
+}
+
+.timesheet-page .timesheet-overview__table-wrap,
+.timesheet-page .timesheet-card {
+  border-radius: var(--ui-radius-md);
+}
+
+.timesheet-object-detail {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.timesheet-object-detail__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.timesheet-page .section-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.timesheet-page .section-subtitle {
+  margin: 0;
+  color: var(--ui-text-tertiary);
+  font-size: var(--ui-text-xs);
+}
+
+.timesheet-page .timesheet-card {
+  padding: 12px 16px 16px;
+}
+
+.timesheet-page .timesheet-card__meta {
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.timesheet-page .timesheet-corrections-panel {
+  margin-top: 0;
+}
+
+@media (max-width: 1180px) {
+  .timesheet-overview-filters {
+    grid-template-columns: minmax(180px, 0.8fr) minmax(240px, 1fr) minmax(240px, 1fr);
+  }
+
+  .timesheet-export-button {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 780px) {
+  .app-content:has(.timesheet-page) {
+    padding: 12px;
+  }
+
+  .timesheet-overview-filters {
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+
+  .timesheet-export-button {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .timesheet-object-detail__heading {
+    display: grid;
+    gap: 4px;
+  }
+}
