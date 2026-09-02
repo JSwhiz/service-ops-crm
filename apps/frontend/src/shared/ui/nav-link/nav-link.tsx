@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React, { useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { cn } from '@/shared/lib/cn';
@@ -19,6 +19,8 @@ interface TooltipPosition {
   top: number;
 }
 
+const TOOLTIP_DELAY_MS = 320;
+
 export function NavLink({
   href,
   label,
@@ -27,32 +29,48 @@ export function NavLink({
 }: NavLinkProps): React.JSX.Element {
   const pathname = usePathname();
   const linkRef = useRef<HTMLAnchorElement>(null);
+  const tooltipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tooltipId = useId();
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
   const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
 
+  const clearTooltipTimer = (): void => {
+    if (tooltipTimerRef.current) {
+      clearTimeout(tooltipTimerRef.current);
+      tooltipTimerRef.current = null;
+    }
+  };
+
   const showCollapsedTooltip = (): void => {
     const link = linkRef.current;
-    if (!link) {
-      return;
-    }
+    if (!link) return;
 
     const shell = link.closest('.app-shell') as HTMLElement | null;
     if (shell?.dataset.sidebarExpanded === 'true') {
+      clearTooltipTimer();
       setTooltipPosition(null);
       return;
     }
 
-    const rect = link.getBoundingClientRect();
-    setTooltipPosition({
-      left: rect.right + 8,
-      top: rect.top + rect.height / 2,
-    });
+    clearTooltipTimer();
+    tooltipTimerRef.current = setTimeout(() => {
+      const currentLink = linkRef.current;
+      if (!currentLink) return;
+      const rect = currentLink.getBoundingClientRect();
+      setTooltipPosition({
+        left: rect.right + 8,
+        top: rect.top + rect.height / 2,
+      });
+      tooltipTimerRef.current = null;
+    }, TOOLTIP_DELAY_MS);
   };
 
   const hideTooltip = (): void => {
+    clearTooltipTimer();
     setTooltipPosition(null);
   };
+
+  useEffect(() => () => clearTooltipTimer(), []);
 
   return (
     <>
