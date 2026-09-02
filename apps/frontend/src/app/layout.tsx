@@ -1,6 +1,7 @@
 import './globals.css';
 import '@/shared/styles/design-tokens.css';
 import '@/shared/styles/ui-foundation.css';
+import '@/shared/styles/product-shell.css';
 import type { Metadata } from 'next';
 import React from 'react';
 
