@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+
+import { Button, IconButton } from '@/shared/ui/foundation';
 
 export interface TimesheetCellMutation {
   objectId: string;
@@ -36,8 +38,25 @@ interface Point {
   top: number;
 }
 
+const VIEWPORT_GAP = 12;
+const FLOATING_GAP = 8;
+const MENU_WIDTH = 232;
+const MENU_ESTIMATED_HEIGHT = 176;
+
 function formatMoney(value: number): string {
   return `${new Intl.NumberFormat('ru-RU').format(value)} ₽`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+function CloseIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+      <path d="m5.5 5.5 9 9M14.5 5.5l-9 9" />
+    </svg>
+  );
 }
 
 export function TimesheetCellEditor({
@@ -60,9 +79,12 @@ export function TimesheetCellEditor({
   onOpenDetails,
 }: TimesheetCellEditorProps): React.JSX.Element {
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const editorId = useId();
   const [selected, setSelected] = useState(false);
-  const [editorPoint, setEditorPoint] = useState<Point | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorPoint, setEditorPoint] = useState<Point>({ left: VIEWPORT_GAP, top: VIEWPORT_GAP });
   const [menuPoint, setMenuPoint] = useState<Point | null>(null);
   const [value, setValue] = useState(String(finalValue));
   const [reason, setReason] = useState(comment ?? '');
@@ -71,39 +93,112 @@ export function TimesheetCellEditor({
 
   const canMutate = isEditableDate && (canDirectEdit || canRequestCorrection);
 
+  const closeInteraction = useCallback((): void => {
+    setSelected(false);
+    setEditorOpen(false);
+    setMenuPoint(null);
+    setMessage(null);
+  }, []);
+
+  const positionEditor = useCallback((): void => {
+    const trigger = triggerRef.current;
+    const editor = editorRef.current;
+    if (!trigger || !editor || typeof window === 'undefined') return;
+
+    const triggerRect = trigger.getBoundingClientRect();
+    const editorRect = editor.getBoundingClientRect();
+    const width = editorRect.width;
+    const height = editorRect.height;
+
+    const left = clamp(
+      triggerRect.left,
+      VIEWPORT_GAP,
+      window.innerWidth - width - VIEWPORT_GAP,
+    );
+
+    const fitsBelow = triggerRect.bottom + FLOATING_GAP + height <= window.innerHeight - VIEWPORT_GAP;
+    const fitsAbove = triggerRect.top - FLOATING_GAP - height >= VIEWPORT_GAP;
+
+    let top: number;
+    if (fitsBelow) {
+      top = triggerRect.bottom + FLOATING_GAP;
+    } else if (fitsAbove) {
+      top = triggerRect.top - FLOATING_GAP - height;
+    } else {
+      top = clamp(
+        triggerRect.top + triggerRect.height / 2 - height / 2,
+        VIEWPORT_GAP,
+        window.innerHeight - height - VIEWPORT_GAP,
+      );
+    }
+
+    setEditorPoint({ left, top });
+  }, []);
+
   useEffect(() => {
     setValue(String(finalValue));
     setReason(comment ?? '');
   }, [comment, finalValue]);
 
-  useEffect(() => {
-    if (!editorPoint && !menuPoint) return undefined;
-    const close = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        setEditorPoint(null);
-        setMenuPoint(null);
-      }
-    };
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
-  }, [editorPoint, menuPoint]);
+  useLayoutEffect(() => {
+    if (!editorOpen) return;
+    positionEditor();
+  }, [editorOpen, message, positionEditor]);
 
-  const pointNextToTrigger = (): Point | null => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return null;
-    const width = 340;
-    const left = Math.min(rect.left, window.innerWidth - width - 12);
-    const top = Math.min(rect.bottom + 8, window.innerHeight - 290);
-    return { left: Math.max(12, left), top: Math.max(12, top) };
-  };
+  useEffect(() => {
+    if (!editorOpen) return undefined;
+
+    const reposition = (): void => positionEditor();
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [editorOpen, positionEditor]);
+
+  useEffect(() => {
+    if (!selected && !editorOpen && !menuPoint) return undefined;
+
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target)) return;
+      if (editorRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      closeInteraction();
+    };
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') closeInteraction();
+    };
+
+    document.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [closeInteraction, editorOpen, menuPoint, selected]);
 
   const openEditor = (): void => {
     if (!canMutate) return;
+    setSelected(true);
     setMenuPoint(null);
     setMessage(null);
     setValue(String(finalValue));
     setReason(comment ?? '');
-    setEditorPoint(pointNextToTrigger());
+    setEditorPoint({ left: VIEWPORT_GAP, top: VIEWPORT_GAP });
+    setEditorOpen(true);
+  };
+
+  const openMenu = (clientX: number, clientY: number): void => {
+    setSelected(true);
+    setEditorOpen(false);
+    setMenuPoint({
+      left: clamp(clientX, VIEWPORT_GAP, window.innerWidth - MENU_WIDTH - VIEWPORT_GAP),
+      top: clamp(clientY, VIEWPORT_GAP, window.innerHeight - MENU_ESTIMATED_HEIGHT - VIEWPORT_GAP),
+    });
   };
 
   const submit = async (): Promise<void> => {
@@ -121,7 +216,7 @@ export function TimesheetCellEditor({
     }
 
     if (parsed === finalValue) {
-      setEditorPoint(null);
+      closeInteraction();
       return;
     }
 
@@ -136,10 +231,9 @@ export function TimesheetCellEditor({
           dayValue: parsed,
           comment: differsFromAuto ? normalizedReason : undefined,
         });
-        setEditorPoint(null);
       } else {
         if (parsed === autoValue) {
-          setMessage('Возврат к авторасчёту сейчас доступен только пользователю с правом прямой корректировки.');
+          setMessage('Возврат к авторасчёту доступен только пользователю с правом прямой корректировки.');
           return;
         }
         await onRequestCorrection({
@@ -149,8 +243,8 @@ export function TimesheetCellEditor({
           dayValue: parsed,
           comment: normalizedReason,
         });
-        setMessage('Запрос на корректировку отправлен на согласование.');
       }
+      closeInteraction();
     } catch (error) {
       setMessage(error instanceof Error && error.message.trim() ? error.message : 'Не удалось сохранить корректировку.');
     } finally {
@@ -169,8 +263,7 @@ export function TimesheetCellEditor({
         dayOfMonth,
         dayValue: autoValue,
       });
-      setEditorPoint(null);
-      setMenuPoint(null);
+      closeInteraction();
     } catch (error) {
       setMessage(error instanceof Error && error.message.trim() ? error.message : 'Не удалось вернуть авторасчёт.');
     } finally {
@@ -187,14 +280,16 @@ export function TimesheetCellEditor({
         type="button"
         className={`timesheet-cell-trigger${selected ? ' is-selected' : ''}${isChangedManually ? ' is-manual' : ''}${!isEditableDate ? ' is-locked' : ''}`}
         aria-label={`${employeeName}, ${dayOfMonth}.${month}.${year}: ${formatMoney(finalValue)}`}
-        aria-describedby={editorPoint ? editorId : undefined}
-        onClick={() => setSelected(true)}
+        aria-describedby={editorOpen ? editorId : undefined}
+        aria-pressed={selected}
+        onClick={() => {
+          if (editorOpen || menuPoint) return;
+          setSelected((current) => !current);
+        }}
         onDoubleClick={openEditor}
         onContextMenu={(event) => {
           event.preventDefault();
-          setSelected(true);
-          setEditorPoint(null);
-          setMenuPoint({ left: event.clientX, top: event.clientY });
+          openMenu(event.clientX, event.clientY);
         }}
       >
         <strong>{label}</strong>
@@ -202,7 +297,7 @@ export function TimesheetCellEditor({
 
       {menuPoint && typeof document !== 'undefined'
         ? createPortal(
-            <div className="timesheet-cell-menu" style={menuPoint} role="menu">
+            <div ref={menuRef} className="timesheet-cell-menu" style={menuPoint} role="menu">
               {canMutate ? (
                 <button type="button" role="menuitem" onClick={openEditor}>
                   {canDirectEdit ? 'Изменить выплату' : 'Запросить корректировку'}
@@ -214,25 +309,50 @@ export function TimesheetCellEditor({
                 </button>
               ) : null}
               {onOpenDetails ? (
-                <button type="button" role="menuitem" onClick={() => { setMenuPoint(null); onOpenDetails(); }}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    closeInteraction();
+                    onOpenDetails();
+                  }}
+                >
                   История / детализация
                 </button>
               ) : null}
-              {!isEditableDate ? <div className="timesheet-cell-menu__hint">Корректировка недоступна для закрытого или будущего периода.</div> : null}
+              {!isEditableDate ? (
+                <div className="timesheet-cell-menu__hint">
+                  Корректировка недоступна для закрытого или будущего периода.
+                </div>
+              ) : null}
             </div>,
             document.body,
           )
         : null}
 
-      {editorPoint && typeof document !== 'undefined'
+      {editorOpen && typeof document !== 'undefined'
         ? createPortal(
-            <div id={editorId} className="timesheet-cell-editor" style={editorPoint} role="dialog" aria-label="Корректировка выплаты">
+            <div
+              ref={editorRef}
+              id={editorId}
+              className="timesheet-cell-editor"
+              style={editorPoint}
+              role="dialog"
+              aria-modal="false"
+              aria-label="Корректировка выплаты"
+            >
               <div className="timesheet-cell-editor__header">
                 <div>
                   <strong>{employeeName}</strong>
                   <span>{objectName} · {dayOfMonth}.{String(month).padStart(2, '0')}.{year}</span>
                 </div>
-                <button type="button" className="timesheet-cell-editor__close" onClick={() => setEditorPoint(null)} aria-label="Закрыть">×</button>
+                <IconButton
+                  className="timesheet-cell-editor__close"
+                  onClick={closeInteraction}
+                  aria-label="Закрыть редактор"
+                >
+                  <CloseIcon />
+                </IconButton>
               </div>
 
               <div className="timesheet-cell-editor__summary">
@@ -254,19 +374,34 @@ export function TimesheetCellEditor({
               </label>
 
               <label className="timesheet-cell-editor__field">
-                <span>Причина {Number(value) === autoValue ? '(не требуется при возврате к авторасчёту)' : ''}</span>
-                <textarea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Коротко объясните изменение" />
+                <span>
+                  Причина {Number(value) === autoValue ? '(не требуется при возврате к авторасчёту)' : ''}
+                </span>
+                <textarea
+                  rows={3}
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Коротко объясните изменение"
+                />
               </label>
 
               {message ? <div className="timesheet-cell-editor__message">{message}</div> : null}
 
               <div className="timesheet-cell-editor__actions">
-                {canDirectEdit && isChangedManually && finalValue !== autoValue ? (
-                  <button type="button" className="button-secondary" onClick={() => void restoreAuto()} disabled={saving}>Вернуть авторасчёт</button>
-                ) : <span />}
-                <div>
-                  <button type="button" className="button-secondary" onClick={() => setEditorPoint(null)} disabled={saving}>Отмена</button>
-                  <button type="button" onClick={() => void submit()} disabled={saving}>{saving ? 'Сохраняем…' : canDirectEdit ? 'Сохранить' : 'Отправить запрос'}</button>
+                <div className="timesheet-cell-editor__actions-left">
+                  {canDirectEdit && isChangedManually && finalValue !== autoValue ? (
+                    <Button variant="ghost" size="sm" onClick={() => void restoreAuto()} disabled={saving}>
+                      Вернуть авторасчёт
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="timesheet-cell-editor__actions-right">
+                  <Button size="sm" onClick={closeInteraction} disabled={saving}>
+                    Отмена
+                  </Button>
+                  <Button variant="primary" size="sm" onClick={() => void submit()} disabled={saving}>
+                    {saving ? 'Сохраняем…' : canDirectEdit ? 'Сохранить' : 'Отправить запрос'}
+                  </Button>
                 </div>
               </div>
             </div>,
