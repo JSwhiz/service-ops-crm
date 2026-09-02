@@ -20,13 +20,18 @@ import type {
 } from '@/entities/timesheet/model/timesheet.types';
 import type { TimesheetCellMutation } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/timesheet-corrections-panel';
-import { TimesheetGrid } from '@/features/timesheet-grid/ui/timesheet-grid';
 import { TimesheetOverviewGrid } from '@/features/timesheet-overview/ui/timesheet-overview-grid';
 import { Button } from '@/shared/ui/foundation';
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
+
+const moneyFormatter = new Intl.NumberFormat('ru-RU', {
+  style: 'currency',
+  currency: 'RUB',
+  maximumFractionDigits: 0,
+});
 
 function parsePeriod(searchParams: URLSearchParams): { year: number; month: number } {
   const now = new Date();
@@ -194,6 +199,10 @@ export default function TimesheetPage(): React.JSX.Element {
     }, 80);
   };
 
+  const visibleCorrections = employeeId
+    ? corrections.filter((item) => item.employeeId === employeeId)
+    : corrections;
+
   return (
     <div className="timesheet-page">
       <section className="page-card timesheet-overview-filters" aria-label="Фильтры табеля">
@@ -262,22 +271,44 @@ export default function TimesheetPage(): React.JSX.Element {
       {objectId ? (
         <section className="timesheet-object-detail">
           <div className="timesheet-object-detail__heading">
-            <h2 className="section-title">Детализация и корректировки объекта</h2>
-            <p className="section-subtitle">Двойной клик — изменить выплату · Правый клик — действия и детализация</p>
+            <div>
+              <h2 className="section-title">Детализация объекта</h2>
+              <p className="section-subtitle">
+                Выборка открыта из табеля. Редактирование остаётся в основной таблице выше.
+              </p>
+            </div>
           </div>
           {detailLoading ? <div className="page-card">Загрузка детализации...</div> : null}
           {detailError ? <div className="page-card page-error">{detailError}</div> : null}
           {!detailLoading && objectTimesheet ? (
             <>
-              <TimesheetGrid
-                key={`${objectId}-${year}-${month}`}
-                timesheet={objectTimesheet}
-                canEditEntries={objectTimesheet.capabilities.canManualCorrection}
-                onDirectChange={directChange}
-                onRequestCorrection={requestCorrection}
-                onOpenDetails={(nextEmployeeId) => replaceFilters({ employeeId: nextEmployeeId })}
+              <div className="timesheet-object-inspector" aria-label="Сводка выбранного объекта">
+                <div className="timesheet-object-inspector__identity">
+                  <span>Объект</span>
+                  <strong>{objectTimesheet.objectName}</strong>
+                  {selectedEmployee ? <small>Сотрудник: {selectedEmployee.label}</small> : null}
+                </div>
+                <div className="timesheet-object-inspector__metric">
+                  <span>Ставка объекта</span>
+                  <strong>{moneyFormatter.format(objectTimesheet.objectDailyRate)}</strong>
+                </div>
+                <div className="timesheet-object-inspector__metric">
+                  <span>Аванс</span>
+                  <strong>{moneyFormatter.format(objectTimesheet.advanceTotal)}</strong>
+                </div>
+                <div className="timesheet-object-inspector__metric">
+                  <span>ЗП</span>
+                  <strong>{moneyFormatter.format(objectTimesheet.salaryTotal)}</strong>
+                </div>
+                <div className="timesheet-object-inspector__metric">
+                  <span>Итого</span>
+                  <strong>{moneyFormatter.format(objectTimesheet.monthTotal)}</strong>
+                </div>
+              </div>
+              <TimesheetCorrectionsPanel
+                items={visibleCorrections}
+                employeeName={selectedEmployee?.label ?? null}
               />
-              <TimesheetCorrectionsPanel items={corrections} />
             </>
           ) : null}
         </section>
