@@ -56,10 +56,24 @@
   color: var(--ui-text);
 }
 
+/* Manual correction is a persistent data state, not a selection state.
+ * Keep it visible through typography only; permanent cell fills compete with
+ * selected/hover states and previously allowed legacy blue timesheet styling to
+ * leak into both overview and object-detail grids. */
 .timesheet-cell-trigger.is-manual strong,
 .timesheet-value--manual {
   color: var(--ui-text);
   font-weight: 800;
+}
+
+.timesheet-table td.timesheet-table__changed-cell,
+.timesheet-overview__table td.is-manual {
+  background: transparent;
+}
+
+.timesheet-table td.timesheet-table__changed-cell .timesheet-cell-trigger:not(.is-selected),
+.timesheet-overview__table td.is-manual .timesheet-cell-trigger:not(.is-selected) {
+  background: transparent;
 }
 
 .timesheet-cell-trigger.is-locked {
@@ -297,11 +311,6 @@
   min-width: 0;
   padding-inline: 8px;
   color: var(--ui-text-secondary);
-}
-
-.timesheet-table__changed-cell,
-.timesheet-overview__table td.is-manual {
-  background: var(--ui-warning-subtle);
 }
 
 @media (max-width: 760px) {
