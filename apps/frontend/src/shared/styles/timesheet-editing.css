@@ -1,0 +1,231 @@
+/* Service Ops CRM — Timesheet correction UX (Wave 1.2) */
+
+.timesheet-overview__table td:not(.is-object):not(.is-employee):not(.is-summary),
+.timesheet-table td:not(.timesheet-table__sticky-left):not(.timesheet-table__summary) {
+  padding: 0;
+}
+
+.timesheet-cell-trigger {
+  width: 100%;
+  min-width: 52px;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  box-shadow: none;
+  transform: none;
+  font: inherit;
+  cursor: default;
+}
+
+.timesheet-cell-trigger:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--ui-surface-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.timesheet-cell-trigger.is-selected {
+  position: relative;
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px var(--ui-focus-border);
+}
+
+.timesheet-cell-trigger.is-manual strong,
+.timesheet-value--manual {
+  color: var(--ui-text);
+  font-weight: 800;
+}
+
+.timesheet-cell-trigger.is-locked {
+  color: var(--ui-text-tertiary);
+  background: transparent;
+}
+
+.timesheet-cell-menu,
+.timesheet-cell-editor {
+  position: fixed;
+  z-index: 220;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-popover);
+  color: var(--ui-text);
+}
+
+.timesheet-cell-menu {
+  width: 220px;
+  padding: 6px;
+  border-radius: var(--ui-radius-md);
+}
+
+.timesheet-cell-menu button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  box-shadow: none;
+  text-align: left;
+  transform: none;
+}
+
+.timesheet-cell-menu button:hover:not(:disabled) {
+  border: 0;
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+  box-shadow: none;
+  transform: none;
+}
+
+.timesheet-cell-menu__hint {
+  padding: 8px 9px;
+  color: var(--ui-text-tertiary);
+  font-size: var(--ui-text-xs);
+  line-height: 1.4;
+}
+
+.timesheet-cell-editor {
+  width: min(340px, calc(100vw - 24px));
+  padding: 14px;
+  border-radius: var(--ui-radius-lg);
+}
+
+.timesheet-cell-editor__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.timesheet-cell-editor__header > div {
+  min-width: 0;
+}
+
+.timesheet-cell-editor__header strong,
+.timesheet-cell-editor__header span {
+  display: block;
+}
+
+.timesheet-cell-editor__header strong {
+  overflow: hidden;
+  font-size: var(--ui-text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timesheet-cell-editor__header span {
+  margin-top: 3px;
+  color: var(--ui-text-tertiary);
+  font-size: var(--ui-text-xs);
+}
+
+button.timesheet-cell-editor__close {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-text-tertiary);
+  font-size: 20px;
+  line-height: 1;
+}
+
+button.timesheet-cell-editor__close:hover:not(:disabled) {
+  border: 0;
+  background: var(--ui-surface-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.timesheet-cell-editor__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 9px 10px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-subtle);
+}
+
+.timesheet-cell-editor__summary span {
+  color: var(--ui-text-tertiary);
+  font-size: var(--ui-text-xs);
+}
+
+.timesheet-cell-editor__summary strong {
+  font-size: var(--ui-text-md);
+}
+
+.timesheet-cell-editor__field {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.timesheet-cell-editor__field > span {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  font-weight: 650;
+}
+
+.timesheet-cell-editor__field input,
+.timesheet-cell-editor__field textarea {
+  width: 100%;
+  border-color: var(--ui-border-strong);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+}
+
+.timesheet-cell-editor__message {
+  margin-top: 10px;
+  padding: 8px 9px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-warning-subtle);
+  color: var(--ui-warning);
+  font-size: var(--ui-text-xs);
+  line-height: 1.4;
+}
+
+.timesheet-cell-editor__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.timesheet-cell-editor__actions > div {
+  display: flex;
+  gap: 6px;
+}
+
+.timesheet-table__changed-cell,
+.timesheet-overview__table td.is-manual {
+  background: var(--ui-warning-subtle);
+}
+
+@media (max-width: 760px) {
+  .timesheet-cell-editor {
+    left: 12px !important;
+    right: 12px;
+    top: auto !important;
+    bottom: 12px;
+    width: auto;
+  }
+}
