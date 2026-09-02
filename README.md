@@ -2,14 +2,14 @@
 
 # Service Ops CRM
 
-### Операционная CRM для управления сервисным бизнесом: от объектов и сотрудников до задач, разовых заказов, табеля, склада и финансовой ответственности.
+### Операционная CRM для управления сервисным бизнесом — единая система для объектов, людей, задач, разовых заказов, табеля, склада, оборудования и финансовой ответственности.
 
-**Product & Engineering Project · Дмитрий Крючков**
+**Product owner · Architecture · Lead development — Дмитрий Крючков**
 
 [![CI](https://github.com/JSwhiz/service-ops-crm/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/JSwhiz/service-ops-crm/actions/workflows/ci.yml)
 ![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=nodedotjs&logoColor=white)
 ![pnpm](https://img.shields.io/badge/pnpm-10.33-F69220?logo=pnpm&logoColor=white)
-![License](https://img.shields.io/badge/license-proprietary-5A4A42)
+[![License](https://img.shields.io/badge/license-proprietary-5A4A42)](LICENSE)
 
 </div>
 
@@ -17,19 +17,36 @@
 
 ## О проекте
 
-**Service Ops CRM** — full-stack система для ежедневного управления операционной деятельностью сервисной компании. Проект объединяет в одной модели регулярные объекты, разовые заказы, сотрудников, кандидатов, задачи, посещаемость, табель, складские движения, оборудование, подотчёт, подтверждения, файлы, коммуникации и уведомления.
+**Service Ops CRM** — full-stack operational system для ежедневного управления сервисной компанией. Она объединяет регулярные объекты, разовые заказы, сотрудников, кандидатов, задачи, attendance, табель, складские движения, оборудование, подотчёт, approvals, файлы, коммуникации и уведомления в одной согласованной domain model.
 
-Это не демонстрационный CRUD и не набор независимых административных страниц. Система строится вокруг реальных operational workflows: пользователь получает доступ не просто потому, что у него есть «роль», данные не теряют исторический смысл при изменении текущего состояния, финансовые и кадровые действия имеют отдельные границы доступа, а связанные домены должны сохранять согласованность между собой.
-
-Репозиторий одновременно является:
-
-- рабочей кодовой базой продукта;
-- инженерной документацией архитектурных решений;
-- точкой входа для разработчика, который подключается к проекту;
-- технической презентацией проекта и подхода к его разработке.
+Это не демонстрационный CRUD и не коллекция независимых административных страниц. Основная сложность проекта находится в связях между доменами: назначение сотрудника влияет на доступный operational context и исторические данные; задача наследует scope связанной сущности; стоимость складской операции должна сохраняться на момент события; финансовое действие может требовать отдельного permission и approval; текущая конфигурация не должна переписывать историю задним числом.
 
 > [!IMPORTANT]
-> В README намеренно нет реальных имён сотрудников, заказчиков, объектов, production-адресов, credentials и иных customer-specific данных. Примеры и описания относятся только к абстрактной продуктовой модели.
+> Репозиторий публичен как техническая презентация проекта, но исходный код распространяется на условиях **proprietary license**. Публичный доступ к коду не означает разрешение использовать, копировать, модифицировать, развёртывать или распространять систему. См. [`LICENSE`](LICENSE).
+
+> [!NOTE]
+> В репозитории и README намеренно отсутствуют реальные имена сотрудников/заказчиков, названия реальных объектов, production-адреса, credentials и любые customer-specific данные. Все примеры относятся только к абстрактной продуктовой модели.
+
+### Engineering highlights
+
+| | |
+| --- | --- |
+| **Architecture** | TypeScript monorepo + modular NestJS backend + Next.js frontend |
+| **Authorization** | `system role + scoped assignment + capability + approval`, backend-authoritative |
+| **Data integrity** | historical values, price snapshots, movement history, immutable financial corrections where required |
+| **Operational scopes** | Objects и One-Time Orders имеют собственные assignments и access boundaries |
+| **Cross-domain workflows** | Tasks, approvals, notifications, files и finance связывают домены без их слияния |
+| **Infrastructure** | PostgreSQL + Redis + MinIO, локально через Docker Compose |
+| **Quality gate** | typecheck, lint, builds, Prisma deploy, integration tests в GitHub Actions |
+| **Release safety** | versioned migrations, exact SHA releases, backup-first production policy |
+
+### Ветки
+
+- `main` — стабильная ветка;
+- `dev` — активная интеграционная ветка;
+- `feature/*` — изолированная разработка изменений.
+
+Текущий engineering baseline и актуальная разработка ведутся в `dev`. Публикация presentation-версии README в default branch отслеживается отдельно, чтобы не смешивать документационный release с runtime changes.
 
 ---
 
@@ -49,7 +66,7 @@
 - [Данные, файлы и realtime](#данные-файлы-и-realtime)
 - [Быстрый старт](#быстрый-старт)
 - [Локальная разработка](#локальная-разработка)
-- [Переменные окружения](#переменные-окружения)
+- [Environment](#environment)
 - [Prisma и миграции](#prisma-и-миграции)
 - [Качество, тесты и CI](#качество-тесты-и-ci)
 - [Production safety](#production-safety)
@@ -62,26 +79,29 @@
 
 ## Что решает система
 
-В операционном сервисном бизнесе одна операция редко живёт в одной таблице. Сотрудник назначается на объект, его присутствие влияет на табель; разовый заказ имеет менеджера, задачи, материалы, фото и финансовый контур; складское движение должно сохранять цену на момент операции; чувствительное изменение может требовать отдельного подтверждения; доступ к карточке сущности не всегда означает право изменить её финансовую часть.
+В операционном сервисном бизнесе одна операция редко живёт в одной таблице.
 
-Service Ops CRM сводит эти процессы в единую систему и сохраняет их связи.
+Сотрудник назначается на объект, затем его фактическое присутствие отражается в attendance и становится частью табеля. Разовый заказ имеет собственных менеджеров, участников, техническую часть, задачи, файлы и payment flow. Выдача расходника должна сохранить цену операции; выдача оборудования — изменить местоположение конкретной unit, но не «списать» её. Подотчёт должен позволять восстановить последовательность funding → expense → reconciliation. Sensitive action может быть разрешён пользователю, но всё равно требовать отдельного approval.
 
-| Контур | Что находится в системе |
+Service Ops CRM строится вокруг этих связей.
+
+| Контур | Назначение |
 | --- | --- |
-| **Objects** | регулярные объекты, ответственные, менеджеры, staffing, operational activity |
-| **One-time Orders** | разовые заказы, scoped-менеджеры, участники, календарь, выполнение, оплаты |
-| **Tasks** | задачи, несколько исполнителей, visibility, сроки, результат и подтверждение |
-| **Employees** | отдельный HR registry, состояние сотрудника и история назначений |
-| **Candidates** | кандидаты, назначения, SLA и workflow обработки |
-| **Attendance & Timesheet** | факт присутствия и исторический расчётный табель |
-| **Inventory** | центральный склад, приходы, выдачи, списания и price snapshots |
-| **Equipment** | штучное оборудование, состояние, текущая привязка и история движения |
-| **Accountability** | выдача средств, расходы, сверки и финансовая история |
-| **Approvals** | подтверждение чувствительных действий как отдельный cross-domain механизм |
-| **Chat** | комнаты, сообщения, ответы, реакции, редактирование и realtime |
-| **Notifications** | системные события и переходы к связанным сущностям |
-| **Files** | единая attachment/storage foundation для фото, документов и preview |
-| **Audit & Access** | серверные permission boundaries и аудит чувствительных операций |
+| **Objects** | регулярные объекты, ответственные, менеджеры, staffing и operational context |
+| **Object Operations** | attendance, ежедневные факты, reports, comments и feed |
+| **One-Time Orders** | разовые заказы, scoped managers, календарь, выполнение, review и payments |
+| **Tasks** | несколько исполнителей, scope/visibility, сроки, результат и подтверждение |
+| **Employees** | HR registry, состояние сотрудника, ставки и история назначений |
+| **Candidates** | candidate pipeline, assignment, SLA и reminder workflow |
+| **Timesheets** | исторический учёт значений по дням/месяцам |
+| **Inventory** | центральный количественный ledger и price snapshots |
+| **Equipment** | unit-based equipment lifecycle и movement history |
+| **Accountability** | funding, expenses, reconciliation и финансовая история |
+| **Approvals** | cross-domain подтверждение чувствительных действий |
+| **Chat** | комнаты, сообщения и realtime коммуникация |
+| **Notifications** | access-aware delivery событий и deep links |
+| **Files** | общая attachment/storage/preview platform capability |
+| **Users & Access** | authentication, roles, permissions и scoped access |
 
 ---
 
@@ -89,79 +109,82 @@ Service Ops CRM сводит эти процессы в единую систе�
 
 ```mermaid
 flowchart LR
-    U[User] -->|system roles / capabilities| ACL[Access layer]
-    ACL --> O[Objects]
-    ACL --> OO[One-time Orders]
-    ACL --> HR[Employees & Candidates]
+    U[User] --> ACCESS[Access decision]
+    ACCESS -->|role / capability| GLOBAL[Global permissions]
+    ACCESS -->|assignment| O[Object]
+    ACCESS -->|assignment| OTO[One-Time Order]
 
-    O --> OA[Object Assignments]
-    OA --> E[Employees]
-    O --> AT[Attendance]
-    AT --> TS[Timesheet]
+    E[Employee] --> ASG[Employee Assignment]
+    ASG --> O
+    O --> ATT[Attendance]
+    ATT --> TS[Timesheet]
 
-    OO --> OOA[Order Assignments]
-    OO --> T[Tasks]
-    O --> T
+    CAND[Candidate] --> HR[HR workflow]
+    HR --> E
+
+    O --> TASK[Task]
+    OTO --> TASK
 
     INV[Inventory] --> O
-    INV --> OO
+    INV --> OTO
     EQ[Equipment] --> O
-    EQ --> OO
+    EQ --> OTO
 
-    OO --> ACC[Accountability]
-    ACC --> AP[Approvals]
+    OTO --> PAY[Payment facts]
+    PAY --> ACC[Accountability]
 
-    T --> N[Notifications]
-    HR --> N
-    OO --> N
+    APP[Approvals] -. sensitive commands .-> O
+    APP -. sensitive commands .-> OTO
+    APP -. sensitive commands .-> ACC
+    APP -. sensitive commands .-> TS
 
-    O --> F[Files / Media]
-    OO --> F
-    T --> F
-    EQ --> F
+    CHAT[Chat] --> RT[Realtime]
+    NOTIF[Notifications] --> RT
 
-    C[Chat] --> RT[Realtime]
-    N --> RT
+    TASK --> NOTIF
+    CAND --> NOTIF
+    OTO --> NOTIF
+
+    FILES[Files / Media] --> O
+    FILES --> OTO
+    FILES --> TASK
+    FILES --> EQ
 ```
 
-Диаграмма показывает conceptual relationships, а не физическую Prisma ERD. Полная модель данных значительно шире и остаётся в schema/migrations и специализированной документации.
+Диаграмма показывает **conceptual relationships**, а не физическую Prisma ERD. Полная data model существенно шире и фиксируется в [`schema.prisma`](apps/backend/prisma/schema.prisma), versioned migrations и специализированной документации.
 
 ---
 
 ## Архитектура
 
-Проект реализован как **TypeScript monorepo** с модульным NestJS backend и Next.js frontend. Основные инфраструктурные зависимости запускаются локально через Docker Compose.
+Проект реализован как **TypeScript monorepo**. Backend — модульное NestJS-приложение, frontend — Next.js-приложение, shared contracts вынесены в workspace packages. PostgreSQL хранит транзакционное состояние, Redis обслуживает realtime/infrastructure concerns, MinIO — бинарные файлы и media.
 
 ```mermaid
 flowchart TB
-    B[Browser]
-    FE[Next.js Frontend]
-    API[NestJS API]
-    DB[(PostgreSQL)]
-    R[(Redis)]
-    S[(MinIO / S3-compatible storage)]
+    B[Browser] --> FE[Next.js Frontend]
+    FE --> API[NestJS API]
 
-    B --> FE
-    FE --> API
-    API --> DB
-    API --> R
-    API --> S
+    API --> DB[(PostgreSQL)]
+    API --> REDIS[(Redis)]
+    API --> STORE[(MinIO / S3 API)]
 
-    subgraph Monorepo
+    FE -. shared contracts .-> TYPES[Shared Types]
+    API -. shared contracts .-> TYPES
+
+    subgraph pnpm monorepo
       FE
       API
-      ST[Shared Types]
+      TYPES
     end
-
-    FE -. shared contracts .-> ST
-    API -. shared contracts .-> ST
 ```
 
-### Архитектурный подход
+### Почему modular monolith
 
-Backend организован как **modular monolith**: домены изолированы на уровне NestJS modules, но развиваются в одной транзакционно согласованной системе. Для текущего масштаба это сознательный выбор: бизнес-процессы тесно связаны, а преждевременное разбиение на микросервисы увеличило бы сетевую и operational complexity без эквивалентной продуктовой выгоды.
+Домены разделены на NestJS modules, но остаются в одном deployable backend. Это сознательная архитектурная граница.
 
-Frontend не является источником истины для authorization. Он отображает доступные действия и улучшает UX, но окончательное решение о доступе принимает backend.
+У продукта много транзакционно связанных workflows: Object ↔ Employee Assignment ↔ Attendance ↔ Timesheet; One-Time Order ↔ Task ↔ Payment ↔ Accountability; Inventory/Equipment ↔ operational scopes. На текущем масштабе modular monolith позволяет сохранять чёткие domain boundaries и транзакционную согласованность без преждевременной сетевой сложности микросервисов.
+
+Разбиение на отдельные services должно происходить только когда появится измеримая причина: независимое масштабирование, отдельный deployment lifecycle, fault isolation или организационная граница команды.
 
 ---
 
@@ -169,43 +192,49 @@ Frontend не является источником истины для authoriz
 
 ### `User != Employee`
 
-Это один из базовых invariants системы.
+**User** — субъект авторизации. Он входит в CRM, имеет system role, permissions/capabilities и scoped assignments.
 
-**User** — субъект авторизации: он входит в CRM, имеет system roles, permissions/capabilities и scoped assignments.
+**Employee** — HR/операционная сущность. Сотрудник может работать на объектах, иметь ставку, график и историю назначений, но не иметь CRM-аккаунта. И наоборот, системный пользователь не обязан быть линейным сотрудником.
 
-**Employee** — HR/операционная сущность: человек, который может работать на объектах, иметь ставку, историю назначений и участвовать в учётных процессах.
+Слияние этих моделей связывало бы authentication lifecycle с кадровым lifecycle и делало бы access control зависимым от HR-данных. Поэтому `user != employee` — базовый invariant.
 
-Эти понятия нельзя объединять только потому, что оба описывают человека. Сотруднику не обязательно нужен аккаунт в CRM, а системный пользователь не обязан быть линейным сотрудником. Разделение предотвращает смешивание authentication/RBAC с кадровыми данными и позволяет обоим lifecycle развиваться независимо.
+### `System Role != Scoped Assignment`
+
+`manager` как глобальная роль и `manager` как назначение на конкретный Object — разные понятия.
+
+System role отвечает за глобальный уровень ответственности. Scoped assignment отвечает за доступ к конкретной operational entity. Назначение на один Object не должно случайно открывать все Objects; `one_time_manager` одного заказа не превращает пользователя в global manager.
 
 ### `Staffing != Attendance != Timesheet`
 
-- **Staffing** отвечает на вопрос: кто относится к составу объекта.
-- **Attendance** фиксирует факт присутствия в конкретную дату.
-- **Timesheet** является учётным и историческим слоем.
+- **Staffing** — кто относится к составу объекта.
+- **Attendance** — кто фактически присутствовал в конкретную дату.
+- **Timesheet** — исторический учётный слой.
 
-Если строить табель только из текущего staffing, прошлые данные начинают исчезать после перевода сотрудника. Если пересчитывать прошлые дни по текущей ставке, история меняется задним числом. Поэтому сохранённые historical values являются отдельной частью модели.
+Если табель строить только из текущего staffing, прошлые строки исчезнут после перевода сотрудника. Если прошлые дни пересчитывать по текущей ставке, финансовая история изменится задним числом. Поэтому historical facts/value сохраняются отдельно.
 
 ### `Inventory != Equipment`
 
-Расходники и штучное оборудование имеют разную семантику.
+Inventory — количественный ledger расходуемых позиций.
 
-Inventory — количественный ledger: приход, выдача, списание, возврат/корректировка, цена операции.
+Equipment — unit-based lifecycle конкретных физических единиц. Выдача расходника уменьшает складской остаток; выдача оборудования меняет current assignment/status конкретной unit и добавляет movement history.
 
-Equipment — unit-based lifecycle: конкретная единица оборудования имеет состояние, текущую привязку и историю перемещений. Выдача оборудования не означает его расход.
+### Snapshot вместо реконструкции прошлого
 
-### `Role != Assignment != Capability`
+Audit-sensitive данные сохраняют значение **на момент события**. Примеры:
 
-Глобальная должность пользователя не должна автоматически давать одинаковые права на каждую сущность. Поэтому система разделяет global role, назначение в конкретном scope и адресную capability. Подробнее — ниже.
+- inventory movement хранит price snapshot;
+- timesheet сохраняет authoritative daily value;
+- equipment использует movement history;
+- accountability хранит funding/expense/reconciliation events;
+- sensitive workflows используют отдельные approval/correction records.
 
-### История важнее текущего состояния
-
-Для финансов, табеля, движения склада и других audit-sensitive контуров система старается сохранять значение **на момент события**, а не восстанавливать прошлое из текущих справочников. Отсюда price snapshots, persisted timesheet values, movement history и отдельные reconciliation/approval records.
+Это уменьшает зависимость истории от текущего mutable state.
 
 ---
 
 ## Модель доступа
 
-Authorization строится не вокруг одной плоской RBAC-таблицы. В системе используются четыре взаимодополняющих слоя.
+Authorization не сводится к одному `role` в таблице пользователей. Решение об операции строится из четырёх слоёв.
 
 ```mermaid
 flowchart LR
@@ -213,28 +242,35 @@ flowchart LR
     S[Scoped Assignment] --> D
     C[Capability] --> D
     A[Approval requirement] --> D
-    D -->|allowed| X[Business command]
-    D -->|denied| Z[Forbidden]
+
+    D -->|allowed| CMD[Business command]
+    D -->|denied| DENY[Forbidden]
 ```
 
 ### 1. System role
 
-Глобальная роль описывает системный уровень ответственности пользователя. В модели существуют leadership, management, HR и technical roles.
+Глобальный уровень ответственности пользователя: leadership, management, HR, technical/system roles.
 
 ### 2. Scoped assignment
 
-Назначение связывает пользователя с конкретной операционной сущностью. Например:
+Связь пользователя с конкретной operational entity:
 
-- `responsible` и `manager` — object assignments;
-- `one_time_manager` — one-time-order assignment.
+```text
+Object
+  ├── responsible
+  └── manager
 
-Assignment **не является system role** и не должен случайно превращаться в глобальное право.
+One-Time Order
+  └── one_time_manager
+```
+
+Assignment не является global role.
 
 ### 3. Capability / permission
 
-Адресная capability разрешает конкретное действие, которое не следует автоматически из широкой роли. Это особенно важно для HR, финансовых и корректирующих операций.
+Capability разрешает конкретное действие, которое нельзя безопасно вывести только из названия роли.
 
-Примеры существующего подхода:
+Примеры подхода:
 
 ```text
 employees.view
@@ -251,93 +287,97 @@ one_time_order.calendar.manage
 
 ### 4. Approval
 
-Некоторые действия требуют не только permission, но и отдельного подтверждения. Approval реализован как самостоятельный cross-domain mechanism, а не как случайный boolean внутри каждой сущности.
+Некоторые sensitive commands требуют не только права инициировать действие, но и отдельного подтверждения. Approval существует как cross-domain mechanism, а не как набор несогласованных `approved: boolean` внутри разных таблиц.
 
 > [!CAUTION]
-> **Backend permissions are authoritative.** Скрытая кнопка во frontend — UX, а не security boundary. Новый endpoint или command должен защищаться на сервере независимо от состояния UI.
+> **Backend permissions are authoritative.** Скрытие кнопки во frontend — UX, а не security boundary. Любой endpoint/command обязан валидировать access на backend.
 
-Канонические правила доступа находятся в [`docs/product/product-contract.md`](docs/product/product-contract.md) и специализированных access matrices. README объясняет модель, но не заменяет эти документы.
+Канонические правила: [`Product Contract`](docs/product/product-contract.md) и [`Access Matrix`](docs/architecture/access-matrix.md).
 
 ---
 
 ## Ключевые домены
 
-### Objects
+### Objects и Object Operations
 
-Object — регулярная операционная единица системы. Вокруг объекта строятся ответственные и менеджеры, staffing, attendance, timesheet, operational reports, файлы, складские операции и связанные задачи.
+Object — регулярная operational entity. Вокруг него строятся scoped users, employee staffing, attendance, timesheet, reports, files, inventory/equipment operations и связанные tasks.
 
-Создание и core-management отделены от ежедневной операционной работы. Пользователь может иметь широкий operational access к объекту, не получая автоматически право изменять его финансовые или core-параметры.
+Master-data объекта отделена от ежедневной operational activity. Это позволяет различать право изменить core/financial fields и право вести ежедневную работу.
 
-### Object Operations
+### One-Time Orders
 
-Операционная активность объекта вынесена из его master-data. Здесь находятся факты ежедневной работы: attendance/arrival, reports, comments, feed и связанные действия. Такое разделение не позволяет карточке объекта превратиться в одну огромную mutable entity.
+One-Time Order — самостоятельный домен, а не разновидность Object. Он имеет собственный assignment scope, календарь, managers, participants, operational lifecycle, review, planned/actual payment facts, files, tasks и связь с accountability.
+
+Доступ к заказу не должен автоматически расширять global permissions пользователя.
 
 ### Tasks
 
-Task — workflow entity, а не просто `title + done`.
+Task — workflow entity, а не `title + done`.
 
-Модель поддерживает несколько исполнителей, priority, сроки, связь с Object или One-Time Order, visibility, результат, подтверждение выполнения и lifecycle завершения. Часть задач может проходить через `awaiting_confirmation` и auto-close flow, поэтому UI-команда «выполнить» не должна подменяться прямой установкой статуса.
+Модель поддерживает несколько исполнителей, priority, сроки, связь с Object/One-Time Order, visibility, work result, подтверждение и lifecycle:
 
-Открытые продуктовые решения и найденные ACL inconsistencies фиксируются в GitHub Issues и canonical docs до изменения поведения.
+```text
+in_progress
+  → awaiting_confirmation
+  → pending_auto_close
+  → completed
+```
 
-### One-time Orders
-
-Разовый заказ — самостоятельный домен, а не специальный тип Object. Он имеет собственные assignments, calendar/availability logic, участников, workflow выполнения, review, payment model, фото, задачи и связь с accountability.
-
-Scoped manager заказа получает права в рамках конкретного order и не становится leadership/global manager автоматически.
+UI-команда не должна обходить lifecycle прямой установкой финального статуса. Unresolved product decisions и найденные ACL drift фиксируются отдельно до изменения поведения.
 
 ### Employees
 
-Employee registry отделён от Users. HR-контур хранит операционные данные сотрудника, lifecycle и историю назначений. Доступ к просмотру, редактированию, архивированию и управлению assignments разделён на отдельные permissions.
+Employee registry хранит HR/operational данные независимо от Users. Current assignments и assignment history — разные представления одного lifecycle; удаление назначения не означает удаление Object.
+
+Отдельные permissions управляют view/edit/archive/restore/assignment operations.
 
 ### Candidates
 
-Candidate существует отдельно от Employee и проходит собственный workflow обработки. Assignment, SLA и reminder/notification foundation позволяют рассматривать кандидатов как operational inbox, а не как ещё одну таблицу сотрудников.
+Candidate — отдельная сущность до employee lifecycle. Candidate workflow включает assignment, статус обработки, SLA/reminders и notifications. Reserve-представления должны выводиться из candidate domain, а не разрушать границу `Candidate != Employee`.
 
 ### Attendance & Timesheet
 
-Attendance фиксирует факт присутствия. Timesheet хранит расчётное значение дня и месячную историю. Persisted historical value не должен неожиданно изменяться из-за новой текущей ставки или изменения текущего назначения сотрудника.
+Attendance фиксирует факт присутствия. Timesheet хранит day/month accounting values.
 
-Manual correction рассматривается как чувствительное действие и имеет более узкую permission boundary, чем обычный просмотр табеля.
+Persisted historical values authoritative для прошлого периода и не должны переписываться из-за новой текущей ставки или текущего назначения. Manual correction имеет более узкую permission boundary, чем обычный просмотр.
 
 ### Inventory
 
-Inventory построен как центральный ledger. Остаток выводится из движений, а каждое финансово значимое движение хранит price snapshots. Изменение текущей цены номенклатуры не переписывает стоимость старых операций.
+Inventory — центральный складской ledger. Остаток выводится из movements. Financially significant movement сохраняет `unitPriceSnapshot`/`totalAmountSnapshot`, поэтому новая закупочная цена не меняет старые операции.
 
 ### Equipment
 
-Equipment — unit-based domain. Конкретная единица может находиться на складе, быть назначена на Object/One-Time Order, находиться в ремонте, быть сломанной, потерянной или списанной. Current state материализован на unit, история — в movements.
+Equipment — unit-based domain. Конкретная единица имеет current status/current assignment и отдельную movement history. Возможные состояния включают хранение, назначение на Object/One-Time Order, repair, broken, lost, written-off.
 
 ### Accountability
 
-Подотчёт — отдельный финансовый контур: funding, expenses, reconciliation и связанная история. Он не должен сводиться к одному вычисляемому полю «долг пользователя», потому что для проверки и восстановления событий необходима последовательность операций.
+Accountability хранит последовательность financial events: funding, expenses, reconciliation и corrections. Это отдельный audit-sensitive domain, а не вычисляемое поле «долг пользователя».
 
 ### Approvals
 
-Approval layer используется для sensitive actions, где одного права инициировать действие недостаточно. Это позволяет отделить намерение пользователя от фактического применения критичного изменения.
+Approvals — cross-domain слой sensitive actions. Он отделяет право запросить изменение от права применить критичное изменение без контроля.
 
 ### Chat
 
-Chat — самостоятельная communication subsystem с комнатами, сообщениями, replies, reactions, edit/delete semantics и realtime layer. Он не смешивается с domain comments: комментарий к объекту и личная/групповая коммуникация имеют разные задачи.
+Chat — communication subsystem с rooms, messages, replies, reactions, edit/delete semantics и realtime. Domain comments и chat не объединяются: комментарий к сущности и личная/групповая коммуникация решают разные задачи.
 
 ### Notifications
 
-Notifications — общий delivery layer для значимых событий. Производители уведомлений подключаются доменами постепенно; уведомление должно учитывать access и вести пользователя к реальной сущности/действию, а не быть vanity event.
+Notifications — общий access-aware delivery layer. Уведомление должно соответствовать реальному событию, учитывать permission на target entity и вести по deep link к сущности/действию.
 
 ### Files
 
-Files/storage реализованы как platform capability. Фото и документы разных доменов используют общий attachment/storage baseline и preview/derivative infrastructure вместо независимых upload-механизмов на каждой странице.
+Files — platform capability поверх MinIO/S3-compatible storage. Разные домены используют единый attachment model и preview/derivative infrastructure вместо page-specific upload implementations.
 
 ---
 
 ## Golden paths
 
-Golden path — это сквозной бизнес-сценарий, на котором проверяется не отдельная страница, а согласованность нескольких доменов.
+Golden path проверяет не отдельную страницу, а согласованность нескольких доменов.
 
 ```text
 Object
-  → Object Assignment
-  → Employee staffing
+  → Employee Assignment
   → Attendance
   → Timesheet
 ```
@@ -347,7 +387,7 @@ One-Time Order
   → scoped manager
   → operational work
   → completion / review
-  → payment
+  → payment fact
   → accountability
 ```
 
@@ -356,13 +396,13 @@ Candidate
   → assignment
   → SLA / reminder
   → decision
-  → дальнейший HR workflow
+  → HR workflow
 ```
 
 ```text
 Task
-  → visibility / scope
-  → assignee
+  → scope / visibility
+  → assignees
   → work result
   → confirmation when required
   → completion / auto-close
@@ -373,33 +413,33 @@ Inventory / Equipment event
   → domain validation
   → evidence / attachment when required
   → movement history
-  → related Object or One-Time Order
+  → Object / One-Time Order context
 ```
 
-Актуальный индекс сквозных сценариев: [`docs/product/golden-path-index.md`](docs/product/golden-path-index.md).
+Актуальный индекс: [`docs/product/golden-path-index.md`](docs/product/golden-path-index.md).
 
 ---
 
 ## Технологический стек
 
-| Layer | Technology | Назначение |
+| Layer | Technology | Роль |
 | --- | --- | --- |
-| Language | **TypeScript 5.7** | единый язык frontend/backend/contracts |
+| Language | **TypeScript 5.7** | frontend/backend/contracts |
 | Runtime | **Node.js 22** | application runtime |
-| Package manager | **pnpm 10.33** | monorepo dependency/workspace management |
+| Workspace | **pnpm 10.33** | monorepo package management |
 | Frontend | **Next.js 15 + React 18** | web application |
-| Backend | **NestJS 10** | modular HTTP/application layer |
-| ORM | **Prisma 6** | schema, migrations, typed DB access |
-| Database | **PostgreSQL** | primary transactional storage |
-| Realtime/cache | **Redis** | realtime/infrastructure coordination |
-| Object storage | **MinIO / S3 API** | files, photos and derivatives |
-| Validation | **class-validator / class-transformer** | backend DTO validation |
+| Backend | **NestJS 10** | modular application/API layer |
+| ORM | **Prisma 6** | typed DB access + migrations |
+| Database | **PostgreSQL** | transactional source of truth |
+| Realtime | **Redis** | realtime/infrastructure coordination |
+| Files | **MinIO / S3 API** | object storage |
 | Auth | **Passport + JWT** | authentication foundation |
-| Media | **Sharp** | image processing / previews |
-| Containers | **Docker Compose** | local infrastructure and containerized dev |
-| Quality | **ESLint + TypeScript + GitHub Actions** | static checks and CI |
+| Validation | **class-validator / class-transformer** | DTO validation |
+| Media | **Sharp** | image processing/previews |
+| Containers | **Docker Compose** | local infra + containerized dev |
+| Quality | **ESLint + TypeScript + GitHub Actions** | CI/static quality gates |
 
-Versions above describe the current repository baseline and should be updated together with dependency upgrades.
+Версии отражают текущий `dev` baseline и должны обновляться вместе с dependency upgrades.
 
 ---
 
@@ -408,84 +448,104 @@ Versions above describe the current repository baseline and should be updated to
 ```text
 service-ops-crm/
 ├── apps/
-│   ├── backend/                 # NestJS application
+│   ├── backend/
 │   │   ├── prisma/              # schema, migrations, seed
-│   │   ├── scripts/             # backend operational/dev scripts
+│   │   ├── scripts/             # backend development/ops scripts
 │   │   ├── src/
-│   │   │   ├── common/          # shared backend concerns
-│   │   │   ├── config/          # application configuration
-│   │   │   ├── infrastructure/  # DB/Redis/storage adapters
-│   │   │   └── modules/         # business modules
-│   │   └── test/                # integration coverage
-│   └── frontend/                # Next.js application
+│   │   │   ├── common/
+│   │   │   ├── config/
+│   │   │   ├── infrastructure/
+│   │   │   └── modules/         # domain modules
+│   │   └── test/
+│   └── frontend/
 │       └── src/
-│           ├── app/             # routing / application entry
-│           ├── entities/        # domain entities/contracts/UI
-│           ├── features/        # user-facing actions/workflows
-│           ├── shared/          # shared UI/lib/config
+│           ├── app/             # routes/application entry
+│           ├── entities/        # domain-facing models/UI
+│           ├── features/        # user actions/workflows
+│           ├── shared/          # reusable UI/lib/config
 │           └── widgets/         # composed application blocks
 ├── packages/
 │   ├── shared-types/            # shared TypeScript contracts
-│   └── tsconfig/                # shared TS configuration
-├── docs/                        # product, architecture and domain docs
+│   └── tsconfig/                # shared TS presets
+├── docs/                        # product/architecture/domain docs
 ├── scripts/                     # repository bootstrap/runtime helpers
-├── docker-compose.dev.yml       # local infrastructure / Docker dev
-├── docker-compose.prod.yml      # production composition
-├── package.json                 # workspace commands
+├── .github/workflows/ci.yml
+├── docker-compose.dev.yml
+├── docker-compose.prod.yml
+├── package.json
 ├── pnpm-workspace.yaml
+├── AGENTS.md
+├── LICENSE
 └── README.md
 ```
-
-Реальное дерево остаётся источником истины: при появлении нового top-level package этот раздел должен обновляться вместе с архитектурным изменением.
 
 ---
 
 ## Backend
 
-Backend — modular NestJS application. На текущем этапе в нём присутствуют самостоятельные модули для authentication/access, objects, object operations, tasks, one-time orders, employees, candidates, timesheets, inventory, equipment, accountability, approvals, chats, notifications и files.
+Backend — modular NestJS application. Активные business/application areas включают:
 
-Типичный доменный модуль содержит:
+```text
+Accountability     Approvals          Auth
+Candidates         Chats              Employees
+Equipment          Files              Inventory
+Notifications      Objects            Object Operations
+One-Time Orders    Tasks              Timesheets
+Users & Access
+```
+
+Infrastructure modules обеспечивают Prisma, Redis и object storage.
+
+Типичный domain module:
 
 ```text
 modules/<domain>/
-├── dto/                  # transport validation / command input
-├── types/                # domain/application types
-├── utils/                # scoped access and domain helpers
+├── dto/                    # transport validation / command inputs
+├── types/                  # domain/application types
+├── utils/                  # access/domain helpers
 ├── <domain>.controller.ts
 ├── <domain>.service.ts
 └── <domain>.module.ts
 ```
 
-Это не жёсткое требование к каждой папке, а общий pattern. Business rules должны находиться на backend и быть тестируемыми независимо от UI.
+Это convention, а не требование искусственно одинаковой структуры.
 
-### Backend design rules
+### Backend rules
 
-1. **Controller не является местом для бизнес-логики.** Он принимает transport input, применяет guards/decorators и делегирует application/domain operation.
-2. **Prisma schema не заменяет domain contract.** Возможность записать значение в колонку не означает, что операция разрешена бизнесом.
-3. **Access проверяется сервером.** Frontend visibility не используется как доказательство permission.
-4. **Sensitive actions отделяются от обычного edit.** Для них используются отдельные permissions/approvals/audit trail.
-5. **Historical records не пересчитываются без явного бизнес-основания.** Особенно в finance/timesheet/inventory.
-6. **Cross-domain изменение проверяется как workflow.** Нельзя исправить связанный модуль только локальным условием, если это нарушает другой scope.
+1. Controller не содержит основную business logic.
+2. Prisma schema описывает persistence, но не заменяет Product Contract.
+3. Authorization проверяется на сервере.
+4. Sensitive action отделяется от обычного edit.
+5. Historical state не пересчитывается без явного business rule.
+6. Cross-domain change проверяется по затронутым workflows, а не только по локальной странице.
+7. Unresolved business rule не должен решаться «разумным предположением» разработчика.
 
 ---
 
 ## Frontend
 
-Frontend построен на Next.js и разделён на application routing, entities, features, shared infrastructure и composed widgets.
+Frontend построен на Next.js с разделением:
 
-Ключевая ответственность frontend — представить существующую domain model максимально быстро и понятно пользователю, не дублируя security logic backend.
+```text
+app → routing / composition
+entities → domain-facing entity layer
+features → user commands/workflows
+widgets → composed product blocks
+shared → reusable UI/lib/infrastructure
+```
 
-### Frontend design rules
+Frontend отвечает за discoverability и удобство работы с domain model, но не является источником истины для permissions.
 
-- entity types/contracts должны переиспользоваться, а не копироваться между страницами;
+### Frontend rules
+
 - permission-driven action скрывается/показывается для UX, но backend всё равно валидирует command;
-- complex entity не должна превращаться в бесконечный stack карточек;
-- loading, empty, error и permission-denied states являются частью feature, а не необязательной полировкой;
-- destructive/sensitive actions должны визуально отличаться от обычного edit;
-- filters/search/table interactions должны быть консистентны между доменами;
-- новый UI не имеет права менять business semantics «заодно с redesign».
+- domain contracts не копируются вручную между страницами;
+- loading / empty / error / permission-denied states входят в feature definition;
+- destructive/sensitive operations визуально и семантически отделяются от обычного edit;
+- table/filter/search patterns должны быть консистентны между доменами;
+- visual redesign не меняет business semantics без отдельного требования.
 
-Текущая визуальная переработка ведётся отдельно от бизнес-логики и отслеживается через GitHub Issues; README описывает архитектуру продукта, а не временное состояние макетов.
+Текущий UX/redesign отслеживается отдельно в Issues и не используется README как источник временных mockup-решений.
 
 ---
 
@@ -493,15 +553,15 @@ Frontend построен на Next.js и разделён на application rout
 
 ### PostgreSQL
 
-Primary transactional database. Prisma schema и migrations фиксируют evolution модели данных. Сложные домены используют отдельные records/history вместо перезаписи одного агрегированного значения там, где это необходимо для аудита.
+Primary transactional source of truth. Prisma schema + versioned migrations фиксируют evolution модели. Audit-sensitive domains используют history/event/snapshot records там, где реконструкция прошлого из current state была бы небезопасной.
 
 ### Redis
 
-Используется инфраструктурным/realtime слоем. Redis не должен становиться единственным источником истины для данных, потеря которых меняет бизнес-состояние.
+Realtime/infrastructure layer. Redis не используется как единственное durable-хранилище данных, потеря которых меняет business state.
 
 ### MinIO
 
-S3-compatible object storage для файлов и media. Метаданные attachment живут в application/database layer, бинарные объекты — в storage. Preview/derivative pipeline отделён от исходного файла.
+S3-compatible object storage для файлов и media. Application metadata живёт в database layer, binary objects — в storage. Preview/derivative processing отделено от original file.
 
 ---
 
@@ -509,26 +569,16 @@ S3-compatible object storage для файлов и media. Метаданные 
 
 ### Требования
 
-Перед запуском нужны:
-
-- **Node.js 22**;
-- **pnpm 10.33.x**;
-- **Docker + Docker Compose**;
-- свободные локальные порты, используемые dev infrastructure.
-
-Установить зависимости:
+- Node.js **22**
+- pnpm **10.33.x**
+- Docker + Docker Compose
 
 ```bash
 pnpm install
-```
-
-### Рекомендуемый режим: приложения на host, инфраструктура в Docker
-
-```bash
 pnpm bootstrap:local
 ```
 
-Затем в отдельных терминалах:
+Затем в двух терминалах:
 
 ```bash
 pnpm --filter backend start:dev
@@ -538,15 +588,15 @@ pnpm --filter backend start:dev
 pnpm --filter frontend dev
 ```
 
-Bootstrap создаёт отсутствующие local env-файлы из examples, подготавливает PostgreSQL/Redis/MinIO, генерирует Prisma Client, применяет local migrations, выполняет local seed и обеспечивает наличие первого founder-admin для development environment.
+`bootstrap:local` создаёт отсутствующие local env files из examples, запускает PostgreSQL/Redis/MinIO, генерирует Prisma Client, применяет migrations, выполняет development seed и bootstrap первого development admin.
 
-### Полностью Docker-based development
+### Полностью Docker-based режим
 
 ```bash
 pnpm bootstrap:docker
 ```
 
-После bootstrap доступны команды управления stack:
+Управление stack:
 
 ```bash
 pnpm dev:docker:up
@@ -559,7 +609,7 @@ pnpm dev:docker:down
 
 ## Локальная разработка
 
-### Infrastructure-only команды
+Infrastructure-only mode:
 
 ```bash
 pnpm infra:up
@@ -568,32 +618,25 @@ pnpm infra:logs
 pnpm infra:down
 ```
 
-Полный reset локальных volumes:
+Полный reset disposable local infrastructure:
 
 ```bash
 pnpm infra:reset
 ```
 
 > [!WARNING]
-> `infra:reset` и `dev:docker:reset` удаляют **локальные Docker volumes**. Эти команды предназначены только для disposable development environment и никогда не должны переноситься в production workflow.
+> `infra:reset` и `dev:docker:reset` удаляют **локальные Docker volumes**. Эти команды допустимы только для disposable development environment и не являются production operations.
 
-### Основные workspace команды
-
-```bash
-pnpm build
-pnpm lint
-pnpm typecheck
-pnpm ci:check
-pnpm workspace:list
-```
-
-Backend integration tests:
+Основные checks:
 
 ```bash
+pnpm --filter backend typecheck
+pnpm --filter frontend typecheck
 pnpm test:backend:integration
+pnpm ci:check
 ```
 
-Database helpers:
+Prisma:
 
 ```bash
 pnpm db:generate
@@ -603,71 +646,67 @@ pnpm db:seed
 
 ---
 
-## Переменные окружения
+## Environment
 
-Проект разделяет конфигурацию infrastructure, backend и frontend. Bootstrap scripts создают отсутствующие local env-файлы из repository examples.
+Конфигурация разделена по responsibility:
 
-Конкретные secrets, production credentials, hostnames и customer infrastructure **не должны появляться в README, issue descriptions, fixtures или screenshots**.
+| File family | Назначение |
+| --- | --- |
+| `.env.backend.*` | backend/runtime/database/auth/storage |
+| `.env.frontend.*` | frontend public/runtime configuration |
+| `.env.infra.*` | PostgreSQL/Redis/MinIO/Docker development |
+| `.env.production.example` | production configuration contract без secrets |
 
-Принцип конфигурации:
+Repository bootstrap создаёт local files из versioned examples. Реальные secrets не коммитятся.
 
-```text
-repository examples
-      ↓
-local environment files
-      ↓
-runtime configuration loader
-      ↓
-application / infrastructure
-```
+При добавлении обязательной переменной необходимо обновить одновременно:
 
-При добавлении новой обязательной переменной разработчик должен обновить соответствующий example и bootstrap/validation path, а не рассчитывать на «секретное знание» локальной машины.
+1. соответствующий `*.example`;
+2. validation/bootstrap path;
+3. Docker/CI configuration, если переменная нужна там;
+4. документацию, если переменная влияет на developer workflow.
 
 ---
 
 ## Prisma и миграции
 
-Database schema развивается только через versioned migrations.
+Schema развивается через versioned migrations.
 
 ### Development
-
-Для создания новой migration в development environment используется repository command:
 
 ```bash
 pnpm db:migrate
 ```
 
-Он вызывает Prisma `migrate dev` с local backend environment.
+Команда использует Prisma `migrate dev` только с local backend environment.
 
 ### CI / Production
-
-Применение уже созданных migrations выполняется через:
 
 ```bash
 pnpm --filter backend prisma:deploy
 ```
 
-то есть `prisma migrate deploy`.
+Это `prisma migrate deploy`: применение **уже созданных** migrations.
 
-### Правила
+### Invariants
 
-- migration создаётся и проверяется **до** production deployment;
-- уже применённую migration нельзя тихо переписывать как способ «исправить историю»;
-- destructive schema changes требуют отдельной оценки данных и rollback/restore strategy;
-- production database никогда не является playground для `migrate dev`;
-- seed — development/CI mechanism, а не production deployment step;
-- изменение schema должно проверяться вместе с runtime code, integration tests и реальным data lifecycle.
+- migration создаётся и проверяется до deployment;
+- применённая migration не переписывается как способ «исправить историю»;
+- destructive changes требуют data/rollback assessment;
+- production database не используется для `migrate dev`;
+- seed — development/CI mechanism, не production release step;
+- schema change проверяется вместе с runtime code и affected golden paths.
 
 ---
 
 ## Качество, тесты и CI
 
-Репозиторий использует GitHub Actions как обязательный технический baseline перед release decision.
+GitHub Actions workflow `quality` запускается для `main`, `dev` и `feature/**`, а pull requests проверяются относительно `main`/`dev`.
 
-CI поднимает isolated infrastructure и проверяет приложение в условиях, близких к локальному stack:
+Pipeline:
 
 ```text
-install dependencies
+pnpm install --frozen-lockfile
         ↓
 PostgreSQL + Redis + MinIO
         ↓
@@ -683,25 +722,25 @@ frontend typecheck
         ↓
 backend integration tests
         ↓
-lint + builds / ci:check
+lint + backend build + frontend build
 ```
 
-Локально итоговый static/build gate запускается так:
+Локальный итоговый gate:
 
 ```bash
 pnpm ci:check
 ```
 
-Но green build не заменяет domain verification: изменение access control, финансовой истории, lifecycle или cross-domain workflow должно иметь соответствующие positive и negative tests.
+`ci:check` — необходимый static/build baseline, но не замена domain-specific tests. Изменения access control, finance, lifecycle, migrations и cross-domain workflows требуют positive/negative integration coverage.
 
 ---
 
 ## Production safety
 
 > [!CAUTION]
-> **Production содержит persistent operational data. Потеря данных важнее скорости релиза.**
+> **Production содержит persistent operational data. Data integrity важнее скорости релиза.**
 
-Ниже — не deployment runbook, а минимальные safety invariants репозитория.
+README фиксирует только safety invariants; конкретные hostnames, credentials, deployment paths и backup locations здесь намеренно отсутствуют.
 
 ### Никогда в production
 
@@ -710,112 +749,116 @@ pnpm ci:check
 ❌ prisma migrate dev
 ❌ development / CI seed
 ❌ удаление volumes ради "чистого запуска"
-❌ ручное исправление migration history без расследования
+❌ ручное переписывание applied migration history
 ❌ deployment неподтверждённого SHA
-❌ хранение production secrets в Git
+❌ production secrets в Git
 ```
 
-### Production migration
+### Safe release principle
 
 ```text
-✓ backup / preflight
 ✓ exact reviewed commit SHA
+✓ preflight
+✓ verified backup
 ✓ prisma migrate deploy
-✓ application restart / rollout
+✓ controlled application rollout
 ✓ health checks
 ✓ smoke verification
-✓ rollback/restore plan for risky changes
+✓ rollback / restore plan
 ```
 
-Production state нельзя выводить только из состояния `dev`: перед релизом проверяются фактически deployed SHA, migration status и состояние infrastructure.
+Состояние production нельзя выводить только из состояния `dev`. Перед deployment отдельно проверяются deployed SHA, migration state и infrastructure.
 
 ---
 
 ## Как вносить изменения
 
-Перед изменением бизнес-логики разработчик должен сначала понять, **какой документ является источником истины**.
+Перед существенным domain change разработчик сначала определяет **source of truth**, а не начинает с ближайшего service/component.
 
 Приоритет:
 
 ```text
 1. Явное актуальное product requirement / task
 2. Canonical product documentation
-3. Existing conventions and runtime implementation
+3. Existing conventions / runtime implementation
 ```
 
-Если runtime расходится с canonical contract, текущее поведение не становится автоматически новым требованием — это может быть drift.
+Runtime может содержать drift. Существующее поведение не становится автоматически новым business requirement.
 
 ### Обязательный onboarding path
 
-Перед существенным domain change прочитайте:
+Перед domain change:
 
 1. [`Product Contract`](docs/product/product-contract.md)
-2. access matrices соответствующего домена
-3. glossary / canonical terminology, если изменение затрагивает naming
+2. [`Access Matrix`](docs/architecture/access-matrix.md)
+3. [`Glossary`](docs/architecture/glossary.md)
 4. [`Open Questions Register`](docs/product/open-questions-register.md)
 5. [`Reconciliation Notes`](docs/product/reconciliation-notes.md)
 6. [`Golden Path Index`](docs/product/golden-path-index.md)
 
-После этого:
+Далее:
 
 1. найдите существующий backend access boundary;
 2. проверьте Prisma/data lifecycle;
 3. проверьте frontend behavior и shared contracts;
-4. определите затрагиваемые golden paths;
+4. определите affected golden paths;
 5. добавьте/обновите tests;
-6. выполните `pnpm ci:check` и необходимые integration tests;
-7. только затем рассматривайте изменение готовым к merge/release.
+6. выполните typecheck/integration/`pnpm ci:check`;
+7. только после этого считайте изменение готовым к merge/release.
 
-### Что не стоит делать
+### Антипаттерны проекта
 
-- создавать второй способ решить уже существующую domain operation;
-- переносить authorization во frontend;
-- смешивать system role и scoped assignment;
-- связывать User и Employee «по совпадению человека» без явного relation/contract;
-- пересчитывать историю из текущего состояния;
-- обходить approval ради более простой кнопки;
-- менять backend semantics внутри визуального redesign без отдельного требования;
-- исправлять cross-domain проблему только в одном экране.
+- permission только во frontend;
+- system role, scoped assignment и capability как взаимозаменяемые понятия;
+- `User` и `Employee`, связанные неявно «потому что это один человек»;
+- пересчёт historical facts из current configuration;
+- второй параллельный upload/access/workflow mechanism при наличии platform capability;
+- обход approval/lifecycle прямым update статуса;
+- изменение backend semantics «заодно» с UI redesign;
+- локальный fix cross-domain проблемы без проверки соседнего scope;
+- молчаливое решение unresolved product rule.
 
 ---
 
 ## Документация
 
-README — карта системы и точка входа. Детальные правила живут в `docs/` и остаются каноническими для своих областей.
+README — **map**, а не второй Product Contract.
 
-### Product core
+### Начать отсюда
 
-- [`Product Contract`](docs/product/product-contract.md) — каноническая продуктовая модель и invariants.
-- [`Golden Path Index`](docs/product/golden-path-index.md) — сквозные бизнес-сценарии.
-- [`Open Questions Register`](docs/product/open-questions-register.md) — вопросы, которые нельзя молча решить инженерным предположением.
-- [`Reconciliation Notes`](docs/product/reconciliation-notes.md) — reconciliation между требованиями и runtime.
-- [`Implementation Roadmap`](docs/product/implementation_roadmap.md) — история/план реализации; не заменяет current contract.
+| Документ | Назначение |
+| --- | --- |
+| [`Product Contract`](docs/product/product-contract.md) | canonical product rules и invariants |
+| [`System Overview`](docs/architecture/system-overview.md) | архитектурный обзор |
+| [`Access Matrix`](docs/architecture/access-matrix.md) | cross-domain access model |
+| [`Glossary`](docs/architecture/glossary.md) | canonical terminology |
+| [`Golden Path Index`](docs/product/golden-path-index.md) | сквозные scenarios |
+| [`Open Questions Register`](docs/product/open-questions-register.md) | unresolved decisions |
+| [`Reconciliation Notes`](docs/product/reconciliation-notes.md) | requirement/runtime reconciliation |
 
-### Domain documentation
-
-В `docs/` также находятся специализированные state/access документы, включая:
+### Domain documents
 
 - [`Employee access matrix`](docs/employee-access-matrix.md)
 - [`Employee state model`](docs/employee-state-model.md)
-- [`One-time Orders access matrix`](docs/one-time-orders-access-matrix.md)
-- [`One-time Orders state model`](docs/one-time-orders-state-model.md)
-- [`One-time Order financial model`](docs/one-time-order-financial-model.md)
+- [`One-Time Orders access matrix`](docs/one-time-orders-access-matrix.md)
+- [`One-Time Orders state model`](docs/one-time-orders-state-model.md)
+- [`One-Time Order financial model`](docs/one-time-order-financial-model.md)
 - [`Inventory access matrix`](docs/inventory-access-matrix.md)
 - [`Inventory state model`](docs/inventory-state-model.md)
 - [`Accountability access matrix`](docs/accountability-access-matrix.md)
 
 > [!NOTE]
-> Документационный слой развивается вместе с кодом. Если README и canonical domain document расходятся, не выбирайте более удобную формулировку: сначала установите актуальный contract и исправьте drift осознанно.
+> Документационный слой версионируется вместе с кодом. Если README расходится с canonical document, сначала устанавливается актуальный contract; выбирается не «более удобная» формулировка, а подтверждённое business rule.
 
 ---
 
 ## Автор и ownership
 
-**Дмитрий Крючков** — автор, владелец и основной maintainer проекта Service Ops CRM.
+**Дмитрий Крючков** — product owner, автор архитектурного направления и основной maintainer **Service Ops CRM**.
 
-Проект отражает не только реализацию отдельных функций, но и полный инженерный цикл: декомпозицию бизнес-процессов, domain modeling, access architecture, full-stack разработку, миграции данных, CI, production safety и развитие продуктового UX.
+Проект используется как рабочая кодовая база и как одна из основных технических презентаций автора. Он демонстрирует полный инженерный цикл: декомпозицию бизнес-процессов, domain modeling, access architecture, full-stack implementation, data migrations, CI, production safety и product UX development.
 
-Текущее название **Service Ops CRM** является рабочим. Финальный branding, naming и repository identity будут определены отдельным продуктовым этапом и не должны меняться фрагментарно.
+Текущее название **Service Ops CRM** является рабочим. Финальные naming, logo/mark и repository identity вынесены в отдельный branding stage и не должны меняться фрагментарно.
 
 ---
 
@@ -823,7 +866,7 @@ README — карта системы и точка входа. Детальны�
 
 Copyright © 2026 **Dmitry Kryuchkov**. All rights reserved.
 
-Этот репозиторий распространяется как **proprietary software**. Публичный или предоставленный доступ к исходному коду **не предоставляет право** использовать, копировать, модифицировать, распространять, продавать, размещать, развёртывать, создавать производные работы или иным образом эксплуатировать проект без предварительного письменного разрешения правообладателя.
+Проект распространяется как **proprietary software**. Доступ к публичному репозиторию предоставляется для просмотра и оценки проекта и **не предоставляет лицензию** на использование, копирование, модификацию, распространение, hosting/deployment, продажу или создание производных работ.
 
 Полные условия: [`LICENSE`](LICENSE).
 
@@ -831,6 +874,7 @@ Copyright © 2026 **Dmitry Kryuchkov**. All rights reserved.
 
 <div align="center">
 
-**Service Ops CRM** · Designed and engineered by **Дмитрий Крючков**
+**Service Ops CRM**  
+Designed, architected and engineered by **Дмитрий Крючков**
 
 </div>
