@@ -71,9 +71,16 @@
   background: transparent;
 }
 
+/* Detail grid keeps the persistent state on the trigger itself. Legacy
+ * `.is-manual` styling must not win here; selected and hover remain the only
+ * states allowed to paint a cell background. */
+.timesheet-cell-trigger.is-manual:not(.is-selected) {
+  background: transparent !important;
+}
+
 .timesheet-table td.timesheet-table__changed-cell .timesheet-cell-trigger:not(.is-selected),
 .timesheet-overview__table td.is-manual .timesheet-cell-trigger:not(.is-selected) {
-  background: transparent;
+  background: transparent !important;
 }
 
 .timesheet-cell-trigger.is-locked {
