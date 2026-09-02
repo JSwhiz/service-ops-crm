@@ -62,7 +62,7 @@
   width: 40px;
   height: 40px;
   flex-basis: 40px;
-  margin: 0;
+  margin: 0 auto;
   color: var(--ui-text-secondary);
 }
 
@@ -89,17 +89,27 @@
   color: var(--ui-accent);
 }
 
-/* A single fixed visual column in collapsed mode. The link and icon dimensions
- * are explicit so flex shrinking can never distort the glyphs. */
+/* One physical rail, aligned to the exact axis of the collapsed top arrow.
+ * The scrolling container intentionally hides its own scrollbar in collapsed
+ * mode so scrollbar reservation can never shift the glyph column sideways. */
 .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav {
+  width: 100%;
   align-items: center;
-  padding-inline: 8px;
+  padding-inline: 0;
+  scrollbar-width: none;
+}
+
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav::-webkit-scrollbar {
+  display: none;
 }
 
 .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-main,
 .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-bottom {
-  width: 100%;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
   align-items: center;
+  margin-inline: auto;
 }
 
 .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link {
@@ -111,39 +121,42 @@
   flex: 0 0 40px;
   justify-content: center;
   gap: 0;
+  margin-inline: auto;
   padding: 0;
 }
 
+/* Slightly larger icon slot improves optical weight while preserving a square,
+ * non-shrinking glyph box for every navigation item. */
 .app-shell .app-sidebar__link-icon {
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  min-height: 20px;
-  flex: 0 0 20px;
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+  min-height: 21px;
+  flex: 0 0 21px;
+  aspect-ratio: 1;
   display: grid;
   place-items: center;
 }
 
 .app-shell .app-sidebar__link-icon svg {
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
-  min-height: 20px;
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+  min-height: 21px;
   flex: none;
+  aspect-ratio: 1;
   display: block;
 }
 
-/* In collapsed mode the active state remains the same warm semantic treatment,
- * but the left marker is centered within the compact row rather than inheriting
- * any legacy blue inset indicator. */
+/* On the compact rail the warm active surface is enough. Removing the left
+ * marker preserves perfect optical symmetry around the arrow axis. */
 .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link--active::before {
-  left: 3px;
-  top: 10px;
-  bottom: 10px;
+  content: none;
+  display: none;
 }
 
 /* Disable the first Wave pseudo-tooltip. Its fixed left offset could not follow
- * an individual row reliably. NavLink now renders a viewport-positioned tooltip. */
+ * an individual row reliably. NavLink renders a viewport-positioned tooltip. */
 .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link::after {
   content: none;
   display: none;
@@ -169,7 +182,9 @@
 }
 
 @media (max-width: 760px) {
-  .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link {
+  .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link,
+  .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-main,
+  .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-bottom {
     width: 44px;
     min-width: 44px;
     max-width: 44px;
