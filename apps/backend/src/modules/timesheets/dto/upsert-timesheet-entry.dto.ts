@@ -23,6 +23,7 @@ export class UpsertTimesheetEntryDto {
   dayOfMonth!: number;
 
   @IsInt()
+  @Min(0)
   dayValue!: number;
 
   @IsOptional()
