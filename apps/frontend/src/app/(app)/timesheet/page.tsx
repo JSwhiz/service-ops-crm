@@ -21,9 +21,8 @@ import type {
 import type { TimesheetCellMutation } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/timesheet-corrections-panel';
 import { TimesheetGrid } from '@/features/timesheet-grid/ui/timesheet-grid';
-import { TimesheetLegend } from '@/features/timesheet-legend/ui/timesheet-legend';
 import { TimesheetOverviewGrid } from '@/features/timesheet-overview/ui/timesheet-overview-grid';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { Button } from '@/shared/ui/foundation';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -46,6 +45,14 @@ function saveBlob(blob: Blob, fileName: string): void {
   link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function DownloadIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 3v9m0 0 3.2-3.2M10 12 6.8 8.8M4 15.5h12" />
+    </svg>
+  );
 }
 
 export default function TimesheetPage(): React.JSX.Element {
@@ -188,9 +195,8 @@ export default function TimesheetPage(): React.JSX.Element {
   };
 
   return (
-    <>
-      <PageTitle title="Табель" />
-      <section className="page-card timesheet-overview-filters">
+    <div className="timesheet-page">
+      <section className="page-card timesheet-overview-filters" aria-label="Фильтры табеля">
         <label>
           <span className="detail-label">Период</span>
           <input
@@ -224,8 +230,9 @@ export default function TimesheetPage(): React.JSX.Element {
           onChange={(value) => replaceFilters({ employeeId: value || null })}
           asyncSearch={async (query) => (await listTimesheetOverviewEmployees({ year, month, objectId: objectId || undefined, q: query })).map((item) => ({ value: item.id, label: item.name }))}
         />
-        <button
-          type="button"
+        <Button
+          className="timesheet-export-button"
+          size="md"
           disabled={isExporting || !overview?.capabilities.canExport}
           onClick={() => {
             setIsExporting(true);
@@ -236,11 +243,11 @@ export default function TimesheetPage(): React.JSX.Element {
               .finally(() => setIsExporting(false));
           }}
         >
-          {isExporting ? 'Готовим Excel...' : 'Скачать Excel'}
-        </button>
+          <DownloadIcon />
+          {isExporting ? 'Готовим Excel…' : 'Скачать Excel'}
+        </Button>
       </section>
 
-      <TimesheetLegend />
       {loading ? <div className="page-card">Загрузка табеля...</div> : null}
       {error ? <div className="page-card page-error">{error}</div> : null}
       {!loading && !error && overview ? (
@@ -254,9 +261,9 @@ export default function TimesheetPage(): React.JSX.Element {
 
       {objectId ? (
         <section className="timesheet-object-detail">
-          <div>
+          <div className="timesheet-object-detail__heading">
             <h2 className="section-title">Детализация и корректировки объекта</h2>
-            <p className="section-subtitle">Двойной клик открывает редактор. Правый клик — действия и детализация.</p>
+            <p className="section-subtitle">Двойной клик — изменить выплату · Правый клик — действия и детализация</p>
           </div>
           {detailLoading ? <div className="page-card">Загрузка детализации...</div> : null}
           {detailError ? <div className="page-card page-error">{detailError}</div> : null}
@@ -275,6 +282,6 @@ export default function TimesheetPage(): React.JSX.Element {
           ) : null}
         </section>
       ) : null}
-    </>
+    </div>
   );
 }
