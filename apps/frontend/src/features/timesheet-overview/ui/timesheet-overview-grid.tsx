@@ -4,6 +4,11 @@ import type {
   TimesheetOverview,
   TimesheetOverviewEntry,
 } from '@/entities/timesheet/model/timesheet.types';
+import {
+  TimesheetCellEditor,
+  type TimesheetCellMutation,
+} from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
+import { isTimesheetDateEditable } from '@/shared/lib/timesheet-edit-window';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -30,8 +35,14 @@ function getEntryTitle(entry: TimesheetOverviewEntry): string {
 
 export function TimesheetOverviewGrid({
   overview,
+  onDirectChange,
+  onRequestCorrection,
+  onOpenDetails,
 }: {
   overview: TimesheetOverview;
+  onDirectChange: (payload: TimesheetCellMutation) => Promise<void>;
+  onRequestCorrection: (payload: Required<TimesheetCellMutation>) => Promise<void>;
+  onOpenDetails: (objectId: string, employeeId: string) => void;
 }): React.JSX.Element {
   const days = Array.from(
     { length: overview.daysInMonth },
@@ -74,7 +85,25 @@ export function TimesheetOverviewGrid({
                           className={entry.isChangedManually ? 'is-manual' : entry.hasFact ? 'has-fact' : undefined}
                           title={getEntryTitle(entry)}
                         >
-                          {entry.finalValue === 0 ? '—' : entry.finalValue}
+                          <TimesheetCellEditor
+                            objectId={row.objectId}
+                            objectName={row.objectName}
+                            employeeId={row.employeeId}
+                            employeeName={row.employeeName}
+                            year={overview.year}
+                            month={overview.month}
+                            dayOfMonth={entry.dayOfMonth}
+                            finalValue={entry.finalValue}
+                            autoValue={entry.autoValue}
+                            isChangedManually={entry.isChangedManually}
+                            comment={entry.comment}
+                            canDirectEdit={overview.capabilities.canManualCorrection}
+                            canRequestCorrection={!overview.capabilities.canManualCorrection}
+                            isEditableDate={isTimesheetDateEditable({ year: overview.year, month: overview.month, dayOfMonth: entry.dayOfMonth })}
+                            onDirectChange={onDirectChange}
+                            onRequestCorrection={onRequestCorrection}
+                            onOpenDetails={() => onOpenDetails(row.objectId, row.employeeId)}
+                          />
                         </td>
                       ))}
                       <td className="is-summary">{formatMoney(row.advanceTotal)}</td>
@@ -109,7 +138,7 @@ export function TimesheetOverviewGrid({
                         title={getEntryTitle(entry)}
                       >
                         <span>{entry.dayOfMonth}</span>
-                        <strong>{entry.finalValue === 0 ? '—' : entry.finalValue}</strong>
+                        <strong className={entry.isChangedManually ? 'timesheet-value--manual' : undefined}>{entry.finalValue === 0 ? '—' : entry.finalValue}</strong>
                       </div>
                     ))}
                   </div>
