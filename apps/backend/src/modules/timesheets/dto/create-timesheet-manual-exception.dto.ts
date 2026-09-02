@@ -23,6 +23,7 @@ export class CreateTimesheetManualExceptionDto {
   dayOfMonth!: number;
 
   @IsInt()
+  @Min(0)
   dayValue!: number;
 
   @IsString()
