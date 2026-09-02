@@ -1,4 +1,6 @@
 import './globals.css';
+import '@/shared/styles/design-tokens.css';
+import '@/shared/styles/ui-foundation.css';
 import type { Metadata } from 'next';
 import React from 'react';
 
@@ -14,7 +16,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
   return (
-    <html lang="en">
+    <html lang="ru">
       <body>
         <AuthProvider>{children}</AuthProvider>
       </body>
