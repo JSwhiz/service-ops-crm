@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React from 'react';
+import React, { useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { cn } from '@/shared/lib/cn';
 
@@ -13,6 +14,11 @@ interface NavLinkProps {
   className?: string;
 }
 
+interface TooltipPosition {
+  left: number;
+  top: number;
+}
+
 export function NavLink({
   href,
   label,
@@ -20,21 +26,69 @@ export function NavLink({
   className,
 }: NavLinkProps): React.JSX.Element {
   const pathname = usePathname();
+  const linkRef = useRef<HTMLAnchorElement>(null);
+  const tooltipId = useId();
+  const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition | null>(null);
   const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(`${href}/`));
 
+  const showCollapsedTooltip = (): void => {
+    const link = linkRef.current;
+    if (!link) {
+      return;
+    }
+
+    const shell = link.closest('.app-shell') as HTMLElement | null;
+    if (shell?.dataset.sidebarExpanded === 'true') {
+      setTooltipPosition(null);
+      return;
+    }
+
+    const rect = link.getBoundingClientRect();
+    setTooltipPosition({
+      left: rect.right + 8,
+      top: rect.top + rect.height / 2,
+    });
+  };
+
+  const hideTooltip = (): void => {
+    setTooltipPosition(null);
+  };
+
   return (
-    <Link
-      href={href}
-      aria-label={label}
-      aria-current={isActive ? 'page' : undefined}
-      className={cn(
-        'app-sidebar__link',
-        className,
-        isActive && 'app-sidebar__link--active',
-      )}
-    >
-      {icon ? <span className="app-sidebar__link-icon" aria-hidden="true">{icon}</span> : null}
-      <span className="app-sidebar__link-label">{label}</span>
-    </Link>
+    <>
+      <Link
+        ref={linkRef}
+        href={href}
+        aria-label={label}
+        aria-current={isActive ? 'page' : undefined}
+        aria-describedby={tooltipPosition ? tooltipId : undefined}
+        className={cn(
+          'app-sidebar__link',
+          className,
+          isActive && 'app-sidebar__link--active',
+        )}
+        onPointerEnter={showCollapsedTooltip}
+        onPointerLeave={hideTooltip}
+        onFocus={showCollapsedTooltip}
+        onBlur={hideTooltip}
+      >
+        {icon ? <span className="app-sidebar__link-icon" aria-hidden="true">{icon}</span> : null}
+        <span className="app-sidebar__link-label">{label}</span>
+      </Link>
+
+      {tooltipPosition && typeof document !== 'undefined'
+        ? createPortal(
+            <span
+              id={tooltipId}
+              role="tooltip"
+              className="app-sidebar-tooltip"
+              style={{ left: tooltipPosition.left, top: tooltipPosition.top }}
+            >
+              {label}
+            </span>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }
