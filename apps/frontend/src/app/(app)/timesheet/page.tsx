@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -19,6 +18,7 @@ import type {
   TimesheetMonth,
   TimesheetOverview,
 } from '@/entities/timesheet/model/timesheet.types';
+import type { TimesheetCellMutation } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/timesheet-corrections-panel';
 import { TimesheetGrid } from '@/features/timesheet-grid/ui/timesheet-grid';
 import { TimesheetLegend } from '@/features/timesheet-legend/ui/timesheet-legend';
@@ -34,12 +34,8 @@ function parsePeriod(searchParams: URLSearchParams): { year: number; month: numb
   const year = Number(searchParams.get('year'));
   const month = Number(searchParams.get('month'));
   return {
-    year: Number.isInteger(year) && year >= 2024 && year <= 2100
-      ? year
-      : now.getFullYear(),
-    month: Number.isInteger(month) && month >= 1 && month <= 12
-      ? month
-      : now.getMonth() + 1,
+    year: Number.isInteger(year) && year >= 2024 && year <= 2100 ? year : now.getFullYear(),
+    month: Number.isInteger(month) && month >= 1 && month <= 12 ? month : now.getMonth() + 1,
   };
 }
 
@@ -74,13 +70,6 @@ export default function TimesheetPage(): React.JSX.Element {
   const detailRequestRef = useRef(0);
   const objectReferenceRequestRef = useRef(0);
   const employeeReferenceRequestRef = useRef(0);
-  const [exceptionEmployeeId, setExceptionEmployeeId] = useState('');
-  const [exceptionDayOfMonth, setExceptionDayOfMonth] = useState('1');
-  const [exceptionDayValue, setExceptionDayValue] = useState('0');
-  const [exceptionComment, setExceptionComment] = useState('');
-  const [exceptionMessage, setExceptionMessage] = useState<string | null>(null);
-  const [exceptionApprovalsHref, setExceptionApprovalsHref] = useState<string | null>(null);
-  const [isSubmittingException, setIsSubmittingException] = useState(false);
 
   const replaceFilters = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -103,12 +92,7 @@ export default function TimesheetPage(): React.JSX.Element {
     const requestId = ++overviewRequestRef.current;
     setLoading(true);
     setError(null);
-    void getTimesheetOverview({
-      year,
-      month,
-      objectId: objectId || undefined,
-      employeeId: employeeId || undefined,
-    })
+    void getTimesheetOverview({ year, month, objectId: objectId || undefined, employeeId: employeeId || undefined })
       .then((result) => {
         if (requestId === overviewRequestRef.current) setOverview(result);
       })
@@ -141,11 +125,6 @@ export default function TimesheetPage(): React.JSX.Element {
         if (requestId !== detailRequestRef.current) return;
         setObjectTimesheet(timesheet);
         setCorrections(nextCorrections);
-        setExceptionEmployeeId((current) =>
-          timesheet.rows.some((row) => row.employeeId === current)
-            ? current
-            : timesheet.rows[0]?.employeeId ?? '',
-        );
       })
       .catch(() => {
         if (requestId === detailRequestRef.current) {
@@ -171,9 +150,7 @@ export default function TimesheetPage(): React.JSX.Element {
         setSelectedObject(item ? { value: item.id, label: item.name } : null);
       })
       .catch(() => {
-        if (requestId === objectReferenceRequestRef.current) {
-          setSelectedObject(null);
-        }
+        if (requestId === objectReferenceRequestRef.current) setSelectedObject(null);
       });
   }, [objectId]);
 
@@ -183,50 +160,31 @@ export default function TimesheetPage(): React.JSX.Element {
       setSelectedEmployee(null);
       return;
     }
-    void listTimesheetOverviewEmployees({
-      year,
-      month,
-      objectId: objectId || undefined,
-      selectedId: employeeId,
-    })
+    void listTimesheetOverviewEmployees({ year, month, objectId: objectId || undefined, selectedId: employeeId })
       .then((items) => {
         if (requestId !== employeeReferenceRequestRef.current) return;
         const item = items[0];
         setSelectedEmployee(item ? { value: item.id, label: item.name } : null);
       })
       .catch(() => {
-        if (requestId === employeeReferenceRequestRef.current) {
-          setSelectedEmployee(null);
-        }
+        if (requestId === employeeReferenceRequestRef.current) setSelectedEmployee(null);
       });
   }, [employeeId, month, objectId, year]);
 
-  const submitException = (event: React.FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    if (!objectId) return;
-    setIsSubmittingException(true);
-    setExceptionMessage(null);
-    void requestTimesheetManualException({
-      objectId,
-      year,
-      month,
-      employeeId: exceptionEmployeeId,
-      dayOfMonth: Number(exceptionDayOfMonth),
-      dayValue: Number(exceptionDayValue),
-      comment: exceptionComment,
-    })
-      .then((request) => {
-        setExceptionMessage('Запрос отправлен на согласование.');
-        setExceptionApprovalsHref(
-          `/approvals?sourceEntityType=${request.sourceEntityType}&sourceEntityId=${request.sourceEntityId}`,
-        );
-        setExceptionComment('');
-      })
-      .catch(() => {
-        setExceptionMessage('Не удалось создать запрос на исключение.');
-        setExceptionApprovalsHref(null);
-      })
-      .finally(() => setIsSubmittingException(false));
+  const directChange = async (payload: TimesheetCellMutation): Promise<void> => {
+    await upsertTimesheetEntry({ year, month, ...payload });
+    setRefreshVersion((value) => value + 1);
+  };
+
+  const requestCorrection = async (payload: Required<TimesheetCellMutation>): Promise<void> => {
+    await requestTimesheetManualException({ year, month, ...payload });
+  };
+
+  const openDetails = (nextObjectId: string, nextEmployeeId: string): void => {
+    replaceFilters({ objectId: nextObjectId, employeeId: nextEmployeeId });
+    window.setTimeout(() => {
+      document.querySelector('.timesheet-object-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
   };
 
   return (
@@ -254,9 +212,7 @@ export default function TimesheetPage(): React.JSX.Element {
           placeholder="Все объекты"
           searchPlaceholder="Поиск по названию"
           onChange={(value) => replaceFilters({ objectId: value || null, employeeId: null })}
-          asyncSearch={async (query) =>
-            (await listTimesheetOverviewObjects({ q: query })).map((item) => ({ value: item.id, label: item.name }))
-          }
+          asyncSearch={async (query) => (await listTimesheetOverviewObjects({ q: query })).map((item) => ({ value: item.id, label: item.name }))}
         />
         <SearchableSelect
           label="Сотрудник"
@@ -266,9 +222,7 @@ export default function TimesheetPage(): React.JSX.Element {
           placeholder="Все сотрудники"
           searchPlaceholder="ФИО или телефон"
           onChange={(value) => replaceFilters({ employeeId: value || null })}
-          asyncSearch={async (query) =>
-            (await listTimesheetOverviewEmployees({ year, month, objectId: objectId || undefined, q: query })).map((item) => ({ value: item.id, label: item.name }))
-          }
+          asyncSearch={async (query) => (await listTimesheetOverviewEmployees({ year, month, objectId: objectId || undefined, q: query })).map((item) => ({ value: item.id, label: item.name }))}
         />
         <button
           type="button"
@@ -289,42 +243,32 @@ export default function TimesheetPage(): React.JSX.Element {
       <TimesheetLegend />
       {loading ? <div className="page-card">Загрузка табеля...</div> : null}
       {error ? <div className="page-card page-error">{error}</div> : null}
-      {!loading && !error && overview ? <TimesheetOverviewGrid overview={overview} /> : null}
+      {!loading && !error && overview ? (
+        <TimesheetOverviewGrid
+          overview={overview}
+          onDirectChange={directChange}
+          onRequestCorrection={requestCorrection}
+          onOpenDetails={openDetails}
+        />
+      ) : null}
 
       {objectId ? (
         <section className="timesheet-object-detail">
           <div>
             <h2 className="section-title">Детализация и корректировки объекта</h2>
-            <p className="section-subtitle">Существующий объектный табель и approval flow сохранены.</p>
+            <p className="section-subtitle">Двойной клик открывает редактор. Правый клик — действия и детализация.</p>
           </div>
           {detailLoading ? <div className="page-card">Загрузка детализации...</div> : null}
           {detailError ? <div className="page-card page-error">{detailError}</div> : null}
           {!detailLoading && objectTimesheet ? (
             <>
-              {!objectTimesheet.capabilities.canManualCorrection && objectTimesheet.rows.length > 0 ? (
-                <div className="page-card timesheet-exception-card">
-                  <div>
-                    <div className="section-title">Запросить исключение табеля</div>
-                    <div className="section-subtitle">Изменение применится только после подтверждения.</div>
-                  </div>
-                  <form className="timesheet-exception-form" onSubmit={submitException}>
-                    <label><span>Сотрудник</span><select value={exceptionEmployeeId} onChange={(event) => setExceptionEmployeeId(event.target.value)} required>{objectTimesheet.rows.map((row) => <option key={row.employeeId} value={row.employeeId}>{row.employeeName}</option>)}</select></label>
-                    <label><span>День</span><input type="number" min="1" max={objectTimesheet.daysInMonth} value={exceptionDayOfMonth} onChange={(event) => setExceptionDayOfMonth(event.target.value)} required /></label>
-                    <label><span>Новое значение</span><input type="number" value={exceptionDayValue} onChange={(event) => setExceptionDayValue(event.target.value)} required /></label>
-                    <label className="is-wide"><span>Причина</span><textarea rows={2} value={exceptionComment} onChange={(event) => setExceptionComment(event.target.value)} required /></label>
-                    <div className="action-row is-wide"><button type="submit" disabled={isSubmittingException || !exceptionEmployeeId}>{isSubmittingException ? 'Отправляем...' : 'Запросить исключение'}</button>{exceptionApprovalsHref ? <Link href={exceptionApprovalsHref}>Открыть согласование</Link> : null}</div>
-                  </form>
-                  {exceptionMessage ? <div className={exceptionApprovalsHref ? 'page-success' : 'page-error'}>{exceptionMessage}</div> : null}
-                </div>
-              ) : null}
               <TimesheetGrid
                 key={`${objectId}-${year}-${month}`}
                 timesheet={objectTimesheet}
                 canEditEntries={objectTimesheet.capabilities.canManualCorrection}
-                onChangeEntry={async (payload) => {
-                  await upsertTimesheetEntry({ objectId, year, month, ...payload });
-                  setRefreshVersion((value) => value + 1);
-                }}
+                onDirectChange={directChange}
+                onRequestCorrection={requestCorrection}
+                onOpenDetails={(nextEmployeeId) => replaceFilters({ employeeId: nextEmployeeId })}
               />
               <TimesheetCorrectionsPanel items={corrections} />
             </>
