@@ -10,3 +10,20 @@
   top: auto;
   z-index: 1;
 }
+
+.dashboardWide {
+  width: 100%;
+}
+
+@media (min-width: 1600px) {
+  .dashboardWide {
+    max-width: 1720px !important;
+    padding-inline: 24px !important;
+  }
+}
+
+@media (min-width: 2200px) {
+  .dashboardWide {
+    max-width: 2040px !important;
+  }
+}
