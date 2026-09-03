@@ -485,6 +485,46 @@
   font-weight: 650;
 }
 
+@media (min-width: 1600px) {
+  .root {
+    max-width: 1640px;
+    gap: 18px;
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1.62fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .column {
+    gap: 16px;
+  }
+
+  .todayLabel {
+    padding-inline: 18px;
+  }
+
+  .metricButton {
+    flex: 1 1 0;
+    justify-content: flex-start;
+    padding-inline: 20px;
+  }
+}
+
+@media (min-width: 2200px) {
+  .root {
+    max-width: 1960px;
+  }
+
+  .grid {
+    gap: 18px;
+  }
+
+  .column {
+    gap: 18px;
+  }
+}
+
 @media (max-width: 1180px) {
   .today {
     flex-wrap: wrap;
