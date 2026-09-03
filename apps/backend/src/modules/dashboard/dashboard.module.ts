@@ -12,6 +12,7 @@ import { UserAbsencesModule } from '../user-absences/user-absences.module';
 
 import { DashboardController } from './dashboard.controller';
 import { LeadershipDashboardService } from './leadership-dashboard.service';
+import { OperationManagerDashboardService } from './operation-manager-dashboard.service';
 
 @Module({
   imports: [
@@ -26,6 +27,6 @@ import { LeadershipDashboardService } from './leadership-dashboard.service';
     UserAbsencesModule,
   ],
   controllers: [DashboardController],
-  providers: [LeadershipDashboardService],
+  providers: [LeadershipDashboardService, OperationManagerDashboardService],
 })
 export class DashboardModule {}
