@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { AppHeader } from './app-header';
@@ -13,6 +14,7 @@ interface AppShellClientProps {
 }
 
 export function AppShellClient({ children }: AppShellClientProps): React.JSX.Element {
+  const pathname = usePathname();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
   useEffect(() => {
@@ -35,6 +37,8 @@ export function AppShellClient({ children }: AppShellClientProps): React.JSX.Ele
     });
   }, []);
 
+  const dashboardWide = pathname === '/dashboard';
+
   return (
     <div className="app-shell" data-sidebar-expanded={sidebarExpanded ? 'true' : 'false'}>
       <AppSidebar expanded={sidebarExpanded} onToggle={toggleSidebar} />
@@ -43,7 +47,7 @@ export function AppShellClient({ children }: AppShellClientProps): React.JSX.Ele
         <div className={styles.topbarAnchor}>
           <AppHeader />
         </div>
-        <main className="app-content">{children}</main>
+        <main className={`app-content${dashboardWide ? ` ${styles.dashboardWide}` : ''}`}>{children}</main>
       </div>
     </div>
   );
