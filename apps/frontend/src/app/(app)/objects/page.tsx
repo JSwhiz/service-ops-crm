@@ -56,6 +56,8 @@ function parseSortBy(value: string | null): ObjectSortField {
 }
 
 function parseIssue(value: string | null): ObjectIssueFilter {
+  if (value === 'without_responsible') return 'no_responsible';
+  if (value === 'without_employees') return 'no_employees';
   return value && value in ISSUE_LABELS ? value as ObjectIssueFilter : '';
 }
 
