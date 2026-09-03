@@ -6,6 +6,7 @@
   justify-content: flex-end;
   min-width: 180px;
   margin-left: auto;
+  margin-right: -12px;
 }
 
 .global-command-trigger {
@@ -435,6 +436,7 @@
     flex: 0 0 auto;
     min-width: 0;
     margin-left: auto;
+    margin-right: -12px;
   }
 
   .command-backdrop {
