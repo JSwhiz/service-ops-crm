@@ -32,6 +32,7 @@ import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { UpdateObjectEmployeeRatePolicyDto } from './dto/update-object-employee-rate-policy.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
+import { ObjectAttendanceSubmissionService } from './object-attendance-submission.service';
 import { ObjectOperationsService } from './object-operations.service';
 
 interface CurrentAuthUser {
@@ -48,6 +49,7 @@ interface CurrentAuthUser {
 export class ObjectOperationsController {
   constructor(
     private readonly objectOperationsService: ObjectOperationsService,
+    private readonly objectAttendanceSubmissionService: ObjectAttendanceSubmissionService,
   ) {}
 
   @Get('arrival-photo/today')
@@ -218,23 +220,41 @@ export class ObjectOperationsController {
   }
 
   @Get('attendance/today')
-  getTodayAttendance(
+  async getTodayAttendance(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
   ): Promise<ObjectAttendanceResponseDto> {
-    return this.objectOperationsService.getTodayAttendance(user, objectId);
+    const [attendance, submission] = await Promise.all([
+      this.objectOperationsService.getTodayAttendance(user, objectId),
+      this.objectAttendanceSubmissionService.getTodaySubmission(objectId),
+    ]);
+
+    return {
+      ...attendance,
+      submittedAt: submission?.submittedAt ?? null,
+      submittedBy: submission?.submittedBy ?? null,
+    };
   }
 
   @Post('attendance')
-  upsertObjectAttendance(
+  async upsertObjectAttendance(
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
     @Body() payload: UpsertObjectAttendanceDto,
   ): Promise<{ success: true }> {
-    return this.objectOperationsService.upsertObjectAttendance(
+    const result = await this.objectOperationsService.upsertObjectAttendance(
       user,
       objectId,
       payload,
     );
+
+    await this.objectAttendanceSubmissionService.markSubmitted({
+      objectId,
+      actorUserId: user.id,
+      operationDate: payload.operationDate,
+      employeeCount: payload.employeeIds.length,
+    });
+
+    return result;
   }
 }
