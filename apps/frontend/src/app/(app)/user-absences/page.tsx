@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -25,8 +26,7 @@ const TYPE_LABELS: Record<UserAbsenceType, string> = {
 };
 
 function moscowDate(offsetDays = 0): string {
-  const now = new Date();
-  const shifted = new Date(now.getTime() + offsetDays * 86_400_000);
+  const shifted = new Date(Date.now() + offsetDays * 86_400_000);
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Moscow',
     year: 'numeric',
@@ -52,10 +52,13 @@ function statusLabel(item: UserAbsenceItem, today: string): string {
 }
 
 export default function UserAbsencesPage(): React.JSX.Element {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const today = useMemo(() => moscowDate(), []);
-  const [from, setFrom] = useState(today);
-  const [to, setTo] = useState(() => moscowDate(60));
-  const [type, setType] = useState<UserAbsenceType | ''>('');
+  const from = searchParams.get('from') ?? today;
+  const to = searchParams.get('to') ?? moscowDate(60);
+  const rawType = searchParams.get('absenceType');
+  const type: UserAbsenceType | '' = rawType === 'vacation' || rawType === 'sick_leave' || rawType === 'day_off' ? rawType : '';
   const [items, setItems] = useState<UserAbsenceItem[]>([]);
   const [users, setUsers] = useState<UserAbsenceUserOption[]>([]);
   const [canManage, setCanManage] = useState(false);
@@ -70,6 +73,16 @@ export default function UserAbsencesPage(): React.JSX.Element {
     endDate: today,
     comment: '',
   });
+
+  const replaceFilter = (updates: Record<string, string | null>): void => {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    const serialized = next.toString();
+    router.replace(serialized ? `/user-absences?${serialized}` : '/user-absences', { scroll: false });
+  };
 
   const load = async (): Promise<void> => {
     setLoading(true);
@@ -163,9 +176,10 @@ export default function UserAbsencesPage(): React.JSX.Element {
 
       <div className={styles.toolbar}>
         <div className={styles.filters}>
-          <label className={styles.field}><span>С</span><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label>
-          <label className={styles.field}><span>По</span><input type="date" min={from || undefined} value={to} onChange={(event) => setTo(event.target.value)} /></label>
-          <label className={styles.field}><span>Тип</span><select value={type} onChange={(event) => setType(event.target.value as UserAbsenceType | '')}><option value="">Все</option><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></select></label>
+          <label className={styles.field}><span>С</span><input type="date" value={from} onChange={(event) => replaceFilter({ from: event.target.value || null })} /></label>
+          <label className={styles.field}><span>По</span><input type="date" min={from || undefined} value={to} onChange={(event) => replaceFilter({ to: event.target.value || null })} /></label>
+          <label className={styles.field}><span>Тип</span><select value={type} onChange={(event) => replaceFilter({ absenceType: event.target.value || null })}><option value="">Все</option><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></select></label>
+          {(searchParams.has('from') || searchParams.has('to') || searchParams.has('absenceType')) ? <button className={styles.button} type="button" onClick={() => router.replace('/user-absences', { scroll: false })}>Сбросить</button> : null}
         </div>
         {canManage ? <button className={`${styles.button} ${styles.primary}`} type="button" onClick={openCreate}>Добавить отсутствие</button> : null}
       </div>
