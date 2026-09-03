@@ -1,7 +1,7 @@
 import React from 'react';
 
-import { DashboardWorkspaceV2 } from '@/features/dashboard/ui/dashboard-workspace-v2';
+import { DashboardRoleRouter } from '@/features/dashboard/ui/dashboard-role-router';
 
 export default function DashboardPage(): React.JSX.Element {
-  return <DashboardWorkspaceV2 />;
+  return <DashboardRoleRouter />;
 }
