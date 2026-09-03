@@ -1,0 +1,12 @@
+.topbarAnchor {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  flex: 0 0 auto;
+}
+
+.topbarAnchor :global(.app-header) {
+  position: relative;
+  top: auto;
+  z-index: 1;
+}
