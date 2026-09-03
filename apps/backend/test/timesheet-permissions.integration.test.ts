@@ -27,7 +27,10 @@ test('timesheet read access does not grant manual correction by itself', async (
       password: 'founder123',
     }),
   ]);
-  const targetDate = getSafeBusinessDate(26);
+  // The test verifies permission precedence, not future-date validation.
+  // Day 1 is always inside the current editable month and is never a future
+  // calendar day, including when CI runs at the beginning of a month.
+  const targetDate = getSafeBusinessDate(1);
   const { objectId } = await createCoreTestObject(prisma, {
     includeManagerAssignment: true,
   });
