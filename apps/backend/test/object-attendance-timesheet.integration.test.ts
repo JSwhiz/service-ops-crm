@@ -21,7 +21,7 @@ test('attendance sync keeps manual timesheet correction stable when fact is late
     login: 'founder',
     password: 'founder123',
   });
-  const targetDate = getSafeBusinessDate(25);
+  const targetDate = getSafeBusinessDate(1);
   const { objectId } = await createCoreTestObject(prisma);
 
   t.after(async () => {
