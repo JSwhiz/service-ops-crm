@@ -91,3 +91,68 @@ export interface LeadershipDashboardResponse {
     userAbsencesToday: number | null;
   };
 }
+
+export type OperationManagerObjectIssue =
+  | 'no_employees'
+  | 'attendance_missing'
+  | 'daily_report_missing';
+
+export interface OperationManagerAttentionItem {
+  id: string;
+  kind: 'object_issue' | 'task';
+  badge: string;
+  tone: 'danger' | 'warning' | 'neutral';
+  title: string;
+  subtitle: string;
+  meta: string;
+  objectIssueCode?: OperationManagerObjectIssue;
+  taskId?: string;
+}
+
+export interface OperationManagerDashboardResponse {
+  generatedAt: string;
+  timeZone: 'Europe/Moscow';
+  attention: {
+    total: number;
+    items: OperationManagerAttentionItem[];
+    objectIssues: {
+      noEmployees: number;
+      attendanceMissing: number;
+      dailyReportMissing: number;
+    };
+    overdueTasks: number;
+  };
+  today: {
+    activeObjects: number;
+    employeesOnObjects: number;
+    attendanceMissing: number;
+    dailyReportMissing: number;
+    myTasksToday: number;
+  };
+  objects: {
+    active: number;
+    problematic: number;
+    items: Array<{
+      id: string;
+      name: string;
+      address: string;
+      employeeCount: number;
+      issues: OperationManagerObjectIssue[];
+    }>;
+  };
+  tasks: {
+    totalRelevant: number;
+    items: TaskItem[];
+  };
+  orders: {
+    totalAccessible: number;
+    items: Array<{
+      id: string;
+      title: string;
+      status: string;
+      executionAddress: string;
+      executionStartDate: string | null;
+      linkedObject: { id: string; name: string } | null;
+    }>;
+  };
+}
