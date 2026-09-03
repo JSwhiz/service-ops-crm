@@ -13,25 +13,22 @@ import type { TaskItem } from '@/entities/task/model/task.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 
+import interactionStyles from './leadership-dashboard-interactions.module.css';
 import styles from './leadership-dashboard.module.css';
+import {
+  LeadershipPreviewDrawer,
+  type LeadershipPreviewTarget,
+} from './leadership-preview-drawer';
 
 const PREVIEW_LIMIT = 5;
 
 function moscowNow(): { date: string; hour: number } {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Moscow',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hour12: false,
   }).formatToParts(new Date());
-  const get = (type: string): string =>
-    parts.find((item) => item.type === type)?.value ?? '0';
-  return {
-    date: `${get('year')}-${get('month')}-${get('day')}`,
-    hour: Number(get('hour')),
-  };
+  const get = (type: string): string => parts.find((item) => item.type === type)?.value ?? '0';
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) };
 }
 
 function greeting(): string {
@@ -49,46 +46,29 @@ function firstName(value: string): string {
 function formatDate(value: string | null): string {
   if (!value) return 'Без срока';
   return new Intl.DateTimeFormat('ru-RU', {
-    timeZone: 'Europe/Moscow',
-    day: '2-digit',
-    month: 'short',
+    timeZone: 'Europe/Moscow', day: '2-digit', month: 'short',
   }).format(new Date(value));
 }
 
 function formatMoney(value: number): string {
-  return `${new Intl.NumberFormat('ru-RU', {
-    maximumFractionDigits: 0,
-  }).format(value)} ₽`;
+  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)} ₽`;
 }
 
 function taskIsMine(task: TaskItem, userId: string | undefined): boolean {
-  return Boolean(
-    task.myAssignment ||
-      task.assignees.some((item) => item.id === userId && item.isActive),
-  );
+  return Boolean(task.myAssignment || task.assignees.some((item) => item.id === userId && item.isActive));
 }
 
 function taskTime(task: TaskItem): string {
-  if (task.isOverdue) {
-    return task.dueAt ? `до ${formatDate(task.dueAt)}` : 'Просрочено';
-  }
+  if (task.isOverdue) return task.dueAt ? `до ${formatDate(task.dueAt)}` : 'Просрочено';
   if (!task.dueAt) return 'Без срока';
-  const today = moscowNow().date;
-  const due = task.dueAt.slice(0, 10);
-  if (due === today) return 'Сегодня';
+  if (task.dueAt.slice(0, 10) === moscowNow().date) return 'Сегодня';
   return formatDate(task.dueAt);
 }
 
 function orderStatus(value: string): string {
-  return (
-    {
-      in_progress: 'В работе',
-      active: 'Активен',
-      planned: 'Запланирован',
-      new: 'Новый',
-      draft: 'Черновик',
-    } as Record<string, string>
-  )[value] ?? value.replaceAll('_', ' ');
+  return ({
+    in_progress: 'В работе', active: 'Активен', planned: 'Запланирован', new: 'Новый', draft: 'Черновик',
+  } as Record<string, string>)[value] ?? value.replaceAll('_', ' ');
 }
 
 function orderDate(value: string | null): string {
@@ -101,13 +81,12 @@ function orderDate(value: string | null): string {
 }
 
 function issueLabel(issue: LeadershipObjectIssue): string {
-  const labels: Record<LeadershipObjectIssue, string> = {
+  return {
     no_responsible: 'нет ответственного',
     no_employees: 'нет сотрудников',
     attendance_missing: 'нет отметки',
     daily_report_missing: 'нет отчёта',
-  };
-  return labels[issue];
+  }[issue];
 }
 
 function attentionHref(item: LeadershipAttentionItem): string {
@@ -134,6 +113,7 @@ export function LeadershipDashboard(): React.JSX.Element {
   const [loadWarning, setLoadWarning] = useState(false);
   const [attentionExpanded, setAttentionExpanded] = useState(false);
   const [tasksExpanded, setTasksExpanded] = useState(false);
+  const [previewTarget, setPreviewTarget] = useState<LeadershipPreviewTarget | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -143,6 +123,7 @@ export function LeadershipDashboard(): React.JSX.Element {
     setExpandedData(null);
     setAttentionExpanded(false);
     setTasksExpanded(false);
+    setPreviewTarget(null);
 
     void getLeadershipDashboard()
       .then((response) => {
@@ -158,9 +139,7 @@ export function LeadershipDashboard(): React.JSX.Element {
         if (!cancelled) setLoading(false);
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [user]);
 
   const ensureExpanded = async (): Promise<LeadershipDashboardResponse | null> => {
@@ -203,256 +182,119 @@ export function LeadershipDashboard(): React.JSX.Element {
   const displayName = user ? firstName(getUserDisplayName(user)) : '';
 
   return (
-    <div className={styles.root}>
-      <section className={styles.intro}>
-        <div>
-          <h1>{greeting()}{displayName ? `, ${displayName}` : ''}</h1>
-          <p>
-            {loading
-              ? 'Обновляем рабочую сводку…'
-              : attentionTotal
-                ? `На сегодня ${attentionTotal} ${attentionTotal === 1 ? 'сигнал требует' : 'сигналов требуют'} внимания`
-                : 'На сегодня срочных вопросов нет'}
-          </p>
-        </div>
-        <span className={`${styles.health} ${attentionTotal ? styles.healthAttention : ''}`}>
-          <i />
-          {loading ? 'Обновление' : attentionTotal ? 'Есть приоритеты' : 'Спокойный контур'}
-        </span>
-      </section>
+    <>
+      <div className={styles.root}>
+        <section className={styles.intro}>
+          <div>
+            <h1>{greeting()}{displayName ? `, ${displayName}` : ''}</h1>
+            <p>{loading ? 'Обновляем рабочую сводку…' : attentionTotal ? `На сегодня ${attentionTotal} ${attentionTotal === 1 ? 'сигнал требует' : 'сигналов требуют'} внимания` : 'На сегодня срочных вопросов нет'}</p>
+          </div>
+          <span className={`${styles.health} ${attentionTotal ? styles.healthAttention : ''}`}><i />{loading ? 'Обновление' : attentionTotal ? 'Есть приоритеты' : 'Спокойный контур'}</span>
+        </section>
 
-      {loadWarning ? (
-        <div className={styles.notice}>
-          Рабочую сводку не удалось обновить полностью. Повторите загрузку страницы.
-        </div>
-      ) : null}
+        {loadWarning ? <div className={styles.notice}>Рабочую сводку не удалось обновить полностью. Повторите загрузку страницы.</div> : null}
 
-      <section className={styles.today} aria-label="Сегодня">
-        <div className={styles.todayLabel}>Сегодня</div>
-        <Link href="/objects?status=active">
-          <strong>{loading ? '—' : source?.today.activeObjects ?? 0}</strong>
-          <span>активных объектов</span>
-        </Link>
-        <Link href="/employees?archiveState=active&hasActiveObjectAssignment=true">
-          <strong>{loading ? '—' : source?.today.employeesOnObjects ?? 0}</strong>
-          <span>сотрудников на объектах</span>
-        </Link>
-        <Link
-          className={source?.today.objectsWithoutAttendanceMark ? styles.alertLink : ''}
-          href="/objects?status=active&issue=attendance_missing"
-        >
-          <strong>{loading ? '—' : source?.today.objectsWithoutAttendanceMark ?? 0}</strong>
-          <span>без отметки</span>
-        </Link>
-        <Link
-          href={`/one-time-orders?dateFrom=${moscowNow().date}&dateTo=${moscowNow().date}&sortBy=executionStartDate&sortDirection=asc`}
-        >
-          <strong>{loading ? '—' : source?.today.oneTimeOrders ?? 0}</strong>
-          <span>разовых сегодня</span>
-        </Link>
-        <Link
-          className={source?.today.decisionsRequired ? styles.alertLink : ''}
-          href="/approvals?status=pending"
-        >
-          <strong>{loading ? '—' : source?.today.decisionsRequired ?? 0}</strong>
-          <span>согласований от вас</span>
-        </Link>
-      </section>
+        <section className={styles.today} aria-label="Сегодня">
+          <div className={styles.todayLabel}>Сегодня</div>
+          <Link href="/objects?status=active"><strong>{loading ? '—' : source?.today.activeObjects ?? 0}</strong><span>активных объектов</span></Link>
+          <Link href="/employees?archiveState=active&hasActiveObjectAssignment=true"><strong>{loading ? '—' : source?.today.employeesOnObjects ?? 0}</strong><span>сотрудников на объектах</span></Link>
+          <Link className={source?.today.objectsWithoutAttendanceMark ? styles.alertLink : ''} href="/objects?status=active&issue=attendance_missing"><strong>{loading ? '—' : source?.today.objectsWithoutAttendanceMark ?? 0}</strong><span>без отметки</span></Link>
+          <Link href={`/one-time-orders?dateFrom=${moscowNow().date}&dateTo=${moscowNow().date}&sortBy=executionStartDate&sortDirection=asc`}><strong>{loading ? '—' : source?.today.oneTimeOrders ?? 0}</strong><span>разовых сегодня</span></Link>
+          <Link className={source?.today.decisionsRequired ? styles.alertLink : ''} href="/approvals?status=pending"><strong>{loading ? '—' : source?.today.decisionsRequired ?? 0}</strong><span>согласований от вас</span></Link>
+        </section>
 
-      <div className={styles.grid}>
-        <div className={styles.column}>
-          <section className={styles.panel}>
-            <header className={styles.head}>
-              <div className={styles.headTitle}>
-                <h2>Требует внимания</h2>
-                <span className={styles.count}>{attentionTotal}</span>
+        <div className={styles.grid}>
+          <div className={styles.column}>
+            <section className={styles.panel}>
+              <header className={styles.head}>
+                <div className={styles.headTitle}><h2>Требует внимания</h2><span className={styles.count}>{attentionTotal}</span></div>
+                {attentionTotal > PREVIEW_LIMIT ? <button className={styles.expandButton} type="button" onClick={() => void toggleAttention()}>{attentionExpanded ? 'Свернуть' : `Ещё ${attentionTotal - PREVIEW_LIMIT}`}</button> : null}
+              </header>
+              <div className={styles.rows}>
+                {!loading && !attentionItems.length ? <div className={styles.empty}><strong>Нет срочных вопросов</strong></div> : attentionItems.map((item) => (
+                  <Link className={`${styles.row} ${styles.attentionRow}`} href={attentionHref(item)} key={item.id}>
+                    <span className={`${styles.badge} ${styles[item.tone]}`}>{item.badge}</span>
+                    <span className={styles.copy}><strong>{item.title}</strong><small>{item.subtitle}</small></span>
+                    <span className={styles.meta}>{item.meta}</span>
+                  </Link>
+                ))}
               </div>
-              {attentionTotal > PREVIEW_LIMIT ? (
-                <button className={styles.expandButton} type="button" onClick={() => void toggleAttention()}>
-                  {attentionExpanded ? 'Свернуть' : `Ещё ${attentionTotal - PREVIEW_LIMIT}`}
-                </button>
-              ) : null}
-            </header>
-            <div className={styles.rows}>
-              {!loading && !attentionItems.length ? (
-                <div className={styles.empty}><strong>Нет срочных вопросов</strong></div>
-              ) : attentionItems.map((item) => (
-                <Link
-                  className={`${styles.row} ${styles.attentionRow}`}
-                  href={attentionHref(item)}
-                  key={item.id}
-                >
-                  <span className={`${styles.badge} ${styles[item.tone]}`}>{item.badge}</span>
-                  <span className={styles.copy}>
-                    <strong>{item.title}</strong>
-                    <small>{item.subtitle}</small>
-                  </span>
-                  <span className={styles.meta}>{item.meta}</span>
-                </Link>
-              ))}
-            </div>
-          </section>
+            </section>
 
-          <section className={styles.panel}>
-            <header className={styles.head}>
-              <div className={styles.headTitle}>
-                <h2>Объекты</h2>
-                {source?.objects.problematic ? <span className={styles.count}>{source.objects.problematic}</span> : null}
-              </div>
-              <Link href={source?.objects.problematic ? '/objects?status=active&issue=attention' : '/objects?status=active'}>
-                {source?.objects.problematic ? 'Проблемные' : 'Все'} →
-              </Link>
-            </header>
-            <div className={styles.sectionSummary}>
-              <strong>{loading ? '—' : source?.objects.active ?? 0}</strong>
-              <span>активных</span>
-              <span>
-                {source?.objects.problematic
-                  ? `${source.objects.problematic} требуют внимания`
-                  : 'Проблем не обнаружено'}
-              </span>
-            </div>
-            <div className={styles.rows}>
-              {(source?.objects.items ?? []).map((item) => (
-                <Link className={`${styles.row} ${styles.objectRow}`} href={`/objects/${item.id}`} key={item.id}>
-                  <span className={styles.copy}>
-                    <strong>{item.name}</strong>
-                    <small>{item.address}</small>
-                  </span>
-                  <span className={`${styles.meta} ${item.issues.length ? styles.problem : ''}`}>
-                    {item.issues.length
-                      ? item.issues.map(issueLabel).join(' · ')
-                      : item.responsible?.fullName ?? '—'}
-                  </span>
-                  <span className={styles.meta}>{item.employeeCount} чел.</span>
-                </Link>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <div className={styles.column}>
-          <section className={styles.panel}>
-            <header className={styles.head}>
-              <div className={styles.headTitle}>
-                <h2>Мои задачи</h2>
-                <span className={styles.count}>{taskTotal}</span>
-              </div>
-              <div className={styles.headActions}>
-                {taskTotal > PREVIEW_LIMIT ? (
-                  <button className={styles.expandButton} type="button" onClick={() => void toggleTasks()}>
-                    {tasksExpanded ? 'Свернуть' : `Ещё ${taskTotal - PREVIEW_LIMIT}`}
+            <section className={styles.panel}>
+              <header className={styles.head}>
+                <div className={styles.headTitle}><h2>Объекты</h2>{source?.objects.problematic ? <span className={styles.count}>{source.objects.problematic}</span> : null}</div>
+                <Link href={source?.objects.problematic ? '/objects?status=active&issue=attention' : '/objects?status=active'}>{source?.objects.problematic ? 'Проблемные' : 'Все'} →</Link>
+              </header>
+              <div className={styles.sectionSummary}><strong>{loading ? '—' : source?.objects.active ?? 0}</strong><span>активных</span><span>{source?.objects.problematic ? `${source.objects.problematic} требуют внимания` : 'Проблем не обнаружено'}</span></div>
+              <div className={styles.rows}>
+                {(source?.objects.items ?? []).map((item) => (
+                  <button className={`${styles.row} ${styles.objectRow} ${interactionStyles.entityRow}`} type="button" onClick={() => setPreviewTarget({ kind: 'object', item })} key={item.id}>
+                    <span className={styles.copy}><strong>{item.name}</strong><small>{item.address}</small></span>
+                    <span className={`${styles.meta} ${item.issues.length ? styles.problem : ''}`}>{item.issues.length ? item.issues.map(issueLabel).join(' · ') : item.responsible?.fullName ?? '—'}</span>
+                    <span className={styles.meta}>{item.employeeCount} чел.</span>
                   </button>
-                ) : null}
-                <Link href="/tasks?mode=assigned&sortBy=dueAt&sortDirection=asc">В реестр →</Link>
-              </div>
-            </header>
-            <div className={styles.rows}>
-              {!loading && !taskItems.length ? (
-                <div className={styles.empty}>Ближайших задач нет.</div>
-              ) : taskItems.map((task) => {
-                const mine = taskIsMine(task, user?.id);
-                const dueToday = Boolean(task.dueAt && task.dueAt.slice(0, 10) === moscowNow().date);
-                return (
-                  <Link className={`${styles.row} ${styles.taskRow}`} href={`/tasks/${task.id}`} key={task.id}>
-                    <span className={`${styles.badge} ${task.isOverdue ? styles.danger : dueToday ? styles.warning : styles.neutral}`}>
-                      {task.isOverdue ? 'Просрочено' : dueToday ? 'Сегодня' : mine ? 'Назначено' : 'Компания'}
-                    </span>
-                    <span className={styles.copy}>
-                      <strong>{task.title}</strong>
-                      <small>{task.targetName || 'Без привязки'}</small>
-                    </span>
-                    <span className={styles.metaStrong}>{taskTime(task)}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-
-          {source?.money.available ? (
-            <section className={styles.panel}>
-              <header className={styles.head}>
-                <div className={styles.headTitle}>
-                  <h2>Деньги</h2>
-                  {source.money.submittedExpenses + source.money.closingRequestedAccounts ? (
-                    <span className={styles.count}>
-                      {source.money.submittedExpenses + source.money.closingRequestedAccounts}
-                    </span>
-                  ) : null}
-                </div>
-                <Link href="/accountability">Подотчёт →</Link>
-              </header>
-              <div className={styles.triplet}>
-                <Link href="/accountability/queue?view=submitted">
-                  <span>Расходы на проверке</span>
-                  <strong>{source.money.submittedExpenses}</strong>
-                  <small>ожидают решения</small>
-                </Link>
-                <Link href="/accountability/queue?view=closing">
-                  <span>Закрытие подотчёта</span>
-                  <strong>{source.money.closingRequestedAccounts}</strong>
-                  <small>ждут решения</small>
-                </Link>
-                <Link href="/accountability/queue?view=one_time_receipts">
-                  <span>Приход по разовым</span>
-                  <strong>{formatMoney(source.money.oneTimeOrderReceipts.amount)}</strong>
-                  <small>{source.money.oneTimeOrderReceipts.count} поступлений</small>
-                </Link>
+                ))}
               </div>
             </section>
-          ) : null}
+          </div>
 
-          <section className={styles.panel}>
-            <header className={styles.head}>
-              <div className={styles.headTitle}><h2>Разовые заказы</h2></div>
-              <Link href="/one-time-orders?sortBy=executionStartDate&sortDirection=asc">По сроку →</Link>
-            </header>
-            <div className={styles.rows}>
-              {!loading && !(source?.orders.items.length ?? 0) ? (
-                <div className={styles.empty}>Нет активных заказов.</div>
-              ) : (source?.orders.items ?? []).map((item) => (
-                <Link className={`${styles.row} ${styles.orderRow}`} href={`/one-time-orders/${item.id}`} key={item.id}>
-                  <span className={styles.copy}>
-                    <strong>{item.title}</strong>
-                    <small>{item.linkedObject?.name ?? item.executionAddress}</small>
-                  </span>
-                  <span className={styles.meta}>{orderStatus(item.status)}</span>
-                  <span className={`${styles.meta} ${item.executionStartDate?.slice(0, 10) && item.executionStartDate.slice(0, 10) < moscowNow().date ? styles.problem : ''}`}>
-                    {orderDate(item.executionStartDate)}
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </section>
-
-          {source?.people.available ? (
+          <div className={styles.column}>
             <section className={styles.panel}>
               <header className={styles.head}>
-                <div className={styles.headTitle}><h2>Люди</h2></div>
-                <Link href="/employees?archiveState=active">Все →</Link>
+                <div className={styles.headTitle}><h2>Мои задачи</h2><span className={styles.count}>{taskTotal}</span></div>
+                <div className={styles.headActions}>{taskTotal > PREVIEW_LIMIT ? <button className={styles.expandButton} type="button" onClick={() => void toggleTasks()}>{tasksExpanded ? 'Свернуть' : `Ещё ${taskTotal - PREVIEW_LIMIT}`}</button> : null}<Link href="/tasks?mode=assigned&sortBy=dueAt&sortDirection=asc">В реестр →</Link></div>
               </header>
-              <div className={styles.triplet}>
-                <Link href="/employees?archiveState=active">
-                  <strong>{source.people.activeEmployees}</strong>
-                  <span>активных сотрудников</span>
-                </Link>
-                <Link href="/employees?archiveState=active&hasActiveObjectAssignment=false">
-                  <strong>{source.people.employeesWithoutActiveObject}</strong>
-                  <span>без объекта</span>
-                </Link>
-                {source.people.overdueCandidateSla !== null ? (
-                  <Link href="/candidates?archiveState=active&slaState=overdue">
-                    <strong>{source.people.overdueCandidateSla}</strong>
-                    <span>кандидатов с просроченным SLA</span>
-                  </Link>
-                ) : (
-                  <div><strong>—</strong><span>кандидаты недоступны</span></div>
-                )}
+              <div className={styles.rows}>
+                {!loading && !taskItems.length ? <div className={styles.empty}>Ближайших задач нет.</div> : taskItems.map((task) => {
+                  const mine = taskIsMine(task, user?.id);
+                  const dueToday = Boolean(task.dueAt && task.dueAt.slice(0, 10) === moscowNow().date);
+                  return (
+                    <button className={`${styles.row} ${styles.taskRow} ${interactionStyles.entityRow}`} type="button" onClick={() => setPreviewTarget({ kind: 'task', item: task })} key={task.id}>
+                      <span className={`${styles.badge} ${task.isOverdue ? styles.danger : dueToday ? styles.warning : styles.neutral}`}>{task.isOverdue ? 'Просрочено' : dueToday ? 'Сегодня' : mine ? 'Назначено' : 'Компания'}</span>
+                      <span className={styles.copy}><strong>{task.title}</strong><small>{task.targetName || 'Без привязки'}</small></span>
+                      <span className={styles.metaStrong}>{taskTime(task)}</span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
-          ) : null}
+
+            {source?.money.available ? <section className={styles.panel}>
+              <header className={styles.head}><div className={styles.headTitle}><h2>Деньги</h2>{source.money.submittedExpenses + source.money.closingRequestedAccounts ? <span className={styles.count}>{source.money.submittedExpenses + source.money.closingRequestedAccounts}</span> : null}</div><Link href="/accountability">Подотчёт →</Link></header>
+              <div className={styles.triplet}>
+                <Link href="/accountability/queue?view=submitted"><span>Расходы на проверке</span><strong>{source.money.submittedExpenses}</strong><small>ожидают решения</small></Link>
+                <Link href="/accountability/queue?view=closing"><span>Закрытие подотчёта</span><strong>{source.money.closingRequestedAccounts}</strong><small>ждут решения</small></Link>
+                <Link href="/accountability/queue?view=one_time_receipts"><span>Приход по разовым</span><strong>{formatMoney(source.money.oneTimeOrderReceipts.amount)}</strong><small>{source.money.oneTimeOrderReceipts.count} поступлений</small></Link>
+              </div>
+            </section> : null}
+
+            <section className={styles.panel}>
+              <header className={styles.head}><div className={styles.headTitle}><h2>Разовые заказы</h2></div><Link href="/one-time-orders?sortBy=executionStartDate&sortDirection=asc">По сроку →</Link></header>
+              <div className={styles.rows}>
+                {!loading && !(source?.orders.items.length ?? 0) ? <div className={styles.empty}>Нет активных заказов.</div> : (source?.orders.items ?? []).map((item) => (
+                  <button className={`${styles.row} ${styles.orderRow} ${interactionStyles.entityRow}`} type="button" onClick={() => setPreviewTarget({ kind: 'order', item })} key={item.id}>
+                    <span className={styles.copy}><strong>{item.title}</strong><small>{item.linkedObject?.name ?? item.executionAddress}</small></span>
+                    <span className={styles.meta}>{orderStatus(item.status)}</span>
+                    <span className={`${styles.meta} ${item.executionStartDate?.slice(0, 10) && item.executionStartDate.slice(0, 10) < moscowNow().date ? styles.problem : ''}`}>{orderDate(item.executionStartDate)}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {source?.people.available ? <section className={styles.panel}>
+              <header className={styles.head}><div className={styles.headTitle}><h2>Люди</h2></div><Link href="/employees?archiveState=active">Все →</Link></header>
+              <div className={styles.triplet}>
+                <Link href="/employees?archiveState=active"><strong>{source.people.activeEmployees}</strong><span>активных сотрудников</span></Link>
+                <Link href="/employees?archiveState=active&hasActiveObjectAssignment=false"><strong>{source.people.employeesWithoutActiveObject}</strong><span>без объекта</span></Link>
+                {source.people.overdueCandidateSla !== null ? <Link href="/candidates?archiveState=active&slaState=overdue"><strong>{source.people.overdueCandidateSla}</strong><span>кандидатов с просроченным SLA</span></Link> : <div><strong>—</strong><span>кандидаты недоступны</span></div>}
+              </div>
+            </section> : null}
+          </div>
         </div>
       </div>
-    </div>
+
+      <LeadershipPreviewDrawer target={previewTarget} onClose={() => setPreviewTarget(null)} />
+    </>
   );
 }
