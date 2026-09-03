@@ -108,11 +108,11 @@ export default function AccountabilityQueuePage(): React.JSX.Element {
     [accounts],
   );
 
-  const config = view === 'closing'
-    ? { title: 'Закрытие подотчёта', subtitle: 'Подотчётные контуры, которые ожидают финального решения руководства.' }
+  const title = view === 'closing'
+    ? 'Закрытие подотчёта'
     : view === 'one_time_receipts'
-      ? { title: 'Приход по разовым заказам', subtitle: 'Фактические поступления менеджерам, зафиксированные как отдельный тип funding.' }
-      : { title: 'Расходы на проверке', subtitle: 'Submitted-расходы, по которым требуется решение reviewer.' };
+      ? 'Приход по разовым заказам'
+      : 'Расходы на проверке';
 
   const total = view === 'closing' ? closing.length : view === 'one_time_receipts' ? receipts.length : submitted.length;
   const amount = view === 'one_time_receipts'
@@ -128,13 +128,9 @@ export default function AccountabilityQueuePage(): React.JSX.Element {
   return (
     <div className={styles.root}>
       <header className={styles.header}>
-        <div>
-          <div className={styles.eyebrow}>Подотчёт · выборка с рабочего стола</div>
-          <h1>{config.title}</h1>
-          <p>{config.subtitle}</p>
-        </div>
+        <h1>{title}</h1>
         <div className={styles.actions}>
-          <span className={styles.filterChip}>{config.title}<Link href="/accountability" aria-label="Снять фильтр">×</Link></span>
+          <span className={styles.filterChip}>{title}<Link href="/accountability" aria-label="Снять фильтр">×</Link></span>
           <Link className={styles.secondaryAction} href="/accountability">Весь подотчёт</Link>
         </div>
       </header>
@@ -172,7 +168,7 @@ export default function AccountabilityQueuePage(): React.JSX.Element {
               <div className={styles.rowMain}>
                 <strong>{getUserDisplayName(account.account.user)}</strong>
                 <span>Текущий остаток: {formatMoney(account.summary.currentBalance)}</span>
-                <small>{closure ? `Запрошено ${formatDate(closure.requestedAt)}` : 'Контур ожидает сверки'}</small>
+                <small>{closure ? `Запрошено ${formatDate(closure.requestedAt)}` : 'Ожидает сверки'}</small>
               </div>
               <div className={styles.rowMeta}>
                 <span>Ожидает решения</span>
@@ -199,7 +195,7 @@ export default function AccountabilityQueuePage(): React.JSX.Element {
                 <small>{getUserDisplayName(account.account.user)} · {formatDate(funding.issuedAt)}</small>
               </div>
               <div className={styles.rowMeta}>
-                <span>{funding.comment ?? 'Поступление зафиксировано'}</span>
+                {funding.comment ? <span>{funding.comment}</span> : null}
                 {funding.oneTimeOrderId ? <Link href={`/one-time-orders/${funding.oneTimeOrderId}`}>Открыть заказ →</Link> : <Link href="/accountability">Открыть подотчёт →</Link>}
               </div>
             </article>
