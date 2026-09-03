@@ -27,7 +27,9 @@ test('timesheet manual exception uses shared approvals before applying business 
       password: 'founder123',
     }),
   ]);
-  const targetDate = getSafeBusinessDate(18);
+  // Manual timesheet corrections are allowed only for elapsed/current days in
+  // the current month. Day 1 remains deterministic and valid throughout a run.
+  const targetDate = getSafeBusinessDate(1);
   const { objectId } = await createCoreTestObject(prisma, {
     includeManagerAssignment: true,
   });
