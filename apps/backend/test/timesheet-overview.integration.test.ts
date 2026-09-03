@@ -55,7 +55,9 @@ async function api(
   });
 }
 
-function comparableEntry(entry: OverviewPayload['rows'][number]['entries'][number] | undefined) {
+function comparableEntry(
+  entry: OverviewPayload['rows'][number]['entries'][number] | undefined,
+) {
   assert.ok(entry);
 
   return {
@@ -71,29 +73,63 @@ function comparableEntry(entry: OverviewPayload['rows'][number]['entries'][numbe
   };
 }
 
+async function seedHistoricalManualCorrection(params: {
+  prisma: PrismaClient;
+  objectId: string;
+  employeeId: string;
+  year: number;
+  month: number;
+  dayOfMonth: number;
+  dayValue: number;
+  actorUserId: string;
+}): Promise<void> {
+  const month = await params.prisma.timesheetMonth.findUniqueOrThrow({
+    where: {
+      objectId_year_month: {
+        objectId: params.objectId,
+        year: params.year,
+        month: params.month,
+      },
+    },
+    include: {
+      rows: {
+        where: { employeeId: params.employeeId },
+        include: { entries: true },
+      },
+    },
+  });
+  const row = month.rows[0];
+  assert.ok(row);
+  const entry = row.entries.find((item) => item.dayOfMonth === params.dayOfMonth);
+  assert.ok(entry);
+
+  await params.prisma.timesheetDayEntry.update({
+    where: {
+      rowId_dayOfMonth: {
+        rowId: row.id,
+        dayOfMonth: params.dayOfMonth,
+      },
+    },
+    data: {
+      dayValue: params.dayValue,
+      manualValue: params.dayValue,
+      difference: params.dayValue - entry.autoValue,
+      comment: `Historical manual correction day ${params.dayOfMonth}`,
+      isChangedManually: true,
+      updatedByUserId: params.actorUserId,
+    },
+  });
+}
+
 test('timesheet overview is bulk, access-safe, filterable and exportable', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const [deputyCookie, managerCookie, founderCookie] = await Promise.all([
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'gorbacheva',
-      password: 'gorbacheva123',
-    }),
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'manager1',
-      password: 'manager123',
-    }),
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'founder',
-      password: 'founder123',
-    }),
+    loginAndGetCookieHeader({ baseUrl, login: 'gorbacheva', password: 'gorbacheva123' }),
+    loginAndGetCookieHeader({ baseUrl, login: 'manager1', password: 'manager123' }),
+    loginAndGetCookieHeader({ baseUrl, login: 'founder', password: 'founder123' }),
   ]);
-  const first = await createCoreTestObject(prisma, {
-    includeManagerAssignment: true,
-  });
+  const first = await createCoreTestObject(prisma, { includeManagerAssignment: true });
   const second = await createCoreTestObject(prisma);
   const untouched = await createCoreTestObject(prisma);
   const periodEmployeeIds: string[] = [];
@@ -105,9 +141,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     await cleanupCoreTestObject(prisma, second.objectId);
     await cleanupCoreTestObject(prisma, untouched.objectId);
     if (periodEmployeeIds.length > 0) {
-      await prisma.employee.deleteMany({
-        where: { id: { in: periodEmployeeIds } },
-      });
+      await prisma.employee.deleteMany({ where: { id: { in: periodEmployeeIds } } });
     }
     await app.close();
     await prisma.$disconnect();
@@ -152,24 +186,29 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     assert.equal(response.status, 200);
   }
 
-  for (const [dayOfMonth, dayValue] of [
-    [12, 3100],
-    [22, 3800],
-  ] as const) {
-    const correction = await api(baseUrl, founderCookie, '/timesheets/entries', {
-      method: 'POST',
-      body: JSON.stringify({
-        objectId: first.objectId,
-        employeeId: SEEDED_EMPLOYEE_IDS.ivan,
-        year,
-        month,
-        dayOfMonth,
-        dayValue,
-        comment: `Manual correction day ${dayOfMonth}`,
-      }),
-    });
-    assert.equal(correction.status, 201);
-  }
+  // This test exercises historical overview/export semantics. A closed/future period
+  // must not be editable through the public manual-correction API, so the historical
+  // corrected state is prepared directly as a fixture instead of weakening runtime rules.
+  await seedHistoricalManualCorrection({
+    prisma,
+    objectId: first.objectId,
+    employeeId: SEEDED_EMPLOYEE_IDS.ivan,
+    year,
+    month,
+    dayOfMonth: 12,
+    dayValue: 3100,
+    actorUserId: founder.id,
+  });
+  await seedHistoricalManualCorrection({
+    prisma,
+    objectId: first.objectId,
+    employeeId: SEEDED_EMPLOYEE_IDS.ivan,
+    year,
+    month,
+    dayOfMonth: 22,
+    dayValue: 3800,
+    actorUserId: founder.id,
+  });
 
   const objectTimesheetBeforeRateChange = (await (
     await api(
@@ -201,10 +240,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
         ratePolicyStandardShiftHours: 8,
       },
     }),
-    prisma.object.update({
-      where: { id: first.objectId },
-      data: { dailyRate: 9100 },
-    }),
+    prisma.object.update({ where: { id: first.objectId }, data: { dailyRate: 9100 } }),
     prisma.employee.update({
       where: { id: SEEDED_EMPLOYEE_IDS.ivan },
       data: { baseDailyRate: 9200 },
@@ -228,16 +264,8 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
   assert.ok(afterRateChangeRow);
   for (const dayOfMonth of [12, 15, 16, 22]) {
     assert.deepEqual(
-      comparableEntry(
-        afterRateChangeRow.entries.find(
-          (entry) => entry.dayOfMonth === dayOfMonth,
-        ),
-      ),
-      comparableEntry(
-        beforeRateChangeRow.entries.find(
-          (entry) => entry.dayOfMonth === dayOfMonth,
-        ),
-      ),
+      comparableEntry(afterRateChangeRow.entries.find((entry) => entry.dayOfMonth === dayOfMonth)),
+      comparableEntry(beforeRateChangeRow.entries.find((entry) => entry.dayOfMonth === dayOfMonth)),
     );
   }
   assert.deepEqual(
@@ -266,10 +294,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
       }),
     ),
   );
-  const futureEmployee = createdPeriodEmployees[0];
-  const endedEmployee = createdPeriodEmployees[1];
-  const overlappingEmployee = createdPeriodEmployees[2];
-  const attendanceEmployee = createdPeriodEmployees[3];
+  const [futureEmployee, endedEmployee, overlappingEmployee, attendanceEmployee] = createdPeriodEmployees;
   assert.ok(futureEmployee);
   assert.ok(endedEmployee);
   assert.ok(overlappingEmployee);
@@ -280,6 +305,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     overlappingEmployee.id,
     attendanceEmployee.id,
   );
+
   await Promise.all([
     prisma.objectEmployeeAssignment.create({
       data: {
@@ -338,6 +364,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     },
     data: { isActive: false },
   });
+
   const monthCountBefore = await prisma.timesheetMonth.count({
     where: {
       objectId: { in: [first.objectId, second.objectId, untouched.objectId] },
@@ -360,14 +387,12 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
       (row) =>
         row.employeeId === SEEDED_EMPLOYEE_IDS.ivan &&
         [first.objectId, second.objectId].includes(row.objectId),
-    )
-      .length,
+    ).length,
     2,
   );
+
   const firstIvan = overview.rows.find(
-    (row) =>
-      row.objectId === first.objectId &&
-      row.employeeId === SEEDED_EMPLOYEE_IDS.ivan,
+    (row) => row.objectId === first.objectId && row.employeeId === SEEDED_EMPLOYEE_IDS.ivan,
   );
   assert.ok(firstIvan);
   assert.equal(firstIvan.advanceTotal, 5600);
@@ -387,28 +412,13 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
   );
   for (const dayOfMonth of [12, 15, 16, 22]) {
     assert.deepEqual(
-      comparableEntry(
-        firstIvan.entries.find((entry) => entry.dayOfMonth === dayOfMonth),
-      ),
-      comparableEntry(
-        afterRateChangeRow.entries.find(
-          (entry) => entry.dayOfMonth === dayOfMonth,
-        ),
-      ),
+      comparableEntry(firstIvan.entries.find((entry) => entry.dayOfMonth === dayOfMonth)),
+      comparableEntry(afterRateChangeRow.entries.find((entry) => entry.dayOfMonth === dayOfMonth)),
     );
   }
-  assert.equal(
-    firstIvan.entries.find((entry) => entry.dayOfMonth === 12)?.isChangedManually,
-    true,
-  );
-  assert.equal(
-    firstIvan.entries.find((entry) => entry.dayOfMonth === 22)?.isChangedManually,
-    true,
-  );
-  assert.equal(
-    overview.totals.advanceTotal + overview.totals.salaryTotal,
-    overview.totals.monthTotal,
-  );
+  assert.equal(firstIvan.entries.find((entry) => entry.dayOfMonth === 12)?.isChangedManually, true);
+  assert.equal(firstIvan.entries.find((entry) => entry.dayOfMonth === 22)?.isChangedManually, true);
+  assert.equal(overview.totals.advanceTotal + overview.totals.salaryTotal, overview.totals.monthTotal);
   assert.equal(
     await prisma.timesheetMonth.count({
       where: {
@@ -419,22 +429,10 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     }),
     monthCountBefore,
   );
-  assert.equal(
-    overview.rows.some((row) => row.employeeId === futureEmployee.id),
-    false,
-  );
-  assert.equal(
-    overview.rows.some((row) => row.employeeId === endedEmployee.id),
-    false,
-  );
-  assert.equal(
-    overview.rows.some((row) => row.employeeId === overlappingEmployee.id),
-    true,
-  );
-  assert.equal(
-    overview.rows.some((row) => row.employeeId === attendanceEmployee.id),
-    true,
-  );
+  assert.equal(overview.rows.some((row) => row.employeeId === futureEmployee.id), false);
+  assert.equal(overview.rows.some((row) => row.employeeId === endedEmployee.id), false);
+  assert.equal(overview.rows.some((row) => row.employeeId === overlappingEmployee.id), true);
+  assert.equal(overview.rows.some((row) => row.employeeId === attendanceEmployee.id), true);
 
   const objectFiltered = (await (
     await api(
@@ -454,9 +452,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     )
   ).json()) as OverviewPayload;
   assert.equal(
-    employeeFiltered.rows.filter((row) =>
-      [first.objectId, second.objectId].includes(row.objectId),
-    ).length,
+    employeeFiltered.rows.filter((row) => [first.objectId, second.objectId].includes(row.objectId)).length,
     2,
   );
 
@@ -485,6 +481,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     ).status,
     403,
   );
+
   const hiddenObjectReference = await api(
     baseUrl,
     managerCookie,
@@ -498,9 +495,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     `/timesheets/overview/references/objects?q=${encodeURIComponent(firstObject.name)}`,
   );
   assert.ok(
-    ((await objectSearch.json()) as Array<{ id: string }>).some(
-      (item) => item.id === first.objectId,
-    ),
+    ((await objectSearch.json()) as Array<{ id: string }>).some((item) => item.id === first.objectId),
   );
 
   const periodReferencesResponse = await api(
@@ -510,14 +505,13 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
   );
   assert.equal(periodReferencesResponse.status, 200);
   const periodReferenceIds = new Set(
-    ((await periodReferencesResponse.json()) as Array<{ id: string }>).map(
-      (item) => item.id,
-    ),
+    ((await periodReferencesResponse.json()) as Array<{ id: string }>).map((item) => item.id),
   );
   assert.equal(periodReferenceIds.has(futureEmployee.id), false);
   assert.equal(periodReferenceIds.has(endedEmployee.id), false);
   assert.equal(periodReferenceIds.has(overlappingEmployee.id), true);
   assert.equal(periodReferenceIds.has(attendanceEmployee.id), true);
+
   const futureSelectedReference = await api(
     baseUrl,
     deputyCookie,
@@ -543,10 +537,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     `/timesheets/overview/export?year=${year}&month=${month}&objectId=${first.objectId}&employeeId=${SEEDED_EMPLOYEE_IDS.ivan}`,
   );
   assert.equal(exportResponse.status, 200);
-  assert.match(
-    exportResponse.headers.get('content-type') ?? '',
-    /spreadsheetml\.sheet/,
-  );
+  assert.match(exportResponse.headers.get('content-type') ?? '', /spreadsheetml\.sheet/);
   const workbook = Buffer.from(await exportResponse.arrayBuffer());
   const workbookText = workbook.toString('utf8');
   assert.equal(workbook.subarray(0, 2).toString('utf8'), 'PK');
@@ -560,8 +551,7 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     firstIvan.monthTotal,
     ...[12, 15, 16, 22].map(
       (dayOfMonth) =>
-        firstIvan.entries.find((entry) => entry.dayOfMonth === dayOfMonth)
-          ?.finalValue ?? 0,
+        firstIvan.entries.find((entry) => entry.dayOfMonth === dayOfMonth)?.finalValue ?? 0,
     ),
   ]) {
     assert.match(workbookText, new RegExp(`>${value}<`));
