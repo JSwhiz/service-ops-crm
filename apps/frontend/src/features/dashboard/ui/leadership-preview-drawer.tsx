@@ -84,6 +84,7 @@ export function LeadershipPreviewDrawer({ target, onClose }: Props): React.JSX.E
     : target.kind === 'task'
       ? `/tasks/${target.item.id}`
       : `/one-time-orders/${target.item.id}`;
+  const title = target.kind === 'object' ? target.item.name : target.item.title;
 
   return (
     <div
@@ -99,7 +100,7 @@ export function LeadershipPreviewDrawer({ target, onClose }: Props): React.JSX.E
             <span className={styles.eyebrow}>
               {target.kind === 'object' ? 'Объект' : target.kind === 'task' ? 'Задача' : 'Разовый заказ'}
             </span>
-            <h2>{target.item.name ?? target.item.title}</h2>
+            <h2>{title}</h2>
           </div>
           <button className={styles.close} type="button" onClick={onClose} aria-label="Закрыть превью">×</button>
         </header>
