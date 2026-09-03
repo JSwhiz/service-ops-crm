@@ -37,10 +37,9 @@ function getRouteTitle(pathname: string): string {
 function ChatIcon(): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5 8 8 0 0 1-3.45-.78L4 19.5l1.28-4.02A7.5 7.5 0 1 1 20 11.5Z" />
-      <circle cx="9" cy="11.5" r="0.75" fill="currentColor" stroke="none" />
-      <circle cx="12.5" cy="11.5" r="0.75" fill="currentColor" stroke="none" />
-      <circle cx="16" cy="11.5" r="0.75" fill="currentColor" stroke="none" />
+      <path d="M6.5 5.5h11A2.5 2.5 0 0 1 20 8v6.5a2.5 2.5 0 0 1-2.5 2.5h-5.2L8 20v-3H6.5A2.5 2.5 0 0 1 4 14.5V8a2.5 2.5 0 0 1 2.5-2.5Z" />
+      <circle cx="9" cy="11.25" r="0.72" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="11.25" r="0.72" fill="currentColor" stroke="none" />
     </svg>
   );
 }
