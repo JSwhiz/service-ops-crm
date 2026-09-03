@@ -49,6 +49,7 @@ import { RedisModule } from './modules/redis/redis.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TimesheetsModule } from './modules/timesheets/timesheets.module';
+import { UserAbsencesModule } from './modules/user-absences/user-absences.module';
 import { UsersAccessModule } from './modules/users-access/users-access.module';
 
 const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
@@ -66,6 +67,7 @@ const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
     RedisModule,
     StorageModule,
     UsersAccessModule,
+    UserAbsencesModule,
     AccountabilityModule,
     ApprovalsModule,
     AuthModule,
