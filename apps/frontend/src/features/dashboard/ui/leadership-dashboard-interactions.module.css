@@ -1,30 +1,45 @@
 .entityRow {
   width: 100%;
   appearance: none;
+  border-top: 1px solid #e8e0da;
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
-  border-color: #e8e0da;
-  background: transparent;
-  color: inherit;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
   box-shadow: none !important;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  transform: none !important;
+  transition: background 120ms ease !important;
 }
 
-.entityRow:hover {
-  border-color: #e8e0da;
-  background: #f8f3ef;
-  box-shadow: none !important;
-  color: inherit;
-  transform: none;
+.entityRow:first-child {
+  border-top: 0;
 }
 
-.entityRow:focus,
-.entityRow:focus-visible {
+.entityRow.entityRow:hover:not(:disabled),
+.entityRow.entityRow:active:not(:disabled),
+.entityRow.entityRow:focus,
+.entityRow.entityRow:focus-visible {
   outline: 0 !important;
-  border-color: #ded4cc !important;
-  background: #f8f3ef;
-  box-shadow: inset 0 0 0 1px #ded4cc !important;
+  outline-offset: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 0 !important;
+  border-left: 0 !important;
+  border-radius: 0 !important;
+  border-color: #e8e0da !important;
+  background: #faf7f4 !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  transform: none !important;
+}
+
+.entityRow.entityRow:first-child:hover:not(:disabled),
+.entityRow.entityRow:first-child:active:not(:disabled),
+.entityRow.entityRow:first-child:focus,
+.entityRow.entityRow:first-child:focus-visible {
+  border-top: 0 !important;
 }
