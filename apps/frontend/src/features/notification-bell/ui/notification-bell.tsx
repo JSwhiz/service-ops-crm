@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { getNotificationUnreadCount, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/entities/notification/api/notification-client';
 import type { AppNotification } from '@/entities/notification/model/notification.types';
@@ -29,6 +29,7 @@ function BellIcon(): React.JSX.Element {
 
 export function NotificationBell(): React.JSX.Element {
   const router = useRouter();
+  const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<AppNotification[]>([]);
@@ -41,6 +42,30 @@ export function NotificationBell(): React.JSX.Element {
     const timer = window.setInterval(refresh, 30_000);
     return () => { active = false; window.clearInterval(timer); };
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
 
   const toggle = (): void => {
     const next = !open;
@@ -62,7 +87,7 @@ export function NotificationBell(): React.JSX.Element {
   };
 
   return (
-    <div className="notification-bell">
+    <div className="notification-bell" ref={rootRef}>
       <button
         type="button"
         className="notification-bell__trigger"
