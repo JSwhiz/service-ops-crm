@@ -327,7 +327,7 @@ export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpen
 
   return (
     <div className="global-create" ref={rootRef}>
-      <button type="button" className="global-create__trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => onOpenChange(!open)}><PlusIcon /><span>Создать</span></button>
+      <button type="button" className="global-create__trigger" aria-label="Создать" title="Создать" aria-haspopup="menu" aria-expanded={open} onClick={() => onOpenChange(!open)}><PlusIcon /></button>
       {open ? (
         <div className="global-create__menu" role="menu">
           <div className="global-create__label">Новое</div>
