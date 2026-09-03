@@ -8,6 +8,7 @@ import { ObjectsModule } from '../objects/objects.module';
 import { OneTimeOrdersModule } from '../one-time-orders/one-time-orders.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TasksModule } from '../tasks/tasks.module';
+import { UserAbsencesModule } from '../user-absences/user-absences.module';
 
 import { DashboardController } from './dashboard.controller';
 import { LeadershipDashboardService } from './leadership-dashboard.service';
@@ -22,6 +23,7 @@ import { LeadershipDashboardService } from './leadership-dashboard.service';
     AccountabilityModule,
     EmployeesModule,
     CandidatesModule,
+    UserAbsencesModule,
   ],
   controllers: [DashboardController],
   providers: [LeadershipDashboardService],
