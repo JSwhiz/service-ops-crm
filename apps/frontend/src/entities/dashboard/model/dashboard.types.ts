@@ -6,11 +6,29 @@ export type LeadershipObjectIssue =
   | 'attendance_missing'
   | 'daily_report_missing';
 
+export interface LeadershipAttentionItem {
+  id: string;
+  kind: 'object_issue' | 'task' | 'approval';
+  badge: string;
+  tone: 'danger' | 'warning' | 'neutral';
+  title: string;
+  subtitle: string;
+  meta: string;
+  objectIssueCode?: LeadershipObjectIssue;
+  taskId?: string;
+  approval?: {
+    id: string;
+    sourceEntityType: string;
+    sourceEntityId: string;
+  };
+}
+
 export interface LeadershipDashboardResponse {
   generatedAt: string;
   timeZone: 'Europe/Moscow';
   attention: {
     total: number;
+    items: LeadershipAttentionItem[];
     objectIssues: {
       noResponsible: number;
       noEmployees: number;
