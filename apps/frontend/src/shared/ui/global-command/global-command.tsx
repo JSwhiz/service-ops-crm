@@ -78,7 +78,9 @@ function readRecent(): StoredRecentItem[] {
   if (typeof window === 'undefined') return [];
   try {
     const parsed = JSON.parse(window.localStorage.getItem(RECENT_KEY) ?? '[]') as unknown;
-    return Array.isArray(parsed) ? parsed.slice(0, MAX_RECENT) as StoredRecentItem[] : [];
+    return Array.isArray(parsed)
+      ? (parsed.slice(0, MAX_RECENT) as StoredRecentItem[])
+      : [];
   } catch {
     return [];
   }
@@ -106,25 +108,171 @@ function useStaticCommands(): { navigation: CommandItem[]; actions: CommandItem[
 
   return useMemo(() => {
     const navigation: CommandItem[] = [
-      { id: 'nav-dashboard', group: 'Навигация', label: 'Рабочий стол', href: '/dashboard', kind: 'navigation', keywords: 'главная dashboard workspace' },
-      ...(capabilities?.canAccessApprovals ? [{ id: 'nav-approvals', group: 'Навигация' as const, label: 'Согласования', href: '/approvals', kind: 'navigation' as const }] : []),
-      { id: 'nav-objects', group: 'Навигация', label: 'Объекты', href: '/objects', kind: 'navigation', keywords: 'объект адрес' },
-      ...(capabilities?.canAccessOneTimeOrders || capabilities?.canViewAllOneTimeOrderReviews ? [{ id: 'nav-orders', group: 'Навигация' as const, label: 'Разовые заказы', href: '/one-time-orders', kind: 'navigation' as const, keywords: 'заказ разовый' }] : []),
-      ...(capabilities?.canAccessAccountability ? [{ id: 'nav-accountability', group: 'Навигация' as const, label: 'Подотчет', href: '/accountability', kind: 'navigation' as const }] : []),
-      ...(capabilities?.canAccessInventory ? [{ id: 'nav-inventory', group: 'Навигация' as const, label: 'Расходники', href: '/inventory', kind: 'navigation' as const }] : []),
-      ...(capabilities?.canAccessEquipment ? [{ id: 'nav-equipment', group: 'Навигация' as const, label: 'Оборудование', href: '/equipment', kind: 'navigation' as const }] : []),
-      { id: 'nav-tasks', group: 'Навигация', label: 'Задачи', href: '/tasks', kind: 'navigation', keywords: 'задача поручение' },
-      { id: 'nav-timesheet', group: 'Навигация', label: 'Табель', href: '/timesheet', kind: 'navigation', keywords: 'табель выплаты зарплата аванс' },
-      ...(capabilities?.canAccessCandidates ? [{ id: 'nav-candidates', group: 'Навигация' as const, label: 'Кандидаты', href: '/candidates', kind: 'navigation' as const }] : []),
-      ...(capabilities?.canAccessEmployeesHr ? [{ id: 'nav-employees', group: 'Навигация' as const, label: 'Сотрудники', href: '/employees', kind: 'navigation' as const, keywords: 'работники персонал hr' }] : []),
-      ...(capabilities?.canAccessChats ? [{ id: 'nav-chats', group: 'Навигация' as const, label: 'Чаты', href: '/chats', kind: 'navigation' as const }] : []),
-      { id: 'nav-settings', group: 'Навигация', label: 'Настройки', href: '/settings', kind: 'navigation' },
+      {
+        id: 'nav-dashboard',
+        group: 'Навигация',
+        label: 'Рабочий стол',
+        href: '/dashboard',
+        kind: 'navigation',
+        keywords: 'главная dashboard workspace',
+      },
+      ...(capabilities?.canAccessApprovals
+        ? [
+            {
+              id: 'nav-approvals',
+              group: 'Навигация' as const,
+              label: 'Согласования',
+              href: '/approvals',
+              kind: 'navigation' as const,
+            },
+          ]
+        : []),
+      {
+        id: 'nav-objects',
+        group: 'Навигация',
+        label: 'Объекты',
+        href: '/objects',
+        kind: 'navigation',
+        keywords: 'объект адрес',
+      },
+      ...(capabilities?.canAccessOneTimeOrders || capabilities?.canViewAllOneTimeOrderReviews
+        ? [
+            {
+              id: 'nav-orders',
+              group: 'Навигация' as const,
+              label: 'Разовые заказы',
+              href: '/one-time-orders',
+              kind: 'navigation' as const,
+              keywords: 'заказ разовый',
+            },
+          ]
+        : []),
+      ...(capabilities?.canAccessAccountability
+        ? [
+            {
+              id: 'nav-accountability',
+              group: 'Навигация' as const,
+              label: 'Подотчет',
+              href: '/accountability',
+              kind: 'navigation' as const,
+            },
+          ]
+        : []),
+      ...(capabilities?.canAccessInventory
+        ? [
+            {
+              id: 'nav-inventory',
+              group: 'Навигация' as const,
+              label: 'Расходники',
+              href: '/inventory',
+              kind: 'navigation' as const,
+            },
+          ]
+        : []),
+      ...(capabilities?.canAccessEquipment
+        ? [
+            {
+              id: 'nav-equipment',
+              group: 'Навигация' as const,
+              label: 'Оборудование',
+              href: '/equipment',
+              kind: 'navigation' as const,
+            },
+          ]
+        : []),
+      {
+        id: 'nav-tasks',
+        group: 'Навигация',
+        label: 'Задачи',
+        href: '/tasks',
+        kind: 'navigation',
+        keywords: 'задача поручение',
+      },
+      {
+        id: 'nav-timesheet',
+        group: 'Навигация',
+        label: 'Табель',
+        href: '/timesheet',
+        kind: 'navigation',
+        keywords: 'табель выплаты зарплата аванс',
+      },
+      ...(capabilities?.canAccessCandidates
+        ? [
+            {
+              id: 'nav-candidates',
+              group: 'Навигация' as const,
+              label: 'Кандидаты',
+              href: '/candidates',
+              kind: 'navigation' as const,
+            },
+          ]
+        : []),
+      ...(capabilities?.canAccessEmployeesHr
+        ? [
+            {
+              id: 'nav-employees',
+              group: 'Навигация' as const,
+              label: 'Сотрудники',
+              href: '/employees',
+              kind: 'navigation' as const,
+              keywords: 'работники персонал hr',
+            },
+          ]
+        : []),
+      ...(capabilities?.canAccessChats
+        ? [
+            {
+              id: 'nav-chats',
+              group: 'Навигация' as const,
+              label: 'Чаты',
+              href: '/chats',
+              kind: 'navigation' as const,
+            },
+          ]
+        : []),
+      {
+        id: 'nav-settings',
+        group: 'Навигация',
+        label: 'Настройки',
+        href: '/settings',
+        kind: 'navigation',
+      },
     ];
 
     const actions: CommandItem[] = [
-      { id: 'action-task-new', group: 'Действия', label: 'Создать задачу', description: 'Новая задача', href: '/tasks/new', kind: 'action', keywords: 'добавить новая задача' },
-      ...(capabilities?.canCreateObject ? [{ id: 'action-object-new', group: 'Действия' as const, label: 'Создать объект', description: 'Новый объект', href: '/objects/new', kind: 'action' as const }] : []),
-      ...(capabilities?.canCreateOneTimeOrder ? [{ id: 'action-order-new', group: 'Действия' as const, label: 'Создать разовый заказ', description: 'Новый разовый заказ', href: '/one-time-orders/new', kind: 'action' as const }] : []),
+      {
+        id: 'action-task-new',
+        group: 'Действия',
+        label: 'Создать задачу',
+        description: 'Новая задача',
+        href: '/tasks/new',
+        kind: 'action',
+        keywords: 'добавить новая задача',
+      },
+      ...(capabilities?.canCreateObject
+        ? [
+            {
+              id: 'action-object-new',
+              group: 'Действия' as const,
+              label: 'Создать объект',
+              description: 'Новый объект',
+              href: '/objects/new',
+              kind: 'action' as const,
+            },
+          ]
+        : []),
+      ...(capabilities?.canCreateOneTimeOrder
+        ? [
+            {
+              id: 'action-order-new',
+              group: 'Действия' as const,
+              label: 'Создать разовый заказ',
+              description: 'Новый разовый заказ',
+              href: '/one-time-orders/new',
+              kind: 'action' as const,
+            },
+          ]
+        : []),
     ];
 
     return { navigation, actions };
@@ -180,54 +328,91 @@ export function GlobalCommandPalette({
     setLoading(true);
     const timeout = window.setTimeout(() => {
       const jobs: Array<Promise<CommandItem[]>> = [
-        listObjectsPage({ q: normalized, page: 1, limit: 5, sortBy: 'updatedAt', sortDirection: 'desc' })
-          .then((result) => result.items.map((item) => ({
-            id: `object-${item.id}`,
-            group: 'Объекты' as const,
-            label: item.name,
-            description: item.address || item.internalName || 'Объект',
-            href: `/objects/${item.id}`,
-            kind: 'entity' as const,
-          })))
+        listObjectsPage({
+          q: normalized,
+          page: 1,
+          limit: 5,
+          sortBy: 'updatedAt',
+          sortDirection: 'desc',
+        })
+          .then((result) =>
+            result.items.map((item) => ({
+              id: `object-${item.id}`,
+              group: 'Объекты' as const,
+              label: item.name,
+              description: item.address || item.internalName || 'Объект',
+              href: `/objects/${item.id}`,
+              kind: 'entity' as const,
+            })),
+          )
           .catch(() => []),
-        listTasks({ q: normalized, page: 1, limit: 5, sortBy: 'updatedAt', sortDirection: 'desc' })
-          .then((result) => result.items.map((item) => ({
-            id: `task-${item.id}`,
-            group: 'Задачи' as const,
-            label: item.title,
-            description: item.targetName || item.objectName || item.oneTimeOrderTitle || 'Задача',
-            href: `/tasks/${item.id}`,
-            kind: 'entity' as const,
-          })))
+        listTasks({
+          q: normalized,
+          page: 1,
+          limit: 5,
+          sortBy: 'updatedAt',
+          sortDirection: 'desc',
+        })
+          .then((result) =>
+            result.items.map((item) => ({
+              id: `task-${item.id}`,
+              group: 'Задачи' as const,
+              label: item.title,
+              description:
+                item.targetName ||
+                item.objectName ||
+                item.oneTimeOrderTitle ||
+                'Задача',
+              href: `/tasks/${item.id}`,
+              kind: 'entity' as const,
+            })),
+          )
           .catch(() => []),
       ];
 
       if (user?.capabilities?.canAccessOneTimeOrders) {
         jobs.push(
-          listOneTimeOrders({ q: normalized, page: 1, limit: 5, sortBy: 'updatedAt', sortDirection: 'desc' })
-            .then((result) => result.items.map((item) => ({
-              id: `order-${item.id}`,
-              group: 'Разовые заказы' as const,
-              label: item.title,
-              description: item.address || 'Разовый заказ',
-              href: `/one-time-orders/${item.id}`,
-              kind: 'entity' as const,
-            })))
+          listOneTimeOrders({
+            q: normalized,
+            page: 1,
+            limit: 5,
+            sortBy: 'updatedAt',
+            sortDirection: 'desc',
+          })
+            .then((result) =>
+              result.items.map((item) => ({
+                id: `order-${item.id}`,
+                group: 'Разовые заказы' as const,
+                label: item.title,
+                description: item.executionAddress || 'Разовый заказ',
+                href: `/one-time-orders/${item.id}`,
+                kind: 'entity' as const,
+              })),
+            )
             .catch(() => []),
         );
       }
 
       if (user?.capabilities?.canAccessEmployeesHr) {
         jobs.push(
-          listEmployees({ search: normalized, page: 1, limit: 5, archiveState: 'active' })
-            .then((result) => result.items.map((item) => ({
-              id: `employee-${item.id}`,
-              group: 'Сотрудники' as const,
-              label: item.fullName,
-              description: [item.position, item.phone].filter(Boolean).join(' · ') || 'Сотрудник',
-              href: `/employees/${item.id}`,
-              kind: 'entity' as const,
-            })))
+          listEmployees({
+            search: normalized,
+            page: 1,
+            limit: 5,
+            archiveState: 'active',
+          })
+            .then((result) =>
+              result.items.map((item) => ({
+                id: `employee-${item.id}`,
+                group: 'Сотрудники' as const,
+                label: item.fullName,
+                description:
+                  [item.position, item.phone].filter(Boolean).join(' · ') ||
+                  'Сотрудник',
+                href: `/employees/${item.id}`,
+                kind: 'entity' as const,
+              })),
+            )
             .catch(() => []),
         );
       }
@@ -283,7 +468,11 @@ export function GlobalCommandPalette({
 
   let flatIndex = -1;
   return (
-    <div className="command-backdrop" role="presentation" onMouseDown={() => onOpenChange(false)}>
+    <div
+      className="command-backdrop"
+      role="presentation"
+      onMouseDown={() => onOpenChange(false)}
+    >
       <section
         className="command-dialog"
         role="dialog"
@@ -302,7 +491,9 @@ export function GlobalCommandPalette({
             onKeyDown={(event) => {
               if (event.key === 'ArrowDown') {
                 event.preventDefault();
-                setActiveIndex((value) => Math.min(value + 1, Math.max(0, items.length - 1)));
+                setActiveIndex((value) =>
+                  Math.min(value + 1, Math.max(0, items.length - 1)),
+                );
               } else if (event.key === 'ArrowUp') {
                 event.preventDefault();
                 setActiveIndex((value) => Math.max(0, value - 1));
@@ -320,7 +511,9 @@ export function GlobalCommandPalette({
           {!loading && normalized && items.length === 0 ? (
             <div className="command-empty">
               <strong>Ничего не найдено</strong>
-              <span>Попробуйте название объекта, ФИО сотрудника или команду.</span>
+              <span>
+                Попробуйте название объекта, ФИО сотрудника или команду.
+              </span>
             </div>
           ) : null}
 
@@ -340,14 +533,25 @@ export function GlobalCommandPalette({
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => run(item)}
                   >
-                    <span className={`command-item__icon command-item__icon--${item.kind}`} aria-hidden="true">
-                      {item.kind === 'action' ? <PlusIcon /> : item.kind === 'navigation' ? <ArrowIcon /> : <SearchIcon />}
+                    <span
+                      className={`command-item__icon command-item__icon--${item.kind}`}
+                      aria-hidden="true"
+                    >
+                      {item.kind === 'action' ? (
+                        <PlusIcon />
+                      ) : item.kind === 'navigation' ? (
+                        <ArrowIcon />
+                      ) : (
+                        <SearchIcon />
+                      )}
                     </span>
                     <span className="command-item__copy">
                       <strong>{item.label}</strong>
                       {item.description ? <small>{item.description}</small> : null}
                     </span>
-                    <span className="command-item__enter" aria-hidden="true">↵</span>
+                    <span className="command-item__enter" aria-hidden="true">
+                      ↵
+                    </span>
                   </button>
                 );
               })}
@@ -356,9 +560,16 @@ export function GlobalCommandPalette({
         </div>
 
         <footer className="command-footer">
-          <span><kbd>↑</kbd><kbd>↓</kbd> выбор</span>
-          <span><kbd>↵</kbd> открыть</span>
-          <span><kbd>Esc</kbd> закрыть</span>
+          <span>
+            <kbd>↑</kbd>
+            <kbd>↓</kbd> выбор
+          </span>
+          <span>
+            <kbd>↵</kbd> открыть
+          </span>
+          <span>
+            <kbd>Esc</kbd> закрыть
+          </span>
         </footer>
       </section>
     </div>
@@ -418,7 +629,9 @@ export function GlobalCreateMenu({
                 router.push(item.href);
               }}
             >
-              <span className="global-create__item-icon"><PlusIcon /></span>
+              <span className="global-create__item-icon">
+                <PlusIcon />
+              </span>
               <span>
                 <strong>{item.label.replace(/^Создать /, '')}</strong>
                 <small>{item.description}</small>
@@ -431,9 +644,18 @@ export function GlobalCreateMenu({
   );
 }
 
-export function GlobalCommandTrigger({ onClick }: { onClick: () => void }): React.JSX.Element {
+export function GlobalCommandTrigger({
+  onClick,
+}: {
+  onClick: () => void;
+}): React.JSX.Element {
   return (
-    <button type="button" className="global-command-trigger" onClick={onClick} aria-label="Глобальный поиск, Cmd или Ctrl + K">
+    <button
+      type="button"
+      className="global-command-trigger"
+      onClick={onClick}
+      aria-label="Глобальный поиск, Cmd или Ctrl + K"
+    >
       <SearchIcon />
       <span>Поиск</span>
       <kbd>⌘K</kbd>
