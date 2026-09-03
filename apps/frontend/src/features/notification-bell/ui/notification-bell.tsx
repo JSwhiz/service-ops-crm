@@ -8,7 +8,19 @@ import type { AppNotification } from '@/entities/notification/model/notification
 
 function BellIcon(): React.JSX.Element {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      className="notification-bell__icon"
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path d="M7.5 10.2a4.5 4.5 0 0 1 9 0c0 4.3 1.75 5.55 1.75 5.55H5.75S7.5 14.5 7.5 10.2Z" />
       <path d="M10.2 18.1a2 2 0 0 0 3.6 0" />
     </svg>
