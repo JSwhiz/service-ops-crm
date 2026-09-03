@@ -118,7 +118,7 @@ async function filterByOperationalIssue(
         needsReport ? getTodayDailyReport(item.id).catch(() => null) : Promise.resolve(null),
       ]);
       signals.set(item.id, {
-        attendanceMissing: needsAttendance && attendance !== null && attendance.employeeIds.length === 0,
+        attendanceMissing: needsAttendance && attendance !== null && attendance.submittedAt === null,
         reportMissing: needsReport && report === null,
       });
     }));
