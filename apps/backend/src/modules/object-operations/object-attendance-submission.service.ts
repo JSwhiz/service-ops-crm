@@ -11,17 +11,34 @@ export interface ObjectAttendanceSubmissionView {
   };
 }
 
-function getMoscowDayRange(now = new Date()): { start: Date; end: Date } {
+function getMoscowDateParts(now = new Date()): {
+  year: number;
+  month: number;
+  day: number;
+} {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Moscow',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).formatToParts(now);
-  const get = (type: string): number => Number(parts.find((part) => part.type === type)?.value ?? 0);
-  const year = get('year');
-  const month = get('month');
-  const day = get('day');
+  const get = (type: string): number =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+  };
+}
+
+function getMoscowDateKey(now = new Date()): string {
+  const { year, month, day } = getMoscowDateParts(now);
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function getMoscowDayRange(now = new Date()): { start: Date; end: Date } {
+  const { year, month, day } = getMoscowDateParts(now);
   // Europe/Moscow is fixed at UTC+03:00. Midnight in Moscow is 21:00 UTC on the previous day.
   const start = new Date(Date.UTC(year, month - 1, day, -3, 0, 0));
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
@@ -71,6 +88,10 @@ export class ObjectAttendanceSubmissionService {
     operationDate: string;
     employeeCount: number;
   }): Promise<void> {
+    if (params.operationDate.slice(0, 10) !== getMoscowDateKey()) {
+      return;
+    }
+
     await this.prisma.objectAuditLog.create({
       data: {
         objectId: params.objectId,
