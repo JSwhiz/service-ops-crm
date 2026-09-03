@@ -7,6 +7,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { NotificationBell } from '@/features/notification-bell/ui/notification-bell';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserDisplayName, getUserRoleLabel } from '@/shared/lib/display-name';
+import {
+  GlobalCommandPalette,
+  GlobalCommandTrigger,
+  GlobalCreateMenu,
+} from '@/shared/ui/global-command/global-command';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 
 const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
@@ -50,10 +55,25 @@ export function AppHeader(): React.JSX.Element {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [accountOpen, setAccountOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const accountRef = useRef<HTMLDivElement>(null);
   const canAccessChats = user?.capabilities?.canAccessChats ?? false;
   const displayName = getUserDisplayName(user);
   const roleLabel = getUserRoleLabel(user?.roleCode);
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent): void => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === 'k') {
+        event.preventDefault();
+        setAccountOpen(false);
+        setCreateOpen(false);
+        setCommandOpen((current) => !current);
+      }
+    };
+    document.addEventListener('keydown', handleShortcut);
+    return () => document.removeEventListener('keydown', handleShortcut);
+  }, []);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -77,73 +97,102 @@ export function AppHeader(): React.JSX.Element {
 
   useEffect(() => {
     setAccountOpen(false);
+    setCreateOpen(false);
+    setCommandOpen(false);
   }, [pathname]);
 
   return (
-    <header className="app-header">
-      <div className="app-header__context">
-        <div className="app-header__title">{getRouteTitle(pathname)}</div>
-        <div className="app-header__workspace-label">Service Ops CRM</div>
-      </div>
+    <>
+      <header className="app-header">
+        <div className="app-header__context">
+          <div className="app-header__title">{getRouteTitle(pathname)}</div>
+          <div className="app-header__workspace-label">Service Ops CRM</div>
+        </div>
 
-      <div className="app-header__actions">
-        {canAccessChats ? (
-          <Link
-            href="/chats"
-            className={`app-header__icon-link${pathname.startsWith('/chats') ? ' app-header__icon-link--active' : ''}`}
-            aria-label="Открыть чаты"
-            title="Чаты"
-          >
-            <ChatIcon />
-          </Link>
-        ) : null}
+        <div className="app-header__command-zone">
+          <GlobalCommandTrigger
+            onClick={() => {
+              setAccountOpen(false);
+              setCreateOpen(false);
+              setCommandOpen(true);
+            }}
+          />
+        </div>
 
-        {user ? <NotificationBell /> : null}
+        <div className="app-header__actions">
+          <GlobalCreateMenu
+            open={createOpen}
+            onOpenChange={(next) => {
+              setAccountOpen(false);
+              setCommandOpen(false);
+              setCreateOpen(next);
+            }}
+          />
 
-        {user ? <span className="app-header__separator" aria-hidden="true" /> : null}
-
-        {user ? (
-          <div className="app-header__account" ref={accountRef}>
-            <button
-              type="button"
-              className="app-header__account-trigger"
-              onClick={() => setAccountOpen((current) => !current)}
-              aria-haspopup="menu"
-              aria-expanded={accountOpen}
+          {canAccessChats ? (
+            <Link
+              href="/chats"
+              className={`app-header__icon-link${pathname.startsWith('/chats') ? ' app-header__icon-link--active' : ''}`}
+              aria-label="Открыть чаты"
+              title="Чаты"
             >
-              <UserAvatar fullName={displayName} size="small" />
-              <span className="app-header__account-copy">
-                <span className="app-header__account-name">{displayName}</span>
-                <span className="app-header__account-role">{roleLabel}</span>
-              </span>
-              <span className="app-header__account-chevron"><ChevronIcon /></span>
-            </button>
+              <ChatIcon />
+            </Link>
+          ) : null}
 
-            {accountOpen ? (
-              <div className="app-header__account-menu" role="menu">
-                <div className="app-header__account-summary">
-                  <strong>{displayName}</strong>
-                  <span>{roleLabel}</span>
+          {user ? <NotificationBell /> : null}
+
+          {user ? <span className="app-header__separator" aria-hidden="true" /> : null}
+
+          {user ? (
+            <div className="app-header__account" ref={accountRef}>
+              <button
+                type="button"
+                className="app-header__account-trigger"
+                onClick={() => {
+                  setCreateOpen(false);
+                  setCommandOpen(false);
+                  setAccountOpen((current) => !current);
+                }}
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+              >
+                <UserAvatar fullName={displayName} size="small" />
+                <span className="app-header__account-copy">
+                  <span className="app-header__account-name">{displayName}</span>
+                  <span className="app-header__account-role">{roleLabel}</span>
+                </span>
+                <span className="app-header__account-chevron"><ChevronIcon /></span>
+              </button>
+
+              {accountOpen ? (
+                <div className="app-header__account-menu" role="menu">
+                  <div className="app-header__account-summary">
+                    <strong>{displayName}</strong>
+                    <span>{roleLabel}</span>
+                  </div>
+                  <Link className="app-header__menu-link" href="/settings" role="menuitem">
+                    Настройки
+                  </Link>
+                  <button
+                    type="button"
+                    className="app-header__logout"
+                    role="menuitem"
+                    onClick={() => {
+                      setAccountOpen(false);
+                      void logout();
+                    }}
+                  >
+                    Выйти
+                  </button>
                 </div>
-                <Link className="app-header__menu-link" href="/settings" role="menuitem">
-                  Настройки
-                </Link>
-                <button
-                  type="button"
-                  className="app-header__logout"
-                  role="menuitem"
-                  onClick={() => {
-                    setAccountOpen(false);
-                    void logout();
-                  }}
-                >
-                  Выйти
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-    </header>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </header>
+
+      <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+    </>
   );
 }
