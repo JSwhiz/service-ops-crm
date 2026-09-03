@@ -32,6 +32,12 @@ export interface ObjectAttendanceToday {
     workedHours: number | null;
   }>;
   employees: ObjectEmployeeOption[];
+  submittedAt: string | null;
+  submittedBy: {
+    id: string;
+    login: string;
+    fullName: string;
+  } | null;
 }
 
 export interface UpsertObjectAttendancePayload {
