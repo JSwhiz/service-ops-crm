@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { AppHeader } from './app-header';
+import styles from './app-shell.client.module.css';
 import { AppSidebar } from './app-sidebar';
 
 const SIDEBAR_STORAGE_KEY = 'service-ops.sidebar.expanded';
@@ -39,7 +40,9 @@ export function AppShellClient({ children }: AppShellClientProps): React.JSX.Ele
       <AppSidebar expanded={sidebarExpanded} onToggle={toggleSidebar} />
 
       <div className="app-main">
-        <AppHeader />
+        <div className={styles.topbarAnchor}>
+          <AppHeader />
+        </div>
         <main className="app-content">{children}</main>
       </div>
     </div>
