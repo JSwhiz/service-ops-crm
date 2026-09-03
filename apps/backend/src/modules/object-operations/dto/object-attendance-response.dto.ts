@@ -16,6 +16,6 @@ export class ObjectAttendanceResponseDto {
   employeeIds!: string[];
   employeeFacts!: ObjectAttendanceEmployeeFactResponseDto[];
   employees!: ObjectEmployeeOptionDto[];
-  submittedAt!: string | null;
-  submittedBy!: ObjectAttendanceSubmittedByResponseDto | null;
+  submittedAt?: string | null;
+  submittedBy?: ObjectAttendanceSubmittedByResponseDto | null;
 }
