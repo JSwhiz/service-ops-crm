@@ -1,10 +1,11 @@
 /* Service Ops CRM — global command palette and create menu */
 
 .app-header__command-zone {
-  flex: 0 1 420px;
+  flex: 0 1 360px;
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   min-width: 180px;
+  margin-left: auto;
 }
 
 .global-command-trigger {
@@ -29,7 +30,7 @@
     color var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
-.global-command-trigger:hover {
+.global-command-trigger:hover:not(:disabled) {
   border-color: var(--ui-border-hover);
   background: var(--ui-surface-hover);
   color: var(--ui-text-secondary);
@@ -37,11 +38,16 @@
   transform: none;
 }
 
+.global-command-trigger:focus,
 .global-command-trigger:focus-visible,
+.global-create__trigger:focus,
 .global-create__trigger:focus-visible,
+.global-create__menu button:focus,
 .global-create__menu button:focus-visible,
+.command-item:focus,
 .command-item:focus-visible {
   outline: 0;
+  border-color: var(--ui-focus-border);
   box-shadow: var(--ui-focus-ring);
 }
 
@@ -83,23 +89,24 @@
 }
 
 .global-create__trigger {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
   min-height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 10px;
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface);
   color: var(--ui-text-secondary);
   box-shadow: none;
   font: inherit;
-  font-size: var(--ui-text-sm);
-  font-weight: 650;
   cursor: pointer;
 }
 
-.global-create__trigger:hover,
+.global-create__trigger:hover:not(:disabled),
 .global-create__trigger[aria-expanded='true'] {
   border-color: var(--ui-border-hover);
   background: var(--ui-surface-hover);
@@ -147,7 +154,7 @@
   cursor: pointer;
 }
 
-.global-create__menu button:hover {
+.global-create__menu button:hover:not(:disabled) {
   background: var(--ui-accent-subtle);
   color: var(--ui-text);
   box-shadow: none;
@@ -295,7 +302,7 @@
   cursor: pointer;
 }
 
-.command-item:hover,
+.command-item:hover:not(:disabled),
 .command-item.is-active {
   border-color: transparent;
   background: var(--ui-accent-subtle);
@@ -428,16 +435,6 @@
     flex: 0 0 auto;
     min-width: 0;
     margin-left: auto;
-  }
-
-  .global-create__trigger > span {
-    display: none;
-  }
-
-  .global-create__trigger {
-    width: 34px;
-    justify-content: center;
-    padding: 0;
   }
 
   .command-backdrop {
