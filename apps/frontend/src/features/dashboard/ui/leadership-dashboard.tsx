@@ -18,6 +18,7 @@ import styles from './leadership-dashboard.module.css';
 import {
   LeadershipPreviewDrawer,
   type LeadershipPreviewTarget,
+  type LeadershipSummaryPreview,
 } from './leadership-preview-drawer';
 
 const PREVIEW_LIMIT = 5;
@@ -105,6 +106,10 @@ function attentionHref(item: LeadershipAttentionItem): string {
   return '/dashboard';
 }
 
+function summaryPreview(params: LeadershipSummaryPreview): LeadershipPreviewTarget {
+  return { kind: 'summary', item: params };
+}
+
 export function LeadershipDashboard(): React.JSX.Element {
   const { user } = useAuth();
   const [data, setData] = useState<LeadershipDashboardResponse | null>(null);
@@ -181,6 +186,24 @@ export function LeadershipDashboard(): React.JSX.Element {
   const taskTotal = source?.tasks.totalRelevant ?? 0;
   const displayName = user ? firstName(getUserDisplayName(user)) : '';
 
+  const openAttentionPreview = (item: LeadershipAttentionItem): void => {
+    if (item.kind === 'task' && item.taskId) {
+      const task = (expandedData?.tasks.items ?? source?.tasks.items ?? []).find((candidate) => candidate.id === item.taskId);
+      if (task) {
+        setPreviewTarget({ kind: 'task', item: task });
+        return;
+      }
+    }
+    setPreviewTarget(summaryPreview({
+      eyebrow: item.kind === 'approval' ? 'Согласование' : item.kind === 'object_issue' ? 'Объекты' : 'Задача',
+      title: item.title,
+      subtitle: item.subtitle,
+      facts: [{ label: 'Состояние', value: item.meta }],
+      href: attentionHref(item),
+      actionLabel: 'Открыть выборку →',
+    }));
+  };
+
   return (
     <>
       <div className={styles.root}>
@@ -196,11 +219,11 @@ export function LeadershipDashboard(): React.JSX.Element {
 
         <section className={styles.today} aria-label="Сегодня">
           <div className={styles.todayLabel}>Сегодня</div>
-          <Link href="/objects?status=active"><strong>{loading ? '—' : source?.today.activeObjects ?? 0}</strong><span>активных объектов</span></Link>
-          <Link href="/employees?archiveState=active&hasActiveObjectAssignment=true"><strong>{loading ? '—' : source?.today.employeesOnObjects ?? 0}</strong><span>сотрудников на объектах</span></Link>
-          <Link className={source?.today.objectsWithoutAttendanceMark ? styles.alertLink : ''} href="/objects?status=active&issue=attendance_missing"><strong>{loading ? '—' : source?.today.objectsWithoutAttendanceMark ?? 0}</strong><span>без отметки</span></Link>
-          <Link href={`/one-time-orders?dateFrom=${moscowNow().date}&dateTo=${moscowNow().date}&sortBy=executionStartDate&sortDirection=asc`}><strong>{loading ? '—' : source?.today.oneTimeOrders ?? 0}</strong><span>разовых сегодня</span></Link>
-          <Link className={source?.today.decisionsRequired ? styles.alertLink : ''} href="/approvals?status=pending"><strong>{loading ? '—' : source?.today.decisionsRequired ?? 0}</strong><span>согласований от вас</span></Link>
+          <button className={styles.metricButton} type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Сегодня', title: 'Активные объекты', facts: [{ label: 'Объектов', value: String(source?.today.activeObjects ?? 0) }], href: '/objects?status=active' }))}><strong>{loading ? '—' : source?.today.activeObjects ?? 0}</strong><span>активных объектов</span></button>
+          <button className={styles.metricButton} type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Сегодня', title: 'Сотрудники на объектах', facts: [{ label: 'Сотрудников', value: String(source?.today.employeesOnObjects ?? 0) }], href: '/employees?archiveState=active&hasActiveObjectAssignment=true' }))}><strong>{loading ? '—' : source?.today.employeesOnObjects ?? 0}</strong><span>сотрудников на объектах</span></button>
+          <button className={`${styles.metricButton} ${source?.today.objectsWithoutAttendanceMark ? styles.alertLink : ''}`} type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Сегодня', title: 'Нет отметки присутствия', facts: [{ label: 'Объектов', value: String(source?.today.objectsWithoutAttendanceMark ?? 0) }, { label: 'Рабочее окно', value: '08:30–17:00' }], href: '/objects?status=active&issue=attendance_missing' }))}><strong>{loading ? '—' : source?.today.objectsWithoutAttendanceMark ?? 0}</strong><span>без отметки</span></button>
+          <button className={styles.metricButton} type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Сегодня', title: 'Разовые заказы на сегодня', facts: [{ label: 'Заказов', value: String(source?.today.oneTimeOrders ?? 0) }], href: `/one-time-orders?dateFrom=${moscowNow().date}&dateTo=${moscowNow().date}&sortBy=executionStartDate&sortDirection=asc` }))}><strong>{loading ? '—' : source?.today.oneTimeOrders ?? 0}</strong><span>разовых сегодня</span></button>
+          <button className={`${styles.metricButton} ${source?.today.decisionsRequired ? styles.alertLink : ''}`} type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Сегодня', title: 'Согласования от вас', facts: [{ label: 'Ожидают решения', value: String(source?.today.decisionsRequired ?? 0) }], href: '/approvals?status=pending' }))}><strong>{loading ? '—' : source?.today.decisionsRequired ?? 0}</strong><span>согласований от вас</span></button>
         </section>
 
         <div className={styles.grid}>
@@ -212,11 +235,11 @@ export function LeadershipDashboard(): React.JSX.Element {
               </header>
               <div className={styles.rows}>
                 {!loading && !attentionItems.length ? <div className={styles.empty}><strong>Нет срочных вопросов</strong></div> : attentionItems.map((item) => (
-                  <Link className={`${styles.row} ${styles.attentionRow}`} href={attentionHref(item)} key={item.id}>
+                  <button className={`${styles.row} ${styles.attentionRow} ${interactionStyles.entityRow}`} type="button" onClick={() => openAttentionPreview(item)} key={item.id}>
                     <span className={`${styles.badge} ${styles[item.tone]}`}>{item.badge}</span>
                     <span className={styles.copy}><strong>{item.title}</strong><small>{item.subtitle}</small></span>
                     <span className={styles.meta}>{item.meta}</span>
-                  </Link>
+                  </button>
                 ))}
               </div>
             </section>
@@ -263,9 +286,9 @@ export function LeadershipDashboard(): React.JSX.Element {
             {source?.money.available ? <section className={styles.panel}>
               <header className={styles.head}><div className={styles.headTitle}><h2>Деньги</h2>{source.money.submittedExpenses + source.money.closingRequestedAccounts ? <span className={styles.count}>{source.money.submittedExpenses + source.money.closingRequestedAccounts}</span> : null}</div><Link href="/accountability">Подотчёт →</Link></header>
               <div className={styles.triplet}>
-                <Link href="/accountability/queue?view=submitted"><span>Расходы на проверке</span><strong>{source.money.submittedExpenses}</strong><small>ожидают решения</small></Link>
-                <Link href="/accountability/queue?view=closing"><span>Закрытие подотчёта</span><strong>{source.money.closingRequestedAccounts}</strong><small>ждут решения</small></Link>
-                <Link href="/accountability/queue?view=one_time_receipts"><span>Приход по разовым</span><strong>{formatMoney(source.money.oneTimeOrderReceipts.amount)}</strong><small>{source.money.oneTimeOrderReceipts.count} поступлений</small></Link>
+                <button type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Деньги', title: 'Расходы на проверке', facts: [{ label: 'Записей', value: String(source.money.submittedExpenses) }], href: '/accountability/queue?view=submitted', secondaryHref: '/accountability', secondaryLabel: 'Весь подотчёт' }))}><span>Расходы на проверке</span><strong>{source.money.submittedExpenses}</strong><small>ожидают решения</small></button>
+                <button type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Деньги', title: 'Закрытие подотчёта', facts: [{ label: 'Запросов', value: String(source.money.closingRequestedAccounts) }], href: '/accountability/queue?view=closing', secondaryHref: '/accountability', secondaryLabel: 'Весь подотчёт' }))}><span>Закрытие подотчёта</span><strong>{source.money.closingRequestedAccounts}</strong><small>ждут решения</small></button>
+                <button type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Деньги', title: 'Приход по разовым', facts: [{ label: 'Сумма', value: formatMoney(source.money.oneTimeOrderReceipts.amount) }, { label: 'Поступлений', value: String(source.money.oneTimeOrderReceipts.count) }], href: '/accountability/queue?view=one_time_receipts', secondaryHref: '/accountability', secondaryLabel: 'Весь подотчёт' }))}><span>Приход по разовым</span><strong>{formatMoney(source.money.oneTimeOrderReceipts.amount)}</strong><small>{source.money.oneTimeOrderReceipts.count} поступлений</small></button>
               </div>
             </section> : null}
 
@@ -275,8 +298,8 @@ export function LeadershipDashboard(): React.JSX.Element {
                 {!loading && !(source?.orders.items.length ?? 0) ? <div className={styles.empty}>Нет активных заказов.</div> : (source?.orders.items ?? []).map((item) => (
                   <button className={`${styles.row} ${styles.orderRow} ${interactionStyles.entityRow}`} type="button" onClick={() => setPreviewTarget({ kind: 'order', item })} key={item.id}>
                     <span className={styles.copy}><strong>{item.title}</strong><small>{item.linkedObject?.name ?? item.executionAddress}</small></span>
-                    <span className={styles.meta}>{orderStatus(item.status)}</span>
-                    <span className={`${styles.meta} ${item.executionStartDate?.slice(0, 10) && item.executionStartDate.slice(0, 10) < moscowNow().date ? styles.problem : ''}`}>{orderDate(item.executionStartDate)}</span>
+                    <span className={`${styles.meta} ${styles.orderStatus}`}>{orderStatus(item.status)}</span>
+                    <span className={`${styles.meta} ${styles.orderDate} ${item.executionStartDate?.slice(0, 10) && item.executionStartDate.slice(0, 10) < moscowNow().date ? styles.problem : ''}`}>{orderDate(item.executionStartDate)}</span>
                   </button>
                 ))}
               </div>
@@ -285,10 +308,10 @@ export function LeadershipDashboard(): React.JSX.Element {
             {source?.people.available ? <section className={styles.panel}>
               <header className={styles.head}><div className={styles.headTitle}><h2>Люди</h2></div><Link href="/user-absences">График отсутствий →</Link></header>
               <div className={styles.peopleGrid}>
-                <Link href="/employees?archiveState=active"><strong>{source.people.activeEmployees}</strong><span>активных сотрудников</span></Link>
-                <Link href="/employees?archiveState=active&hasActiveObjectAssignment=false"><strong>{source.people.employeesWithoutActiveObject}</strong><span>сотрудников без объекта</span></Link>
-                {source.people.overdueCandidateSla !== null ? <Link href="/candidates?archiveState=active&slaState=overdue"><strong>{source.people.overdueCandidateSla}</strong><span>кандидатов с просроченным SLA</span></Link> : <div><strong>—</strong><span>кандидаты недоступны</span></div>}
-                {source.people.userAbsencesAvailable ? <Link href={`/user-absences?from=${moscowNow().date}&to=${moscowNow().date}`}><strong>{source.people.userAbsencesToday ?? 0}</strong><span>пользователей CRM отсутствуют сегодня</span></Link> : <div><strong>—</strong><span>график отсутствий недоступен</span></div>}
+                <button type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Люди', title: 'Активные сотрудники', facts: [{ label: 'Сотрудников', value: String(source.people.activeEmployees) }], href: '/employees?archiveState=active' }))}><strong>{source.people.activeEmployees}</strong><span>активных сотрудников</span></button>
+                <button type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Люди', title: 'Сотрудники без объекта', facts: [{ label: 'Сотрудников', value: String(source.people.employeesWithoutActiveObject) }], href: '/employees?archiveState=active&hasActiveObjectAssignment=false' }))}><strong>{source.people.employeesWithoutActiveObject}</strong><span>сотрудников без объекта</span></button>
+                {source.people.overdueCandidateSla !== null ? <button type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Люди', title: 'Просроченный SLA кандидатов', facts: [{ label: 'Кандидатов', value: String(source.people.overdueCandidateSla ?? 0) }], href: '/candidates?archiveState=active&slaState=overdue' }))}><strong>{source.people.overdueCandidateSla}</strong><span>кандидатов с просроченным SLA</span></button> : <div><strong>—</strong><span>кандидаты недоступны</span></div>}
+                {source.people.userAbsencesAvailable ? <button type="button" onClick={() => setPreviewTarget(summaryPreview({ eyebrow: 'Люди', title: 'Отсутствуют сегодня', facts: [{ label: 'Пользователей CRM', value: String(source.people.userAbsencesToday ?? 0) }], href: `/user-absences?from=${moscowNow().date}&to=${moscowNow().date}`, secondaryHref: '/user-absences', secondaryLabel: 'График отсутствий' }))}><strong>{source.people.userAbsencesToday ?? 0}</strong><span>пользователей CRM отсутствуют сегодня</span></button> : <div><strong>—</strong><span>график отсутствий недоступен</span></div>}
               </div>
             </section> : null}
           </div>
