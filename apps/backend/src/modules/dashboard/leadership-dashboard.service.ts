@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 
 import { AccountabilityService } from '../accountability/accountability.service';
+import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { CandidatesService } from '../candidates/candidates.service';
 import { EmployeesService } from '../employees/employees.service';
@@ -21,14 +22,30 @@ interface CurrentAuthUser {
   isActive: boolean;
 }
 
-const LEADERSHIP_DASHBOARD_ROLE_CODES = new Set([
-  'founder',
-  'deputy_founder',
-  'director',
-  'corporate_director',
-  'deputy_director',
-]);
-const PREVIEW_LIMIT = 5;
+type ObjectIssueCode =
+  | 'no_responsible'
+  | 'no_employees'
+  | 'attendance_missing'
+  | 'daily_report_missing';
+
+type AttentionTone = 'danger' | 'warning' | 'neutral';
+
+export interface LeadershipAttentionItem {
+  id: string;
+  kind: 'object_issue' | 'task' | 'approval';
+  badge: string;
+  tone: AttentionTone;
+  title: string;
+  subtitle: string;
+  meta: string;
+  objectIssueCode?: ObjectIssueCode;
+  taskId?: string;
+  approval?: {
+    id: string;
+    sourceEntityType: string;
+    sourceEntityId: string;
+  };
+}
 
 export interface LeadershipDashboardObjectPreview {
   id: string;
@@ -36,7 +53,7 @@ export interface LeadershipDashboardObjectPreview {
   address: string;
   responsible: { id: string; login: string; fullName: string } | null;
   employeeCount: number;
-  issues: Array<'no_responsible' | 'no_employees' | 'attendance_missing' | 'daily_report_missing'>;
+  issues: ObjectIssueCode[];
 }
 
 export interface LeadershipDashboardResponse {
@@ -44,6 +61,7 @@ export interface LeadershipDashboardResponse {
   timeZone: 'Europe/Moscow';
   attention: {
     total: number;
+    items: LeadershipAttentionItem[];
     objectIssues: {
       noResponsible: number;
       noEmployees: number;
@@ -97,16 +115,21 @@ export interface LeadershipDashboardResponse {
   };
 }
 
-function roleCodes(user: CurrentAuthUser): string[] {
+const LEADERSHIP_DASHBOARD_ROLE_CODES = new Set([
+  'founder',
+  'deputy_founder',
+  'director',
+  'corporate_director',
+  'deputy_director',
+]);
+const PREVIEW_LIMIT = 5;
+const EXPANDED_LIMIT = 14;
+
+function getRoleCodes(user: CurrentAuthUser): string[] {
   return user.roleCodes?.length ? user.roleCodes : [user.roleCode];
 }
 
-function getMoscowClock(now = new Date()): {
-  date: string;
-  minutes: number;
-  dayStartUtc: Date;
-  nextDayStartUtc: Date;
-} {
+function getMoscowClock(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Europe/Moscow',
     year: 'numeric',
@@ -124,12 +147,11 @@ function getMoscowClock(now = new Date()): {
   const hour = Number(value('hour'));
   const minute = Number(value('minute'));
   const dayStartUtc = new Date(Date.UTC(year, month - 1, day, -3, 0, 0));
-
   return {
     date: `${value('year')}-${value('month')}-${value('day')}`,
     minutes: hour * 60 + minute,
     dayStartUtc,
-    nextDayStartUtc: new Date(dayStartUtc.getTime() + 24 * 60 * 60 * 1000),
+    nextDayStartUtc: new Date(dayStartUtc.getTime() + 86_400_000),
   };
 }
 
@@ -151,23 +173,54 @@ function rankTasks(items: TaskResponseDto[], userId: string, today: string): Tas
     .sort((a, b) => {
       const rank = (task: TaskResponseDto): number => {
         const mine = taskIsMine(task, userId);
-        const dueToday = dateKey(task.dueAt) === today;
-        const createdToday = dateKey(task.createdAt) === today;
         if (mine && task.isOverdue) return 0;
-        if (mine && dueToday) return 1;
-        if (mine && createdToday) return 2;
+        if (mine && dateKey(task.dueAt) === today) return 1;
+        if (mine && dateKey(task.createdAt) === today) return 2;
         if (mine && task.dueAt) return 3;
         if (mine) return 4;
         if (task.isOverdue) return 5;
         return 6;
       };
-      const rankDelta = rank(a) - rank(b);
-      if (rankDelta !== 0) return rankDelta;
+      const byRank = rank(a) - rank(b);
+      if (byRank !== 0) return byRank;
       const aDue = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
       const bDue = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
-      if (aDue !== bDue) return aDue - bDue;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return aDue !== bDue
+        ? aDue - bDue
+        : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
+}
+
+function formatShortDate(value: string | null): string {
+  if (!value) return 'Без срока';
+  return new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: 'short',
+  }).format(new Date(value));
+}
+
+function taskMeta(task: TaskResponseDto, today: string): string {
+  if (task.isOverdue) return task.dueAt ? `до ${formatShortDate(task.dueAt)}` : 'Просрочено';
+  if (dateKey(task.dueAt) === today) return 'Сегодня';
+  return formatShortDate(task.dueAt);
+}
+
+function approvalAttentionItem(item: ApprovalRequestResponseDto): LeadershipAttentionItem {
+  return {
+    id: `approval-${item.id}`,
+    kind: 'approval',
+    badge: 'Согласование',
+    tone: 'warning',
+    title: item.summary.title,
+    subtitle: item.summary.subtitle ?? 'Ожидает решения',
+    meta: formatShortDate(item.createdAt),
+    approval: {
+      id: item.id,
+      sourceEntityType: item.sourceEntityType,
+      sourceEntityId: item.sourceEntityId,
+    },
+  };
 }
 
 @Injectable()
@@ -183,8 +236,11 @@ export class LeadershipDashboardService {
     private readonly candidatesService: CandidatesService,
   ) {}
 
-  async getDashboard(user: CurrentAuthUser): Promise<LeadershipDashboardResponse> {
-    if (!roleCodes(user).some((code) => LEADERSHIP_DASHBOARD_ROLE_CODES.has(code))) {
+  async getDashboard(
+    user: CurrentAuthUser,
+    expanded = false,
+  ): Promise<LeadershipDashboardResponse> {
+    if (!getRoleCodes(user).some((code) => LEADERSHIP_DASHBOARD_ROLE_CODES.has(code))) {
       throw new ForbiddenException('Leadership dashboard is not available for this role');
     }
 
@@ -206,7 +262,7 @@ export class LeadershipDashboardService {
       this.approvalsService.listRequests(user, { status: 'pending' }),
     ]);
 
-    const activeObjects = Array.isArray(objectsResult)
+    const activeObjects: ObjectResponseDto[] = Array.isArray(objectsResult)
       ? objectsResult
       : objectsResult.items;
     const taskItems = Array.isArray(tasksResult)
@@ -214,15 +270,15 @@ export class LeadershipDashboardService {
       : (tasksResult as TaskListResponseDto).items;
     const rankedTasks = rankTasks(taskItems, user.id, clock.date);
     const accessibleOrders = ordersResult.items;
-
-    const objectSignals = await this.loadObjectSignals(activeObjects, clock);
-    const problemObjects = activeObjects
-      .map((object) => this.mapObjectPreview(object, objectSignals.get(object.id)))
-      .filter((object) => object.issues.length > 0);
-    const normalObjects = activeObjects
-      .map((object) => this.mapObjectPreview(object, objectSignals.get(object.id)))
-      .filter((object) => object.issues.length === 0);
-    const objectPreview = [...problemObjects, ...normalObjects].slice(0, 4);
+    const signalMap = await this.loadObjectSignals(activeObjects, clock);
+    const mappedObjects = activeObjects.map((object) =>
+      this.mapObjectPreview(object, signalMap.get(object.id)),
+    );
+    const problemObjects = mappedObjects.filter((object) => object.issues.length > 0);
+    const objectPreview = [
+      ...problemObjects,
+      ...mappedObjects.filter((object) => object.issues.length === 0),
+    ].slice(0, 4);
 
     const uniqueEmployees = new Set(
       activeObjects.flatMap((object) => object.employees.map((employee) => employee.id)),
@@ -239,9 +295,10 @@ export class LeadershipDashboardService {
         const bDate = dateKey(b.executionStartDate);
         const group = (date: string | null): number =>
           date === null ? 3 : date < clock.date ? 0 : date === clock.date ? 1 : 2;
-        const delta = group(aDate) - group(bDate);
-        if (delta !== 0) return delta;
-        return (aDate ?? '9999-12-31').localeCompare(bDate ?? '9999-12-31');
+        const byGroup = group(aDate) - group(bDate);
+        return byGroup !== 0
+          ? byGroup
+          : (aDate ?? '9999-12-31').localeCompare(bDate ?? '9999-12-31');
       })
       .slice(0, 3);
 
@@ -250,22 +307,37 @@ export class LeadershipDashboardService {
       this.loadPeople(user),
     ]);
 
-    const noResponsible = problemObjects.filter((item) => item.issues.includes('no_responsible')).length;
-    const noEmployees = problemObjects.filter((item) => item.issues.includes('no_employees')).length;
-    const attendanceMissing = problemObjects.filter((item) => item.issues.includes('attendance_missing')).length;
-    const dailyReportMissing = problemObjects.filter((item) => item.issues.includes('daily_report_missing')).length;
-    const overdueTasks = taskItems.filter((task) => task.isOverdue && task.status !== 'completed').length;
-    const awaitingConfirmationTasks = taskItems.filter(
+    const countIssue = (code: ObjectIssueCode): number =>
+      problemObjects.filter((object) => object.issues.includes(code)).length;
+    const noResponsible = countIssue('no_responsible');
+    const noEmployees = countIssue('no_employees');
+    const attendanceMissing = countIssue('attendance_missing');
+    const dailyReportMissing = countIssue('daily_report_missing');
+    const overdueTasks = taskItems.filter(
+      (task) => task.isOverdue && task.status !== 'completed',
+    );
+    const confirmationTasks = taskItems.filter(
       (task) => task.status === 'awaiting_confirmation' && !task.isOverdue,
-    ).length;
-    const objectIssueKinds = Number(noResponsible > 0) + Number(noEmployees > 0) + Number(attendanceMissing > 0) + Number(dailyReportMissing > 0);
-    const attentionTotal = objectIssueKinds + overdueTasks + approvals.length + awaitingConfirmationTasks;
+    );
+
+    const attentionItems = this.buildAttentionItems({
+      noResponsible,
+      noEmployees,
+      attendanceMissing,
+      dailyReportMissing,
+      overdueTasks,
+      confirmationTasks,
+      approvals,
+      today: clock.date,
+    });
+    const itemLimit = expanded ? EXPANDED_LIMIT : PREVIEW_LIMIT;
 
     return {
       generatedAt: new Date().toISOString(),
       timeZone: 'Europe/Moscow',
       attention: {
-        total: attentionTotal,
+        total: attentionItems.length,
+        items: attentionItems.slice(0, itemLimit),
         objectIssues: {
           noResponsible,
           noEmployees,
@@ -273,8 +345,8 @@ export class LeadershipDashboardService {
           dailyReportMissing,
         },
         pendingApprovals: approvals.length,
-        overdueTasks,
-        awaitingConfirmationTasks,
+        overdueTasks: overdueTasks.length,
+        awaitingConfirmationTasks: confirmationTasks.length,
       },
       today: {
         activeObjects: activeObjects.length,
@@ -285,7 +357,7 @@ export class LeadershipDashboardService {
       },
       tasks: {
         totalRelevant: rankedTasks.length,
-        items: rankedTasks.slice(0, PREVIEW_LIMIT),
+        items: rankedTasks.slice(0, itemLimit),
       },
       money,
       objects: {
@@ -308,13 +380,111 @@ export class LeadershipDashboardService {
     };
   }
 
+  private buildAttentionItems(params: {
+    noResponsible: number;
+    noEmployees: number;
+    attendanceMissing: number;
+    dailyReportMissing: number;
+    overdueTasks: TaskResponseDto[];
+    confirmationTasks: TaskResponseDto[];
+    approvals: ApprovalRequestResponseDto[];
+    today: string;
+  }): LeadershipAttentionItem[] {
+    const rows: LeadershipAttentionItem[] = [];
+    const addObjectIssue = (
+      count: number,
+      code: ObjectIssueCode,
+      badge: string,
+      title: string,
+      subtitle: string,
+      meta: string,
+    ): void => {
+      if (!count) return;
+      rows.push({
+        id: `object-${code}`,
+        kind: 'object_issue',
+        objectIssueCode: code,
+        badge,
+        tone: 'warning',
+        title,
+        subtitle,
+        meta,
+      });
+    };
+
+    addObjectIssue(
+      params.attendanceMissing,
+      'attendance_missing',
+      'Объекты',
+      'Нет отметки присутствия',
+      `${params.attendanceMissing} объектов без отправленной отметки`,
+      'Сегодня',
+    );
+    addObjectIssue(
+      params.dailyReportMissing,
+      'daily_report_missing',
+      'Отчёт',
+      'Нет дневного отчёта',
+      `${params.dailyReportMissing} объектов без отчёта после 17:00`,
+      'Сегодня',
+    );
+    addObjectIssue(
+      params.noResponsible,
+      'no_responsible',
+      'Объекты',
+      'Нет ответственного',
+      `${params.noResponsible} активных объектов без ответственного`,
+      'Сейчас',
+    );
+    addObjectIssue(
+      params.noEmployees,
+      'no_employees',
+      'Объекты',
+      'Нет сотрудников',
+      `${params.noEmployees} активных объектов без сотрудников`,
+      'Сейчас',
+    );
+
+    rows.push(
+      ...params.overdueTasks.map((task) => ({
+        id: `task-overdue-${task.id}`,
+        kind: 'task' as const,
+        taskId: task.id,
+        badge: 'Просрочено',
+        tone: 'danger' as const,
+        title: task.title,
+        subtitle: task.targetName || 'Без привязки',
+        meta: taskMeta(task, params.today),
+      })),
+      ...params.approvals.map(approvalAttentionItem),
+      ...params.confirmationTasks.map((task) => ({
+        id: `task-confirm-${task.id}`,
+        kind: 'task' as const,
+        taskId: task.id,
+        badge: 'Подтверждение',
+        tone: 'neutral' as const,
+        title: task.title,
+        subtitle: task.targetName || 'Без привязки',
+        meta: taskMeta(task, params.today),
+      })),
+    );
+
+    const seen = new Set<string>();
+    return rows.filter((item) => {
+      const key = item.taskId ? `task:${item.taskId}` : item.id;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
   private async loadObjectSignals(
     objects: ObjectResponseDto[],
     clock: ReturnType<typeof getMoscowClock>,
   ): Promise<Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>> {
     const result = new Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>();
     const ids = objects.map((object) => object.id);
-    if (ids.length === 0) return result;
+    if (!ids.length) return result;
 
     const attendanceRequired = clock.minutes >= 8 * 60 + 30;
     const reportRequired = clock.minutes >= 17 * 60;
@@ -342,7 +512,6 @@ export class LeadershipDashboardService {
     ]);
     const submittedIds = new Set(submissions.map((item) => item.objectId));
     const reportIds = new Set(reports.map((item) => item.objectId));
-
     for (const object of objects) {
       result.set(object.id, {
         attendanceMissing: attendanceRequired && !submittedIds.has(object.id),
@@ -356,9 +525,9 @@ export class LeadershipDashboardService {
     object: ObjectResponseDto,
     signal: { attendanceMissing: boolean; dailyReportMissing: boolean } | undefined,
   ): LeadershipDashboardObjectPreview {
-    const issues: LeadershipDashboardObjectPreview['issues'] = [];
+    const issues: ObjectIssueCode[] = [];
     if (!object.responsible) issues.push('no_responsible');
-    if (object.employees.length === 0) issues.push('no_employees');
+    if (!object.employees.length) issues.push('no_employees');
     if (signal?.attendanceMissing) issues.push('attendance_missing');
     if (signal?.dailyReportMissing) issues.push('daily_report_missing');
     return {
@@ -371,27 +540,23 @@ export class LeadershipDashboardService {
     };
   }
 
-  private async loadMoney(user: CurrentAuthUser): Promise<LeadershipDashboardResponse['money']> {
+  private async loadMoney(
+    user: CurrentAuthUser,
+  ): Promise<LeadershipDashboardResponse['money']> {
     try {
       const accounts = await this.accountabilityService.listAccounts(user);
       const accountIds = accounts.map((account) => account.accountId);
-      if (accountIds.length === 0) {
-        return {
-          available: true,
-          submittedExpenses: 0,
-          closingRequestedAccounts: 0,
-          oneTimeOrderReceipts: { count: 0, amount: 0 },
-        };
-      }
-      const receipts = await this.prisma.accountabilityFunding.aggregate({
-        where: {
-          accountabilityAccountId: { in: accountIds },
-          fundingType: 'one_time_order_receipt',
-          entryDirection: 'credit',
-        },
-        _count: { _all: true },
-        _sum: { amount: true },
-      });
+      const receiptAggregate = accountIds.length
+        ? await this.prisma.accountabilityFunding.aggregate({
+            where: {
+              accountabilityAccountId: { in: accountIds },
+              fundingType: 'one_time_order_receipt',
+              entryDirection: 'credit',
+            },
+            _count: { _all: true },
+            _sum: { amount: true },
+          })
+        : null;
       return {
         available: true,
         submittedExpenses: accounts.reduce(
@@ -402,8 +567,8 @@ export class LeadershipDashboardService {
           (account) => account.status === 'closing_requested',
         ).length,
         oneTimeOrderReceipts: {
-          count: receipts._count._all,
-          amount: Number(receipts._sum.amount ?? 0),
+          count: receiptAggregate?._count._all ?? 0,
+          amount: Number(receiptAggregate?._sum.amount ?? 0),
         },
       };
     } catch (error) {
@@ -419,19 +584,22 @@ export class LeadershipDashboardService {
     }
   }
 
-  private async loadPeople(user: CurrentAuthUser): Promise<LeadershipDashboardResponse['people']> {
+  private async loadPeople(
+    user: CurrentAuthUser,
+  ): Promise<LeadershipDashboardResponse['people']> {
     try {
+      const employeeBase = {
+        archiveState: 'active' as const,
+        sortBy: 'fullName' as const,
+        sortOrder: 'asc' as const,
+        page: 1,
+        limit: 1,
+      };
       const [active, unassigned, candidates] = await Promise.all([
+        this.employeesService.listEmployees(user, employeeBase),
         this.employeesService.listEmployees(user, {
-          archiveState: 'active',
-          page: 1,
-          limit: 1,
-        }),
-        this.employeesService.listEmployees(user, {
-          archiveState: 'active',
+          ...employeeBase,
           hasActiveObjectAssignment: false,
-          page: 1,
-          limit: 1,
         }),
         this.candidatesService
           .list(user, {
@@ -439,6 +607,8 @@ export class LeadershipDashboardService {
             slaState: 'overdue',
             page: 1,
             limit: 1,
+            sort: 'updatedAt',
+            sortDirection: 'desc',
           })
           .catch(() => null),
       ]);
