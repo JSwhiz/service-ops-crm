@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
+import { listChatRooms } from '@/entities/chat/api/chat-client';
 import { NotificationBell } from '@/features/notification-bell/ui/notification-bell';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserDisplayName, getUserRoleLabel } from '@/shared/lib/display-name';
@@ -58,6 +59,7 @@ export function AppHeader(): React.JSX.Element {
   const [accountOpen, setAccountOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const accountRef = useRef<HTMLDivElement>(null);
   const canAccessChats = user?.capabilities?.canAccessChats ?? false;
   const displayName = getUserDisplayName(user);
@@ -75,6 +77,30 @@ export function AppHeader(): React.JSX.Element {
     document.addEventListener('keydown', handleShortcut);
     return () => document.removeEventListener('keydown', handleShortcut);
   }, []);
+
+  useEffect(() => {
+    if (!canAccessChats) {
+      setChatUnreadCount(0);
+      return;
+    }
+
+    let active = true;
+    const refreshUnreadCount = (): void => {
+      void listChatRooms({ view: 'active' })
+        .then((rooms) => {
+          if (!active) return;
+          setChatUnreadCount(rooms.reduce((total, room) => total + Math.max(0, room.unreadCount), 0));
+        })
+        .catch(() => undefined);
+    };
+
+    refreshUnreadCount();
+    const timer = window.setInterval(refreshUnreadCount, 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [canAccessChats, pathname]);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -133,11 +159,14 @@ export function AppHeader(): React.JSX.Element {
           {canAccessChats ? (
             <Link
               href="/chats"
-              className={`app-header__icon-link${pathname.startsWith('/chats') ? ' app-header__icon-link--active' : ''}`}
-              aria-label="Открыть чаты"
+              className={`app-header__icon-link app-header__icon-link--with-badge${pathname.startsWith('/chats') ? ' app-header__icon-link--active' : ''}`}
+              aria-label={chatUnreadCount > 0 ? `Открыть чаты, непрочитанных: ${chatUnreadCount}` : 'Открыть чаты'}
               title="Чаты"
             >
               <ChatIcon />
+              {chatUnreadCount > 0 ? (
+                <span className="app-header__icon-badge">{chatUnreadCount > 99 ? '99+' : chatUnreadCount}</span>
+              ) : null}
             </Link>
           ) : null}
 
