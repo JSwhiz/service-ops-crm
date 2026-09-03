@@ -10,7 +10,6 @@ import type {
   LeadershipObjectIssue,
 } from '@/entities/dashboard/model/dashboard.types';
 import type { TaskItem } from '@/entities/task/model/task.types';
-import { listUserAbsences } from '@/entities/user-absence/api/user-absence-client';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 
@@ -110,7 +109,6 @@ export function LeadershipDashboard(): React.JSX.Element {
   const { user } = useAuth();
   const [data, setData] = useState<LeadershipDashboardResponse | null>(null);
   const [expandedData, setExpandedData] = useState<LeadershipDashboardResponse | null>(null);
-  const [userAbsencesToday, setUserAbsencesToday] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadWarning, setLoadWarning] = useState(false);
   const [attentionExpanded, setAttentionExpanded] = useState(false);
@@ -123,7 +121,6 @@ export function LeadershipDashboard(): React.JSX.Element {
     setLoading(true);
     setLoadWarning(false);
     setExpandedData(null);
-    setUserAbsencesToday(null);
     setAttentionExpanded(false);
     setTasksExpanded(false);
     setPreviewTarget(null);
@@ -140,15 +137,6 @@ export function LeadershipDashboard(): React.JSX.Element {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
-      });
-
-    const today = moscowNow().date;
-    void listUserAbsences({ from: today, to: today })
-      .then((response) => {
-        if (!cancelled) setUserAbsencesToday(response.items.length);
-      })
-      .catch(() => {
-        if (!cancelled) setUserAbsencesToday(null);
       });
 
     return () => { cancelled = true; };
@@ -300,7 +288,7 @@ export function LeadershipDashboard(): React.JSX.Element {
                 <Link href="/employees?archiveState=active"><strong>{source.people.activeEmployees}</strong><span>активных сотрудников</span></Link>
                 <Link href="/employees?archiveState=active&hasActiveObjectAssignment=false"><strong>{source.people.employeesWithoutActiveObject}</strong><span>сотрудников без объекта</span></Link>
                 {source.people.overdueCandidateSla !== null ? <Link href="/candidates?archiveState=active&slaState=overdue"><strong>{source.people.overdueCandidateSla}</strong><span>кандидатов с просроченным SLA</span></Link> : <div><strong>—</strong><span>кандидаты недоступны</span></div>}
-                <Link href={`/user-absences?from=${moscowNow().date}&to=${moscowNow().date}`}><strong>{userAbsencesToday ?? '—'}</strong><span>пользователей CRM отсутствуют сегодня</span></Link>
+                {source.people.userAbsencesAvailable ? <Link href={`/user-absences?from=${moscowNow().date}&to=${moscowNow().date}`}><strong>{source.people.userAbsencesToday ?? 0}</strong><span>пользователей CRM отсутствуют сегодня</span></Link> : <div><strong>—</strong><span>график отсутствий недоступен</span></div>}
               </div>
             </section> : null}
           </div>
