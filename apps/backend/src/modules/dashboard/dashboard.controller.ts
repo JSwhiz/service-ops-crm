@@ -8,6 +8,10 @@ import {
   LeadershipDashboardResponse,
   LeadershipDashboardService,
 } from './leadership-dashboard.service';
+import {
+  OperationManagerDashboardResponse,
+  OperationManagerDashboardService,
+} from './operation-manager-dashboard.service';
 
 interface CurrentAuthUser {
   id: string;
@@ -36,6 +40,7 @@ function moscowDate(): string {
 export class DashboardController {
   constructor(
     private readonly leadershipDashboardService: LeadershipDashboardService,
+    private readonly operationManagerDashboardService: OperationManagerDashboardService,
     private readonly userAbsencesService: UserAbsencesService,
   ) {}
 
@@ -59,5 +64,12 @@ export class DashboardController {
         userAbsencesToday,
       },
     };
+  }
+
+  @Get('operation-manager')
+  getOperationManager(
+    @CurrentUser() user: CurrentAuthUser,
+  ): Promise<OperationManagerDashboardResponse> {
+    return this.operationManagerDashboardService.getDashboard(user);
   }
 }
