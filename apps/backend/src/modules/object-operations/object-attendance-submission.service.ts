@@ -11,16 +11,21 @@ export interface ObjectAttendanceSubmissionView {
   };
 }
 
-function startOfToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-function startOfTomorrow(): Date {
-  const start = startOfToday();
-  const next = new Date(start);
-  next.setDate(next.getDate() + 1);
-  return next;
+function getMoscowDayRange(now = new Date()): { start: Date; end: Date } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const get = (type: string): number => Number(parts.find((part) => part.type === type)?.value ?? 0);
+  const year = get('year');
+  const month = get('month');
+  const day = get('day');
+  // Europe/Moscow is fixed at UTC+03:00. Midnight in Moscow is 21:00 UTC on the previous day.
+  const start = new Date(Date.UTC(year, month - 1, day, -3, 0, 0));
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
 }
 
 @Injectable()
@@ -30,13 +35,14 @@ export class ObjectAttendanceSubmissionService {
   async getTodaySubmission(
     objectId: string,
   ): Promise<ObjectAttendanceSubmissionView | null> {
+    const dayRange = getMoscowDayRange();
     const item = await this.prisma.objectAuditLog.findFirst({
       where: {
         objectId,
         actionCode: 'attendance.submitted',
         createdAt: {
-          gte: startOfToday(),
-          lt: startOfTomorrow(),
+          gte: dayRange.start,
+          lt: dayRange.end,
         },
       },
       include: {
