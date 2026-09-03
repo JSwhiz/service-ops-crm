@@ -176,7 +176,13 @@ export default function AccountabilityQueuePage(): React.JSX.Element {
               </div>
               <div className={styles.rowMeta}>
                 <span>Ожидает решения</span>
-                <Link href="/accountability">Открыть подотчёт →</Link>
+                {closure ? (
+                  <Link href={`/approvals?status=pending&sourceEntityType=accountability_closure&sourceEntityId=${closure.id}`}>
+                    Открыть согласование →
+                  </Link>
+                ) : (
+                  <Link href="/accountability">Открыть подотчёт →</Link>
+                )}
               </div>
             </article>
           ))}
