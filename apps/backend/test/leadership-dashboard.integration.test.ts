@@ -18,7 +18,11 @@ interface LeadershipDashboardPayload {
   money: { available: boolean };
   objects: { active: number; problematic: number; items: unknown[] };
   orders: { totalAccessible: number; items: unknown[] };
-  people: { available: boolean; userAbsencesAvailable: boolean };
+  people: {
+    available: boolean;
+    userAbsencesAvailable: boolean;
+    userAbsencesToday: number | null;
+  };
 }
 
 test('leadership dashboard is access-safe and returns bounded operational previews', async (t) => {
@@ -56,7 +60,8 @@ test('leadership dashboard is access-safe and returns bounded operational previe
   assert.ok(payload.objects.problematic <= payload.objects.active);
   assert.equal(typeof payload.money.available, 'boolean');
   assert.equal(typeof payload.people.available, 'boolean');
-  assert.equal(payload.people.userAbsencesAvailable, false);
+  assert.equal(payload.people.userAbsencesAvailable, true);
+  assert.equal(typeof payload.people.userAbsencesToday, 'number');
 
   const expandedResponse = await fetch(
     `${baseUrl}/api/v1/dashboard/leadership?expanded=true`,
@@ -68,6 +73,7 @@ test('leadership dashboard is access-safe and returns bounded operational previe
   assert.ok(expanded.tasks.items.length <= 14);
   assert.equal(expanded.attention.total, payload.attention.total);
   assert.equal(expanded.tasks.totalRelevant, payload.tasks.totalRelevant);
+  assert.equal(expanded.people.userAbsencesAvailable, true);
 
   const forbidden = await fetch(`${baseUrl}/api/v1/dashboard/leadership`, {
     headers: { Cookie: managerCookie },
