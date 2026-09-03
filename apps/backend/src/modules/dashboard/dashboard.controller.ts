@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -28,7 +28,11 @@ export class DashboardController {
   @Get('leadership')
   getLeadership(
     @CurrentUser() user: CurrentAuthUser,
+    @Query('expanded') expanded?: string,
   ): Promise<LeadershipDashboardResponse> {
-    return this.leadershipDashboardService.getDashboard(user);
+    return this.leadershipDashboardService.getDashboard(
+      user,
+      expanded === 'true',
+    );
   }
 }
