@@ -7,6 +7,7 @@ import '@/shared/styles/global-command.css';
 import '@/shared/styles/topbar-communication.css';
 import '@/shared/styles/timesheet-editing.css';
 import '@/shared/styles/timesheet-page.css';
+import '@/shared/styles/dashboard-workspace.css';
 import type { Metadata } from 'next';
 import React from 'react';
 
