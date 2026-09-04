@@ -82,6 +82,8 @@ export default function InventoryItemDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [movementError, setMovementError] = useState<string | null>(null);
   const [itemActionError, setItemActionError] = useState<string | null>(null);
+  const canCreateMovement = item?.capabilities.canCreateMovement ?? false;
+  const canViewMovementHistory = item?.capabilities.canViewReports ?? false;
 
   useEffect(() => {
     let cancelled = false;
@@ -106,16 +108,10 @@ export default function InventoryItemDetailPage({
     setIsLoading(true);
     setError(null);
 
-    void Promise.all([
-      getInventoryItemById(itemId),
-      listInventoryObjectReferenceOptions(),
-      listInventoryOneTimeOrderReferenceOptions(),
-    ])
-      .then(([loadedItem, loadedObjects, loadedOrders]) => {
+    void getInventoryItemById(itemId)
+      .then((loadedItem) => {
         if (!cancelled) {
           setItem(loadedItem);
-          setObjectOptions(loadedObjects);
-          setOneTimeOrderOptions(loadedOrders);
         }
       })
       .catch((loadError: unknown) => {
@@ -137,13 +133,48 @@ export default function InventoryItemDetailPage({
   }, [itemId]);
 
   useEffect(() => {
+    if (!canCreateMovement) {
+      setObjectOptions([]);
+      setOneTimeOrderOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all([
+      listInventoryObjectReferenceOptions(),
+      listInventoryOneTimeOrderReferenceOptions(),
+    ])
+      .then(([loadedObjects, loadedOrders]) => {
+        if (!cancelled) {
+          setObjectOptions(loadedObjects);
+          setOneTimeOrderOptions(loadedOrders);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setObjectOptions([]);
+          setOneTimeOrderOptions([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canCreateMovement]);
+
+  useEffect(() => {
     if (item && window.location.hash === '#edit') {
       setIsEditing(true);
     }
   }, [item]);
 
   useEffect(() => {
-    if (!itemId) {
+    if (!itemId || !canViewMovementHistory) {
+      setMovements([]);
+      setMovementTotal(0);
+      setMovementTotalPages(0);
+      setMovementError(null);
+      setIsMovementsLoading(false);
       return;
     }
 
@@ -186,6 +217,7 @@ export default function InventoryItemDetailPage({
       cancelled = true;
     };
   }, [
+    canViewMovementHistory,
     dateFrom,
     dateTo,
     itemId,
@@ -467,140 +499,144 @@ export default function InventoryItemDetailPage({
             />
           ) : null}
 
-          <div className="page-card" style={{ display: 'grid', gap: 14 }}>
-            <div className="section-header">
-              <div>
-                <div className="section-title">История движений</div>
-                <div className="page-muted">Найдено записей: {movementTotal}</div>
+          {canViewMovementHistory ? (
+            <>
+              <div className="page-card" style={{ display: 'grid', gap: 14 }}>
+                <div className="section-header">
+                  <div>
+                    <div className="section-title">История движений</div>
+                    <div className="page-muted">Найдено записей: {movementTotal}</div>
+                  </div>
+                </div>
+                <div className="detail-grid">
+                  <label>
+                    <div className="detail-label">Тип</div>
+                    <select
+                      value={movementType}
+                      onChange={(event) => {
+                        setMovementType(event.target.value);
+                        setMovementPage(1);
+                      }}
+                    >
+                      <option value="">Все типы</option>
+                      {INVENTORY_MOVEMENT_TYPE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <div className="detail-label">Статус</div>
+                    <select
+                      value={movementStatus}
+                      onChange={(event) => {
+                        setMovementStatus(event.target.value);
+                        setMovementPage(1);
+                      }}
+                    >
+                      <option value="">Все статусы</option>
+                      <option value="applied">Применено</option>
+                      <option value="pending_approval">Ожидает согласования</option>
+                      <option value="rejected">Отклонено</option>
+                      <option value="cancelled">Отменено</option>
+                    </select>
+                  </label>
+                  <label>
+                    <div className="detail-label">Объект</div>
+                    <select
+                      value={selectedObjectId}
+                      onChange={(event) => {
+                        setSelectedObjectId(event.target.value);
+                        setMovementPage(1);
+                      }}
+                    >
+                      <option value="">Все объекты</option>
+                      {objectOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <div className="detail-label">Разовый заказ</div>
+                    <select
+                      value={selectedOrderId}
+                      onChange={(event) => {
+                        setSelectedOrderId(event.target.value);
+                        setMovementPage(1);
+                      }}
+                    >
+                      <option value="">Все заказы</option>
+                      {oneTimeOrderOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <div className="detail-label">С даты</div>
+                    <input
+                      type="date"
+                      value={dateFrom}
+                      onChange={(event) => {
+                        setDateFrom(event.target.value);
+                        setMovementPage(1);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <div className="detail-label">По дату</div>
+                    <input
+                      type="date"
+                      value={dateTo}
+                      onChange={(event) => {
+                        setDateTo(event.target.value);
+                        setMovementPage(1);
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
-            </div>
-            <div className="detail-grid">
-              <label>
-                <div className="detail-label">Тип</div>
-                <select
-                  value={movementType}
-                  onChange={(event) => {
-                    setMovementType(event.target.value);
-                    setMovementPage(1);
-                  }}
-                >
-                  <option value="">Все типы</option>
-                  {INVENTORY_MOVEMENT_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <div className="detail-label">Статус</div>
-                <select
-                  value={movementStatus}
-                  onChange={(event) => {
-                    setMovementStatus(event.target.value);
-                    setMovementPage(1);
-                  }}
-                >
-                  <option value="">Все статусы</option>
-                  <option value="applied">Применено</option>
-                  <option value="pending_approval">Ожидает согласования</option>
-                  <option value="rejected">Отклонено</option>
-                  <option value="cancelled">Отменено</option>
-                </select>
-              </label>
-              <label>
-                <div className="detail-label">Объект</div>
-                <select
-                  value={selectedObjectId}
-                  onChange={(event) => {
-                    setSelectedObjectId(event.target.value);
-                    setMovementPage(1);
-                  }}
-                >
-                  <option value="">Все объекты</option>
-                  {objectOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <div className="detail-label">Разовый заказ</div>
-                <select
-                  value={selectedOrderId}
-                  onChange={(event) => {
-                    setSelectedOrderId(event.target.value);
-                    setMovementPage(1);
-                  }}
-                >
-                  <option value="">Все заказы</option>
-                  {oneTimeOrderOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <div className="detail-label">С даты</div>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(event) => {
-                    setDateFrom(event.target.value);
-                    setMovementPage(1);
-                  }}
-                />
-              </label>
-              <label>
-                <div className="detail-label">По дату</div>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(event) => {
-                    setDateTo(event.target.value);
-                    setMovementPage(1);
-                  }}
-                />
-              </label>
-            </div>
-          </div>
 
-          {isMovementsLoading ? (
-            <div className="page-card">Загрузка истории...</div>
-          ) : movementError ? (
-            <div className="page-card form-error">{movementError}</div>
-          ) : (
-            <InventoryMovementList items={movements} />
-          )}
+              {isMovementsLoading ? (
+                <div className="page-card">Загрузка истории...</div>
+              ) : movementError ? (
+                <div className="page-card form-error">{movementError}</div>
+              ) : (
+                <InventoryMovementList items={movements} />
+              )}
 
-          {movementTotalPages > 1 ? (
-            <div className="page-card pagination-row">
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={movementPage <= 1 || isMovementsLoading}
-                onClick={() =>
-                  setMovementPage((current) => Math.max(1, current - 1))
-                }
-              >
-                Назад
-              </button>
-              <span className="page-muted">
-                Страница {movementPage} из {movementTotalPages}
-              </span>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={
-                  movementPage >= movementTotalPages || isMovementsLoading
-                }
-                onClick={() => setMovementPage((current) => current + 1)}
-              >
-                Далее
-              </button>
-            </div>
+              {movementTotalPages > 1 ? (
+                <div className="page-card pagination-row">
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={movementPage <= 1 || isMovementsLoading}
+                    onClick={() =>
+                      setMovementPage((current) => Math.max(1, current - 1))
+                    }
+                  >
+                    Назад
+                  </button>
+                  <span className="page-muted">
+                    Страница {movementPage} из {movementTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    disabled={
+                      movementPage >= movementTotalPages || isMovementsLoading
+                    }
+                    onClick={() => setMovementPage((current) => current + 1)}
+                  >
+                    Далее
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : null}
         </div>
       ) : (
