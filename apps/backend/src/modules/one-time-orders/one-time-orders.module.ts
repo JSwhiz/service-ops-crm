@@ -9,6 +9,8 @@ import { TasksModule } from '../tasks/tasks.module';
 import { OneTimeOrderAttentionController } from './one-time-order-attention.controller';
 import { OneTimeOrderAttentionService } from './one-time-order-attention.service';
 import { OneTimeOrderWorkforceController } from './one-time-order-workforce.controller';
+import { OneTimeOrderWorkforceDirectoryController } from './one-time-order-workforce-directory.controller';
+import { OneTimeOrderWorkforceDirectoryService } from './one-time-order-workforce-directory.service';
 import { OneTimeOrderWorkforceService } from './one-time-order-workforce.service';
 import { OneTimeOrdersController } from './one-time-orders.controller';
 import { OneTimeOrderCalendarService } from './one-time-order-calendar.service';
@@ -21,12 +23,14 @@ import { OneTimeManagerAvailabilityService } from './one-time-manager-availabili
   controllers: [
     OneTimeOrderAttentionController,
     OneTimeOrderWorkforceController,
+    OneTimeOrderWorkforceDirectoryController,
     OneTimeOrdersController,
   ],
   providers: [
     OneTimeOrdersService,
     OneTimeOrderAttentionService,
     OneTimeOrderWorkforceService,
+    OneTimeOrderWorkforceDirectoryService,
     OneTimeManagerAvailabilityService,
     OneTimeOrderCalendarService,
     OneTimeOrderConflictService,
