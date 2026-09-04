@@ -55,6 +55,17 @@ export function buildTaskAccessWhere(params: {
           },
         },
       },
+      {
+        oneTimeOrder: {
+          assignments: {
+            some: {
+              userId: params.currentUserId,
+              assignmentRoleCode: 'one_time_manager',
+              isActive: true,
+            },
+          },
+        },
+      },
     ],
   };
 }
