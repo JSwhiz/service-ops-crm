@@ -147,10 +147,10 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
   });
   assert.equal(hrDenied.status, 403);
 
-  const managerDenied = await fetch(`${baseUrl}/api/v1/equipment/units`, {
+  const managerReadOnly = await fetch(`${baseUrl}/api/v1/equipment/units`, {
     headers: { Cookie: managerCookie },
   });
-  assert.equal(managerDenied.status, 403);
+  assert.equal(managerReadOnly.status, 200);
 
   const deputyCatalogCreated = await fetch(`${baseUrl}/api/v1/equipment/catalog`, {
     method: 'POST',
@@ -289,7 +289,7 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
       headers: { Cookie: managerCookie },
     },
   );
-  assert.equal(managerGlobalUnitResponse.status, 403);
+  assert.equal(managerGlobalUnitResponse.status, 200);
 
   const movementsResponse = await fetch(
     `${baseUrl}/api/v1/equipment/units/${unitId}/movements`,
