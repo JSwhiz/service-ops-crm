@@ -22,6 +22,8 @@ export default function InventoryPage(): React.JSX.Element {
   const canAccessInventory = user?.capabilities?.canAccessInventory ?? false;
   const canManageInventoryCatalog =
     user?.capabilities?.canManageInventoryCatalog ?? false;
+  const canViewInventoryReports =
+    user?.capabilities?.canViewInventoryReports ?? false;
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
@@ -119,16 +121,20 @@ export default function InventoryPage(): React.JSX.Element {
                     <button type="button">Новая позиция</button>
                   </Link>
                 ) : null}
-                <Link href="/inventory/movements">
-                  <button type="button" className="button-secondary">
-                    Движения
-                  </button>
-                </Link>
-                <Link href="/inventory/reports">
-                  <button type="button" className="button-secondary">
-                    Отчеты
-                  </button>
-                </Link>
+                {canViewInventoryReports ? (
+                  <>
+                    <Link href="/inventory/movements">
+                      <button type="button" className="button-secondary">
+                        Движения
+                      </button>
+                    </Link>
+                    <Link href="/inventory/reports">
+                      <button type="button" className="button-secondary">
+                        Отчеты
+                      </button>
+                    </Link>
+                  </>
+                ) : null}
               </div>
             </div>
 
