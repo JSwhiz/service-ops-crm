@@ -23,9 +23,14 @@ export function OneTimeOrderSummaryCard({
           <div className="hero-title">{item.title}</div>
           <div className="hero-meta">{item.executionAddress}</div>
         </div>
-        <span className="status-pill" data-status={item.status}>
-          {getOneTimeOrderStatusLabel(item.status)}
-        </span>
+        <div className="action-row">
+          <Link className="button-link" href={`/one-time-orders/${item.id}/workforce`}>
+            Команда и табель
+          </Link>
+          <span className="status-pill" data-status={item.status}>
+            {getOneTimeOrderStatusLabel(item.status)}
+          </span>
+        </div>
       </div>
 
       <div className="detail-grid">
