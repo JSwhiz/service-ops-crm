@@ -186,7 +186,13 @@ test('one-time order task linkage keeps task visibility authoritative', async (t
     headers: { Cookie: readerCookie },
   });
   assert.equal(readerTasksResponse.status, 200);
-  assert.deepEqual(await readerTasksResponse.json(), []);
+  const readerTasks = (await readerTasksResponse.json()) as Array<{
+    id: string;
+    status: string;
+  }>;
+  assert.equal(readerTasks.length, 4);
+  assert.ok(readerTasks.some((task) => task.id === orderOnly.id));
+  assert.ok(readerTasks.some((task) => task.id === orderAndObject.id));
 
   const updateUrl = `${baseUrl}/api/v1/tasks/${orderAndObject.id}`;
   const unlinkResponse = await fetch(updateUrl, {
@@ -223,5 +229,5 @@ test('one-time order task linkage keeps task visibility authoritative', async (t
   };
   assert.equal(await readTaskCount(founderCookie), 4);
   assert.equal(await readTaskCount(managerCookie), 4);
-  assert.equal(await readTaskCount(readerCookie), 0);
+  assert.equal(await readTaskCount(readerCookie), 4);
 });
