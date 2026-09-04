@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   Param,
@@ -24,6 +25,7 @@ import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto
 import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
 import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
 import { InventoryService } from './inventory.service';
+import { canViewInventoryReports } from './utils/inventory-access.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -77,6 +79,7 @@ export class InventoryController {
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListInventoryMovementsQueryDto,
   ): Promise<InventoryMovementListResponseDto> {
+    this.assertInventoryHistoryVisible(user);
     return this.inventoryService.listMovements(user, query);
   }
 
@@ -84,6 +87,7 @@ export class InventoryController {
   getReportSummary(
     @CurrentUser() user: CurrentAuthUser,
   ): Promise<InventoryReportSummaryDto> {
+    this.assertInventoryHistoryVisible(user);
     return this.inventoryService.getReportSummary(user);
   }
 
@@ -116,5 +120,11 @@ export class InventoryController {
     @CurrentUser() user: CurrentAuthUser,
   ): Promise<Array<{ id: string; title: string; status: string }>> {
     return this.inventoryService.listOneTimeOrderReferenceOptions(user);
+  }
+
+  private assertInventoryHistoryVisible(user: CurrentAuthUser): void {
+    if (!canViewInventoryReports(user.roleCodes ?? [user.roleCode])) {
+      throw new ForbiddenException('Inventory movement history access denied');
+    }
   }
 }
