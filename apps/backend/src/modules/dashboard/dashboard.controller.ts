@@ -4,10 +4,15 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserAbsencesService } from '../user-absences/user-absences.service';
 
+import { HrDashboardResponse, HrDashboardService } from './hr-dashboard.service';
 import {
   LeadershipDashboardResponse,
   LeadershipDashboardService,
 } from './leadership-dashboard.service';
+import {
+  ManagerDashboardResponse,
+  ManagerDashboardService,
+} from './manager-dashboard.service';
 import {
   OperationManagerDashboardResponse,
   OperationManagerDashboardService,
@@ -40,6 +45,8 @@ function moscowDate(): string {
 export class DashboardController {
   constructor(
     private readonly leadershipDashboardService: LeadershipDashboardService,
+    private readonly managerDashboardService: ManagerDashboardService,
+    private readonly hrDashboardService: HrDashboardService,
     private readonly operationManagerDashboardService: OperationManagerDashboardService,
     private readonly userAbsencesService: UserAbsencesService,
   ) {}
@@ -66,6 +73,19 @@ export class DashboardController {
     };
   }
 
+  @Get('manager')
+  getManager(
+    @CurrentUser() user: CurrentAuthUser,
+  ): Promise<ManagerDashboardResponse> {
+    return this.managerDashboardService.getDashboard(user);
+  }
+
+  @Get('hr')
+  getHr(@CurrentUser() user: CurrentAuthUser): Promise<HrDashboardResponse> {
+    return this.hrDashboardService.getDashboard(user);
+  }
+
+  // Transitional alias kept while old clients move to the assignment-driven manager dashboard.
   @Get('operation-manager')
   getOperationManager(
     @CurrentUser() user: CurrentAuthUser,
