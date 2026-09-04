@@ -11,7 +11,9 @@ import { TasksModule } from '../tasks/tasks.module';
 import { UserAbsencesModule } from '../user-absences/user-absences.module';
 
 import { DashboardController } from './dashboard.controller';
+import { HrDashboardService } from './hr-dashboard.service';
 import { LeadershipDashboardService } from './leadership-dashboard.service';
+import { ManagerDashboardService } from './manager-dashboard.service';
 import { OperationManagerDashboardService } from './operation-manager-dashboard.service';
 
 @Module({
@@ -27,6 +29,11 @@ import { OperationManagerDashboardService } from './operation-manager-dashboard.
     UserAbsencesModule,
   ],
   controllers: [DashboardController],
-  providers: [LeadershipDashboardService, OperationManagerDashboardService],
+  providers: [
+    LeadershipDashboardService,
+    ManagerDashboardService,
+    HrDashboardService,
+    OperationManagerDashboardService,
+  ],
 })
 export class DashboardModule {}
