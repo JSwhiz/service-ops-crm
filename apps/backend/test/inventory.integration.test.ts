@@ -211,13 +211,13 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
       }),
     ]);
 
-  const managerDeniedResponse = await fetch(`${baseUrl}/api/v1/inventory/items`, {
+  const managerReadOnlyResponse = await fetch(`${baseUrl}/api/v1/inventory/items`, {
     headers: {
       Cookie: managerCookie,
     },
   });
 
-  assert.equal(managerDeniedResponse.status, 403);
+  assert.equal(managerReadOnlyResponse.status, 200);
 
   const createItemForDeputy = await fetch(
     `${baseUrl}/api/v1/inventory/items`,
