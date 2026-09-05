@@ -1,0 +1,220 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(43, 36, 31, 0.22);
+  backdrop-filter: blur(2px);
+}
+
+.drawer {
+  width: min(480px, calc(100vw - 24px));
+  height: 100%;
+  overflow-y: auto;
+  background: #fffdfb;
+  border-left: 1px solid #e5ddd7;
+  box-shadow: -18px 0 44px rgba(55, 43, 35, 0.12);
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #ebe4df;
+}
+
+.titleWrap { min-width: 0; }
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+  color: #2f2925;
+}
+
+.meta {
+  margin-top: 6px;
+  color: #7a6d65;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.closeButton,
+.actionButton,
+.primaryAction {
+  appearance: none;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.closeButton {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #e5ddd7 !important;
+  background: #fff !important;
+  color: #554a43 !important;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.statusRow,
+.peopleRow,
+.summaryGrid,
+.actionGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.statusRow { margin-top: 16px; grid-template-columns: auto 1fr; align-items: center; }
+
+.status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid #ded3cb;
+  border-radius: 999px;
+  background: #f7f2ee;
+  color: #594d45;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.section {
+  padding: 18px 0;
+  border-bottom: 1px solid #ebe4df;
+}
+
+.sectionTitle {
+  margin: 0 0 12px;
+  color: #4c413a;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+
+.peopleRow { grid-template-columns: 118px minmax(0, 1fr); font-size: 13px; }
+.label { color: #8b7e75; }
+.value { min-width: 0; color: #352f2b; }
+
+.summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.summaryItem {
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid #e7dfd9;
+  border-radius: 8px;
+  background: #fff;
+}
+.summaryLabel { color: #8a7d74; font-size: 12px; }
+.summaryValue { margin-top: 6px; color: #332d29; font-size: 14px; font-weight: 650; }
+.summaryValue[data-state="attention"] { color: #9a4f3e; }
+
+.attendanceList {
+  display: grid;
+  gap: 7px;
+  max-height: 210px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.attendanceItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: #faf7f4;
+  color: #3c342f;
+  font-size: 13px;
+}
+
+.attendanceItem input { margin: 0; }
+
+.textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 1px solid #ded5cf;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 11px;
+  color: #352f2b;
+  font: inherit;
+}
+
+.textarea:focus {
+  outline: 2px solid rgba(122, 91, 71, .14);
+  border-color: #bda89a;
+}
+
+.actionGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }
+
+.actionButton,
+.primaryAction {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.actionButton {
+  border: 1px solid #dcd1ca !important;
+  background: #fff !important;
+  color: #4b4039 !important;
+}
+
+.primaryAction {
+  border: 1px solid #67564b !important;
+  background: #67564b !important;
+  color: #fff !important;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.actionButton:hover:not(:disabled),
+.closeButton:hover:not(:disabled) {
+  background: #faf7f4 !important;
+  border-color: #d6c9c1 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.primaryAction:hover {
+  background: #59483e !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.footer {
+  display: flex;
+  gap: 10px;
+  padding-top: 18px;
+}
+
+.footer > * { flex: 1; }
+
+.notice {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: #faf7f4;
+  color: #71645c;
+  font-size: 12px;
+}
+
+.error { color: #9a4f3e; }
+
+@media (max-width: 720px) {
+  .drawer { width: 100%; padding: 16px; }
+  .summaryGrid, .actionGrid { grid-template-columns: 1fr; }
+}
