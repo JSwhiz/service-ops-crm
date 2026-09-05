@@ -46,6 +46,7 @@ import { OneTimeOrdersModule } from './modules/one-time-orders/one-time-orders.m
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { SearchModule } from './modules/search/search.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TimesheetsModule } from './modules/timesheets/timesheets.module';
@@ -83,6 +84,7 @@ const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
     OneTimeOrdersModule,
     NotificationsModule,
     ObjectOperationsModule,
+    SearchModule,
     TasksModule,
     TimesheetsModule,
   ],
