@@ -49,7 +49,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           {allowEdit ? (
             <Link className="button-link" href={`/objects/${item.id}/edit`}>Редактировать</Link>
           ) : null}
-          <Link href={`/objects/${item.id}/history`}>История</Link>
+          <Link className="button-link" href={`/objects/${item.id}/history`}>История</Link>
         </div>
       </div>
 
