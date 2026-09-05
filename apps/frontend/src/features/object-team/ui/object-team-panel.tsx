@@ -9,6 +9,8 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 
+import styles from './object-team-panel.module.css';
+
 interface ObjectTeamPanelProps {
   title: string;
   currentItems: ObjectAssignedUser[];
@@ -35,35 +37,20 @@ export function ObjectTeamPanel({
   const currentIds = new Set(currentItems.map((item) => item.userId));
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div style={{ fontWeight: 600, fontSize: 18 }}>{title}</div>
+    <div className={`page-card ${styles.panel}`}>
+      <div className={styles.title}>{title}</div>
 
-      <section>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Текущий состав</div>
+      <section className={styles.group}>
+        <div className={styles.groupTitle}>Текущий состав</div>
 
         {currentItems.length === 0 ? (
           <div className="page-muted">{emptyCurrentText}</div>
         ) : (
-          <div style={{ display: 'grid', gap: 8 }}>
+          <div className={styles.list}>
             {currentItems.map((item) => (
-              <div
-                key={item.userId}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: 10,
-                  border: '1px solid #d1d5db',
-                  borderRadius: 10,
-                }}
-              >
-                <span>{getUserDisplayName(item)}</span>
-
-                <button
-                  type="button"
-                  onClick={() => void onRemove(item.userId)}
-                >
+              <div key={item.userId} className={styles.row}>
+                <span className={styles.identity}>{getUserDisplayName(item)}</span>
+                <button type="button" onClick={() => void onRemove(item.userId)}>
                   {removeButtonText}
                 </button>
               </div>
@@ -72,29 +59,16 @@ export function ObjectTeamPanel({
         )}
       </section>
 
-      <section>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>
-          Доступные пользователи
-        </div>
+      <section className={styles.group}>
+        <div className={styles.groupTitle}>Доступные пользователи</div>
 
         {availableUsers.length === 0 ? (
           <div className="page-muted">{emptyAvailableText}</div>
         ) : (
-          <div style={{ display: 'grid', gap: 8 }}>
+          <div className={styles.list}>
             {availableUsers.map((user) => (
-              <div
-                key={user.id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: 10,
-                  border: '1px solid #d1d5db',
-                  borderRadius: 10,
-                }}
-              >
-                <span>
+              <div key={user.id} className={styles.row}>
+                <span className={styles.identity}>
                   {getUserDisplayName(user)}
                   {getUserSecondaryLabel(user) ? (
                     <span className="identity-secondary">
