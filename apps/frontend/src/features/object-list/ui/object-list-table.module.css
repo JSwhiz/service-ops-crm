@@ -1,0 +1,59 @@
+.table {
+  min-width: 980px;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fffdfb;
+}
+
+.row {
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.row:hover,
+.row:focus-visible {
+  background: #faf7f4;
+  outline: none;
+}
+
+.objectCell {
+  min-width: 260px;
+}
+
+.primaryMeta {
+  max-width: 380px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #81736a;
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention {
+  color: #9a4f3e;
+  font-weight: 650;
+}
+
+.secondary {
+  color: #8b7d74;
+  font-size: 12px;
+}
+
+.openLink {
+  color: #67564b;
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.openLink:hover { text-decoration: underline; }
+
+@media (max-width: 1180px) {
+  .table { min-width: 900px; }
+}
