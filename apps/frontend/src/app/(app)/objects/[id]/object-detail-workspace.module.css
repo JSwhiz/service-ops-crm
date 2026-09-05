@@ -1,6 +1,8 @@
 .workspace {
   display: grid;
-  gap: 18px;
+  gap: 14px;
+  max-width: 1560px;
+  margin: 0 auto;
 }
 
 .navigation {
@@ -8,13 +10,14 @@
   top: 64px;
   z-index: 18;
   display: flex;
-  gap: 6px;
+  gap: 4px;
   overflow-x: auto;
-  padding: 8px;
+  padding: 6px;
   border: 1px solid #e5ddd6;
   border-radius: 9px;
-  background: rgba(255, 253, 251, 0.96);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 253, 251, 0.97);
+  box-shadow: 0 8px 24px rgba(63, 48, 39, 0.05);
+  backdrop-filter: blur(12px);
   scrollbar-width: none;
 }
 
@@ -24,26 +27,64 @@
 
 .navigation a {
   flex: 0 0 auto;
-  padding: 7px 10px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 11px;
+  border: 1px solid transparent;
   border-radius: 7px;
   color: #685d55;
   font-size: 13px;
   font-weight: 650;
+  line-height: 1;
   text-decoration: none;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 .navigation a:hover,
 .navigation a:focus-visible {
+  border-color: #e5ddd6;
   background: #faf7f4;
   color: #332d29;
   outline: none;
 }
 
+/* Full object card behaves as a workspace rather than one endless document. */
 .section {
+  display: none;
   scroll-margin-top: 128px;
-  display: grid;
   gap: 12px;
+  min-width: 0;
+  animation: sectionIn 140ms ease-out;
+}
+
+.workspace:not(:has(.section:target)) .section:first-of-type,
+.section:target {
+  display: grid;
+}
+
+.workspace:has(.section:target) .section:not(:target) {
+  display: none;
+}
+
+.workspace:has(:global(#overview):target) .navigation a[href="#overview"],
+.workspace:has(:global(#today):target) .navigation a[href="#today"],
+.workspace:has(:global(#team):target) .navigation a[href="#team"],
+.workspace:has(:global(#tasks):target) .navigation a[href="#tasks"],
+.workspace:has(:global(#inventory):target) .navigation a[href="#inventory"],
+.workspace:has(:global(#equipment):target) .navigation a[href="#equipment"],
+.workspace:has(:global(#files):target) .navigation a[href="#files"],
+.workspace:has(:global(#history):target) .navigation a[href="#history"] {
+  border-color: #d9cec6;
+  background: #f4eee9;
+  color: #3e342e;
+}
+
+.workspace:not(:has(.section:target)) .navigation a[href="#overview"] {
+  border-color: #d9cec6;
+  background: #f4eee9;
+  color: #3e342e;
 }
 
 .sectionHeader {
@@ -51,18 +92,19 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 2px;
+  padding: 2px 2px 0;
 }
 
 .sectionTitle {
   margin: 0;
   color: #332d29;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 760;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.012em;
 }
 
 .sectionDescription {
+  max-width: 780px;
   margin: 4px 0 0;
   color: #83756c;
   font-size: 13px;
@@ -73,12 +115,14 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  align-items: start;
 }
 
 .twoColumn {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  align-items: start;
 }
 
 .overviewMeta {
@@ -87,21 +131,153 @@
   gap: 12px;
 }
 
+/* Scoped control system: do not leak these styles into Wave 1.3 / Wave 2. */
+.workspace :global(button),
+.workspace :global(.button-link) {
+  appearance: none;
+  min-height: 36px;
+  border: 1px solid #d9cec6;
+  border-radius: 7px;
+  padding: 8px 12px;
+  background: #fffdfb;
+  box-shadow: none;
+  color: #4c413a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transform: none;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.workspace :global(button:hover:not(:disabled)),
+.workspace :global(.button-link:hover) {
+  border-color: #cdbfb5;
+  background: #faf7f4;
+  box-shadow: none;
+  color: #332d29;
+  transform: none;
+}
+
+.workspace :global(button:focus-visible),
+.workspace :global(.button-link:focus-visible),
+.workspace :global(input:focus-visible),
+.workspace :global(select:focus-visible),
+.workspace :global(textarea:focus-visible) {
+  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline-offset: 2px;
+  border-color: #bba99d;
+  box-shadow: none;
+}
+
+.workspace :global(button:disabled) {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.workspace :global(input:not([type="checkbox"]):not([type="radio"])),
+.workspace :global(select),
+.workspace :global(textarea) {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  border: 1px solid #ddd3cc;
+  border-radius: 7px;
+  background: #fffdfb;
+  color: #3f3732;
+  font: inherit;
+  font-size: 13px;
+  box-shadow: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.workspace :global(input:not([type="checkbox"]):not([type="radio"])),
+.workspace :global(select) {
+  padding: 8px 10px;
+}
+
+.workspace :global(textarea) {
+  min-height: 96px;
+  padding: 10px 11px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.workspace :global(select) {
+  cursor: pointer;
+  background-color: #fffdfb;
+}
+
+.workspace :global(input::placeholder),
+.workspace :global(textarea::placeholder) {
+  color: #a4978e;
+}
+
+.workspace :global(.page-card),
+.workspace :global(.workspace-surface) {
+  border-color: #e5ddd6;
+  border-radius: 9px;
+  box-shadow: none;
+}
+
+.workspace :global(.section-title) {
+  color: #3f3732;
+}
+
+.workspace :global(.section-subtitle),
+.workspace :global(.page-muted) {
+  color: #887a71;
+}
+
+.workspace :global(.record-card) {
+  border-color: #e7dfd9;
+  border-radius: 8px;
+  background: #fffdfb;
+  box-shadow: none;
+}
+
+.workspace :global(.record-card:hover) {
+  background: #faf7f4;
+  box-shadow: none;
+  transform: none;
+}
+
+@keyframes sectionIn {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 1180px) {
   .todayGrid,
-  .overviewMeta {
-    grid-template-columns: 1fr;
-  }
-
+  .overviewMeta,
   .twoColumn {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 760px) {
+  .workspace {
+    gap: 12px;
+  }
+
   .navigation {
     top: 56px;
     margin-inline: -4px;
+    padding: 5px;
+  }
+
+  .navigation a {
+    min-height: 32px;
+    padding-inline: 9px;
+    font-size: 12px;
   }
 
   .section {
@@ -111,5 +287,19 @@
   .sectionHeader {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section {
+    animation: none;
+  }
+
+  .navigation a,
+  .workspace :global(button),
+  .workspace :global(input),
+  .workspace :global(select),
+  .workspace :global(textarea) {
+    transition: none;
   }
 }
