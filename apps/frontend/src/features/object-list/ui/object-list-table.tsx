@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import React from 'react';
+import React, { useState } from 'react';
 
 import type { ObjectSortField } from '@/entities/object/api/object-client';
 import type { ObjectAssignedUser, ServiceObject } from '@/entities/object/model/object.types';
+import { ObjectPreviewDrawer } from '@/features/object-registry/ui/object-preview-drawer';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 
 interface ObjectListTableProps {
@@ -12,7 +13,6 @@ interface ObjectListTableProps {
   sortBy: ObjectSortField;
   sortDirection: 'asc' | 'desc';
   onSort: (field: ObjectSortField) => void;
-  onPreview: (item: ServiceObject) => void;
 }
 
 function renderPeople(items: ObjectAssignedUser[]): string {
@@ -40,8 +40,9 @@ export function ObjectListTable({
   sortBy,
   sortDirection,
   onSort,
-  onPreview,
 }: ObjectListTableProps): React.JSX.Element {
+  const [previewItem, setPreviewItem] = useState<ServiceObject | null>(null);
+
   if (!items.length) {
     return <div className="page-card workspace-surface workspace-empty">Объекты не найдены.</div>;
   }
@@ -59,72 +60,76 @@ export function ObjectListTable({
   );
 
   return (
-    <div className="page-card workspace-surface data-table-shell object-table-scroll">
-      <table className="object-registry-table object-registry-table--operational">
-        <thead>
-          <tr>
-            <th aria-sort={getAriaSort('name', sortBy, sortDirection)}>
-              {renderSortButton('name', 'Объект')}
-            </th>
-            <th>Статус</th>
-            <th>Ответственный</th>
-            <th>Команда</th>
-            <th>Менеджеры</th>
-            <th aria-sort={getAriaSort('updatedAt', sortBy, sortDirection)}>
-              {renderSortButton('updatedAt', 'Обновлён')}
-            </th>
-            <th aria-label="Действия" />
-          </tr>
-        </thead>
+    <>
+      <div className="page-card workspace-surface data-table-shell object-table-scroll">
+        <table className="object-registry-table object-registry-table--operational">
+          <thead>
+            <tr>
+              <th aria-sort={getAriaSort('name', sortBy, sortDirection)}>
+                {renderSortButton('name', 'Объект')}
+              </th>
+              <th>Статус</th>
+              <th>Ответственный</th>
+              <th>Команда</th>
+              <th>Менеджеры</th>
+              <th aria-sort={getAriaSort('updatedAt', sortBy, sortDirection)}>
+                {renderSortButton('updatedAt', 'Обновлён')}
+              </th>
+              <th aria-label="Действия" />
+            </tr>
+          </thead>
 
-        <tbody>
-          {items.map((item) => {
-            const href = `/objects/${item.id}`;
-            return (
-              <tr
-                key={item.id}
-                className="object-registry-row"
-                tabIndex={0}
-                onClick={() => onPreview(item)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    onPreview(item);
-                  }
-                }}
-                aria-label={`Быстрый просмотр объекта ${item.name}`}
-              >
-                <td>
-                  <strong>{item.name}</strong>
-                  <div className="object-registry-primary-meta">
-                    {[item.internalName, item.address].filter(Boolean).join(' · ')}
-                  </div>
-                </td>
-                <td>
-                  <span className="status-pill" data-status={item.status}>{getStatusLabel(item.status)}</span>
-                </td>
-                <td>{item.responsible ? getUserDisplayName(item.responsible) : <span className="object-registry-attention">Не назначен</span>}</td>
-                <td>
-                  <strong>{item.employees.length}</strong>
-                  <span className="object-registry-secondary"> сотрудников</span>
-                </td>
-                <td>{renderPeople(item.managers)}</td>
-                <td>{new Date(item.updatedAt).toLocaleDateString('ru-RU')}</td>
-                <td>
-                  <Link
-                    href={href}
-                    className="object-registry-open-link"
-                    onClick={(event) => event.stopPropagation()}
-                    aria-label={`Открыть объект ${item.name} полностью`}
-                  >
-                    Открыть
-                  </Link>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+          <tbody>
+            {items.map((item) => {
+              const href = `/objects/${item.id}`;
+              return (
+                <tr
+                  key={item.id}
+                  className="object-registry-row"
+                  tabIndex={0}
+                  onClick={() => setPreviewItem(item)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setPreviewItem(item);
+                    }
+                  }}
+                  aria-label={`Быстрый просмотр объекта ${item.name}`}
+                >
+                  <td>
+                    <strong>{item.name}</strong>
+                    <div className="object-registry-primary-meta">
+                      {[item.internalName, item.address].filter(Boolean).join(' · ')}
+                    </div>
+                  </td>
+                  <td>
+                    <span className="status-pill" data-status={item.status}>{getStatusLabel(item.status)}</span>
+                  </td>
+                  <td>{item.responsible ? getUserDisplayName(item.responsible) : <span className="object-registry-attention">Не назначен</span>}</td>
+                  <td>
+                    <strong>{item.employees.length}</strong>
+                    <span className="object-registry-secondary"> сотрудников</span>
+                  </td>
+                  <td>{renderPeople(item.managers)}</td>
+                  <td>{new Date(item.updatedAt).toLocaleDateString('ru-RU')}</td>
+                  <td>
+                    <Link
+                      href={href}
+                      className="object-registry-open-link"
+                      onClick={(event) => event.stopPropagation()}
+                      aria-label={`Открыть объект ${item.name} полностью`}
+                    >
+                      Открыть
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <ObjectPreviewDrawer item={previewItem} onClose={() => setPreviewItem(null)} />
+    </>
   );
 }
