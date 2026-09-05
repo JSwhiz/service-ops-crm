@@ -1,5 +1,5 @@
 .table {
-  min-width: 980px;
+  min-width: 1120px;
 }
 
 .table thead th {
@@ -45,6 +45,23 @@
   font-size: 12px;
 }
 
+.todaySignals {
+  display: grid;
+  gap: 4px;
+  min-width: 142px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.todaySignals span[data-state='ok'] {
+  color: #6d655e;
+}
+
+.todaySignals span[data-state='attention'] {
+  color: #9a4f3e;
+  font-weight: 650;
+}
+
 .openLink {
   color: #67564b;
   font-size: 12px;
@@ -55,5 +72,5 @@
 .openLink:hover { text-decoration: underline; }
 
 @media (max-width: 1180px) {
-  .table { min-width: 900px; }
+  .table { min-width: 1040px; }
 }
