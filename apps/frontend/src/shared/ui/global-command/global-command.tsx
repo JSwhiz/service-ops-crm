@@ -3,7 +3,11 @@
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import { globalSearch, type GlobalSearchEntityType } from '@/shared/api/global-search';
+import {
+  globalSearch,
+  resolveGlobalSearchRecent,
+  type GlobalSearchEntityType,
+} from '@/shared/api/global-search';
 import { useAuth } from '@/shared/auth/use-auth';
 
 import {
@@ -14,9 +18,8 @@ import {
   resolveGlobalNavigation,
 } from './global-command-registry';
 import {
-  readRecentItems,
+  readRecentRefs,
   recordRecentCommand,
-  type StoredRecentItem,
 } from './global-command-recent';
 
 const SEARCH_DEBOUNCE_MS = 220;
@@ -77,14 +80,15 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   const { user } = useAuth();
   const navigation = useMemo(() => resolveGlobalNavigation(user), [user]);
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const requestRef = useRef(0);
+  const recentRequestRef = useRef(0);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [remoteItems, setRemoteItems] = useState<CommandItem[]>([]);
-  const [recent, setRecent] = useState<StoredRecentItem[]>([]);
+  const [recent, setRecent] = useState<CommandItem[]>([]);
   const [loading, setLoading] = useState(false);
   const normalized = query.trim();
   const normalizedLower = normalized.toLocaleLowerCase('ru');
@@ -94,12 +98,26 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
       restoreFocusRef.current = document.activeElement as HTMLElement | null;
       setQuery('');
       setRemoteItems([]);
-      setRecent(readRecentItems(user?.id));
+      setRecent([]);
       setActiveIndex(0);
       window.requestAnimationFrame(() => inputRef.current?.focus());
+
+      const refs = readRecentRefs(user?.id);
+      const requestId = ++recentRequestRef.current;
+      if (refs.length > 0) {
+        void resolveGlobalSearchRecent(refs)
+          .then((items) => {
+            if (requestId !== recentRequestRef.current) return;
+            setRecent(items.map((item) => ({ ...toCommandItem(item), group: 'Недавние' })));
+          })
+          .catch(() => {
+            if (requestId === recentRequestRef.current) setRecent([]);
+          });
+      }
       return;
     }
 
+    recentRequestRef.current += 1;
     restoreFocusRef.current?.focus();
     restoreFocusRef.current = null;
   }, [open, user?.id]);
@@ -151,11 +169,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
 
   const rawItems = useMemo<CommandItem[]>(() => {
     if (!normalized) {
-      return [
-        ...recent.map((item) => ({ ...item, group: 'Недавние' as const })),
-        ...actions,
-        ...navigation.slice(0, 6),
-      ];
+      return [...recent, ...actions, ...navigation.slice(0, 6)];
     }
     return [...remoteItems, ...staticMatches];
   }, [actions, navigation, normalized, recent, remoteItems, staticMatches]);
@@ -176,7 +190,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
 
   useEffect(() => {
     setActiveIndex(0);
-  }, [query, remoteItems.length]);
+  }, [query, remoteItems.length, recent.length]);
 
   useEffect(() => {
     const active = dialogRef.current?.querySelector<HTMLElement>(
@@ -208,9 +222,9 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
           const focusable = Array.from(
             event.currentTarget.querySelectorAll<HTMLElement>('input, button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
           );
-          if (focusable.length === 0) return;
           const first = focusable[0];
           const last = focusable[focusable.length - 1];
+          if (!first || !last) return;
           if (event.shiftKey && document.activeElement === first) {
             event.preventDefault();
             last.focus();
@@ -299,7 +313,7 @@ export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpen
   const router = useRouter();
   const { user } = useAuth();
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
