@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -32,6 +32,7 @@ export class SearchController {
   }
 
   @Post('recent')
+  @HttpCode(HttpStatus.OK)
   resolveRecent(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: ResolveRecentSearchDto,
