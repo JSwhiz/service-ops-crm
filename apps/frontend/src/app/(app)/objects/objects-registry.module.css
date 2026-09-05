@@ -3,6 +3,10 @@
   gap: 14px;
 }
 
+.page :global(.page-title) {
+  display: none;
+}
+
 .header {
   display: flex;
   align-items: flex-start;
