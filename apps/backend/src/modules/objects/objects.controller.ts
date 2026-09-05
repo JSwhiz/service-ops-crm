@@ -22,6 +22,10 @@ import { ObjectAuditLogResponseDto } from './dto/object-audit-log-response.dto';
 import { ObjectListResponseDto } from './dto/object-list-response.dto';
 import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
+import {
+  ObjectRegistrySignalsService,
+  type ObjectRegistrySignal,
+} from './object-registry-signals.service';
 import { ObjectsService } from './objects.service';
 
 interface CurrentAuthUser {
@@ -30,13 +34,17 @@ interface CurrentAuthUser {
   fullName: string;
   roleCode: string;
   roleCodes?: string[];
+  permissionCodes?: string[];
   isActive: boolean;
 }
 
 @UseGuards(JwtAuthGuard)
 @Controller('objects')
 export class ObjectsController {
-  constructor(private readonly objectsService: ObjectsService) {}
+  constructor(
+    private readonly objectsService: ObjectsService,
+    private readonly objectRegistrySignalsService: ObjectRegistrySignalsService,
+  ) {}
 
   @Get()
   listObjects(
@@ -44,6 +52,17 @@ export class ObjectsController {
     @Query() query: ListObjectsQueryDto,
   ): Promise<ObjectResponseDto[] | ObjectListResponseDto> {
     return this.objectsService.listObjects(user, query);
+  }
+
+  @Get('registry-signals')
+  listRegistrySignals(
+    @CurrentUser() user: CurrentAuthUser,
+    @Query('ids') ids = '',
+  ): Promise<ObjectRegistrySignal[]> {
+    return this.objectRegistrySignalsService.list(
+      user,
+      ids.split(',').map((value) => value.trim()),
+    );
   }
 
   @Get(':id')
