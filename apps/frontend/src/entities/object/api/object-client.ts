@@ -35,6 +35,12 @@ export interface ObjectListPage {
   totalPages: number;
 }
 
+export interface ObjectRegistrySignal {
+  objectId: string;
+  attendanceSubmitted: boolean;
+  dailyReportSubmitted: boolean;
+}
+
 export interface CreateObjectPayload {
   name: string;
   internalName: string;
@@ -63,133 +69,68 @@ export interface ChangeObjectStatusPayload {
 }
 
 function buildObjectsQuery(params?: ListObjectsParams): string {
-  if (!params) {
-    return '';
-  }
-
+  if (!params) return '';
   const searchParams = new URLSearchParams();
-
-  if (params.search) {
-    searchParams.set('search', params.search);
-  }
-
-  if (params.status) {
-    searchParams.set('status', params.status);
-  }
-
+  if (params.search) searchParams.set('search', params.search);
+  if (params.status) searchParams.set('status', params.status);
   const query = searchParams.toString();
-
   return query ? `?${query}` : '';
 }
 
-export async function listObjects(
-  params?: ListObjectsParams,
-): Promise<ServiceObject[]> {
-  return fetcher<ServiceObject[]>(`/objects${buildObjectsQuery(params)}`, {
-    method: 'GET',
-  });
+export async function listObjects(params?: ListObjectsParams): Promise<ServiceObject[]> {
+  return fetcher<ServiceObject[]>(`/objects${buildObjectsQuery(params)}`, { method: 'GET' });
 }
 
-export async function listObjectsPage(
-  params: ListObjectsPageParams,
-): Promise<ObjectListPage> {
+export async function listObjectsPage(params: ListObjectsPageParams): Promise<ObjectListPage> {
   const searchParams = new URLSearchParams({
     page: String(params.page),
     limit: String(params.limit),
     sortBy: params.sortBy,
     sortDirection: params.sortDirection,
   });
+  if (params.q?.trim()) searchParams.set('q', params.q.trim());
+  if (params.status) searchParams.set('status', params.status);
+  return fetcher<ObjectListPage>(`/objects?${searchParams.toString()}`, { method: 'GET' });
+}
 
-  if (params.q?.trim()) {
-    searchParams.set('q', params.q.trim());
-  }
-
-  if (params.status) {
-    searchParams.set('status', params.status);
-  }
-
-  return fetcher<ObjectListPage>(`/objects?${searchParams.toString()}`, {
-    method: 'GET',
-  });
+export async function listObjectRegistrySignals(ids: string[]): Promise<ObjectRegistrySignal[]> {
+  if (!ids.length) return [];
+  const query = new URLSearchParams({ ids: ids.join(',') });
+  return fetcher<ObjectRegistrySignal[]>(`/objects/registry-signals?${query.toString()}`, { method: 'GET' });
 }
 
 export async function getObjectById(id: string): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}`, {
-    method: 'GET',
-  });
+  return fetcher<ServiceObject>(`/objects/${id}`, { method: 'GET' });
 }
 
-export async function listObjectAuditLogs(
-  id: string,
-): Promise<ObjectAuditLogItem[]> {
-  return fetcher<ObjectAuditLogItem[]>(`/objects/${id}/audit`, {
-    method: 'GET',
-  });
+export async function listObjectAuditLogs(id: string): Promise<ObjectAuditLogItem[]> {
+  return fetcher<ObjectAuditLogItem[]>(`/objects/${id}/audit`, { method: 'GET' });
 }
 
-export async function createObject(
-  payload: CreateObjectPayload,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>('/objects', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
+export async function createObject(payload: CreateObjectPayload): Promise<ServiceObject> {
+  return fetcher<ServiceObject>('/objects', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export async function updateObject(
-  id: string,
-  payload: UpdateObjectPayload,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+export async function updateObject(id: string, payload: UpdateObjectPayload): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
-export async function changeObjectStatus(
-  id: string,
-  payload: ChangeObjectStatusPayload,
-): Promise<ApprovalRequestItem> {
-  return fetcher<ApprovalRequestItem>(`/objects/${id}/status`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+export async function changeObjectStatus(id: string, payload: ChangeObjectStatusPayload): Promise<ApprovalRequestItem> {
+  return fetcher<ApprovalRequestItem>(`/objects/${id}/status`, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
-export async function addResponsibleToObject(
-  id: string,
-  userId: string,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}/responsibles`, {
-    method: 'POST',
-    body: JSON.stringify({ userId }),
-  });
+export async function addResponsibleToObject(id: string, userId: string): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}/responsibles`, { method: 'POST', body: JSON.stringify({ userId }) });
 }
 
-export async function removeResponsibleFromObject(
-  id: string,
-  userId: string,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}/responsibles/${userId}`, {
-    method: 'DELETE',
-  });
+export async function removeResponsibleFromObject(id: string, userId: string): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}/responsibles/${userId}`, { method: 'DELETE' });
 }
 
-export async function addManagerToObject(
-  id: string,
-  userId: string,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}/managers`, {
-    method: 'POST',
-    body: JSON.stringify({ userId }),
-  });
+export async function addManagerToObject(id: string, userId: string): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}/managers`, { method: 'POST', body: JSON.stringify({ userId }) });
 }
 
-export async function removeManagerFromObject(
-  id: string,
-  userId: string,
-): Promise<ServiceObject> {
-  return fetcher<ServiceObject>(`/objects/${id}/managers/${userId}`, {
-    method: 'DELETE',
-  });
+export async function removeManagerFromObject(id: string, userId: string): Promise<ServiceObject> {
+  return fetcher<ServiceObject>(`/objects/${id}/managers/${userId}`, { method: 'DELETE' });
 }
