@@ -1,16 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import React from 'react';
 
-import type {
-  ObjectSortField,
-} from '@/entities/object/api/object-client';
-import type {
-  ObjectAssignedUser,
-  ServiceObject,
-} from '@/entities/object/model/object.types';
+import type { ObjectSortField } from '@/entities/object/api/object-client';
+import type { ObjectAssignedUser, ServiceObject } from '@/entities/object/model/object.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 
 interface ObjectListTableProps {
@@ -18,6 +12,7 @@ interface ObjectListTableProps {
   sortBy: ObjectSortField;
   sortDirection: 'asc' | 'desc';
   onSort: (field: ObjectSortField) => void;
+  onPreview: (item: ServiceObject) => void;
 }
 
 function renderPeople(items: ObjectAssignedUser[]): string {
@@ -29,12 +24,6 @@ function getStatusLabel(status: string): string {
   if (status === 'frozen') return 'Заморожен';
   if (status === 'archived') return 'Архив';
   return status;
-}
-
-function getSeasonLabel(seasonMode: string | null): string {
-  if (seasonMode === 'summer') return 'Летний';
-  if (seasonMode === 'winter') return 'Зимний';
-  return 'Без сезонности';
 }
 
 function getAriaSort(
@@ -51,17 +40,13 @@ export function ObjectListTable({
   sortBy,
   sortDirection,
   onSort,
+  onPreview,
 }: ObjectListTableProps): React.JSX.Element {
-  const router = useRouter();
-
   if (!items.length) {
     return <div className="page-card workspace-surface workspace-empty">Объекты не найдены.</div>;
   }
 
-  const renderSortButton = (
-    field: ObjectSortField,
-    label: string,
-  ): React.JSX.Element => (
+  const renderSortButton = (field: ObjectSortField, label: string): React.JSX.Element => (
     <button
       type="button"
       className="object-table-sort"
@@ -75,67 +60,62 @@ export function ObjectListTable({
 
   return (
     <div className="page-card workspace-surface data-table-shell object-table-scroll">
-      <table className="object-registry-table">
+      <table className="object-registry-table object-registry-table--operational">
         <thead>
           <tr>
             <th aria-sort={getAriaSort('name', sortBy, sortDirection)}>
-              {renderSortButton('name', 'Название')}
+              {renderSortButton('name', 'Объект')}
             </th>
-            <th>Внутреннее название</th>
-            <th>Адрес</th>
             <th>Статус</th>
-            <th>Сезонность</th>
-            <th>Ставка объекта</th>
-            <th>Сотрудники</th>
             <th>Ответственный</th>
+            <th>Команда</th>
             <th>Менеджеры</th>
             <th aria-sort={getAriaSort('updatedAt', sortBy, sortDirection)}>
               {renderSortButton('updatedAt', 'Обновлён')}
             </th>
-            <th>Действия</th>
+            <th aria-label="Действия" />
           </tr>
         </thead>
 
         <tbody>
           {items.map((item) => {
             const href = `/objects/${item.id}`;
-
             return (
               <tr
                 key={item.id}
                 className="object-registry-row"
                 tabIndex={0}
-                onClick={() => router.push(href)}
+                onClick={() => onPreview(item)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') router.push(href);
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    onPreview(item);
+                  }
                 }}
-                aria-label={`Открыть объект ${item.name}`}
+                aria-label={`Быстрый просмотр объекта ${item.name}`}
               >
                 <td>
                   <strong>{item.name}</strong>
+                  <div className="object-registry-primary-meta">
+                    {[item.internalName, item.address].filter(Boolean).join(' · ')}
+                  </div>
                 </td>
-                <td>{item.internalName ?? '—'}</td>
-                <td>{item.address}</td>
                 <td>
-                  <span className="status-pill" data-status={item.status}>
-                    {getStatusLabel(item.status)}
-                  </span>
+                  <span className="status-pill" data-status={item.status}>{getStatusLabel(item.status)}</span>
                 </td>
-                <td>{getSeasonLabel(item.seasonMode)}</td>
-                <td>{item.dailyRate.toLocaleString('ru-RU')} ₽/день</td>
-                <td>{item.employees.length}</td>
+                <td>{item.responsible ? getUserDisplayName(item.responsible) : <span className="object-registry-attention">Не назначен</span>}</td>
                 <td>
-                  {item.responsible
-                    ? getUserDisplayName(item.responsible)
-                    : 'Не назначен'}
+                  <strong>{item.employees.length}</strong>
+                  <span className="object-registry-secondary"> сотрудников</span>
                 </td>
                 <td>{renderPeople(item.managers)}</td>
                 <td>{new Date(item.updatedAt).toLocaleDateString('ru-RU')}</td>
                 <td>
                   <Link
                     href={href}
+                    className="object-registry-open-link"
                     onClick={(event) => event.stopPropagation()}
-                    aria-label={`Открыть карточку ${item.name}`}
+                    aria-label={`Открыть объект ${item.name} полностью`}
                   >
                     Открыть
                   </Link>
