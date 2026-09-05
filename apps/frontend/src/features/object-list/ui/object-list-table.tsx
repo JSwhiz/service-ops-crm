@@ -8,6 +8,8 @@ import type { ObjectAssignedUser, ServiceObject } from '@/entities/object/model/
 import { ObjectPreviewDrawer } from '@/features/object-registry/ui/object-preview-drawer';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 
+import styles from './object-list-table.module.css';
+
 interface ObjectListTableProps {
   items: ServiceObject[];
   sortBy: ObjectSortField;
@@ -62,7 +64,7 @@ export function ObjectListTable({
   return (
     <>
       <div className="page-card workspace-surface data-table-shell object-table-scroll">
-        <table className="object-registry-table object-registry-table--operational">
+        <table className={`object-registry-table ${styles.table}`}>
           <thead>
             <tr>
               <th aria-sort={getAriaSort('name', sortBy, sortDirection)}>
@@ -85,7 +87,7 @@ export function ObjectListTable({
               return (
                 <tr
                   key={item.id}
-                  className="object-registry-row"
+                  className={styles.row}
                   tabIndex={0}
                   onClick={() => setPreviewItem(item)}
                   onKeyDown={(event) => {
@@ -96,26 +98,26 @@ export function ObjectListTable({
                   }}
                   aria-label={`Быстрый просмотр объекта ${item.name}`}
                 >
-                  <td>
+                  <td className={styles.objectCell}>
                     <strong>{item.name}</strong>
-                    <div className="object-registry-primary-meta">
+                    <div className={styles.primaryMeta}>
                       {[item.internalName, item.address].filter(Boolean).join(' · ')}
                     </div>
                   </td>
                   <td>
                     <span className="status-pill" data-status={item.status}>{getStatusLabel(item.status)}</span>
                   </td>
-                  <td>{item.responsible ? getUserDisplayName(item.responsible) : <span className="object-registry-attention">Не назначен</span>}</td>
+                  <td>{item.responsible ? getUserDisplayName(item.responsible) : <span className={styles.attention}>Не назначен</span>}</td>
                   <td>
                     <strong>{item.employees.length}</strong>
-                    <span className="object-registry-secondary"> сотрудников</span>
+                    <span className={styles.secondary}> сотрудников</span>
                   </td>
                   <td>{renderPeople(item.managers)}</td>
                   <td>{new Date(item.updatedAt).toLocaleDateString('ru-RU')}</td>
                   <td>
                     <Link
                       href={href}
-                      className="object-registry-open-link"
+                      className={styles.openLink}
                       onClick={(event) => event.stopPropagation()}
                       aria-label={`Открыть объект ${item.name} полностью`}
                     >
