@@ -9,9 +9,11 @@ import {
   getTodayObjectAttendance,
 } from '@/entities/object/api/object-operations-client';
 import {
+  listObjectRegistrySignals,
   listObjects,
   listObjectsPage,
   type ObjectListPage,
+  type ObjectRegistrySignal,
   type ObjectSortField,
 } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
@@ -129,6 +131,7 @@ export default function ObjectsPage(): React.JSX.Element {
 
   const [searchInput, setSearchInput] = useState(query);
   const [result, setResult] = useState<ObjectListPage>({ items: [], page: 1, limit: PAGE_LIMIT, total: 0, totalPages: 0 });
+  const [signals, setSignals] = useState<Map<string, ObjectRegistrySignal>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const allowCreateObject = user?.capabilities?.canCreateObject ?? false;
@@ -196,6 +199,28 @@ export default function ObjectsPage(): React.JSX.Element {
     })();
     return () => { cancelled = true; };
   }, [issue, page, query, sortBy, sortDirection, status]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = result.items
+      .filter((item) => item.capabilities.canViewOperationalSections)
+      .map((item) => item.id);
+
+    if (!ids.length) {
+      setSignals(new Map());
+      return () => { cancelled = true; };
+    }
+
+    void listObjectRegistrySignals(ids)
+      .then((items) => {
+        if (!cancelled) setSignals(new Map(items.map((item) => [item.objectId, item])));
+      })
+      .catch(() => {
+        if (!cancelled) setSignals(new Map());
+      });
+
+    return () => { cancelled = true; };
+  }, [result.items]);
 
   const handleSort = (field: ObjectSortField): void => {
     const nextDirection = field === sortBy
@@ -266,7 +291,7 @@ export default function ObjectsPage(): React.JSX.Element {
         <div className="page-card workspace-surface inline-notice inline-notice--warning">{error}</div>
       ) : (
         <>
-          <ObjectListTable items={result.items} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} />
+          <ObjectListTable items={result.items} signals={signals} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} />
           {result.totalPages > 1 ? (
             <div className={styles.pagination}>
               <span className="page-muted">Страница {result.page} из {result.totalPages}</span>
