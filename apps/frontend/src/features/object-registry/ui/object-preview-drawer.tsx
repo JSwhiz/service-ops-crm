@@ -97,9 +97,7 @@ export function ObjectPreviewDrawer({
       setLoading(false);
     });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [item]);
 
   useEffect(() => {
@@ -123,10 +121,23 @@ export function ObjectPreviewDrawer({
     if (!attendance) return;
     setSavingAttendance(true);
     setMessage(null);
+
+    const existingHours = new Map(
+      attendance.employeeFacts.map((fact) => [fact.employeeId, fact.workedHours] as const),
+    );
+    const employeeById = new Map(attendance.employees.map((employee) => [employee.id, employee] as const));
+
     try {
       await upsertObjectAttendance(item.id, {
         operationDate: moscowBusinessDate(),
         employeeIds: selectedEmployeeIds,
+        employeeFacts: selectedEmployeeIds.map((employeeId) => ({
+          employeeId,
+          workedHours:
+            existingHours.get(employeeId)
+            ?? employeeById.get(employeeId)?.ratePolicy?.standardShiftHours
+            ?? 8,
+        })),
       });
       const refreshed = await getTodayObjectAttendance(item.id);
       setAttendance(refreshed);
@@ -174,13 +185,17 @@ export function ObjectPreviewDrawer({
 
   return (
     <div className={styles.backdrop} role="presentation" onMouseDown={onClose}>
-      <aside className={styles.drawer} role="dialog" aria-modal="true" aria-label={`Объект ${item.name}`} onMouseDown={(event) => event.stopPropagation()}>
+      <aside
+        className={styles.drawer}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Объект ${item.name}`}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <header className={styles.header}>
           <div className={styles.titleWrap}>
             <h2 className={styles.title}>{item.name}</h2>
-            <div className={styles.meta}>
-              {[item.internalName, item.address].filter(Boolean).join(' · ')}
-            </div>
+            <div className={styles.meta}>{[item.internalName, item.address].filter(Boolean).join(' · ')}</div>
           </div>
           <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть превью">×</button>
         </header>
@@ -197,64 +212,69 @@ export function ObjectPreviewDrawer({
           <div className={styles.peopleRow}><span className={styles.label}>Команда</span><span className={styles.value}>{item.employees.length} сотрудников</span></div>
         </section>
 
-        {item.capabilities.canViewOperationalSections ? (
-          <>
-            <section className={styles.section}>
-              <h3 className={styles.sectionTitle}>Сегодня</h3>
-              <div className={styles.summaryGrid}>
-                <div className={styles.summaryItem}><div className={styles.summaryLabel}>Присутствие</div><div className={styles.summaryValue} data-state={attendance?.submittedAt ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : attendance?.submittedAt ? `${attendance.employeeIds.length} отмечено` : 'Не отмечено'}</div></div>
-                <div className={styles.summaryItem}><div className={styles.summaryLabel}>Дневной отчёт</div><div className={styles.summaryValue} data-state={report ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : report ? 'Есть' : 'Нет'}</div></div>
-                <div className={styles.summaryItem}><div className={styles.summaryLabel}>Фото прибытия</div><div className={styles.summaryValue} data-state={arrival ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : arrival ? 'Есть' : 'Нет'}</div></div>
-                <div className={styles.summaryItem}><div className={styles.summaryLabel}>Задачи</div><div className={styles.summaryValue} data-state={overdueTasks.length ? 'attention' : 'ok'}>{loading ? 'Загрузка…' : `${openTasks.length} открыто${overdueTasks.length ? ` · ${overdueTasks.length} просрочено` : ''}`}</div></div>
-              </div>
-            </section>
+        {item.capabilities.canViewOperationalSections ? <>
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>Сегодня</h3>
+            <div className={styles.summaryGrid}>
+              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Присутствие</div><div className={styles.summaryValue} data-state={attendance?.submittedAt ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : attendance?.submittedAt ? `${attendance.employeeIds.length} отмечено` : 'Не отмечено'}</div></div>
+              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Дневной отчёт</div><div className={styles.summaryValue} data-state={report ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : report ? 'Есть' : 'Нет'}</div></div>
+              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Фото прибытия</div><div className={styles.summaryValue} data-state={arrival ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : arrival ? 'Есть' : 'Нет'}</div></div>
+              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Задачи</div><div className={styles.summaryValue} data-state={overdueTasks.length ? 'attention' : 'ok'}>{loading ? 'Загрузка…' : `${openTasks.length} открыто${overdueTasks.length ? ` · ${overdueTasks.length} просрочено` : ''}`}</div></div>
+            </div>
+          </section>
 
-            {attendance ? (
-              <section className={styles.section}>
-                <h3 className={styles.sectionTitle}>Быстро отметить присутствие</h3>
-                <div className={styles.attendanceList}>
-                  {attendance.employees.map((employee) => (
-                    <label key={employee.id} className={styles.attendanceItem}>
+          {attendance ? (
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>Быстро отметить присутствие</h3>
+              <div className={styles.attendanceList}>
+                {attendance.employees.map((employee) => {
+                  const selected = selectedEmployeeIds.includes(employee.id);
+                  const blocked = employee.availability.isUnavailable && !selected;
+                  return (
+                    <label key={employee.id} className={styles.attendanceItem} title={blocked ? 'Сотрудник недоступен сегодня' : undefined}>
                       <input
                         type="checkbox"
-                        checked={selectedEmployeeIds.includes(employee.id)}
-                        onChange={(event) => setSelectedEmployeeIds((current) => event.target.checked ? [...new Set([...current, employee.id])] : current.filter((id) => id !== employee.id))}
+                        checked={selected}
+                        disabled={blocked}
+                        onChange={(event) => setSelectedEmployeeIds((current) => event.target.checked
+                          ? [...new Set([...current, employee.id])]
+                          : current.filter((id) => id !== employee.id))}
                       />
                       <span>{employee.fullName}</span>
                     </label>
-                  ))}
-                </div>
-                <div className={styles.actionGrid}>
-                  <button className={styles.actionButton} type="button" disabled={savingAttendance} onClick={() => void saveAttendance()}>{savingAttendance ? 'Сохраняю…' : 'Сохранить присутствие'}</button>
-                </div>
-              </section>
-            ) : null}
-
-            <section className={styles.section}>
-              <h3 className={styles.sectionTitle}>Дневной отчёт</h3>
-              <textarea className={styles.textarea} value={reportDraft} onChange={(event) => setReportDraft(event.target.value)} placeholder="Кратко зафиксируйте состояние объекта за сегодня" />
+                  );
+                })}
+              </div>
               <div className={styles.actionGrid}>
-                <button className={styles.actionButton} type="button" disabled={savingReport || !reportDraft.trim()} onClick={() => void saveReport()}>{savingReport ? 'Сохраняю…' : report ? 'Обновить отчёт' : 'Сохранить отчёт'}</button>
+                <button className={styles.actionButton} type="button" disabled={savingAttendance} onClick={() => void saveAttendance()}>{savingAttendance ? 'Сохраняю…' : 'Сохранить присутствие'}</button>
               </div>
             </section>
+          ) : null}
 
-            <section className={styles.section}>
-              <h3 className={styles.sectionTitle}>Оперативный комментарий</h3>
-              <textarea className={styles.textarea} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Добавить комментарий к объекту" />
-              <div className={styles.actionGrid}>
-                <button className={styles.actionButton} type="button" disabled={savingComment || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</button>
-              </div>
-            </section>
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>Дневной отчёт</h3>
+            <textarea className={styles.textarea} value={reportDraft} onChange={(event) => setReportDraft(event.target.value)} placeholder="Кратко зафиксируйте состояние объекта за сегодня" />
+            <div className={styles.actionGrid}>
+              <button className={styles.actionButton} type="button" disabled={savingReport || !reportDraft.trim()} onClick={() => void saveReport()}>{savingReport ? 'Сохраняю…' : report ? 'Обновить отчёт' : 'Сохранить отчёт'}</button>
+            </div>
+          </section>
 
-            <section className={styles.section}>
-              <h3 className={styles.sectionTitle}>Ресурсы</h3>
-              <div className={styles.summaryGrid}>
-                <div className={styles.summaryItem}><div className={styles.summaryLabel}>Оборудование</div><div className={styles.summaryValue}>{equipmentCount === null ? '—' : `${equipmentCount} ед.`}</div></div>
-                <div className={styles.summaryItem}><div className={styles.summaryLabel}>Движения расходников</div><div className={styles.summaryValue}>{inventoryMovementCount === null ? '—' : inventoryMovementCount}</div></div>
-              </div>
-            </section>
-          </>
-        ) : (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>Оперативный комментарий</h3>
+            <textarea className={styles.textarea} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Добавить комментарий к объекту" />
+            <div className={styles.actionGrid}>
+              <button className={styles.actionButton} type="button" disabled={savingComment || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</button>
+            </div>
+          </section>
+
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>Ресурсы</h3>
+            <div className={styles.summaryGrid}>
+              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Оборудование</div><div className={styles.summaryValue}>{equipmentCount === null ? '—' : `${equipmentCount} ед.`}</div></div>
+              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Движения расходников</div><div className={styles.summaryValue}>{inventoryMovementCount === null ? '—' : inventoryMovementCount}</div></div>
+            </div>
+          </section>
+        </> : (
           <div className={styles.notice}>Операционные данные скрыты текущими правами доступа.</div>
         )}
 
