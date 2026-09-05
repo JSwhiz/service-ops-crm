@@ -1,10 +1,14 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { GlobalSearchQueryDto } from './dto/global-search-query.dto';
-import { GlobalSearchResponseDto } from './dto/global-search-response.dto';
+import {
+  GlobalSearchItemDto,
+  GlobalSearchResponseDto,
+} from './dto/global-search-response.dto';
+import { ResolveRecentSearchDto } from './dto/resolve-recent-search.dto';
 import { SearchService } from './search.service';
 
 interface CurrentAuthUser {
@@ -25,5 +29,13 @@ export class SearchController {
     @Query() query: GlobalSearchQueryDto,
   ): Promise<GlobalSearchResponseDto> {
     return this.searchService.search(user, query);
+  }
+
+  @Post('recent')
+  resolveRecent(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() payload: ResolveRecentSearchDto,
+  ): Promise<GlobalSearchItemDto[]> {
+    return this.searchService.resolveRecent(user, payload);
   }
 }
