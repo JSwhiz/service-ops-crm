@@ -3,6 +3,9 @@
 import { usePathname } from 'next/navigation';
 import React, { useCallback, useEffect, useState } from 'react';
 
+import { useAuth } from '@/shared/auth/use-auth';
+import { recordRecentPath } from '@/shared/ui/global-command/global-command-recent';
+
 import { AppHeader } from './app-header';
 import styles from './app-shell.client.module.css';
 import { AppSidebar } from './app-sidebar';
@@ -15,6 +18,7 @@ interface AppShellClientProps {
 
 export function AppShellClient({ children }: AppShellClientProps): React.JSX.Element {
   const pathname = usePathname();
+  const { user } = useAuth();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
   useEffect(() => {
@@ -24,6 +28,10 @@ export function AppShellClient({ children }: AppShellClientProps): React.JSX.Ele
       // Storage can be unavailable in hardened/private browser contexts.
     }
   }, []);
+
+  useEffect(() => {
+    recordRecentPath(user?.id, pathname);
+  }, [pathname, user?.id]);
 
   const toggleSidebar = useCallback((): void => {
     setSidebarExpanded((current) => {
