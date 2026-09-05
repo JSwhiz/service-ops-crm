@@ -5,10 +5,6 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 import {
-  getTodayDailyReport,
-  getTodayObjectAttendance,
-} from '@/entities/object/api/object-operations-client';
-import {
   listObjectRegistrySignals,
   listObjects,
   listObjectsPage,
@@ -24,6 +20,7 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 import styles from './objects-registry.module.css';
 
 const PAGE_LIMIT = 20;
+const SIGNAL_BATCH_SIZE = 50;
 const SORT_FIELDS = new Set<ObjectSortField>(['name', 'internalName', 'status', 'updatedAt', 'createdAt']);
 
 type ObjectIssueFilter = '' | 'attention' | 'no_responsible' | 'no_employees' | 'attendance_missing' | 'daily_report_missing';
@@ -77,40 +74,46 @@ function compareObjects(a: ServiceObject, b: ServiceObject, field: ObjectSortFie
   return value(a).localeCompare(value(b), 'ru') * factor;
 }
 
+async function loadOperationalSignals(items: ServiceObject[]): Promise<Map<string, ObjectRegistrySignal>> {
+  const ids = items
+    .filter((item) => item.capabilities.canViewOperationalSections)
+    .map((item) => item.id);
+  if (!ids.length) return new Map();
+
+  const batches: string[][] = [];
+  for (let index = 0; index < ids.length; index += SIGNAL_BATCH_SIZE) {
+    batches.push(ids.slice(index, index + SIGNAL_BATCH_SIZE));
+  }
+
+  const responses = await Promise.all(batches.map((batch) => listObjectRegistrySignals(batch)));
+  const flattened = responses.flat();
+  return new Map(flattened.map((item) => [item.objectId, item]));
+}
+
 async function filterByOperationalIssue(items: ServiceObject[], issue: ObjectIssueFilter): Promise<ServiceObject[]> {
   if (!issue) return items;
 
-  const attendanceRequired = moscowMinutes() >= 8 * 60 + 30;
-  const reportRequired = moscowMinutes() >= 17 * 60;
-  const needsAttendance = attendanceRequired && (issue === 'attention' || issue === 'attendance_missing');
-  const needsReport = reportRequired && (issue === 'attention' || issue === 'daily_report_missing');
-  const signals = new Map<string, { attendanceMissing: boolean; reportMissing: boolean }>();
-
-  if (needsAttendance || needsReport) {
-    await Promise.all(items.map(async (item) => {
-      const [attendance, report] = await Promise.all([
-        needsAttendance ? getTodayObjectAttendance(item.id).catch(() => null) : Promise.resolve(null),
-        needsReport ? getTodayDailyReport(item.id).catch(() => null) : Promise.resolve(null),
-      ]);
-      signals.set(item.id, {
-        attendanceMissing: needsAttendance && attendance !== null && attendance.submittedAt === null,
-        reportMissing: needsReport && report === null,
-      });
-    }));
-  }
+  const minutes = moscowMinutes();
+  const attendanceRequired = minutes >= 8 * 60 + 30;
+  const reportRequired = minutes >= 17 * 60;
+  const needsSignals =
+    (attendanceRequired && (issue === 'attention' || issue === 'attendance_missing'))
+    || (reportRequired && (issue === 'attention' || issue === 'daily_report_missing'));
+  const signals = needsSignals ? await loadOperationalSignals(items) : new Map<string, ObjectRegistrySignal>();
 
   return items.filter((item) => {
     const signal = signals.get(item.id);
     const noResponsible = !item.responsible;
     const noEmployees = item.employees.length === 0;
-    const attendanceMissing = Boolean(signal?.attendanceMissing);
-    const reportMissing = Boolean(signal?.reportMissing);
+    const attendanceMissing = attendanceRequired && Boolean(signal) && !signal?.attendanceSubmitted;
+    const reportMissing = reportRequired && Boolean(signal) && !signal?.dailyReportSubmitted;
+
     switch (issue) {
       case 'attention': return noResponsible || noEmployees || attendanceMissing || reportMissing;
       case 'no_responsible': return noResponsible;
       case 'no_employees': return noEmployees;
-      case 'attendance_missing': return attendanceRequired && attendanceMissing;
-      case 'daily_report_missing': return reportRequired && reportMissing;
+      case 'attendance_missing': return attendanceMissing;
+      case 'daily_report_missing': return reportMissing;
       default: return true;
     }
   });
@@ -202,23 +205,13 @@ export default function ObjectsPage(): React.JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
-    const ids = result.items
-      .filter((item) => item.capabilities.canViewOperationalSections)
-      .map((item) => item.id);
-
-    if (!ids.length) {
-      setSignals(new Map());
-      return () => { cancelled = true; };
-    }
-
-    void listObjectRegistrySignals(ids)
-      .then((items) => {
-        if (!cancelled) setSignals(new Map(items.map((item) => [item.objectId, item])));
+    void loadOperationalSignals(result.items)
+      .then((nextSignals) => {
+        if (!cancelled) setSignals(nextSignals);
       })
       .catch(() => {
         if (!cancelled) setSignals(new Map());
       });
-
     return () => { cancelled = true; };
   }, [result.items]);
 
