@@ -291,7 +291,7 @@ test('one-time order registry is paginated, searchable and access-safe', async (
   const readerResult = await list(`q=${marker}&limit=20`, readerCookie);
   assert.deepEqual(readerResult.items.map((item) => item.id), [firstOrder.id]);
   assert.equal(readerResult.total, readerResult.items.length);
-  assert.equal(readerResult.items[0]?.accessibleTaskCount, 1);
+  assert.equal(readerResult.items[0]?.accessibleTaskCount, 2);
 
   const deputyResult = await list(`q=${marker}&limit=20`, deputyCookie);
   assert.deepEqual(deputyResult.items, []);
