@@ -202,7 +202,7 @@ test('global search and recent resolution preserve domain ACL boundaries', async
       ],
     }),
   });
-  assert.equal(recentResponse.status, 201);
+  assert.equal(recentResponse.status, 200);
   const recentItems = (await recentResponse.json()) as Array<{ id: string }>;
   assert.deepEqual(
     recentItems.map((item) => item.id),
