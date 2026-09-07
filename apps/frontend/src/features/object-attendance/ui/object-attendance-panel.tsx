@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 
 interface ObjectAttendancePanelProps {
   employees: ObjectEmployeeOption[];
@@ -39,25 +40,19 @@ export function ObjectAttendancePanel({
     [safeEmployees],
   );
   const initialFactsById = useMemo(
-    () =>
-      new Map(
-        initialEmployeeFacts.map((fact) => [fact.employeeId, fact.workedHours]),
-      ),
+    () => new Map(initialEmployeeFacts.map((fact) => [fact.employeeId, fact.workedHours])),
     [initialEmployeeFacts],
   );
   const initialFactsSignature = useMemo(
-    () =>
-      initialEmployeeFacts
-        .map((fact) => `${fact.employeeId}:${fact.workedHours ?? ''}`)
-        .sort()
-        .join('|'),
+    () => initialEmployeeFacts
+      .map((fact) => `${fact.employeeId}:${fact.workedHours ?? ''}`)
+      .sort()
+      .join('|'),
     [initialEmployeeFacts],
   );
 
   const getDefaultWorkedHours = useCallback((employeeId: string): string => {
-    const standardShiftHours =
-      employeeById.get(employeeId)?.ratePolicy?.standardShiftHours ?? 8;
-
+    const standardShiftHours = employeeById.get(employeeId)?.ratePolicy?.standardShiftHours ?? 8;
     return String(standardShiftHours);
   }, [employeeById]);
 
@@ -68,14 +63,11 @@ export function ObjectAttendancePanel({
       const selectedIdSet = new Set(initialEmployeeIds);
 
       for (const employeeId of Object.keys(next)) {
-        if (!selectedIdSet.has(employeeId)) {
-          delete next[employeeId];
-        }
+        if (!selectedIdSet.has(employeeId)) delete next[employeeId];
       }
 
       for (const employeeId of initialEmployeeIds) {
         const savedWorkedHours = initialFactsById.get(employeeId);
-
         next[employeeId] =
           savedWorkedHours !== undefined && savedWorkedHours !== null
             ? String(savedWorkedHours)
@@ -93,20 +85,16 @@ export function ObjectAttendancePanel({
   ]);
 
   const getAvailabilityExplanation = (employee: ObjectEmployeeOption): string | null => {
-    if (!employee.availability.isUnavailable) {
-      return null;
-    }
+    if (!employee.availability.isUnavailable) return null;
 
-    const modeLabel =
-      employee.availability.availabilityMode === 'full_day'
-        ? 'Недоступен весь день'
-        : 'Недоступен по времени';
-    const periodLabel =
-      employee.availability.startDate && employee.availability.endDate
-        ? `${new Date(employee.availability.startDate).toLocaleString('ru-RU')} — ${new Date(employee.availability.endDate).toLocaleString('ru-RU')}`
-        : employee.availability.startDate
-          ? `с ${new Date(employee.availability.startDate).toLocaleString('ru-RU')}`
-          : 'период не указан';
+    const modeLabel = employee.availability.availabilityMode === 'full_day'
+      ? 'Недоступен весь день'
+      : 'Недоступен по времени';
+    const periodLabel = employee.availability.startDate && employee.availability.endDate
+      ? `${new Date(employee.availability.startDate).toLocaleString('ru-RU')} — ${new Date(employee.availability.endDate).toLocaleString('ru-RU')}`
+      : employee.availability.startDate
+        ? `с ${new Date(employee.availability.startDate).toLocaleString('ru-RU')}`
+        : 'период не указан';
 
     return employee.availability.comment
       ? `${modeLabel}. ${periodLabel}. Причина: ${employee.availability.comment}`
@@ -115,9 +103,7 @@ export function ObjectAttendancePanel({
 
   const toggleEmployee = (employeeId: string): void => {
     setSelectedIds((prev) => {
-      if (prev.includes(employeeId)) {
-        return prev.filter((id) => id !== employeeId);
-      }
+      if (prev.includes(employeeId)) return prev.filter((id) => id !== employeeId);
 
       setWorkedHoursById((current) => ({
         ...current,
@@ -127,9 +113,7 @@ export function ObjectAttendancePanel({
     });
   };
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
@@ -140,17 +124,15 @@ export function ObjectAttendancePanel({
         employeeIds: selectedIds,
         employeeFacts: selectedIds.map((employeeId) => ({
           employeeId,
-          workedHours:
-            Number(workedHoursById[employeeId] || getDefaultWorkedHours(employeeId)) ||
-            8,
+          workedHours: Number(workedHoursById[employeeId] || getDefaultWorkedHours(employeeId)) || 8,
         })),
       });
     } catch (caughtError) {
-      if (caughtError instanceof Error && caughtError.message) {
-        setError(caughtError.message);
-      } else {
-        setError('Не удалось сохранить присутствие сотрудников.');
-      }
+      setError(
+        caughtError instanceof Error && caughtError.message
+          ? caughtError.message
+          : 'Не удалось сохранить присутствие сотрудников.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -166,9 +148,7 @@ export function ObjectAttendancePanel({
       </div>
 
       {safeEmployees.length === 0 ? (
-        <div className="page-muted">
-          Для объекта пока не задан состав сотрудников.
-        </div>
+        <div className="page-muted">Для объекта пока не задан состав сотрудников.</div>
       ) : (
         <form onSubmit={handleSubmit}>
           <div className="record-list">
@@ -180,17 +160,9 @@ export function ObjectAttendancePanel({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 10,
-                  border: employee.availability.isUnavailable
-                    ? '1px solid #f59e0b'
-                    : undefined,
-                  background: employee.availability.isUnavailable
-                    ? '#fffbeb'
-                    : undefined,
-                  opacity:
-                    employee.availability.isUnavailable &&
-                    !selectedIds.includes(employee.id)
-                      ? 0.75
-                      : 1,
+                  border: employee.availability.isUnavailable ? '1px solid #ead7d2' : undefined,
+                  background: employee.availability.isUnavailable ? '#fbf4f2' : undefined,
+                  opacity: employee.availability.isUnavailable && !selectedIds.includes(employee.id) ? 0.75 : 1,
                 }}
                 title={getAvailabilityExplanation(employee) ?? undefined}
               >
@@ -198,36 +170,25 @@ export function ObjectAttendancePanel({
                   type="checkbox"
                   checked={selectedIds.includes(employee.id)}
                   onChange={() => toggleEmployee(employee.id)}
-                  disabled={
-                    employee.availability.isUnavailable &&
-                    !selectedIds.includes(employee.id)
-                  }
+                  disabled={employee.availability.isUnavailable && !selectedIds.includes(employee.id)}
                 />
                 <div style={{ display: 'grid', gap: 4 }}>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <span>{employee.fullName}</span>
-                    {!employee.isAssignedToObject ? (
-                      <span className="status-pill">Подмена</span>
-                    ) : null}
+                    {!employee.isAssignedToObject ? <span className="status-pill">Подмена</span> : null}
                     {employee.activeSubstitutions
                       .filter((item) => item.role === 'replacement')
                       .map((item) => (
-                        <span key={item.id} className="page-muted">
-                          Замещает: {item.counterpartEmployeeName}
-                        </span>
+                        <span key={item.id} className="page-muted">Замещает: {item.counterpartEmployeeName}</span>
                       ))}
                     {employee.activeSubstitutions
                       .filter((item) => item.role === 'primary')
                       .map((item) => (
-                        <span key={item.id} className="page-muted">
-                          Замещается: {item.counterpartEmployeeName}
-                        </span>
+                        <span key={item.id} className="page-muted">Замещается: {item.counterpartEmployeeName}</span>
                       ))}
                   </div>
                   {employee.availability.isUnavailable ? (
-                    <div style={{ color: '#b45309', fontSize: 13 }}>
-                      {getAvailabilityExplanation(employee)}
-                    </div>
+                    <div style={{ color: '#9a4f3e', fontSize: 13 }}>{getAvailabilityExplanation(employee)}</div>
                   ) : null}
                   {selectedIds.includes(employee.id) ? (
                     <label className="attendance-hours-control">
@@ -237,16 +198,11 @@ export function ObjectAttendancePanel({
                         min="0"
                         max="24"
                         step="0.5"
-                        value={
-                          workedHoursById[employee.id] ??
-                          getDefaultWorkedHours(employee.id)
-                        }
-                        onChange={(event) =>
-                          setWorkedHoursById((current) => ({
-                            ...current,
-                            [employee.id]: event.target.value,
-                          }))
-                        }
+                        value={workedHoursById[employee.id] ?? getDefaultWorkedHours(employee.id)}
+                        onChange={(event) => setWorkedHoursById((current) => ({
+                          ...current,
+                          [employee.id]: event.target.value,
+                        }))}
                       />
                     </label>
                   ) : null}
@@ -255,9 +211,7 @@ export function ObjectAttendancePanel({
             ))}
           </div>
 
-          {error ? (
-            <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>
-          ) : null}
+          {error ? <div className={styles.error} style={{ marginTop: 12 }}>{error}</div> : null}
 
           <div style={{ marginTop: 12 }}>
             <button type="submit" disabled={isSubmitting}>
