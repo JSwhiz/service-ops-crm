@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
 import Link from 'next/link';
+import React, { useState } from 'react';
 
 import type {
   InventoryItem,
   InventoryMovement,
 } from '@/entities/inventory/model/inventory.types';
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { formatInventoryQuantity } from '@/shared/lib/inventory-presentation';
+import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -37,17 +38,14 @@ export function ObjectInventoryPanel({
     evidenceFiles: File[];
   }) => Promise<void>;
 }): React.JSX.Element {
-  const [inventoryItemId, setInventoryItemId] = useState(
-    availableItems[0]?.id ?? '',
-  );
+  const [inventoryItemId, setInventoryItemId] = useState(availableItems[0]?.id ?? '');
   const [quantity, setQuantity] = useState('1');
   const [comment, setComment] = useState('');
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const selectedItem =
-    availableItems.find((item) => item.id === inventoryItemId) ?? null;
+  const selectedItem = availableItems.find((item) => item.id === inventoryItemId) ?? null;
 
   return (
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>
@@ -55,8 +53,7 @@ export function ObjectInventoryPanel({
         <div>
           <div className="section-title">Расходники объекта</div>
           <div className="page-muted">
-            Это финальное списание с центрального склада на объект, не мини-склад
-            объекта.
+            Это финальное списание с центрального склада на объект, не мини-склад объекта.
           </div>
         </div>
       </div>
@@ -81,31 +78,19 @@ export function ObjectInventoryPanel({
                 setEvidenceFiles([]);
               })
               .catch((submitError) => {
-                setError(
-                  getErrorMessage(
-                    submitError,
-                    'Не удалось списать расходник на объект.',
-                  ),
-                );
+                setError(getErrorMessage(submitError, 'Не удалось списать расходник на объект.'));
               })
               .finally(() => {
                 setIsSaving(false);
               });
           }}
         >
-          <div
-            style={{
-              display: 'grid',
-              gap: 12,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            }}
-          >
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
             <label>
-              <div style={{ marginBottom: 6 }}>Расходник</div>
+              <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Расходник</div>
               <select
                 value={inventoryItemId}
                 onChange={(event) => setInventoryItemId(event.target.value)}
-                style={{ width: '100%', padding: 10 }}
                 required
               >
                 {availableItems.map((item) => (
@@ -117,14 +102,13 @@ export function ObjectInventoryPanel({
             </label>
 
             <label>
-              <div style={{ marginBottom: 6 }}>Количество</div>
+              <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Количество</div>
               <input
                 type="number"
                 min="0.001"
                 step="0.001"
                 value={quantity}
                 onChange={(event) => setQuantity(event.target.value)}
-                style={{ width: '100%', padding: 10 }}
                 required
               />
             </label>
@@ -132,8 +116,7 @@ export function ObjectInventoryPanel({
             <div>
               <div className="page-muted">Цена</div>
               <div>
-                {selectedItem?.currentUnitPrice === null ||
-                selectedItem?.currentUnitPrice === undefined
+                {selectedItem?.currentUnitPrice === null || selectedItem?.currentUnitPrice === undefined
                   ? 'Сначала нужен приход с ценой'
                   : `${selectedItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedItem.unit}`}
               </div>
@@ -141,18 +124,17 @@ export function ObjectInventoryPanel({
           </div>
 
           <label>
-            <div style={{ marginBottom: 6 }}>Комментарий</div>
+            <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Комментарий</div>
             <textarea
               value={comment}
               onChange={(event) => setComment(event.target.value)}
               rows={2}
-              style={{ width: '100%', padding: 10 }}
               placeholder="Куда и зачем списали расходник"
             />
           </label>
 
           <div>
-            <div style={{ marginBottom: 6 }}>Фото подтверждения</div>
+            <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Фото подтверждения</div>
             <MediaActionPicker
               allowGenericFile={false}
               onPick={async (file) => {
@@ -162,14 +144,12 @@ export function ObjectInventoryPanel({
             <PendingMediaList
               files={evidenceFiles}
               onRemove={(index) =>
-                setEvidenceFiles((current) =>
-                  current.filter((_, itemIndex) => itemIndex !== index),
-                )
+                setEvidenceFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
               }
             />
           </div>
 
-          {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
+          {error ? <div className={styles.error}>{error}</div> : null}
 
           <button type="submit" disabled={isSaving || !inventoryItemId}>
             {isSaving ? 'Списываем...' : 'Списать на объект'}
@@ -182,55 +162,37 @@ export function ObjectInventoryPanel({
           <div className="page-muted">По объекту пока нет списаний.</div>
         ) : (
           movements.map((movement) => (
-            <div
-              key={movement.id}
-              className="record-card"
-              style={{
-                display: 'grid',
-                gap: 8,
-              }}
-            >
+            <div key={movement.id} className="record-card" style={{ display: 'grid', gap: 8 }}>
               <div style={{ fontWeight: 600 }}>{movement.inventoryItem.name}</div>
               <div className="page-muted">
-                {formatInventoryQuantity(
-                  movement.quantity,
-                  movement.inventoryItem.unit,
-                )}{' '}
-                • {movement.unitPriceSnapshot.toLocaleString('ru-RU')} ₽ /{' '}
-                {movement.inventoryItem.unit} •{' '}
+                {formatInventoryQuantity(movement.quantity, movement.inventoryItem.unit)} •{' '}
+                {movement.unitPriceSnapshot.toLocaleString('ru-RU')} ₽ / {movement.inventoryItem.unit} •{' '}
                 {movement.totalAmountSnapshot.toLocaleString('ru-RU')} ₽
               </div>
               <div className="page-muted">
-                Списал: {getUserDisplayName(movement.createdBy)} •{' '}
-                {new Date(movement.createdAt).toLocaleString('ru-RU')}
+                Списал: {getUserDisplayName(movement.createdBy)} • {new Date(movement.createdAt).toLocaleString('ru-RU')}
               </div>
               <div>
-                {movement.projection.hasEvidence ? (
-                  'Фото приложено'
-                ) : movement.approvalRequest ? (
-                  'Ожидает shared approval'
-                ) : movement.projection.approvalBridgeResolvedAt ? (
-                  <>
-                    Подтверждено директором без фото
-                    {movement.projection.approvalBridgeResolvedBy
-                      ? `: ${getUserDisplayName(
-                          movement.projection.approvalBridgeResolvedBy,
-                        )}`
-                      : ''}
-                  </>
-                ) : movement.projection.requiresApprovalBridge ? (
-                  movement.projection.approvalBridgeType ===
-                  'inventory_without_photo_confirmation' ? (
-                    'Нет фото: ожидает director approval bridge'
-                  ) : (
-                    'Нет фото: требуется подтверждение evidence'
-                  )
-                ) : (
-                  'Фото не требуется'
-                )}
+                {movement.projection.hasEvidence
+                  ? 'Фото приложено'
+                  : movement.approvalRequest
+                    ? 'Ожидает shared approval'
+                    : movement.projection.approvalBridgeResolvedAt
+                      ? <>
+                          Подтверждено директором без фото
+                          {movement.projection.approvalBridgeResolvedBy
+                            ? `: ${getUserDisplayName(movement.projection.approvalBridgeResolvedBy)}`
+                            : ''}
+                        </>
+                      : movement.projection.requiresApprovalBridge
+                        ? movement.projection.approvalBridgeType === 'inventory_without_photo_confirmation'
+                          ? 'Нет фото: ожидает director approval bridge'
+                          : 'Нет фото: требуется подтверждение evidence'
+                        : 'Фото не требуется'}
               </div>
               {movement.projection.requiresApprovalBridge || movement.approvalRequest ? (
                 <Link
+                  className={styles.buttonLike}
                   href={`/approvals?sourceEntityType=inventory_movement&sourceEntityId=${movement.id}`}
                 >
                   Открыть согласование
