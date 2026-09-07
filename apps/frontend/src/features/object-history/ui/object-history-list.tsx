@@ -3,6 +3,7 @@
 import React from 'react';
 
 import type { ObjectAuditLogItem } from '@/entities/object/model/object.types';
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import {
   getUserDisplayName,
   getUserSecondaryLabel,
@@ -14,83 +15,46 @@ interface ObjectHistoryListProps {
 
 function getActionLabel(actionCode: string): string {
   switch (actionCode) {
-    case 'object.created':
-      return 'Объект создан';
-    case 'object.updated':
-      return 'Карточка объекта изменена';
-    case 'object.status_changed':
-      return 'Статус объекта изменен';
-    case 'object.responsible_added':
-      return 'Назначен ответственный';
-    case 'object.responsible_removed':
-      return 'Снят ответственный';
-    case 'object.manager_added':
-      return 'Назначен менеджер';
-    case 'object.manager_removed':
-      return 'Снят менеджер';
-    default:
-      return actionCode;
+    case 'object.created': return 'Объект создан';
+    case 'object.updated': return 'Карточка объекта изменена';
+    case 'object.status_changed': return 'Статус объекта изменен';
+    case 'object.responsible_added': return 'Назначен ответственный';
+    case 'object.responsible_removed': return 'Снят ответственный';
+    case 'object.manager_added': return 'Назначен менеджер';
+    case 'object.manager_removed': return 'Снят менеджер';
+    default: return actionCode;
   }
 }
 
-export function ObjectHistoryList({
-  items,
-}: ObjectHistoryListProps): React.JSX.Element {
+export function ObjectHistoryList({ items }: ObjectHistoryListProps): React.JSX.Element {
   if (items.length === 0) {
     return (
-      <div className="page-card">
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>История объекта</div>
-        <div className="page-muted">Записей аудита пока нет.</div>
-      </div>
+      <section className={styles.surfaceCompact}>
+        <h2 className={styles.title}>История объекта</h2>
+        <p className={styles.muted}>Записей аудита пока нет.</p>
+      </section>
     );
   }
 
   return (
-    <div className="page-card">
-      <div className="section-header" style={{ marginBottom: 16 }}>
-        <div>
-          <div className="section-title">История объекта</div>
-          <div className="section-subtitle">
-            Audit trail карточки и назначений.
-          </div>
-        </div>
+    <section className={styles.surface}>
+      <div>
+        <h2 className={styles.title}>История объекта</h2>
+        <p className={styles.description}>Audit trail карточки, статуса и управленческих назначений.</p>
       </div>
 
-      <div className="record-list local-scroll local-scroll--lg">
+      <div className={styles.recordList}>
         {items.map((item) => (
-          <div
-            key={item.id}
-            className="record-card"
-            style={{ display: 'grid', gap: 8 }}
-          >
-            <div style={{ fontWeight: 600 }}>{getActionLabel(item.actionCode)}</div>
-
-            <div className="page-muted">
-              {new Date(item.createdAt).toLocaleString('ru-RU')} ·{' '}
-              {getUserDisplayName(item.actor)}
-              {getUserSecondaryLabel(item.actor)
-                ? ` ${getUserSecondaryLabel(item.actor)}`
-                : ''}
+          <article key={item.id} className={styles.recordCard}>
+            <div className={styles.recordTitle}>{getActionLabel(item.actionCode)}</div>
+            <div className={styles.muted}>
+              {new Date(item.createdAt).toLocaleString('ru-RU')} · {getUserDisplayName(item.actor)}
+              {getUserSecondaryLabel(item.actor) ? ` ${getUserSecondaryLabel(item.actor)}` : ''}
             </div>
-
-            {item.payload ? (
-              <pre
-                style={{
-                  margin: 0,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  background: '#f8fafc',
-                  padding: 10,
-                  borderRadius: 8,
-                  fontSize: 13,
-                }}
-              >
-                {JSON.stringify(item.payload, null, 2)}
-              </pre>
-            ) : null}
-          </div>
+            {item.payload ? <pre className={styles.payload}>{JSON.stringify(item.payload, null, 2)}</pre> : null}
+          </article>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
