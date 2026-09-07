@@ -6,6 +6,7 @@ import type { UpdateObjectPayload } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listObjectResponsibleCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
 
 interface ObjectEditFormProps {
@@ -28,13 +29,10 @@ export function ObjectEditForm({
     dailyRate: String(item.dailyRate),
     notes: item.notes ?? '',
   });
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [responsibleCandidates, setResponsibleCandidates] = useState<
-    SystemUserOption[]
-  >([]);
+  const [responsibleCandidates, setResponsibleCandidates] = useState<SystemUserOption[]>([]);
   const [candidatesError, setCandidatesError] = useState<string | null>(null);
   const [isCandidatesLoading, setIsCandidatesLoading] = useState(true);
 
@@ -56,13 +54,9 @@ export function ObjectEditForm({
     const loadCandidates = async (): Promise<void> => {
       setIsCandidatesLoading(true);
       setCandidatesError(null);
-
       try {
         const candidates = await listObjectResponsibleCandidates(item.id);
-
-        if (!cancelled) {
-          setResponsibleCandidates(candidates);
-        }
+        if (!cancelled) setResponsibleCandidates(candidates);
       } catch (caughtError) {
         if (!cancelled) {
           setCandidatesError(
@@ -72,22 +66,15 @@ export function ObjectEditForm({
           );
         }
       } finally {
-        if (!cancelled) {
-          setIsCandidatesLoading(false);
-        }
+        if (!cancelled) setIsCandidatesLoading(false);
       }
     };
 
     void loadCandidates();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [item.id]);
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setError(null);
     setSuccess(null);
@@ -98,7 +85,6 @@ export function ObjectEditForm({
     }
 
     setIsSubmitting(true);
-
     try {
       const payload: UpdateObjectPayload = {
         name: form.name.trim(),
@@ -109,109 +95,78 @@ export function ObjectEditForm({
         responsibleUserId: form.responsibleUserId,
       };
 
-      if (canEditDailyRate) {
-        payload.dailyRate = Number(form.dailyRate) || 0;
-      }
+      if (canEditDailyRate) payload.dailyRate = Number(form.dailyRate) || 0;
 
       await onSubmit(payload);
       setSuccess('Изменения по объекту сохранены.');
     } catch (caughtError) {
-      if (caughtError instanceof Error && caughtError.message) {
-        setError(caughtError.message);
-      } else {
-        setError('Не удалось сохранить изменения объекта.');
-      }
+      setError(
+        caughtError instanceof Error && caughtError.message
+          ? caughtError.message
+          : 'Не удалось сохранить изменения объекта.',
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <form
-      className="page-card"
-      onSubmit={handleSubmit}
-      style={{ display: 'grid', gap: 16 }}
-    >
-      <div style={{ fontWeight: 600, fontSize: 18 }}>
-        Редактирование карточки объекта
+    <form className={styles.surface} onSubmit={handleSubmit}>
+      <div>
+        <h2 className={styles.title}>Данные объекта</h2>
+        <p className={styles.description}>Основные реквизиты и параметры, которые относятся к карточке объекта.</p>
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        }}
-      >
-        <label>
-          <div style={{ marginBottom: 6 }}>Название</div>
+      <div className={styles.formGrid}>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Название</span>
           <input
             value={form.name}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, name: event.target.value }))
-            }
-            style={{ width: '100%', padding: 10 }}
+            onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
             required
           />
         </label>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Внутреннее имя</div>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Внутреннее имя</span>
           <input
             value={form.internalName}
-            onChange={(event) =>
-              setForm((prev) => ({
-                ...prev,
-                internalName: event.target.value,
-              }))
-            }
-            style={{ width: '100%', padding: 10 }}
+            onChange={(event) => setForm((prev) => ({ ...prev, internalName: event.target.value }))}
             required
           />
         </label>
 
-        <label style={{ gridColumn: '1 / -1' }}>
-          <div style={{ marginBottom: 6 }}>Адрес</div>
+        <label className={`${styles.field} ${styles.fullWidth}`}>
+          <span className={styles.fieldLabel}>Адрес</span>
           <input
             value={form.address}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, address: event.target.value }))
-            }
-            style={{ width: '100%', padding: 10 }}
+            onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
             required
           />
         </label>
 
-        <div style={{ gridColumn: '1 / -1' }}>
+        <div className={`${styles.field} ${styles.fullWidth}`}>
           {isCandidatesLoading ? (
-            <div className="page-muted">Загрузка ответственных...</div>
+            <div className={styles.notice}>Загрузка ответственных...</div>
           ) : candidatesError ? (
-            <div style={{ color: '#b91c1c' }}>{candidatesError}</div>
+            <div className={styles.error}>{candidatesError}</div>
           ) : (
             <UserSearchSelect
               label="Ответственный"
               options={responsibleCandidates}
               value={form.responsibleUserId}
-              onChange={(responsibleUserId) =>
-                setForm((prev) => ({ ...prev, responsibleUserId }))
-              }
+              onChange={(responsibleUserId) => setForm((prev) => ({ ...prev, responsibleUserId }))}
               disabled={isSubmitting}
               required
             />
           )}
         </div>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Сезон</div>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Сезон</span>
           <select
             value={form.seasonMode}
-            onChange={(event) =>
-              setForm((prev) => ({
-                ...prev,
-                seasonMode: event.target.value,
-              }))
-            }
-            style={{ width: '100%', padding: 10 }}
+            onChange={(event) => setForm((prev) => ({ ...prev, seasonMode: event.target.value }))}
           >
             <option value="">Без сезонности</option>
             <option value="summer">Летний</option>
@@ -219,51 +174,35 @@ export function ObjectEditForm({
           </select>
         </label>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Ставка за день</div>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Ставка за день</span>
           <input
             type="number"
             min="0"
             step="1"
             value={form.dailyRate}
-            onChange={(event) =>
-              setForm((prev) => ({
-                ...prev,
-                dailyRate: event.target.value,
-              }))
-            }
-            style={{ width: '100%', padding: 10 }}
+            onChange={(event) => setForm((prev) => ({ ...prev, dailyRate: event.target.value }))}
             disabled={!canEditDailyRate}
           />
           {!canEditDailyRate ? (
-            <div className="page-muted" style={{ marginTop: 6 }}>
-              Изменение ставки доступно только учредителю и директору.
-            </div>
+            <span className={styles.inlineHelp}>Изменение ставки доступно только учредителю и директору.</span>
           ) : null}
         </label>
 
-        <label style={{ gridColumn: '1 / -1' }}>
-          <div style={{ marginBottom: 6 }}>Комментарий</div>
+        <label className={`${styles.field} ${styles.fullWidth}`}>
+          <span className={styles.fieldLabel}>Комментарий</span>
           <textarea
             value={form.notes}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, notes: event.target.value }))
-            }
-            style={{ width: '100%', minHeight: 120, padding: 10 }}
+            onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
           />
         </label>
       </div>
 
-      {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
-      {success ? <div style={{ color: '#15803d' }}>{success}</div> : null}
+      {error ? <div className={styles.error}>{error}</div> : null}
+      {success ? <div className={styles.success}>{success}</div> : null}
 
-      <div>
-        <button
-          type="submit"
-          disabled={
-            isSubmitting || isCandidatesLoading || !form.responsibleUserId
-          }
-        >
+      <div className={styles.actions}>
+        <button type="submit" disabled={isSubmitting || isCandidatesLoading || !form.responsibleUserId}>
           {isSubmitting ? 'Сохраняем...' : 'Сохранить изменения'}
         </button>
       </div>
