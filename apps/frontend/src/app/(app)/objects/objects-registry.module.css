@@ -54,6 +54,88 @@
   font-weight: 650;
 }
 
+/* Keep the registry on the same warm, flat control language as the full Object workspace. */
+.page :global(input:not([type="checkbox"]):not([type="radio"])),
+.page :global(select) {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  border: 1px solid #ddd3cc;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #fffdfb;
+  box-shadow: none;
+  color: #3f3732;
+  font: inherit;
+  font-size: 13px;
+  transform: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.page :global(select) {
+  cursor: pointer;
+}
+
+.page :global(input::placeholder) {
+  color: #a4978e;
+}
+
+.page :global(input:focus-visible),
+.page :global(select:focus-visible) {
+  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline-offset: 2px;
+  border-color: #bba99d;
+  box-shadow: none;
+}
+
+.page :global(button),
+.page :global(.button-link) {
+  appearance: none;
+  min-height: 36px;
+  border: 1px solid #d9cec6;
+  border-radius: 7px;
+  padding: 8px 12px;
+  background: #fffdfb;
+  box-shadow: none;
+  color: #4c413a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transform: none;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.page :global(.button-link) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page :global(button:hover:not(:disabled)),
+.page :global(.button-link:hover) {
+  border-color: #cdbfb5;
+  background: #faf7f4;
+  box-shadow: none;
+  color: #332d29;
+  transform: none;
+}
+
+.page :global(button:focus-visible),
+.page :global(.button-link:focus-visible) {
+  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline-offset: 2px;
+  border-color: #bba99d;
+  box-shadow: none;
+}
+
+.page :global(button:disabled) {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 .chips {
   display: flex;
   align-items: center;
@@ -75,11 +157,24 @@
   line-height: 1;
 }
 
-.chip button {
+.page .chip button {
   all: unset;
   cursor: pointer;
   color: #8b7c72;
   font-weight: 700;
+}
+
+.page .chip button:hover,
+.page .chip button:focus-visible {
+  color: #4c413a;
+  transform: none;
+  box-shadow: none;
+}
+
+.page .chip button:focus-visible {
+  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .pagination {
