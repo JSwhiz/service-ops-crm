@@ -188,7 +188,8 @@
   opacity: 0.52;
 }
 
-.managerList {
+.managerList,
+.recordList {
   display: grid;
   gap: 8px;
 }
@@ -211,6 +212,35 @@
 .optionRow:hover {
   border-color: #d9cec6;
   background: #faf7f4;
+}
+
+.recordCard {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e7dfd9;
+  border-radius: 8px;
+  background: #fffdfb;
+}
+
+.recordTitle {
+  color: #3f3732;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.payload {
+  margin: 0;
+  padding: 10px;
+  overflow-x: auto;
+  border: 1px solid #ebe4df;
+  border-radius: 7px;
+  background: #faf7f4;
+  color: #5f554e;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .error,
