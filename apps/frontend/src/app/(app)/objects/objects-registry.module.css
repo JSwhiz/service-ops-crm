@@ -34,18 +34,6 @@
   font-size: 13px;
 }
 
-.header :global(.button-link) {
-  border-color: #65564d;
-  background: #65564d;
-  color: #fffdfb;
-}
-
-.header :global(.button-link:hover) {
-  border-color: #554940;
-  background: #554940;
-  color: #ffffff;
-}
-
 .toolbar {
   display: grid;
   grid-template-columns: minmax(360px, 1fr) 190px 240px;
@@ -164,6 +152,12 @@
   box-shadow: none;
   color: #332d29;
   transform: none;
+}
+
+.header :global(.button-link) {
+  border-color: #65564d;
+  background: #65564d;
+  color: #fffdfb;
 }
 
 .header :global(.button-link:hover) {
