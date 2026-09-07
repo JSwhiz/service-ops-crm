@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 
 import { createObject } from '@/entities/object/api/object-client';
 import {
@@ -15,6 +15,7 @@ import {
 } from '@/shared/lib/display-name';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
@@ -30,15 +31,12 @@ export default function NewObjectPage(): React.JSX.Element {
     notes: '',
   });
 
-  const [responsibleCandidates, setResponsibleCandidates] = useState<
-    SystemUserOption[]
-  >([]);
+  const [responsibleCandidates, setResponsibleCandidates] = useState<SystemUserOption[]>([]);
   const [managerUsers, setManagerUsers] = useState<SystemUserOption[]>([]);
   const [responsibleUserId, setResponsibleUserId] = useState('');
   const [managerUserIds, setManagerUserIds] = useState<string[]>([]);
   const [isUsersLoading, setIsUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
-
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -65,11 +63,11 @@ export default function NewObjectPage(): React.JSX.Element {
         setResponsibleCandidates(responsibles);
         setManagerUsers(managers);
       } catch (caughtError) {
-        if (caughtError instanceof Error && caughtError.message) {
-          setUsersError(caughtError.message);
-        } else {
-          setUsersError('Не удалось загрузить пользователей системы.');
-        }
+        setUsersError(
+          caughtError instanceof Error && caughtError.message
+            ? caughtError.message
+            : 'Не удалось загрузить пользователей системы.',
+        );
       } finally {
         setIsUsersLoading(false);
       }
@@ -78,9 +76,7 @@ export default function NewObjectPage(): React.JSX.Element {
     void loadUsers();
   }, [allowCreateObject]);
 
-  const managerCandidates = managerUsers.filter(
-    (candidate) => candidate.id !== user?.id,
-  );
+  const managerCandidates = managerUsers.filter((candidate) => candidate.id !== user?.id);
 
   const toggleManager = (userId: string): void => {
     setManagerUserIds((prev) =>
@@ -90,9 +86,7 @@ export default function NewObjectPage(): React.JSX.Element {
     );
   };
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setError(null);
 
@@ -120,89 +114,64 @@ export default function NewObjectPage(): React.JSX.Element {
         managerUserIds,
         responsibleUserId,
       });
-
       router.push('/objects');
     } catch (caughtError) {
-      if (caughtError instanceof Error && caughtError.message) {
-        setError(caughtError.message);
-      } else {
-        setError('Не удалось создать объект.');
-      }
+      setError(
+        caughtError instanceof Error && caughtError.message
+          ? caughtError.message
+          : 'Не удалось создать объект.',
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <>
+    <div className={`workspace-page ${styles.page}`}>
       <PageTitle title="Создать объект" />
 
-      <form
-        className="page-card"
-        onSubmit={handleSubmit}
-        style={{ display: 'grid', gap: 16, maxWidth: 900 }}
-      >
-        <div style={{ fontWeight: 600, fontSize: 18 }}>Новый объект</div>
-
-        <div className="page-muted">
-          Назначьте одного ответственного системного пользователя. Сотрудники объекта
-          добавляются отдельно в карточке объекта.
+      <form className={styles.surface} onSubmit={handleSubmit}>
+        <div>
+          <h1 className={styles.title}>Новый объект</h1>
+          <p className={styles.description}>
+            Основные данные объекта, ответственный и стартовая команда менеджеров.
+            Сотрудники объекта добавляются отдельно в карточке после создания.
+          </p>
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gap: 12,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          }}
-        >
-          <label>
-            <div style={{ marginBottom: 6 }}>Название</div>
+        <div className={styles.formGrid}>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Название</span>
             <input
               value={form.name}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, name: event.target.value }))
-              }
-              style={{ width: '100%', padding: 10 }}
+              onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
               required
             />
           </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Внутреннее имя</div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Внутреннее имя</span>
             <input
               value={form.internalName}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  internalName: event.target.value,
-                }))
-              }
-              style={{ width: '100%', padding: 10 }}
+              onChange={(event) => setForm((prev) => ({ ...prev, internalName: event.target.value }))}
               required
             />
           </label>
 
-          <label style={{ gridColumn: '1 / -1' }}>
-            <div style={{ marginBottom: 6 }}>Адрес</div>
+          <label className={`${styles.field} ${styles.fullWidth}`}>
+            <span className={styles.fieldLabel}>Адрес</span>
             <input
               value={form.address}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, address: event.target.value }))
-              }
-              style={{ width: '100%', padding: 10 }}
+              onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
               required
             />
           </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Статус</div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Статус</span>
             <select
               value={form.status}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, status: event.target.value }))
-              }
-              style={{ width: '100%', padding: 10 }}
+              onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}
             >
               <option value="active">Активный</option>
               <option value="frozen">Заморожен</option>
@@ -210,17 +179,11 @@ export default function NewObjectPage(): React.JSX.Element {
             </select>
           </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Сезон</div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Сезон</span>
             <select
               value={form.seasonMode}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  seasonMode: event.target.value,
-                }))
-              }
-              style={{ width: '100%', padding: 10 }}
+              onChange={(event) => setForm((prev) => ({ ...prev, seasonMode: event.target.value }))}
             >
               <option value="">Без сезонности</option>
               <option value="summer">Летний</option>
@@ -228,73 +191,55 @@ export default function NewObjectPage(): React.JSX.Element {
             </select>
           </label>
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Ставка за день</div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Ставка за день</span>
             <input
               type="number"
               min="0"
               step="1"
               value={form.dailyRate}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  dailyRate: event.target.value,
-                }))
-              }
-              style={{ width: '100%', padding: 10 }}
+              onChange={(event) => setForm((prev) => ({ ...prev, dailyRate: event.target.value }))}
             />
           </label>
 
-          <label style={{ gridColumn: '1 / -1' }}>
-            <div style={{ marginBottom: 6 }}>Комментарий</div>
+          <label className={`${styles.field} ${styles.fullWidth}`}>
+            <span className={styles.fieldLabel}>Комментарий</span>
             <textarea
               value={form.notes}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, notes: event.target.value }))
-              }
-              style={{ width: '100%', minHeight: 120, padding: 10 }}
+              onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
             />
           </label>
         </div>
 
-        {isUsersLoading ? (
-          <div className="page-muted">Загрузка пользователей...</div>
-        ) : usersError ? (
-          <div style={{ color: '#b91c1c' }}>{usersError}</div>
-        ) : (
-          <UserSearchSelect
-            label="Ответственный"
-            options={responsibleCandidates}
-            value={responsibleUserId}
-            onChange={setResponsibleUserId}
-            disabled={isSubmitting}
-            required
-          />
-        )}
-
-        <div>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Менеджеры объекта</div>
-
+        <div className={styles.field}>
           {isUsersLoading ? (
-            <div className="page-muted">Загрузка пользователей...</div>
+            <div className={styles.notice}>Загрузка пользователей...</div>
           ) : usersError ? (
-            <div style={{ color: '#b91c1c' }}>{usersError}</div>
-          ) : managerCandidates.length === 0 ? (
-            <div className="page-muted">Подходящие пользователи не найдены.</div>
+            <div className={styles.error}>{usersError}</div>
           ) : (
-            <div style={{ display: 'grid', gap: 8 }}>
+            <UserSearchSelect
+              label="Ответственный"
+              options={responsibleCandidates}
+              value={responsibleUserId}
+              onChange={setResponsibleUserId}
+              disabled={isSubmitting}
+              required
+            />
+          )}
+        </div>
+
+        <section className={styles.field}>
+          <span className={styles.fieldLabel}>Менеджеры объекта</span>
+          {isUsersLoading ? (
+            <div className={styles.notice}>Загрузка пользователей...</div>
+          ) : usersError ? (
+            <div className={styles.error}>{usersError}</div>
+          ) : managerCandidates.length === 0 ? (
+            <div className={styles.notice}>Подходящие пользователи не найдены.</div>
+          ) : (
+            <div className={styles.managerList}>
               {managerCandidates.map((candidate) => (
-                <label
-                  key={candidate.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: 10,
-                    border: '1px solid #d1d5db',
-                    borderRadius: 10,
-                  }}
-                >
+                <label key={candidate.id} className={styles.optionRow}>
                   <input
                     type="checkbox"
                     checked={managerUserIds.includes(candidate.id)}
@@ -303,41 +248,29 @@ export default function NewObjectPage(): React.JSX.Element {
                   <span>
                     {getUserDisplayName(candidate)}
                     {getUserSecondaryLabel(candidate) ? (
-                      <span className="identity-secondary">
-                        {getUserSecondaryLabel(candidate)}
-                      </span>
+                      <span className="identity-secondary">{getUserSecondaryLabel(candidate)}</span>
                     ) : null}
                   </span>
                 </label>
               ))}
             </div>
           )}
-        </div>
+        </section>
 
-        {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
+        {error ? <div className={styles.error}>{error}</div> : null}
 
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div className={styles.actions}>
           <button
             type="submit"
-            disabled={
-              isSubmitting ||
-              isUsersLoading ||
-              !allowCreateObject ||
-              !responsibleUserId
-            }
+            disabled={isSubmitting || isUsersLoading || !allowCreateObject || !responsibleUserId}
           >
             {isSubmitting ? 'Создаем...' : 'Создать объект'}
           </button>
-
-          <button
-            type="button"
-            onClick={() => router.push('/objects')}
-            disabled={isSubmitting}
-          >
+          <button type="button" onClick={() => router.push('/objects')} disabled={isSubmitting}>
             Отмена
           </button>
         </div>
       </form>
-    </>
+    </div>
   );
 }
