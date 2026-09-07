@@ -136,7 +136,10 @@
   font-size: 13px;
 }
 
-.attendanceItem input { margin: 0; }
+.attendanceItem input {
+  margin: 0;
+  accent-color: #67564b;
+}
 
 .textarea {
   width: 100%;
@@ -148,11 +151,19 @@
   padding: 10px 11px;
   color: #352f2b;
   font: inherit;
+  box-shadow: none;
+  transition: border-color 120ms ease, background 120ms ease;
 }
 
-.textarea:focus {
-  outline: 2px solid rgba(122, 91, 71, .14);
+.textarea::placeholder {
+  color: #a4978e;
+}
+
+.textarea:focus-visible {
+  outline: 2px solid rgba(122, 96, 79, .18);
+  outline-offset: 2px;
   border-color: #bda89a;
+  box-shadow: none;
 }
 
 .actionGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }
@@ -161,8 +172,13 @@
 .primaryAction {
   min-height: 36px;
   padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 13px;
   font-weight: 650;
+  line-height: 1.2;
+  text-decoration: none;
 }
 
 .actionButton {
@@ -175,10 +191,6 @@
   border: 1px solid #67564b !important;
   background: #67564b !important;
   color: #fff !important;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .actionButton:hover:not(:disabled),
@@ -186,13 +198,29 @@
   background: #faf7f4 !important;
   border-color: #d6c9c1 !important;
   box-shadow: none !important;
+  color: #332d29 !important;
   transform: none !important;
 }
 
 .primaryAction:hover {
   background: #59483e !important;
+  border-color: #59483e !important;
   box-shadow: none !important;
   transform: none !important;
+}
+
+.actionButton:focus-visible,
+.closeButton:focus-visible,
+.primaryAction:focus-visible {
+  outline: 2px solid rgba(122, 96, 79, .22);
+  outline-offset: 2px;
+  box-shadow: none !important;
+}
+
+.actionButton:disabled,
+.closeButton:disabled {
+  cursor: not-allowed;
+  opacity: .52;
 }
 
 .footer {
