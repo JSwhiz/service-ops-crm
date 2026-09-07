@@ -54,7 +54,7 @@
   font-weight: 650;
 }
 
-/* Keep the registry on the same warm, flat control language as the full Object workspace. */
+/* Keep registry filters and actions on the same warm, flat control language as the full Object workspace. */
 .page :global(input:not([type="checkbox"]):not([type="radio"])),
 .page :global(select) {
   width: 100%;
@@ -88,7 +88,7 @@
   box-shadow: none;
 }
 
-.page :global(button),
+.page :global(button:not(.object-table-sort)),
 .page :global(.button-link) {
   appearance: none;
   min-height: 36px;
@@ -114,7 +114,7 @@
   justify-content: center;
 }
 
-.page :global(button:hover:not(:disabled)),
+.page :global(button:not(.object-table-sort):hover:not(:disabled)),
 .page :global(.button-link:hover) {
   border-color: #cdbfb5;
   background: #faf7f4;
@@ -123,7 +123,7 @@
   transform: none;
 }
 
-.page :global(button:focus-visible),
+.page :global(button:not(.object-table-sort):focus-visible),
 .page :global(.button-link:focus-visible) {
   outline: 2px solid rgba(122, 96, 79, 0.22);
   outline-offset: 2px;
@@ -131,7 +131,7 @@
   box-shadow: none;
 }
 
-.page :global(button:disabled) {
+.page :global(button:not(.object-table-sort):disabled) {
   cursor: not-allowed;
   opacity: 0.52;
 }
