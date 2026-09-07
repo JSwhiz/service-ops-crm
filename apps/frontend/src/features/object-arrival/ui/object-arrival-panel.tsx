@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 
 import type { ObjectArrivalPhoto } from '@/entities/object/model/object-operations.types';
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   MEDIA_CATEGORY_OPTIONS,
@@ -28,10 +29,7 @@ function normalizePhotoCategory(value: string | null | undefined): string {
     : 'other';
 }
 
-export function ObjectArrivalPanel({
-  item,
-  onSave,
-}: ObjectArrivalPanelProps): React.JSX.Element {
+export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): React.JSX.Element {
   const [form, setForm] = useState({
     photoType: normalizePhotoCategory(item?.photoType),
     comment: item?.comment ?? '',
@@ -48,9 +46,7 @@ export function ObjectArrivalPanel({
     setPendingFiles([]);
   }, [item]);
 
-  const handleSubmit = async (
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
@@ -71,53 +67,33 @@ export function ObjectArrivalPanel({
 
   return (
     <div className="page-card">
-      <div style={{ fontWeight: 600, marginBottom: 12 }}>Фото прибытия сегодня</div>
-
-      {item ? (
-        <div className="page-muted" style={{ marginBottom: 12 }}>
-          Уже зафиксировано: {getUserDisplayName(item.createdBy)}
-          {item.photoType ? ` • ${getMediaCategoryLabel(item.photoType)}` : ''}
-        </div>
-      ) : (
-        <div className="page-muted" style={{ marginBottom: 12 }}>
-          Фото прибытия за сегодня еще не зафиксировано.
-        </div>
-      )}
+      <div className="section-title" style={{ marginBottom: 6 }}>Фото прибытия сегодня</div>
+      <div className="page-muted" style={{ marginBottom: 12 }}>
+        {item
+          ? `Уже зафиксировано: ${getUserDisplayName(item.createdBy)}${item.photoType ? ` • ${getMediaCategoryLabel(item.photoType)}` : ''}`
+          : 'Фото прибытия за сегодня еще не зафиксировано.'}
+      </div>
 
       <form onSubmit={handleSubmit}>
-        <div
-          style={{
-            display: 'grid',
-            gap: 12,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          }}
-        >
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
           <label>
-            <div style={{ marginBottom: 6 }}>Категория фото</div>
+            <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Категория фото</div>
             <select
               value={form.photoType}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, photoType: event.target.value }))
-              }
-              style={{ width: '100%', padding: 10 }}
+              onChange={(event) => setForm((prev) => ({ ...prev, photoType: event.target.value }))}
             >
               {MEDIA_CATEGORY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </label>
 
           <label style={{ gridColumn: '1 / -1' }}>
-            <div style={{ marginBottom: 6 }}>Комментарий</div>
+            <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Комментарий</div>
             <textarea
               value={form.comment}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, comment: event.target.value }))
-              }
+              onChange={(event) => setForm((prev) => ({ ...prev, comment: event.target.value }))}
               rows={3}
-              style={{ width: '100%', padding: 10, resize: 'vertical' }}
             />
           </label>
         </div>
@@ -128,35 +104,23 @@ export function ObjectArrivalPanel({
             disabled={isSubmitting}
             allowGenericFile={false}
             genericFileAccept="image/*"
-            onPick={async (file) => {
-              setPendingFiles((prev) => [...prev, file]);
-            }}
+            onPick={async (file) => setPendingFiles((prev) => [...prev, file])}
           />
           <PendingMediaList
             files={pendingFiles}
-            onRemove={(index) =>
-              setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))
-            }
+            onRemove={(index) => setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
             emptyText="Новых фото пока нет."
           />
         </div>
 
         <div style={{ marginTop: 12 }}>
-          <AttachmentPreviewList
-            files={item?.attachments ?? []}
-            emptyText="Фотографии прибытия пока не загружены."
-          />
+          <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Фотографии прибытия пока не загружены." />
         </div>
 
-        {error ? (
-          <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div>
-        ) : null}
+        {error ? <div className={styles.error} style={{ marginTop: 12 }}>{error}</div> : null}
 
         <div style={{ marginTop: 12 }}>
-          <button
-            type="submit"
-            disabled={isSubmitting || (!item && pendingFiles.length === 0)}
-          >
+          <button type="submit" disabled={isSubmitting || (!item && pendingFiles.length === 0)}>
             {isSubmitting ? 'Сохраняем...' : item ? 'Обновить фото прибытия' : 'Сохранить фото прибытия'}
           </button>
         </div>
