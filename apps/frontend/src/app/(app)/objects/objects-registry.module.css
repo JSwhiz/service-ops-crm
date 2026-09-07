@@ -1,5 +1,7 @@
 .page {
   display: grid;
+  width: calc(100% + 32px);
+  margin-left: -16px;
   gap: 14px;
 }
 
@@ -32,12 +34,24 @@
   font-size: 13px;
 }
 
+.header :global(.button-link) {
+  border-color: #65564d;
+  background: #65564d;
+  color: #fffdfb;
+}
+
+.header :global(.button-link:hover) {
+  border-color: #554940;
+  background: #554940;
+  color: #ffffff;
+}
+
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 180px 220px;
+  grid-template-columns: minmax(360px, 1fr) 190px 240px;
   gap: 10px;
   align-items: end;
-  padding: 12px;
+  padding: 11px 12px 12px;
   border: 1px solid #e5ddd6;
   border-radius: 9px;
   background: #fffdfb;
@@ -46,12 +60,15 @@
 .control {
   display: grid;
   gap: 5px;
+  min-width: 0;
 }
 
 .controlLabel {
   color: #83756c;
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
 }
 
 /* Keep registry filters and actions on the same warm, flat control language as the full Object workspace. */
@@ -63,21 +80,47 @@
   border: 1px solid #ddd3cc;
   border-radius: 7px;
   padding: 8px 10px;
-  background: #fffdfb;
+  background-color: #fffdfb;
   box-shadow: none;
   color: #3f3732;
   font: inherit;
   font-size: 13px;
   transform: none;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.page :global(input[type="search"]) {
+  appearance: none;
+  padding-left: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b7d74' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 11px center;
+  background-size: 14px 14px;
+}
+
+.page :global(input[type="search"]::-webkit-search-cancel-button) {
+  cursor: pointer;
+  opacity: 0.48;
 }
 
 .page :global(select) {
+  appearance: none;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23786b62' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 14px 14px;
   cursor: pointer;
 }
 
 .page :global(input::placeholder) {
   color: #a4978e;
+}
+
+.page :global(input:hover:not(:disabled)),
+.page :global(select:hover:not(:disabled)) {
+  border-color: #cdbfb5;
+  background-color: #fffdfa;
 }
 
 .page :global(input:focus-visible),
@@ -123,12 +166,22 @@
   transform: none;
 }
 
+.header :global(.button-link:hover) {
+  border-color: #554940;
+  background: #554940;
+  color: #ffffff;
+}
+
 .page :global(button:not(.object-table-sort):focus-visible),
 .page :global(.button-link:focus-visible) {
   outline: 2px solid rgba(122, 96, 79, 0.22);
   outline-offset: 2px;
   border-color: #bba99d;
   box-shadow: none;
+}
+
+.header :global(.button-link:focus-visible) {
+  border-color: #65564d;
 }
 
 .page :global(button:not(.object-table-sort):disabled) {
@@ -188,7 +241,12 @@
   background: #fffdfb;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 1180px) {
+  .page {
+    width: 100%;
+    margin-left: 0;
+  }
+
   .toolbar {
     grid-template-columns: 1fr 1fr;
   }
