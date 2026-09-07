@@ -22,6 +22,7 @@ import type { TimesheetCellMutation } from '@/features/timesheet-cell-editing/ui
 import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/timesheet-corrections-panel';
 import { TimesheetOverviewGrid } from '@/features/timesheet-overview/ui/timesheet-overview-grid';
 import { Button } from '@/shared/ui/foundation';
+import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -206,19 +207,15 @@ export default function TimesheetPage(): React.JSX.Element {
   return (
     <div className="timesheet-page">
       <section className="page-card timesheet-overview-filters" aria-label="Фильтры табеля">
-        <label>
-          <span className="detail-label">Период</span>
-          <input
-            type="month"
-            min="2024-01"
-            max="2100-12"
-            value={`${year}-${String(month).padStart(2, '0')}`}
-            onChange={(event) => {
-              const [nextYear, nextMonth] = event.target.value.split('-');
-              replaceFilters({ year: nextYear || null, month: nextMonth ? String(Number(nextMonth)) : null });
-            }}
-          />
-        </label>
+        <MonthPeriodPicker
+          year={year}
+          month={month}
+          minYear={2024}
+          maxYear={2100}
+          onChange={(nextYear, nextMonth) => {
+            replaceFilters({ year: String(nextYear), month: String(nextMonth) });
+          }}
+        />
         <SearchableSelect
           label="Объект"
           value={objectId}
