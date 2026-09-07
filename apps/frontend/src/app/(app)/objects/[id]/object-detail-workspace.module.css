@@ -210,9 +210,43 @@
   background-color: #fffdfb;
 }
 
+.workspace :global(input[type="checkbox"]),
+.workspace :global(input[type="radio"]) {
+  accent-color: #67564b;
+}
+
 .workspace :global(input::placeholder),
 .workspace :global(textarea::placeholder) {
   color: #a4978e;
+}
+
+.section > :global(.page-card) :global(.section-header) > a {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 10px;
+  border: 1px solid #d9cec6;
+  border-radius: 7px;
+  background: #fffdfb;
+  color: #5d4d43;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-decoration: none;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.section > :global(.page-card) :global(.section-header) > a:hover {
+  border-color: #cdbfb5;
+  background: #faf7f4;
+  color: #332d29;
+}
+
+.section > :global(.page-card) :global(.section-header) > a:focus-visible {
+  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline-offset: 2px;
+  border-color: #bba99d;
 }
 
 .workspace :global(.page-card),
