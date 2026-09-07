@@ -1,0 +1,228 @@
+.field {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  min-width: 190px;
+}
+
+.label {
+  color: #756b63;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.control {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 38px;
+  min-height: 42px;
+  overflow: hidden;
+  border: 1px solid #ded9d3;
+  border-radius: 9px;
+  background: #fffdfa;
+}
+
+.arrowButton,
+.periodButton,
+.yearArrow,
+.monthButton,
+.todayButton {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #342e29;
+  font: inherit;
+  transform: none;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.arrowButton:hover:not(:disabled),
+.periodButton:hover:not(:disabled),
+.yearArrow:hover:not(:disabled),
+.monthButton:hover:not(:disabled),
+.todayButton:hover:not(:disabled) {
+  border-color: transparent;
+  background: #f7f2ee;
+  box-shadow: none;
+  color: #342e29;
+  transform: none;
+}
+
+.arrowButton:active:not(:disabled),
+.periodButton:active:not(:disabled),
+.yearArrow:active:not(:disabled),
+.monthButton:active:not(:disabled),
+.todayButton:active:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+.arrowButton:focus-visible,
+.periodButton:focus-visible,
+.yearArrow:focus-visible,
+.monthButton:focus-visible,
+.todayButton:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid rgba(111, 87, 71, 0.24);
+  outline-offset: -2px;
+}
+
+.arrowButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  min-height: 40px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.arrowButton:first-child {
+  border-right: 1px solid #eee9e4;
+}
+
+.arrowButton:last-child {
+  border-left: 1px solid #eee9e4;
+}
+
+.arrowButton svg,
+.periodButton svg,
+.yearArrow svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.arrowButton:disabled,
+.yearArrow:disabled,
+.todayButton:disabled {
+  cursor: default;
+  background: transparent;
+  color: #c1b9b2;
+  box-shadow: none;
+}
+
+.periodButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 680;
+  white-space: nowrap;
+}
+
+.periodButton span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.periodButton svg {
+  color: #8d8177;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 90;
+  width: 300px;
+  overflow: hidden;
+  border: 1px solid #ded9d3;
+  border-radius: 10px;
+  background: #fffdfa;
+  box-shadow: 0 14px 34px rgba(55, 45, 38, 0.14);
+}
+
+.yearHeader {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  min-height: 48px;
+  border-bottom: 1px solid #eee9e4;
+  padding: 5px 7px;
+}
+
+.yearHeader strong {
+  text-align: center;
+  color: #342e29;
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.yearArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding: 10px;
+}
+
+.monthButton {
+  min-height: 36px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  color: #61574f;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.monthButton[data-current='true'] {
+  border-color: #ddd4cc;
+  background: #faf6f2;
+  color: #5f4b3e;
+}
+
+.monthButton[data-selected='true'],
+.monthButton[data-selected='true']:hover {
+  border-color: #6f5747;
+  background: #6f5747;
+  color: #fffdfb;
+}
+
+.footer {
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid #eee9e4;
+  padding: 8px 10px;
+  background: #fcfaf8;
+}
+
+.todayButton {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: #6f5747;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+@media (max-width: 640px) {
+  .field {
+    min-width: 0;
+  }
+
+  .popover {
+    width: min(300px, calc(100vw - 56px));
+  }
+}
