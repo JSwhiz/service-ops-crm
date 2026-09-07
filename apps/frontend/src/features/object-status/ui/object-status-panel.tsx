@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import React, { useState } from 'react';
 
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
+
 interface ObjectStatusPanelProps {
   currentStatus: string;
   canChangeStatus: boolean;
@@ -37,34 +39,29 @@ export function ObjectStatusPanel({
 
     try {
       await onChangeStatus(status);
-      setSuccess(
-        `Запрос на смену статуса объекта создан: ${getStatusLabel(status)}.`,
-      );
+      setSuccess(`Запрос на смену статуса объекта создан: ${getStatusLabel(status)}.`);
     } catch (caughtError) {
-      if (caughtError instanceof Error && caughtError.message) {
-        setError(caughtError.message);
-      } else {
-        setError('Не удалось изменить статус объекта.');
-      }
+      setError(
+        caughtError instanceof Error && caughtError.message
+          ? caughtError.message
+          : 'Не удалось изменить статус объекта.',
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div style={{ fontWeight: 600, fontSize: 18 }}>Статус объекта</div>
-
-      <div className="page-muted">
-        Текущий статус: {getStatusLabel(currentStatus)}
+    <section className={styles.surfaceCompact}>
+      <div>
+        <h2 className={styles.title}>Статус объекта</h2>
+        <p className={styles.description}>Текущий статус: {getStatusLabel(currentStatus)}</p>
       </div>
 
       {!canChangeStatus ? (
-        <div className="page-muted">
-          Изменение статуса доступно только руководящему кругу.
-        </div>
+        <div className={styles.notice}>Изменение статуса доступно только руководящему кругу.</div>
       ) : (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div className={styles.statusActions}>
           {STATUS_OPTIONS.map((option) => (
             <button
               key={option.value}
@@ -78,13 +75,13 @@ export function ObjectStatusPanel({
         </div>
       )}
 
-      {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
+      {error ? <div className={styles.error}>{error}</div> : null}
       {success ? (
-        <div style={{ color: '#15803d', display: 'grid', gap: 6 }}>
+        <div className={styles.success}>
           <div>{success}</div>
-          {approvalsHref ? <Link href={approvalsHref}>Открыть согласование</Link> : null}
+          {approvalsHref ? <Link className={styles.buttonLike} href={approvalsHref}>Открыть согласование</Link> : null}
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }
