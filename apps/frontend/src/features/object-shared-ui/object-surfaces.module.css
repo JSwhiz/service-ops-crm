@@ -1,0 +1,283 @@
+.page {
+  display: grid;
+  gap: 14px;
+  max-width: 1120px;
+}
+
+.surface {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #e5ddd6;
+  border-radius: 9px;
+  background: #fffdfb;
+  box-shadow: none;
+}
+
+.surfaceCompact {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid #e5ddd6;
+  border-radius: 9px;
+  background: #fffdfb;
+  box-shadow: none;
+}
+
+.title {
+  margin: 0;
+  color: #332d29;
+  font-size: 18px;
+  font-weight: 760;
+  letter-spacing: -0.012em;
+}
+
+.description,
+.muted {
+  margin: 0;
+  color: #83756c;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  color: #685d55;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.surface :global(input:not([type="checkbox"]):not([type="radio"])),
+.surface :global(select),
+.surface :global(textarea),
+.surfaceCompact :global(input:not([type="checkbox"]):not([type="radio"])),
+.surfaceCompact :global(select),
+.surfaceCompact :global(textarea) {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  border: 1px solid #ddd3cc;
+  border-radius: 7px;
+  background: #fffdfb;
+  color: #3f3732;
+  font: inherit;
+  font-size: 13px;
+  box-shadow: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.surface :global(input:not([type="checkbox"]):not([type="radio"])),
+.surface :global(select),
+.surfaceCompact :global(input:not([type="checkbox"]):not([type="radio"])),
+.surfaceCompact :global(select) {
+  padding: 8px 10px;
+}
+
+.surface :global(textarea),
+.surfaceCompact :global(textarea) {
+  min-height: 112px;
+  padding: 10px 11px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.surface :global(select),
+.surfaceCompact :global(select) {
+  cursor: pointer;
+}
+
+.surface :global(input[type="checkbox"]),
+.surface :global(input[type="radio"]),
+.surfaceCompact :global(input[type="checkbox"]),
+.surfaceCompact :global(input[type="radio"]) {
+  accent-color: #67564b;
+}
+
+.surface :global(input::placeholder),
+.surface :global(textarea::placeholder),
+.surfaceCompact :global(input::placeholder),
+.surfaceCompact :global(textarea::placeholder) {
+  color: #a4978e;
+}
+
+.surface :global(input:focus-visible),
+.surface :global(select:focus-visible),
+.surface :global(textarea:focus-visible),
+.surfaceCompact :global(input:focus-visible),
+.surfaceCompact :global(select:focus-visible),
+.surfaceCompact :global(textarea:focus-visible) {
+  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline-offset: 2px;
+  border-color: #bba99d;
+  box-shadow: none;
+}
+
+.actions,
+.statusActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.surface :global(button),
+.surfaceCompact :global(button),
+.buttonLike,
+.backLink {
+  appearance: none;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid #d9cec6;
+  border-radius: 7px;
+  padding: 8px 12px;
+  background: #fffdfb;
+  box-shadow: none;
+  color: #4c413a;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transform: none;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.surface :global(button:hover:not(:disabled)),
+.surfaceCompact :global(button:hover:not(:disabled)),
+.buttonLike:hover,
+.backLink:hover {
+  border-color: #cdbfb5;
+  background: #faf7f4;
+  box-shadow: none;
+  color: #332d29;
+  transform: none;
+}
+
+.surface :global(button:focus-visible),
+.surfaceCompact :global(button:focus-visible),
+.buttonLike:focus-visible,
+.backLink:focus-visible {
+  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline-offset: 2px;
+  border-color: #bba99d;
+  box-shadow: none;
+}
+
+.surface :global(button:disabled),
+.surfaceCompact :global(button:disabled) {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.managerList {
+  display: grid;
+  gap: 8px;
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 9px 10px;
+  border: 1px solid #e5ddd6;
+  border-radius: 7px;
+  background: #fffdfb;
+  color: #3f3732;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.optionRow:hover {
+  border-color: #d9cec6;
+  background: #faf7f4;
+}
+
+.error,
+.success,
+.notice {
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.error {
+  border: 1px solid #ead7d2;
+  background: #fbf4f2;
+  color: #9a4f3e;
+}
+
+.success {
+  border: 1px solid #dbe5dc;
+  background: #f5f8f5;
+  color: #526b56;
+}
+
+.notice {
+  border: 1px solid #e5ddd6;
+  background: #faf7f4;
+  color: #71645c;
+}
+
+.inlineHelp {
+  margin-top: 2px;
+  color: #8b7d74;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.backRow {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 760px) {
+  .page {
+    gap: 12px;
+  }
+
+  .surface,
+  .surfaceCompact {
+    padding: 14px;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fullWidth {
+    grid-column: auto;
+  }
+
+  .actions,
+  .statusActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions > *,
+  .statusActions > * {
+    width: 100%;
+  }
+}
