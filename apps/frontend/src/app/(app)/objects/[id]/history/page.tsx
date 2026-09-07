@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import React, { useEffect, useState } from 'react';
 
 import {
   getObjectById,
@@ -12,14 +12,11 @@ import type {
   ServiceObject,
 } from '@/entities/object/model/object.types';
 import { ObjectHistoryList } from '@/features/object-history/ui/object-history-list';
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-
-  return fallback;
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
 
 export default function ObjectHistoryPage({
@@ -38,10 +35,7 @@ export default function ObjectHistoryPage({
 
     const load = async (): Promise<void> => {
       const resolved = await params;
-
-      if (cancelled) {
-        return;
-      }
+      if (cancelled) return;
 
       setObjectId(resolved.id);
       setIsLoading(true);
@@ -58,42 +52,33 @@ export default function ObjectHistoryPage({
           setAuditItems(auditResponse);
         }
       } catch (error) {
-        if (!cancelled) {
-          setLoadError(
-            getErrorMessage(error, 'Не удалось загрузить историю объекта.'),
-          );
-        }
+        if (!cancelled) setLoadError(getErrorMessage(error, 'Не удалось загрузить историю объекта.'));
       } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     void load();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [params]);
 
   return (
-    <>
+    <div className={`workspace-page ${styles.page}`}>
       <PageTitle title={item ? `История: ${item.name}` : 'История объекта'} />
 
-      <div style={{ marginBottom: 16 }}>
-        <Link href={objectId ? `/objects/${objectId}` : '/objects'}>← Вернуться в карточку объекта</Link>
+      <div className={styles.backRow}>
+        <Link className={styles.backLink} href={objectId ? `/objects/${objectId}` : '/objects'}>
+          ← Вернуться в карточку объекта
+        </Link>
       </div>
 
       {isLoading ? (
-        <div className="page-card">Загрузка...</div>
+        <div className={styles.notice}>Загрузка истории...</div>
       ) : loadError ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
-          {loadError}
-        </div>
+        <div className={styles.error}>{loadError}</div>
       ) : (
         <ObjectHistoryList items={auditItems} />
       )}
-    </>
+    </div>
   );
 }
