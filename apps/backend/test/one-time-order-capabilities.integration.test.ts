@@ -227,6 +227,10 @@ test('one-time order capabilities separate operational, financial and calendar a
   assert.equal(deputyDirector.payload?.capabilities.canManageSpecification, true);
   assert.equal(deputyDirector.payload?.capabilities.canUploadPhotos, true);
   assert.equal(deputyDirector.payload?.capabilities.canCreateTask, true);
+  assert.equal(deputyDirector.payload?.capabilities.canCorrectPayments, true);
+  assert.equal(deputyDirector.payload?.capabilities.canEditReview, true);
+  assert.equal(deputyDirector.payload?.capabilities.canManageAnyAvailability, true);
+  assert.equal(deputyDirector.payload?.capabilities.canApproveAvailability, true);
 
   const deputyMeResponse = await fetch(`${baseUrl}/api/v1/auth/me`, {
     headers: { Cookie: cookies.deputy1 },
