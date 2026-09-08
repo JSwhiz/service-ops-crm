@@ -1,0 +1,186 @@
+.searchField {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.sectionHeading {
+  margin-bottom: 8px;
+  color: #4c413a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.employeeCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e7dfd9;
+  border-radius: 8px;
+  background: #fffdfb;
+  box-shadow: none;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.employeeCard:hover {
+  border-color: #ddd3cc;
+  background: #faf7f4;
+}
+
+.employeeCardUnavailable {
+  border-color: #ead7d2;
+  background: #fbf4f2;
+}
+
+.employeeCardUnavailable:hover {
+  border-color: #dfc8c1;
+  background: #f9efec;
+}
+
+.employeeInfo {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.employeeNameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.availabilityBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  padding: 3px 7px;
+  border: 1px solid #dfc8c1;
+  border-radius: 999px;
+  background: #f8ece8;
+  color: #8d4939;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.availabilityBadge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.76;
+}
+
+.availabilityText {
+  color: #9a4f3e;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.ratePolicyLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modalBackdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 24px;
+  background: rgba(51, 45, 41, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.modal {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 48px);
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid #dfd5ce;
+  border-radius: 10px;
+  background: #fffdfb;
+  box-shadow: 0 18px 48px rgba(63, 48, 39, 0.14);
+}
+
+.modalWide {
+  width: min(920px, 100%);
+}
+
+.ratePolicyGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ratePolicyGrid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ratePolicyGrid label > span {
+  color: #685d55;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.feedbackError {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 760px) {
+  .employeeCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .employeeCard > button {
+    width: 100%;
+  }
+
+  .modalBackdrop {
+    align-items: end;
+    padding: 0;
+  }
+
+  .modal,
+  .modalWide {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 10px 10px 0 0;
+  }
+
+  .ratePolicyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fullWidth {
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .employeeCard {
+    transition: none;
+  }
+}
