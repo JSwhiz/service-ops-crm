@@ -217,8 +217,29 @@ test('one-time order capabilities separate operational, financial and calendar a
   const inactiveManager = await getOrder(cookies.manager1, inactiveOrder.id);
   assert.equal(inactiveManager.response.status, 404);
 
-  const ordinaryReader = await getOrder(cookies.deputy1);
-  assert.equal(ordinaryReader.response.status, 404);
+  const deputyDirector = await getOrder(cookies.deputy1);
+  assert.equal(deputyDirector.response.status, 200);
+  assert.equal(deputyDirector.payload?.capabilities.canEditOperationalFields, true);
+  assert.equal(deputyDirector.payload?.capabilities.canEditFinancialFields, true);
+  assert.equal(deputyDirector.payload?.capabilities.canChangeLinkedObject, true);
+  assert.equal(deputyDirector.payload?.capabilities.canManageManagers, true);
+  assert.equal(deputyDirector.payload?.capabilities.canChangeStatus, true);
+  assert.equal(deputyDirector.payload?.capabilities.canManageSpecification, true);
+  assert.equal(deputyDirector.payload?.capabilities.canUploadPhotos, true);
+  assert.equal(deputyDirector.payload?.capabilities.canCreateTask, true);
+
+  const deputyMeResponse = await fetch(`${baseUrl}/api/v1/auth/me`, {
+    headers: { Cookie: cookies.deputy1 },
+  });
+  assert.equal(deputyMeResponse.status, 200);
+  const deputyMe = (await deputyMeResponse.json()) as {
+    capabilities: {
+      canAccessOneTimeOrders: boolean;
+      canCreateOneTimeOrder: boolean;
+    };
+  };
+  assert.equal(deputyMe.capabilities.canAccessOneTimeOrders, true);
+  assert.equal(deputyMe.capabilities.canCreateOneTimeOrder, true);
 
   const hrMeResponse = await fetch(`${baseUrl}/api/v1/auth/me`, {
     headers: { Cookie: cookies.hr1 },
