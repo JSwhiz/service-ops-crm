@@ -664,7 +664,9 @@ test('inventory ledger supports receipts, scoped issues, returns, evidence and c
     ),
   );
   assert.ok(
-    deputyMovements.every((movement) => movement.relatedOneTimeOrder === null),
+    deputyMovements.some(
+      (movement) => movement.relatedOneTimeOrder?.canOpenOrderCard === true,
+    ),
   );
 
   const directorMovementsResponse = await fetch(
