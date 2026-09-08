@@ -4,6 +4,9 @@ import React, { useEffect, useState } from 'react';
 
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 import type { UpdateObjectEmployeeRatePolicyPayload } from '@/entities/object/api/object-operations-client';
+import sharedStyles from '@/features/object-shared-ui/object-surfaces.module.css';
+
+import styles from './object-staffing-panel.module.css';
 
 interface ObjectStaffingPanelProps {
   assignedEmployees: ObjectEmployeeOption[];
@@ -126,7 +129,9 @@ export function ObjectStaffingPanel({
     }, new Map()).values(),
   );
 
-  const getAvailabilityExplanation = (employee: ObjectEmployeeOption): string | null => {
+  const getAvailabilityExplanation = (
+    employee: ObjectEmployeeOption,
+  ): string | null => {
     if (!employee.availability.isUnavailable) {
       return null;
     }
@@ -206,17 +211,18 @@ export function ObjectStaffingPanel({
         </div>
       </div>
 
-      {canManageAssignments ? <label style={{ display: 'block', marginBottom: 16 }}>
-        <div style={{ marginBottom: 6 }}>Поиск сотрудника</div>
-        <input
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Введите ФИО сотрудника"
-          style={{ width: '100%', padding: 10 }}
-        />
-      </label> : null}
+      {canManageAssignments ? (
+        <label className={styles.searchField}>
+          <span className={sharedStyles.fieldLabel}>Поиск сотрудника</span>
+          <input
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Введите ФИО сотрудника"
+          />
+        </label>
+      ) : null}
 
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Текущий состав</div>
+      <div className={styles.sectionHeading}>Текущий состав</div>
 
       {assigned.length === 0 ? (
         <div className="page-muted" style={{ marginBottom: 16 }}>
@@ -227,28 +233,18 @@ export function ObjectStaffingPanel({
           {assigned.map((employee) => (
             <div
               key={employee.id}
-              className="record-card"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                border: employee.availability.isUnavailable
-                  ? '1px solid #f59e0b'
-                  : undefined,
-                background: employee.availability.isUnavailable
-                  ? '#fffbeb'
-                  : undefined,
-              }}
+              className={`${styles.employeeCard} ${
+                employee.availability.isUnavailable
+                  ? styles.employeeCardUnavailable
+                  : ''
+              }`}
               title={getAvailabilityExplanation(employee) ?? undefined}
             >
-              <div style={{ display: 'grid', gap: 4 }}>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className={styles.employeeInfo}>
+                <div className={styles.employeeNameRow}>
                   <span>{employee.fullName}</span>
                   {employee.availability.isUnavailable ? (
-                    <span className="status-pill" data-status="under_repair">
-                      Недоступен
-                    </span>
+                    <span className={styles.availabilityBadge}>Недоступен</span>
                   ) : null}
                   {employee.activeSubstitutions
                     .filter((item) => item.role === 'primary')
@@ -265,14 +261,13 @@ export function ObjectStaffingPanel({
                       </span>
                     ))}
                 </div>
-                <div className="rate-policy-line">
+                <div className={styles.ratePolicyLine}>
                   <span>
                     {employee.ratePolicy?.label ?? 'Дневная ставка объекта'}
                   </span>
                   {canManageRatePolicy && onUpdateRatePolicy ? (
                     <button
                       type="button"
-                      className="quiet-button"
                       onClick={() => setEditingRateEmployee(employee)}
                     >
                       Настроить расчет
@@ -294,7 +289,7 @@ export function ObjectStaffingPanel({
                   {employee.workTimeText ? ` · ${employee.workTimeText}` : ''}
                 </div>
                 {employee.availability.isUnavailable ? (
-                  <div style={{ color: '#b45309', fontSize: 13 }}>
+                  <div className={styles.availabilityText}>
                     {getAvailabilityExplanation(employee)}
                   </div>
                 ) : null}
@@ -312,7 +307,7 @@ export function ObjectStaffingPanel({
 
       {editingRateEmployee ? (
         <div
-          className="chat-modal-backdrop"
+          className={styles.modalBackdrop}
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
@@ -320,7 +315,10 @@ export function ObjectStaffingPanel({
             }
           }}
         >
-          <form className="chat-modal chat-modal--wide" onSubmit={submitRatePolicy}>
+          <form
+            className={`${styles.modal} ${styles.modalWide}`}
+            onSubmit={submitRatePolicy}
+          >
             <div className="section-header">
               <div>
                 <div className="section-title">Настроить расчет</div>
@@ -334,7 +332,7 @@ export function ObjectStaffingPanel({
               </button>
             </div>
 
-            <div className="rate-policy-form-grid">
+            <div className={styles.ratePolicyGrid}>
               <label>
                 <span>Тип расчета</span>
                 <select
@@ -482,7 +480,7 @@ export function ObjectStaffingPanel({
               ) : null}
 
               {rateForm.ratePolicyType === 'agreed_substitution_rate' ? (
-                <label style={{ gridColumn: '1 / -1' }}>
+                <label className={styles.fullWidth}>
                   <span>Основание договорной ставки</span>
                   <textarea
                     value={rateForm.notes}
@@ -498,7 +496,9 @@ export function ObjectStaffingPanel({
               ) : null}
             </div>
 
-            {rateError ? <div style={{ color: '#b91c1c' }}>{rateError}</div> : null}
+            {rateError ? (
+              <div className={sharedStyles.error}>{rateError}</div>
+            ) : null}
 
             <div className="action-row">
               <button type="submit" disabled={isSavingRate}>
@@ -512,7 +512,7 @@ export function ObjectStaffingPanel({
         </div>
       ) : null}
 
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Подмены на сегодня</div>
+      <div className={styles.sectionHeading}>Подмены на сегодня</div>
 
       {visibleSubstitutions.length === 0 ? (
         <div className="page-muted" style={{ marginBottom: 16 }}>
@@ -521,10 +521,7 @@ export function ObjectStaffingPanel({
       ) : (
         <div className="record-list" style={{ marginBottom: 16 }}>
           {visibleSubstitutions.map((substitution) => (
-            <div
-              key={substitution.id}
-              className="record-card"
-            >
+            <div key={substitution.id} className="record-card">
               <div>
                 <strong>{substitution.primaryEmployeeName}</strong> замещается{' '}
                 <strong>{substitution.counterpartEmployeeName}</strong>
@@ -546,65 +543,61 @@ export function ObjectStaffingPanel({
         </div>
       )}
 
-      {canManageAssignments ? <>
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Результаты поиска</div>
+      {canManageAssignments ? (
+        <>
+          <div className={styles.sectionHeading}>Результаты поиска</div>
 
-      {searchError ? (
-        <div style={{ color: '#b91c1c', marginBottom: 12 }}>{searchError}</div>
-      ) : null}
-
-      {isSearching ? (
-        <div className="page-muted">Поиск...</div>
-      ) : directory.length === 0 ? (
-        <div className="page-muted">Подходящих сотрудников не найдено.</div>
-      ) : (
-        <div className="record-list">
-          {directory.map((employee) => (
-            <div
-              key={employee.id}
-              className="record-card"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 12,
-                border: employee.availability.isUnavailable
-                  ? '1px solid #f59e0b'
-                  : undefined,
-                background: employee.availability.isUnavailable
-                  ? '#fffbeb'
-                  : undefined,
-              }}
-              title={getAvailabilityExplanation(employee) ?? undefined}
-            >
-              <div style={{ display: 'grid', gap: 4 }}>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <span>{employee.fullName}</span>
-                  {employee.availability.isUnavailable ? (
-                    <span className="status-pill" data-status="under_repair">
-                      Недоступен
-                    </span>
-                  ) : null}
-                </div>
-                {employee.availability.isUnavailable ? (
-                  <div style={{ color: '#b45309', fontSize: 13 }}>
-                    {getAvailabilityExplanation(employee)}
-                  </div>
-                ) : null}
-              </div>
-
-              {assignedIds.has(employee.id) ? (
-                <span className="page-muted">Уже в составе</span>
-              ) : (
-                <button type="button" onClick={() => void onAdd(employee.id)}>
-                  Добавить
-                </button>
-              )}
+          {searchError ? (
+            <div className={`${sharedStyles.error} ${styles.feedbackError}`}>
+              {searchError}
             </div>
-          ))}
-        </div>
-      )}
-      </> : null}
+          ) : null}
+
+          {isSearching ? (
+            <div className="page-muted">Поиск...</div>
+          ) : directory.length === 0 ? (
+            <div className="page-muted">Подходящих сотрудников не найдено.</div>
+          ) : (
+            <div className="record-list">
+              {directory.map((employee) => (
+                <div
+                  key={employee.id}
+                  className={`${styles.employeeCard} ${
+                    employee.availability.isUnavailable
+                      ? styles.employeeCardUnavailable
+                      : ''
+                  }`}
+                  title={getAvailabilityExplanation(employee) ?? undefined}
+                >
+                  <div className={styles.employeeInfo}>
+                    <div className={styles.employeeNameRow}>
+                      <span>{employee.fullName}</span>
+                      {employee.availability.isUnavailable ? (
+                        <span className={styles.availabilityBadge}>
+                          Недоступен
+                        </span>
+                      ) : null}
+                    </div>
+                    {employee.availability.isUnavailable ? (
+                      <div className={styles.availabilityText}>
+                        {getAvailabilityExplanation(employee)}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {assignedIds.has(employee.id) ? (
+                    <span className="page-muted">Уже в составе</span>
+                  ) : (
+                    <button type="button" onClick={() => void onAdd(employee.id)}>
+                      Добавить
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }
