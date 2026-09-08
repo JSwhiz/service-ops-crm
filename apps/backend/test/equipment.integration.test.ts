@@ -346,7 +346,7 @@ test('equipment unit lifecycle supports object/order scope, evidence and access 
   };
   movementIds.push(issueToOrder.id);
   assert.equal(issueToOrder.toStatus, 'assigned_to_one_time_order');
-  assert.equal(issueToOrder.toOneTimeOrder, null);
+  assert.equal(issueToOrder.toOneTimeOrder?.id, oneTimeOrderId);
 
   const orderManagerCookie = await loginAndGetCookieHeader({
     baseUrl,
