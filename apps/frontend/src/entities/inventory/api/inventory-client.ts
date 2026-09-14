@@ -124,6 +124,15 @@ export async function getObjectInventory(
   });
 }
 
+export async function getOneTimeOrderInventory(
+  orderId: string,
+): Promise<InventoryMovementListResponse> {
+  return fetcher<InventoryMovementListResponse>(
+    `/one-time-orders/${orderId}/inventory`,
+    { method: 'GET' },
+  );
+}
+
 export async function createObjectInventoryIssue(
   objectId: string,
   payload: {
