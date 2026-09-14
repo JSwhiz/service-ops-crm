@@ -45,7 +45,7 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
   useEffect(() => {
     if (!managerUserId) { setManager(null); return; }
     let active = true;
-    void listCandidateManagers({ selectedId: managerUserId }).then(([item]) => { if (active) setManager(item ? { value: item.id, label: item.fullName || item.login, searchText: item.login } : null); }).catch(() => { if (active) setManager(null); });
+    void listCandidateManagers({ selectedId: managerUserId }).then(([item]) => { if (active) setManager(item ? { value: item.id, label: item.fullName || item.login, description: `@${item.login}`, searchText: item.login } : null); }).catch(() => { if (active) setManager(null); });
     return () => { active = false; };
   }, [managerUserId]);
   useEffect(() => {
@@ -70,14 +70,121 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
       <label><span className="detail-label">Поиск</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ФИО или телефон" /></label>
       {!fixedType ? <SearchableSelect label="Тип" value={type} options={CANDIDATE_TYPE_OPTIONS} placeholder="Все типы" onChange={(value) => replaceQuery({ candidateType: value || null, page: null })} /> : null}
       <SearchableSelect label="Статус" value={status} options={CANDIDATE_STATUS_OPTIONS} placeholder="Все статусы" onChange={(value) => replaceQuery({ status: value || null, page: null })} />
-      <SearchableSelect label="Менеджер" value={managerUserId} selectedOption={manager} options={[]} placeholder="Все менеджеры" onChange={(value) => replaceQuery({ managerUserId: value || null, page: null })} asyncSearch={async (value) => (await listCandidateManagers({ q: value })).map((item) => ({ value: item.id, label: item.fullName || item.login, searchText: item.login }))} />
+      <SearchableSelect label="Менеджер" value={managerUserId} selectedOption={manager} options={[]} placeholder="Все менеджеры" onChange={(value) => replaceQuery({ managerUserId: value || null, page: null })} asyncSearch={async (value) => (await listCandidateManagers({ q: value })).map((item) => ({ value: item.id, label: item.fullName || item.login, description: `@${item.login}`, searchText: item.login }))} />
       <SearchableSelect label="SLA" value={slaState} options={CANDIDATE_SLA_OPTIONS} placeholder="Любое состояние" onChange={(value) => replaceQuery({ slaState: value || null, page: null })} />
       {!fixedType ? <SearchableSelect label="Архив" value={archiveState} clearable={false} options={[{ value: 'active', label: 'Активные' }, { value: 'archived', label: 'Архив' }, { value: 'all', label: 'Все' }]} onChange={(value) => replaceQuery({ archiveState: value === 'active' ? null : value, page: null })} /> : null}
       <button type="button" className="button-secondary" onClick={() => { setSearch(''); router.replace(pathname, { scroll: false }); }}>Сбросить</button>
     </section>
     {loading ? <div className="page-card">Загрузка...</div> : error ? <div className="page-card inline-notice inline-notice--warning">{error}</div> : result.items.length === 0 ? <div className="page-card">Кандидаты не найдены.</div> : <>
-      <div className="page-card workspace-surface data-table-shell candidate-table-wrap"><table className="data-table candidate-table"><thead><tr><th>ФИО</th><th>Телефон</th><th>Тип</th><th>Статус</th><th>Менеджер</th><th>SLA</th><th>Изменён</th></tr></thead><tbody>{result.items.map((item) => <tr key={item.id}><td><Link href={`/candidates/${item.id}`}>{item.fullName}</Link></td><td>{item.phone ?? '—'}</td><td>{candidateTypeLabel(item.candidateType)}</td><td>{candidateStatusLabel(item.status)}</td><td>{item.currentAssignment?.manager.fullName ?? 'Не назначен'}</td><td><span className={`candidate-sla candidate-sla--${item.slaState}`}>{candidateSlaLabel(item.slaState, item.currentAssignment?.responseDueAt)}</span></td><td>{new Date(item.updatedAt).toLocaleString('ru-RU')}</td></tr>)}</tbody></table></div>
-      <div className="candidate-mobile-list">{result.items.map((item) => <Link key={item.id} href={`/candidates/${item.id}`} className="page-card candidate-mobile-card"><div className="section-header"><strong>{item.fullName}</strong><span>{candidateStatusLabel(item.status)}</span></div><div>{item.phone ?? 'Телефон не указан'} · {candidateTypeLabel(item.candidateType)}</div><div>{item.currentAssignment?.manager.fullName ?? 'Менеджер не назначен'}</div><span className={`candidate-sla candidate-sla--${item.slaState}`}>{candidateSlaLabel(item.slaState, item.currentAssignment?.responseDueAt)}</span></Link>)}</div>
+      <div className="page-card workspace-surface data-table-shell candidate-table-wrap">
+        <table className="data-table candidate-table">
+          <thead>
+            <tr>
+              <th>Кандидат</th>
+              <th>Тип / стадия</th>
+              <th>Объект</th>
+              <th>Ответственный менеджер</th>
+              <th>Последняя обратная связь</th>
+              <th>SLA</th>
+              <th>Изменён</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.items.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  <Link href={`/candidates/${item.id}`}>{item.fullName}</Link>
+                  <div className="page-muted">{item.phone ?? 'Телефон не указан'}</div>
+                </td>
+                <td>
+                  <div>{candidateTypeLabel(item.candidateType)}</div>
+                  <div className="page-muted">{candidateStatusLabel(item.status)}</div>
+                </td>
+                <td>
+                  {item.object ? (
+                    <>
+                      <div>{item.object.name}</div>
+                      <div className="page-muted">
+                        {[item.object.internalName, item.object.address]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="page-muted">Не назначен</span>
+                  )}
+                </td>
+                <td>
+                  {item.currentAssignment?.manager.fullName ?? (
+                    <span className="page-muted">Не назначен</span>
+                  )}
+                </td>
+                <td>
+                  {item.latestFeedback ? (
+                    <>
+                      <div>
+                        {item.latestFeedback.text.length > 120
+                          ? `${item.latestFeedback.text.slice(0, 120)}…`
+                          : item.latestFeedback.text}
+                      </div>
+                      <div className="page-muted">
+                        {item.latestFeedback.author.fullName} ·{' '}
+                        {new Date(item.latestFeedback.createdAt).toLocaleString('ru-RU')}
+                      </div>
+                    </>
+                  ) : (
+                    <span className="page-muted">Пока нет</span>
+                  )}
+                </td>
+                <td>
+                  <span className={`candidate-sla candidate-sla--${item.slaState}`}>
+                    {candidateSlaLabel(
+                      item.slaState,
+                      item.currentAssignment?.responseDueAt,
+                    )}
+                  </span>
+                </td>
+                <td>{new Date(item.updatedAt).toLocaleString('ru-RU')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="candidate-mobile-list">
+        {result.items.map((item) => (
+          <Link
+            key={item.id}
+            href={`/candidates/${item.id}`}
+            className="page-card candidate-mobile-card"
+          >
+            <div className="section-header">
+              <strong>{item.fullName}</strong>
+              <span>{candidateStatusLabel(item.status)}</span>
+            </div>
+            <div>
+              {candidateTypeLabel(item.candidateType)} ·{' '}
+              {item.object?.name ?? 'Объект не назначен'}
+            </div>
+            <div>
+              {item.currentAssignment?.manager.fullName ??
+                'Менеджер не назначен'}
+            </div>
+            {item.latestFeedback ? (
+              <div className="page-muted">
+                {item.latestFeedback.text.length > 90
+                  ? `${item.latestFeedback.text.slice(0, 90)}…`
+                  : item.latestFeedback.text}
+              </div>
+            ) : null}
+            <span className={`candidate-sla candidate-sla--${item.slaState}`}>
+              {candidateSlaLabel(
+                item.slaState,
+                item.currentAssignment?.responseDueAt,
+              )}
+            </span>
+          </Link>
+        ))}
+      </div>
     </>}
     {result.totalPages > 1 ? <div className="page-card workspace-surface pagination-row"><button type="button" disabled={page <= 1} onClick={() => replaceQuery({ page: String(page - 1) })}>Назад</button><span>Страница {page} из {result.totalPages}</span><button type="button" disabled={page >= result.totalPages} onClick={() => replaceQuery({ page: String(page + 1) })}>Далее</button></div> : null}
   </div>;
