@@ -420,7 +420,8 @@ model Object {
   address             String
   status              String
   seasonMode          String?
-  dailyRate           Int      @default(0)
+  dailyRate           Int      @default(0) // legacy fallback; hidden from Object UX
+  monthlySalary       Int      @default(0)
   notes               String?
   counterpartyId      String?
   createdByUserId     String
@@ -450,7 +451,7 @@ model Object {
   candidates               Candidate[]
 
   @@index([status])
-  @@index([objectId])
+  @@index([counterpartyId])
   @@index([createdByUserId])
   @@map("objects")
 }
