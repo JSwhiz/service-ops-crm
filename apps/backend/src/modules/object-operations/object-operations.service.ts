@@ -28,6 +28,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import {
+  calculateMonthlySalaryDailyRate,
   getRatePolicyLabel,
   normalizeRatePolicy,
 } from '../timesheets/utils/timesheet-rate-policy.util';
@@ -409,6 +410,7 @@ export class ObjectOperationsService {
         },
         select: {
           dailyRate: true,
+          monthlySalary: true,
         },
       }),
       this.prisma.objectEmployeeAssignment.findMany({
@@ -472,7 +474,12 @@ export class ObjectOperationsService {
         workTimeText: item.employee.workTimeText,
         isAssignedToObject: true,
         ratePolicy: item,
-        ratePolicyFallbackAmount: object?.dailyRate ?? 0,
+        ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
+          monthlySalary: object?.monthlySalary ?? 0,
+          legacyDailyRate: object?.dailyRate ?? 0,
+          operationDate: startOfToday(),
+          scheduleCode: item.ratePolicyScheduleCode,
+        }),
         availabilityWindows: item.employee.availabilityWindows,
         substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
         substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
@@ -1089,7 +1096,12 @@ export class ObjectOperationsService {
             );
             const ratePolicy = normalizeRatePolicy(
               assignment,
-              object.dailyRate,
+              this.getObjectMonthlySalaryDailyFallback({
+                monthlySalary: object.monthlySalary,
+                legacyDailyRate: object.dailyRate,
+                operationDate: normalizedDate,
+                scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
+              }),
             );
             const workedHours = workedHoursByEmployeeId.get(employeeId) ?? null;
             const dailyRateSnapshot =
@@ -1164,7 +1176,11 @@ export class ObjectOperationsService {
     operationDate: Date,
   ): Promise<ObjectEmployeeOptionDto[]> {
     const dayRange = this.getBusinessDayRange(operationDate);
-    const [assignedEmployees, activeSubstitutions] = await Promise.all([
+    const [object, assignedEmployees, activeSubstitutions] = await Promise.all([
+      this.prisma.object.findUnique({
+        where: { id: objectId },
+        select: { dailyRate: true, monthlySalary: true },
+      }),
       this.prisma.objectEmployeeAssignment.findMany({
         where: {
           objectId,
@@ -1263,6 +1279,12 @@ export class ObjectOperationsService {
         fullName: item.employee.fullName,
         isAssignedToObject: true,
         ratePolicy: item,
+        ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
+          monthlySalary: object?.monthlySalary ?? 0,
+          legacyDailyRate: object?.dailyRate ?? 0,
+          operationDate,
+          scheduleCode: item.ratePolicyScheduleCode,
+        }),
         availabilityWindows: item.employee.availabilityWindows,
         substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
         substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
@@ -1281,6 +1303,11 @@ export class ObjectOperationsService {
           employeeId: item.substituteEmployee.id,
           fullName: item.substituteEmployee.fullName,
           isAssignedToObject: false,
+          ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
+            monthlySalary: object?.monthlySalary ?? 0,
+            legacyDailyRate: object?.dailyRate ?? 0,
+            operationDate,
+          }),
           availabilityWindows: item.substituteEmployee.availabilityWindows,
           substitutionsAsPrimary: item.substituteEmployee.substitutionsAsPrimary,
           substitutionsAsReplacement: item.substituteEmployee.substitutionsAsReplacement,
@@ -1291,6 +1318,24 @@ export class ObjectOperationsService {
     return [...mapped.values()].sort((left, right) =>
       left.fullName.localeCompare(right.fullName, 'ru'),
     );
+  }
+
+  private getObjectMonthlySalaryDailyFallback(params: {
+    monthlySalary: number;
+    legacyDailyRate: number;
+    operationDate: Date;
+    scheduleCode?: string | null;
+  }): number {
+    const calculation = calculateMonthlySalaryDailyRate({
+      monthlySalary: params.monthlySalary,
+      year: params.operationDate.getFullYear(),
+      month: params.operationDate.getMonth() + 1,
+      scheduleCode: params.scheduleCode ?? null,
+    });
+
+    return params.monthlySalary > 0
+      ? calculation.dailyRate
+      : Math.max(0, Math.round(params.legacyDailyRate));
   }
 
   private buildActiveObjectSubstitutionWhere(
