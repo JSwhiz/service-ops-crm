@@ -4,6 +4,7 @@ export type CandidateSlaState = 'unassigned' | 'awaiting_response' | 'overdue' |
 export type CandidateArchiveState = 'active' | 'archived' | 'all';
 
 export interface CandidateUserSummary { id: string; login: string; fullName: string; }
+export interface CandidateObjectSummary { id: string; name: string; internalName: string | null; address: string; }
 export interface CandidateAssignment {
   id: string;
   manager: CandidateUserSummary;
@@ -25,7 +26,9 @@ export interface CandidateListItem {
   version: number;
   deletedAt: string | null;
   updatedAt: string;
+  object: CandidateObjectSummary | null;
   currentAssignment: CandidateAssignment | null;
+  latestFeedback: CandidateResponse | null;
   slaState: CandidateSlaState;
 }
 export interface CandidateListResponse { items: CandidateListItem[]; page: number; limit: number; total: number; totalPages: number; }
