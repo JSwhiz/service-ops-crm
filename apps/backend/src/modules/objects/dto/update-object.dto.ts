@@ -29,6 +29,11 @@ export class UpdateObjectDto {
   dailyRate?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  monthlySalary?: number;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 
