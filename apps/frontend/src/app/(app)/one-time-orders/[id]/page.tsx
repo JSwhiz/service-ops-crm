@@ -45,6 +45,8 @@ import type {
 } from '@/entities/one-time-order/model/one-time-order.types';
 import { getOneTimeOrderEquipment } from '@/entities/equipment/api/equipment-client';
 import type { EquipmentScope } from '@/entities/equipment/model/equipment.types';
+import { getOneTimeOrderInventory } from '@/entities/inventory/api/inventory-client';
+import type { InventoryMovement } from '@/entities/inventory/model/inventory.types';
 import {
   listTasksByOneTimeOrder,
   createTask,
@@ -65,6 +67,7 @@ import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { OneTimeOrderSummaryCard } from '@/features/one-time-order-card/ui/one-time-order-summary-card';
 import { OneTimeOrderForm } from '@/features/one-time-order-form/ui/one-time-order-form';
 import { OneTimeOrderManagersPanel } from '@/features/one-time-order-managers/ui/one-time-order-managers-panel';
+import { OneTimeOrderInventoryPanel } from '@/features/one-time-order-inventory/ui/one-time-order-inventory-panel';
 import { OneTimeOrderCommentsPanel } from '@/features/one-time-order-comments/ui/one-time-order-comments-panel';
 import { OneTimeOrderHistoryList } from '@/features/one-time-order-history/ui/one-time-order-history-list';
 import { OneTimeOrderFilesPanel } from '@/features/one-time-order-files/ui/one-time-order-files-panel';
@@ -134,6 +137,7 @@ export default function OneTimeOrderDetailPage({
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [photos, setPhotos] = useState<OneTimeOrderPhotoItem[]>([]);
   const [equipment, setEquipment] = useState<EquipmentScope | null>(null);
+  const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([]);
   const [accountability, setAccountability] =
     useState<OneTimeOrderAccountabilityView | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -247,6 +251,11 @@ export default function OneTimeOrderDetailPage({
           setEquipment(response);
         }
       }),
+      getOneTimeOrderInventory(id).then((response) => {
+        if (!cancelled) {
+          setInventoryMovements(response.items);
+        }
+      }),
       listTasksByOneTimeOrder(id).then((response) => {
         if (!cancelled) {
           setTasks(response);
@@ -287,6 +296,20 @@ export default function OneTimeOrderDetailPage({
       ) : item ? (
         <div className="page-stack order-detail-workspace">
           <OneTimeOrderSummaryCard item={item} />
+
+          <div className="page-card workspace-surface">
+            <div className="section-header" style={{ paddingBottom: 0 }}>
+              <div>
+                <div className="section-title">Сотрудники и оплата за заказ</div>
+                <div className="section-subtitle">
+                  Разовый состав, присутствие, табель и фиксированная оплата каждого сотрудника за текущий цикл.
+                </div>
+              </div>
+              <Link href={`/one-time-orders/${item.id}/workforce`}>
+                Открыть команду
+              </Link>
+            </div>
+          </div>
 
           {item.capabilities.canCopy ? (
             <div className="action-row">
@@ -622,6 +645,8 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+
+          <OneTimeOrderInventoryPanel items={inventoryMovements} />
 
           {equipment ? (
             <EquipmentScopePanel title="Оборудование заказа" units={equipment.units} />
