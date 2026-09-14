@@ -77,6 +77,14 @@ export class UsersAccessService {
           currentUser,
           query.oneTimeOrderId,
         );
+      case 'one_time_order_payment_recipient':
+        return this.listOneTimeOrderPaymentRecipientCandidates(
+          currentUser,
+          query.oneTimeOrderId,
+          query.q,
+          query.selectedId,
+          query.limit,
+        );
       case 'chat_participant':
         return this.listChatParticipantCandidates(currentUser);
       default:
@@ -209,6 +217,76 @@ export class UsersAccessService {
       undefined,
       oneTimeOrderId,
     );
+  }
+
+  private async listOneTimeOrderPaymentRecipientCandidates(
+    currentUser: CurrentAuthUser,
+    oneTimeOrderId?: string,
+    search?: string,
+    selectedId?: string,
+    limit = 20,
+  ): Promise<SystemUserOptionDto[]> {
+    if (!oneTimeOrderId) {
+      throw new ForbiddenException('One-time order payment recipient scope is required');
+    }
+
+    const order = await this.getOneTimeOrderWithAssignments(oneTimeOrderId);
+    if (
+      !canViewOneTimeOrderByScope({
+        currentUserId: currentUser.id,
+        roleCodes: this.getRoleCodes(currentUser),
+        permissionCodes: this.getPermissionCodes(currentUser),
+        order,
+      })
+    ) {
+      throw new ForbiddenException('Payment recipient candidate access denied');
+    }
+
+    const query = search?.trim();
+    const users = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        ...(selectedId || query
+          ? {
+              OR: [
+                ...(selectedId ? [{ id: selectedId }] : []),
+                ...(query
+                  ? [
+                      {
+                        OR: [
+                          {
+                            fullName: {
+                              contains: query,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                          {
+                            login: {
+                              contains: query,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                        ],
+                      },
+                    ]
+                  : []),
+              ],
+            }
+          : {}),
+      },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      take: Math.min(limit, 50),
+    });
+
+    return users.map((user) => this.mapUser(user));
   }
 
   private async assertTaskTargetAccess(
