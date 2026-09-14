@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
+import { canViewOneTimeOrderByScope } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateObjectInventoryIssueDto } from './dto/create-object-inventory-issue.dto';
@@ -188,31 +189,61 @@ export class ScopedOneTimeInventoryService {
     currentUser: CurrentAuthUser,
     orderId: string,
     requireIssuePermission: boolean,
-  ): Promise<{ id: string; assignments: Array<{ id: string }> }> {
+  ): Promise<{
+    id: string;
+    createdByUserId: string;
+    assignments: Array<{
+      id: string;
+      userId: string;
+      assignmentRoleCode: string;
+      isActive: boolean;
+    }>;
+  }> {
     const order = await this.prisma.oneTimeOrder.findFirst({
       where: { id: orderId },
       select: {
         id: true,
+        createdByUserId: true,
         assignments: {
-          where: {
-            userId: currentUser.id,
-            assignmentRoleCode: 'one_time_manager',
+          where: { isActive: true },
+          select: {
+            id: true,
+            userId: true,
+            assignmentRoleCode: true,
             isActive: true,
           },
-          select: { id: true },
         },
       },
     });
     if (!order) throw new NotFoundException('One-time order not found');
 
     const roleCodes = currentUser.roleCodes ?? [currentUser.roleCode];
-    const hasGlobalOperationalAccess =
-      canIssueInventoryToOneTimeOrder(roleCodes);
-    if (!hasGlobalOperationalAccess && order.assignments.length === 0) {
+    if (!requireIssuePermission) {
+      if (
+        !canViewOneTimeOrderByScope({
+          currentUserId: currentUser.id,
+          roleCodes,
+          permissionCodes: currentUser.permissionCodes,
+          order,
+        })
+      ) {
+        throw new ForbiddenException('Order inventory access denied');
+      }
+      return order;
+    }
+
+    const assignedAsOneTimeManager = order.assignments.some(
+      (assignment) =>
+        assignment.userId === currentUser.id &&
+        assignment.assignmentRoleCode === 'one_time_manager' &&
+        assignment.isActive,
+    );
+    if (
+      !canIssueInventoryToOneTimeOrder(roleCodes) &&
+      !assignedAsOneTimeManager
+    ) {
       throw new ForbiddenException(
-        requireIssuePermission
-          ? 'Inventory issue is limited to assigned one-time orders'
-          : 'Order inventory is limited to assigned one-time orders',
+        'Inventory issue is limited to assigned one-time orders',
       );
     }
 
