@@ -3,7 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-import { listObjects } from '@/entities/object/api/object-client';
+import {
+  getObjectById,
+  listObjectsPage,
+} from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import {
   checkOneTimeOrderConflicts,
@@ -23,6 +26,7 @@ import {
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { getOneTimeOrderConflictTypeLabel } from '@/shared/lib/one-time-order-presentation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -33,6 +37,17 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function toObjectOption(object: ServiceObject): SearchableSelectOption {
+  return {
+    value: object.id,
+    label: object.name,
+    description: [object.internalName, object.address].filter(Boolean).join(' · '),
+    searchText: [object.name, object.internalName, object.address]
+      .filter(Boolean)
+      .join(' '),
+  };
+}
+
 export default function NewOneTimeOrderPage(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -41,8 +56,11 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
     user?.capabilities?.canCreateOneTimeOrder ?? false;
   const copyFromId = searchParams.get('copyFrom');
 
-  const [objects, setObjects] = useState<ServiceObject[]>([]);
-  const [managerOptions, setManagerOptions] = useState<SystemUserOption[]>([]);
+  const [initialLinkedObjectOption, setInitialLinkedObjectOption] =
+    useState<SearchableSelectOption | null>(null);
+  const [initialManagerOptions, setInitialManagerOptions] = useState<
+    SystemUserOption[]
+  >([]);
   const [initialValue, setInitialValue] = useState<
     Partial<CreateOneTimeOrderPayload> | undefined
   >();
@@ -65,34 +83,50 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
       setError(null);
 
       try {
-        const [loadedObjects, loadedManagers, copySource, sourceSpecification] =
-          await Promise.all([
-          listObjects(),
-          listOneTimeOrderManagerCandidates(),
+        const [copySource, sourceSpecification] = await Promise.all([
           copyFromId ? getOneTimeOrderById(copyFromId) : Promise.resolve(null),
           copyFromId
             ? listOneTimeOrderSpecificationItems(copyFromId)
             : Promise.resolve([]),
         ]);
 
+        const requestedManagerIds = copySource
+          ? copySource.managers.map((manager) => manager.userId)
+          : searchParams.get('managerUserId')
+            ? [searchParams.get('managerUserId')!]
+            : [];
+
+        const [linkedObject, hydratedManagerOptions] = await Promise.all([
+          copySource?.linkedObject?.canOpenObjectCard
+            ? getObjectById(copySource.linkedObject.id).catch(() => null)
+            : Promise.resolve(null),
+          Promise.all(
+            requestedManagerIds.map(async (userId) => {
+              const matches = await listOneTimeOrderManagerCandidates(
+                undefined,
+                undefined,
+                userId,
+              );
+              return matches.find((user) => user.id === userId) ?? null;
+            }),
+          ),
+        ]);
+
         if (!cancelled) {
-          setObjects(loadedObjects);
-          setManagerOptions(loadedManagers);
+          const selectedManagers = hydratedManagerOptions.filter(
+            (user): user is SystemUserOption => user !== null,
+          );
+          setInitialLinkedObjectOption(
+            linkedObject ? toObjectOption(linkedObject) : null,
+          );
+          setInitialManagerOptions(selectedManagers);
           setCopySpecificationItems(sourceSpecification);
+
           if (copySource) {
-            const eligibleManagerIds = new Set(
-              loadedManagers.map((manager) => manager.id),
-            );
             setInitialValue({
               title: `Копия — ${copySource.title}`,
               executionAddress: copySource.executionAddress,
-              linkedObjectId:
-                copySource.linkedObject &&
-                loadedObjects.some(
-                  (object) => object.id === copySource.linkedObject?.id,
-                )
-                  ? copySource.linkedObject.id
-                  : null,
+              linkedObjectId: linkedObject?.id ?? null,
               status: 'new',
               description: copySource.description ?? undefined,
               executionStartDate: copySource.executionStartDate,
@@ -104,9 +138,7 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
                 copySource.plannedPaymentMethod ?? undefined,
               financialNotes: copySource.financialNotes ?? undefined,
               expenseNotes: copySource.expenseNotes ?? undefined,
-              managerUserIds: copySource.managers
-                .map((manager) => manager.userId)
-                .filter((managerId) => eligibleManagerIds.has(managerId)),
+              managerUserIds: selectedManagers.map((manager) => manager.id),
             });
           } else {
             setInitialValue({
@@ -117,8 +149,8 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
                     executionEndDate: searchParams.get('date'),
                   }
                 : {}),
-              ...(searchParams.get('managerUserId')
-                ? { managerUserIds: [searchParams.get('managerUserId')!] }
+              ...(selectedManagers.length
+                ? { managerUserIds: selectedManagers.map((manager) => manager.id) }
                 : {}),
             });
           }
@@ -159,8 +191,21 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
         </div>
       ) : (
         <OneTimeOrderForm
-          objects={objects}
-          managerOptions={managerOptions}
+          initialLinkedObjectOption={initialLinkedObjectOption}
+          initialManagerOptions={initialManagerOptions}
+          searchObjects={async (query) => {
+            const result = await listObjectsPage({
+              q: query,
+              page: 1,
+              limit: 20,
+              sortBy: 'name',
+              sortDirection: 'asc',
+            });
+            return result.items.map(toObjectOption);
+          }}
+          searchManagers={(query) =>
+            listOneTimeOrderManagerCandidates(undefined, query)
+          }
           initialValue={initialValue}
           includeSpecificationItems={Boolean(copyFromId)}
           initialSpecificationItems={copySpecificationItems.map((item) => ({
