@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
+import { listCounterpartyReferences } from '@/entities/counterparty/api/counterparty-client';
 import { createObject } from '@/entities/object/api/object-client';
 import {
   listSystemUsers,
@@ -14,6 +15,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 
@@ -35,12 +37,15 @@ export default function NewObjectPage(): React.JSX.Element {
   const [managerUsers, setManagerUsers] = useState<SystemUserOption[]>([]);
   const [responsibleUserId, setResponsibleUserId] = useState('');
   const [managerUserIds, setManagerUserIds] = useState<string[]>([]);
+  const [counterpartyId, setCounterpartyId] = useState('');
   const [isUsersLoading, setIsUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const allowCreateObject = user?.capabilities?.canCreateObject ?? false;
+  const allowLinkCounterparty =
+    user?.capabilities?.canLinkCounterpartyObjects ?? false;
 
   useEffect(() => {
     const loadUsers = async (): Promise<void> => {
@@ -111,6 +116,7 @@ export default function NewObjectPage(): React.JSX.Element {
         seasonMode: form.seasonMode || null,
         dailyRate: Number(form.dailyRate) || 0,
         notes: form.notes.trim() || undefined,
+        counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
         managerUserIds,
         responsibleUserId,
       });
@@ -166,6 +172,36 @@ export default function NewObjectPage(): React.JSX.Element {
               required
             />
           </label>
+
+          {allowLinkCounterparty ? (
+            <div className={`${styles.field} ${styles.fullWidth}`}>
+              <SearchableSelect
+                label="Контрагент"
+                value={counterpartyId}
+                options={[]}
+                placeholder="Без привязки"
+                searchPlaceholder="Название или юридическое название"
+                emptyText="Контрагенты не найдены"
+                asyncSearch={async (query) =>
+                  (await listCounterpartyReferences({ q: query, limit: 20 })).map(
+                    (counterparty) => ({
+                      value: counterparty.id,
+                      label: counterparty.name,
+                      description: counterparty.legalName ?? undefined,
+                      searchText: [
+                        counterparty.name,
+                        counterparty.legalName,
+                      ]
+                        .filter(Boolean)
+                        .join(' '),
+                    }),
+                  )
+                }
+                onChange={setCounterpartyId}
+                disabled={isSubmitting}
+              />
+            </div>
+          ) : null}
 
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Статус</span>
