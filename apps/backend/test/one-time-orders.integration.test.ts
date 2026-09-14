@@ -324,9 +324,9 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
   );
   assert.equal(nullPaymentMethodPatch.status, 200);
   assert.equal(
-    ((await nullPaymentMethodPatch.json()) as { plannedPaymentMethod: string })
+    ((await nullPaymentMethodPatch.json()) as { plannedPaymentMethod: string | null })
       .plannedPaymentMethod,
-    'other',
+    null,
   );
   assert.equal(
     await prisma.oneTimeOrderCompletionPayment.count({
