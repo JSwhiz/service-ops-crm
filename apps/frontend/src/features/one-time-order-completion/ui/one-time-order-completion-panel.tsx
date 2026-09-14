@@ -192,7 +192,10 @@ export function OneTimeOrderCompletionPanel({
   const hasEnteredAmounts = payments.every(
     (payment) => payment.mode === 'no_payment' || payment.amount.trim() !== '',
   );
+  const isExplicitNoPayment =
+    payments.length === 1 && payments[0]?.mode === 'no_payment';
   const hasDifference =
+    !isExplicitNoPayment &&
     hasEnteredAmounts &&
     fullPreviousTotalVisible &&
     item.agreedSum !== null &&
@@ -207,11 +210,13 @@ export function OneTimeOrderCompletionPanel({
     key: string,
     update: (draft: PaymentDraft) => PaymentDraft,
   ): void => {
-    setPayments((current) =>
-      current.map((payment) =>
+    setPayments((current) => {
+      const next = current.map((payment) =>
         payment.key === key ? update(payment) : payment,
-      ),
-    );
+      );
+      const noPayment = next.find((payment) => payment.mode === 'no_payment');
+      return noPayment ? [noPayment] : next;
+    });
   };
 
   const submit = async (): Promise<void> => {
@@ -349,15 +354,17 @@ export function OneTimeOrderCompletionPanel({
             />
           ))}
 
-          <button
-            type="button"
-            className="button-quiet"
-            onClick={() =>
-              setPayments((current) => [...current, createPaymentDraft()])
-            }
-          >
-            Добавить еще получателя
-          </button>
+          {!isExplicitNoPayment ? (
+            <button
+              type="button"
+              className="button-quiet"
+              onClick={() =>
+                setPayments((current) => [...current, createPaymentDraft()])
+              }
+            >
+              Добавить еще получателя
+            </button>
+          ) : null}
 
           <label className="order-completion-wide-field">
             <span>Комментарий к завершению</span>
@@ -826,7 +833,7 @@ function PaymentHistoryRow({
                 : 'Поступление в подотчёт создано'
             : 'Сохранено в истории заказа без личного подотчёта'}
       </div>
-      {payment.zeroReason ? (
+      {payment.zeroReason && !isNoPayment ? (
         <div className="page-muted">
           Причина нулевой суммы:{' '}
           {getOneTimeOrderPaymentZeroReasonLabel(payment.zeroReason)}
