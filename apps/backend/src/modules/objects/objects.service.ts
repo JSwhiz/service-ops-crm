@@ -14,6 +14,10 @@ import {
 } from '../approvals/constants/approval.constants';
 import { AuditService } from '../audit/audit.service';
 import { ChatsService } from '../chats/chats.service';
+import {
+  canLinkCounterpartyObjects,
+  canViewCounterparties,
+} from '../counterparties/utils/counterparty-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
@@ -68,6 +72,13 @@ interface ObjectView {
   seasonMode: string | null;
   dailyRate: number;
   notes: string | null;
+  counterpartyId: string | null;
+  counterparty?: {
+    id: string;
+    name: string;
+    legalName: string | null;
+    status: string;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
   createdByUserId: string;
@@ -164,6 +175,9 @@ export class ObjectsService {
             include: { user: true },
           },
           employeeAssignments: this.getEmployeeAssignmentsInclude(),
+          counterparty: {
+            select: { id: true, name: true, legalName: true, status: true },
+          },
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       })) as ObjectView[];
@@ -192,6 +206,9 @@ export class ObjectsService {
             include: { user: true },
           },
           employeeAssignments: this.getEmployeeAssignmentsInclude(),
+          counterparty: {
+            select: { id: true, name: true, legalName: true, status: true },
+          },
         },
       }),
     ]);
@@ -224,6 +241,9 @@ export class ObjectsService {
           },
         },
         employeeAssignments: this.getEmployeeAssignmentsInclude(),
+        counterparty: {
+          select: { id: true, name: true, legalName: true, status: true },
+        },
       },
     })) as ObjectView | null;
 
@@ -282,6 +302,13 @@ export class ObjectsService {
       payload.responsibleUserId,
     );
 
+    if (payload.counterpartyId) {
+      await this.assertCounterpartyCanBeLinked(
+        currentUser,
+        payload.counterpartyId,
+      );
+    }
+
     const managerUserIds = Array.from(
       new Set((payload.managerUserIds ?? []).filter(Boolean)),
     ).filter((userId) => userId !== currentUser.id);
@@ -327,6 +354,7 @@ export class ObjectsService {
           seasonMode: payload.seasonMode ?? null,
           dailyRate: payload.dailyRate ?? 0,
           notes: payload.notes ?? null,
+          counterpartyId: payload.counterpartyId ?? null,
           createdByUserId: currentUser.id,
         },
       });
@@ -370,6 +398,9 @@ export class ObjectsService {
               user: true,
             },
           },
+          counterparty: {
+            select: { id: true, name: true, legalName: true, status: true },
+          },
         },
       });
     });
@@ -385,6 +416,7 @@ export class ObjectsService {
         status: created.status,
         seasonMode: created.seasonMode,
         dailyRate: created.dailyRate,
+        counterpartyId: created.counterpartyId,
         managerUserIds,
         responsibleUserId: responsibleUser.id,
       } as Prisma.InputJsonObject,
@@ -435,6 +467,21 @@ export class ObjectsService {
       throw new BadRequestException(
         'Object status change must go through approval request flow',
       );
+    }
+
+    if (
+      payload.counterpartyId !== undefined &&
+      payload.counterpartyId !== existing.counterpartyId
+    ) {
+      if (!canLinkCounterpartyObjects(currentUser.permissionCodes ?? [])) {
+        throw new ForbiddenException('Counterparty object linking denied');
+      }
+      if (payload.counterpartyId) {
+        await this.assertCounterpartyCanBeLinked(
+          currentUser,
+          payload.counterpartyId,
+        );
+      }
     }
 
     const currentResponsible = existing.assignments.find(
@@ -492,6 +539,16 @@ export class ObjectsService {
     }
 
     if (
+      payload.counterpartyId !== undefined &&
+      payload.counterpartyId !== existing.counterpartyId
+    ) {
+      changes.counterpartyId = {
+        oldValue: existing.counterpartyId,
+        newValue: payload.counterpartyId,
+      };
+    }
+
+    if (
       payload.dailyRate !== undefined &&
       payload.dailyRate !== existing.dailyRate
     ) {
@@ -525,6 +582,9 @@ export class ObjectsService {
             ? { seasonMode: payload.seasonMode }
             : {}),
           ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
+          ...(payload.counterpartyId !== undefined
+            ? { counterpartyId: payload.counterpartyId }
+            : {}),
           ...(payload.dailyRate !== undefined
             ? { dailyRate: payload.dailyRate }
             : {}),
@@ -565,6 +625,9 @@ export class ObjectsService {
           assignments: {
             where: { isActive: true },
             include: { user: true },
+          },
+          counterparty: {
+            select: { id: true, name: true, legalName: true, status: true },
           },
         },
       });
@@ -1318,6 +1381,17 @@ export class ObjectsService {
       seasonMode: item.seasonMode,
       dailyRate: item.dailyRate,
       notes: item.notes,
+      counterparty: item.counterparty
+        ? {
+            id: item.counterparty.id,
+            name: item.counterparty.name,
+            legalName: item.counterparty.legalName,
+            status: item.counterparty.status,
+            canOpenCounterparty: canViewCounterparties(
+              currentUser.permissionCodes ?? [],
+            ),
+          }
+        : null,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
       managers: mappedAssignments.filter(
@@ -1345,6 +1419,22 @@ export class ObjectsService {
         assignments: mappedAssignments,
       }),
     };
+  }
+
+  private async assertCounterpartyCanBeLinked(
+    currentUser: CurrentAuthUser,
+    counterpartyId: string,
+  ): Promise<void> {
+    if (!canLinkCounterpartyObjects(currentUser.permissionCodes ?? [])) {
+      throw new ForbiddenException('Counterparty object linking denied');
+    }
+    const counterparty = await this.prisma.counterparty.findFirst({
+      where: { id: counterpartyId, status: 'active' },
+      select: { id: true },
+    });
+    if (!counterparty) {
+      throw new BadRequestException('Counterparty is not available');
+    }
   }
 
   private rethrowResponsibleAssignmentError(error: unknown): never {
