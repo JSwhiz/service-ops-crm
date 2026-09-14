@@ -184,8 +184,8 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
   };
   const createCompletedOrder = async (params: {
     amount: number;
-    paymentMethod: string;
-    paymentDestination: string;
+    paymentMethod?: string | null;
+    paymentDestination?: string | null;
     recipientUserId?: string;
   }) => {
     const result = await createCompletedOrderWithPayments({
@@ -522,17 +522,17 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
   });
   const zeroWithoutReason = await correct(zero.orderId, zero.source.id, {
     correctedAmount: 0,
-    paymentMethod: 'personal_card_transfer',
-    paymentDestination: 'manager_accountability',
-    recipientUserId: manager.id,
+    paymentMethod: null,
+    paymentDestination: null,
+    recipientUserId: null,
     reason: 'Оплата не поступила',
   });
   assert.equal(zeroWithoutReason.status, 400);
   const zeroCorrection = await correct(zero.orderId, zero.source.id, {
     correctedAmount: 0,
-    paymentMethod: 'personal_card_transfer',
-    paymentDestination: 'manager_accountability',
-    recipientUserId: manager.id,
+    paymentMethod: null,
+    paymentDestination: null,
+    recipientUserId: null,
     zeroReason: 'payment_later',
     reason: 'Оплата не поступила',
   });
