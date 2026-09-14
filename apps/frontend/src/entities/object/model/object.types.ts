@@ -55,6 +55,7 @@ export interface ServiceObject {
   status: string;
   seasonMode: string | null;
   dailyRate: number;
+  monthlySalary: number;
   notes: string | null;
   counterparty: {
     id: string;
@@ -84,6 +85,7 @@ export interface ServiceObject {
   capabilities: {
     canEdit: boolean;
     canEditDailyRate: boolean;
+    canEditMonthlySalary: boolean;
     canChangeStatus: boolean;
     canManageResponsibles: boolean;
     canManageManagers: boolean;
