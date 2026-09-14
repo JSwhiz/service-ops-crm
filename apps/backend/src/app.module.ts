@@ -34,6 +34,7 @@ import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ChatsModule } from './modules/chats/chats.module';
 import { CandidatesModule } from './modules/candidates/candidates.module';
+import { CounterpartiesModule } from './modules/counterparties/counterparties.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EmployeesModule } from './modules/employees/employees.module';
 import { EquipmentModule } from './modules/equipment/equipment.module';
@@ -74,6 +75,7 @@ const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
     AuthModule,
     ChatsModule,
     CandidatesModule,
+    CounterpartiesModule,
     DashboardModule,
     EmployeesModule,
     EquipmentModule,
