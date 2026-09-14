@@ -10,6 +10,8 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateObjectInventoryIssueDto } from './dto/create-object-inventory-issue.dto';
+import { InventoryMovementListResponseDto } from './dto/inventory-movement-list-response.dto';
+import { InventoryService } from './inventory.service';
 import { canIssueInventoryToOneTimeOrder } from './utils/inventory-access.util';
 
 interface CurrentAuthUser {
@@ -39,38 +41,27 @@ export class ScopedOneTimeInventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly inventoryService: InventoryService,
   ) {}
+
+  async listOrderMovements(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+  ): Promise<InventoryMovementListResponseDto> {
+    const order = await this.loadAccessibleOrder(currentUser, orderId, false);
+    return this.inventoryService.listMovements(currentUser, {
+      oneTimeOrderId: order.id,
+      page: 1,
+      limit: 100,
+    });
+  }
 
   async issueToOrder(
     currentUser: CurrentAuthUser,
     orderId: string,
     payload: CreateObjectInventoryIssueDto,
   ): Promise<ScopedOneTimeInventoryIssueResponse> {
-    const order = await this.prisma.oneTimeOrder.findFirst({
-      where: { id: orderId },
-      select: {
-        id: true,
-        assignments: {
-          where: {
-            userId: currentUser.id,
-            assignmentRoleCode: 'one_time_manager',
-            isActive: true,
-          },
-          select: { id: true },
-        },
-      },
-    });
-    if (!order) throw new NotFoundException('One-time order not found');
-
-    const roleCodes = currentUser.roleCodes ?? [currentUser.roleCode];
-    if (
-      !canIssueInventoryToOneTimeOrder(roleCodes) &&
-      order.assignments.length === 0
-    ) {
-      throw new ForbiddenException(
-        'Inventory issue is limited to assigned one-time orders',
-      );
-    }
+    const order = await this.loadAccessibleOrder(currentUser, orderId, true);
 
     const quantity = Number(payload.quantity);
     if (!Number.isFinite(quantity) || quantity < 0.001) {
@@ -191,5 +182,40 @@ export class ScopedOneTimeInventoryService {
       evidenceRequired: movement.evidenceRequired,
       createdAt: movement.createdAt.toISOString(),
     };
+  }
+
+  private async loadAccessibleOrder(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    requireIssuePermission: boolean,
+  ): Promise<{ id: string; assignments: Array<{ id: string }> }> {
+    const order = await this.prisma.oneTimeOrder.findFirst({
+      where: { id: orderId },
+      select: {
+        id: true,
+        assignments: {
+          where: {
+            userId: currentUser.id,
+            assignmentRoleCode: 'one_time_manager',
+            isActive: true,
+          },
+          select: { id: true },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('One-time order not found');
+
+    const roleCodes = currentUser.roleCodes ?? [currentUser.roleCode];
+    const hasGlobalOperationalAccess =
+      canIssueInventoryToOneTimeOrder(roleCodes);
+    if (!hasGlobalOperationalAccess && order.assignments.length === 0) {
+      throw new ForbiddenException(
+        requireIssuePermission
+          ? 'Inventory issue is limited to assigned one-time orders'
+          : 'Order inventory is limited to assigned one-time orders',
+      );
+    }
+
+    return order;
   }
 }
