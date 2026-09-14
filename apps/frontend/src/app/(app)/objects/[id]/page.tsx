@@ -337,9 +337,9 @@ export default function ObjectDetailPage({
       <PageTitle title={item ? item.name : 'Карточка объекта'} />
 
       {coreLoading ? (
-        <div className="page-card workspace-surface workspace-empty">Загрузка...</div>
+        <ObjectPanelLoading title="Карточка объекта" />
       ) : coreError ? (
-        <div className="page-card workspace-surface inline-notice inline-notice--warning">{coreError}</div>
+        <ObjectPanelError title="Карточка объекта" message={coreError} />
       ) : item ? (
         <div className={styles.workspace}>
           <ObjectSummaryCard item={item} />

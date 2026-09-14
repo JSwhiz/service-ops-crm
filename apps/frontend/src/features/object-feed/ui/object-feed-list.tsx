@@ -3,6 +3,8 @@ import React from 'react';
 import type { ObjectFeedItem } from '@/entities/object/model/object-operations.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 
+import styles from './object-feed-list.module.css';
+
 interface ObjectFeedListProps {
   items: ObjectFeedItem[];
 }
@@ -11,8 +13,8 @@ export function ObjectFeedList({
   items,
 }: ObjectFeedListProps): React.JSX.Element {
   return (
-    <div className="page-card">
-      <div className="section-header" style={{ marginBottom: 12 }}>
+    <div className={`page-card ${styles.card}`}>
+      <div className={`section-header ${styles.header}`}>
         <div>
           <div className="section-title">Лента объекта</div>
           <div className="section-subtitle">
@@ -21,23 +23,20 @@ export function ObjectFeedList({
         </div>
       </div>
 
-      <div className="record-list local-scroll">
+      <div className={`record-list local-scroll ${styles.list}`}>
         {items.length === 0 ? (
           <div className="page-muted">Событий пока нет.</div>
         ) : (
           items.map((item) => (
-            <div
+            <article
               key={`${item.type}-${item.id}`}
-              style={{
-                borderLeft: '3px solid #d1d5db',
-                paddingLeft: 12,
-              }}
+              className={styles.item}
             >
-              <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 4 }}>
+              <div className={styles.meta}>
                 {item.title} · {getUserDisplayName(item.author)}
               </div>
-              <div>{item.description}</div>
-            </div>
+              <div className={styles.description}>{item.description}</div>
+            </article>
           ))
         )}
       </div>

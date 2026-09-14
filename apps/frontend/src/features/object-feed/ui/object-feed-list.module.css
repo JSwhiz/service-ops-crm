@@ -1,0 +1,34 @@
+.card {
+  display: grid;
+  gap: 12px;
+}
+
+.header {
+  margin-bottom: 0;
+}
+
+.list {
+  gap: 8px;
+}
+
+.item {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid #e7dfd9;
+  border-left: 3px solid #cdbfb5;
+  border-radius: 8px;
+  background: #fffdfb;
+}
+
+.meta {
+  color: #887a71;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.description {
+  color: #3f3732;
+  font-size: 13px;
+  line-height: 1.5;
+}

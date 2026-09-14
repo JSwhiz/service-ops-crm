@@ -278,6 +278,77 @@
   transform: none;
 }
 
+.workspace :global(a) {
+  color: #5d4d43;
+}
+
+.workspace :global(a:hover) {
+  color: #332d29;
+}
+
+.workspace :global(.task-table-scroll) {
+  border-color: #e5ddd6;
+  border-radius: 9px;
+  background: #fffdfb;
+  box-shadow: none;
+}
+
+.workspace :global(.task-table) {
+  width: 100%;
+  background: #fffdfb;
+  color: #3f3732;
+}
+
+.workspace :global(.task-table thead th) {
+  border-bottom-color: #e5ddd6;
+  background: #faf7f4;
+  color: #685d55;
+}
+
+.workspace :global(.task-table tbody td) {
+  border-bottom-color: #eee7e2;
+  color: #3f3732;
+}
+
+.workspace :global(.task-table tbody tr:hover) {
+  background: #faf7f4;
+}
+
+.workspace :global(.task-table__title) {
+  color: #3f3732;
+}
+
+.workspace :global(.task-table__meta) {
+  color: #887a71;
+}
+
+.workspace :global(.task-overdue) {
+  color: #9a4f3e;
+}
+
+.workspace :global(.status-pill) {
+  border-color: #ddd3cc;
+  background: #f7f2ee;
+  box-shadow: none;
+  color: #685d55;
+}
+
+.workspace :global(.status-pill[data-status="completed"]),
+.workspace :global(.status-pill[data-status="active"]),
+.workspace :global(.status-pill[data-status="in_storage"]) {
+  border-color: #d7dfd3;
+  background: #f2f5f0;
+  color: #56664f;
+}
+
+.workspace :global(.status-pill[data-status="cancelled"]),
+.workspace :global(.status-pill[data-status="lost"]),
+.workspace :global(.status-pill[data-status="written_off"]) {
+  border-color: #ead7d2;
+  background: #fbf4f2;
+  color: #9a4f3e;
+}
+
 @keyframes sectionIn {
   from {
     opacity: 0;
