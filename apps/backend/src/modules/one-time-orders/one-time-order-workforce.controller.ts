@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -16,6 +17,7 @@ import {
   AddOneTimeOrderEmployeeDto,
   OneTimeOrderTimesheetQueryDto,
   SubmitOneTimeOrderAttendanceDto,
+  UpdateOneTimeOrderEmployeePaymentDto,
 } from './dto/one-time-order-workforce.dto';
 import {
   OneTimeOrderAttendanceResponse,
@@ -56,6 +58,21 @@ export class OneTimeOrderWorkforceController {
     @Body() payload: AddOneTimeOrderEmployeeDto,
   ): Promise<OneTimeOrderWorkforceEmployee[]> {
     return this.oneTimeOrderWorkforceService.addEmployee(user, orderId, payload);
+  }
+
+  @Patch('employees/:employeeId/payment')
+  updateEmployeePayment(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('orderId') orderId: string,
+    @Param('employeeId') employeeId: string,
+    @Body() payload: UpdateOneTimeOrderEmployeePaymentDto,
+  ): Promise<OneTimeOrderWorkforceEmployee[]> {
+    return this.oneTimeOrderWorkforceService.updateEmployeePayment(
+      user,
+      orderId,
+      employeeId,
+      payload,
+    );
   }
 
   @Delete('employees/:employeeId')
