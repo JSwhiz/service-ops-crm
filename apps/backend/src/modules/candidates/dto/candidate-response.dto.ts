@@ -4,6 +4,13 @@ export interface CandidateUserSummaryDto {
   fullName: string;
 }
 
+export interface CandidateObjectSummaryDto {
+  id: string;
+  name: string;
+  internalName: string | null;
+  address: string;
+}
+
 export interface CandidateAssignmentResponseDto {
   id: string;
   manager: CandidateUserSummaryDto;
@@ -33,7 +40,9 @@ export interface CandidateListItemDto {
   version: number;
   deletedAt: string | null;
   updatedAt: string;
+  object: CandidateObjectSummaryDto | null;
   currentAssignment: CandidateAssignmentResponseDto | null;
+  latestFeedback: CandidateResponseItemDto | null;
   slaState: string;
 }
 
