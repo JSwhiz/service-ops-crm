@@ -294,15 +294,29 @@ test('one-time order registry is paginated, searchable and access-safe', async (
   assert.equal(readerResult.items[0]?.accessibleTaskCount, 2);
 
   const deputyResult = await list(`q=${marker}&limit=20`, deputyCookie);
-  assert.deepEqual(deputyResult.items, []);
-  assert.equal(deputyResult.total, 0);
+  assert.deepEqual(
+    new Set(deputyResult.items.map((item) => item.id)),
+    new Set([firstOrder.id, secondOrder.id, thirdOrder.id, inactiveAssignmentOrder.id]),
+  );
+  assert.equal(deputyResult.total, 4);
+  for (const item of deputyResult.items) {
+    assert.equal(item.capabilities.canEdit, true);
+    assert.equal(item.capabilities.canEditOperationalFields, true);
+    assert.equal(item.capabilities.canEditFinancialFields, true);
+    assert.equal(item.capabilities.canChangeLinkedObject, true);
+    assert.equal(item.capabilities.canManageManagers, true);
+    assert.equal(item.capabilities.canManageSpecification, true);
+    assert.equal(item.capabilities.canCorrectPayments, true);
+    assert.equal(item.capabilities.canEditReview, true);
+    assert.equal(item.capabilities.canViewCalendar, true);
+  }
 
   for (const hiddenFile of hiddenFiles) {
     const fileResponse = await fetch(
       `${baseUrl}/api/v1/files/${hiddenFile.id}`,
       { headers: { Cookie: deputyCookie } },
     );
-    assert.equal(fileResponse.status, 403);
+    assert.equal(fileResponse.status, 200);
   }
 });
 
@@ -466,7 +480,10 @@ test('one-time order visibility matrix protects cards and child resources', asyn
 
   assert.deepEqual(await visibleIds(founderCookie), new Set(orders.map((order) => order.id)));
   assert.deepEqual(await visibleIds(directorCookie), new Set(orders.map((order) => order.id)));
-  assert.deepEqual(await visibleIds(deputyCookie), new Set());
+  assert.deepEqual(
+    await visibleIds(deputyCookie),
+    new Set(orders.map((order) => order.id)),
+  );
   assert.deepEqual(await visibleIds(hrCookie), new Set([hrOrder!.id]));
   assert.deepEqual(
     await visibleIds(managerACookie),
