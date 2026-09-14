@@ -11,6 +11,7 @@ import {
   listOneTimeWorkforceDirectory,
   removeOneTimeWorkforceEmployee,
   submitTodayOneTimeAttendance,
+  updateOneTimeWorkforceEmployeePayment,
   type OneTimeAttendance,
   type OneTimeEmployeeDirectoryItem,
   type OneTimeTimesheet,
@@ -32,7 +33,10 @@ function moscowMonth(): string {
 
 function money(value: number | null): string {
   if (value === null) return '—';
-  return `${Math.round(value).toLocaleString('ru-RU')} ₽`;
+  return `${value.toLocaleString('ru-RU', {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })} ₽`;
 }
 
 function shortDate(value: string): string {
@@ -61,6 +65,7 @@ export default function OneTimeOrderWorkforcePage({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeToAdd, setEmployeeToAdd] = useState('');
+  const [paymentDrafts, setPaymentDrafts] = useState<Record<string, string>>({});
   const [month, setMonth] = useState(moscowMonth());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -71,6 +76,17 @@ export default function OneTimeOrderWorkforcePage({
     [workforce],
   );
   const availableDirectory = directory.filter((item) => !activeIds.has(item.id));
+
+  useEffect(() => {
+    setPaymentDrafts(
+      Object.fromEntries(
+        workforce.map((employee) => [
+          employee.employeeId,
+          employee.orderPayment === null ? '' : String(employee.orderPayment),
+        ]),
+      ),
+    );
+  }, [workforce]);
 
   useEffect(() => {
     let cancelled = false;
@@ -185,13 +201,68 @@ export default function OneTimeOrderWorkforcePage({
             <div className={styles.list}>
               {workforce.filter((item) => item.isActive).length === 0 ? <div className={styles.empty}>Состав ещё не сформирован.</div> : workforce.filter((item) => item.isActive).map((employee) => (
                 <div className={styles.row} key={employee.employeeId}>
-                  <div className={styles.copy}><strong>{employee.fullName}</strong><span>{employee.position ?? 'Должность не указана'} · ставка {money(employee.baseDailyRate)}</span></div>
-                  <button className={styles.buttonSecondary} type="button" disabled={saving} onClick={async () => {
-                    setSaving(true); setError(null);
-                    try { await removeOneTimeWorkforceEmployee(orderId, employee.employeeId); await reloadWorkforce(); }
-                    catch (saveError) { setError(errorText(saveError)); }
-                    finally { setSaving(false); }
-                  }}>Убрать</button>
+                  <div className={styles.copy}>
+                    <strong>{employee.fullName}</strong>
+                    <span>
+                      {employee.position ?? 'Должность не указана'} · базовая дневная ставка {money(employee.baseDailyRate)}
+                    </span>
+                    <span>
+                      Оплата за заказ: {money(employee.orderPayment)}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      className={styles.input}
+                      style={{ width: 150 }}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={paymentDrafts[employee.employeeId] ?? ''}
+                      placeholder="Оплата за заказ"
+                      aria-label={`Оплата за заказ для ${employee.fullName}`}
+                      onChange={(event) =>
+                        setPaymentDrafts((current) => ({
+                          ...current,
+                          [employee.employeeId]: event.target.value,
+                        }))
+                      }
+                    />
+                    <button
+                      className={styles.buttonSecondary}
+                      type="button"
+                      disabled={saving}
+                      onClick={async () => {
+                        const raw = (paymentDrafts[employee.employeeId] ?? '').trim();
+                        const amount = raw === '' ? null : Number(raw);
+                        if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
+                          setError('Оплата за заказ должна быть неотрицательной суммой.');
+                          return;
+                        }
+                        setSaving(true);
+                        setError(null);
+                        try {
+                          await updateOneTimeWorkforceEmployeePayment(
+                            orderId,
+                            employee.employeeId,
+                            amount,
+                          );
+                          await reloadWorkforce();
+                        } catch (saveError) {
+                          setError(errorText(saveError));
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      Сохранить оплату
+                    </button>
+                    <button className={styles.buttonSecondary} type="button" disabled={saving} onClick={async () => {
+                      setSaving(true); setError(null);
+                      try { await removeOneTimeWorkforceEmployee(orderId, employee.employeeId); await reloadWorkforce(); }
+                      catch (saveError) { setError(errorText(saveError)); }
+                      finally { setSaving(false); }
+                    }}>Убрать</button>
+                  </div>
                 </div>
               ))}
             </div>
