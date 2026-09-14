@@ -1,4 +1,5 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export const SYSTEM_USER_PURPOSES = [
   'object_manager',
@@ -7,6 +8,7 @@ export const SYSTEM_USER_PURPOSES = [
   'task_visibility',
   'one_time_order_manager',
   'one_time_order_task_assignee',
+  'one_time_order_payment_recipient',
   'chat_participant',
 ] as const;
 
@@ -21,4 +23,19 @@ export class ListSystemUsersQueryDto {
   @IsOptional()
   @IsString()
   oneTimeOrderId?: string;
+
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @IsOptional()
+  @IsString()
+  selectedId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }
