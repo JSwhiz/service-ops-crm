@@ -305,21 +305,15 @@ test('one-time order calendar expands ranges and protects pending availability',
   assert.equal(historicalRow, undefined);
 
   const ordinaryCalendar = await getCalendar(managerCookie);
-  const ordinaryOwnRow = ordinaryCalendar.managers.find(
-    (row) => row.user.id === managerOne.id,
-  )!;
+  assert.deepEqual(
+    ordinaryCalendar.managers.map((row) => row.user.id),
+    [managerOne.id],
+  );
+  const ordinaryOwnRow = ordinaryCalendar.managers[0]!;
   assert.equal(
     ordinaryOwnRow.days.find((day) => day.date === '2032-07-13')
       ?.pendingRequests[0]?.entryType,
     'day_off',
-  );
-  const ordinaryOtherRow = ordinaryCalendar.managers.find(
-    (row) => row.user.id === managerTwo.id,
-  )!;
-  assert.deepEqual(
-    ordinaryOtherRow.days.find((day) => day.date === '2032-07-12')
-      ?.pendingRequests,
-    [],
   );
   assert.equal(ordinaryOwnRow.orderCount, 3);
   assert.equal(ordinaryOwnRow.cancelledOrderCount, 0);
@@ -332,7 +326,16 @@ test('one-time order calendar expands ranges and protects pending availability',
     ordinaryOwnRow.days.find((day) => day.date === '2032-07-11')?.orders.length,
     2,
   );
-  const restrictedOrder = ordinaryOtherRow.days
+
+  const switchedToOtherManager = await getCalendar(
+    managerCookie,
+    `month=2032-07&managerUserId=${managerTwo.id}`,
+  );
+  assert.deepEqual(
+    switchedToOtherManager.managers.map((row) => row.user.id),
+    [managerTwo.id],
+  );
+  const restrictedOrder = switchedToOtherManager.managers[0]?.days
     .find((day) => day.date === '2032-07-11')
     ?.orders.find((order) => order.detailsRestricted);
   assert.deepEqual(restrictedOrder, {
@@ -349,17 +352,21 @@ test('one-time order calendar expands ranges and protects pending availability',
     managerCookie,
     'month=2032-07&includeCancelled=true',
   );
-  const ordinaryHiddenCancelledDay = ordinaryWithCancelled.managers
-    .find((row) => row.user.id === managerTwo.id)
-    ?.days.find((day) => day.date === '2032-07-14');
-  assert.deepEqual(ordinaryHiddenCancelledDay?.orders, []);
+  assert.deepEqual(
+    ordinaryWithCancelled.managers.map((row) => row.user.id),
+    [managerOne.id],
+  );
 
   const otherManagerCalendar = await getCalendar(managerTwoCookie);
+  assert.deepEqual(
+    otherManagerCalendar.managers.map((row) => row.user.id),
+    [managerTwo.id],
+  );
   assert.equal(
-    otherManagerCalendar.managers
-      .find((row) => row.user.id === managerOne.id)
-      ?.days.find((day) => day.date === '2032-07-11')?.availability?.comment,
-    null,
+    otherManagerCalendar.managers[0]?.days.find(
+      (day) => day.date === '2032-07-12',
+    )?.pendingRequests[0]?.entryType,
+    'sick_leave',
   );
 
   const filteredCalendar = await getCalendar(
