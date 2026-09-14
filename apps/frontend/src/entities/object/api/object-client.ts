@@ -49,6 +49,7 @@ export interface CreateObjectPayload {
   seasonMode: string | null;
   dailyRate: number;
   notes?: string;
+  counterpartyId?: string | null;
   managerUserIds?: string[];
   responsibleUserId: string;
 }
@@ -61,6 +62,7 @@ export interface UpdateObjectPayload {
   seasonMode?: string | null;
   dailyRate?: number;
   notes?: string;
+  counterpartyId?: string | null;
   responsibleUserId?: string;
 }
 
