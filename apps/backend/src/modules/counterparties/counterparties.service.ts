@@ -342,6 +342,19 @@ export class CounterpartiesService {
         },
         tx,
       );
+      if (previousCounterpartyId) {
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'counterparty',
+            entityId: previousCounterpartyId,
+            actorUserId: currentUser.id,
+            action: 'counterparty.object_unlinked_by_relink',
+            oldValues: { objectId },
+            newValues: { newCounterpartyId: id },
+          },
+          tx,
+        );
+      }
     });
 
     await this.auditService.writeObjectAuditLog({
