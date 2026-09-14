@@ -2,6 +2,7 @@ import React from 'react';
 
 import type { ObjectFeedItem } from '@/entities/object/model/object-operations.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
+import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 
 import styles from './object-feed-list.module.css';
 
@@ -33,9 +34,15 @@ export function ObjectFeedList({
               className={styles.item}
             >
               <div className={styles.meta}>
-                {item.title} · {getUserDisplayName(item.author)}
+                {item.title} · {getUserDisplayName(item.author)} ·{' '}
+                {new Date(item.occurredAt).toLocaleString('ru-RU')}
               </div>
               <div className={styles.description}>{item.description}</div>
+              {item.attachments.length > 0 ? (
+                <div style={{ marginTop: 10 }}>
+                  <AttachmentPreviewList files={item.attachments} />
+                </div>
+              ) : null}
             </article>
           ))
         )}
