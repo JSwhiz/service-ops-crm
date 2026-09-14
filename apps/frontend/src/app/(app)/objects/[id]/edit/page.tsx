@@ -93,7 +93,7 @@ export default function EditObjectPage({
   }
 
   const allowEditObject = item.capabilities.canEdit;
-  const allowEditDailyRate = item.capabilities.canEditDailyRate;
+  const allowEditMonthlySalary = item.capabilities.canEditMonthlySalary;
   const allowChangeStatus = item.capabilities.canChangeStatus;
 
   if (!allowEditObject) {
@@ -116,7 +116,7 @@ export default function EditObjectPage({
 
       <ObjectEditForm
         item={item}
-        canEditDailyRate={allowEditDailyRate}
+        canEditMonthlySalary={allowEditMonthlySalary}
         canLinkCounterparty={
           user?.capabilities?.canLinkCounterpartyObjects ?? false
         }
