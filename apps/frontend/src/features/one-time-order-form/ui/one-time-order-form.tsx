@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 
-import type { ServiceObject } from '@/entities/object/model/object.types';
 import type { CreateOneTimeOrderPayload } from '@/entities/one-time-order/model/one-time-order.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import {
@@ -13,6 +12,10 @@ import {
   ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS,
   ONE_TIME_ORDER_STATUS_OPTIONS,
 } from '@/shared/lib/one-time-order-presentation';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/shared/ui/searchable-select/searchable-select';
 
 type OneTimeOrderFormPayload = {
   title: string;
@@ -37,8 +40,10 @@ type OneTimeOrderFormPayload = {
 };
 
 export function OneTimeOrderForm({
-  objects,
-  managerOptions,
+  initialLinkedObjectOption = null,
+  initialManagerOptions = [],
+  searchObjects,
+  searchManagers,
   initialValue,
   canSelectLinkedObject,
   canEditFinancialFields = true,
@@ -50,8 +55,10 @@ export function OneTimeOrderForm({
   submitLabel,
   onSubmit,
 }: {
-  objects: ServiceObject[];
-  managerOptions: SystemUserOption[];
+  initialLinkedObjectOption?: SearchableSelectOption | null;
+  initialManagerOptions?: SystemUserOption[];
+  searchObjects?: (query: string) => Promise<SearchableSelectOption[]>;
+  searchManagers?: (query: string) => Promise<SystemUserOption[]>;
   initialValue?: Partial<CreateOneTimeOrderPayload>;
   canSelectLinkedObject: boolean;
   canEditFinancialFields?: boolean;
@@ -95,18 +102,56 @@ export function OneTimeOrderForm({
     managerUserIds: initialValue?.managerUserIds ?? ([] as string[]),
   });
   const [error, setError] = useState<string | null>(null);
+  const [selectedManagers, setSelectedManagers] = useState<SystemUserOption[]>(
+    initialManagerOptions,
+  );
+  const [managerSearchOptions, setManagerSearchOptions] = useState<
+    SystemUserOption[]
+  >([]);
+  const [managerPickerValue, setManagerPickerValue] = useState('');
   const [specificationItems, setSpecificationItems] = useState(
     initialSpecificationItems.map((item) => ({ ...item })),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleToggleManager = (userId: string): void => {
+  const removeManager = (userId: string): void => {
+    setSelectedManagers((current) =>
+      current.filter((manager) => manager.id !== userId),
+    );
     setForm((prev) => ({
       ...prev,
-      managerUserIds: prev.managerUserIds.includes(userId)
-        ? prev.managerUserIds.filter((id) => id !== userId)
-        : [...prev.managerUserIds, userId],
+      managerUserIds: prev.managerUserIds.filter((id) => id !== userId),
     }));
+  };
+
+  const searchManagerOptions = async (
+    query: string,
+  ): Promise<SearchableSelectOption[]> => {
+    if (!searchManagers) return [];
+    const users = await searchManagers(query);
+    setManagerSearchOptions(users);
+    return users
+      .filter((user) => !form.managerUserIds.includes(user.id))
+      .map((user) => ({
+        value: user.id,
+        label: getUserDisplayName(user),
+        description: getUserSecondaryLabel(user) || undefined,
+        searchText: `${user.fullName} ${user.login}`,
+      }));
+  };
+
+  const addManager = (userId: string): void => {
+    const user = managerSearchOptions.find((option) => option.id === userId);
+    if (!user || form.managerUserIds.includes(userId)) {
+      setManagerPickerValue('');
+      return;
+    }
+    setSelectedManagers((current) => [...current, user]);
+    setForm((prev) => ({
+      ...prev,
+      managerUserIds: [...prev.managerUserIds, userId],
+    }));
+    setManagerPickerValue('');
   };
 
   const handleSubmit = async (
@@ -295,26 +340,22 @@ export function OneTimeOrderForm({
         </fieldset>
 
         {canSelectLinkedObject ? (
-          <label>
-            <div style={{ marginBottom: 6 }}>Связанный объект</div>
-            <select
-              value={form.linkedObjectId}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  linkedObjectId: event.target.value,
-                }))
-              }
-              style={{ width: '100%', padding: 10 }}
-            >
-              <option value="">Без привязки</option>
-              {objects.map((object) => (
-                <option key={object.id} value={object.id}>
-                  {object.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchableSelect
+            label="Связанный объект"
+            value={form.linkedObjectId}
+            options={[]}
+            selectedOption={initialLinkedObjectOption}
+            placeholder="Без привязки"
+            searchPlaceholder="Название, адрес или внутреннее имя"
+            emptyText="Доступные объекты не найдены"
+            asyncSearch={searchObjects}
+            onChange={(value) =>
+              setForm((prev) => ({
+                ...prev,
+                linkedObjectId: value,
+              }))
+            }
+          />
         ) : null}
 
         <label>
@@ -425,47 +466,63 @@ export function OneTimeOrderForm({
         ) : null}
 
         {includeManagers ? (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <div style={{ marginBottom: 8 }}>Менеджеры заказа</div>
-            {managerOptions.length === 0 ? (
-              <div className="page-muted">Кандидаты для назначения не найдены.</div>
+          <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 10 }}>
+            <div>
+              <div style={{ marginBottom: 4 }}>Менеджеры заказа</div>
+              <div className="page-muted">
+                Добавляйте менеджеров поиском — полный список не загружается.
+              </div>
+            </div>
+
+            {selectedManagers.length === 0 ? (
+              <div className="page-muted">Менеджеры пока не выбраны.</div>
             ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gap: 8,
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                }}
-              >
-                {managerOptions.map((user) => (
-                  <label
+              <div className="record-list">
+                {selectedManagers.map((user) => (
+                  <div
                     key={user.id}
+                    className="record-card"
                     style={{
                       display: 'flex',
-                      gap: 8,
+                      justifyContent: 'space-between',
+                      gap: 12,
                       alignItems: 'center',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 10,
-                      padding: 10,
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={form.managerUserIds.includes(user.id)}
-                      onChange={() => handleToggleManager(user.id)}
-                    />
-                    <span>
-                      {getUserDisplayName(user)}
+                    <div>
+                      <div>{getUserDisplayName(user)}</div>
                       {getUserSecondaryLabel(user) ? (
-                        <span className="identity-secondary">
+                        <div className="page-muted">
                           {getUserSecondaryLabel(user)}
-                        </span>
+                        </div>
                       ) : null}
-                    </span>
-                  </label>
+                    </div>
+                    <button
+                      type="button"
+                      className="button-quiet"
+                      onClick={() => removeManager(user.id)}
+                    >
+                      Убрать
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
+
+            <SearchableSelect
+              label="Добавить менеджера"
+              value={managerPickerValue}
+              options={[]}
+              clearable={false}
+              placeholder="Найти менеджера"
+              searchPlaceholder="ФИО или логин"
+              emptyText="Подходящие менеджеры не найдены"
+              asyncSearch={searchManagerOptions}
+              onChange={(value) => {
+                setManagerPickerValue(value);
+                if (value) addManager(value);
+              }}
+            />
           </div>
         ) : null}
 
