@@ -204,8 +204,11 @@ export class SearchService {
                 {
                   objects: {
                     some: {
-                      deletedAt: null,
-                      name: { contains: term, mode: 'insensitive' },
+                      AND: [
+                        access.objectWhere,
+                        { deletedAt: null },
+                        { name: { contains: term, mode: 'insensitive' } },
+                      ],
                     },
                   },
                 },
