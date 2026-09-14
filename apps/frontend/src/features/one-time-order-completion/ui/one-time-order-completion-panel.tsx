@@ -13,6 +13,7 @@ import type {
   OneTimeOrderPaymentZeroReason,
   VisibleOneTimeOrderCompletionPayment,
 } from '@/entities/one-time-order/model/one-time-order.types';
+import { listOneTimeOrderPaymentRecipientCandidates } from '@/entities/user/api/user-client';
 import { ApiError } from '@/shared/api/fetcher';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
@@ -20,6 +21,7 @@ import {
   getOneTimeOrderPaymentMethodLabel,
   getOneTimeOrderPaymentZeroReasonLabel,
 } from '@/shared/lib/one-time-order-presentation';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 const PAYMENT_METHODS: OneTimeOrderPaymentMethod[] = [
   'cash',
@@ -35,12 +37,15 @@ const ZERO_REASONS: OneTimeOrderPaymentZeroReason[] = [
   'other',
 ];
 
+type PaymentMode = 'paid' | 'no_payment';
+
 interface PaymentDraft {
   key: string;
+  mode: PaymentMode;
   recipientUserId: string;
   amount: string;
-  paymentMethod: OneTimeOrderPaymentMethod;
-  paymentDestination: OneTimeOrderPaymentDestination;
+  paymentMethod: OneTimeOrderPaymentMethod | '';
+  paymentDestination: OneTimeOrderPaymentDestination | '';
   zeroReason: OneTimeOrderPaymentZeroReason | '';
   comment: string;
 }
@@ -52,22 +57,42 @@ function formatMoney(value: number): string {
   })} ₽`;
 }
 
-function createPaymentDraft(item: OneTimeOrderItem): PaymentDraft {
+function createPaymentDraft(): PaymentDraft {
   return {
     key: `${Date.now()}-${Math.random()}`,
-    recipientUserId: item.managers[0]?.userId ?? '',
+    mode: 'paid',
+    recipientUserId: '',
     amount: '',
-    paymentMethod: 'cash',
-    paymentDestination: 'manager_accountability',
+    paymentMethod: '',
+    paymentDestination: '',
     zeroReason: '',
     comment: '',
+  };
+}
+
+function setPaymentMode(draft: PaymentDraft, mode: PaymentMode): PaymentDraft {
+  if (mode === 'no_payment') {
+    return {
+      ...draft,
+      mode,
+      recipientUserId: '',
+      amount: '0',
+      paymentMethod: '',
+      paymentDestination: '',
+    };
+  }
+
+  return {
+    ...draft,
+    mode,
+    amount: '',
+    zeroReason: '',
   };
 }
 
 function normalizeMethodChange(
   draft: PaymentDraft,
   method: OneTimeOrderPaymentMethod,
-  item: OneTimeOrderItem,
 ): PaymentDraft {
   if (method === 'organization_transfer') {
     return {
@@ -83,24 +108,34 @@ function normalizeMethodChange(
       ...draft,
       paymentMethod: method,
       paymentDestination: 'manager_accountability',
-      recipientUserId:
-        draft.recipientUserId || item.managers[0]?.userId || '',
     };
   }
 
-  return { ...draft, paymentMethod: method };
+  return {
+    ...draft,
+    paymentMethod: method,
+    paymentDestination: '',
+    recipientUserId: '',
+  };
 }
 
 function isDraftValid(draft: PaymentDraft): boolean {
-  const amount = Number(draft.amount);
+  if (draft.mode === 'no_payment') {
+    return (
+      Boolean(draft.zeroReason) &&
+      (draft.zeroReason !== 'other' || Boolean(draft.comment.trim()))
+    );
+  }
 
+  const amount = Number(draft.amount);
   return (
     draft.amount.trim() !== '' &&
     Number.isFinite(amount) &&
-    amount >= 0 &&
+    amount > 0 &&
+    Boolean(draft.paymentMethod) &&
+    Boolean(draft.paymentDestination) &&
     (draft.paymentDestination !== 'manager_accountability' ||
       Boolean(draft.recipientUserId)) &&
-    (amount !== 0 || Boolean(draft.zeroReason)) &&
     (draft.paymentMethod !== 'other' || Boolean(draft.comment.trim()))
   );
 }
@@ -122,7 +157,7 @@ export function OneTimeOrderCompletionPanel({
   ) => Promise<void>;
 }): React.JSX.Element {
   const [payments, setPayments] = useState<PaymentDraft[]>([
-    createPaymentDraft(item),
+    createPaymentDraft(),
   ]);
   const [completionComment, setCompletionComment] = useState('');
   const [differenceReason, setDifferenceReason] = useState('');
@@ -155,7 +190,7 @@ export function OneTimeOrderCompletionPanel({
     (completion) => completion.fullTotalAmountVisible,
   );
   const hasEnteredAmounts = payments.every(
-    (payment) => payment.amount.trim() !== '',
+    (payment) => payment.mode === 'no_payment' || payment.amount.trim() !== '',
   );
   const hasDifference =
     hasEnteredAmounts &&
@@ -192,21 +227,40 @@ export function OneTimeOrderCompletionPanel({
     const basePayload = {
       workCycle: item.workCycle,
       completionComment: completionComment.trim() || undefined,
-      payments: payments.map((payment, index) => ({
-        recipientUserId:
-          payment.paymentDestination === 'manager_accountability'
-            ? payment.recipientUserId
-            : null,
-        amount: Number(payment.amount),
-        paymentMethod: payment.paymentMethod,
-        paymentDestination: payment.paymentDestination,
-        zeroReason: payment.zeroReason || null,
-        comment: payment.comment.trim() || null,
-        differenceReason:
-          index === 0 && needsDifferenceReason
-            ? differenceReason.trim()
-            : null,
-      })),
+      payments: payments.map(
+        (payment, index): CompleteOneTimeOrderPayload['payments'][number] => {
+          const shared = {
+            comment: payment.comment.trim() || null,
+            differenceReason:
+              index === 0 && needsDifferenceReason
+                ? differenceReason.trim()
+                : null,
+          };
+
+          if (payment.mode === 'no_payment') {
+            return {
+              ...shared,
+              recipientUserId: null,
+              amount: 0,
+              paymentMethod: null,
+              paymentDestination: null,
+              zeroReason: payment.zeroReason || null,
+            };
+          }
+
+          return {
+            ...shared,
+            recipientUserId:
+              payment.paymentDestination === 'manager_accountability'
+                ? payment.recipientUserId
+                : null,
+            amount: Number(payment.amount),
+            paymentMethod: payment.paymentMethod || null,
+            paymentDestination: payment.paymentDestination || null,
+            zeroReason: null,
+          };
+        },
+      ),
     };
     const fingerprint = JSON.stringify(basePayload);
     const previousRequest = retryRequestRef.current;
@@ -225,7 +279,7 @@ export function OneTimeOrderCompletionPanel({
     try {
       await onComplete(requestPayload);
       retryRequestRef.current = null;
-      setPayments([createPaymentDraft(item)]);
+      setPayments([createPaymentDraft()]);
       setCompletionComment('');
       setDifferenceReason('');
       setServerRequiresDifferenceReason(false);
@@ -299,7 +353,7 @@ export function OneTimeOrderCompletionPanel({
             type="button"
             className="button-quiet"
             onClick={() =>
-              setPayments((current) => [...current, createPaymentDraft(item)])
+              setPayments((current) => [...current, createPaymentDraft()])
             }
           >
             Добавить еще получателя
@@ -405,6 +459,7 @@ function PaymentFields({
   draft,
   item,
   canRemove,
+  selectedRecipient = null,
   onChange,
   onRemove,
 }: {
@@ -412,12 +467,10 @@ function PaymentFields({
   draft: PaymentDraft;
   item: OneTimeOrderItem;
   canRemove: boolean;
+  selectedRecipient?: { id: string; login: string; fullName: string } | null;
   onChange: (update: (draft: PaymentDraft) => PaymentDraft) => void;
   onRemove: () => void;
 }): React.JSX.Element {
-  const amount = Number(draft.amount);
-  const isZero = draft.amount !== '' && Number.isFinite(amount) && amount === 0;
-
   return (
     <div className="order-payment-card">
       <div className="section-header">
@@ -428,99 +481,34 @@ function PaymentFields({
           </button>
         ) : null}
       </div>
-      <div className="field-grid">
-        {draft.paymentDestination === 'manager_accountability' ? (
-          <label>
-            <span>Кто получил</span>
-            <select
-              value={draft.recipientUserId}
-              onChange={(event) =>
-                onChange((current) => ({
-                  ...current,
-                  recipientUserId: event.target.value,
-                }))
-              }
-            >
-              <option value="">Выберите менеджера</option>
-              {item.managers.map((manager) => (
-                <option key={manager.userId} value={manager.userId}>
-                  {manager.fullName}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
 
+      <div className="action-row" role="group" aria-label="Состояние оплаты">
         <label>
-          <span>Способ</span>
-          <select
-            value={draft.paymentMethod}
-            onChange={(event) =>
-              onChange((current) =>
-                normalizeMethodChange(
-                  current,
-                  event.target.value as OneTimeOrderPaymentMethod,
-                  item,
-                ),
-              )
-            }
-          >
-            {PAYMENT_METHODS.map((method) => (
-              <option key={method} value={method}>
-                {getOneTimeOrderPaymentMethodLabel(method)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {draft.paymentMethod === 'other' ? (
-          <label>
-            <span>Назначение денег</span>
-            <select
-              value={draft.paymentDestination}
-              onChange={(event) =>
-                onChange((current) => ({
-                  ...current,
-                  paymentDestination: event.target
-                    .value as OneTimeOrderPaymentDestination,
-                  recipientUserId:
-                    event.target.value === 'organization'
-                      ? ''
-                      : current.recipientUserId ||
-                        item.managers[0]?.userId ||
-                        '',
-                }))
-              }
-            >
-              <option value="manager_accountability">Личный подотчет менеджера</option>
-              <option value="organization">Организация</option>
-            </select>
-          </label>
-        ) : null}
-
-        <label>
-          <span>Фактически получено</span>
           <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={draft.amount}
-            onChange={(event) =>
-              onChange((current) => ({
-                ...current,
-                amount: event.target.value,
-                zeroReason: Number(event.target.value) === 0
-                  ? current.zeroReason
-                  : '',
-              }))
+            type="radio"
+            checked={draft.mode === 'paid'}
+            onChange={() =>
+              onChange((current) => setPaymentMode(current, 'paid'))
             }
-            placeholder="0.00"
-          />
+          />{' '}
+          Оплата получена
         </label>
+        <label>
+          <input
+            type="radio"
+            checked={draft.mode === 'no_payment'}
+            onChange={() =>
+              onChange((current) => setPaymentMode(current, 'no_payment'))
+            }
+          />{' '}
+          Без оплаты
+        </label>
+      </div>
 
-        {isZero ? (
+      {draft.mode === 'no_payment' ? (
+        <div className="field-grid">
           <label>
-            <span>Причина нулевой суммы</span>
+            <span>Причина</span>
             <select
               value={draft.zeroReason}
               onChange={(event) =>
@@ -539,29 +527,159 @@ function PaymentFields({
               ))}
             </select>
           </label>
-        ) : null}
 
-        <label className="order-completion-wide-field">
-          <span>Комментарий</span>
-          <input
-            value={draft.comment}
-            onChange={(event) =>
-              onChange((current) => ({
-                ...current,
-                comment: event.target.value,
-              }))
-            }
-            placeholder={draft.paymentMethod === 'other' ? 'Обязательный комментарий' : 'Необязательно'}
-          />
-        </label>
-      </div>
+          <label className="order-completion-wide-field">
+            <span>Комментарий</span>
+            <input
+              value={draft.comment}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  comment: event.target.value,
+                }))
+              }
+              placeholder={
+                draft.zeroReason === 'other'
+                  ? 'Обязательный комментарий'
+                  : 'Необязательно'
+              }
+            />
+          </label>
 
-      {draft.paymentDestination === 'organization' ? (
-        <div className="order-payment-note">
-          Сумма сохранится в финансовой истории заказа, но не попадет в личный
-          подотчет менеджера.
+          <div className="order-payment-note">
+            Поступление денег не создаётся: способ, получатель и личный подотчёт
+            отсутствуют.
+          </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="field-grid">
+          <label>
+            <span>Фактически получено</span>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={draft.amount}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  amount: event.target.value,
+                }))
+              }
+              placeholder="0.00"
+            />
+          </label>
+
+          <label>
+            <span>Способ</span>
+            <select
+              value={draft.paymentMethod}
+              onChange={(event) =>
+                onChange((current) =>
+                  normalizeMethodChange(
+                    current,
+                    event.target.value as OneTimeOrderPaymentMethod,
+                  ),
+                )
+              }
+            >
+              <option value="">Выберите способ</option>
+              {PAYMENT_METHODS.map((method) => (
+                <option key={method} value={method}>
+                  {getOneTimeOrderPaymentMethodLabel(method)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {draft.paymentMethod === 'other' ? (
+            <label>
+              <span>Назначение денег</span>
+              <select
+                value={draft.paymentDestination}
+                onChange={(event) =>
+                  onChange((current) => ({
+                    ...current,
+                    paymentDestination: event.target
+                      .value as OneTimeOrderPaymentDestination,
+                    recipientUserId:
+                      event.target.value === 'organization'
+                        ? ''
+                        : current.recipientUserId,
+                  }))
+                }
+              >
+                <option value="">Выберите назначение</option>
+                <option value="manager_accountability">Личный подотчёт</option>
+                <option value="organization">Организация</option>
+              </select>
+            </label>
+          ) : null}
+
+          {draft.paymentDestination === 'manager_accountability' ? (
+            <SearchableSelect
+              label="Кто получил"
+              value={draft.recipientUserId}
+              options={[]}
+              selectedOption={
+                selectedRecipient
+                  ? {
+                      value: selectedRecipient.id,
+                      label: `${selectedRecipient.fullName} · @${selectedRecipient.login}`,
+                      searchText: `${selectedRecipient.fullName} ${selectedRecipient.login}`,
+                    }
+                  : null
+              }
+              placeholder="Выберите получателя"
+              searchPlaceholder="ФИО или логин"
+              emptyText="Подходящие пользователи не найдены"
+              asyncSearch={async (query) =>
+                (
+                  await listOneTimeOrderPaymentRecipientCandidates(
+                    item.id,
+                    query,
+                  )
+                ).map((user) => ({
+                  value: user.id,
+                  label: `${user.fullName} · @${user.login}`,
+                  searchText: `${user.fullName} ${user.login}`,
+                }))
+              }
+              onChange={(value) =>
+                onChange((current) => ({
+                  ...current,
+                  recipientUserId: value,
+                }))
+              }
+            />
+          ) : null}
+
+          <label className="order-completion-wide-field">
+            <span>Комментарий</span>
+            <input
+              value={draft.comment}
+              onChange={(event) =>
+                onChange((current) => ({
+                  ...current,
+                  comment: event.target.value,
+                }))
+              }
+              placeholder={
+                draft.paymentMethod === 'other'
+                  ? 'Обязательный комментарий'
+                  : 'Необязательно'
+              }
+            />
+          </label>
+
+          {draft.paymentDestination === 'organization' ? (
+            <div className="order-payment-note">
+              Поступление сохранится в истории заказа, но не создаст личный
+              подотчёт.
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -658,11 +776,14 @@ function PaymentHistoryRow({
   }
 
   const isReversal = payment.status === 'reversal';
-  const entryLabel = isReversal
-    ? 'Сторнирование'
-    : payment.correctedFromPaymentId
-      ? 'Исправленное поступление'
-      : 'Поступление';
+  const isNoPayment = payment.amount === 0 && Boolean(payment.zeroReason);
+  const entryLabel = isNoPayment
+    ? 'Без оплаты'
+    : isReversal
+      ? 'Сторнирование'
+      : payment.correctedFromPaymentId
+        ? 'Исправленное поступление'
+        : 'Поступление';
 
   return (
     <div className="order-payment-history-row" data-payment-status={payment.status}>
@@ -670,26 +791,40 @@ function PaymentHistoryRow({
         <div>
           <strong>{entryLabel}</strong>
           <div className="page-muted">
-            {payment.recipient
-              ? getUserDisplayName(payment.recipient)
-              : getOneTimeOrderPaymentDestinationLabel(payment.paymentDestination)}
-            {' · '}
-            {getOneTimeOrderPaymentMethodLabel(payment.paymentMethod)}
+            {isNoPayment
+              ? `Причина: ${getOneTimeOrderPaymentZeroReasonLabel(payment.zeroReason!)}`
+              : `${
+                  payment.recipient
+                    ? getUserDisplayName(payment.recipient)
+                    : payment.paymentDestination
+                      ? getOneTimeOrderPaymentDestinationLabel(
+                          payment.paymentDestination,
+                        )
+                      : 'Назначение не указано'
+                } · ${
+                  payment.paymentMethod
+                    ? getOneTimeOrderPaymentMethodLabel(payment.paymentMethod)
+                    : 'Способ не указан'
+                }`}
           </div>
         </div>
         <strong className="order-payment-history-amount">
-          {isReversal ? '−' : '+'}{formatMoney(payment.amount)}
+          {isNoPayment
+            ? 'Без поступления'
+            : `${isReversal ? '−' : '+'}${formatMoney(payment.amount)}`}
         </strong>
       </div>
       <div className="page-muted">
-        {payment.paymentDestination === 'manager_accountability' &&
-        payment.amount > 0
-          ? isReversal
-            ? 'Подотчет уменьшен сторнированием'
-            : payment.correctedFromPaymentId
-              ? 'Исправленное поступление в подотчет создано'
-              : 'Поступление в подотчет создано'
-          : 'Сохранено в истории заказа без личного подотчета'}
+        {isNoPayment
+          ? 'Зафиксировано отсутствие фактического поступления; личный подотчёт не создавался'
+          : payment.paymentDestination === 'manager_accountability' &&
+              payment.amount > 0
+            ? isReversal
+              ? 'Подотчёт уменьшен сторнированием'
+              : payment.correctedFromPaymentId
+                ? 'Исправленное поступление в подотчёт создано'
+                : 'Поступление в подотчёт создано'
+            : 'Сохранено в истории заказа без личного подотчёта'}
       </div>
       {payment.zeroReason ? (
         <div className="page-muted">
@@ -743,10 +878,11 @@ function PaymentCorrectionForm({
 }): React.JSX.Element {
   const [draft, setDraft] = useState<PaymentDraft>({
     key: payment.id,
+    mode: payment.amount === 0 && payment.zeroReason ? 'no_payment' : 'paid',
     recipientUserId: payment.recipient?.id ?? '',
     amount: String(payment.amount),
-    paymentMethod: payment.paymentMethod,
-    paymentDestination: payment.paymentDestination,
+    paymentMethod: payment.paymentMethod ?? '',
+    paymentDestination: payment.paymentDestination ?? '',
     zeroReason: payment.zeroReason ?? '',
     comment: payment.comment ?? '',
   });
@@ -761,6 +897,7 @@ function PaymentCorrectionForm({
         draft={draft}
         item={item}
         canRemove={false}
+        selectedRecipient={payment.recipient}
         onChange={(update) => setDraft((current) => update(current))}
         onRemove={() => undefined}
       />
@@ -783,18 +920,30 @@ function PaymentCorrectionForm({
               setIsSaving(true);
               setError(null);
               try {
-                await onSubmit({
-                  correctedAmount: Number(draft.amount),
-                  paymentMethod: draft.paymentMethod,
-                  paymentDestination: draft.paymentDestination,
-                  recipientUserId:
-                    draft.paymentDestination === 'manager_accountability'
-                      ? draft.recipientUserId
-                      : null,
-                  zeroReason: draft.zeroReason || null,
-                  comment: draft.comment.trim() || null,
-                  reason: reason.trim(),
-                });
+                await onSubmit(
+                  draft.mode === 'no_payment'
+                    ? {
+                        correctedAmount: 0,
+                        paymentMethod: null,
+                        paymentDestination: null,
+                        recipientUserId: null,
+                        zeroReason: draft.zeroReason || null,
+                        comment: draft.comment.trim() || null,
+                        reason: reason.trim(),
+                      }
+                    : {
+                        correctedAmount: Number(draft.amount),
+                        paymentMethod: draft.paymentMethod || null,
+                        paymentDestination: draft.paymentDestination || null,
+                        recipientUserId:
+                          draft.paymentDestination === 'manager_accountability'
+                            ? draft.recipientUserId
+                            : null,
+                        zeroReason: null,
+                        comment: draft.comment.trim() || null,
+                        reason: reason.trim(),
+                      },
+                );
               } catch (saveError) {
                 setError(
                   saveError instanceof Error
