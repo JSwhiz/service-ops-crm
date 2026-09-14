@@ -6,6 +6,9 @@ export class MeResponseDto {
   roleCodes!: string[];
   isActive!: boolean;
   capabilities!: {
+    canAccessCounterparties: boolean;
+    canManageCounterparties: boolean;
+    canLinkCounterpartyObjects: boolean;
     canAccessCandidates: boolean;
     canManageCandidates: boolean;
     canRespondToCandidates: boolean;
