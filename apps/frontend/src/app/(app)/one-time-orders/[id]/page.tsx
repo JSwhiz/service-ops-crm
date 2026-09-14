@@ -48,6 +48,10 @@ import type { EquipmentScope } from '@/entities/equipment/model/equipment.types'
 import { getOneTimeOrderInventory } from '@/entities/inventory/api/inventory-client';
 import type { InventoryMovement } from '@/entities/inventory/model/inventory.types';
 import {
+  listOneTimeWorkforce,
+  type OneTimeWorkforceEmployee,
+} from '@/entities/one-time-order/api/one-time-order-workforce-client';
+import {
   listTasksByOneTimeOrder,
   createTask,
 } from '@/entities/task/api/task-client';
@@ -138,6 +142,7 @@ export default function OneTimeOrderDetailPage({
   const [photos, setPhotos] = useState<OneTimeOrderPhotoItem[]>([]);
   const [equipment, setEquipment] = useState<EquipmentScope | null>(null);
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([]);
+  const [workforce, setWorkforce] = useState<OneTimeWorkforceEmployee[]>([]);
   const [accountability, setAccountability] =
     useState<OneTimeOrderAccountabilityView | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -256,6 +261,11 @@ export default function OneTimeOrderDetailPage({
           setInventoryMovements(response.items);
         }
       }),
+      listOneTimeWorkforce(id).then((response) => {
+        if (!cancelled) {
+          setWorkforce(response);
+        }
+      }),
       listTasksByOneTimeOrder(id).then((response) => {
         if (!cancelled) {
           setTasks(response);
@@ -290,26 +300,59 @@ export default function OneTimeOrderDetailPage({
       {isLoading ? (
         <div className="page-card workspace-empty">Загрузка...</div>
       ) : error ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <div className="page-card inline-notice inline-notice--warning" role="alert">
           {error}
         </div>
       ) : item ? (
         <div className="page-stack order-detail-workspace">
           <OneTimeOrderSummaryCard item={item} />
 
-          <div className="page-card workspace-surface">
-            <div className="section-header" style={{ paddingBottom: 0 }}>
+          <section className="page-card workspace-surface">
+            <div className="section-header">
               <div>
                 <div className="section-title">Сотрудники и оплата за заказ</div>
                 <div className="section-subtitle">
-                  Разовый состав, присутствие, табель и фиксированная оплата каждого сотрудника за текущий цикл.
+                  Разовый состав и согласованная оплата каждого сотрудника за текущий цикл.
                 </div>
               </div>
-              <Link href={`/one-time-orders/${item.id}/workforce`}>
+              <Link className="button-link" href={`/one-time-orders/${item.id}/workforce`}>
                 Открыть команду
               </Link>
             </div>
-          </div>
+
+            {workforce.filter((employee) => employee.isActive).length === 0 ? (
+              <div className="workspace-empty">
+                Состав заказа пока не сформирован.
+              </div>
+            ) : (
+              <div className="record-list">
+                {workforce
+                  .filter((employee) => employee.isActive)
+                  .map((employee) => (
+                    <div className="record-card" key={employee.employeeId}>
+                      <div className="section-header">
+                        <div>
+                          <strong>{employee.fullName}</strong>
+                          <div className="page-muted">
+                            {employee.position ?? 'Должность не указана'}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div className="page-muted">Оплата за заказ</div>
+                          <strong>
+                            {employee.orderPayment === null
+                              ? 'Не указана'
+                              : `${employee.orderPayment.toLocaleString('ru-RU', {
+                                  maximumFractionDigits: 2,
+                                })} ₽`}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </section>
 
           {item.capabilities.canCopy ? (
             <div className="action-row">
