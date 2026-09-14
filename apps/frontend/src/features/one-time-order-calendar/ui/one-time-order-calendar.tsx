@@ -67,12 +67,6 @@ function normalizeMonth(value: string | null): string {
   return value && /^\d{4}-\d{2}$/.test(value) ? value : getCurrentMonth();
 }
 
-function shiftMonth(month: string, delta: number): string {
-  const [year, monthNumber] = month.split('-').map(Number);
-  const date = new Date(Date.UTC(year!, monthNumber! - 1 + delta, 1));
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
-}
-
 function formatDate(value: string, options?: Intl.DateTimeFormatOptions): string {
   const [year, month, day] = value.split('-').map(Number);
   return new Intl.DateTimeFormat('ru-RU', {
