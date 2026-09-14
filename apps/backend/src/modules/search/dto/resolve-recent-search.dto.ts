@@ -7,6 +7,9 @@ const RECENT_ENTITY_TYPES = [
   'task',
   'employee',
   'candidate',
+  'counterparty',
+  'inventory_item',
+  'equipment_unit',
 ] as const;
 
 export class RecentSearchRefDto {
