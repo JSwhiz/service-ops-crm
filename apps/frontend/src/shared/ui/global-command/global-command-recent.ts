@@ -8,7 +8,10 @@ export type RecentEntityType =
   | 'one_time_order'
   | 'task'
   | 'employee'
-  | 'candidate';
+  | 'candidate'
+  | 'counterparty'
+  | 'inventory_item'
+  | 'equipment_unit';
 
 export interface StoredRecentRef {
   type: RecentEntityType;
@@ -24,6 +27,9 @@ const ENTITY_ROUTES: Array<{
   { type: 'task', pattern: /^\/tasks\/([0-9a-f-]{36})(?:\/|$)/i },
   { type: 'employee', pattern: /^\/employees\/([0-9a-f-]{36})(?:\/|$)/i },
   { type: 'candidate', pattern: /^\/candidates\/([0-9a-f-]{36})(?:\/|$)/i },
+  { type: 'counterparty', pattern: /^\/counterparties\/([0-9a-f-]{36})(?:\/|$)/i },
+  { type: 'inventory_item', pattern: /^\/inventory\/([0-9a-f-]{36})(?:\/|$)/i },
+  { type: 'equipment_unit', pattern: /^\/equipment\/([0-9a-f-]{36})(?:\/|$)/i },
 ];
 
 function storageKey(userId: string): string {
