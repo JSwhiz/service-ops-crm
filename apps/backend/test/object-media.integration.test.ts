@@ -243,4 +243,32 @@ test('object comment, daily report and arrival photo expose MinIO-backed attachm
   assert.equal(arrival.id, arrivalId);
   assert.equal(arrival.photoUrl, null);
   assert.equal(arrival.attachments.length, 1);
+
+  const feedResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${objectId}/feed?limit=50`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(feedResponse.status, 200);
+  const feed = (await feedResponse.json()) as Array<{
+    type: string;
+    id: string;
+    attachments: Array<{ id: string; originalName: string }>;
+  }>;
+
+  const commentFeed = feed.find(
+    (item) => item.type === 'comment' && item.id === commentId,
+  );
+  const reportFeed = feed.find(
+    (item) => item.type === 'daily_report' && item.id === reportId,
+  );
+  const arrivalFeed = feed.find(
+    (item) => item.type === 'arrival_photo' && item.id === arrivalId,
+  );
+
+  assert.equal(commentFeed?.attachments.length, 1);
+  assert.equal(commentFeed?.attachments[0]?.originalName, 'object-comment.jpg');
+  assert.equal(reportFeed?.attachments.length, 1);
+  assert.equal(reportFeed?.attachments[0]?.originalName, 'object-report.jpg');
+  assert.equal(arrivalFeed?.attachments.length, 1);
+  assert.equal(arrivalFeed?.attachments[0]?.originalName, 'object-arrival.jpg');
 });
