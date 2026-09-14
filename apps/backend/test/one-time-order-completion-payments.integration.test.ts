@@ -10,8 +10,8 @@ import { usesIsolatedIntegrationDatabase } from './helpers/isolated-database';
 interface PaymentInput {
   recipientUserId?: string | null;
   amount: number;
-  paymentMethod: string;
-  paymentDestination: string;
+  paymentMethod?: string | null;
+  paymentDestination?: string | null;
   zeroReason?: string;
   comment?: string;
   differenceReason?: string;
@@ -28,8 +28,8 @@ interface CompletionResponse {
     detailsRestricted: boolean;
     recipient?: { id: string } | null;
     amount?: number;
-    paymentMethod?: string;
-    paymentDestination?: string;
+    paymentMethod?: string | null;
+    paymentDestination?: string | null;
     status?: string;
   }>;
 }
@@ -61,7 +61,16 @@ test('one-time order completion validates and stores actual payment rows', async
   );
   const managerOne = createdManagers[0]!;
   const managerTwo = createdManagers[1]!;
-  createdUserIds.push(managerOne.id, managerTwo.id);
+  const inactiveRecipient = await prisma.user.create({
+    data: {
+      login: `${marker}-inactive-recipient`,
+      fullName: 'Неактивный получатель',
+      passwordHash: templateManager.passwordHash,
+      isActive: false,
+      roles: { create: { roleId: managerRole.id } },
+    },
+  });
+  createdUserIds.push(managerOne.id, managerTwo.id, inactiveRecipient.id);
 
   t.after(async () => {
     if (usesIsolatedIntegrationDatabase()) {
@@ -184,7 +193,7 @@ test('one-time order completion validates and stores actual payment rows', async
     crypto.randomUUID(),
     [
       {
-        recipientUserId: managerTwo.id,
+        recipientUserId: inactiveRecipient.id,
         amount: 35000,
         paymentMethod: 'cash',
         paymentDestination: 'manager_accountability',
@@ -192,6 +201,26 @@ test('one-time order completion validates and stores actual payment rows', async
     ],
   );
   assert.equal(invalidRecipient.status, 400);
+
+  const alternateRecipientOrderId = await createOrder([managerOne.id], 100);
+  const alternateRecipient = await complete(
+    alternateRecipientOrderId,
+    1,
+    crypto.randomUUID(),
+    [
+      {
+        recipientUserId: managerTwo.id,
+        amount: 100,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+      },
+    ],
+  );
+  assert.equal(alternateRecipient.status, 201);
+  assert.equal(
+    ((await alternateRecipient.json()) as CompletionResponse).payments[0]?.recipient?.id,
+    managerTwo.id,
+  );
 
   const invalidMethodDestination = await complete(
     orderId,
@@ -213,10 +242,7 @@ test('one-time order completion validates and stores actual payment rows', async
     crypto.randomUUID(),
     [
       {
-        recipientUserId: managerOne.id,
         amount: 0,
-        paymentMethod: 'cash',
-        paymentDestination: 'manager_accountability',
         differenceReason: 'Ожидается последующая оплата',
       },
     ],
@@ -341,15 +367,23 @@ test('one-time order completion validates and stores actual payment rows', async
     crypto.randomUUID(),
     [
       {
-        recipientUserId: managerOne.id,
         amount: 0,
-        paymentMethod: 'cash',
-        paymentDestination: 'manager_accountability',
         zeroReason: 'payment_later',
       },
     ],
   );
   assert.equal(zeroPayment.status, 201);
+  const zeroPaymentBody = (await zeroPayment.json()) as CompletionResponse;
+  assert.equal(zeroPaymentBody.payments[0]?.recipient, null);
+  assert.equal(zeroPaymentBody.payments[0]?.paymentMethod, null);
+  assert.equal(zeroPaymentBody.payments[0]?.paymentDestination, null);
+  assert.equal(
+    await prisma.accountabilityFunding.count({
+      where: { oneTimeOrderId: zeroOrderId },
+    }),
+    0,
+  );
+
 
   const otherOrderId = await createOrder([managerOne.id], 10);
   const otherWithoutComment = await complete(
