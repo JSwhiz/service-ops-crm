@@ -26,6 +26,7 @@ import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 const AVAILABILITY_OPTIONS: Array<{
@@ -360,32 +361,19 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
     <div className="one-time-calendar" ref={calendarRootRef}>
       <div className="page-card workspace-surface filter-panel one-time-calendar__toolbar">
         <div className="one-time-calendar__month-nav">
-          <button type="button" onClick={() => replaceQuery(shiftMonth(month, -1))}>
-            Назад
-          </button>
-          <input
-            aria-label="Месяц календаря"
-            type="month"
-            value={month}
-            onChange={(event) => replaceQuery(event.target.value)}
+          <MonthPeriodPicker
+            year={Number(month.slice(0, 4))}
+            month={Number(month.slice(5, 7))}
+            onChange={(year, nextMonth) =>
+              replaceQuery(
+                `${year}-${String(nextMonth).padStart(2, '0')}`,
+              )
+            }
           />
-          <button type="button" onClick={() => replaceQuery(shiftMonth(month, 1))}>
-            Вперед
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const currentMonth = getCurrentMonth();
-              if (month === currentMonth) scrollTodayIntoView();
-              else replaceQuery(currentMonth);
-            }}
-          >
-            Текущий месяц
-          </button>
         </div>
         <div className="one-time-calendar__manager-filter">
           <SearchableSelect
-            label="Менеджер"
+            label="Чей календарь"
             value={managerUserId}
             options={availableManagers.map((manager) => ({
               value: manager.id,
@@ -393,6 +381,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
               searchText: manager.login,
             }))}
             onChange={(value) => replaceQuery(month, value)}
+            clearable={canManageAny || canApprove}
             placeholder={
               canManageOwn && !canManageAny && !canApprove
                 ? 'Мой календарь'
@@ -406,6 +395,19 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
               }))
             }
           />
+          {canManageOwn &&
+          !canManageAny &&
+          !canApprove &&
+          user?.id &&
+          managerUserId !== user.id ? (
+            <button
+              type="button"
+              className="button-quiet"
+              onClick={() => replaceQuery(month, user.id)}
+            >
+              Мой календарь
+            </button>
+          ) : null}
         </div>
         <div className="action-row one-time-calendar__actions">
           <button
