@@ -90,10 +90,15 @@ export async function listTaskAssigneeCandidates(
 
 export async function listOneTimeOrderManagerCandidates(
   oneTimeOrderId?: string,
+  q?: string,
+  selectedId?: string,
 ): Promise<SystemUserOption[]> {
   return listSystemUsers({
     purpose: 'one_time_order_manager',
     ...(oneTimeOrderId ? { oneTimeOrderId } : {}),
+    ...(q ? { q } : {}),
+    ...(selectedId ? { selectedId } : {}),
+    limit: 20,
   });
 }
 
