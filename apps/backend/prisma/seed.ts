@@ -665,6 +665,22 @@ async function main(): Promise<void> {
     },
   });
 
+  // Keep the seed idempotent even if the local database already contains
+  // another active responsible for the deterministic fixture object.
+  await prisma.objectAssignment.updateMany({
+    where: {
+      objectId: objectOne.id,
+      assignmentRoleCode: "responsible",
+      isActive: true,
+      NOT: {
+        userId: founder.id,
+      },
+    },
+    data: {
+      isActive: false,
+    },
+  });
+
   await prisma.objectAssignment.upsert({
     where: {
       objectId_userId_assignmentRoleCode: {
