@@ -360,7 +360,7 @@ test('one-time order completion validates and stores actual payment rows', async
   );
   assert.equal(noAgreement.status, 201);
 
-  const zeroOrderId = await createOrder([managerOne.id], 0);
+  const zeroOrderId = await createOrder([managerOne.id], 1000);
   const zeroPayment = await complete(
     zeroOrderId,
     1,
@@ -383,6 +383,26 @@ test('one-time order completion validates and stores actual payment rows', async
     }),
     0,
   );
+
+  const mixedNoPaymentOrderId = await createOrder([managerOne.id], 1000);
+  const mixedNoPayment = await complete(
+    mixedNoPaymentOrderId,
+    1,
+    crypto.randomUUID(),
+    [
+      {
+        recipientUserId: managerOne.id,
+        amount: 500,
+        paymentMethod: 'cash',
+        paymentDestination: 'manager_accountability',
+      },
+      {
+        amount: 0,
+        zeroReason: 'payment_later',
+      },
+    ],
+  );
+  assert.equal(mixedNoPayment.status, 400);
 
 
   const otherOrderId = await createOrder([managerOne.id], 10);
