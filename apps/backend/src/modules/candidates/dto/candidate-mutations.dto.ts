@@ -12,11 +12,11 @@ export class CreateCandidateDto {
   @MaxLength(200)
   fullName!: string;
 
-  @IsOptional()
   @Transform(trim)
   @IsString()
+  @MinLength(3)
   @MaxLength(50)
-  phone?: string | null;
+  phone!: string;
 
   @IsOptional()
   @Transform(trim)
@@ -26,6 +26,14 @@ export class CreateCandidateDto {
 
   @IsIn(CANDIDATE_TYPES)
   candidateType!: (typeof CANDIDATE_TYPES)[number];
+
+  @IsOptional()
+  @IsUUID('4')
+  objectId?: string | null;
+
+  @IsOptional()
+  @IsUUID('4')
+  managerUserId?: string | null;
 }
 
 export class UpdateCandidateDto {
@@ -55,6 +63,10 @@ export class UpdateCandidateDto {
   @IsOptional()
   @IsIn(CANDIDATE_TYPES)
   candidateType?: (typeof CANDIDATE_TYPES)[number];
+
+  @IsOptional()
+  @IsUUID('4')
+  objectId?: string | null;
 }
 
 export class CandidateVersionDto {
