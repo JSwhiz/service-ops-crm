@@ -53,14 +53,31 @@ interface AvailabilityFormState {
   comment: string;
 }
 
+function getMoscowDateParts(): { year: string; month: string; day: string } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const value = (type: string): string =>
+    parts.find((part) => part.type === type)?.value ?? '';
+
+  return {
+    year: value('year'),
+    month: value('month'),
+    day: value('day'),
+  };
+}
+
 function getCurrentMonth(): string {
-  const today = new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const { year, month } = getMoscowDateParts();
+  return `${year}-${month}`;
 }
 
 function getTodayDate(): string {
-  const today = new Date();
-  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const { year, month, day } = getMoscowDateParts();
+  return `${year}-${month}-${day}`;
 }
 
 function normalizeMonth(value: string | null): string {
