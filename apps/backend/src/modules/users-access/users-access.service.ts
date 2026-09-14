@@ -14,6 +14,7 @@ import {
 import {
   canBeOneTimeOrderManager,
   canManageOneTimeOrderManagers,
+  ONE_TIME_ORDER_MANAGER_ROLE_CODES,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
 
@@ -205,10 +206,57 @@ export class UsersAccessService {
       throw new ForbiddenException('One-time order manager candidate access denied');
     }
 
-    const users = await this.getActiveUsersWithRoles({
-      search,
-      selectedId,
-      limit,
+    const query = search?.trim();
+    const users = await this.prisma.user.findMany({
+      where: {
+        deletedAt: null,
+        isActive: true,
+        roles: {
+          some: {
+            role: {
+              code: {
+                in: [...ONE_TIME_ORDER_MANAGER_ROLE_CODES],
+              },
+            },
+          },
+        },
+        ...(selectedId || query
+          ? {
+              OR: [
+                ...(selectedId ? [{ id: selectedId }] : []),
+                ...(query
+                  ? [
+                      {
+                        OR: [
+                          {
+                            fullName: {
+                              contains: query,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                          {
+                            login: {
+                              contains: query,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                        ],
+                      },
+                    ]
+                  : []),
+              ],
+            }
+          : {}),
+      },
+      include: {
+        roles: {
+          include: {
+            role: true,
+          },
+        },
+      },
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      take: Math.min(limit, 50),
     });
 
     return users
