@@ -16,14 +16,14 @@ import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-sel
 
 interface ObjectEditFormProps {
   item: ServiceObject;
-  canEditDailyRate: boolean;
+  canEditMonthlySalary: boolean;
   canLinkCounterparty: boolean;
   onSubmit: (payload: UpdateObjectPayload) => Promise<void>;
 }
 
 export function ObjectEditForm({
   item,
-  canEditDailyRate,
+  canEditMonthlySalary,
   canLinkCounterparty,
   onSubmit,
 }: ObjectEditFormProps): React.JSX.Element {
@@ -107,7 +107,7 @@ export function ObjectEditForm({
           : {}),
       };
 
-      if (canEditDailyRate) {
+      if (canEditMonthlySalary) {
         payload.monthlySalary = Number(form.monthlySalary) || 0;
       }
 
@@ -237,10 +237,10 @@ export function ObjectEditForm({
             step="1"
             value={form.monthlySalary}
             onChange={(event) => setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))}
-            disabled={!canEditDailyRate}
+            disabled={!canEditMonthlySalary}
           />
           <span className={styles.inlineHelp}>
-            {canEditDailyRate
+            {canEditMonthlySalary
               ? 'Ставка за рабочий день рассчитывается автоматически по выбранному месяцу в табеле.'
               : 'Изменение месячной зарплаты доступно только учредителю и директору.'}
           </span>
