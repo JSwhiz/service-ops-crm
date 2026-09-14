@@ -425,7 +425,36 @@ export class InventoryService {
     query: ListInventoryMovementsQueryDto,
   ): Promise<InventoryMovementListResponseDto> {
     this.assertInventoryVisible(currentUser);
-    const where = this.buildMovementListWhere(query);
+    return this.listMovementsInternal(currentUser, query);
+  }
+
+  async listOneTimeOrderMovementsScoped(
+    currentUser: CurrentAuthUser,
+    oneTimeOrderId: string,
+    page = 1,
+    limit = 100,
+  ): Promise<InventoryMovementListResponseDto> {
+    return this.listMovementsInternal(currentUser, {
+      oneTimeOrderId,
+      page,
+      limit,
+    });
+  }
+
+  private async listMovementsInternal(
+    currentUser: CurrentAuthUser,
+    query: Pick<
+      ListInventoryMovementsQueryDto,
+      | 'inventoryItemId'
+      | 'objectId'
+      | 'oneTimeOrderId'
+      | 'movementType'
+      | 'status'
+      | 'page'
+      | 'limit'
+    >,
+  ): Promise<InventoryMovementListResponseDto> {
+    const where = this.buildMovementListWhere(query as ListInventoryMovementsQueryDto);
     const [total, movements] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.count({ where }),
       this.prisma.inventoryMovement.findMany({
