@@ -71,6 +71,7 @@ interface ObjectView {
   status: string;
   seasonMode: string | null;
   dailyRate: number;
+  monthlySalary: number;
   notes: string | null;
   counterpartyId: string | null;
   counterparty?: {
@@ -353,6 +354,7 @@ export class ObjectsService {
           status: payload.status ?? 'active',
           seasonMode: payload.seasonMode ?? null,
           dailyRate: payload.dailyRate ?? 0,
+          monthlySalary: payload.monthlySalary ?? 0,
           notes: payload.notes ?? null,
           counterpartyId: payload.counterpartyId ?? null,
           createdByUserId: currentUser.id,
@@ -429,6 +431,7 @@ export class ObjectsService {
         status: created.status,
         seasonMode: created.seasonMode,
         dailyRate: created.dailyRate,
+        monthlySalary: created.monthlySalary,
         counterpartyId: created.counterpartyId,
         managerUserIds,
         responsibleUserId: responsibleUser.id,
@@ -467,10 +470,11 @@ export class ObjectsService {
     const existing = await this.getEditableObject(currentUser, id);
 
     if (
-      typeof payload.dailyRate === 'number' &&
+      (typeof payload.dailyRate === 'number' ||
+        typeof payload.monthlySalary === 'number') &&
       !canEditObjectDailyRate(roleCodes)
     ) {
-      throw new ForbiddenException('Daily rate editing denied');
+      throw new ForbiddenException('Object salary editing denied');
     }
 
     if (
@@ -572,6 +576,16 @@ export class ObjectsService {
     }
 
     if (
+      payload.monthlySalary !== undefined &&
+      payload.monthlySalary !== existing.monthlySalary
+    ) {
+      changes.monthlySalary = {
+        oldValue: existing.monthlySalary,
+        newValue: payload.monthlySalary,
+      };
+    }
+
+    if (
       selectedResponsible &&
       selectedResponsible.id !== currentResponsible?.user.id
     ) {
@@ -600,6 +614,9 @@ export class ObjectsService {
             : {}),
           ...(payload.dailyRate !== undefined
             ? { dailyRate: payload.dailyRate }
+            : {}),
+          ...(payload.monthlySalary !== undefined
+            ? { monthlySalary: payload.monthlySalary }
             : {}),
         },
       });
@@ -1431,6 +1448,7 @@ export class ObjectsService {
       status: item.status,
       seasonMode: item.seasonMode,
       dailyRate: item.dailyRate,
+      monthlySalary: item.monthlySalary,
       notes: item.notes,
       counterparty: item.counterparty
         ? {
@@ -1461,14 +1479,20 @@ export class ObjectsService {
       employees: (item.employeeAssignments ?? []).map(
         (assignment) => assignment.employee,
       ),
-      capabilities: buildObjectCapabilities({
-        currentUserId: currentUser.id,
-        roleCodes,
-        permissionCodes: currentUser.permissionCodes ?? [],
-        objectStatus: item.status,
-        createdByUserId: item.createdByUserId,
-        assignments: mappedAssignments,
-      }),
+      capabilities: (() => {
+        const capabilities = buildObjectCapabilities({
+          currentUserId: currentUser.id,
+          roleCodes,
+          permissionCodes: currentUser.permissionCodes ?? [],
+          objectStatus: item.status,
+          createdByUserId: item.createdByUserId,
+          assignments: mappedAssignments,
+        });
+        return {
+          ...capabilities,
+          canEditMonthlySalary: capabilities.canEditDailyRate,
+        };
+      })(),
     };
   }
 
