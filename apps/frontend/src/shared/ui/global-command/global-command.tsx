@@ -62,6 +62,11 @@ function ArrowIcon(): React.JSX.Element {
   );
 }
 
+function createMenuLabel(label: string): string {
+  const short = label.replace(/^(Создать|Добавить)\s+/u, '');
+  return short ? short[0].toLocaleUpperCase('ru') + short.slice(1) : label;
+}
+
 function toCommandItem(item: {
   id: string;
   type: GlobalSearchEntityType;
@@ -358,7 +363,7 @@ export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpen
               {section.items.map((item) => (
                 <button type="button" role="menuitem" key={item.id} onClick={() => { onOpenChange(false); router.push(item.href); }}>
                   <span className="global-create__item-icon"><PlusIcon /></span>
-                  <span><strong>{item.label.replace(/^Создать /, '')}</strong><small>{item.description}</small></span>
+                  <span><strong>{createMenuLabel(item.label)}</strong><small>{item.description}</small></span>
                 </button>
               ))}
             </div>
