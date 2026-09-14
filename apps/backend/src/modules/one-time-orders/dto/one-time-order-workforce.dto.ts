@@ -3,6 +3,7 @@ import {
   ArrayUnique,
   IsArray,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -12,6 +13,14 @@ import {
 export class AddOneTimeOrderEmployeeDto {
   @IsString()
   employeeId!: string;
+}
+
+export class UpdateOneTimeOrderEmployeePaymentDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  amount?: number | null;
 }
 
 export class SubmitOneTimeOrderAttendanceDto {
