@@ -56,6 +56,13 @@ export interface ServiceObject {
   seasonMode: string | null;
   dailyRate: number;
   notes: string | null;
+  counterparty: {
+    id: string;
+    name: string;
+    legalName: string | null;
+    status: string;
+    canOpenCounterparty: boolean;
+  } | null;
   createdAt: string;
   updatedAt: string;
   managers: ObjectAssignedUser[];
