@@ -191,8 +191,8 @@ interface OneTimeOrderCompletionPaymentView {
   oneTimeOrderId: string;
   recipientUserId: string | null;
   amount: Prisma.Decimal;
-  paymentMethod: string;
-  paymentDestination: string;
+  paymentMethod: string | null;
+  paymentDestination: string | null;
   zeroReason: string | null;
   comment: string | null;
   differenceReason: string | null;
@@ -220,8 +220,8 @@ interface OneTimeOrderCompletionPaymentView {
 interface NormalizedOneTimeOrderCompletionPayment {
   recipientUserId: string | null;
   amount: Prisma.Decimal;
-  paymentMethod: string;
-  paymentDestination: string;
+  paymentMethod: string | null;
+  paymentDestination: string | null;
   zeroReason: string | null;
   comment: string | null;
   differenceReason: string | null;
@@ -1039,7 +1039,7 @@ export class OneTimeOrdersService {
         payload.contactPhone === undefined ? undefined : payload.contactPhone?.trim() || null,
       agreedSum: payload.agreedSum,
       plannedPaymentMethod:
-        payload.plannedPaymentMethod === null
+        payload.plannedPaymentMethod === undefined
           ? undefined
           : payload.plannedPaymentMethod,
       financialNotes:
@@ -3516,8 +3516,8 @@ export class OneTimeOrdersService {
           payments: payload.payments.map((payment) => ({
             recipientUserId: payment.recipientUserId ?? null,
             amount: new Prisma.Decimal(payment.amount).toFixed(2),
-            paymentMethod: payment.paymentMethod,
-            paymentDestination: payment.paymentDestination,
+            paymentMethod: payment.paymentMethod ?? null,
+            paymentDestination: payment.paymentDestination ?? null,
             zeroReason: payment.zeroReason ?? null,
             comment: payment.comment?.trim() || null,
             differenceReason: payment.differenceReason?.trim() || null,
@@ -3538,20 +3538,29 @@ export class OneTimeOrdersService {
     excludePaymentId?: string,
     allowedHistoricalRecipientIds: readonly string[] = [],
   ): Promise<NormalizedOneTimeOrderCompletionPayment[]> {
-    const activeManagerIds = new Set(
-      order.assignments
-        .filter(
-          (assignment) =>
-            assignment.assignmentRoleCode === 'one_time_manager' &&
-            assignment.isActive &&
-            assignment.user.isActive &&
-            assignment.user.deletedAt === null,
-        )
-        .map((assignment) => assignment.userId),
+    const requestedRecipientIds = Array.from(
+      new Set(
+        input
+          .map((payment) => payment.recipientUserId ?? null)
+          .filter((userId): userId is string => Boolean(userId)),
+      ),
     );
+    const activeRecipients =
+      requestedRecipientIds.length === 0
+        ? []
+        : await tx.user.findMany({
+            where: {
+              id: { in: requestedRecipientIds },
+              isActive: true,
+              deletedAt: null,
+            },
+            select: { id: true },
+          });
+    const allowedRecipientIds = new Set(activeRecipients.map((user) => user.id));
     for (const userId of allowedHistoricalRecipientIds) {
-      activeManagerIds.add(userId);
+      allowedRecipientIds.add(userId);
     }
+
     const defaultReceivedAt = new Date();
     const payments = input.map((payment) => {
       const amount = new Prisma.Decimal(payment.amount);
@@ -3559,64 +3568,80 @@ export class OneTimeOrdersService {
       const comment = payment.comment?.trim() || null;
       const zeroReason = payment.zeroReason ?? null;
       const differenceReason = payment.differenceReason?.trim() || null;
+      const paymentMethod = payment.paymentMethod ?? null;
+      const paymentDestination = payment.paymentDestination ?? null;
+      const isNoPayment = amount.isZero();
 
-      if (payment.paymentDestination === 'manager_accountability') {
-        if (!recipientUserId) {
+      if (isNoPayment) {
+        if (!zeroReason) {
+          throw new BadRequestException('Zero payment requires reason');
+        }
+        if (recipientUserId || paymentMethod || paymentDestination) {
           throw new BadRequestException(
-            'Manager accountability payment requires recipient',
+            'No-payment state must not contain payment method, destination or recipient',
           );
         }
-        if (!activeManagerIds.has(recipientUserId)) {
+        if (zeroReason === 'other' && !comment) {
+          throw new BadRequestException('Other zero reason requires comment');
+        }
+      } else {
+        if (zeroReason) {
           throw new BadRequestException(
-            'Payment recipient must be an active one-time order manager',
+            'Zero payment reason is allowed only for zero amount',
           );
         }
-      } else if (recipientUserId) {
-        throw new BadRequestException(
-          'Organization payment must not have personal recipient',
-        );
-      }
+        if (!paymentMethod || !paymentDestination) {
+          throw new BadRequestException(
+            'Actual receipt requires payment method and destination',
+          );
+        }
 
-      if (
-        (payment.paymentMethod === 'cash' ||
-          payment.paymentMethod === 'personal_card_transfer') &&
-        payment.paymentDestination !== 'manager_accountability'
-      ) {
-        throw new BadRequestException(
-          'Selected payment method requires manager accountability destination',
-        );
-      }
-      if (
-        payment.paymentMethod === 'organization_transfer' &&
-        payment.paymentDestination !== 'organization'
-      ) {
-        throw new BadRequestException(
-          'Organization transfer requires organization destination',
-        );
-      }
-      if (payment.paymentMethod === 'other' && !comment) {
-        throw new BadRequestException(
-          'Other payment method requires comment',
-        );
-      }
+        if (paymentDestination === 'manager_accountability') {
+          if (!recipientUserId) {
+            throw new BadRequestException(
+              'Manager accountability payment requires recipient',
+            );
+          }
+          if (!allowedRecipientIds.has(recipientUserId)) {
+            throw new BadRequestException(
+              'Payment recipient must be an active eligible user',
+            );
+          }
+        } else if (recipientUserId) {
+          throw new BadRequestException(
+            'Organization payment must not have personal recipient',
+          );
+        }
 
-      if (amount.isZero() && !zeroReason) {
-        throw new BadRequestException('Zero payment requires reason');
-      }
-      if (!amount.isZero() && zeroReason) {
-        throw new BadRequestException(
-          'Zero payment reason is allowed only for zero amount',
-        );
-      }
-      if (zeroReason === 'other' && !comment) {
-        throw new BadRequestException('Other zero reason requires comment');
+        if (
+          (paymentMethod === 'cash' ||
+            paymentMethod === 'personal_card_transfer') &&
+          paymentDestination !== 'manager_accountability'
+        ) {
+          throw new BadRequestException(
+            'Selected payment method requires manager accountability destination',
+          );
+        }
+        if (
+          paymentMethod === 'organization_transfer' &&
+          paymentDestination !== 'organization'
+        ) {
+          throw new BadRequestException(
+            'Organization transfer requires organization destination',
+          );
+        }
+        if (paymentMethod === 'other' && !comment) {
+          throw new BadRequestException(
+            'Other payment method requires comment',
+          );
+        }
       }
 
       return {
-        recipientUserId,
+        recipientUserId: isNoPayment ? null : recipientUserId,
         amount,
-        paymentMethod: payment.paymentMethod,
-        paymentDestination: payment.paymentDestination,
+        paymentMethod: isNoPayment ? null : paymentMethod,
+        paymentDestination: isNoPayment ? null : paymentDestination,
         zeroReason,
         comment,
         differenceReason,
@@ -3627,6 +3652,7 @@ export class OneTimeOrdersService {
         status: 'active',
       };
     });
+
     const existingTotal = await tx.oneTimeOrderCompletionPayment.aggregate({
       where: {
         oneTimeOrderId: order.id,
@@ -3662,7 +3688,7 @@ export class OneTimeOrdersService {
         oneTimeOrderId: string;
         recipientUserId: string | null;
         amount: Prisma.Decimal;
-        paymentDestination: string;
+        paymentDestination: string | null;
         comment: string | null;
         receivedAt: Date;
       };
