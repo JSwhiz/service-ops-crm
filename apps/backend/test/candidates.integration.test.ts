@@ -19,17 +19,29 @@ const users = [
   ['manager2', 'manager123', false, true],
 ] as const;
 
-async function request(baseUrl: string, cookie: string, path: string, init?: RequestInit): Promise<Response> {
+async function request(
+  baseUrl: string,
+  cookie: string,
+  path: string,
+  init?: RequestInit,
+): Promise<Response> {
   return fetch(`${baseUrl}/api/v1${path}`, {
     ...init,
-    headers: { Cookie: cookie, ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+    headers: {
+      Cookie: cookie,
+      ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init?.headers,
+    },
   });
 }
 
-test('candidate registry, access, assignment and immutable response flow', async (t) => {
+test('candidate registry, object assignment and scoped immutable feedback flow', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
-  t.after(async () => { await app.close(); await prisma.$disconnect(); });
+  t.after(async () => {
+    await app.close();
+    await prisma.$disconnect();
+  });
 
   const cookies = new Map<string, string>();
   for (const [login, password, canManage, canRespond] of users) {
@@ -37,105 +49,361 @@ test('candidate registry, access, assignment and immutable response flow', async
     cookies.set(login, cookie);
     const me = await request(baseUrl, cookie, '/auth/me');
     assert.equal(me.status, 200);
-    const capabilities = ((await me.json()) as { capabilities: Record<string, boolean> }).capabilities;
+    const capabilities = (
+      (await me.json()) as { capabilities: Record<string, boolean> }
+    ).capabilities;
     assert.equal(capabilities.canAccessCandidates, true);
     assert.equal(capabilities.canManageCandidates, canManage);
     assert.equal(capabilities.canRespondToCandidates, canRespond);
     assert.equal((await request(baseUrl, cookie, '/candidates')).status, 200);
   }
 
-  const managerCookie = cookies.get('manager1')!;
-  assert.equal((await request(baseUrl, managerCookie, '/candidates', { method: 'POST', body: JSON.stringify({ fullName: 'Denied', candidateType: 'regular' }) })).status, 403);
-
   const hrCookie = cookies.get('hr1')!;
-  const create = await request(baseUrl, hrCookie, '/candidates', { method: 'POST', body: JSON.stringify({ fullName: 'Иванов Кандидат Тестовый', phone: '+79990001122', comment: 'Первичный контакт', candidateType: 'regular' }) });
+  const managerCookie = cookies.get('manager1')!;
+  const [managerOne, managerTwo, operationManager, founderUser, candidateObject] =
+    await Promise.all([
+      prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
+      prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
+      prisma.user.findUniqueOrThrow({ where: { login: 'berendyakov' } }),
+      prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
+      prisma.object.findFirstOrThrow({ where: { deletedAt: null } }),
+    ]);
+
+  const deniedCreate = await request(baseUrl, managerCookie, '/candidates', {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: 'Denied',
+      phone: '+79990000000',
+      candidateType: 'regular',
+      objectId: candidateObject.id,
+      managerUserId: managerOne.id,
+    }),
+  });
+  assert.equal(deniedCreate.status, 403);
+
+  const incompleteRegular = await request(baseUrl, hrCookie, '/candidates', {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: 'Неполный кандидат',
+      phone: '+79990000001',
+      candidateType: 'regular',
+    }),
+  });
+  assert.equal(incompleteRegular.status, 400);
+
+  const create = await request(baseUrl, hrCookie, '/candidates', {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: 'Иванов Кандидат Тестовый',
+      phone: '+79990001122',
+      comment: 'Первичный контакт',
+      candidateType: 'regular',
+      objectId: candidateObject.id,
+      managerUserId: managerOne.id,
+    }),
+  });
   assert.equal(create.status, 201);
   let candidate = (await create.json()) as any;
-  assert.equal(candidate.slaState, 'unassigned');
-  assert.equal(candidate.currentAssignment, null);
+  assert.equal(candidate.object?.id, candidateObject.id);
+  assert.equal(candidate.currentAssignment?.manager.id, managerOne.id);
+  assert.equal(candidate.slaState, 'awaiting_response');
+  assert.equal(
+    new Date(candidate.currentAssignment.responseDueAt).getTime() -
+      new Date(candidate.currentAssignment.assignedAt).getTime(),
+    2 * 60 * 60 * 1000,
+  );
 
-  const reserve = await request(baseUrl, hrCookie, '/candidates', { method: 'POST', body: JSON.stringify({ fullName: 'Резервный Кандидат', candidateType: 'reserve' }) });
+  const reserve = await request(baseUrl, hrCookie, '/candidates', {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: 'Резервный Кандидат',
+      phone: '+79990002233',
+      candidateType: 'reserve',
+    }),
+  });
   assert.equal(reserve.status, 201);
-  const reserveId = ((await reserve.json()) as { id: string }).id;
+  const reserveBody = (await reserve.json()) as any;
+  const reserveId = reserveBody.id as string;
+  assert.equal(reserveBody.object, null);
+  assert.equal(reserveBody.currentAssignment, null);
+  assert.equal(reserveBody.slaState, 'unassigned');
 
-  const search = await request(baseUrl, managerCookie, '/candidates?q=79990001122&candidateType=regular&status=new&page=1&limit=1&sort=fullName&sortDirection=asc');
+  const search = await request(
+    baseUrl,
+    managerCookie,
+    '/candidates?q=79990001122&candidateType=regular&status=new&page=1&limit=1&sort=fullName&sortDirection=asc',
+  );
   assert.equal(search.status, 200);
-  const searchPayload = (await search.json()) as { total: number; items: Array<{ id: string }> };
+  const searchPayload = (await search.json()) as {
+    total: number;
+    items: Array<{
+      id: string;
+      object: { id: string } | null;
+      currentAssignment: { manager: { id: string } } | null;
+    }>;
+  };
   assert.equal(searchPayload.total, 1);
   assert.equal(searchPayload.items[0]?.id, candidate.id);
-  const reserveList = await request(baseUrl, managerCookie, '/candidates?candidateType=reserve&archiveState=active');
-  assert.deepEqual(((await reserveList.json()) as { items: Array<{ id: string }> }).items.map((item) => item.id), [reserveId]);
+  assert.equal(searchPayload.items[0]?.object?.id, candidateObject.id);
+  assert.equal(
+    searchPayload.items[0]?.currentAssignment?.manager.id,
+    managerOne.id,
+  );
 
-  const managerOne = await prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } });
-  const [managerTwo, operationManager] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'berendyakov' } }),
-  ]);
-  const founderUser = await prisma.user.findUniqueOrThrow({ where: { login: 'founder' } });
-  const invalidAssignment = await request(baseUrl, hrCookie, `/candidates/${candidate.id}/assignments`, { method: 'POST', body: JSON.stringify({ managerUserId: founderUser.id, expectedVersion: candidate.version }) });
+  const reserveList = await request(
+    baseUrl,
+    managerCookie,
+    '/candidates?candidateType=reserve&archiveState=active',
+  );
+  assert.deepEqual(
+    ((await reserveList.json()) as { items: Array<{ id: string }> }).items.map(
+      (item) => item.id,
+    ),
+    [reserveId],
+  );
+
+  const invalidAssignment = await request(
+    baseUrl,
+    hrCookie,
+    `/candidates/${candidate.id}/assignments`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        managerUserId: founderUser.id,
+        expectedVersion: candidate.version,
+      }),
+    },
+  );
   assert.equal(invalidAssignment.status, 409);
-  const assign = await request(baseUrl, hrCookie, `/candidates/${candidate.id}/assignments`, { method: 'POST', body: JSON.stringify({ managerUserId: managerOne.id, expectedVersion: candidate.version }) });
-  assert.equal(assign.status, 201);
-  candidate = await assign.json();
-  assert.equal(candidate.currentAssignment.manager.id, managerOne.id);
-  assert.equal(candidate.slaState, 'awaiting_response');
-  assert.equal(new Date(candidate.currentAssignment.responseDueAt).getTime() - new Date(candidate.currentAssignment.assignedAt).getTime(), 2 * 60 * 60 * 1000);
 
-  const managerFilter = await request(baseUrl, hrCookie, `/candidates?managerUserId=${managerOne.id}&slaState=awaiting_response`);
+  const managerFilter = await request(
+    baseUrl,
+    hrCookie,
+    `/candidates?managerUserId=${managerOne.id}&slaState=awaiting_response`,
+  );
   assert.equal(((await managerFilter.json()) as { total: number }).total, 1);
-  const impossibleFilter = await request(baseUrl, hrCookie, `/candidates?managerUserId=${managerOne.id}&slaState=unassigned`);
+
+  const impossibleFilter = await request(
+    baseUrl,
+    hrCookie,
+    `/candidates?managerUserId=${managerOne.id}&slaState=unassigned`,
+  );
   assert.equal(((await impossibleFilter.json()) as { total: number }).total, 0);
 
-  const otherResponse = await request(baseUrl, cookies.get('manager2')!, `/candidates/${candidate.id}/responses`, { method: 'POST', body: JSON.stringify({ text: 'Ответ другого менеджера' }) });
-  assert.equal(otherResponse.status, 201);
-  candidate = await otherResponse.json();
-  assert.equal(candidate.currentAssignment.firstRespondedAt, null);
-  assert.equal(candidate.status, 'new');
+  const otherResponse = await request(
+    baseUrl,
+    cookies.get('manager2')!,
+    `/candidates/${candidate.id}/responses`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ text: 'Попытка чужой обратной связи' }),
+    },
+  );
+  assert.equal(otherResponse.status, 403);
 
-  const assignedResponse = await request(baseUrl, managerCookie, `/candidates/${candidate.id}/responses`, { method: 'POST', body: JSON.stringify({ text: 'Первый ответ назначенного менеджера' }) });
+  const afterDeniedFeedback = (await (
+    await request(baseUrl, hrCookie, `/candidates/${candidate.id}`)
+  ).json()) as any;
+  assert.equal(afterDeniedFeedback.currentAssignment.firstRespondedAt, null);
+  assert.equal(afterDeniedFeedback.status, 'new');
+  assert.equal(afterDeniedFeedback.responses.length, 0);
+
+  const assignedResponse = await request(
+    baseUrl,
+    managerCookie,
+    `/candidates/${candidate.id}/responses`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        text: 'Подходит, готов взять',
+      }),
+    },
+  );
   assert.equal(assignedResponse.status, 201);
   candidate = await assignedResponse.json();
   const firstRespondedAt = candidate.currentAssignment.firstRespondedAt;
   assert.ok(firstRespondedAt);
   assert.equal(candidate.status, 'in_progress');
   assert.equal(candidate.slaState, 'responded');
+  assert.equal(candidate.responses.length, 1);
 
-  const secondResponse = await request(baseUrl, managerCookie, `/candidates/${candidate.id}/responses`, { method: 'POST', body: JSON.stringify({ text: 'Второй ответ' }) });
+  const secondResponse = await request(
+    baseUrl,
+    managerCookie,
+    `/candidates/${candidate.id}/responses`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ text: 'Смотрит в среду' }),
+    },
+  );
+  assert.equal(secondResponse.status, 201);
   candidate = await secondResponse.json();
   assert.equal(candidate.currentAssignment.firstRespondedAt, firstRespondedAt);
-  assert.equal(candidate.responses.length, 3);
+  assert.equal(candidate.responses.length, 2);
+
+  const registryAfterFeedback = await request(
+    baseUrl,
+    hrCookie,
+    `/candidates?q=${encodeURIComponent('Иванов Кандидат Тестовый')}`,
+  );
+  const registryAfterFeedbackBody = (await registryAfterFeedback.json()) as {
+    items: Array<{
+      id: string;
+      latestFeedback: { text: string; author: { id: string } } | null;
+    }>;
+  };
+  const registryCandidate = registryAfterFeedbackBody.items.find(
+    (item) => item.id === candidate.id,
+  );
+  assert.equal(registryCandidate?.latestFeedback?.text, 'Смотрит в среду');
+  assert.equal(registryCandidate?.latestFeedback?.author.id, managerOne.id);
 
   const versionBeforeRace = candidate.version;
   const race = await Promise.all([
-    request(baseUrl, hrCookie, `/candidates/${candidate.id}/assignments`, { method: 'POST', body: JSON.stringify({ managerUserId: managerTwo.id, expectedVersion: versionBeforeRace }) }),
-    request(baseUrl, hrCookie, `/candidates/${candidate.id}/assignments`, { method: 'POST', body: JSON.stringify({ managerUserId: operationManager.id, expectedVersion: versionBeforeRace }) }),
+    request(baseUrl, hrCookie, `/candidates/${candidate.id}/assignments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        managerUserId: managerTwo.id,
+        expectedVersion: versionBeforeRace,
+      }),
+    }),
+    request(baseUrl, hrCookie, `/candidates/${candidate.id}/assignments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        managerUserId: operationManager.id,
+        expectedVersion: versionBeforeRace,
+      }),
+    }),
   ]);
-  assert.deepEqual(race.map((response) => response.status).sort(), [201, 409]);
-  candidate = await (await request(baseUrl, hrCookie, `/candidates/${candidate.id}`)).json();
-  assert.equal(candidate.assignments.filter((item: { endedAt: string | null }) => !item.endedAt).length, 1);
-  assert.equal(candidate.assignments.length, 2);
+  assert.deepEqual(
+    race.map((response) => response.status).sort(),
+    [201, 409],
+  );
 
-  const accepted = await request(baseUrl, hrCookie, `/candidates/${candidate.id}/status`, {
-    method: 'POST',
-    body: JSON.stringify({ status: 'accepted', expectedVersion: candidate.version }),
-  });
+  candidate = await (
+    await request(baseUrl, hrCookie, `/candidates/${candidate.id}`)
+  ).json();
+  assert.equal(
+    candidate.assignments.filter(
+      (item: { endedAt: string | null }) => !item.endedAt,
+    ).length,
+    1,
+  );
+  assert.equal(candidate.assignments.length, 2);
+  assert.equal(candidate.responses.length, 2);
+
+  const oldManagerAfterReassign = await request(
+    baseUrl,
+    managerCookie,
+    `/candidates/${candidate.id}/responses`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ text: 'Старый менеджер не должен отвечать' }),
+    },
+  );
+  assert.equal(oldManagerAfterReassign.status, 403);
+
+  const activeManagerId = candidate.currentAssignment.manager.id as string;
+  const activeManagerCookie =
+    activeManagerId === managerTwo.id
+      ? cookies.get('manager2')!
+      : cookies.get('berendyakov')!;
+  const newManagerFeedback = await request(
+    baseUrl,
+    activeManagerCookie,
+    `/candidates/${candidate.id}/responses`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ text: 'Обратная связь нового менеджера' }),
+    },
+  );
+  assert.equal(newManagerFeedback.status, 201);
+  candidate = await newManagerFeedback.json();
+  assert.equal(candidate.responses.length, 3);
+
+  const accepted = await request(
+    baseUrl,
+    hrCookie,
+    `/candidates/${candidate.id}/status`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        status: 'accepted',
+        expectedVersion: candidate.version,
+      }),
+    },
+  );
   assert.equal(accepted.status, 201);
   candidate = await accepted.json();
   assert.equal(candidate.currentAssignment, null);
   assert.equal(candidate.slaState, 'unassigned');
-  assert.ok(candidate.assignments.some((item: { firstRespondedAt: string | null }) => item.firstRespondedAt));
+  assert.ok(
+    candidate.assignments.some(
+      (item: { firstRespondedAt: string | null }) => item.firstRespondedAt,
+    ),
+  );
 
-  const noRole = await prisma.user.create({ data: { login: `candidate-direct-${Date.now()}`, fullName: 'Direct Permission User', passwordHash: await hashPassword('direct123'), isActive: true } });
-  const permissions = await prisma.permission.findMany({ where: { code: { in: ['candidates.view', 'candidates.respond'] } } });
-  await prisma.userPermission.createMany({ data: permissions.map((permission) => ({ userId: noRole.id, permissionId: permission.id })) });
-  const directCookie = await loginAndGetCookieHeader({ baseUrl, login: noRole.login, password: 'direct123' });
+  const noRole = await prisma.user.create({
+    data: {
+      login: `candidate-direct-${Date.now()}`,
+      fullName: 'Direct Permission User',
+      passwordHash: await hashPassword('direct123'),
+      isActive: true,
+    },
+  });
+  const permissions = await prisma.permission.findMany({
+    where: { code: { in: ['candidates.view', 'candidates.respond'] } },
+  });
+  await prisma.userPermission.createMany({
+    data: permissions.map((permission) => ({
+      userId: noRole.id,
+      permissionId: permission.id,
+    })),
+  });
+  const directCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: noRole.login,
+    password: 'direct123',
+  });
   assert.equal((await request(baseUrl, directCookie, '/candidates')).status, 200);
-  const directResponse = await request(baseUrl, directCookie, `/candidates/${reserveId}/responses`, { method: 'POST', body: JSON.stringify({ text: 'Direct permission response' }) });
-  assert.equal(directResponse.status, 201);
-  const reserveAfterResponse = (await directResponse.json()) as { version: number };
-  assert.equal((await request(baseUrl, hrCookie, `/candidates/${reserveId}/archive`, { method: 'POST', body: JSON.stringify({ expectedVersion: reserveAfterResponse.version }) })).status, 201);
-  const archivedReserve = await request(baseUrl, managerCookie, '/candidates?candidateType=reserve&archiveState=archived');
-  assert.deepEqual(((await archivedReserve.json()) as { items: Array<{ id: string }> }).items.map((item) => item.id), [reserveId]);
-  const activeReserve = await request(baseUrl, managerCookie, '/candidates?candidateType=reserve&archiveState=active');
+
+  const directResponse = await request(
+    baseUrl,
+    directCookie,
+    `/candidates/${reserveId}/responses`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ text: 'Direct permission response' }),
+    },
+  );
+  assert.equal(directResponse.status, 403);
+
+  assert.equal(
+    (
+      await request(baseUrl, hrCookie, `/candidates/${reserveId}/archive`, {
+        method: 'POST',
+        body: JSON.stringify({ expectedVersion: reserveBody.version }),
+      })
+    ).status,
+    201,
+  );
+
+  const archivedReserve = await request(
+    baseUrl,
+    managerCookie,
+    '/candidates?candidateType=reserve&archiveState=archived',
+  );
+  assert.deepEqual(
+    (
+      (await archivedReserve.json()) as { items: Array<{ id: string }> }
+    ).items.map((item) => item.id),
+    [reserveId],
+  );
+
+  const activeReserve = await request(
+    baseUrl,
+    managerCookie,
+    '/candidates?candidateType=reserve&archiveState=active',
+  );
   assert.equal(((await activeReserve.json()) as { total: number }).total, 0);
 });
