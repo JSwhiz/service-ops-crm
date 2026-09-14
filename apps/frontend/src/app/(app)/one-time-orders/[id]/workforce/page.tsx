@@ -13,13 +13,14 @@ import {
   submitTodayOneTimeAttendance,
   updateOneTimeWorkforceEmployeePayment,
   type OneTimeAttendance,
-  type OneTimeEmployeeDirectoryItem,
   type OneTimeTimesheet,
   type OneTimeWorkforceEmployee,
 } from '@/entities/one-time-order/api/one-time-order-workforce-client';
 import { getOneTimeOrderById } from '@/entities/one-time-order/api/one-time-order-client';
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from './workforce.module.css';
 
@@ -59,11 +60,9 @@ export default function OneTimeOrderWorkforcePage({
   const [orderId, setOrderId] = useState('');
   const [order, setOrder] = useState<OneTimeOrderItem | null>(null);
   const [workforce, setWorkforce] = useState<OneTimeWorkforceEmployee[]>([]);
-  const [directory, setDirectory] = useState<OneTimeEmployeeDirectoryItem[]>([]);
   const [attendance, setAttendance] = useState<OneTimeAttendance | null>(null);
   const [timesheet, setTimesheet] = useState<OneTimeTimesheet | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeeToAdd, setEmployeeToAdd] = useState('');
   const [paymentDrafts, setPaymentDrafts] = useState<Record<string, string>>({});
   const [month, setMonth] = useState(moscowMonth());
@@ -75,8 +74,6 @@ export default function OneTimeOrderWorkforcePage({
     () => new Set(workforce.filter((item) => item.isActive).map((item) => item.employeeId)),
     [workforce],
   );
-  const availableDirectory = directory.filter((item) => !activeIds.has(item.id));
-
   useEffect(() => {
     setPaymentDrafts(
       Object.fromEntries(
@@ -98,14 +95,12 @@ export default function OneTimeOrderWorkforcePage({
       return Promise.all([
         getOneTimeOrderById(id),
         listOneTimeWorkforce(id),
-        listOneTimeWorkforceDirectory(id),
         getTodayOneTimeAttendance(id),
         getOneTimeTimesheet(id, month),
-      ]).then(([orderValue, workforceValue, directoryValue, attendanceValue, timesheetValue]) => {
+      ]).then(([orderValue, workforceValue, attendanceValue, timesheetValue]) => {
         if (cancelled) return;
         setOrder(orderValue);
         setWorkforce(workforceValue);
-        setDirectory(directoryValue);
         setAttendance(attendanceValue);
         setTimesheet(timesheetValue);
         setSelected(new Set(attendanceValue.employees.filter((item) => item.present).map((item) => item.employeeId)));
@@ -121,17 +116,6 @@ export default function OneTimeOrderWorkforcePage({
   useEffect(() => {
     if (!orderId) return;
     let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void listOneTimeWorkforceDirectory(orderId, employeeSearch)
-        .then((items) => { if (!cancelled) setDirectory(items); })
-        .catch(() => undefined);
-    }, 180);
-    return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [employeeSearch, orderId]);
-
-  useEffect(() => {
-    if (!orderId) return;
-    let cancelled = false;
     void getOneTimeTimesheet(orderId, month)
       .then((value) => { if (!cancelled) setTimesheet(value); })
       .catch((loadError) => { if (!cancelled) setError(errorText(loadError)); });
@@ -140,14 +124,12 @@ export default function OneTimeOrderWorkforcePage({
 
   const reloadWorkforce = async (): Promise<void> => {
     if (!orderId) return;
-    const [workforceValue, directoryValue, attendanceValue, timesheetValue] = await Promise.all([
+    const [workforceValue, attendanceValue, timesheetValue] = await Promise.all([
       listOneTimeWorkforce(orderId),
-      listOneTimeWorkforceDirectory(orderId, employeeSearch),
       getTodayOneTimeAttendance(orderId),
       getOneTimeTimesheet(orderId, month),
     ]);
     setWorkforce(workforceValue);
-    setDirectory(directoryValue);
     setAttendance(attendanceValue);
     setTimesheet(timesheetValue);
     setSelected(new Set(attendanceValue.employees.filter((item) => item.present).map((item) => item.employeeId)));
@@ -183,11 +165,28 @@ export default function OneTimeOrderWorkforcePage({
           </header>
           <div className={styles.body}>
             <div className={styles.searchRow}>
-              <input className={styles.input} value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="Найти сотрудника" />
-              <select className={styles.select} value={employeeToAdd} onChange={(event) => setEmployeeToAdd(event.target.value)}>
-                <option value="">Выбрать...</option>
-                {availableDirectory.map((employee) => <option key={employee.id} value={employee.id}>{employee.fullName}{employee.position ? ` · ${employee.position}` : ''}</option>)}
-              </select>
+              <SearchableSelect
+                label="Добавить сотрудника"
+                value={employeeToAdd}
+                options={[]}
+                placeholder="Найти сотрудника"
+                searchPlaceholder="ФИО или должность"
+                emptyText="Подходящие сотрудники не найдены"
+                asyncSearch={async (query) =>
+                  (await listOneTimeWorkforceDirectory(orderId, query))
+                    .filter((employee) => !activeIds.has(employee.id))
+                    .map((employee) => ({
+                      value: employee.id,
+                      label: employee.fullName,
+                      description: employee.position ?? undefined,
+                      searchText: [employee.fullName, employee.position]
+                        .filter(Boolean)
+                        .join(' '),
+                    }))
+                }
+                onChange={setEmployeeToAdd}
+                disabled={saving}
+              />
             </div>
             <button className={styles.button} type="button" disabled={!employeeToAdd || saving} onClick={async () => {
               setSaving(true); setError(null);
@@ -210,10 +209,9 @@ export default function OneTimeOrderWorkforcePage({
                       Оплата за заказ: {money(employee.orderPayment)}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div className={styles.employeeActions}>
                     <input
-                      className={styles.input}
-                      style={{ width: 150 }}
+                      className={styles.paymentInput}
                       type="number"
                       min="0"
                       step="0.01"
@@ -303,7 +301,13 @@ export default function OneTimeOrderWorkforcePage({
       <section className={styles.card}>
         <header className={styles.head}>
           <div><h2>Табель разового заказа</h2><p>Исторические значения фиксируются по дням и не зависят от последующего изменения состава.</p></div>
-          <input className={styles.input} type="month" value={month} onChange={(event) => setMonth(event.target.value)} />
+          <MonthPeriodPicker
+            year={Number(month.slice(0, 4))}
+            month={Number(month.slice(5, 7))}
+            onChange={(year, nextMonth) =>
+              setMonth(`${year}-${String(nextMonth).padStart(2, '0')}`)
+            }
+          />
         </header>
         <div className={styles.body}>
           {(timesheet?.rows ?? []).length === 0 ? <div className={styles.empty}>За выбранный месяц сохранённых выходов пока нет.</div> : (
