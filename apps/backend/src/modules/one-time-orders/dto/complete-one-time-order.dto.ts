@@ -41,11 +41,13 @@ export class OneTimeOrderCompletionPaymentDto {
   @Min(0)
   amount!: number;
 
+  @IsOptional()
   @IsIn(ONE_TIME_ORDER_PAYMENT_METHODS)
-  paymentMethod!: (typeof ONE_TIME_ORDER_PAYMENT_METHODS)[number];
+  paymentMethod?: (typeof ONE_TIME_ORDER_PAYMENT_METHODS)[number] | null;
 
+  @IsOptional()
   @IsIn(ONE_TIME_ORDER_PAYMENT_DESTINATIONS)
-  paymentDestination!: (typeof ONE_TIME_ORDER_PAYMENT_DESTINATIONS)[number];
+  paymentDestination?: (typeof ONE_TIME_ORDER_PAYMENT_DESTINATIONS)[number] | null;
 
   @IsOptional()
   @IsIn(ONE_TIME_ORDER_PAYMENT_ZERO_REASONS)
