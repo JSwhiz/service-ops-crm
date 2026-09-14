@@ -9,8 +9,8 @@ export class OneTimeOrderCompletionPaymentResponseDto {
     fullName: string;
   } | null;
   amount?: number;
-  paymentMethod?: string;
-  paymentDestination?: string;
+  paymentMethod?: string | null;
+  paymentDestination?: string | null;
   zeroReason?: string | null;
   comment?: string | null;
   differenceReason?: string | null;
