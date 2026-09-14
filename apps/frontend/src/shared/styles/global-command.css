@@ -121,7 +121,9 @@
   z-index: 170;
   top: calc(100% + 7px);
   right: 0;
-  width: 250px;
+  width: 280px;
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
   padding: 6px;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
@@ -136,6 +138,12 @@
   font-weight: 700;
   letter-spacing: 0.055em;
   text-transform: uppercase;
+}
+
+.global-create__section + .global-create__section {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--ui-border);
 }
 
 .global-create__menu button {
