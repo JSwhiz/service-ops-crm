@@ -15,6 +15,7 @@ type IconName =
   | 'workspace'
   | 'approvals'
   | 'objects'
+  | 'counterparties'
   | 'orders'
   | 'accountability'
   | 'inventory'
@@ -41,6 +42,8 @@ function Icon({ name }: { name: IconName }): React.JSX.Element {
       return <svg viewBox="0 0 24 24" {...common}><path d="M8 4h8"/><path d="M9 3h6a1 1 0 0 1 1 1v2H8V4a1 1 0 0 1 1-1Z"/><rect x="5" y="5" width="14" height="16" rx="2"/><path d="m8.5 13 2.2 2.2 4.8-5"/></svg>;
     case 'objects':
       return <svg viewBox="0 0 24 24" {...common}><path d="M4 20V7l8-4 8 4v13"/><path d="M8 20v-5h8v5M8 9h.01M12 9h.01M16 9h.01M8 12h.01M12 12h.01M16 12h.01"/></svg>;
+    case 'counterparties':
+      return <svg viewBox="0 0 24 24" {...common}><path d="M4 20V8h10v12M14 11h6v9M7 11h4M7 15h4M17 14h1M17 17h1M8 20v-2h2v2"/></svg>;
     case 'orders':
       return <svg viewBox="0 0 24 24" {...common}><path d="M6 3h12v18H6z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>;
     case 'accountability':
@@ -80,6 +83,8 @@ export function AppSidebar({ expanded, onToggle }: AppSidebarProps): React.JSX.E
   const canAccessInventory = user?.capabilities?.canAccessInventory ?? false;
   const canAccessEquipment = user?.capabilities?.canAccessEquipment ?? false;
   const canAccessCandidates = user?.capabilities?.canAccessCandidates ?? false;
+  const canAccessCounterparties =
+    user?.capabilities?.canAccessCounterparties ?? false;
 
   return (
     <aside className="app-sidebar" aria-label="Основная навигация">
@@ -107,6 +112,9 @@ export function AppSidebar({ expanded, onToggle }: AppSidebarProps): React.JSX.E
           <NavLink href="/dashboard" label="Рабочий стол" icon={<Icon name="workspace" />} />
           {canAccessApprovals ? <NavLink href="/approvals" label="Согласования" icon={<Icon name="approvals" />} /> : null}
           <NavLink href="/objects" label="Объекты" icon={<Icon name="objects" />} />
+          {canAccessCounterparties ? (
+            <NavLink href="/counterparties" label="Контрагенты" icon={<Icon name="counterparties" />} />
+          ) : null}
           {canAccessOneTimeOrders || canViewOneTimeOrderReviews ? (
             <NavLink href="/one-time-orders" label="Разовые заказы" icon={<Icon name="orders" />} />
           ) : null}
