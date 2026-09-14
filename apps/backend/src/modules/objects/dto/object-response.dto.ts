@@ -6,6 +6,7 @@ export class ObjectResponseDto {
   status!: string;
   seasonMode!: string | null;
   dailyRate!: number;
+  monthlySalary!: number;
   notes!: string | null;
   counterparty!: {
     id: string;
@@ -45,6 +46,7 @@ export class ObjectResponseDto {
   capabilities!: {
     canEdit: boolean;
     canEditDailyRate: boolean;
+    canEditMonthlySalary: boolean;
     canChangeStatus: boolean;
     canManageResponsibles: boolean;
     canManageManagers: boolean;
