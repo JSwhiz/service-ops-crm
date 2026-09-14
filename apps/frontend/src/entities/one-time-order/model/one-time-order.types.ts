@@ -104,8 +104,8 @@ export interface VisibleOneTimeOrderCompletionPayment {
     fullName: string;
   } | null;
   amount: number;
-  paymentMethod: OneTimeOrderPaymentMethod;
-  paymentDestination: OneTimeOrderPaymentDestination;
+  paymentMethod: OneTimeOrderPaymentMethod | null;
+  paymentDestination: OneTimeOrderPaymentDestination | null;
   zeroReason: OneTimeOrderPaymentZeroReason | null;
   comment: string | null;
   differenceReason: string | null;
@@ -157,8 +157,8 @@ export interface OneTimeOrderCompletion {
 export interface OneTimeOrderCompletionPaymentPayload {
   recipientUserId?: string | null;
   amount: number;
-  paymentMethod: OneTimeOrderPaymentMethod;
-  paymentDestination: OneTimeOrderPaymentDestination;
+  paymentMethod?: OneTimeOrderPaymentMethod | null;
+  paymentDestination?: OneTimeOrderPaymentDestination | null;
   zeroReason?: OneTimeOrderPaymentZeroReason | null;
   comment?: string | null;
   differenceReason?: string | null;
@@ -174,8 +174,8 @@ export interface CompleteOneTimeOrderPayload {
 
 export interface CorrectOneTimeOrderPaymentPayload {
   correctedAmount: number;
-  paymentMethod: OneTimeOrderPaymentMethod;
-  paymentDestination: OneTimeOrderPaymentDestination;
+  paymentMethod?: OneTimeOrderPaymentMethod | null;
+  paymentDestination?: OneTimeOrderPaymentDestination | null;
   recipientUserId?: string | null;
   zeroReason?: OneTimeOrderPaymentZeroReason | null;
   comment?: string | null;
