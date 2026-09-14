@@ -359,6 +359,19 @@ export class ObjectsService {
         },
       });
 
+      if (object.counterpartyId) {
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'counterparty',
+            entityId: object.counterpartyId,
+            actorUserId: currentUser.id,
+            action: 'counterparty.object_linked',
+            newValues: { objectId: object.id },
+          },
+          tx,
+        );
+      }
+
       await tx.objectAssignment.create({
         data: {
           objectId: object.id,
@@ -590,6 +603,44 @@ export class ObjectsService {
             : {}),
         },
       });
+
+      if (
+        payload.counterpartyId !== undefined &&
+        payload.counterpartyId !== existing.counterpartyId
+      ) {
+        if (existing.counterpartyId) {
+          await this.auditService.writeAuditEvent(
+            {
+              entityType: 'counterparty',
+              entityId: existing.counterpartyId,
+              actorUserId: currentUser.id,
+              action: payload.counterpartyId
+                ? 'counterparty.object_unlinked_by_relink'
+                : 'counterparty.object_unlinked',
+              oldValues: { objectId: id },
+              newValues: payload.counterpartyId
+                ? { newCounterpartyId: payload.counterpartyId }
+                : { objectId: null },
+            },
+            tx,
+          );
+        }
+        if (payload.counterpartyId) {
+          await this.auditService.writeAuditEvent(
+            {
+              entityType: 'counterparty',
+              entityId: payload.counterpartyId,
+              actorUserId: currentUser.id,
+              action: 'counterparty.object_linked',
+              oldValues: existing.counterpartyId
+                ? { previousCounterpartyId: existing.counterpartyId }
+                : null,
+              newValues: { objectId: id },
+            },
+            tx,
+          );
+        }
+      }
 
       if (selectedResponsible) {
         await tx.objectAssignment.updateMany({
