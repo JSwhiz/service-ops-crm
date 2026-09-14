@@ -65,7 +65,7 @@ export function SearchableSelect({
   const selected =
     options.find((option) => option.value === value) ??
     asyncOptions.find((option) => option.value === value) ??
-    selectedOption ??
+    (selectedOption?.value === value ? selectedOption : null) ??
     optionCacheRef.current.get(value) ??
     null;
   const normalizedQuery = query.trim().toLocaleLowerCase('ru');
