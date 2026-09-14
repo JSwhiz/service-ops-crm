@@ -105,32 +105,30 @@ export class CounterpartiesService {
   ): Promise<CounterpartyReferenceDto[]> {
     this.assertView(currentUser);
     const q = query.q?.trim();
+    const selected = query.selectedId
+      ? await this.prisma.counterparty.findUnique({
+          where: { id: query.selectedId },
+          select: {
+            id: true,
+            name: true,
+            legalName: true,
+            status: true,
+          },
+        })
+      : null;
 
     const rows = await this.prisma.counterparty.findMany({
       where: {
-        ...(query.selectedId || q
+        status: 'active',
+        ...(q
           ? {
               OR: [
-                ...(query.selectedId ? [{ id: query.selectedId }] : []),
-                ...(q
-                  ? [
-                      {
-                        status: 'active',
-                        OR: [
-                          { name: { contains: q, mode: 'insensitive' as const } },
-                          {
-                            legalName: {
-                              contains: q,
-                              mode: 'insensitive' as const,
-                            },
-                          },
-                        ],
-                      },
-                    ]
-                  : []),
+                { name: { contains: q, mode: 'insensitive' } },
+                { legalName: { contains: q, mode: 'insensitive' } },
               ],
             }
-          : { status: 'active' }),
+          : {}),
+        ...(selected ? { id: { not: selected.id } } : {}),
       },
       select: {
         id: true,
@@ -142,7 +140,7 @@ export class CounterpartiesService {
       take: Math.min(query.limit, 50),
     });
 
-    return rows;
+    return selected ? [selected, ...rows].slice(0, Math.min(query.limit, 50)) : rows;
   }
 
   async getById(
