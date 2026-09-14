@@ -12,6 +12,7 @@ import type { ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectEditForm } from '@/features/object-edit/ui/object-edit-form';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { ObjectStatusPanel } from '@/features/object-status/ui/object-status-panel';
+import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -24,6 +25,7 @@ export default function EditObjectPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const router = useRouter();
+  const { user } = useAuth();
   const [objectId, setObjectId] = useState('');
   const [item, setItem] = useState<ServiceObject | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -115,6 +117,9 @@ export default function EditObjectPage({
       <ObjectEditForm
         item={item}
         canEditDailyRate={allowEditDailyRate}
+        canLinkCounterparty={
+          user?.capabilities?.canLinkCounterpartyObjects ?? false
+        }
         onSubmit={async (payload) => {
           const updated = await updateObject(item.id, payload);
           setItem(updated);
