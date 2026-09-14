@@ -33,7 +33,7 @@ export function ObjectEditForm({
     address: item.address,
     responsibleUserId: item.responsible?.id ?? '',
     seasonMode: item.seasonMode ?? '',
-    dailyRate: String(item.dailyRate),
+    monthlySalary: String(item.monthlySalary),
     notes: item.notes ?? '',
     counterpartyId: item.counterparty?.id ?? '',
   });
@@ -51,7 +51,7 @@ export function ObjectEditForm({
       address: item.address,
       responsibleUserId: item.responsible?.id ?? '',
       seasonMode: item.seasonMode ?? '',
-      dailyRate: String(item.dailyRate),
+      monthlySalary: String(item.monthlySalary),
       notes: item.notes ?? '',
       counterpartyId: item.counterparty?.id ?? '',
     });
@@ -107,7 +107,9 @@ export function ObjectEditForm({
           : {}),
       };
 
-      if (canEditDailyRate) payload.dailyRate = Number(form.dailyRate) || 0;
+      if (canEditDailyRate) {
+        payload.monthlySalary = Number(form.monthlySalary) || 0;
+      }
 
       await onSubmit(payload);
       setSuccess('Изменения по объекту сохранены.');
@@ -228,18 +230,20 @@ export function ObjectEditForm({
         </label>
 
         <label className={styles.field}>
-          <span className={styles.fieldLabel}>Ставка за день</span>
+          <span className={styles.fieldLabel}>ЗП за месяц</span>
           <input
             type="number"
             min="0"
             step="1"
-            value={form.dailyRate}
-            onChange={(event) => setForm((prev) => ({ ...prev, dailyRate: event.target.value }))}
+            value={form.monthlySalary}
+            onChange={(event) => setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))}
             disabled={!canEditDailyRate}
           />
-          {!canEditDailyRate ? (
-            <span className={styles.inlineHelp}>Изменение ставки доступно только учредителю и директору.</span>
-          ) : null}
+          <span className={styles.inlineHelp}>
+            {canEditDailyRate
+              ? 'Ставка за рабочий день рассчитывается автоматически по выбранному месяцу в табеле.'
+              : 'Изменение месячной зарплаты доступно только учредителю и директору.'}
+          </span>
         </label>
 
         <label className={`${styles.field} ${styles.fullWidth}`}>
