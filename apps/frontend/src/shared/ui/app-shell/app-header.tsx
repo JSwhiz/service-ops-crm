@@ -19,6 +19,8 @@ const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
   ['/dashboard', 'Рабочий стол'],
   ['/approvals', 'Согласования'],
   ['/objects', 'Объекты'],
+  ['/counterparties', 'Контрагенты'],
+  ['/one-time-orders/calendar', 'Календарь разовых заказов'],
   ['/one-time-orders', 'Разовые заказы'],
   ['/accountability', 'Подотчет'],
   ['/inventory', 'Расходники'],
@@ -27,6 +29,7 @@ const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
   ['/timesheet', 'Табель'],
   ['/candidates', 'Кандидаты'],
   ['/employees', 'Сотрудники'],
+  ['/user-absences', 'Отсутствия'],
   ['/chats', 'Чаты'],
   ['/settings', 'Настройки'],
 ];
