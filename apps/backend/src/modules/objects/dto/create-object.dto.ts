@@ -42,9 +42,15 @@ export class CreateObjectDto {
   @IsUUID('4')
   counterpartyId?: string | null;
 
+  @IsOptional()
   @IsInt()
   @Min(0)
-  dailyRate!: number;
+  dailyRate?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  monthlySalary?: number;
 
   @IsOptional()
   @IsArray()
