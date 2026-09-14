@@ -37,6 +37,11 @@ export class CreateObjectDto {
   @IsString()
   notes?: string;
 
+  @Transform(({ value }) => (value === '' ? null : value))
+  @IsOptional()
+  @IsUUID('4')
+  counterpartyId?: string | null;
+
   @IsInt()
   @Min(0)
   dailyRate!: number;
