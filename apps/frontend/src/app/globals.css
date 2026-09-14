@@ -567,7 +567,7 @@ a:hover {
 }
 
 .page-muted {
-  color: var(--text-muted);
+  color: #887a71;
 }
 
 .identity-secondary {
@@ -3059,7 +3059,7 @@ tbody tr:hover {
   height: 42px;
   flex: 0 0 auto;
   border-radius: 11px;
-  background: var(--surface-muted);
+  background: #faf7f4;
   color: var(--text-muted);
   font-size: 10px;
   font-weight: 800;
@@ -4250,11 +4250,11 @@ tbody tr:hover {
   justify-content: space-between;
   width: 100%;
   min-height: 42px;
-  border: 1px solid var(--border);
+  border: 1px solid #ddd3cc;
   border-radius: 8px;
   padding: 8px 10px;
-  background: var(--surface);
-  color: var(--text);
+  background: #fffdfb;
+  color: #3f3732;
   font-weight: 500;
   text-align: left;
 }
@@ -4265,11 +4265,11 @@ tbody tr:hover {
   top: calc(100% + 5px);
   left: 0;
   width: max(100%, 240px);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid #ddd3cc;
+  border-radius: 9px;
   padding: 8px;
-  background: var(--surface);
-  box-shadow: 0 14px 35px rgb(15 23 42 / 14%);
+  background: #fffdfb;
+  box-shadow: 0 14px 34px rgba(63, 48, 39, 0.12);
 }
 
 .searchable-select__popover input {
@@ -4284,11 +4284,26 @@ tbody tr:hover {
 }
 
 .searchable-select__options button {
+  display: grid;
+  gap: 2px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
+  padding: 8px 9px;
   background: transparent;
-  color: var(--text);
+  color: #3f3732;
   text-align: left;
+}
+
+.searchable-select__option-label {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.searchable-select__option-description {
+  color: #887a71;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
 }
 
 .searchable-select__options button:hover,
