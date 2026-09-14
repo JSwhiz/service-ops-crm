@@ -2,22 +2,29 @@
 
 import React, { useEffect, useState } from 'react';
 
+import { listCounterpartyReferences } from '@/entities/counterparty/api/counterparty-client';
 import type { UpdateObjectPayload } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listObjectResponsibleCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from '@/shared/ui/searchable-select/searchable-select';
 import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
 
 interface ObjectEditFormProps {
   item: ServiceObject;
   canEditDailyRate: boolean;
+  canLinkCounterparty: boolean;
   onSubmit: (payload: UpdateObjectPayload) => Promise<void>;
 }
 
 export function ObjectEditForm({
   item,
   canEditDailyRate,
+  canLinkCounterparty,
   onSubmit,
 }: ObjectEditFormProps): React.JSX.Element {
   const [form, setForm] = useState({
@@ -28,6 +35,7 @@ export function ObjectEditForm({
     seasonMode: item.seasonMode ?? '',
     dailyRate: String(item.dailyRate),
     notes: item.notes ?? '',
+    counterpartyId: item.counterparty?.id ?? '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +53,7 @@ export function ObjectEditForm({
       seasonMode: item.seasonMode ?? '',
       dailyRate: String(item.dailyRate),
       notes: item.notes ?? '',
+      counterpartyId: item.counterparty?.id ?? '',
     });
   }, [item]);
 
@@ -93,6 +102,9 @@ export function ObjectEditForm({
         seasonMode: form.seasonMode || null,
         notes: form.notes.trim() || undefined,
         responsibleUserId: form.responsibleUserId,
+        ...(canLinkCounterparty
+          ? { counterpartyId: form.counterpartyId || null }
+          : {}),
       };
 
       if (canEditDailyRate) payload.dailyRate = Number(form.dailyRate) || 0;
@@ -144,6 +156,47 @@ export function ObjectEditForm({
             required
           />
         </label>
+
+        {canLinkCounterparty ? (
+          <div className={`${styles.field} ${styles.fullWidth}`}>
+            <SearchableSelect
+              label="Контрагент"
+              value={form.counterpartyId}
+              selectedOption={
+                item.counterparty
+                  ? {
+                      value: item.counterparty.id,
+                      label: item.counterparty.name,
+                      description: item.counterparty.legalName ?? undefined,
+                    }
+                  : null
+              }
+              options={[]}
+              placeholder="Без привязки"
+              searchPlaceholder="Название или юридическое название"
+              emptyText="Контрагенты не найдены"
+              asyncSearch={async (query) =>
+                (await listCounterpartyReferences({ q: query, limit: 20 })).map(
+                  (counterparty): SearchableSelectOption => ({
+                    value: counterparty.id,
+                    label: counterparty.name,
+                    description: counterparty.legalName ?? undefined,
+                    searchText: [
+                      counterparty.name,
+                      counterparty.legalName,
+                    ]
+                      .filter(Boolean)
+                      .join(' '),
+                  }),
+                )
+              }
+              onChange={(counterpartyId) =>
+                setForm((prev) => ({ ...prev, counterpartyId }))
+              }
+              disabled={isSubmitting}
+            />
+          </div>
+        ) : null}
 
         <div className={`${styles.field} ${styles.fullWidth}`}>
           {isCandidatesLoading ? (
