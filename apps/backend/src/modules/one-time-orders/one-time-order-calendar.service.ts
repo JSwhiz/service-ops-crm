@@ -209,8 +209,12 @@ export class OneTimeOrderCalendarService {
         ? {}
         : { status: { not: 'cancelled' } };
 
+    const effectiveManagerUserId = this.resolveCalendarManagerUserId(
+      currentUser,
+      query.managerUserId,
+    );
     const eligibleUsers = await listOneTimeOrderCalendarRoster(this.prisma, {
-      managerUserId: query.managerUserId,
+      managerUserId: effectiveManagerUserId,
     });
     const managerIds = eligibleUsers.map((user) => user.id);
     const orders =
@@ -441,8 +445,12 @@ export class OneTimeOrderCalendarService {
       : query.includeCancelled
         ? {}
         : { status: { not: 'cancelled' } };
+    const effectiveManagerUserId = this.resolveCalendarManagerUserId(
+      currentUser,
+      query.managerUserId,
+    );
     const roster = await listOneTimeOrderCalendarRoster(this.prisma, {
-      managerUserId: query.managerUserId,
+      managerUserId: effectiveManagerUserId,
     });
     const rosterUserIds = roster.map((user) => user.id);
     if (rosterUserIds.length === 0) return [];
@@ -620,6 +628,19 @@ export class OneTimeOrderCalendarService {
     ) {
       throw new ForbiddenException('One-time order calendar access denied');
     }
+  }
+
+  private resolveCalendarManagerUserId(
+    currentUser: CurrentAuthUser,
+    requestedManagerUserId?: string,
+  ): string | undefined {
+    if (requestedManagerUserId) {
+      return requestedManagerUserId;
+    }
+
+    return this.hasElevatedCalendarAccess(currentUser)
+      ? undefined
+      : currentUser.id;
   }
 
   private hasElevatedCalendarAccess(currentUser: CurrentAuthUser): boolean {
