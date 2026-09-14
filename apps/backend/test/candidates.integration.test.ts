@@ -122,11 +122,52 @@ test('candidate registry, object assignment and scoped immutable feedback flow',
     }),
   });
   assert.equal(reserve.status, 201);
-  const reserveBody = (await reserve.json()) as any;
+  let reserveBody = (await reserve.json()) as any;
   const reserveId = reserveBody.id as string;
   assert.equal(reserveBody.object, null);
   assert.equal(reserveBody.currentAssignment, null);
   assert.equal(reserveBody.slaState, 'unassigned');
+
+  const linkReserveObject = await request(
+    baseUrl,
+    hrCookie,
+    `/candidates/${reserveId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        expectedVersion: reserveBody.version,
+        objectId: candidateObject.id,
+      }),
+    },
+  );
+  assert.equal(linkReserveObject.status, 200);
+  reserveBody = await linkReserveObject.json();
+  assert.equal(reserveBody.object?.id, candidateObject.id);
+  assert.ok(
+    await prisma.auditEvent.findFirst({
+      where: {
+        entityType: 'candidate',
+        entityId: reserveId,
+        action: 'candidate.object_changed',
+      },
+    }),
+  );
+
+  const clearReserveObject = await request(
+    baseUrl,
+    hrCookie,
+    `/candidates/${reserveId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        expectedVersion: reserveBody.version,
+        objectId: null,
+      }),
+    },
+  );
+  assert.equal(clearReserveObject.status, 200);
+  reserveBody = await clearReserveObject.json();
+  assert.equal(reserveBody.object, null);
 
   const search = await request(
     baseUrl,
