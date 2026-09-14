@@ -3,6 +3,7 @@ import { Candidate, CandidateManagerAssignment, Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { canViewObjectBasicProfile } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { CANDIDATE_MANAGER_ROLE_CODES, CANDIDATE_RESPONSE_SLA_MS } from './constants/candidate.constants';
@@ -11,7 +12,12 @@ import { AssignCandidateManagerDto, CandidateVersionDto, ChangeCandidateStatusDt
 import { ListCandidateManagersQueryDto, ListCandidatesQueryDto } from './dto/list-candidates-query.dto';
 import { canManageCandidates, canRespondToCandidates, canViewCandidates } from './utils/candidate-access.util';
 
-interface CurrentAuthUser { id: string; permissionCodes?: string[]; }
+interface CurrentAuthUser {
+  id: string;
+  roleCode?: string;
+  roleCodes?: string[];
+  permissionCodes?: string[];
+}
 const userSelect = { id: true, login: true, fullName: true } as const;
 const assignmentInclude = { manager: { select: userSelect }, assignedBy: { select: userSelect }, endedBy: { select: userSelect } } as const;
 
@@ -149,7 +155,7 @@ export class CandidatesService {
 
     const candidate = await this.prisma.$transaction(async (tx) => {
       if (payload.objectId) {
-        await this.assertCandidateObjectExists(tx, payload.objectId);
+        await this.assertCandidateObjectAvailable(tx, currentUser, payload.objectId);
       }
       const manager = payload.managerUserId
         ? await this.loadEligibleManager(tx, payload.managerUserId)
@@ -240,7 +246,7 @@ export class CandidatesService {
         throw new BadRequestException('Regular candidate requires object');
       }
       if (payload.objectId) {
-        await this.assertCandidateObjectExists(tx, payload.objectId);
+        await this.assertCandidateObjectAvailable(tx, currentUser, payload.objectId);
       }
       if (nextCandidateType === 'regular') {
         const activeAssignment = await tx.candidateManagerAssignment.findFirst({
@@ -508,15 +514,33 @@ export class CandidatesService {
     };
   }
 
-  private async assertCandidateObjectExists(
+  private async assertCandidateObjectAvailable(
     tx: Prisma.TransactionClient,
+    currentUser: CurrentAuthUser,
     objectId: string,
   ): Promise<void> {
     const object = await tx.object.findFirst({
       where: { id: objectId, deletedAt: null },
-      select: { id: true },
+      select: {
+        id: true,
+        createdByUserId: true,
+        assignments: {
+          where: { isActive: true },
+          select: { userId: true, isActive: true },
+        },
+      },
     });
-    if (!object) {
+    if (
+      !object ||
+      !canViewObjectBasicProfile({
+        currentUserId: currentUser.id,
+        roleCodes:
+          currentUser.roleCodes ??
+          (currentUser.roleCode ? [currentUser.roleCode] : []),
+        permissionCodes: this.permissions(currentUser),
+        object,
+      })
+    ) {
       throw new BadRequestException('Candidate object is not available');
     }
   }
