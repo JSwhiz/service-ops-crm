@@ -63,6 +63,27 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           <div className="detail-value">{getSeasonLabel(item.seasonMode)}</div>
         </div>
         <div className="detail-field">
+          <div className="detail-label">Контрагент</div>
+          <div className="detail-value">
+            {item.counterparty ? (
+              item.counterparty.canOpenCounterparty ? (
+                <Link href={`/counterparties/${item.counterparty.id}`}>
+                  {item.counterparty.name}
+                </Link>
+              ) : (
+                item.counterparty.name
+              )
+            ) : (
+              'Не привязан'
+            )}
+            {item.counterparty?.legalName ? (
+              <span className="identity-secondary">
+                {item.counterparty.legalName}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <div className="detail-field">
           <div className="detail-label">Ответственный</div>
           <div className="detail-value">
             {item.responsible ? getUserDisplayName(item.responsible) : 'Не назначен'}
