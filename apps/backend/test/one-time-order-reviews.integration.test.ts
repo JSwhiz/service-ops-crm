@@ -10,11 +10,11 @@ test('review-only permission exposes reviews without order details or edit acces
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const marker = `review-registry-${Date.now()}`;
-  const [founder, managerOne, managerTwo, deputy] = await Promise.all([
+  const [founder, managerOne, managerTwo, hr] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
-    prisma.user.findUniqueOrThrow({ where: { login: 'deputy1' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'hr1' } }),
   ]);
   const orders = await Promise.all([
     prisma.oneTimeOrder.create({
@@ -54,28 +54,47 @@ test('review-only permission exposes reviews without order details or edit acces
       },
     }),
   ]);
+  let reviewOnlyPermissionId: string | null = null;
   let directPermissionId: string | null = null;
 
   t.after(async () => {
     if (directPermissionId) {
       await prisma.userPermission.delete({ where: { id: directPermissionId } });
     }
+    if (reviewOnlyPermissionId) {
+      await prisma.userPermission.delete({ where: { id: reviewOnlyPermissionId } });
+    }
     await prisma.oneTimeOrder.deleteMany({ where: { id: { in: orders.map(({ id }) => id) } } });
     await app.close();
     await prisma.$disconnect();
   });
 
-  const [deputyCookie, managerCookie] = await Promise.all([
-    loginAndGetCookieHeader({ baseUrl, login: 'deputy1', password: 'deputy123' }),
+  const reviewViewAllPermission = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'one_time_order.review.view_all' },
+  });
+  const reviewOnlyPermission = await prisma.userPermission.create({
+    data: { userId: hr.id, permissionId: reviewViewAllPermission.id },
+  });
+  reviewOnlyPermissionId = reviewOnlyPermission.id;
+
+  const [reviewOnlyCookie, managerCookie] = await Promise.all([
+    loginAndGetCookieHeader({ baseUrl, login: 'hr1', password: 'hr123' }),
     loginAndGetCookieHeader({ baseUrl, login: 'manager1', password: 'manager123' }),
   ]);
-  const deputyMeResponse = await fetch(`${baseUrl}/api/v1/auth/me`, { headers: { Cookie: deputyCookie } });
-  assert.equal(deputyMeResponse.status, 200);
-  const deputyMe = await deputyMeResponse.json() as { capabilities: { canViewAllOneTimeOrderReviews: boolean; canAccessOneTimeOrders: boolean } };
-  assert.equal(deputyMe.capabilities.canViewAllOneTimeOrderReviews, true);
-  assert.equal(deputyMe.capabilities.canAccessOneTimeOrders, false);
+  const reviewOnlyMeResponse = await fetch(`${baseUrl}/api/v1/auth/me`, {
+    headers: { Cookie: reviewOnlyCookie },
+  });
+  assert.equal(reviewOnlyMeResponse.status, 200);
+  const reviewOnlyMe = await reviewOnlyMeResponse.json() as {
+    capabilities: {
+      canViewAllOneTimeOrderReviews: boolean;
+      canAccessOneTimeOrders: boolean;
+    };
+  };
+  assert.equal(reviewOnlyMe.capabilities.canViewAllOneTimeOrderReviews, true);
+  assert.equal(reviewOnlyMe.capabilities.canAccessOneTimeOrders, false);
 
-  const reviewResponse = await fetch(`${baseUrl}/api/v1/one-time-orders/reviews?limit=100&q=${marker}`, { headers: { Cookie: deputyCookie } });
+  const reviewResponse = await fetch(`${baseUrl}/api/v1/one-time-orders/reviews?limit=100&q=${marker}`, { headers: { Cookie: reviewOnlyCookie } });
   assert.equal(reviewResponse.status, 200);
   const reviewRaw = await reviewResponse.text();
   const reviewBody = JSON.parse(reviewRaw) as { items: Array<{ id: string; reviewText: string }> };
@@ -85,10 +104,10 @@ test('review-only permission exposes reviews without order details or edit acces
     assert.equal(reviewRaw.includes(secret), false);
   }
 
-  const hiddenCard = await fetch(`${baseUrl}/api/v1/one-time-orders/${orders[0]!.id}`, { headers: { Cookie: deputyCookie } });
+  const hiddenCard = await fetch(`${baseUrl}/api/v1/one-time-orders/${orders[0]!.id}`, { headers: { Cookie: reviewOnlyCookie } });
   assert.equal(hiddenCard.status, 404);
   const hiddenEdit = await fetch(`${baseUrl}/api/v1/one-time-orders/${orders[0]!.id}/review`, {
-    method: 'PATCH', headers: { Cookie: deputyCookie, 'Content-Type': 'application/json' },
+    method: 'PATCH', headers: { Cookie: reviewOnlyCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ reviewRating: 1 }),
   });
   assert.equal(hiddenEdit.status, 404);
@@ -96,8 +115,9 @@ test('review-only permission exposes reviews without order details or edit acces
   const denied = await fetch(`${baseUrl}/api/v1/one-time-orders/reviews`, { headers: { Cookie: managerCookie } });
   assert.equal(denied.status, 403);
 
-  const permission = await prisma.permission.findUniqueOrThrow({ where: { code: 'one_time_order.review.view_all' } });
-  const directPermission = await prisma.userPermission.create({ data: { userId: managerOne.id, permissionId: permission.id } });
+  const directPermission = await prisma.userPermission.create({
+    data: { userId: managerOne.id, permissionId: reviewViewAllPermission.id },
+  });
   directPermissionId = directPermission.id;
   const permittedManagerCookie = await loginAndGetCookieHeader({ baseUrl, login: 'manager1', password: 'manager123' });
   const permitted = await fetch(`${baseUrl}/api/v1/one-time-orders/reviews?limit=100&q=${marker}`, { headers: { Cookie: permittedManagerCookie } });
@@ -110,7 +130,6 @@ test('review-only permission exposes reviews without order details or edit acces
     select: { permission: { select: { code: true } } },
   });
   const codes = deputyPermissions.map(({ permission }) => permission.code);
-  assert.equal(codes.includes('one_time_order.review.edit'), false);
-  assert.equal(codes.includes('one_time_order.manage_all'), false);
-  assert.equal(deputy.id.length > 0, true);
+  assert.equal(codes.includes('one_time_order.review.edit'), true);
+  assert.equal(codes.includes('one_time_order.manage_all'), true);
 });
