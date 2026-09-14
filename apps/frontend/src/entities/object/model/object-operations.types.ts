@@ -111,6 +111,7 @@ export interface ObjectFeedItem {
   occurredAt: string;
   title: string;
   description: string;
+  attachments: AttachedFile[];
   author: {
     id: string;
     login: string;
