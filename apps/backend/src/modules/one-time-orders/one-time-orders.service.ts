@@ -3561,6 +3561,15 @@ export class OneTimeOrdersService {
       allowedRecipientIds.add(userId);
     }
 
+    const noPaymentCount = input.filter((payment) =>
+      new Prisma.Decimal(payment.amount).isZero(),
+    ).length;
+    if (noPaymentCount > 0 && input.length !== 1) {
+      throw new BadRequestException(
+        'No-payment state must be the only completion payment row',
+      );
+    }
+
     const defaultReceivedAt = new Date();
     const payments = input.map((payment) => {
       const amount = new Prisma.Decimal(payment.amount);
@@ -3666,9 +3675,15 @@ export class OneTimeOrdersService {
       existingTotal._sum.amount ?? new Prisma.Decimal(0),
     );
 
+    const isExplicitNoPayment =
+      payments.length === 1 &&
+      payments[0]!.amount.isZero() &&
+      Boolean(payments[0]!.zeroReason);
+
     if (
       order.agreedSum !== null &&
       !cumulativeTotal.equals(order.agreedSum) &&
+      !isExplicitNoPayment &&
       !payments.some((payment) => payment.differenceReason)
     ) {
       throw new BadRequestException({
