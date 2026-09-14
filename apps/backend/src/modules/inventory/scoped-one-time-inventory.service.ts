@@ -50,11 +50,12 @@ export class ScopedOneTimeInventoryService {
     orderId: string,
   ): Promise<InventoryMovementListResponseDto> {
     const order = await this.loadAccessibleOrder(currentUser, orderId, false);
-    return this.inventoryService.listMovements(currentUser, {
-      oneTimeOrderId: order.id,
-      page: 1,
-      limit: 100,
-    });
+    return this.inventoryService.listOneTimeOrderMovementsScoped(
+      currentUser,
+      order.id,
+      1,
+      100,
+    );
   }
 
   async issueToOrder(
