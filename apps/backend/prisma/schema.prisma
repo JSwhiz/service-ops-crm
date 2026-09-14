@@ -837,8 +837,8 @@ model OneTimeOrderCompletionPayment {
   oneTimeOrderId        String
   recipientUserId       String?
   amount                Decimal  @db.Decimal(14, 2)
-  paymentMethod         String
-  paymentDestination    String
+  paymentMethod         String?
+  paymentDestination    String?
   zeroReason            String?
   comment               String?
   differenceReason      String?
