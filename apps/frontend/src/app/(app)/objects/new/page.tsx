@@ -29,7 +29,7 @@ export default function NewObjectPage(): React.JSX.Element {
     address: '',
     status: 'active',
     seasonMode: '',
-    dailyRate: '0',
+    monthlySalary: '0',
     notes: '',
   });
 
@@ -114,7 +114,7 @@ export default function NewObjectPage(): React.JSX.Element {
         address: form.address.trim(),
         status: form.status,
         seasonMode: form.seasonMode || null,
-        dailyRate: Number(form.dailyRate) || 0,
+        monthlySalary: Number(form.monthlySalary) || 0,
         notes: form.notes.trim() || undefined,
         counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
         managerUserIds,
@@ -228,14 +228,17 @@ export default function NewObjectPage(): React.JSX.Element {
           </label>
 
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Ставка за день</span>
+            <span className={styles.fieldLabel}>ЗП за месяц</span>
             <input
               type="number"
               min="0"
               step="1"
-              value={form.dailyRate}
-              onChange={(event) => setForm((prev) => ({ ...prev, dailyRate: event.target.value }))}
+              value={form.monthlySalary}
+              onChange={(event) => setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))}
             />
+            <span className={styles.inlineHelp}>
+              Дневная ставка для табеля рассчитывается автоматически для каждого месяца.
+            </span>
           </label>
 
           <label className={`${styles.field} ${styles.fullWidth}`}>
