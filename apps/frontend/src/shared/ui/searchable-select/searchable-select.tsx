@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 export interface SearchableSelectOption {
   value: string;
   label: string;
+  description?: string;
   searchText?: string;
 }
 
@@ -216,7 +217,14 @@ export function SearchableSelect({
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => choose(option.value)}
                 >
-                  {option.label}
+                  <span className="searchable-select__option-label">
+                    {option.label}
+                  </span>
+                  {option.description ? (
+                    <span className="searchable-select__option-description">
+                      {option.description}
+                    </span>
+                  ) : null}
                 </button>
               ))
             )}
