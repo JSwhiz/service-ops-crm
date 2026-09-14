@@ -71,6 +71,9 @@ export class UsersAccessService {
         return this.listOneTimeOrderManagerCandidates(
           currentUser,
           query.oneTimeOrderId,
+          query.q,
+          query.selectedId,
+          query.limit,
         );
       case 'one_time_order_task_assignee':
         return this.listOneTimeOrderTaskAssigneeCandidates(
@@ -183,6 +186,9 @@ export class UsersAccessService {
   private async listOneTimeOrderManagerCandidates(
     currentUser: CurrentAuthUser,
     oneTimeOrderId?: string,
+    search?: string,
+    selectedId?: string,
+    limit = 20,
   ): Promise<SystemUserOptionDto[]> {
     const order = oneTimeOrderId
       ? await this.getOneTimeOrderWithAssignments(oneTimeOrderId)
@@ -199,7 +205,11 @@ export class UsersAccessService {
       throw new ForbiddenException('One-time order manager candidate access denied');
     }
 
-    const users = await this.getActiveUsersWithRoles();
+    const users = await this.getActiveUsersWithRoles({
+      search,
+      selectedId,
+      limit,
+    });
 
     return users
       .filter((user) =>
@@ -344,11 +354,46 @@ export class UsersAccessService {
     return users.map((user) => this.mapUser(user));
   }
 
-  private async getActiveUsersWithRoles(): Promise<UserOptionSource[]> {
+  private async getActiveUsersWithRoles(params?: {
+    search?: string;
+    selectedId?: string;
+    limit?: number;
+  }): Promise<UserOptionSource[]> {
+    const query = params?.search?.trim();
+    const selectedId = params?.selectedId;
+    const shouldBound = params !== undefined;
+
     return this.prisma.user.findMany({
       where: {
         deletedAt: null,
         isActive: true,
+        ...(selectedId || query
+          ? {
+              OR: [
+                ...(selectedId ? [{ id: selectedId }] : []),
+                ...(query
+                  ? [
+                      {
+                        OR: [
+                          {
+                            fullName: {
+                              contains: query,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                          {
+                            login: {
+                              contains: query,
+                              mode: 'insensitive' as const,
+                            },
+                          },
+                        ],
+                      },
+                    ]
+                  : []),
+              ],
+            }
+          : {}),
       },
       include: {
         roles: {
@@ -357,9 +402,8 @@ export class UsersAccessService {
           },
         },
       },
-      orderBy: {
-        fullName: 'asc',
-      },
+      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      ...(shouldBound ? { take: Math.min(params?.limit ?? 20, 50) } : {}),
     });
   }
 
