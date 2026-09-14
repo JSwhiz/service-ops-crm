@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Candidate, CandidateManagerAssignment, Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
@@ -15,6 +15,32 @@ interface CurrentAuthUser { id: string; permissionCodes?: string[]; }
 const userSelect = { id: true, login: true, fullName: true } as const;
 const assignmentInclude = { manager: { select: userSelect }, assignedBy: { select: userSelect }, endedBy: { select: userSelect } } as const;
 
+type CandidateAssignmentView = CandidateManagerAssignment & {
+  manager: { id: string; login: string; fullName: string };
+  assignedBy: { id: string; login: string; fullName: string };
+  endedBy: { id: string; login: string; fullName: string } | null;
+};
+
+type CandidateFeedbackView = {
+  id: string;
+  assignmentId: string | null;
+  authorUserId: string;
+  text: string;
+  createdAt: Date;
+  author: { id: string; login: string; fullName: string };
+};
+
+type CandidateListView = Candidate & {
+  object: {
+    id: string;
+    name: string;
+    internalName: string | null;
+    address: string;
+  } | null;
+  assignments: CandidateAssignmentView[];
+  responses: CandidateFeedbackView[];
+};
+
 @Injectable()
 export class CandidatesService {
   constructor(
@@ -30,7 +56,21 @@ export class CandidatesService {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.candidate.findMany({
         where,
-        include: { assignments: { include: assignmentInclude, orderBy: { assignedAt: 'desc' }, take: 1 } },
+        include: {
+          object: {
+            select: { id: true, name: true, internalName: true, address: true },
+          },
+          assignments: {
+            include: assignmentInclude,
+            orderBy: { assignedAt: 'desc' },
+            take: 1,
+          },
+          responses: {
+            include: { author: { select: userSelect } },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            take: 1,
+          },
+        },
         orderBy: [{ [query.sort]: query.sortDirection }, { id: query.sortDirection }],
         skip: (query.page - 1) * query.limit,
         take: query.limit,
@@ -68,6 +108,9 @@ export class CandidatesService {
       where: { id },
       include: {
         createdBy: { select: userSelect },
+        object: {
+          select: { id: true, name: true, internalName: true, address: true },
+        },
         assignments: { include: assignmentInclude, orderBy: { assignedAt: 'desc' } },
         responses: { include: { author: { select: userSelect } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
       },
@@ -83,7 +126,11 @@ export class CandidatesService {
       responses: candidate.responses.map((item) => this.mapResponse(item)),
       capabilities: {
         canManage: canManageCandidates(this.permissions(currentUser)),
-        canRespond: canRespondToCandidates(this.permissions(currentUser)) && !candidate.deletedAt && !['accepted', 'rejected'].includes(candidate.status),
+        canRespond:
+          canRespondToCandidates(this.permissions(currentUser)) &&
+          currentAssignment?.managerUserId === currentUser.id &&
+          !candidate.deletedAt &&
+          !['accepted', 'rejected'].includes(candidate.status),
         canArchive: canManageCandidates(this.permissions(currentUser)) && !candidate.deletedAt,
         canRestore: canManageCandidates(this.permissions(currentUser)) && Boolean(candidate.deletedAt),
       },
@@ -92,17 +139,90 @@ export class CandidatesService {
 
   async create(currentUser: CurrentAuthUser, payload: CreateCandidateDto): Promise<CandidateCardResponseDto> {
     this.assertManage(currentUser);
+
+    if (payload.candidateType === 'regular' && !payload.objectId) {
+      throw new BadRequestException('Regular candidate requires object');
+    }
+    if (payload.candidateType === 'regular' && !payload.managerUserId) {
+      throw new BadRequestException('Regular candidate requires manager');
+    }
+
     const candidate = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.candidate.create({ data: {
-        fullName: payload.fullName,
-        phone: payload.phone || null,
-        comment: payload.comment || null,
-        candidateType: payload.candidateType,
-        createdByUserId: currentUser.id,
-      } });
-      await this.auditService.writeAuditEvent({ entityType: 'candidate', entityId: created.id, actorUserId: currentUser.id, action: 'candidate.created', newValues: this.snapshot(created) }, tx);
+      if (payload.objectId) {
+        await this.assertCandidateObjectExists(tx, payload.objectId);
+      }
+      const manager = payload.managerUserId
+        ? await this.loadEligibleManager(tx, payload.managerUserId)
+        : null;
+
+      const created = await tx.candidate.create({
+        data: {
+          fullName: payload.fullName,
+          phone: payload.phone,
+          comment: payload.comment || null,
+          candidateType: payload.candidateType,
+          objectId: payload.objectId ?? null,
+          createdByUserId: currentUser.id,
+        },
+      });
+
+      await this.auditService.writeAuditEvent({
+        entityType: 'candidate',
+        entityId: created.id,
+        actorUserId: currentUser.id,
+        action: 'candidate.created',
+        newValues: this.snapshot(created),
+      }, tx);
+
+      if (manager) {
+        const assignedAt = new Date();
+        const assignment = await tx.candidateManagerAssignment.create({
+          data: {
+            candidateId: created.id,
+            managerUserId: manager.id,
+            assignedByUserId: currentUser.id,
+            assignedAt,
+            responseDueAt: new Date(
+              assignedAt.getTime() + CANDIDATE_RESPONSE_SLA_MS,
+            ),
+          },
+        });
+
+        await this.notificationsService.create({
+          recipientUserId: manager.id,
+          type: 'candidate.assigned',
+          title: `Назначен кандидат ${created.fullName}`,
+          entityType: 'candidate',
+          entityId: created.id,
+          targetUrl: `/candidates/${created.id}`,
+          dedupeKey: `candidate:${created.id}:assignment:${assignment.id}:assigned`,
+        }, tx);
+
+        await this.auditService.writeAuditEvent({
+          entityType: 'candidate',
+          entityId: created.id,
+          actorUserId: currentUser.id,
+          action: 'candidate.manager_assigned',
+          newValues: {
+            managerUserId: manager.id,
+            assignmentId: assignment.id,
+          },
+        }, tx);
+      }
+
+      if (created.objectId) {
+        await this.auditService.writeAuditEvent({
+          entityType: 'candidate',
+          entityId: created.id,
+          actorUserId: currentUser.id,
+          action: 'candidate.object_linked',
+          newValues: { objectId: created.objectId },
+        }, tx);
+      }
+
       return created;
     });
+
     return this.getById(currentUser, candidate.id);
   }
 
@@ -111,16 +231,52 @@ export class CandidatesService {
     await this.prisma.$transaction(async (tx) => {
       const existing = await this.lockCandidate(tx, id);
       this.assertVersion(existing, payload.expectedVersion);
-      const result = await tx.candidate.updateMany({ where: { id, version: payload.expectedVersion }, data: {
-        ...(payload.fullName !== undefined ? { fullName: payload.fullName } : {}),
-        ...(payload.phone !== undefined ? { phone: payload.phone || null } : {}),
-        ...(payload.comment !== undefined ? { comment: payload.comment || null } : {}),
-        ...(payload.candidateType !== undefined ? { candidateType: payload.candidateType } : {}),
-        version: { increment: 1 },
-      } });
+
+      const nextCandidateType = payload.candidateType ?? existing.candidateType;
+      const nextObjectId =
+        payload.objectId !== undefined ? payload.objectId : existing.objectId;
+
+      if (nextCandidateType === 'regular' && !nextObjectId) {
+        throw new BadRequestException('Regular candidate requires object');
+      }
+      if (payload.objectId) {
+        await this.assertCandidateObjectExists(tx, payload.objectId);
+      }
+      if (nextCandidateType === 'regular') {
+        const activeAssignment = await tx.candidateManagerAssignment.findFirst({
+          where: { candidateId: id, endedAt: null },
+          select: { id: true },
+        });
+        if (!activeAssignment) {
+          throw new BadRequestException('Regular candidate requires active manager');
+        }
+      }
+
+      const result = await tx.candidate.updateMany({
+        where: { id, version: payload.expectedVersion },
+        data: {
+          ...(payload.fullName !== undefined ? { fullName: payload.fullName } : {}),
+          ...(payload.phone !== undefined ? { phone: payload.phone || null } : {}),
+          ...(payload.comment !== undefined ? { comment: payload.comment || null } : {}),
+          ...(payload.candidateType !== undefined ? { candidateType: payload.candidateType } : {}),
+          ...(payload.objectId !== undefined ? { objectId: payload.objectId } : {}),
+          version: { increment: 1 },
+        },
+      });
       if (result.count !== 1) this.versionConflict();
+
       const updated = await tx.candidate.findUniqueOrThrow({ where: { id } });
-      await this.auditService.writeAuditEvent({ entityType: 'candidate', entityId: id, actorUserId: currentUser.id, action: 'candidate.updated', oldValues: this.snapshot(existing), newValues: this.snapshot(updated) }, tx);
+      await this.auditService.writeAuditEvent({
+        entityType: 'candidate',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action:
+          existing.objectId !== updated.objectId
+            ? 'candidate.object_changed'
+            : 'candidate.updated',
+        oldValues: this.snapshot(existing),
+        newValues: this.snapshot(updated),
+      }, tx);
     });
     return this.getById(currentUser, id);
   }
@@ -189,17 +345,68 @@ export class CandidatesService {
     this.assertRespond(currentUser);
     await this.prisma.$transaction(async (tx) => {
       const candidate = await this.lockCandidate(tx, id);
-      if (candidate.deletedAt || ['accepted', 'rejected'].includes(candidate.status)) throw new ConflictException('Candidate is not active');
-      const assignment = await tx.candidateManagerAssignment.findFirst({ where: { candidateId: id, endedAt: null } });
-      await tx.candidateResponse.create({ data: { candidateId: id, assignmentId: assignment?.id ?? null, authorUserId: currentUser.id, text: payload.text } });
-      if (assignment?.managerUserId === currentUser.id && !assignment.firstRespondedAt) {
-        const now = new Date();
-        await tx.candidateManagerAssignment.updateMany({ where: { id: assignment.id, firstRespondedAt: null }, data: { firstRespondedAt: now } });
-        if (candidate.status === 'new') await tx.candidate.update({ where: { id }, data: { status: 'in_progress', version: { increment: 1 } } });
-        else await tx.candidate.update({ where: { id }, data: { updatedAt: now } });
-      } else {
-        await tx.candidate.update({ where: { id }, data: { updatedAt: new Date() } });
+      if (
+        candidate.deletedAt ||
+        ['accepted', 'rejected'].includes(candidate.status)
+      ) {
+        throw new ConflictException('Candidate is not active');
       }
+
+      const assignment = await tx.candidateManagerAssignment.findFirst({
+        where: {
+          candidateId: id,
+          managerUserId: currentUser.id,
+          endedAt: null,
+        },
+      });
+      if (!assignment) {
+        throw new ForbiddenException(
+          'Active candidate manager assignment is required for feedback',
+        );
+      }
+
+      const response = await tx.candidateResponse.create({
+        data: {
+          candidateId: id,
+          assignmentId: assignment.id,
+          authorUserId: currentUser.id,
+          text: payload.text,
+        },
+      });
+      const now = new Date();
+      if (!assignment.firstRespondedAt) {
+        await tx.candidateManagerAssignment.updateMany({
+          where: { id: assignment.id, firstRespondedAt: null },
+          data: { firstRespondedAt: now },
+        });
+        if (candidate.status === 'new') {
+          await tx.candidate.update({
+            where: { id },
+            data: { status: 'in_progress', version: { increment: 1 } },
+          });
+        } else {
+          await tx.candidate.update({
+            where: { id },
+            data: { updatedAt: now },
+          });
+        }
+      } else {
+        await tx.candidate.update({
+          where: { id },
+          data: { updatedAt: now },
+        });
+      }
+
+      await this.auditService.writeAuditEvent({
+        entityType: 'candidate',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'candidate.manager_feedback_added',
+        newValues: {
+          responseId: response.id,
+          assignmentId: assignment.id,
+        },
+      }, tx);
     });
     return this.getById(currentUser, id);
   }
@@ -236,16 +443,40 @@ export class CandidatesService {
     return where;
   }
 
-  private mapListItem(candidate: Candidate & { assignments: Array<CandidateManagerAssignment & { manager: { id: string; login: string; fullName: string }; assignedBy: { id: string; login: string; fullName: string }; endedBy: { id: string; login: string; fullName: string } | null }> }, now: Date): CandidateListItemDto {
+  private mapListItem(
+    candidate: CandidateListView,
+    now: Date,
+  ): CandidateListItemDto {
     const assignment = candidate.assignments[0] ?? null;
     const currentAssignment = assignment && !assignment.endedAt ? assignment : null;
+    const latestFeedback =
+      candidate.responses.length === 0
+        ? null
+        : candidate.responses.reduce((latest, response) =>
+            response.createdAt > latest.createdAt ? response : latest,
+          );
+
     return {
-      id: candidate.id, fullName: candidate.fullName, phone: candidate.phone,
-      candidateType: candidate.candidateType, status: candidate.status,
-      version: candidate.version, deletedAt: candidate.deletedAt?.toISOString() ?? null,
+      id: candidate.id,
+      fullName: candidate.fullName,
+      phone: candidate.phone,
+      candidateType: candidate.candidateType,
+      status: candidate.status,
+      version: candidate.version,
+      deletedAt: candidate.deletedAt?.toISOString() ?? null,
       updatedAt: candidate.updatedAt.toISOString(),
-      currentAssignment: currentAssignment ? this.mapAssignment(currentAssignment) : null,
-      slaState: currentAssignment ? currentAssignment.firstRespondedAt ? 'responded' : currentAssignment.responseDueAt <= now ? 'overdue' : 'awaiting_response' : 'unassigned',
+      object: candidate.object,
+      currentAssignment: currentAssignment
+        ? this.mapAssignment(currentAssignment)
+        : null,
+      latestFeedback: latestFeedback ? this.mapResponse(latestFeedback) : null,
+      slaState: currentAssignment
+        ? currentAssignment.firstRespondedAt
+          ? 'responded'
+          : currentAssignment.responseDueAt <= now
+            ? 'overdue'
+            : 'awaiting_response'
+        : 'unassigned',
     };
   }
 
@@ -264,7 +495,54 @@ export class CandidatesService {
     return candidate;
   }
 
-  private snapshot(candidate: Candidate) { return { fullName: candidate.fullName, phone: candidate.phone, comment: candidate.comment, candidateType: candidate.candidateType, status: candidate.status, version: candidate.version, deletedAt: candidate.deletedAt?.toISOString() ?? null }; }
+  private snapshot(candidate: Candidate) {
+    return {
+      fullName: candidate.fullName,
+      phone: candidate.phone,
+      comment: candidate.comment,
+      candidateType: candidate.candidateType,
+      objectId: candidate.objectId,
+      status: candidate.status,
+      version: candidate.version,
+      deletedAt: candidate.deletedAt?.toISOString() ?? null,
+    };
+  }
+
+  private async assertCandidateObjectExists(
+    tx: Prisma.TransactionClient,
+    objectId: string,
+  ): Promise<void> {
+    const object = await tx.object.findFirst({
+      where: { id: objectId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!object) {
+      throw new BadRequestException('Candidate object is not available');
+    }
+  }
+
+  private async loadEligibleManager(
+    tx: Prisma.TransactionClient,
+    managerUserId: string,
+  ): Promise<{ id: string; login: string; fullName: string }> {
+    const manager = await tx.user.findFirst({
+      where: {
+        id: managerUserId,
+        isActive: true,
+        deletedAt: null,
+        roles: {
+          some: {
+            role: { code: { in: [...CANDIDATE_MANAGER_ROLE_CODES] } },
+          },
+        },
+      },
+      select: userSelect,
+    });
+    if (!manager) {
+      throw new BadRequestException('Candidate manager is not eligible');
+    }
+    return manager;
+  }
   private assertVersion(candidate: Candidate, expected: number): void { if (candidate.version !== expected) this.versionConflict(); }
   private versionConflict(): never { throw new ConflictException({ code: 'CANDIDATE_VERSION_CONFLICT', message: 'Candidate was changed concurrently' }); }
   private permissions(user: CurrentAuthUser): string[] { return user.permissionCodes ?? []; }
