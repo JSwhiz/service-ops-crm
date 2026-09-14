@@ -69,8 +69,8 @@ export class CandidateReminderService implements OnModuleInit, OnModuleDestroy {
       await this.notificationsService.create({
         recipientUserId: assignment.managerUserId,
         type: 'candidate.response_overdue',
-        title: `Просрочен ответ по кандидату ${assignment.candidate.fullName}`,
-        body: 'Пожалуйста, добавьте ответ по кандидату.',
+        title: `Просрочена обратная связь по кандидату ${assignment.candidate.fullName}`,
+        body: 'Пожалуйста, добавьте обратную связь по кандидату.',
         entityType: 'candidate',
         entityId: assignment.candidateId,
         targetUrl: `/candidates/${assignment.candidateId}`,
