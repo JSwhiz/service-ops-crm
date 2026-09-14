@@ -141,7 +141,6 @@ export default function CounterpartyPage({
           ? caughtError.message
           : 'Не удалось сохранить изменение.',
       );
-      throw caughtError;
     } finally {
       setSaving(false);
     }
