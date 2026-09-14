@@ -33,6 +33,7 @@ model User {
   editedChatMessageHistory    ChatMessageEditHistory[] @relation("ChatMessageEditHistoryEditedBy")
   auditEvents                 AuditEvent[] @relation("AuditActor")
   createdObjects              Object[] @relation("ObjectCreatedBy")
+  createdCounterparties       Counterparty[] @relation("CounterpartyCreatedBy")
   createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
   reviewedOneTimeOrders       OneTimeOrder[] @relation("OneTimeOrderReviewUpdatedBy")
   completedOneTimeOrders      OneTimeOrder[] @relation("OneTimeOrderCompletedBy")
@@ -389,6 +390,29 @@ model ChatMessageReaction {
   @@map("chat_message_reactions")
 }
 
+model Counterparty {
+  id              String   @id @default(uuid())
+  name            String
+  legalName       String?
+  contactName     String?
+  contactPhone    String?
+  notes           String?
+  status          String   @default("active")
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy User     @relation("CounterpartyCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  objects   Object[]
+
+  @@index([name])
+  @@index([legalName])
+  @@index([status])
+  @@index([createdByUserId])
+  @@index([updatedAt])
+  @@map("counterparties")
+}
+
 model Object {
   id                  String   @id @default(uuid())
   name                String
@@ -398,6 +422,7 @@ model Object {
   seasonMode          String?
   dailyRate           Int      @default(0)
   notes               String?
+  counterpartyId      String?
   createdByUserId     String
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -405,6 +430,7 @@ model Object {
 
   attendanceFacts      ObjectAttendanceFact[]
   createdBy            User                     @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  counterparty         Counterparty?             @relation(fields: [counterpartyId], references: [id], onDelete: SetNull)
   assignments          ObjectAssignment[]
   arrivalPhotos        ObjectArrivalPhoto[]
   dailyReports         ObjectDailyReport[]
