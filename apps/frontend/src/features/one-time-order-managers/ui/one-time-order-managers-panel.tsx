@@ -1,4 +1,6 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
@@ -7,18 +9,22 @@ import {
   getUserRoleLabel,
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 export function OneTimeOrderManagersPanel({
   item,
-  candidates,
+  searchCandidates,
   onAssign,
   onRemove,
 }: {
   item: OneTimeOrderItem;
-  candidates: SystemUserOption[];
+  searchCandidates: (query: string) => Promise<SystemUserOption[]>;
   onAssign: (userId: string) => Promise<void>;
   onRemove: (userId: string) => Promise<void>;
 }): React.JSX.Element {
+  const [pickerValue, setPickerValue] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const assignedUserIds = new Set(item.managers.map((manager) => manager.userId));
 
   return (
@@ -32,14 +38,12 @@ export function OneTimeOrderManagersPanel({
             {item.managers.map((manager) => (
               <div
                 key={manager.userId}
+                className="record-card"
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   gap: 12,
                   alignItems: 'center',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 10,
-                  padding: 10,
                 }}
               >
                 <div>
@@ -49,7 +53,11 @@ export function OneTimeOrderManagersPanel({
                   </div>
                 </div>
                 {item.capabilities.canManageManagers ? (
-                  <button type="button" onClick={() => void onRemove(manager.userId)}>
+                  <button
+                    type="button"
+                    disabled={isAssigning}
+                    onClick={() => void onRemove(manager.userId)}
+                  >
                     Снять
                   </button>
                 ) : null}
@@ -60,47 +68,45 @@ export function OneTimeOrderManagersPanel({
       </div>
 
       {item.capabilities.canManageManagers ? (
-        <div>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>
-            Назначить менеджера
-          </div>
-          {candidates.length === 0 ? (
-            <div className="page-muted">Нет доступных кандидатов.</div>
-          ) : (
-            <div style={{ display: 'grid', gap: 8 }}>
-              {candidates
+        <div style={{ display: 'grid', gap: 8 }}>
+          <SearchableSelect
+            label="Назначить менеджера"
+            value={pickerValue}
+            options={[]}
+            clearable={false}
+            disabled={isAssigning}
+            placeholder="Найти менеджера"
+            searchPlaceholder="ФИО или логин"
+            emptyText="Подходящие менеджеры не найдены"
+            asyncSearch={async (query) =>
+              (await searchCandidates(query))
                 .filter((candidate) => !assignedUserIds.has(candidate.id))
-                .map((candidate) => (
-                  <div
-                    key={candidate.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      alignItems: 'center',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 10,
-                      padding: 10,
-                    }}
-                  >
-                    <div>
-                      <div>{getUserDisplayName(candidate)}</div>
-                      {getUserSecondaryLabel(candidate) ? (
-                        <div className="page-muted">
-                          {getUserSecondaryLabel(candidate)}
-                        </div>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void onAssign(candidate.id)}
-                    >
-                      Назначить
-                    </button>
-                  </div>
-                ))}
-            </div>
-          )}
+                .map((candidate) => ({
+                  value: candidate.id,
+                  label: getUserDisplayName(candidate),
+                  description: getUserSecondaryLabel(candidate) || undefined,
+                  searchText: `${candidate.fullName} ${candidate.login}`,
+                }))
+            }
+            onChange={(value) => {
+              if (!value) return;
+              setPickerValue(value);
+              setIsAssigning(true);
+              setError(null);
+              void onAssign(value)
+                .then(() => setPickerValue(''))
+                .catch((assignError) => {
+                  setError(
+                    assignError instanceof Error
+                      ? assignError.message
+                      : 'Не удалось назначить менеджера.',
+                  );
+                  setPickerValue('');
+                })
+                .finally(() => setIsAssigning(false));
+            }}
+          />
+          {error ? <div className="form-error">{error}</div> : null}
         </div>
       ) : null}
     </div>
