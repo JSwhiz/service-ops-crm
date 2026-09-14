@@ -351,6 +351,22 @@ export class ObjectOperationsService {
       }),
     ]);
 
+    const [arrivalAttachments, reportAttachments, commentAttachments] =
+      await Promise.all([
+        this.listAttachmentsByEntityIds(
+          'object_arrival_photo',
+          arrivals.map((item) => item.id),
+        ),
+        this.listAttachmentsByEntityIds(
+          'object_daily_report',
+          reports.map((item) => item.id),
+        ),
+        this.listAttachmentsByEntityIds(
+          'object_comment',
+          comments.map((item) => item.id),
+        ),
+      ]);
+
     const feed: ObjectFeedItemDto[] = [
       ...arrivals.map((item) => ({
         type: 'arrival_photo' as const,
@@ -358,6 +374,7 @@ export class ObjectOperationsService {
         occurredAt: item.updatedAt.toISOString(),
         title: 'Фото прибытия',
         description: item.comment ?? item.photoUrl ?? 'Фото без описания',
+        attachments: arrivalAttachments.get(item.id) ?? [],
         author: {
           id: item.createdBy.id,
           login: item.createdBy.login,
@@ -370,6 +387,7 @@ export class ObjectOperationsService {
         occurredAt: item.updatedAt.toISOString(),
         title: 'Ежедневный отчет',
         description: item.content,
+        attachments: reportAttachments.get(item.id) ?? [],
         author: {
           id: item.updatedBy.id,
           login: item.updatedBy.login,
@@ -383,6 +401,7 @@ export class ObjectOperationsService {
         title:
           item.commentType === 'system' ? 'Служебная запись' : 'Комментарий',
         description: item.content,
+        attachments: commentAttachments.get(item.id) ?? [],
         author: {
           id: item.createdBy.id,
           login: item.createdBy.login,
