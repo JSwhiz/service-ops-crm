@@ -150,6 +150,44 @@ test('global search and recent resolution preserve domain ACL boundaries', async
     }),
   ]);
 
+  const [counterparty, inventoryItem, equipmentCatalogItem] = await Promise.all([
+    prisma.counterparty.create({
+      data: {
+        name: `${searchTerm} counterparty`,
+        legalName: `ООО ${searchTerm}`,
+        contactName: 'Search Contact',
+        contactPhone: `+7666${marker}`,
+        createdByUserId: creator.id,
+      },
+    }),
+    prisma.inventoryItem.create({
+      data: {
+        name: `${searchTerm} inventory`,
+        category: 'Search materials',
+        unit: 'шт',
+        createdByUserId: creator.id,
+      },
+    }),
+    prisma.equipmentCatalogItem.create({
+      data: {
+        category: 'Search equipment',
+        name: `${searchTerm} equipment`,
+        brand: 'SearchBrand',
+        model: marker,
+        createdByUserId: creator.id,
+      },
+    }),
+  ]);
+
+  const equipmentUnit = await prisma.equipmentUnit.create({
+    data: {
+      catalogItemId: equipmentCatalogItem.id,
+      inventoryNumber: `SEARCH-${marker}`,
+      serialNumber: `SERIAL-${marker}`,
+      createdByUserId: creator.id,
+    },
+  });
+
   t.after(async () => {
     await prisma.task.deleteMany({ where: { id: { in: [assignedTask.id, foreignTask.id] } } });
     await prisma.oneTimeOrderAssignment.deleteMany({
@@ -160,6 +198,10 @@ test('global search and recent resolution preserve domain ACL boundaries', async
       where: { objectId: { in: [assignedObject.id, foreignObject.id] } },
     });
     await prisma.object.deleteMany({ where: { id: { in: [assignedObject.id, foreignObject.id] } } });
+    await prisma.equipmentUnit.deleteMany({ where: { id: equipmentUnit.id } });
+    await prisma.equipmentCatalogItem.deleteMany({ where: { id: equipmentCatalogItem.id } });
+    await prisma.inventoryItem.deleteMany({ where: { id: inventoryItem.id } });
+    await prisma.counterparty.deleteMany({ where: { id: counterparty.id } });
     await prisma.candidate.deleteMany({ where: { id: candidate.id } });
     await prisma.employee.deleteMany({ where: { id: employee.id } });
     await prisma.user.deleteMany({ where: { id: { in: [manager.id, hr.id, creator.id] } } });
@@ -187,6 +229,9 @@ test('global search and recent resolution preserve domain ACL boundaries', async
   assert.equal(managerIds.has(foreignObject.id), false);
   assert.equal(managerIds.has(foreignOrder.id), false);
   assert.equal(managerIds.has(foreignTask.id), false);
+  assert.equal(managerIds.has(counterparty.id), true);
+  assert.equal(managerIds.has(inventoryItem.id), true);
+  assert.equal(managerIds.has(equipmentUnit.id), true);
 
   const recentResponse = await fetch(`${baseUrl}/api/v1/search/recent`, {
     method: 'POST',
@@ -220,6 +265,9 @@ test('global search and recent resolution preserve domain ACL boundaries', async
   const hrIds = new Set(hrBody.items.map((item) => item.id));
   assert.equal(hrIds.has(employee.id), true);
   assert.equal(hrIds.has(candidate.id), true);
+  assert.equal(hrIds.has(counterparty.id), true);
+  assert.equal(hrIds.has(inventoryItem.id), false);
+  assert.equal(hrIds.has(equipmentUnit.id), false);
 
   const shortQuery = await fetch(`${baseUrl}/api/v1/search?q=x`, {
     headers: { Cookie: managerCookie },
