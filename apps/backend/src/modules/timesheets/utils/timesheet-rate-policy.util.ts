@@ -318,13 +318,14 @@ function distributeAmountAcrossDays(params: {
   });
 }
 
-function buildSchedulePaidDays(
+export function getPlannedWorkingDays(
   year: number,
   month: number,
-  daysInMonth: number,
-  policy: TimesheetRatePolicySnapshot,
+  scheduleCode: string | null = null,
 ): number[] {
-  const workDaysPerWeek = Number(policy.scheduleCode?.split('/')[0] ?? 5);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const normalizedSchedule = normalizeScheduleCode(scheduleCode);
+  const workDaysPerWeek = Number(normalizedSchedule?.split('/')[0] ?? 5);
 
   if (workDaysPerWeek >= 7) {
     return Array.from({ length: daysInMonth }, (_, index) => index + 1);
@@ -337,6 +338,35 @@ function buildSchedulePaidDays(
       return mondayBasedIndex < workDaysPerWeek;
     },
   );
+}
+
+export function calculateMonthlySalaryDailyRate(params: {
+  monthlySalary: number;
+  year: number;
+  month: number;
+  scheduleCode?: string | null;
+}): { dailyRate: number; workingDays: number } {
+  const workingDays = getPlannedWorkingDays(
+    params.year,
+    params.month,
+    params.scheduleCode ?? null,
+  ).length;
+  const monthlySalary = Math.max(0, Math.round(params.monthlySalary));
+
+  return {
+    dailyRate:
+      workingDays > 0 ? Math.round(monthlySalary / workingDays) : 0,
+    workingDays,
+  };
+}
+
+function buildSchedulePaidDays(
+  year: number,
+  month: number,
+  _daysInMonth: number,
+  policy: TimesheetRatePolicySnapshot,
+): number[] {
+  return getPlannedWorkingDays(year, month, policy.scheduleCode);
 }
 
 function buildShift22Days(daysInMonth: number): number[] {
