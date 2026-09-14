@@ -9,7 +9,10 @@ import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-import { AddOneTimeOrderEmployeeDto } from './dto/one-time-order-workforce.dto';
+import {
+  AddOneTimeOrderEmployeeDto,
+  UpdateOneTimeOrderEmployeePaymentDto,
+} from './dto/one-time-order-workforce.dto';
 import { canEditOneTimeOrderByScope, canViewOneTimeOrderByScope } from './utils/one-time-order-access.util';
 
 interface CurrentAuthUser {
@@ -39,6 +42,7 @@ export interface OneTimeOrderWorkforceEmployee {
   fullName: string;
   position: string | null;
   baseDailyRate: number | null;
+  orderPayment: number | null;
   isActive: boolean;
   assignedAt: string;
   removedAt: string | null;
@@ -96,6 +100,7 @@ export class OneTimeOrderWorkforceService {
         fullName: string;
         position: string | null;
         baseDailyRate: number | null;
+        orderPayment: Prisma.Decimal | null;
         isActive: boolean;
         assignedAt: Date;
         removedAt: Date | null;
@@ -106,6 +111,7 @@ export class OneTimeOrderWorkforceService {
         employee."fullName",
         employee."position",
         employee."baseDailyRate",
+        assignment."orderPayment",
         assignment."isActive",
         assignment."assignedAt",
         assignment."removedAt"
@@ -120,6 +126,8 @@ export class OneTimeOrderWorkforceService {
       ...row,
       baseDailyRate:
         row.baseDailyRate === null ? null : Number(row.baseDailyRate),
+      orderPayment:
+        row.orderPayment === null ? null : Number(row.orderPayment),
       assignedAt: row.assignedAt.toISOString(),
       removedAt: row.removedAt?.toISOString() ?? null,
     }));
@@ -170,6 +178,67 @@ export class OneTimeOrderWorkforceService {
         workCycle: order.workCycle,
       },
     });
+    return this.listEmployees(currentUser, order.id);
+  }
+
+  async updateEmployeePayment(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    employeeId: string,
+    payload: UpdateOneTimeOrderEmployeePaymentDto,
+  ): Promise<OneTimeOrderWorkforceEmployee[]> {
+    const order = await this.assertOrderWritable(currentUser, orderId);
+    const existing = await this.prisma.$queryRaw<
+      Array<{ orderPayment: Prisma.Decimal | null }>
+    >`
+      SELECT assignment."orderPayment"
+      FROM "one_time_order_employee_assignments" assignment
+      WHERE assignment."oneTimeOrderId" = ${order.id}
+        AND assignment."workCycle" = ${order.workCycle}
+        AND assignment."employeeId" = ${employeeId}
+        AND assignment."isActive" = true
+      LIMIT 1
+    `;
+    if (existing.length === 0) {
+      throw new NotFoundException('Active one-time employee assignment not found');
+    }
+
+    const nextAmount =
+      payload.amount === undefined || payload.amount === null
+        ? null
+        : new Prisma.Decimal(payload.amount);
+    await this.prisma.$executeRaw`
+      UPDATE "one_time_order_employee_assignments"
+      SET
+        "orderPayment" = ${nextAmount},
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "oneTimeOrderId" = ${order.id}
+        AND "workCycle" = ${order.workCycle}
+        AND "employeeId" = ${employeeId}
+        AND "isActive" = true
+    `;
+
+    await this.auditService.writeAuditEvent({
+      entityType: 'one_time_order',
+      entityId: order.id,
+      actorUserId: currentUser.id,
+      action: 'one_time_order.workforce.payment_changed',
+      oldValues: {
+        employeeId,
+        workCycle: order.workCycle,
+        amount:
+          existing[0]?.orderPayment === null ||
+          existing[0]?.orderPayment === undefined
+            ? null
+            : Number(existing[0].orderPayment),
+      },
+      newValues: {
+        employeeId,
+        workCycle: order.workCycle,
+        amount: nextAmount === null ? null : Number(nextAmount),
+      },
+    });
+
     return this.listEmployees(currentUser, order.id);
   }
 
@@ -397,6 +466,7 @@ export class OneTimeOrderWorkforceService {
         fullName: string;
         position: string | null;
         baseDailyRate: number | null;
+        orderPayment: Prisma.Decimal | null;
         isActive: boolean;
         assignedAt: Date;
         removedAt: Date | null;
@@ -410,6 +480,7 @@ export class OneTimeOrderWorkforceService {
         employee."fullName",
         employee."position",
         employee."baseDailyRate",
+        assignment."orderPayment",
         assignment."isActive",
         assignment."assignedAt",
         assignment."removedAt",
@@ -461,6 +532,8 @@ export class OneTimeOrderWorkforceService {
         position: employee.position,
         baseDailyRate:
           employee.baseDailyRate === null ? null : Number(employee.baseDailyRate),
+        orderPayment:
+          employee.orderPayment === null ? null : Number(employee.orderPayment),
         isActive: employee.isActive,
         assignedAt: employee.assignedAt.toISOString(),
         removedAt: employee.removedAt?.toISOString() ?? null,
