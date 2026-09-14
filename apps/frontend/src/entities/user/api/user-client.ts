@@ -11,12 +11,16 @@ export type SystemUserListPurpose =
   | 'task_visibility'
   | 'one_time_order_manager'
   | 'one_time_order_task_assignee'
+  | 'one_time_order_payment_recipient'
   | 'chat_participant';
 
 interface ListSystemUsersParams {
   purpose: SystemUserListPurpose;
   objectId?: string;
   oneTimeOrderId?: string;
+  q?: string;
+  selectedId?: string;
+  limit?: number;
 }
 
 function buildUsersAccessQuery(params: ListSystemUsersParams): string {
@@ -29,6 +33,18 @@ function buildUsersAccessQuery(params: ListSystemUsersParams): string {
 
   if (params.oneTimeOrderId) {
     searchParams.set('oneTimeOrderId', params.oneTimeOrderId);
+  }
+
+  if (params.q) {
+    searchParams.set('q', params.q);
+  }
+
+  if (params.selectedId) {
+    searchParams.set('selectedId', params.selectedId);
+  }
+
+  if (params.limit) {
+    searchParams.set('limit', String(params.limit));
   }
 
   return `?${searchParams.toString()}`;
@@ -95,5 +111,20 @@ export async function listChatParticipantCandidates(): Promise<
 > {
   return listSystemUsers({
     purpose: 'chat_participant',
+  });
+}
+
+
+export async function listOneTimeOrderPaymentRecipientCandidates(
+  oneTimeOrderId: string,
+  q?: string,
+  selectedId?: string,
+): Promise<SystemUserOption[]> {
+  return listSystemUsers({
+    purpose: 'one_time_order_payment_recipient',
+    oneTimeOrderId,
+    ...(q ? { q } : {}),
+    ...(selectedId ? { selectedId } : {}),
+    limit: 20,
   });
 }
