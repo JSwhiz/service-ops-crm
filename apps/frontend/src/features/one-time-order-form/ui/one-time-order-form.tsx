@@ -25,7 +25,7 @@ type OneTimeOrderFormPayload = {
   contactName: string;
   contactPhone?: string;
   agreedSum?: number;
-  plannedPaymentMethod?: CreateOneTimeOrderPayload['plannedPaymentMethod'];
+  plannedPaymentMethod?: CreateOneTimeOrderPayload['plannedPaymentMethod'] | null;
   financialNotes?: string;
   expenseNotes?: string;
   managerUserIds?: string[];
@@ -135,9 +135,9 @@ export function OneTimeOrderForm({
         ...(canEditFinancialFields
           ? {
               agreedSum: form.agreedSum ? Number(form.agreedSum) : undefined,
-              plannedPaymentMethod:
-                (form.plannedPaymentMethod as CreateOneTimeOrderPayload['plannedPaymentMethod']) ||
-                undefined,
+              plannedPaymentMethod: form.plannedPaymentMethod
+                ? (form.plannedPaymentMethod as CreateOneTimeOrderPayload['plannedPaymentMethod'])
+                : null,
               financialNotes: form.financialNotes || undefined,
               expenseNotes: form.expenseNotes || undefined,
             }
