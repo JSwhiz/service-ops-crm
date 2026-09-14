@@ -421,8 +421,10 @@ model Object {
   timesheetMonths         TimesheetMonth[]
   timesheetManualExceptions TimesheetManualException[]
   auditLogs               ObjectAuditLog[]
+  candidates               Candidate[]
 
   @@index([status])
+  @@index([objectId])
   @@index([createdByUserId])
   @@map("objects")
 }
@@ -563,6 +565,7 @@ model Candidate {
   comment         String?
   candidateType   String   @default("regular")
   status          String   @default("new")
+  objectId        String?
   createdByUserId String
   version         Int      @default(1)
   createdAt       DateTime @default(now())
@@ -570,6 +573,7 @@ model Candidate {
   deletedAt       DateTime?
 
   createdBy   User                         @relation("CandidateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  object      Object?                      @relation(fields: [objectId], references: [id], onDelete: Restrict)
   assignments CandidateManagerAssignment[]
   responses   CandidateResponse[]
 
