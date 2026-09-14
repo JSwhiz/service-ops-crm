@@ -32,6 +32,11 @@ export class UpdateObjectDto {
   @IsString()
   notes?: string;
 
+  @Transform(({ value }) => (value === '' ? null : value))
+  @IsOptional()
+  @IsUUID('4')
+  counterpartyId?: string | null;
+
   @IsOptional()
   @IsUUID('4')
   responsibleUserId?: string;
