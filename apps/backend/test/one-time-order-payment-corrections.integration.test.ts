@@ -147,9 +147,11 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
     managerUserIds: string[];
     payments: Array<{
       amount: number;
-      paymentMethod: string;
-      paymentDestination: string;
-      recipientUserId?: string;
+      paymentMethod?: string | null;
+      paymentDestination?: string | null;
+      recipientUserId?: string | null;
+      zeroReason?: string | null;
+      comment?: string | null;
     }>;
   }) => {
     const createResponse = await postJson(
