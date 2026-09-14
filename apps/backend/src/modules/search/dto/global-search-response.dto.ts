@@ -3,7 +3,10 @@ export type GlobalSearchEntityType =
   | 'one_time_order'
   | 'task'
   | 'employee'
-  | 'candidate';
+  | 'candidate'
+  | 'counterparty'
+  | 'inventory_item'
+  | 'equipment_unit';
 
 export class GlobalSearchItemDto {
   id!: string;
