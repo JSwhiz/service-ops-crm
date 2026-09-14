@@ -111,7 +111,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const month = normalizeMonth(searchParams.get('month'));
-  const managerUserId = searchParams.get('managerUserId') ?? '';
+  const requestedManagerUserId = searchParams.get('managerUserId') ?? '';
   const canView = user?.capabilities?.canViewOneTimeOrderCalendar ?? false;
   const canCreateOrder = user?.capabilities?.canCreateOneTimeOrder ?? false;
   const canManageOwn =
@@ -120,6 +120,9 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
     user?.capabilities?.canManageAnyOneTimeOrderAvailability ?? false;
   const canApprove =
     user?.capabilities?.canApproveOneTimeOrderAvailability ?? false;
+  const managerUserId =
+    requestedManagerUserId ||
+    (canManageOwn && !canManageAny && !canApprove ? user?.id ?? '' : '');
   const [calendar, setCalendar] = useState<OneTimeOrderCalendarResponse | null>(null);
   const [managerOptions, setManagerOptions] = useState<SystemUserOption[]>([]);
   const [selectedDay, setSelectedDay] = useState<SelectedDay | null>(null);
@@ -390,7 +393,11 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
               searchText: manager.login,
             }))}
             onChange={(value) => replaceQuery(month, value)}
-            placeholder="Все менеджеры"
+            placeholder={
+              canManageOwn && !canManageAny && !canApprove
+                ? 'Мой календарь'
+                : 'Все менеджеры'
+            }
             asyncSearch={async (search) =>
               (await listOneTimeOrderCalendarManagers(search)).map((manager) => ({
                 value: manager.id,
