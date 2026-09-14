@@ -242,6 +242,74 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+.auditHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auditTime {
+  flex: 0 0 auto;
+  color: #8b7d74;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.auditChanges {
+  display: grid;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.auditChangeRow {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.45fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 7px 0;
+  border-top: 1px solid #f0e9e4;
+}
+
+.auditChangeRow > span {
+  color: #83756c;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.auditChangeRow > div {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  color: #3f3732;
+  font-size: 13px;
+}
+
+.auditChangeRow del {
+  color: #9b8e85;
+}
+
+.auditArrow {
+  color: #ad9f96;
+}
+
+.auditTechnical {
+  border-top: 1px solid #f0e9e4;
+  padding-top: 8px;
+}
+
+.auditTechnical summary {
+  width: fit-content;
+  color: #83756c;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.auditTechnical .payload {
+  margin-top: 8px;
+}
 
 .error,
 .success,
