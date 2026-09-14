@@ -5,6 +5,7 @@ export interface OneTimeWorkforceEmployee {
   fullName: string;
   position: string | null;
   baseDailyRate: number | null;
+  orderPayment: number | null;
   isActive: boolean;
   assignedAt: string;
   removedAt: string | null;
@@ -69,6 +70,20 @@ export function addOneTimeWorkforceEmployee(
     method: 'POST',
     body: JSON.stringify({ employeeId }),
   });
+}
+
+export function updateOneTimeWorkforceEmployeePayment(
+  orderId: string,
+  employeeId: string,
+  amount: number | null,
+): Promise<OneTimeWorkforceEmployee[]> {
+  return fetcher(
+    `/one-time-orders/${orderId}/workforce/employees/${employeeId}/payment`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ amount }),
+    },
+  );
 }
 
 export function removeOneTimeWorkforceEmployee(
