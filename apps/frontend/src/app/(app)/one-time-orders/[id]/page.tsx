@@ -55,7 +55,7 @@ import {
   uploadFileToEntity,
 } from '@/entities/file/api/file-client';
 import type { AttachedFile } from '@/entities/file/model/file.types';
-import { listObjects } from '@/entities/object/api/object-client';
+import { listObjectsPage } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import {
   listOneTimeOrderManagerCandidates,
@@ -84,6 +84,7 @@ import {
   getOneTimeOrderStatusLabel,
 } from '@/shared/lib/one-time-order-presentation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -91,6 +92,17 @@ function getErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function toObjectOption(object: ServiceObject): SearchableSelectOption {
+  return {
+    value: object.id,
+    label: object.name,
+    description: [object.internalName, object.address].filter(Boolean).join(' · '),
+    searchText: [object.name, object.internalName, object.address]
+      .filter(Boolean)
+      .join(' '),
+  };
 }
 
 function confirmScheduleConflicts(
@@ -125,9 +137,7 @@ export default function OneTimeOrderDetailPage({
   const [accountability, setAccountability] =
     useState<OneTimeOrderAccountabilityView | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [managerCandidates, setManagerCandidates] = useState<SystemUserOption[]>([]);
   const [taskAssignees, setTaskAssignees] = useState<SystemUserOption[]>([]);
-  const [objectOptions, setObjectOptions] = useState<ServiceObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -249,18 +259,6 @@ export default function OneTimeOrderDetailPage({
       }),
     ];
 
-    if (order.capabilities.canManageManagers) {
-      requests.push(
-        listOneTimeOrderManagerCandidates(id).then((response) => {
-          if (!cancelled) {
-            setManagerCandidates(response);
-          }
-        }),
-      );
-    } else if (!cancelled) {
-      setManagerCandidates([]);
-    }
-
     if (order.capabilities.canCreateTask) {
       requests.push(
         listOneTimeOrderTaskAssigneeCandidates(id).then((response) => {
@@ -271,18 +269,6 @@ export default function OneTimeOrderDetailPage({
       );
     } else if (!cancelled) {
       setTaskAssignees([]);
-    }
-
-    if (order.capabilities.canChangeLinkedObject) {
-      requests.push(
-        listObjects().then((response) => {
-          if (!cancelled) {
-            setObjectOptions(response);
-          }
-        }),
-      );
-    } else if (!cancelled) {
-      setObjectOptions([]);
     }
 
     await Promise.all(requests);
@@ -423,8 +409,24 @@ export default function OneTimeOrderDetailPage({
 
           {item.capabilities.canEditOperationalFields && editableInitialValue ? (
             <OneTimeOrderForm
-              objects={objectOptions}
-              managerOptions={[]}
+              initialLinkedObjectOption={
+                item.linkedObject
+                  ? {
+                      value: item.linkedObject.id,
+                      label: item.linkedObject.name,
+                    }
+                  : null
+              }
+              searchObjects={async (query) => {
+                const result = await listObjectsPage({
+                  q: query,
+                  page: 1,
+                  limit: 20,
+                  sortBy: 'name',
+                  sortDirection: 'asc',
+                });
+                return result.items.map(toObjectOption);
+              }}
               initialValue={editableInitialValue}
               canSelectLinkedObject={canSelectLinkedObject}
               canEditFinancialFields={
@@ -466,7 +468,9 @@ export default function OneTimeOrderDetailPage({
 
           <OneTimeOrderManagersPanel
             item={item}
-            candidates={managerCandidates}
+            searchCandidates={(query) =>
+              listOneTimeOrderManagerCandidates(item.id, query)
+            }
             onAssign={async (userId) => {
               let conflictFingerprint: string | undefined;
               if (item.executionStartDate && item.executionEndDate) {
