@@ -12,6 +12,7 @@ import { useAuth } from '@/shared/auth/use-auth';
 
 import {
   COMMAND_GROUP_ORDER,
+  CREATE_GROUP_ORDER,
   type CommandGroup,
   type CommandItem,
   resolveGlobalActions,
@@ -31,6 +32,9 @@ const SEARCH_GROUP_BY_TYPE: Record<GlobalSearchEntityType, CommandGroup> = {
   task: 'Задачи',
   employee: 'Сотрудники',
   candidate: 'Кандидаты',
+  counterparty: 'Контрагенты',
+  inventory_item: 'Расходники',
+  equipment_unit: 'Оборудование',
 };
 
 function SearchIcon(): React.JSX.Element {
@@ -174,14 +178,18 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
     return [...remoteItems, ...staticMatches];
   }, [actions, navigation, normalized, recent, remoteItems, staticMatches]);
 
-  const grouped = useMemo(
-    () =>
-      COMMAND_GROUP_ORDER.map((group) => ({
+  const grouped = useMemo(() => {
+    const groupOrder = normalized
+      ? Array.from(new Set(rawItems.map((item) => item.group)))
+      : COMMAND_GROUP_ORDER;
+
+    return groupOrder
+      .map((group) => ({
         group,
         items: rawItems.filter((item) => item.group === group),
-      })).filter((section) => section.items.length > 0),
-    [rawItems],
-  );
+      }))
+      .filter((section) => section.items.length > 0);
+  }, [normalized, rawItems]);
 
   const orderedItems = useMemo(
     () => grouped.flatMap((section) => section.items),
@@ -240,7 +248,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Найти объект, заказ, задачу, сотрудника или кандидата…"
+            placeholder="Найти объект, заказ, человека, контрагента, расходник или оборудование…"
             aria-label="Поиск"
             onKeyDown={(event) => {
               if (event.key === 'ArrowDown') {
@@ -313,6 +321,14 @@ export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpen
   const router = useRouter();
   const { user } = useAuth();
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
+  const groupedActions = useMemo(
+    () =>
+      CREATE_GROUP_ORDER.map((group) => ({
+        group,
+        items: actions.filter((item) => (item.createGroup ?? 'Основное') === group),
+      })).filter((section) => section.items.length > 0),
+    [actions],
+  );
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -336,12 +352,16 @@ export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpen
       <button type="button" className="global-create__trigger" aria-label="Создать" title="Создать" aria-haspopup="menu" aria-expanded={open} onClick={() => onOpenChange(!open)}><PlusIcon /></button>
       {open ? (
         <div className="global-create__menu" role="menu">
-          <div className="global-create__label">Новое</div>
-          {actions.map((item) => (
-            <button type="button" role="menuitem" key={item.id} onClick={() => { onOpenChange(false); router.push(item.href); }}>
-              <span className="global-create__item-icon"><PlusIcon /></span>
-              <span><strong>{item.label.replace(/^Создать /, '')}</strong><small>{item.description}</small></span>
-            </button>
+          {groupedActions.map((section) => (
+            <div className="global-create__section" key={section.group}>
+              <div className="global-create__label">{section.group}</div>
+              {section.items.map((item) => (
+                <button type="button" role="menuitem" key={item.id} onClick={() => { onOpenChange(false); router.push(item.href); }}>
+                  <span className="global-create__item-icon"><PlusIcon /></span>
+                  <span><strong>{item.label.replace(/^Создать /, '')}</strong><small>{item.description}</small></span>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       ) : null}
