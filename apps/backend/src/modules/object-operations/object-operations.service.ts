@@ -28,6 +28,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import {
+  buildObjectDefaultRatePolicy,
   calculateMonthlySalaryDailyRate,
   getRatePolicyLabel,
   normalizeRatePolicy,
@@ -428,6 +429,7 @@ export class ObjectOperationsService {
           id: objectId,
         },
         select: {
+          paymentType: true,
           dailyRate: true,
           monthlySalary: true,
         },
@@ -493,9 +495,13 @@ export class ObjectOperationsService {
         workTimeText: item.employee.workTimeText,
         isAssignedToObject: true,
         ratePolicy: item,
+        objectPaymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
+        objectMonthlySalary: object?.monthlySalary ?? 0,
+        objectDailyRate: object?.dailyRate ?? 0,
         ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
+          paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
           monthlySalary: object?.monthlySalary ?? 0,
-          legacyDailyRate: object?.dailyRate ?? 0,
+          dailyRate: object?.dailyRate ?? 0,
           operationDate: startOfToday(),
           scheduleCode: item.ratePolicyScheduleCode,
         }),
@@ -1113,15 +1119,23 @@ export class ObjectOperationsService {
             const assignment = object.employeeAssignments.find(
               (item) => item.employeeId === employeeId,
             );
-            const ratePolicy = normalizeRatePolicy(
-              assignment,
-              this.getObjectMonthlySalaryDailyFallback({
-                monthlySalary: object.monthlySalary,
-                legacyDailyRate: object.dailyRate,
-                operationDate: normalizedDate,
-                scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
-              }),
-            );
+            const ratePolicy = assignment?.ratePolicyUpdatedAt
+              ? normalizeRatePolicy(
+                  assignment,
+                  this.getObjectMonthlySalaryDailyFallback({
+                    paymentType: object.paymentType as 'monthly' | 'daily',
+                    monthlySalary: object.monthlySalary,
+                    dailyRate: object.dailyRate,
+                    operationDate: normalizedDate,
+                    scheduleCode: assignment.ratePolicyScheduleCode,
+                  }),
+                )
+              : buildObjectDefaultRatePolicy({
+                  paymentType: object.paymentType as 'monthly' | 'daily',
+                  monthlySalary: object.monthlySalary,
+                  dailyRate: object.dailyRate,
+                  scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
+                });
             const workedHours = workedHoursByEmployeeId.get(employeeId) ?? null;
             const dailyRateSnapshot =
               ratePolicy.ratePolicyType === 'partial_shift'
@@ -1198,7 +1212,7 @@ export class ObjectOperationsService {
     const [object, assignedEmployees, activeSubstitutions] = await Promise.all([
       this.prisma.object.findUnique({
         where: { id: objectId },
-        select: { dailyRate: true, monthlySalary: true },
+        select: { paymentType: true, dailyRate: true, monthlySalary: true },
       }),
       this.prisma.objectEmployeeAssignment.findMany({
         where: {
@@ -1298,9 +1312,13 @@ export class ObjectOperationsService {
         fullName: item.employee.fullName,
         isAssignedToObject: true,
         ratePolicy: item,
+        objectPaymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
+        objectMonthlySalary: object?.monthlySalary ?? 0,
+        objectDailyRate: object?.dailyRate ?? 0,
         ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
+          paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
           monthlySalary: object?.monthlySalary ?? 0,
-          legacyDailyRate: object?.dailyRate ?? 0,
+          dailyRate: object?.dailyRate ?? 0,
           operationDate,
           scheduleCode: item.ratePolicyScheduleCode,
         }),
@@ -1322,9 +1340,13 @@ export class ObjectOperationsService {
           employeeId: item.substituteEmployee.id,
           fullName: item.substituteEmployee.fullName,
           isAssignedToObject: false,
+          objectPaymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
+          objectMonthlySalary: object?.monthlySalary ?? 0,
+          objectDailyRate: object?.dailyRate ?? 0,
           ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
+            paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
             monthlySalary: object?.monthlySalary ?? 0,
-            legacyDailyRate: object?.dailyRate ?? 0,
+            dailyRate: object?.dailyRate ?? 0,
             operationDate,
           }),
           availabilityWindows: item.substituteEmployee.availabilityWindows,
@@ -1340,8 +1362,9 @@ export class ObjectOperationsService {
   }
 
   private getObjectMonthlySalaryDailyFallback(params: {
+    paymentType: 'monthly' | 'daily';
     monthlySalary: number;
-    legacyDailyRate: number;
+    dailyRate: number;
     operationDate: Date;
     scheduleCode?: string | null;
   }): number {
@@ -1352,9 +1375,9 @@ export class ObjectOperationsService {
       scheduleCode: params.scheduleCode ?? null,
     });
 
-    return params.monthlySalary > 0
+    return params.paymentType === 'monthly'
       ? calculation.dailyRate
-      : Math.max(0, Math.round(params.legacyDailyRate));
+      : Math.max(0, Math.round(params.dailyRate));
   }
 
   private buildActiveObjectSubstitutionWhere(
@@ -1476,6 +1499,9 @@ export class ObjectOperationsService {
         baseDailyRate: number | null;
       };
     } | null;
+    objectPaymentType?: 'monthly' | 'daily';
+    objectMonthlySalary?: number;
+    objectDailyRate?: number;
     ratePolicyFallbackAmount?: number;
     availabilityWindows: Array<{
       id: string;
@@ -1537,14 +1563,21 @@ export class ObjectOperationsService {
         comment: item.comment,
       })),
     ].sort((left, right) => (left.startDate < right.startDate ? 1 : -1));
-    const ratePolicy = params.ratePolicy
+    const ratePolicy = params.ratePolicy?.ratePolicyUpdatedAt
       ? normalizeRatePolicy(
           params.ratePolicy,
           params.ratePolicyFallbackAmount ??
             params.ratePolicy.employee?.baseDailyRate ??
             0,
         )
-      : null;
+      : params.objectPaymentType
+        ? buildObjectDefaultRatePolicy({
+            paymentType: params.objectPaymentType,
+            monthlySalary: params.objectMonthlySalary ?? 0,
+            dailyRate: params.objectDailyRate ?? 0,
+            scheduleCode: params.ratePolicy?.ratePolicyScheduleCode ?? null,
+          })
+        : null;
 
     return {
       id: params.employeeId,
