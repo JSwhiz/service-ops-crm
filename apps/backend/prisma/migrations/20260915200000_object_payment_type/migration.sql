@@ -1,5 +1,5 @@
 ALTER TABLE "objects"
-  ADD COLUMN "paymentType" TEXT NOT NULL DEFAULT 'monthly';
+  ADD COLUMN "paymentType" TEXT NOT NULL DEFAULT 'daily';
 
 UPDATE "objects"
 SET "paymentType" = CASE
