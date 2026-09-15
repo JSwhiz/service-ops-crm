@@ -602,7 +602,7 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
         action: 'one_time_order.payment_corrected',
       },
     }),
-    8,
+    9,
   );
 
   const differenceAudit = await prisma.auditEvent.findFirstOrThrow({
