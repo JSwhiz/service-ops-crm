@@ -24,6 +24,10 @@ export class UpdateObjectDto {
   seasonMode?: 'summer' | 'winter' | null;
 
   @IsOptional()
+  @IsIn(['monthly', 'daily'])
+  paymentType?: 'monthly' | 'daily';
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   dailyRate?: number;
