@@ -354,7 +354,9 @@ export class ObjectsService {
           address: payload.address,
           status: payload.status ?? 'active',
           seasonMode: payload.seasonMode ?? null,
-          paymentType: payload.paymentType ?? 'monthly',
+          paymentType:
+            payload.paymentType ??
+            ((payload.monthlySalary ?? 0) > 0 ? 'monthly' : 'daily'),
           dailyRate: payload.dailyRate ?? 0,
           monthlySalary: payload.monthlySalary ?? 0,
           notes: payload.notes ?? null,
