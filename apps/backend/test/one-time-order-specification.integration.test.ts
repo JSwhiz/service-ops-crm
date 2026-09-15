@@ -55,7 +55,7 @@ test('one-time order specification supports checklist lifecycle, attachments and
     await prisma.$disconnect();
   });
 
-  const [managerCookie, deputyCookie] = await Promise.all([
+  const [managerCookie, outsiderCookie] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'manager1',
@@ -63,15 +63,15 @@ test('one-time order specification supports checklist lifecycle, attachments and
     }),
     loginAndGetCookieHeader({
       baseUrl,
-      login: 'deputy1',
-      password: 'deputy123',
+      login: 'manager2',
+      password: 'manager123',
     }),
   ]);
   const itemsUrl = `${baseUrl}/api/v1/one-time-orders/${order.id}/specification-items`;
 
   const deniedCreate = await fetch(itemsUrl, {
     method: 'POST',
-    headers: { Cookie: deputyCookie, 'Content-Type': 'application/json' },
+    headers: { Cookie: outsiderCookie, 'Content-Type': 'application/json' },
     body: JSON.stringify({ title: 'Недоступный пункт' }),
   });
   assert.equal(deniedCreate.status, 404);
