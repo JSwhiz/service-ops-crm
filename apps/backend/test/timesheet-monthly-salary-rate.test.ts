@@ -101,3 +101,35 @@ test('monthly fixed salary is zero without attendance facts', () => {
 
   assert.equal(calculated.size, 0);
 });
+
+
+test('fixed monthly salary does not exceed the configured monthly amount', () => {
+  const facts = Array.from({ length: 28 }, (_unused, index) => ({
+    dayOfMonth: index + 1,
+    dailyRateSnapshot: 5_000,
+    workedHours: 8,
+    ratePolicySnapshot: null,
+  }));
+  const calculated = calculateTimesheetAutoValues({
+    year: 2026,
+    month: 2,
+    daysInMonth: 28,
+    policy: {
+      ratePolicyType: 'monthly_fixed',
+      baseAmount: 100_000,
+      scheduleCode: '5/2',
+      roundingMode: 'none',
+      roundingStep: null,
+      standardShiftHours: 8,
+      workingDaysInMonth: null,
+      excludedHolidayDays: null,
+      notes: null,
+    },
+    facts,
+  });
+
+  assert.equal(
+    [...calculated.values()].reduce((sum, item) => sum + item.autoValue, 0),
+    100_000,
+  );
+});
