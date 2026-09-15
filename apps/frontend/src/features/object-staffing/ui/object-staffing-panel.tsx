@@ -263,7 +263,7 @@ export function ObjectStaffingPanel({
                 </div>
                 <div className={styles.ratePolicyLine}>
                   <span>
-                    {employee.ratePolicy?.label ?? 'Дневная ставка объекта'}
+                    {employee.ratePolicy?.label ?? 'Условия оплаты объекта'}
                   </span>
                   {canManageRatePolicy && onUpdateRatePolicy ? (
                     <button
