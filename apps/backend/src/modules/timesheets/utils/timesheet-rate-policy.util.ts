@@ -189,10 +189,11 @@ export function calculateTimesheetAutoValues(params: {
           params.daysInMonth,
           params.policy,
         ).length;
+      const payableDays = Math.min(factDays.length, workingDays);
       const totalAmount =
         workingDays > 0
           ? Math.round(
-              (params.policy.baseAmount / workingDays) * factDays.length,
+              (params.policy.baseAmount / workingDays) * payableDays,
             )
           : 0;
 
@@ -202,7 +203,7 @@ export function calculateTimesheetAutoValues(params: {
         policy: params.policy,
         result,
         explanationPrefix:
-          `Оклад ${params.policy.baseAmount} / ${workingDays} × ${factDays.length} фактических выходов`,
+          `Оклад ${params.policy.baseAmount} / ${workingDays} × ${payableDays} оплачиваемых дней`,
       });
 
       for (const dayOfMonth of factDays) {
