@@ -49,6 +49,11 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   const linkedObjectId = searchParams.get('linkedObjectId') ?? '';
   const dateFrom = searchParams.get('dateFrom') ?? '';
   const dateTo = searchParams.get('dateTo') ?? '';
+  const rawReviewStatus = searchParams.get('reviewStatus');
+  const reviewStatus =
+    rawReviewStatus === 'missing' || rawReviewStatus === 'present'
+      ? rawReviewStatus
+      : '';
   const page = parsePage(searchParams.get('page'));
   const sortBy = parseSortBy(searchParams.get('sortBy'));
   const sortDirection = searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc';
@@ -107,7 +112,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
       ? listOneTimeOrderReviews({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: PAGE_LIMIT }).then((next) => {
           if (requestSequenceRef.current === requestSequence) setReviews(next);
         })
-      : listOneTimeOrders({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, linkedObjectId: linkedObjectId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: PAGE_LIMIT, sortBy, sortDirection }).then((next) => {
+      : listOneTimeOrders({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, linkedObjectId: linkedObjectId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, reviewStatus: reviewStatus || undefined, page, limit: PAGE_LIMIT, sortBy, sortDirection }).then((next) => {
           if (requestSequenceRef.current === requestSequence) setResult(next);
         });
     void request.catch(() => {
@@ -115,7 +120,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     }).finally(() => {
       if (requestSequenceRef.current === requestSequence) setIsLoading(false);
     });
-  }, [canAccess, canViewReviews, dateFrom, dateTo, linkedObjectId, managerUserId, page, query, reviewOnly, sortBy, sortDirection, status]);
+  }, [canAccess, canViewReviews, dateFrom, dateTo, linkedObjectId, managerUserId, page, query, reviewOnly, reviewStatus, sortBy, sortDirection, status]);
 
   const total = reviewOnly ? reviews.total : result.total;
   const totalPages = reviewOnly ? reviews.totalPages : result.totalPages;
@@ -135,6 +140,16 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
       <SearchableSelect label="Статус" value={status} options={STATUS_OPTIONS} onChange={(value) => replaceQuery({ status: value || null, page: null })} placeholder="Все статусы" />
       <SearchableSelect label="Менеджер" value={managerUserId} options={[]} selectedOption={selectedManager} onChange={(value) => replaceQuery({ managerUserId: value || null, page: null })} placeholder="Все менеджеры" asyncSearch={async (search) => (await listOneTimeOrderManagerReferences({ search })).map((item) => ({ value: item.id, label: item.fullName || item.login, searchText: item.login }))} />
       {!reviewOnly ? <SearchableSelect label="Объект" value={linkedObjectId} options={[]} selectedOption={selectedObject} onChange={(value) => replaceQuery({ linkedObjectId: value || null, page: null })} placeholder="Все объекты" asyncSearch={async (search) => (await listOneTimeOrderObjectReferences({ search })).map((item) => ({ value: item.id, label: item.name }))} /> : null}
+      {!reviewOnly && canViewReviews ? (
+        <div className="one-time-order-review-filter" aria-label="Фильтр по отзывам">
+          <span>Отзывы</span>
+          <div className="one-time-order-review-filter__options">
+            <button type="button" className={!reviewStatus ? 'is-active' : ''} aria-pressed={!reviewStatus} onClick={() => replaceQuery({ reviewStatus: null, page: null })}>Все</button>
+            <button type="button" className={reviewStatus === 'missing' ? 'is-active' : ''} aria-pressed={reviewStatus === 'missing'} onClick={() => replaceQuery({ reviewStatus: 'missing', status: null, page: null })}>Требуют отзыва</button>
+            <button type="button" className={reviewStatus === 'present' ? 'is-active' : ''} aria-pressed={reviewStatus === 'present'} onClick={() => replaceQuery({ reviewStatus: 'present', page: null })}>С отзывом</button>
+          </div>
+        </div>
+      ) : null}
       <label><span>Период с</span><input type="date" value={dateFrom} onChange={(event) => replaceQuery({ dateFrom: event.target.value || null, page: null })} /></label>
       <label><span>Период по</span><input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => replaceQuery({ dateTo: event.target.value || null, page: null })} /></label>
       <button type="button" onClick={() => { setSearchInput(''); router.replace(pathname, { scroll: false }); }}>Сбросить</button>
