@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
@@ -23,16 +23,28 @@ export function OneTimeOrderReviewPanel({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setText(item.reviewText ?? '');
     setRating(item.reviewRating === null ? '' : String(item.reviewRating));
   }, [item.reviewRating, item.reviewText]);
 
+  useEffect(() => {
+    if (window.location.hash !== '#review') return;
+    window.requestAnimationFrame(() => {
+      sectionRef.current?.scrollIntoView({ block: 'start' });
+      if (item.capabilities.canEditReview) {
+        textareaRef.current?.focus();
+      }
+    });
+  }, [item.capabilities.canEditReview]);
+
   const hasReview = item.reviewText !== null || item.reviewRating !== null;
 
   return (
-    <section className="page-card">
+    <section id="review" ref={sectionRef} className="page-card one-time-order-review-section">
       <div className="section-header">
         <div>
           <div className="section-title">Отзыв</div>
@@ -90,6 +102,7 @@ export function OneTimeOrderReviewPanel({
           <label>
             <div className="detail-label">Текст отзыва</div>
             <textarea
+              ref={textareaRef}
               value={text}
               onChange={(event) => setText(event.target.value)}
               maxLength={5000}
