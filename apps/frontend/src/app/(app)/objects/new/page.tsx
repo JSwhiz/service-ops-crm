@@ -29,7 +29,9 @@ export default function NewObjectPage(): React.JSX.Element {
     address: '',
     status: 'active',
     seasonMode: '',
+    paymentType: 'monthly' as 'monthly' | 'daily',
     monthlySalary: '0',
+    dailyRate: '0',
     notes: '',
   });
 
@@ -114,7 +116,9 @@ export default function NewObjectPage(): React.JSX.Element {
         address: form.address.trim(),
         status: form.status,
         seasonMode: form.seasonMode || null,
+        paymentType: form.paymentType,
         monthlySalary: Number(form.monthlySalary) || 0,
+        dailyRate: Number(form.dailyRate) || 0,
         notes: form.notes.trim() || undefined,
         counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
         managerUserIds,
@@ -228,18 +232,55 @@ export default function NewObjectPage(): React.JSX.Element {
           </label>
 
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>ЗП за месяц</span>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={form.monthlySalary}
-              onChange={(event) => setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))}
-            />
-            <span className={styles.inlineHelp}>
-              Дневная ставка для табеля рассчитывается автоматически для каждого месяца.
-            </span>
+            <span className={styles.fieldLabel}>Тип оплаты</span>
+            <select
+              value={form.paymentType}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  paymentType: event.target.value as 'monthly' | 'daily',
+                }))
+              }
+            >
+              <option value="monthly">Фиксированная ЗП за месяц</option>
+              <option value="daily">Дневная ставка за выход</option>
+            </select>
           </label>
+
+          {form.paymentType === 'monthly' ? (
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>ЗП за месяц</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={form.monthlySalary}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))
+                }
+              />
+              <span className={styles.inlineHelp}>
+                За полный отработанный месяц начисляется вся сумма. Неполный месяц
+                рассчитывается пропорционально фактическим выходам.
+              </span>
+            </label>
+          ) : (
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Дневная ставка</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={form.dailyRate}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, dailyRate: event.target.value }))
+                }
+              />
+              <span className={styles.inlineHelp}>
+                Каждый отмеченный выход в табеле оплачивается по этой ставке.
+              </span>
+            </label>
+          )}
 
           <label className={`${styles.field} ${styles.fullWidth}`}>
             <span className={styles.fieldLabel}>Комментарий</span>
