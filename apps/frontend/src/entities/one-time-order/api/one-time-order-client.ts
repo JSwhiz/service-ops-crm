@@ -40,6 +40,7 @@ export interface ListOneTimeOrdersParams {
   linkedObjectId?: string;
   dateFrom?: string;
   dateTo?: string;
+  reviewStatus?: 'missing' | 'present';
   page?: number;
   limit?: number;
   sortBy?: OneTimeOrderSortField;
