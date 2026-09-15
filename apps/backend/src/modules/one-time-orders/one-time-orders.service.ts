@@ -391,6 +391,20 @@ export class OneTimeOrdersService {
         },
       });
     }
+    if (query.reviewStatus === 'missing') {
+      clauses.push({
+        status: 'completed',
+        reviewText: null,
+        reviewRating: null,
+      });
+    } else if (query.reviewStatus === 'present') {
+      clauses.push({
+        OR: [
+          { reviewText: { not: null } },
+          { reviewRating: { not: null } },
+        ],
+      });
+    }
     if (search) {
       clauses.push({
         OR: [
