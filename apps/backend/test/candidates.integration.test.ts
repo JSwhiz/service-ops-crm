@@ -60,14 +60,22 @@ test('candidate registry, object assignment and scoped immutable feedback flow',
 
   const hrCookie = cookies.get('hr1')!;
   const managerCookie = cookies.get('manager1')!;
-  const [managerOne, managerTwo, operationManager, founderUser, candidateObject] =
+  const [managerOne, managerTwo, operationManager, founderUser] =
     await Promise.all([
       prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
       prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
       prisma.user.findUniqueOrThrow({ where: { login: 'berendyakov' } }),
       prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
-      prisma.object.findFirstOrThrow({ where: { deletedAt: null } }),
     ]);
+
+  const candidateObject = await prisma.object.create({
+    data: {
+      name: 'Candidates integration object',
+      address: 'Integration test',
+      status: 'active',
+      createdByUserId: founderUser.id,
+    },
+  });
 
   const deniedCreate = await request(baseUrl, managerCookie, '/candidates', {
     method: 'POST',
