@@ -70,6 +70,7 @@ interface ObjectView {
   address: string;
   status: string;
   seasonMode: string | null;
+  paymentType: 'monthly' | 'daily';
   dailyRate: number;
   monthlySalary: number;
   notes: string | null;
@@ -353,6 +354,7 @@ export class ObjectsService {
           address: payload.address,
           status: payload.status ?? 'active',
           seasonMode: payload.seasonMode ?? null,
+          paymentType: payload.paymentType ?? 'monthly',
           dailyRate: payload.dailyRate ?? 0,
           monthlySalary: payload.monthlySalary ?? 0,
           notes: payload.notes ?? null,
@@ -430,6 +432,7 @@ export class ObjectsService {
         address: created.address,
         status: created.status,
         seasonMode: created.seasonMode,
+        paymentType: created.paymentType,
         dailyRate: created.dailyRate,
         monthlySalary: created.monthlySalary,
         counterpartyId: created.counterpartyId,
@@ -470,7 +473,8 @@ export class ObjectsService {
     const existing = await this.getEditableObject(currentUser, id);
 
     if (
-      (typeof payload.dailyRate === 'number' ||
+      (payload.paymentType !== undefined ||
+        typeof payload.dailyRate === 'number' ||
         typeof payload.monthlySalary === 'number') &&
       !canEditObjectDailyRate(roleCodes)
     ) {
@@ -566,6 +570,16 @@ export class ObjectsService {
     }
 
     if (
+      payload.paymentType !== undefined &&
+      payload.paymentType !== existing.paymentType
+    ) {
+      changes.paymentType = {
+        oldValue: existing.paymentType,
+        newValue: payload.paymentType,
+      };
+    }
+
+    if (
       payload.dailyRate !== undefined &&
       payload.dailyRate !== existing.dailyRate
     ) {
@@ -607,6 +621,9 @@ export class ObjectsService {
           ...(payload.status !== undefined ? { status: payload.status } : {}),
           ...(payload.seasonMode !== undefined
             ? { seasonMode: payload.seasonMode }
+            : {}),
+          ...(payload.paymentType !== undefined
+            ? { paymentType: payload.paymentType }
             : {}),
           ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
           ...(payload.counterpartyId !== undefined
@@ -1447,6 +1464,7 @@ export class ObjectsService {
       address: item.address,
       status: item.status,
       seasonMode: item.seasonMode,
+      paymentType: item.paymentType,
       dailyRate: item.dailyRate,
       monthlySalary: item.monthlySalary,
       notes: item.notes,
