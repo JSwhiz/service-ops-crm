@@ -60,7 +60,6 @@ export default function CounterpartyPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
-  const [id, setId] = useState('');
   const [item, setItem] = useState<CounterpartyCard | null>(null);
   const [history, setHistory] = useState<CounterpartyHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +96,6 @@ export default function CounterpartyPage({
     void params
       .then(({ id: counterpartyId }) => {
         if (!active) return null;
-        setId(counterpartyId);
         return Promise.all([
           getCounterparty(counterpartyId),
           listCounterpartyHistory(counterpartyId),
