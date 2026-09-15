@@ -62,7 +62,7 @@ export function OneTimeOrderListTable({
             return (
               <tr key={item.id}>
                 <td data-label="Заказ">
-                  <strong>{item.title}</strong>
+                  <Link href={href}><strong>{item.title}</strong></Link>
                   <span className="one-time-order-table-meta">
                     {item.contact.name}
                     {item.contact.phone ? ` · ${item.contact.phone}` : ''}
@@ -115,7 +115,16 @@ export function OneTimeOrderListTable({
                   </span>
                 </td>
                 <td data-label="Действия">
-                  <Link href={href}>Открыть</Link>
+                  <div className="one-time-order-table-actions">
+                    {item.capabilities.canEditReview ? (
+                      <Link href={`${href}#review`}>
+                        {item.reviewRating !== null || item.reviewPreview
+                          ? 'Изменить отзыв'
+                          : 'Написать отзыв'}
+                      </Link>
+                    ) : null}
+                    <Link href={href}>Открыть</Link>
+                  </div>
                 </td>
               </tr>
             );
