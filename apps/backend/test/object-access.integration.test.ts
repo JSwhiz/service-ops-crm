@@ -706,3 +706,84 @@ test('object registry search paginates after access filtering', async (t) => {
   );
   assert.equal(invalidSort.status, 400);
 });
+
+
+test('object payment mode can switch between monthly salary and daily rate', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const chatsService = app.get(ChatsService);
+  t.mock.method(chatsService, 'createSystemMessage', async () => undefined);
+
+  const founder = await prisma.user.findUniqueOrThrow({
+    where: { login: 'founder' },
+    select: { id: true },
+  });
+  const founderCookie = await loginAndGetCookieHeader({
+    baseUrl,
+    login: 'founder',
+    password: 'founder123',
+  });
+
+  let objectId: string | null = null;
+  t.after(async () => {
+    if (objectId) {
+      await prisma.object.deleteMany({ where: { id: objectId } });
+    }
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const marker = randomUUID().slice(0, 8);
+  const createResponse = await fetch(`${baseUrl}/api/v1/objects`, {
+    method: 'POST',
+    headers: {
+      Cookie: founderCookie,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: `Payment mode ${marker}`,
+      internalName: `PAY-${marker}`,
+      address: `Москва, payment ${marker}`,
+      status: 'active',
+      paymentType: 'monthly',
+      monthlySalary: 100000,
+      dailyRate: 3500,
+      responsibleUserId: founder.id,
+    }),
+  });
+  assert.equal(createResponse.status, 201);
+  const created = (await createResponse.json()) as {
+    id: string;
+    paymentType: string;
+    monthlySalary: number;
+    dailyRate: number;
+  };
+  objectId = created.id;
+  assert.equal(created.paymentType, 'monthly');
+  assert.equal(created.monthlySalary, 100000);
+  assert.equal(created.dailyRate, 3500);
+
+  const updateResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${created.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        paymentType: 'daily',
+        dailyRate: 4200,
+      }),
+    },
+  );
+  assert.equal(updateResponse.status, 200);
+  const updated = (await updateResponse.json()) as {
+    paymentType: string;
+    monthlySalary: number;
+    dailyRate: number;
+  };
+  assert.equal(updated.paymentType, 'daily');
+  assert.equal(updated.dailyRate, 4200);
+  assert.equal(updated.monthlySalary, 100000);
+});
