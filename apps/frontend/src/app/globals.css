@@ -539,7 +539,8 @@ a:hover {
 
 /* Objects workspace is data-dense like the timesheet: use the whole available main column. */
 .app-content:has(.object-registry),
-.app-content:has(.object-detail-page) {
+.app-content:has(.object-detail-page),
+.app-content:has(.object-create-page) {
   max-width: none;
 }
 

@@ -160,7 +160,7 @@ export default function NewObjectPage(): React.JSX.Element {
   };
 
   return (
-    <div className={`workspace-page ${styles.page}`}>
+    <div className={`workspace-page object-create-page ${styles.page}`}>
       <header className={styles.pageHeader}>
         <div className={styles.heading}>
           <Link href="/objects" className={styles.backLink}>← К объектам</Link>
@@ -335,13 +335,13 @@ export default function NewObjectPage(): React.JSX.Element {
           <section className={styles.section}>
             <div className={styles.sectionHeader}>
               <div>
-                <h2>Комментарий</h2>
+                <h2>Что важно знать об объекте</h2>
               </div>
             </div>
 
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Комментарий</span>
               <textarea
+                aria-label="Что важно знать об объекте"
                 value={form.notes}
                 onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
                 placeholder="Особенности объекта, договорённости, важные замечания…"
