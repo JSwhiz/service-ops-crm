@@ -93,8 +93,12 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           </div>
         </div>
         <div className="detail-field">
-          <div className="detail-label">ЗП за месяц</div>
-          <div className="detail-value">{item.monthlySalary.toLocaleString('ru-RU')} ₽</div>
+          <div className="detail-label">Оплата</div>
+          <div className="detail-value">
+            {item.paymentType === 'monthly'
+              ? `ЗП за месяц · ${item.monthlySalary.toLocaleString('ru-RU')} ₽`
+              : `Дневная ставка · ${item.dailyRate.toLocaleString('ru-RU')} ₽ / выход`}
+          </div>
         </div>
       </div>
 
