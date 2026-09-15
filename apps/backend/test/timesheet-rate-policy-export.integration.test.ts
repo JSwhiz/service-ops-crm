@@ -9,6 +9,7 @@ import {
   createCoreTestObject,
   getSafeBusinessDate,
 } from './helpers/core-fixtures';
+import { calculateMonthlySalaryDailyRate } from '../src/modules/timesheets/utils/timesheet-rate-policy.util';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
 
@@ -22,6 +23,7 @@ test('timesheet rate policies calculate auto/final/deviation fields and export x
   });
   const partialDate = getSafeBusinessDate(10);
   const agreedDate = getSafeBusinessDate(11);
+  const monthlyDate = getSafeBusinessDate(12);
   const { objectId } = await createCoreTestObject(prisma);
 
   t.after(async () => {
@@ -119,6 +121,22 @@ test('timesheet rate policies calculate auto/final/deviation fields and export x
   );
   assert.equal(agreedAttendanceResponse.status, 201);
 
+  const monthlyAttendanceResponse = await fetch(
+    `${baseUrl}/api/v1/objects/${objectId}/attendance`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        operationDate: monthlyDate.operationDate,
+        employeeIds: [SEEDED_EMPLOYEE_IDS.sergey],
+      }),
+    },
+  );
+  assert.equal(monthlyAttendanceResponse.status, 201);
+
   const timesheetResponse = await fetch(
     `${baseUrl}/api/v1/timesheets?objectId=${objectId}&year=${partialDate.year}&month=${partialDate.month}`,
     {
@@ -161,7 +179,13 @@ test('timesheet rate policies calculate auto/final/deviation fields and export x
   );
   assert.ok(monthlyRow);
   assert.equal(monthlyRow.ratePolicy.ratePolicyType, 'monthly_fixed');
-  assert.equal(monthlyRow.rowTotal, 10000);
+  const monthlyDayRate = calculateMonthlySalaryDailyRate({
+    monthlySalary: 10000,
+    year: monthlyDate.year,
+    month: monthlyDate.month,
+    scheduleCode: '5/2',
+  }).dailyRate;
+  assert.equal(monthlyRow.rowTotal, monthlyDayRate);
 
   const agreedEntry = timesheet.rows
     .find((row) => row.employeeId === SEEDED_EMPLOYEE_IDS.alexey)
