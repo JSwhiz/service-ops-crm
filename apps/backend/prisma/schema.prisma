@@ -420,7 +420,7 @@ model Object {
   address             String
   status              String
   seasonMode          String?
-  paymentType        String   @default("monthly")
+  paymentType        String   @default("daily")
   dailyRate           Int      @default(0)
   monthlySalary       Int      @default(0)
   notes               String?
