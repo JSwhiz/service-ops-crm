@@ -275,6 +275,16 @@ test('one-time order registry is paginated, searchable and access-safe', async (
     assert.ok(searchResult.items.some((item) => item.id === firstOrder.id));
   }
 
+  const withReview = await list(
+    `q=${marker}&reviewStatus=present&limit=20`,
+  );
+  assert.deepEqual(withReview.items.map((item) => item.id), [firstOrder.id]);
+
+  const needsReview = await list(
+    `q=${marker}&reviewStatus=missing&limit=20`,
+  );
+  assert.deepEqual(needsReview.items.map((item) => item.id), [secondOrder.id]);
+
   const filtered = await list(
     `managerUserId=${reader.id}&linkedObjectId=${object.id}&status=in_progress`,
   );
