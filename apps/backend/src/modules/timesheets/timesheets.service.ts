@@ -406,9 +406,27 @@ export class TimesheetsService {
       [{ value: 'Показатель', styleId: 1 }, { value: 'Значение', styleId: 1 }],
       ['Объект', timesheet.objectName],
       ['Период', `${timesheet.month}.${timesheet.year}`],
-      ['ЗП объекта за месяц', timesheet.objectMonthlySalary],
+      [
+        'Тип оплаты объекта',
+        timesheet.objectPaymentType === 'monthly'
+          ? 'Фиксированная ЗП за месяц'
+          : 'Дневная ставка за выход',
+      ],
+      [
+        timesheet.objectPaymentType === 'monthly'
+          ? 'ЗП объекта за месяц'
+          : 'Дневная ставка объекта',
+        timesheet.objectPaymentType === 'monthly'
+          ? timesheet.objectMonthlySalary
+          : timesheet.objectDailyRate,
+      ],
       ['Рабочих дней для базового графика', timesheet.objectWorkingDays],
-      ['Расчётная ставка за рабочий день', timesheet.objectCalculatedDailyRate],
+      [
+        timesheet.objectPaymentType === 'monthly'
+          ? 'Расчётная ставка за рабочий день'
+          : 'Ставка за фактический выход',
+        timesheet.objectCalculatedDailyRate,
+      ],
       [
         'Всего авто',
         timesheet.rows.reduce(
