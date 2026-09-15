@@ -126,8 +126,13 @@ export function ObjectListTable({
         title={`Сортировать по колонке «${label}»`}
       >
         <span>{label}</span>
-        <span className={styles.sortIndicator} aria-hidden="true">
-          {active ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+        <span
+          className={styles.sortIndicator}
+          data-direction={active ? sortDirection : 'none'}
+          aria-hidden="true"
+        >
+          <span className={styles.sortChevron} data-part="up" />
+          <span className={styles.sortChevron} data-part="down" />
         </span>
       </button>
     );

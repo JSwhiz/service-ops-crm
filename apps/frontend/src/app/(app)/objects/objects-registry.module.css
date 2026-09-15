@@ -146,7 +146,8 @@
 }
 
 .filterControl:focus-within {
-  box-shadow: var(--ui-focus-ring);
+  outline: 0;
+  box-shadow: none;
 }
 
 .filterTrigger {
@@ -346,6 +347,36 @@
 .addFilterButton:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+/* Objects registry controls must stay fixed inside the toolbar. */
+.page .filterTrigger:hover:not(:disabled),
+.page .filterTrigger:active:not(:disabled),
+.page .filterRemove:hover:not(:disabled),
+.page .filterRemove:active:not(:disabled),
+.page .filterOption:hover:not(:disabled),
+.page .filterOption:active:not(:disabled),
+.page .addFilterOption:hover:not(:disabled),
+.page .addFilterOption:active:not(:disabled),
+.page .addFilterButton:hover:not(:disabled),
+.page .addFilterButton:active:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+.page .filterTrigger:focus,
+.page .filterTrigger:focus-visible,
+.page .filterRemove:focus,
+.page .filterRemove:focus-visible,
+.page .filterOption:focus,
+.page .filterOption:focus-visible,
+.page .addFilterOption:focus,
+.page .addFilterOption:focus-visible,
+.page .addFilterButton:focus,
+.page .addFilterButton:focus-visible {
+  outline: 0 !important;
+  outline-offset: 0;
+  box-shadow: none !important;
 }
 
 .addFilterMenu {
