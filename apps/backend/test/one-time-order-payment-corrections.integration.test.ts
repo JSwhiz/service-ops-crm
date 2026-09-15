@@ -393,24 +393,37 @@ test('one-time order payment corrections preserve an auditable ledger chain', as
   );
   assert.equal(historicalRecipientCorrection.status, 201);
 
-  const arbitraryRecipient = await createCompletedOrder({
+  const alternateRealRecipient = await createCompletedOrder({
     amount: 90,
     paymentMethod: 'cash',
     paymentDestination: 'manager_accountability',
     recipientUserId: manager.id,
   });
-  const arbitraryRecipientCorrection = await correct(
-    arbitraryRecipient.orderId,
-    arbitraryRecipient.source.id,
+  const alternateRealRecipientCorrection = await correct(
+    alternateRealRecipient.orderId,
+    alternateRealRecipient.source.id,
     {
       correctedAmount: 90,
       paymentMethod: 'cash',
       paymentDestination: 'manager_accountability',
-      recipientUserId: templateManager.id,
-      reason: 'Попытка назначить произвольного пользователя',
+      recipientUserId: secondaryManager.id,
+      reason: 'Фактический получатель не был назначен на заказ',
     },
   );
-  assert.equal(arbitraryRecipientCorrection.status, 400);
+  assert.equal(alternateRealRecipientCorrection.status, 201);
+  assert.equal(
+    (
+      await prisma.oneTimeOrderCompletionPayment.findFirstOrThrow({
+        where: {
+          oneTimeOrderId: alternateRealRecipient.orderId,
+          correctedFromPaymentId: alternateRealRecipient.source.id,
+          status: 'active',
+        },
+        select: { recipientUserId: true },
+      })
+    ).recipientUserId,
+    secondaryManager.id,
+  );
 
   const personalToOrganization = await createCompletedOrder({
     amount: 70,
