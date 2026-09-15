@@ -14,6 +14,7 @@ test('global search and recent resolution preserve domain ACL boundaries', async
   const marker = randomUUID().slice(0, 8);
   const searchTerm = `wave13-${marker}`;
   const rankingTerm = `rank-${marker}`;
+  const taskRankingTerm = `task-rank-${marker}`;
   const phoneTail = String(parseInt(marker, 16) % 10_000_000).padStart(7, '0');
   const formatPhone = (code: string): string =>
     `+7 (${code}) ${phoneTail.slice(0, 3)}-${phoneTail.slice(3, 5)}-${phoneTail.slice(5)}`;
@@ -222,7 +223,7 @@ test('global search and recent resolution preserve domain ACL boundaries', async
       prisma.task.create({
         data: {
           title: `Описание ranking ${marker}`,
-          description: rankingTerm,
+          description: taskRankingTerm,
           priority: 'normal',
           status: 'open',
           objectId: assignedObject.id,
@@ -232,7 +233,7 @@ test('global search and recent resolution preserve domain ACL boundaries', async
       }),
       prisma.task.create({
         data: {
-          title: `${rankingTerm} задача`,
+          title: `${taskRankingTerm} задача`,
           priority: 'normal',
           status: 'open',
           objectId: assignedObject.id,
@@ -432,7 +433,15 @@ test('global search and recent resolution preserve domain ACL boundaries', async
     containsObject.id,
   ]);
 
-  const rankedTasks = rankingBody.items
+  const taskRankingResponse = await fetch(
+    `${baseUrl}/api/v1/search?q=${encodeURIComponent(taskRankingTerm)}&limit=8`,
+    { headers: { Cookie: managerCookie } },
+  );
+  assert.equal(taskRankingResponse.status, 200);
+  const taskRankingBody = (await taskRankingResponse.json()) as {
+    items: Array<{ id: string; type: string }>;
+  };
+  const rankedTasks = taskRankingBody.items
     .filter((item) => item.type === 'task')
     .map((item) => item.id);
   assert.equal(rankedTasks.indexOf(descriptionRankTask.id) >= 0, true);
