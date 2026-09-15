@@ -206,9 +206,7 @@ function ManagerMultiSelect({
 
   return (
     <div className={styles.managerSelect} ref={rootRef}>
-      <div className={styles.managerSelectLabel}>
-        <span className={styles.fieldLabel}>Менеджеры</span>
-      </div>
+      <span className={styles.fieldLabel}>Менеджеры</span>
 
       <button
         type="button"
