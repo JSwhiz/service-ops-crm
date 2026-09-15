@@ -1,7 +1,9 @@
 .page {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   gap: 14px;
-  max-width: 1120px;
 }
 
 .surface {
