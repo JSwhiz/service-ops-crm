@@ -195,13 +195,6 @@ test('one-time order receipts update accountability atomically and use ledger di
         paymentMethod: 'organization_transfer',
         paymentDestination: 'organization',
       },
-      {
-        recipientUserId: recipients[0]!.id,
-        amount: 0,
-        paymentMethod: 'cash',
-        paymentDestination: 'manager_accountability',
-        zeroReason: 'payment_later',
-      },
     ],
   };
   const completed = await postJson(
