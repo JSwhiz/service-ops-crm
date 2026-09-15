@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   calculateMonthlySalaryDailyRate,
+  calculateTimesheetAutoValues,
   getPlannedWorkingDays,
 } from '../src/modules/timesheets/utils/timesheet-rate-policy.util';
 
@@ -45,4 +46,58 @@ test('zero monthly salary never produces an invalid day rate', () => {
       workingDays: 20,
     },
   );
+});
+
+
+test('monthly fixed salary is prorated by actual attendance facts', () => {
+  const calculated = calculateTimesheetAutoValues({
+    year: 2026,
+    month: 2,
+    daysInMonth: 28,
+    policy: {
+      ratePolicyType: 'monthly_fixed',
+      baseAmount: 100_000,
+      scheduleCode: '5/2',
+      roundingMode: 'none',
+      roundingStep: null,
+      standardShiftHours: 8,
+      workingDaysInMonth: null,
+      excludedHolidayDays: null,
+      notes: null,
+    },
+    facts: [3, 4, 5, 6, 9].map((dayOfMonth) => ({
+      dayOfMonth,
+      dailyRateSnapshot: 5_000,
+      workedHours: 8,
+      ratePolicySnapshot: null,
+    })),
+  });
+
+  assert.equal(
+    [...calculated.values()].reduce((sum, item) => sum + item.autoValue, 0),
+    25_000,
+  );
+  assert.equal(calculated.size, 5);
+});
+
+test('monthly fixed salary is zero without attendance facts', () => {
+  const calculated = calculateTimesheetAutoValues({
+    year: 2026,
+    month: 2,
+    daysInMonth: 28,
+    policy: {
+      ratePolicyType: 'monthly_fixed',
+      baseAmount: 100_000,
+      scheduleCode: '5/2',
+      roundingMode: 'none',
+      roundingStep: null,
+      standardShiftHours: 8,
+      workingDaysInMonth: null,
+      excludedHolidayDays: null,
+      notes: null,
+    },
+    facts: [],
+  });
+
+  assert.equal(calculated.size, 0);
 });
