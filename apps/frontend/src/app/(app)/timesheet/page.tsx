@@ -286,13 +286,33 @@ export default function TimesheetPage(): React.JSX.Element {
                   {selectedEmployee ? <small>Сотрудник: {selectedEmployee.label}</small> : null}
                 </div>
                 <div className="timesheet-object-inspector__metric">
-                  <span>ЗП объекта / месяц</span>
-                  <strong>{moneyFormatter.format(objectTimesheet.objectMonthlySalary)}</strong>
+                  <span>Тип оплаты</span>
+                  <strong>
+                    {objectTimesheet.objectPaymentType === 'monthly'
+                      ? 'ЗП за месяц'
+                      : 'Дневная ставка'}
+                  </strong>
                 </div>
                 <div className="timesheet-object-inspector__metric">
-                  <span>Ставка месяца</span>
-                  <strong>{moneyFormatter.format(objectTimesheet.objectCalculatedDailyRate)}</strong>
-                  <small>{objectTimesheet.objectWorkingDays} раб. дн.</small>
+                  <span>
+                    {objectTimesheet.objectPaymentType === 'monthly'
+                      ? 'ЗП объекта / месяц'
+                      : 'Ставка за выход'}
+                  </span>
+                  <strong>
+                    {moneyFormatter.format(
+                      objectTimesheet.objectPaymentType === 'monthly'
+                        ? objectTimesheet.objectMonthlySalary
+                        : objectTimesheet.objectDailyRate,
+                    )}
+                  </strong>
+                  {objectTimesheet.objectPaymentType === 'monthly' ? (
+                    <small>
+                      {moneyFormatter.format(objectTimesheet.objectCalculatedDailyRate)}
+                      {' / рабочий день · '}
+                      {objectTimesheet.objectWorkingDays} раб. дн.
+                    </small>
+                  ) : null}
                 </div>
                 <div className="timesheet-object-inspector__metric">
                   <span>Аванс</span>
