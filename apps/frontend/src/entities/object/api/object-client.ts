@@ -47,6 +47,8 @@ export interface CreateObjectPayload {
   address: string;
   status: string;
   seasonMode: string | null;
+  paymentType: 'monthly' | 'daily';
+  dailyRate: number;
   monthlySalary: number;
   notes?: string;
   counterpartyId?: string | null;
@@ -60,6 +62,8 @@ export interface UpdateObjectPayload {
   address?: string;
   status?: string;
   seasonMode?: string | null;
+  paymentType?: 'monthly' | 'daily';
+  dailyRate?: number;
   monthlySalary?: number;
   notes?: string;
   counterpartyId?: string | null;
