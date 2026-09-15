@@ -125,17 +125,24 @@
 }
 
 .filterControl {
+  max-width: 285px;
+}
+
+.filterControl {
   display: flex;
   align-items: stretch;
+  min-width: 0;
   min-height: 38px;
-  border: 1px solid var(--ui-border);
+  border: 1px solid #ddd6cf;
   border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
+  background: #faf8f5;
+  box-shadow: none;
 }
 
 .filterControl:hover,
 .filterControl:focus-within {
-  border-color: var(--ui-border-hover);
+  border-color: #c9beb5;
+  background: #f8f5f1;
 }
 
 .filterControl:focus-within {
@@ -143,6 +150,7 @@
 }
 
 .filterTrigger {
+  min-width: 0;
   min-height: 36px;
   display: flex;
   align-items: center;
@@ -160,8 +168,9 @@
 
 .filterTrigger:hover,
 .filterTrigger[aria-expanded='true'] {
-  background: var(--ui-surface-hover);
+  background: #f3efeb;
   color: var(--ui-text);
+  box-shadow: none;
   transform: none;
 }
 
@@ -191,6 +200,7 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
+  overflow: hidden;
   white-space: nowrap;
 }
 
@@ -203,9 +213,12 @@
 }
 
 .filterCopy strong {
-  color: var(--ui-text);
-  font-size: var(--ui-text-xs);
-  font-weight: 650;
+  min-width: 0;
+  overflow: hidden;
+  color: #4d443e;
+  font-size: 12.5px;
+  font-weight: 680;
+  text-overflow: ellipsis;
 }
 
 .filterRemove {
@@ -228,8 +241,9 @@
 }
 
 .filterRemove:hover {
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
+  background: #eee9e4;
+  color: #4d443e;
+  box-shadow: none;
   transform: none;
 }
 
@@ -286,6 +300,7 @@
 .addFilterOption:hover {
   background: var(--ui-accent-subtle);
   color: var(--ui-text);
+  box-shadow: none;
   transform: none;
 }
 
@@ -324,6 +339,7 @@
   border-color: var(--ui-border-hover);
   background: var(--ui-surface-hover);
   color: var(--ui-text);
+  box-shadow: none;
   transform: none;
 }
 

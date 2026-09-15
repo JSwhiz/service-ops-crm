@@ -14,7 +14,7 @@
 
 .table.table thead th {
   color: #746a63;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.015em;
 }
@@ -52,8 +52,8 @@
 .table th:nth-child(8) { width: 3%; }
 
 .table.table tbody td {
-  padding-top: 12px;
-  padding-bottom: 12px;
+  padding-top: 13px;
+  padding-bottom: 13px;
   border-bottom-color: #ebe5df;
   vertical-align: middle;
 }
@@ -82,7 +82,7 @@
   display: block;
   overflow: hidden;
   color: #332d29;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -96,7 +96,7 @@
   gap: 5px;
   overflow: hidden;
   color: #81736a;
-  font-size: 12.5px;
+  font-size: 13px;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -132,7 +132,7 @@
   border-radius: 6px;
   background: #f7f4f1;
   color: #68615b;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 650;
   line-height: 1.2;
   white-space: nowrap;
@@ -177,20 +177,21 @@
 }
 
 .attention {
-  color: #9a4f3e;
+  color: #8d5143;
+  font-size: 14px;
   font-weight: 650;
 }
 
 .secondary {
-  color: #81756d;
-  font-size: 12.5px;
+  color: #786d66;
+  font-size: 13.5px;
 }
 
 .personText {
   display: block;
   overflow: hidden;
   color: #4b423c;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -203,7 +204,7 @@
 .teamCell strong {
   display: inline;
   color: #3e3732;
-  font-size: 14px;
+  font-size: 14.5px;
   line-height: 1.2;
 }
 
@@ -218,7 +219,7 @@
   gap: 6px;
   width: fit-content;
   max-width: 100%;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 650;
   line-height: 1.2;
   white-space: nowrap;
@@ -240,11 +241,11 @@
 }
 
 .todaySignal[data-state='attention'] {
-  color: #965443;
+  color: #85594d;
 }
 
 .todaySignal[data-state='attention'] .signalDot {
-  background: #b96b58;
+  background: #aa7465;
 }
 
 .managerSummary {
@@ -259,7 +260,7 @@
   min-width: 0;
   overflow: hidden;
   color: #4b423c;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -272,14 +273,14 @@
   border-radius: 6px;
   background: #f7f3f0;
   color: #70645c;
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
 }
 
 .updatedCell {
-  color: #6b625c;
-  font-size: 12.5px;
+  color: #5f5751;
+  font-size: 13.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
