@@ -217,8 +217,17 @@ test('one-time order completion validates and stores actual payment rows', async
     ],
   );
   assert.equal(alternateRecipient.status, 201);
+  const alternateRecipientBody =
+    (await alternateRecipient.json()) as CompletionResponse;
+  assert.equal(alternateRecipientBody.payments[0]?.detailsRestricted, true);
+  assert.equal(alternateRecipientBody.payments[0]?.recipient, undefined);
   assert.equal(
-    ((await alternateRecipient.json()) as CompletionResponse).payments[0]?.recipient?.id,
+    (
+      await prisma.oneTimeOrderCompletionPayment.findFirstOrThrow({
+        where: { oneTimeOrderId: alternateRecipientOrderId },
+        select: { recipientUserId: true },
+      })
+    ).recipientUserId,
     managerTwo.id,
   );
 
