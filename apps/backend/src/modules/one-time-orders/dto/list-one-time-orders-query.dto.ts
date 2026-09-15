@@ -42,6 +42,10 @@ export class ListOneTimeOrdersQueryDto {
   dateTo?: string;
 
   @IsOptional()
+  @IsIn(['missing', 'present'])
+  reviewStatus?: 'missing' | 'present';
+
+  @IsOptional()
   @Transform(({ value }) => Number(value))
   @IsInt()
   @Min(1)
