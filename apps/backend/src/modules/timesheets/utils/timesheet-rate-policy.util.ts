@@ -62,6 +62,33 @@ export function getRatePolicyLabel(policy: TimesheetRatePolicySnapshot): string 
   return `${base} · ${policy.baseAmount} ₽`;
 }
 
+export function buildObjectDefaultRatePolicy(params: {
+  paymentType: 'monthly' | 'daily';
+  monthlySalary: number;
+  dailyRate: number;
+  scheduleCode?: string | null;
+}): TimesheetRatePolicySnapshot {
+  if (params.paymentType === 'monthly') {
+    return normalizeRatePolicy(
+      {
+        ratePolicyType: 'monthly_fixed',
+        ratePolicyBaseAmount: params.monthlySalary,
+        ratePolicyScheduleCode: params.scheduleCode ?? null,
+      },
+      params.monthlySalary,
+    );
+  }
+
+  return normalizeRatePolicy(
+    {
+      ratePolicyType: 'daily_rate',
+      ratePolicyBaseAmount: params.dailyRate,
+      ratePolicyScheduleCode: params.scheduleCode ?? null,
+    },
+    params.dailyRate,
+  );
+}
+
 export function normalizeRatePolicy(
   record: RatePolicyRecord | null | undefined,
   fallbackAmount: number,
@@ -152,14 +179,42 @@ export function calculateTimesheetAutoValues(params: {
   const result = new Map<number, CalculatedTimesheetDay>();
 
   switch (params.policy.ratePolicyType) {
-    case 'monthly_fixed':
-      distributePlannedMonthlyAmount({
-        ...params,
-        totalAmount: params.policy.baseAmount,
+    case 'monthly_fixed': {
+      const factDays = [...factsByDay.keys()].sort((left, right) => left - right);
+      const workingDays =
+        params.policy.workingDaysInMonth ??
+        buildSchedulePaidDays(
+          params.year,
+          params.month,
+          params.daysInMonth,
+          params.policy,
+        ).length;
+      const totalAmount =
+        workingDays > 0
+          ? Math.round(
+              (params.policy.baseAmount / workingDays) * factDays.length,
+            )
+          : 0;
+
+      distributeAmountAcrossDays({
+        days: factDays,
+        totalAmount,
+        policy: params.policy,
         result,
-        explanationPrefix: 'Оклад распределен по плановым дням графика',
+        explanationPrefix:
+          `Оклад ${params.policy.baseAmount} / ${workingDays} × ${factDays.length} фактических выходов`,
       });
+
+      for (const dayOfMonth of factDays) {
+        const calculated = result.get(dayOfMonth);
+        const fact = factsByDay.get(dayOfMonth);
+        if (calculated && fact) {
+          calculated.workedHours = fact.workedHours;
+        }
+      }
+
       return result;
+    }
 
     case 'monthly_excluding_holidays': {
       const workingDays =
