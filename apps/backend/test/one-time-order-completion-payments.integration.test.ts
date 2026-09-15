@@ -557,5 +557,10 @@ test('one-time order completion validates and stores actual payment rows', async
     ],
     founderCookie,
   );
-  assert.equal(inactiveAssignmentResponse.status, 400);
+  assert.equal(inactiveAssignmentResponse.status, 201);
+  assert.equal(
+    ((await inactiveAssignmentResponse.json()) as CompletionResponse).payments[0]
+      ?.recipient?.id,
+    managerOne.id,
+  );
 });
