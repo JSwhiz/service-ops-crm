@@ -1,12 +1,16 @@
 .workspace {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
   gap: 14px;
-  max-width: 1560px;
-  margin: 0 auto;
 }
 
 .navigation {
   position: sticky;
+  width: 100%;
+  min-width: 0;
   top: 64px;
   z-index: 18;
   display: flex;
@@ -53,6 +57,7 @@
 /* Full object card behaves as a workspace rather than one endless document. */
 .section {
   display: none;
+  width: 100%;
   scroll-margin-top: 128px;
   gap: 12px;
   min-width: 0;
