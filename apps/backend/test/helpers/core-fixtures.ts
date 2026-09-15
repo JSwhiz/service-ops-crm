@@ -66,6 +66,7 @@ export async function createCoreTestObject(
       address: 'Москва, тестовый адрес, 1',
       status: 'active',
       seasonMode: 'summer',
+      paymentType: 'daily',
       dailyRate: 2500,
       notes: 'Core integration fixture',
       createdByUserId: founder.id,
