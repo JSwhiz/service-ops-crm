@@ -71,6 +71,7 @@ export class SearchService {
     }
 
     const candidateTake = Math.min(Math.max(query.limit * 3, query.limit), 24);
+    const phoneFragments = this.phoneSearchFragments(term);
 
     const [
       objects,
@@ -123,6 +124,7 @@ export class SearchService {
         select: {
           id: true,
           title: true,
+          description: true,
           object: { select: { name: true } },
           oneTimeOrder: { select: { title: true } },
         },
@@ -146,6 +148,16 @@ export class SearchService {
                     },
                     { contactName: { contains: term, mode: 'insensitive' } },
                     { contactPhone: { contains: term, mode: 'insensitive' } },
+                    ...(phoneFragments.length > 0
+                      ? [{
+                          AND: phoneFragments.map((fragment) => ({
+                            contactPhone: {
+                              contains: fragment,
+                              mode: 'insensitive' as const,
+                            },
+                          })),
+                        }]
+                      : []),
                   ],
                 },
               ],
@@ -169,6 +181,16 @@ export class SearchService {
                 { id: { contains: term, mode: 'insensitive' } },
                 { fullName: { contains: term, mode: 'insensitive' } },
                 { phone: { contains: term, mode: 'insensitive' } },
+                ...(phoneFragments.length > 0
+                  ? [{
+                      AND: phoneFragments.map((fragment) => ({
+                        phone: {
+                          contains: fragment,
+                          mode: 'insensitive' as const,
+                        },
+                      })),
+                    }]
+                  : []),
                 { position: { contains: term, mode: 'insensitive' } },
               ],
             },
@@ -185,6 +207,16 @@ export class SearchService {
                 { id: { contains: term, mode: 'insensitive' } },
                 { fullName: { contains: term, mode: 'insensitive' } },
                 { phone: { contains: term, mode: 'insensitive' } },
+                ...(phoneFragments.length > 0
+                  ? [{
+                      AND: phoneFragments.map((fragment) => ({
+                        phone: {
+                          contains: fragment,
+                          mode: 'insensitive' as const,
+                        },
+                      })),
+                    }]
+                  : []),
               ],
             },
             select: { id: true, fullName: true, phone: true, status: true },
@@ -201,6 +233,16 @@ export class SearchService {
                 { legalName: { contains: term, mode: 'insensitive' } },
                 { contactName: { contains: term, mode: 'insensitive' } },
                 { contactPhone: { contains: term, mode: 'insensitive' } },
+                ...(phoneFragments.length > 0
+                  ? [{
+                      AND: phoneFragments.map((fragment) => ({
+                        contactPhone: {
+                          contains: fragment,
+                          mode: 'insensitive' as const,
+                        },
+                      })),
+                    }]
+                  : []),
                 {
                   objects: {
                     some: {
@@ -221,6 +263,17 @@ export class SearchService {
               contactName: true,
               contactPhone: true,
               status: true,
+              objects: {
+                where: {
+                  AND: [
+                    access.objectWhere,
+                    { deletedAt: null },
+                    { name: { contains: term, mode: 'insensitive' } },
+                  ],
+                },
+                select: { name: true },
+                take: 3,
+              },
               _count: { select: { objects: true } },
             },
             orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
@@ -303,6 +356,7 @@ export class SearchService {
         score: this.matchScore(term, [
           item.id,
           item.title,
+          item.description,
           item.object?.name,
           item.oneTimeOrder?.title,
         ]),
@@ -310,34 +364,51 @@ export class SearchService {
       })),
       ...orders.map((item) => ({
         item: this.mapOrder(item),
-        score: this.matchScore(term, [
-          item.id,
-          item.title,
-          item.executionAddress,
-          item.contactName,
-          item.contactPhone,
-        ]),
+        score: this.matchScore(
+          term,
+          [
+            item.id,
+            item.title,
+            item.executionAddress,
+            item.contactName,
+            item.contactPhone,
+          ],
+          [item.contactPhone],
+        ),
         sequence: sequence++,
       })),
       ...employees.map((item) => ({
         item: this.mapEmployee(item),
-        score: this.matchScore(term, [item.id, item.fullName, item.phone, item.position]),
+        score: this.matchScore(
+          term,
+          [item.id, item.fullName, item.phone, item.position],
+          [item.phone],
+        ),
         sequence: sequence++,
       })),
       ...candidates.map((item) => ({
         item: this.mapCandidate(item),
-        score: this.matchScore(term, [item.id, item.fullName, item.phone, item.status]),
+        score: this.matchScore(
+          term,
+          [item.id, item.fullName, item.phone, item.status],
+          [item.phone],
+        ),
         sequence: sequence++,
       })),
       ...counterparties.map((item) => ({
         item: this.mapCounterparty(item),
-        score: this.matchScore(term, [
-          item.id,
-          item.name,
-          item.legalName,
-          item.contactName,
-          item.contactPhone,
-        ]),
+        score: this.matchScore(
+          term,
+          [
+            item.id,
+            item.name,
+            item.legalName,
+            item.contactName,
+            item.contactPhone,
+            ...item.objects.map((object) => object.name),
+          ],
+          [item.contactPhone],
+        ),
         sequence: sequence++,
       })),
       ...inventoryItems.map((item) => ({
@@ -554,7 +625,11 @@ export class SearchService {
     };
   }
 
-  private matchScore(term: string, values: Array<string | null | undefined>): number {
+  private matchScore(
+    term: string,
+    values: Array<string | null | undefined>,
+    phoneValues: Array<string | null | undefined> = [],
+  ): number {
     const needle = term.trim().toLocaleLowerCase('ru');
     let best = 3;
 
@@ -566,7 +641,45 @@ export class SearchService {
       else if (haystack.includes(needle)) best = Math.min(best, 2);
     }
 
+    const phoneNeedle = this.normalizePhoneDigits(term);
+    if (phoneNeedle.length >= 7) {
+      for (const value of phoneValues) {
+        const phoneHaystack = this.normalizePhoneDigits(value ?? '');
+        if (!phoneHaystack) continue;
+        if (phoneHaystack === phoneNeedle) return 0;
+        if (phoneHaystack.startsWith(phoneNeedle)) best = Math.min(best, 1);
+        else if (phoneHaystack.includes(phoneNeedle)) best = Math.min(best, 2);
+      }
+    }
+
     return best;
+  }
+
+  private normalizePhoneDigits(value: string): string {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length === 10) return `7${digits}`;
+    if (digits.length === 11 && digits.startsWith('8')) {
+      return `7${digits.slice(1)}`;
+    }
+    return digits;
+  }
+
+  private phoneSearchFragments(term: string): string[] {
+    const normalized = this.normalizePhoneDigits(term);
+    if (normalized.length < 7) return [];
+
+    const subscriber =
+      normalized.length === 11 && normalized.startsWith('7')
+        ? normalized.slice(1)
+        : normalized;
+
+    const fragments: string[] = [];
+    for (let index = 0; index < subscriber.length; index += 3) {
+      const fragment = subscriber.slice(index, index + 3);
+      if (fragment.length >= 2) fragments.push(fragment);
+    }
+
+    return fragments;
   }
 
   private mapObject(item: {
