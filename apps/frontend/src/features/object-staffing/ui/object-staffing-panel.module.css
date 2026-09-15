@@ -5,10 +5,25 @@
 }
 
 .sectionHeading {
-  margin-bottom: 8px;
+  margin: 14px 0 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
   color: #4c413a;
   font-size: 13px;
   font-weight: 700;
+}
+
+.sectionHeading span {
+  color: #92867d;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.directoryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
 }
 
 .employeeCard {
@@ -17,7 +32,7 @@
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
-  padding: 12px;
+  padding: 10px 11px;
   border: 1px solid #e7dfd9;
   border-radius: 8px;
   background: #fffdfb;
@@ -170,7 +185,8 @@
     border-radius: 10px 10px 0 0;
   }
 
-  .ratePolicyGrid {
+  .ratePolicyGrid,
+  .directoryGrid {
     grid-template-columns: 1fr;
   }
 

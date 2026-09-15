@@ -13,7 +13,6 @@ import type {
 } from '@/entities/object/model/object.types';
 import { ObjectHistoryList } from '@/features/object-history/ui/object-history-list';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -32,21 +31,17 @@ export default function ObjectHistoryPage({
 
   useEffect(() => {
     let cancelled = false;
-
     const load = async (): Promise<void> => {
       const resolved = await params;
       if (cancelled) return;
-
       setObjectId(resolved.id);
       setIsLoading(true);
       setLoadError(null);
-
       try {
         const [objectResponse, auditResponse] = await Promise.all([
           getObjectById(resolved.id),
           listObjectAuditLogs(resolved.id),
         ]);
-
         if (!cancelled) {
           setItem(objectResponse);
           setAuditItems(auditResponse);
@@ -57,23 +52,24 @@ export default function ObjectHistoryPage({
         if (!cancelled) setIsLoading(false);
       }
     };
-
     void load();
     return () => { cancelled = true; };
   }, [params]);
 
   return (
-    <div className={`workspace-page ${styles.page}`}>
-      <PageTitle title={item ? `История: ${item.name}` : 'История объекта'} />
-
-      <div className={styles.backRow}>
+    <div className={`workspace-page object-history-page ${styles.page}`}>
+      <header className={styles.historyHeader}>
+        <div className={styles.historyHeading}>
+          <span className={styles.historyEyebrow}>История изменений</span>
+          <h1 className={styles.historyTitle}>{item?.name ?? 'Объект'}</h1>
+        </div>
         <Link className={styles.backLink} href={objectId ? `/objects/${objectId}` : '/objects'}>
-          ← Вернуться в карточку объекта
+          К объекту
         </Link>
-      </div>
+      </header>
 
       {isLoading ? (
-        <div className={styles.notice}>Загрузка истории...</div>
+        <div className={styles.notice}>Загрузка истории…</div>
       ) : loadError ? (
         <div className={styles.error}>{loadError}</div>
       ) : (

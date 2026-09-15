@@ -24,7 +24,8 @@ const FIELD_LABELS: Record<string, string> = {
   counterpartyId: 'Контрагент',
   responsibleUserId: 'Ответственный',
   managerUserIds: 'Менеджеры',
-  notes: 'Комментарий',
+  notes: 'Что важно знать об объекте',
+  paymentType: 'Тип оплаты',
 };
 
 function getActionLabel(actionCode: string): string {
@@ -54,6 +55,19 @@ function getActionLabel(actionCode: string): string {
 
 function formatValue(field: string, value: unknown): string {
   if (value === null || value === undefined || value === '') return 'Не указано';
+  if (field === 'status') {
+    if (value === 'active') return 'Активный';
+    if (value === 'frozen') return 'Заморожен';
+    if (value === 'archived') return 'Архив';
+  }
+  if (field === 'seasonMode') {
+    if (value === 'summer') return 'Летний';
+    if (value === 'winter') return 'Зимний';
+  }
+  if (field === 'paymentType') {
+    if (value === 'monthly') return 'Фиксированная ЗП за месяц';
+    if (value === 'daily') return 'Дневная ставка';
+  }
   if (field === 'monthlySalary' || field === 'dailyRate') {
     const numeric = Number(value);
     return Number.isFinite(numeric)
@@ -112,7 +126,7 @@ function getReadableChanges(
   }
 
   return Object.entries(payload)
-    .filter(([field]) => field !== 'approvalRequestId')
+    .filter(([field]) => !['approvalRequestId', 'responsibleUserId'].includes(field))
     .map(([field, value]) => ({
       label: FIELD_LABELS[field] ?? field,
       after: formatValue(field, value),
@@ -123,23 +137,11 @@ export function ObjectHistoryList({
   items,
 }: ObjectHistoryListProps): React.JSX.Element {
   if (items.length === 0) {
-    return (
-      <section className={styles.surfaceCompact}>
-        <h2 className={styles.title}>История объекта</h2>
-        <p className={styles.muted}>Записей аудита пока нет.</p>
-      </section>
-    );
+    return <div className={styles.emptyState}>Изменений пока нет.</div>;
   }
 
   return (
-    <section className={styles.surface}>
-      <div>
-        <h2 className={styles.title}>История объекта</h2>
-        <p className={styles.description}>
-          Изменения карточки, статуса и управленческих назначений.
-        </p>
-      </div>
-
+    <section className={`${styles.surface} ${styles.historySurface}`}>
       <div className={styles.recordList}>
         {items.map((item) => {
           const changes = item.payload

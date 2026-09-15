@@ -16,12 +16,7 @@ export function ObjectFeedList({
   return (
     <div className={`page-card ${styles.card}`}>
       <div className={`section-header ${styles.header}`}>
-        <div>
-          <div className="section-title">Лента объекта</div>
-          <div className="section-subtitle">
-            Отчеты, комментарии и операционные события.
-          </div>
-        </div>
+        <div className="section-title">Лента объекта</div>
       </div>
 
       <div className={`record-list local-scroll ${styles.list}`}>

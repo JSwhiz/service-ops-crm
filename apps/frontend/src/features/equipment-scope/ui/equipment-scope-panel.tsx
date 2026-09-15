@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { EquipmentUnit } from '@/entities/equipment/model/equipment.types';
+import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
 
 export function EquipmentScopePanel({
@@ -14,31 +15,26 @@ export function EquipmentScopePanel({
   units: EquipmentUnit[];
 }): React.JSX.Element {
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-      <div className="section-header">
-        <div>
-          <div className="section-title">{title}</div>
-          <div className="section-subtitle">
-            Штучное оборудование, закрепленное за этим контуром.
-          </div>
-        </div>
+    <div className={`page-card ${styles.workPanel}`}>
+      <div className={styles.panelHeader}>
+        <div className="section-title">{title}</div>
+        <span className={styles.panelMeta}>{units.length}</span>
       </div>
+
       {units.length === 0 ? (
-        <div className="page-muted">Оборудование не закреплено.</div>
+        <div className={styles.emptyState}>Оборудование не закреплено.</div>
       ) : (
         <div className="record-list local-scroll local-scroll--sm">
           {units.map((unit) => (
-            <div key={unit.id} className="record-card" style={{ display: 'grid', gap: 4 }}>
+            <div key={unit.id} className="record-card">
               {unit.capabilities.canCreateMovement ? (
                 <Link href={`/equipment/${unit.id}`}>
                   {unit.catalogItem.name} · {unit.inventoryNumber}
                 </Link>
               ) : (
-                <div style={{ fontWeight: 600 }}>
-                  {unit.catalogItem.name} · {unit.inventoryNumber}
-                </div>
+                <strong>{unit.catalogItem.name} · {unit.inventoryNumber}</strong>
               )}
-              <div className="page-muted" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className={styles.panelMeta}>
                 <span className="status-pill" data-status={unit.status}>
                   {getEquipmentStatusLabel(unit.status)}
                 </span>

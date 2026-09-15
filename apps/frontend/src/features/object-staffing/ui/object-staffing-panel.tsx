@@ -203,12 +203,7 @@ export function ObjectStaffingPanel({
   return (
     <div className="page-card">
       <div className="section-header" style={{ marginBottom: 14 }}>
-        <div>
-          <div className="section-title">Состав сотрудников объекта</div>
-          <div className="section-subtitle">
-            Staffing отдельно от attendance и табеля.
-          </div>
-        </div>
+        <div className="section-title">Сотрудники объекта</div>
       </div>
 
       {canManageAssignments ? (
@@ -222,7 +217,7 @@ export function ObjectStaffingPanel({
         </label>
       ) : null}
 
-      <div className={styles.sectionHeading}>Текущий состав</div>
+      <div className={styles.sectionHeading}>На объекте <span>{assigned.length}</span></div>
 
       {assigned.length === 0 ? (
         <div className="page-muted" style={{ marginBottom: 16 }}>
@@ -512,40 +507,32 @@ export function ObjectStaffingPanel({
         </div>
       ) : null}
 
-      <div className={styles.sectionHeading}>Подмены на сегодня</div>
-
-      {visibleSubstitutions.length === 0 ? (
-        <div className="page-muted" style={{ marginBottom: 16 }}>
-          Активных подмен на сегодня нет.
-        </div>
-      ) : (
-        <div className="record-list" style={{ marginBottom: 16 }}>
-          {visibleSubstitutions.map((substitution) => (
-            <div key={substitution.id} className="record-card">
-              <div>
-                <strong>{substitution.primaryEmployeeName}</strong> замещается{' '}
-                <strong>{substitution.counterpartEmployeeName}</strong>
+      {visibleSubstitutions.length > 0 ? (
+        <>
+          <div className={styles.sectionHeading}>Подмены сегодня <span>{visibleSubstitutions.length}</span></div>
+          <div className="record-list" style={{ marginBottom: 16 }}>
+            {visibleSubstitutions.map((substitution) => (
+              <div key={substitution.id} className="record-card">
+                <div>
+                  <strong>{substitution.primaryEmployeeName}</strong> →{' '}
+                  <strong>{substitution.counterpartEmployeeName}</strong>
+                </div>
+                <div className="page-muted">
+                  {new Date(substitution.startDate).toLocaleString('ru-RU')} —{' '}
+                  {substitution.endDate
+                    ? new Date(substitution.endDate).toLocaleString('ru-RU')
+                    : 'без даты окончания'}
+                </div>
+                {substitution.comment ? <div className="page-muted">{substitution.comment}</div> : null}
               </div>
-              <div className="page-muted">
-                {new Date(substitution.startDate).toLocaleString('ru-RU')} —{' '}
-                {substitution.endDate
-                  ? new Date(substitution.endDate).toLocaleString('ru-RU')
-                  : 'без даты окончания'}
-              </div>
-              <div className="page-muted">
-                Статус: {substitution.status}. Причина: {substitution.reason}
-              </div>
-              {substitution.comment ? (
-                <div className="page-muted">{substitution.comment}</div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        </>
+      ) : null}
 
       {canManageAssignments ? (
         <>
-          <div className={styles.sectionHeading}>Результаты поиска</div>
+          <div className={styles.sectionHeading}>Доступные сотрудники <span>{directory.length}</span></div>
 
           {searchError ? (
             <div className={`${sharedStyles.error} ${styles.feedbackError}`}>
@@ -558,7 +545,7 @@ export function ObjectStaffingPanel({
           ) : directory.length === 0 ? (
             <div className="page-muted">Подходящих сотрудников не найдено.</div>
           ) : (
-            <div className="record-list">
+            <div className={styles.directoryGrid}>
               {directory.map((employee) => (
                 <div
                   key={employee.id}

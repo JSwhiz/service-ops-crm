@@ -48,14 +48,10 @@ export function ObjectInventoryPanel({
   const selectedItem = availableItems.find((item) => item.id === inventoryItemId) ?? null;
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div className="section-header">
-        <div>
-          <div className="section-title">Расходники объекта</div>
-          <div className="page-muted">
-            Это финальное списание с центрального склада на объект, не мини-склад объекта.
-          </div>
-        </div>
+    <div className={`page-card ${styles.workPanel}`}>
+      <div className={styles.panelHeader}>
+        <div className="section-title">Списание расходников</div>
+        <span className={styles.panelMeta}>{movements.length} операций</span>
       </div>
 
       {canIssueInventoryToObject ? (
@@ -113,11 +109,11 @@ export function ObjectInventoryPanel({
               />
             </label>
 
-            <div>
-              <div className="page-muted">Цена</div>
-              <div>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>Цена</span>
+              <div className={styles.readonlyValue}>
                 {selectedItem?.currentUnitPrice === null || selectedItem?.currentUnitPrice === undefined
-                  ? 'Сначала нужен приход с ценой'
+                  ? 'Цена не указана'
                   : `${selectedItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedItem.unit}`}
               </div>
             </div>
@@ -151,15 +147,17 @@ export function ObjectInventoryPanel({
 
           {error ? <div className={styles.error}>{error}</div> : null}
 
-          <button type="submit" disabled={isSaving || !inventoryItemId}>
-            {isSaving ? 'Списываем...' : 'Списать на объект'}
-          </button>
+          <div className={styles.formActions}>
+            <button className={styles.primaryAction} type="submit" disabled={isSaving || !inventoryItemId}>
+              {isSaving ? 'Списываем…' : 'Списать на объект'}
+            </button>
+          </div>
         </form>
       ) : null}
 
       <div className="record-list local-scroll">
         {movements.length === 0 ? (
-          <div className="page-muted">По объекту пока нет списаний.</div>
+          <div className={styles.emptyState}>Списаний пока нет.</div>
         ) : (
           movements.map((movement) => (
             <div key={movement.id} className="record-card" style={{ display: 'grid', gap: 8 }}>
@@ -176,7 +174,7 @@ export function ObjectInventoryPanel({
                 {movement.projection.hasEvidence
                   ? 'Фото приложено'
                   : movement.approvalRequest
-                    ? 'Ожидает shared approval'
+                    ? 'Ожидает согласования'
                     : movement.projection.approvalBridgeResolvedAt
                       ? <>
                           Подтверждено директором без фото
@@ -186,8 +184,8 @@ export function ObjectInventoryPanel({
                         </>
                       : movement.projection.requiresApprovalBridge
                         ? movement.projection.approvalBridgeType === 'inventory_without_photo_confirmation'
-                          ? 'Нет фото: ожидает director approval bridge'
-                          : 'Нет фото: требуется подтверждение evidence'
+                          ? 'Нет фото: ожидает согласования'
+                          : 'Нет фото: требуется подтверждение'
                         : 'Фото не требуется'}
               </div>
               {movement.projection.requiresApprovalBridge || movement.approvalRequest ? (
