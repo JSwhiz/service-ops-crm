@@ -123,7 +123,11 @@ function RegistryFilterSelect({
         className={styles.filterRemove}
         aria-label={`Удалить фильтр «${label}»`}
         title="Удалить фильтр"
-        onClick={onRemove}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={(event) => {
+          event.currentTarget.blur();
+          onRemove();
+        }}
       >
         ×
       </button>
