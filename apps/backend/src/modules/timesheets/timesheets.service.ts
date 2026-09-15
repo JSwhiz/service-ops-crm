@@ -36,6 +36,7 @@ import {
   hasWideTimesheetAccess,
 } from './utils/timesheet-access.util';
 import {
+  buildObjectDefaultRatePolicy,
   calculateMonthlySalaryDailyRate,
   calculateTimesheetAutoValues,
   getRatePolicyLabel,
@@ -77,6 +78,7 @@ export class TimesheetsService {
       select: {
         id: true,
         name: true,
+        paymentType: true,
         dailyRate: true,
         monthlySalary: true,
       },
@@ -148,16 +150,18 @@ export class TimesheetsService {
     const policyByEmployeeId = await this.loadRatePoliciesByEmployeeId({
       objectId: query.objectId,
       employeeIds: rows.map((row) => row.employeeId),
+      objectPaymentType: object.paymentType as 'monthly' | 'daily',
       objectMonthlySalary: object.monthlySalary,
-      objectLegacyDailyRate: object.dailyRate,
+      objectDailyRate: object.dailyRate,
       year: query.year,
       month: query.month,
     });
 
     const daysInSelectedMonth = this.getDaysInMonth(query.year, query.month);
     const objectSalaryCalculation = this.getObjectPayrollFallback({
+      paymentType: object.paymentType as 'monthly' | 'daily',
       monthlySalary: object.monthlySalary,
-      legacyDailyRate: object.dailyRate,
+      dailyRate: object.dailyRate,
       year: query.year,
       month: query.month,
     });
@@ -171,7 +175,11 @@ export class TimesheetsService {
           .map((entry) => parseRatePolicySnapshot(entry.ratePolicySnapshot))
           .find((policy) => policy !== null) ??
         policyByEmployeeId.get(row.employeeId) ??
-        normalizeRatePolicy(null, objectSalaryCalculation.dailyRate);
+        buildObjectDefaultRatePolicy({
+          paymentType: object.paymentType as 'monthly' | 'daily',
+          monthlySalary: object.monthlySalary,
+          dailyRate: object.dailyRate,
+        });
       const autoValues = calculateTimesheetAutoValues({
         year: query.year,
         month: query.month,
@@ -246,7 +254,8 @@ export class TimesheetsService {
     return {
       objectId: object.id,
       objectName: object.name,
-      objectDailyRate: objectSalaryCalculation.dailyRate,
+      objectPaymentType: object.paymentType as 'monthly' | 'daily',
+      objectDailyRate: object.dailyRate,
       objectMonthlySalary: object.monthlySalary,
       objectCalculatedDailyRate: objectSalaryCalculation.dailyRate,
       objectWorkingDays: objectSalaryCalculation.workingDays,
@@ -455,7 +464,7 @@ export class TimesheetsService {
     const objectWhere = this.buildTimesheetObjectWhere(currentUser, query.objectId);
     const objects = await this.prisma.object.findMany({
       where: objectWhere,
-      select: { id: true, name: true, dailyRate: true, monthlySalary: true },
+      select: { id: true, name: true, paymentType: true, dailyRate: true, monthlySalary: true },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
     const objectIds = objects.map((object) => object.id);
@@ -589,8 +598,9 @@ export class TimesheetsService {
         .map((fact) => parseRatePolicySnapshot(fact.ratePolicySnapshot))
         .find((policy) => policy !== null);
       const objectFallback = this.getObjectPayrollFallback({
+        paymentType: object.paymentType as 'monthly' | 'daily',
         monthlySalary: object.monthlySalary,
-        legacyDailyRate: object.dailyRate,
+        dailyRate: object.dailyRate,
         year: query.year,
         month: query.month,
         scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
@@ -598,9 +608,14 @@ export class TimesheetsService {
       const policy =
         storedPolicy ??
         factPolicy ??
-        (assignment
+        (assignment?.ratePolicyUpdatedAt
           ? normalizeRatePolicy(assignment, objectFallback.dailyRate)
-          : normalizeRatePolicy(null, objectFallback.dailyRate));
+          : buildObjectDefaultRatePolicy({
+              paymentType: object.paymentType as 'monthly' | 'daily',
+              monthlySalary: object.monthlySalary,
+              dailyRate: object.dailyRate,
+              scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
+            }));
       const calculated = calculateTimesheetAutoValues({
         year: query.year,
         month: query.month,
@@ -1370,6 +1385,7 @@ export class TimesheetsService {
         id: params.objectId,
       },
       select: {
+        paymentType: true,
         dailyRate: true,
         monthlySalary: true,
       },
@@ -1378,8 +1394,9 @@ export class TimesheetsService {
       client,
       objectId: params.objectId,
       employeeId: params.employeeId,
+      objectPaymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
       objectMonthlySalary: object?.monthlySalary ?? 0,
-      objectLegacyDailyRate: object?.dailyRate ?? 0,
+      objectDailyRate: object?.dailyRate ?? 0,
       year: params.year,
       month: params.month,
     });
@@ -1797,6 +1814,7 @@ export class TimesheetsService {
         id: params.objectId,
       },
       select: {
+        paymentType: true,
         dailyRate: true,
         monthlySalary: true,
       },
@@ -1838,8 +1856,9 @@ export class TimesheetsService {
     const policyByEmployeeId = await this.loadRatePoliciesByEmployeeId({
       objectId: params.objectId,
       employeeIds: rows.map((row) => row.employeeId),
+      objectPaymentType: object.paymentType as 'monthly' | 'daily',
       objectMonthlySalary: object.monthlySalary,
-      objectLegacyDailyRate: object.dailyRate,
+      objectDailyRate: object.dailyRate,
       year: params.year,
       month: params.month,
     });
@@ -1854,15 +1873,11 @@ export class TimesheetsService {
           .map((entry) => parseRatePolicySnapshot(entry.ratePolicySnapshot))
           .find((policy) => policy !== null) ??
         policyByEmployeeId.get(row.employeeId) ??
-        normalizeRatePolicy(
-          null,
-          this.getObjectPayrollFallback({
-            monthlySalary: object.monthlySalary,
-            legacyDailyRate: object.dailyRate,
-            year: params.year,
-            month: params.month,
-          }).dailyRate,
-        );
+        buildObjectDefaultRatePolicy({
+          paymentType: object.paymentType as 'monthly' | 'daily',
+          monthlySalary: object.monthlySalary,
+          dailyRate: object.dailyRate,
+        });
       const autoValues = calculateTimesheetAutoValues({
         year: params.year,
         month: params.month,
@@ -1949,8 +1964,9 @@ export class TimesheetsService {
   private async loadRatePoliciesByEmployeeId(params: {
     objectId: string;
     employeeIds: string[];
+    objectPaymentType: 'monthly' | 'daily';
     objectMonthlySalary: number;
-    objectLegacyDailyRate: number;
+    objectDailyRate: number;
     year: number;
     month: number;
     client?: PrismaService | Prisma.TransactionClient;
@@ -1980,17 +1996,23 @@ export class TimesheetsService {
     return new Map(
       assignments.map((assignment) => {
         const fallback = this.getObjectPayrollFallback({
+          paymentType: params.objectPaymentType,
           monthlySalary: params.objectMonthlySalary,
-          legacyDailyRate: params.objectLegacyDailyRate,
+          dailyRate: params.objectDailyRate,
           year: params.year,
           month: params.month,
           scheduleCode: assignment.ratePolicyScheduleCode,
         }).dailyRate;
+        const policy = assignment.ratePolicyUpdatedAt
+          ? normalizeRatePolicy(assignment as RatePolicyRecord, fallback)
+          : buildObjectDefaultRatePolicy({
+              paymentType: params.objectPaymentType,
+              monthlySalary: params.objectMonthlySalary,
+              dailyRate: params.objectDailyRate,
+              scheduleCode: assignment.ratePolicyScheduleCode,
+            });
 
-        return [
-          assignment.employeeId,
-          normalizeRatePolicy(assignment as RatePolicyRecord, fallback),
-        ];
+        return [assignment.employeeId, policy];
       }),
     );
   }
@@ -1998,8 +2020,9 @@ export class TimesheetsService {
   private async loadRatePolicyForEmployee(params: {
     objectId: string;
     employeeId: string;
+    objectPaymentType: 'monthly' | 'daily';
     objectMonthlySalary: number;
-    objectLegacyDailyRate: number;
+    objectDailyRate: number;
     year: number;
     month: number;
     client: PrismaService | Prisma.TransactionClient;
@@ -2007,8 +2030,9 @@ export class TimesheetsService {
     const policies = await this.loadRatePoliciesByEmployeeId({
       objectId: params.objectId,
       employeeIds: [params.employeeId],
+      objectPaymentType: params.objectPaymentType,
       objectMonthlySalary: params.objectMonthlySalary,
-      objectLegacyDailyRate: params.objectLegacyDailyRate,
+      objectDailyRate: params.objectDailyRate,
       year: params.year,
       month: params.month,
       client: params.client,
@@ -2016,15 +2040,11 @@ export class TimesheetsService {
 
     return (
       policies.get(params.employeeId) ??
-      normalizeRatePolicy(
-        null,
-        this.getObjectPayrollFallback({
-          monthlySalary: params.objectMonthlySalary,
-          legacyDailyRate: params.objectLegacyDailyRate,
-          year: params.year,
-          month: params.month,
-        }).dailyRate,
-      )
+      buildObjectDefaultRatePolicy({
+        paymentType: params.objectPaymentType,
+        monthlySalary: params.objectMonthlySalary,
+        dailyRate: params.objectDailyRate,
+      })
     );
   }
 
@@ -2148,8 +2168,9 @@ export class TimesheetsService {
   }
 
   private getObjectPayrollFallback(params: {
+    paymentType: 'monthly' | 'daily';
     monthlySalary: number;
-    legacyDailyRate: number;
+    dailyRate: number;
     year: number;
     month: number;
     scheduleCode?: string | null;
@@ -2163,9 +2184,9 @@ export class TimesheetsService {
 
     return {
       dailyRate:
-        params.monthlySalary > 0
+        params.paymentType === 'monthly'
           ? calculated.dailyRate
-          : Math.max(0, Math.round(params.legacyDailyRate)),
+          : Math.max(0, Math.round(params.dailyRate)),
       workingDays: calculated.workingDays,
     };
   }
