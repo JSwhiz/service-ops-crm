@@ -165,10 +165,6 @@ export default function NewObjectPage(): React.JSX.Element {
         <div className={styles.heading}>
           <Link href="/objects" className={styles.backLink}>← К объектам</Link>
           <h1>Новый объект</h1>
-          <p>
-            Создайте карточку объекта, задайте условия работы и назначьте стартовую команду.
-            Сотрудников можно добавить после создания в самой карточке объекта.
-          </p>
         </div>
       </header>
 
@@ -178,7 +174,6 @@ export default function NewObjectPage(): React.JSX.Element {
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Основные данные</h2>
-                <p>То, по чему объект будут находить и узнавать в системе.</p>
               </div>
             </div>
 
@@ -252,11 +247,10 @@ export default function NewObjectPage(): React.JSX.Element {
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Условия и оплата</h2>
-                <p>Рабочий статус, сезонность и схема расчёта для объекта.</p>
               </div>
             </div>
 
-            <div className={styles.fieldGrid}>
+            <div className={styles.conditionsGrid}>
               <label className={styles.field}>
                 <span className={styles.fieldLabel}>Статус</span>
                 <select
@@ -316,9 +310,6 @@ export default function NewObjectPage(): React.JSX.Element {
                     />
                     <span>₽</span>
                   </div>
-                  <span className={styles.help}>
-                    Полный месяц — вся сумма, неполный рассчитывается пропорционально фактическим выходам.
-                  </span>
                 </label>
               ) : (
                 <label className={styles.field}>
@@ -336,9 +327,6 @@ export default function NewObjectPage(): React.JSX.Element {
                     />
                     <span>₽</span>
                   </div>
-                  <span className={styles.help}>
-                    Каждый отмеченный выход в табеле оплачивается по этой ставке.
-                  </span>
                 </label>
               )}
             </div>
@@ -348,12 +336,11 @@ export default function NewObjectPage(): React.JSX.Element {
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Комментарий</h2>
-                <p>Необязательная рабочая информация, которая пригодится команде.</p>
               </div>
             </div>
 
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Комментарий к объекту</span>
+              <span className={styles.fieldLabel}>Комментарий</span>
               <textarea
                 value={form.notes}
                 onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
@@ -369,7 +356,6 @@ export default function NewObjectPage(): React.JSX.Element {
             <div className={styles.sectionHeader}>
               <div>
                 <h2>Команда объекта</h2>
-                <p>Ответственный обязателен. Менеджеров можно назначить сразу или позже.</p>
               </div>
             </div>
 
@@ -448,10 +434,6 @@ export default function NewObjectPage(): React.JSX.Element {
             ) : !isUsersLoading && !usersError ? (
               <div className={styles.notice}>Подходящие пользователи не найдены.</div>
             ) : null}
-
-            <div className={styles.teamNote}>
-              Сотрудники и их рабочие параметры добавляются после создания объекта.
-            </div>
           </section>
         </aside>
 

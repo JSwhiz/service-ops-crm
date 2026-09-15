@@ -1,20 +1,21 @@
 .page {
-  width: min(1320px, 100%);
-  margin: 0 auto;
-  gap: 16px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  gap: 12px;
 }
 
 .pageHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 20px;
-  padding: 2px 2px 0;
+  gap: 16px;
+  padding: 0 2px;
 }
 
 .heading {
   display: grid;
-  gap: 5px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -32,26 +33,18 @@
 }
 
 .heading h1 {
-  margin: 2px 0 0;
+  margin: 1px 0 0;
   color: #302a26;
-  font-size: 25px;
+  font-size: 24px;
   font-weight: 760;
   line-height: 1.15;
   letter-spacing: -0.025em;
 }
 
-.heading p {
-  max-width: 760px;
-  margin: 0;
-  color: #7c7169;
-  font-size: 13.5px;
-  line-height: 1.45;
-}
-
 .form {
   display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(330px, 0.75fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 2.35fr) minmax(360px, 0.9fr);
+  gap: 12px;
   align-items: start;
 }
 
@@ -59,12 +52,12 @@
 .sideColumn {
   display: grid;
   min-width: 0;
-  gap: 14px;
+  gap: 12px;
 }
 
 .section {
   min-width: 0;
-  padding: 16px;
+  padding: 14px;
   border: 1px solid #e4dcd5;
   border-radius: 10px;
   background: #fffdfb;
@@ -73,11 +66,11 @@
 
 .sectionHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-  padding-bottom: 11px;
+  gap: 12px;
+  margin-bottom: 11px;
+  padding-bottom: 9px;
   border-bottom: 1px solid #eee7e1;
 }
 
@@ -89,18 +82,17 @@
   line-height: 1.25;
 }
 
-.sectionHeader p {
-  max-width: 620px;
-  margin: 3px 0 0;
-  color: #897d75;
-  font-size: 12.5px;
-  line-height: 1.4;
-}
-
 .fieldGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 13px 12px;
+  gap: 11px 12px;
+}
+
+.conditionsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
 }
 
 .fullWidth {
@@ -126,7 +118,7 @@
 .form textarea {
   width: 100%;
   min-width: 0;
-  min-height: 41px;
+  min-height: 40px;
   box-sizing: border-box;
   border: 1px solid #dcd2cb;
   border-radius: 7px;
@@ -164,18 +156,12 @@
 }
 
 .form textarea {
-  min-height: 108px;
+  min-height: 88px;
   resize: vertical;
 }
 
 .form select {
   cursor: pointer;
-}
-
-.help {
-  color: #8b7f77;
-  font-size: 11.5px;
-  line-height: 1.4;
 }
 
 .moneyField {
@@ -205,7 +191,7 @@
 
 .teamDivider {
   height: 1px;
-  margin: 15px 0 13px;
+  margin: 12px 0 10px;
   background: #eee7e1;
 }
 
@@ -234,7 +220,7 @@
 
 .managerList {
   display: grid;
-  max-height: 300px;
+  max-height: 260px;
   overflow-y: auto;
   border: 1px solid #e4dcd5;
   border-radius: 8px;
@@ -302,8 +288,7 @@
 
 .emptyManagers,
 .notice,
-.error,
-.teamNote {
+.error {
   border-radius: 7px;
   padding: 9px 10px;
   font-size: 12.5px;
@@ -311,8 +296,7 @@
 }
 
 .emptyManagers,
-.notice,
-.teamNote {
+.notice {
   border: 1px solid #e9e1db;
   background: #faf8f5;
   color: #786c64;
@@ -323,10 +307,6 @@
   border: 1px solid #ead2cc;
   background: #fbf2f0;
   color: #8d4d3f;
-}
-
-.teamNote {
-  margin-top: 12px;
 }
 
 .formError {
@@ -341,11 +321,8 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 9px;
-  padding: 12px;
-  border: 1px solid #e4dcd5;
-  border-radius: 10px;
-  background: #faf8f5;
+  gap: 8px;
+  padding: 2px 0 0;
 }
 
 .cancelButton,
@@ -416,7 +393,7 @@
 }
 
 .form :global(.searchable-select__trigger) {
-  min-height: 41px;
+  min-height: 40px;
   border: 1px solid #dcd2cb;
   border-radius: 7px;
   padding: 9px 10px;
@@ -481,6 +458,12 @@
   font-size: 11.5px;
 }
 
+@media (max-width: 1180px) {
+  .conditionsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1080px) {
   .form {
     grid-template-columns: 1fr;
@@ -510,7 +493,8 @@
     padding: 14px;
   }
 
-  .fieldGrid {
+  .fieldGrid,
+  .conditionsGrid {
     grid-template-columns: 1fr;
   }
 
