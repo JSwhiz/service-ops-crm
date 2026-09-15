@@ -1138,13 +1138,20 @@ export class ObjectOperationsService {
                 });
             const workedHours = workedHoursByEmployeeId.get(employeeId) ?? null;
             const dailyRateSnapshot =
-              ratePolicy.ratePolicyType === 'partial_shift'
-                ? Math.round(
-                    ratePolicy.baseAmount *
-                      (workedHours ?? ratePolicy.standardShiftHours) /
-                      ratePolicy.standardShiftHours,
-                  )
-                : ratePolicy.baseAmount;
+              ratePolicy.ratePolicyType === 'monthly_fixed'
+                ? calculateMonthlySalaryDailyRate({
+                    monthlySalary: ratePolicy.baseAmount,
+                    year: targetYear,
+                    month: targetMonth,
+                    scheduleCode: ratePolicy.scheduleCode,
+                  }).dailyRate
+                : ratePolicy.ratePolicyType === 'partial_shift'
+                  ? Math.round(
+                      ratePolicy.baseAmount *
+                        (workedHours ?? ratePolicy.standardShiftHours) /
+                        ratePolicy.standardShiftHours,
+                    )
+                  : ratePolicy.baseAmount;
 
             return {
               objectId,
