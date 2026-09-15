@@ -534,7 +534,7 @@ test('one-time order completion validates and stores actual payment rows', async
     },
     data: { isActive: false },
   });
-  const inactiveRecipient = await complete(
+  const inactiveAssignmentResponse = await complete(
     inactiveAssignmentOrderId,
     1,
     crypto.randomUUID(),
@@ -548,5 +548,5 @@ test('one-time order completion validates and stores actual payment rows', async
     ],
     founderCookie,
   );
-  assert.equal(inactiveRecipient.status, 400);
+  assert.equal(inactiveAssignmentResponse.status, 400);
 });
