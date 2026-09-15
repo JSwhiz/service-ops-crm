@@ -19,6 +19,29 @@
   letter-spacing: 0.015em;
 }
 
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.sortIndicator {
+  min-width: 10px;
+  color: #b0a69e;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.65;
+  transition: color 120ms ease, opacity 120ms ease;
+}
+
+.sortButton:hover .sortIndicator,
+.sortButton[data-active='true'] .sortIndicator {
+  color: #67594f;
+  opacity: 1;
+}
+
 .table th:nth-child(1) { width: 28%; }
 .table th:nth-child(2) { width: 10%; }
 .table th:nth-child(3) { width: 15%; }
@@ -31,6 +54,7 @@
 .table.table tbody td {
   padding-top: 12px;
   padding-bottom: 12px;
+  border-bottom-color: #ebe5df;
   vertical-align: middle;
 }
 
@@ -45,8 +69,9 @@
   outline: none;
 }
 
+.row:hover td:first-child,
 .row:focus-visible td:first-child {
-  box-shadow: inset 3px 0 0 #b8a79a;
+  box-shadow: inset 2px 0 0 #c1b1a6;
 }
 
 .objectCell {
@@ -64,13 +89,37 @@
 }
 
 .primaryMeta {
+  min-width: 0;
   margin-top: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   overflow: hidden;
   color: #81736a;
   font-size: 12.5px;
   line-height: 1.4;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.internalName {
+  flex: 0 0 auto;
+  max-width: 38%;
+  overflow: hidden;
+  color: #71665f;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.metaSeparator {
+  flex: 0 0 auto;
+  color: #b1a69e;
+}
+
+.addressText {
+  min-width: 0;
+  overflow: hidden;
+  color: #8a7e76;
+  text-overflow: ellipsis;
 }
 
 .status {
@@ -152,15 +201,15 @@
 }
 
 .teamCell strong {
-  display: block;
+  display: inline;
   color: #3e3732;
   font-size: 14px;
   line-height: 1.2;
 }
 
 .teamCell .secondary {
-  display: block;
-  margin-top: 2px;
+  display: inline;
+  margin-left: 4px;
 }
 
 .todaySignal {

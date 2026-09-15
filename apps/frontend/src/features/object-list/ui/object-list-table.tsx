@@ -114,17 +114,24 @@ export function ObjectListTable({
     return <div className="page-card workspace-surface workspace-empty">Объекты не найдены.</div>;
   }
 
-  const renderSortButton = (field: ObjectSortField, label: string): React.JSX.Element => (
-    <button
-      type="button"
-      className="object-table-sort"
-      onClick={() => onSort(field)}
-      aria-label={`Сортировать: ${label}`}
-    >
-      {label}
-      {sortBy === field ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}
-    </button>
-  );
+  const renderSortButton = (field: ObjectSortField, label: string): React.JSX.Element => {
+    const active = sortBy === field;
+    return (
+      <button
+        type="button"
+        className={`${styles.sortButton} object-table-sort`}
+        data-active={active ? 'true' : 'false'}
+        onClick={() => onSort(field)}
+        aria-label={`Сортировать: ${label}`}
+        title={`Сортировать по колонке «${label}»`}
+      >
+        <span>{label}</span>
+        <span className={styles.sortIndicator} aria-hidden="true">
+          {active ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <>
@@ -133,7 +140,7 @@ export function ObjectListTable({
           <thead>
             <tr>
               <th aria-sort={getAriaSort('name', sortBy, sortDirection)}>{renderSortButton('name', 'Объект')}</th>
-              <th>Статус</th>
+              <th aria-sort={getAriaSort('status', sortBy, sortDirection)}>{renderSortButton('status', 'Статус')}</th>
               <th>Ответственный</th>
               <th>Команда</th>
               <th>Сегодня</th>
@@ -166,7 +173,9 @@ export function ObjectListTable({
                   <td className={styles.objectCell}>
                     <strong title={item.name}>{item.name}</strong>
                     <div className={styles.primaryMeta} title={[item.internalName, item.address].filter(Boolean).join(' · ')}>
-                      {[item.internalName, item.address].filter(Boolean).join(' · ')}
+                      {item.internalName ? <span className={styles.internalName}>{item.internalName}</span> : null}
+                      {item.internalName && item.address ? <span className={styles.metaSeparator} aria-hidden="true">·</span> : null}
+                      <span className={styles.addressText}>{item.address || 'Адрес не указан'}</span>
                     </div>
                   </td>
                   <td>

@@ -15,7 +15,6 @@ import {
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectListTable } from '@/features/object-list/ui/object-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 import styles from './objects-registry.module.css';
 
@@ -251,17 +250,6 @@ function AddFilterMenu({
   );
 }
 
-function formatObjectCount(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  const noun = mod10 === 1 && mod100 !== 11
-    ? 'объект'
-    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-      ? 'объекта'
-      : 'объектов';
-  return `${count} ${noun}`;
-}
-
 function parsePage(value: string | null): number {
   const page = Number(value);
   return Number.isInteger(page) && page > 0 ? page : 1;
@@ -447,27 +435,15 @@ export default function ObjectsPage(): React.JSX.Element {
   const handleSort = (field: ObjectSortField): void => {
     const nextDirection = field === sortBy
       ? sortDirection === 'asc' ? 'desc' : 'asc'
-      : field === 'name' ? 'asc' : 'desc';
+      : field === 'name' || field === 'status' ? 'asc' : 'desc';
     replaceQuery({ sortBy: field, sortDirection: nextDirection, page: null });
   };
 
-  const summary = issue
-    ? `${ISSUE_LABELS[issue]}: ${formatObjectCount(result.total)}`
-    : query
-      ? `Найдено: ${formatObjectCount(result.total)}`
-      : formatObjectCount(result.total);
+  const firstVisible = result.total === 0 ? 0 : (result.page - 1) * result.limit + 1;
+  const lastVisible = Math.min(result.page * result.limit, result.total);
 
   return (
     <div className={`workspace-page object-registry ${styles.page}`}>
-      <PageTitle title="Объекты" />
-
-      <header className={styles.header}>
-        <div className={styles.titleBlock}>
-          <h1 className={styles.title}>Объекты</h1>
-          <div className={styles.subtitle}>{summary}</div>
-        </div>
-      </header>
-
       <div className={styles.toolbar}>
         <div className={styles.searchBox} data-active={searchInput ? 'true' : 'false'}>
           <SearchIcon />
@@ -535,15 +511,18 @@ export default function ObjectsPage(): React.JSX.Element {
       ) : (
         <>
           <ObjectListTable items={result.items} signals={signals} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} />
-          {result.totalPages > 1 ? (
-            <div className={styles.pagination}>
-              <span className="page-muted">Страница {result.page} из {result.totalPages}</span>
-              <div className="action-row">
+          <div className={styles.pagination}>
+            <span className={styles.resultCount}>
+              {result.total > 0 ? `Показано ${firstVisible}–${lastVisible} из ${result.total}` : 'Ничего не найдено'}
+            </span>
+            {result.totalPages > 1 ? (
+              <div className={styles.paginationActions}>
                 <button type="button" disabled={result.page <= 1} onClick={() => replaceQuery({ page: String(Math.max(1, result.page - 1)) })}>Назад</button>
+                <span className={styles.pageNumber}>Страница {result.page} из {result.totalPages}</span>
                 <button type="button" disabled={result.page >= result.totalPages} onClick={() => replaceQuery({ page: String(Math.min(result.totalPages, result.page + 1)) })}>Далее</button>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </>
       )}
     </div>
