@@ -54,6 +54,7 @@ export interface ServiceObject {
   address: string;
   status: string;
   seasonMode: string | null;
+  paymentType: 'monthly' | 'daily';
   dailyRate: number;
   monthlySalary: number;
   notes: string | null;
