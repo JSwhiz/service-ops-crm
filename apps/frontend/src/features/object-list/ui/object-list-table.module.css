@@ -1,6 +1,6 @@
 .table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 1200px;
   table-layout: fixed;
 }
 
@@ -12,16 +12,25 @@
   box-shadow: inset 0 -1px 0 #e7ded7;
 }
 
-.table th:nth-child(1) { width: 23%; }
-.table th:nth-child(2) { width: 9%; }
-.table th:nth-child(3) { width: 14%; }
+.table.table thead th {
+  color: #746a63;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+}
+
+.table th:nth-child(1) { width: 28%; }
+.table th:nth-child(2) { width: 10%; }
+.table th:nth-child(3) { width: 15%; }
 .table th:nth-child(4) { width: 8%; }
-.table th:nth-child(5) { width: 13%; }
-.table th:nth-child(6) { width: 20%; }
-.table th:nth-child(7) { width: 10%; }
+.table th:nth-child(5) { width: 12%; }
+.table th:nth-child(6) { width: 16%; }
+.table th:nth-child(7) { width: 8%; }
 .table th:nth-child(8) { width: 3%; }
 
-.table tbody td {
+.table.table tbody td {
+  padding-top: 12px;
+  padding-bottom: 12px;
   vertical-align: middle;
 }
 
@@ -48,8 +57,8 @@
   display: block;
   overflow: hidden;
   color: #332d29;
-  font-size: 13px;
-  line-height: 1.3;
+  font-size: 14px;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -58,8 +67,8 @@
   margin-top: 3px;
   overflow: hidden;
   color: #81736a;
-  font-size: 11.5px;
-  line-height: 1.35;
+  font-size: 12.5px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -67,10 +76,14 @@
 .status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   max-width: 100%;
-  color: #6f665f;
-  font-size: 11.5px;
+  padding: 4px 8px;
+  border: 1px solid #ded8d2;
+  border-radius: 6px;
+  background: #f7f4f1;
+  color: #68615b;
+  font-size: 12.5px;
   font-weight: 650;
   line-height: 1.2;
   white-space: nowrap;
@@ -80,36 +93,38 @@
   width: 6px;
   height: 6px;
   flex: 0 0 auto;
-  border-radius: 999px;
-  background: #938980;
+  border-radius: 2px;
+  background: #8e857d;
 }
 
 .status[data-status='active'] {
-  color: #52745d;
+  border-color: #d4ddd2;
+  background: #f1f4ef;
+  color: #4f6354;
 }
 
 .status[data-status='active'] .statusDot {
-  background: #6d9a78;
+  background: #738576;
 }
 
 .status[data-status='frozen'] {
-  padding: 3px 6px;
-  border: 1px solid #e7d8bd;
-  border-radius: 999px;
-  background: #fcf8f0;
-  color: #84683c;
+  border-color: #e2d6c4;
+  background: #f8f3eb;
+  color: #775f40;
 }
 
 .status[data-status='frozen'] .statusDot {
-  background: #b48a4d;
+  background: #a1835a;
 }
 
 .status[data-status='archived'] {
-  padding: 3px 6px;
-  border: 1px solid #ded8d3;
-  border-radius: 999px;
-  background: #f8f6f4;
-  color: #746b64;
+  border-color: #ddd8d2;
+  background: #f3f1ee;
+  color: #68615b;
+}
+
+.status[data-status='archived'] .statusDot {
+  background: #8b827a;
 }
 
 .attention {
@@ -118,16 +133,16 @@
 }
 
 .secondary {
-  color: #8b7d74;
-  font-size: 11.5px;
+  color: #81756d;
+  font-size: 12.5px;
 }
 
 .personText {
   display: block;
   overflow: hidden;
   color: #4b423c;
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -139,7 +154,7 @@
 .teamCell strong {
   display: block;
   color: #3e3732;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.2;
 }
 
@@ -154,7 +169,7 @@
   gap: 6px;
   width: fit-content;
   max-width: 100%;
-  font-size: 11.5px;
+  font-size: 12.5px;
   font-weight: 650;
   line-height: 1.2;
   white-space: nowrap;
@@ -195,8 +210,8 @@
   min-width: 0;
   overflow: hidden;
   color: #4b423c;
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -205,17 +220,17 @@
   flex: 0 0 auto;
   padding: 2px 5px;
   border: 1px solid #ded5cf;
-  border-radius: 999px;
-  background: #faf7f4;
-  color: #75685f;
-  font-size: 10.5px;
+  border-radius: 6px;
+  background: #f7f3f0;
+  color: #70645c;
+  font-size: 11.5px;
   font-weight: 700;
   line-height: 1.2;
 }
 
 .updatedCell {
-  color: #6f655e;
-  font-size: 11.5px;
+  color: #6b625c;
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -257,6 +272,6 @@
 
 @media (max-width: 1180px) {
   .table {
-    min-width: 1080px;
+    min-width: 1120px;
   }
 }

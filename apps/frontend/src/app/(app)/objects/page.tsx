@@ -251,6 +251,17 @@ function AddFilterMenu({
   );
 }
 
+function formatObjectCount(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  const noun = mod10 === 1 && mod100 !== 11
+    ? 'объект'
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? 'объекта'
+      : 'объектов';
+  return `${count} ${noun}`;
+}
+
 function parsePage(value: string | null): number {
   const page = Number(value);
   return Number.isInteger(page) && page > 0 ? page : 1;
@@ -441,10 +452,10 @@ export default function ObjectsPage(): React.JSX.Element {
   };
 
   const summary = issue
-    ? `${ISSUE_LABELS[issue]}: ${result.total}`
+    ? `${ISSUE_LABELS[issue]}: ${formatObjectCount(result.total)}`
     : query
-      ? `Найдено: ${result.total}`
-      : `Доступно объектов: ${result.total}`;
+      ? `Найдено: ${formatObjectCount(result.total)}`
+      : formatObjectCount(result.total);
 
   return (
     <div className={`workspace-page object-registry ${styles.page}`}>
@@ -455,7 +466,6 @@ export default function ObjectsPage(): React.JSX.Element {
           <h1 className={styles.title}>Объекты</h1>
           <div className={styles.subtitle}>{summary}</div>
         </div>
-        {allowCreateObject ? <Link className="button-link" href="/objects/new">Создать объект</Link> : null}
       </header>
 
       <div className={styles.toolbar}>
@@ -508,6 +518,13 @@ export default function ObjectsPage(): React.JSX.Element {
             onStatus={(value) => replaceQuery({ status: value, page: null })}
             onIssue={(value) => replaceQuery({ issue: value, page: null })}
           />
+
+          {allowCreateObject ? (
+            <Link className={`${styles.createButton} button-link`} href="/objects/new">
+              <PlusIcon />
+              <span>Создать объект</span>
+            </Link>
+          ) : null}
         </div>
       </div>
 

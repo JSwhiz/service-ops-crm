@@ -418,13 +418,23 @@
   transform: none;
 }
 
-.header :global(.button-link) {
+.page .createButton {
+  min-height: 38px;
+  gap: 7px;
+  padding-inline: 12px;
   border-color: #65564d;
   background: #65564d;
   color: #fffdfb;
+  white-space: nowrap;
 }
 
-.header :global(.button-link:hover) {
+.page .createButton > svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+
+.page .createButton:hover {
   border-color: #554940;
   background: #554940;
   color: #ffffff;
@@ -437,7 +447,7 @@
   box-shadow: none;
 }
 
-.header :global(.button-link:focus-visible) {
+.page .createButton:focus-visible {
   border-color: #65564d;
 }
 
@@ -512,7 +522,8 @@
 
   .filterControl,
   .addFilterRoot,
-  .addFilterButton {
+  .addFilterButton,
+  .createButton {
     width: 100%;
   }
 
