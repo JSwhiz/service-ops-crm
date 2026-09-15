@@ -88,7 +88,7 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
     return candidate;
   };
 
-  let candidate = await createRegular('Кандидат SLA');
+  const candidate = await createRegular('Кандидат SLA');
   const assignmentId = candidate.currentAssignment.id as string;
   assert.equal(await workerOne.processOverdueAssignments(new Date()), 0);
 
