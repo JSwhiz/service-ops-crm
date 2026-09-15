@@ -43,22 +43,7 @@
 
 .form {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(390px, 1fr);
-  gap: 14px;
-  align-items: start;
-}
-
-.mainColumn,
-.sideColumn {
-  display: grid;
-  min-width: 0;
   gap: 12px;
-}
-
-.sideColumn {
-  position: sticky;
-  top: 82px;
-  align-self: start;
 }
 
 .section {
@@ -88,6 +73,18 @@
   line-height: 1.25;
 }
 
+.sectionTitleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.sectionMeta {
+  color: #948980;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
 .fieldGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -101,11 +98,21 @@
   align-items: start;
 }
 
+.teamGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
 .fullWidth {
   grid-column: 1 / -1;
 }
 
-.field {
+.field,
+.compactSelect,
+.managerSelect {
+  position: relative;
   display: grid;
   min-width: 0;
   gap: 6px;
@@ -120,8 +127,8 @@
 }
 
 .form input:not([type='checkbox']):not([type='radio']),
-.form select,
-.form textarea {
+.form textarea,
+.selectTrigger {
   width: 100%;
   min-width: 0;
   min-height: 40px;
@@ -139,17 +146,17 @@
 }
 
 .form input:not([type='checkbox']):not([type='radio']):hover,
-.form select:hover,
-.form textarea:hover {
-  border-color: #cfc2b8;
+.form textarea:hover,
+.selectTrigger:hover:not(:disabled) {
+  border-color: #c8bbb1;
+  background: #faf7f4;
 }
 
 .form input:not([type='checkbox']):not([type='radio']):focus,
 .form input:not([type='checkbox']):not([type='radio']):focus-visible,
-.form select:focus,
-.form select:focus-visible,
 .form textarea:focus,
-.form textarea:focus-visible {
+.form textarea:focus-visible,
+.selectTrigger:focus-visible {
   outline: 0;
   border-color: #a99486;
   background: #ffffff;
@@ -161,23 +168,88 @@
   color: #a69b93;
 }
 
-.form textarea {
-  min-height: 88px;
-  resize: vertical;
+.selectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+  transform: none;
 }
 
-.form select {
-  appearance: none;
+.selectTrigger:hover:not(:disabled),
+.selectTrigger:active:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+.selectTrigger > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectTrigger > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  color: #776a61;
+}
+
+.triggerPlaceholder {
+  color: #9a8f87;
+}
+
+.selectPopover {
+  position: absolute;
+  z-index: 90;
+  top: calc(100% + 5px);
+  left: 0;
+  width: 100%;
+  min-width: 220px;
+  overflow: hidden;
+  border: 1px solid #d8cec7;
+  border-radius: 8px;
+  padding: 5px;
+  background: #fffdfb;
+  box-shadow: 0 12px 26px rgba(63, 48, 39, 0.11);
+}
+
+.selectOption {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 9px;
+  background: transparent;
+  box-shadow: none;
+  color: #493f39;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 520;
+  text-align: left;
   cursor: pointer;
-  padding-right: 34px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, #766960 50%),
-    linear-gradient(135deg, #766960 50%, transparent 50%);
-  background-position:
-    calc(100% - 16px) 50%,
-    calc(100% - 12px) 50%;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
+  transform: none;
+}
+
+.selectOption svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  color: #665247;
+}
+
+.selectOption:hover,
+.selectOption[data-selected='true'] {
+  background: #f4efeb;
+  box-shadow: none;
+  transform: none;
 }
 
 .moneyField {
@@ -200,63 +272,52 @@
   pointer-events: none;
 }
 
-.teamBlock {
-  display: grid;
-  gap: 8px;
-}
-
-.teamDivider {
-  height: 1px;
-  margin: 12px 0 10px;
-  background: #eee7e1;
-}
-
-.managerHeader {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.managerHeader > div {
+.managerSelectLabel {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .managerCount {
+  flex: 0 0 auto;
   color: #91857d;
   font-size: 11.5px;
 }
 
-.managerSearch {
-  margin-bottom: 8px;
+.managerPopover {
+  padding: 7px;
 }
 
-.managerList {
+.managerSearchWrap {
+  padding-bottom: 6px;
+}
+
+.managerSearchWrap input {
+  min-height: 38px !important;
+  background: #fffdfb !important;
+}
+
+.managerOptions {
   display: grid;
-  max-height: 286px;
+  max-height: 270px;
   overflow-y: auto;
-  border: 1px solid #e2dad3;
-  border-radius: 7px;
-  background: #fffdfb;
   scrollbar-width: thin;
   scrollbar-color: #c8bbb1 transparent;
   scrollbar-gutter: stable;
 }
 
-.managerList::-webkit-scrollbar,
+.managerOptions::-webkit-scrollbar,
 .form :global(.searchable-select__options)::-webkit-scrollbar {
   width: 8px;
 }
 
-.managerList::-webkit-scrollbar-track,
+.managerOptions::-webkit-scrollbar-track,
 .form :global(.searchable-select__options)::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.managerList::-webkit-scrollbar-thumb,
+.managerOptions::-webkit-scrollbar-thumb,
 .form :global(.searchable-select__options)::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
@@ -264,43 +325,57 @@
   background-clip: padding-box;
 }
 
-.managerList::-webkit-scrollbar-thumb:hover,
+.managerOptions::-webkit-scrollbar-thumb:hover,
 .form :global(.searchable-select__options)::-webkit-scrollbar-thumb:hover {
   background: #ae9f94;
   background-clip: padding-box;
 }
 
 .managerOption {
+  width: 100%;
+  min-height: 43px;
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 0;
-  min-height: 43px;
-  padding: 7px 10px;
-  border-bottom: 1px solid #eee7e1;
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 8px;
   background: transparent;
+  box-shadow: none;
+  color: #433a34;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transform: none;
 }
 
-.managerOption:last-child {
-  border-bottom: 0;
-}
-
-.managerOption:hover {
-  background: #faf7f4;
-}
-
+.managerOption:hover,
 .managerOption[data-selected='true'] {
   background: #f5f0ec;
+  box-shadow: none;
+  transform: none;
 }
 
-.managerOption input {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-  margin: 0;
-  accent-color: #665247;
+.managerCheckbox {
+  width: 17px;
+  height: 17px;
+  display: inline-grid;
+  flex: 0 0 17px;
+  place-items: center;
+  border: 1px solid #c9bbb1;
+  border-radius: 5px;
+  background: #fffdfb;
+  color: #665247;
+}
+
+.managerOption[data-selected='true'] .managerCheckbox {
+  border-color: #9f8b7e;
+  background: #eee6e0;
+}
+
+.managerCheckbox svg {
+  width: 13px;
+  height: 13px;
 }
 
 .managerCopy {
@@ -351,20 +426,24 @@
   color: #8d4d3f;
 }
 
+.notesField {
+  min-height: 96px !important;
+  resize: vertical;
+}
+
 .formError {
-  grid-column: 1 / -1;
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 13px;
 }
 
 .actions {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 2px 0 0;
+  padding: 10px 0 2px;
+  border-top: 1px solid #eee7e1;
 }
 
 .form button.cancelButton,
@@ -435,6 +514,7 @@
 }
 
 .form :global(.searchable-select) {
+  position: relative;
   gap: 6px;
 }
 
@@ -451,12 +531,6 @@
   transform: none;
 }
 
-.form :global(.searchable-select__trigger > span:last-child) {
-  color: #766960;
-  font-size: 14px;
-  line-height: 1;
-}
-
 .form :global(.searchable-select__trigger:hover:not(:disabled)),
 .form :global(.searchable-select__trigger:active:not(:disabled)) {
   border-color: #c8bbb1;
@@ -471,8 +545,14 @@
   box-shadow: 0 0 0 3px rgba(122, 96, 79, 0.11);
 }
 
+.form :global(.searchable-select__trigger > span:last-child) {
+  color: #766960;
+  font-size: 14px;
+  line-height: 1;
+}
+
 .form :global(.searchable-select__popover) {
-  z-index: 80;
+  z-index: 90;
   border-color: #d8cec7;
   border-radius: 8px;
   background: #fffdfb;
@@ -522,43 +602,32 @@
   }
 }
 
-@media (max-width: 1080px) {
-  .form {
+@media (max-width: 900px) {
+  .fieldGrid,
+  .teamGrid {
     grid-template-columns: 1fr;
   }
 
-  .sideColumn {
-    position: static;
-    grid-row: auto;
+  .fullWidth {
+    grid-column: auto;
   }
 }
 
 @media (max-width: 700px) {
   .page {
-    gap: 12px;
+    gap: 10px;
   }
 
   .heading h1 {
     font-size: 22px;
   }
 
-  .form,
-  .mainColumn,
-  .sideColumn {
-    gap: 12px;
-  }
-
   .section {
     padding: 14px;
   }
 
-  .fieldGrid,
   .conditionsGrid {
     grid-template-columns: 1fr;
-  }
-
-  .fullWidth {
-    grid-column: auto;
   }
 
   .actions {
