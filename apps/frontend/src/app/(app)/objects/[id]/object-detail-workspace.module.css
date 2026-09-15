@@ -4,7 +4,7 @@
   min-width: 0;
   max-width: none;
   margin: 0;
-  gap: 14px;
+  gap: 12px;
 }
 
 .navigation {
@@ -14,14 +14,14 @@
   top: 64px;
   z-index: 18;
   display: flex;
-  gap: 4px;
+  gap: 2px;
   overflow-x: auto;
-  padding: 6px;
+  padding: 5px;
   border: 1px solid #e5ddd6;
   border-radius: 9px;
-  background: rgba(255, 253, 251, 0.97);
-  box-shadow: 0 8px 24px rgba(63, 48, 39, 0.05);
-  backdrop-filter: blur(12px);
+  background: rgba(255, 253, 251, 0.98);
+  box-shadow: none;
+  backdrop-filter: blur(10px);
   scrollbar-width: none;
 }
 
@@ -31,11 +31,11 @@
 
 .navigation a {
   flex: 0 0 auto;
-  min-height: 34px;
+  min-height: 35px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 7px 11px;
+  padding: 7px 12px;
   border: 1px solid transparent;
   border-radius: 7px;
   color: #685d55;
@@ -94,26 +94,18 @@
 
 .sectionHeader {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 2px 2px 0;
+  gap: 12px;
+  padding: 1px 2px 0;
 }
 
 .sectionTitle {
   margin: 0;
   color: #332d29;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 760;
   letter-spacing: -0.012em;
-}
-
-.sectionDescription {
-  max-width: 780px;
-  margin: 4px 0 0;
-  color: #83756c;
-  font-size: 13px;
-  line-height: 1.45;
 }
 
 .todayGrid {
@@ -186,7 +178,7 @@
 .workspace :global(select),
 .workspace :global(textarea) {
   width: 100%;
-  min-height: 38px;
+  min-height: 40px;
   box-sizing: border-box;
   border: 1px solid #ddd3cc;
   border-radius: 7px;
@@ -211,8 +203,18 @@
 }
 
 .workspace :global(select) {
+  appearance: none;
   cursor: pointer;
+  padding-right: 34px;
   background-color: #fffdfb;
+  background-image:
+    linear-gradient(45deg, transparent 50%, #766960 50%),
+    linear-gradient(135deg, #766960 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
 
 .workspace :global(input[type="checkbox"]),
@@ -354,6 +356,162 @@
   color: #9a4f3e;
 }
 
+.quickAction {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.workspace :global(.object-summary) {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.workspace :global(.object-summary__top) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspace :global(.object-summary__identity) {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.workspace :global(.object-summary__title-row) {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.workspace :global(.object-summary .hero-title) {
+  color: #302a26;
+  font-size: 22px;
+  font-weight: 760;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.workspace :global(.object-summary .hero-meta) {
+  color: #80746c;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.workspace :global(.object-summary__facts) {
+  grid-template-columns: 1.2fr 0.65fr 1fr 1fr 1fr;
+  border: 1px solid #e8e0da;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fffdfb;
+}
+
+.workspace :global(.object-summary__facts .detail-field) {
+  min-width: 0;
+  padding: 10px 12px;
+  border-right: 1px solid #eee7e1;
+}
+
+.workspace :global(.object-summary__facts .detail-field:last-child) {
+  border-right: 0;
+}
+
+.workspace :global(.object-summary .detail-label) {
+  margin: 0 0 4px;
+  color: #8a7e76;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.workspace :global(.object-summary .detail-value) {
+  color: #3d3530;
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.35;
+}
+
+.workspace :global(.object-summary__note) {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #eee7e1;
+  border-radius: 8px;
+  background: #faf8f5;
+}
+
+.workspace :global(.object-summary__primary-action) {
+  border-color: #65564d;
+  background: #65564d;
+  color: #fffdfb;
+}
+
+.workspace :global(.object-summary__primary-action:hover) {
+  border-color: #554940;
+  background: #554940;
+  color: #fffdfb;
+}
+
+.workspace :global(.object-status-control) {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.workspace :global(.object-status-control__header) {
+  margin: 0;
+  padding: 0 0 10px;
+  border-bottom: 1px solid #eee7e1;
+}
+
+.workspace :global(.searchable-select) {
+  position: relative;
+  gap: 6px;
+}
+
+.workspace :global(.searchable-select .detail-label) {
+  margin: 0;
+  color: #665b54;
+  font-size: 12px;
+  font-weight: 680;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.workspace :global(.searchable-select__trigger) {
+  min-height: 40px;
+  border-radius: 7px;
+  box-shadow: none;
+  transform: none;
+}
+
+.workspace :global(.searchable-select__trigger:hover:not(:disabled)),
+.workspace :global(.searchable-select__trigger:active:not(:disabled)) {
+  box-shadow: none;
+  transform: none;
+}
+
+.workspace :global(.searchable-select__popover) {
+  z-index: 90;
+  border-color: #d8cec7;
+  border-radius: 8px;
+  background: #fffdfb;
+  box-shadow: 0 12px 26px rgba(63, 48, 39, 0.11);
+}
+
+.workspace :global(.searchable-select__options) {
+  scrollbar-width: thin;
+  scrollbar-color: #c8bbb1 transparent;
+}
+
 @keyframes sectionIn {
   from {
     opacity: 0;
@@ -370,6 +528,14 @@
   .overviewMeta,
   .twoColumn {
     grid-template-columns: 1fr;
+  }
+
+  .workspace :global(.object-summary__facts) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workspace :global(.object-summary__facts .detail-field) {
+    border-bottom: 1px solid #eee7e1;
   }
 }
 
@@ -397,6 +563,23 @@
   .sectionHeader {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .workspace :global(.object-summary__top) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace :global(.object-summary__actions) {
+    width: 100%;
+  }
+
+  .workspace :global(.object-summary__actions > *) {
+    flex: 1 1 auto;
+  }
+
+  .workspace :global(.object-summary__facts) {
+    grid-template-columns: 1fr;
   }
 }
 

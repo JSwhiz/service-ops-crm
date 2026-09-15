@@ -35,25 +35,25 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
   const allowEdit = item.capabilities.canEdit;
 
   return (
-    <div className="page-card workspace-surface hero-card" style={{ display: 'grid', gap: 18 }}>
-      <div className="section-header">
-        <div>
-          <div className="hero-title">{item.name}</div>
-          <div className="hero-meta">{item.internalName ?? 'Без внутреннего имени'}</div>
-          <div style={{ marginTop: 8 }}>
+    <div className="page-card workspace-surface hero-card object-summary">
+      <div className="object-summary__top">
+        <div className="object-summary__identity">
+          <div className="object-summary__title-row">
+            <div className="hero-title">{item.name}</div>
             <span className="status-pill" data-status={item.status}>{getStatusLabel(item.status)}</span>
           </div>
+          {item.internalName ? <div className="hero-meta">{item.internalName}</div> : null}
         </div>
 
-        <div className="action-row">
+        <div className="action-row object-summary__actions">
           {allowEdit ? (
-            <Link className="button-link" href={`/objects/${item.id}/edit`}>Редактировать</Link>
+            <Link className="button-link object-summary__primary-action" href={`/objects/${item.id}/edit`}>Редактировать</Link>
           ) : null}
           <Link className="button-link" href={`/objects/${item.id}/history`}>История</Link>
         </div>
       </div>
 
-      <div className="detail-grid">
+      <div className="detail-grid object-summary__facts">
         <div className="detail-field">
           <div className="detail-label">Адрес</div>
           <div className="detail-value">{item.address}</div>
@@ -67,19 +67,11 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           <div className="detail-value">
             {item.counterparty ? (
               item.counterparty.canOpenCounterparty ? (
-                <Link href={`/counterparties/${item.counterparty.id}`}>
-                  {item.counterparty.name}
-                </Link>
-              ) : (
-                item.counterparty.name
-              )
-            ) : (
-              'Не привязан'
-            )}
+                <Link href={`/counterparties/${item.counterparty.id}`}>{item.counterparty.name}</Link>
+              ) : item.counterparty.name
+            ) : 'Не привязан'}
             {item.counterparty?.legalName ? (
-              <span className="identity-secondary">
-                {item.counterparty.legalName}
-              </span>
+              <span className="identity-secondary">{item.counterparty.legalName}</span>
             ) : null}
           </div>
         </div>
@@ -96,15 +88,15 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           <div className="detail-label">Оплата</div>
           <div className="detail-value">
             {item.paymentType === 'monthly'
-              ? `ЗП за месяц · ${item.monthlySalary.toLocaleString('ru-RU')} ₽`
-              : `Дневная ставка · ${item.dailyRate.toLocaleString('ru-RU')} ₽ / выход`}
+              ? `${item.monthlySalary.toLocaleString('ru-RU')} ₽ / месяц`
+              : `${item.dailyRate.toLocaleString('ru-RU')} ₽ / выход`}
           </div>
         </div>
       </div>
 
       {item.notes ? (
-        <div className="detail-field">
-          <div className="detail-label">Комментарий</div>
+        <div className="object-summary__note">
+          <div className="detail-label">Что важно знать об объекте</div>
           <div className="detail-value">{item.notes}</div>
         </div>
       ) : null}

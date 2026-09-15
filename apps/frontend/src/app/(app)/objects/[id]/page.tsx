@@ -76,7 +76,6 @@ import { ObjectStatusControlPanel } from '@/features/object-status-control/ui/ob
 import { ObjectTeamPanel } from '@/features/object-team/ui/object-team-panel';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { EntityFilesPanel } from '@/shared/ui/entity-files/entity-files-panel';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 import styles from './object-detail-workspace.module.css';
 
@@ -100,21 +99,16 @@ function todayAsBusinessDate(): string {
 function WorkspaceSection({
   id,
   title,
-  description,
   children,
 }: {
   id: string;
   title: string;
-  description?: string;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
     <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
       <header className={styles.sectionHeader}>
-        <div>
-          <h2 id={`${id}-title`} className={styles.sectionTitle}>{title}</h2>
-          {description ? <p className={styles.sectionDescription}>{description}</p> : null}
-        </div>
+        <h2 id={`${id}-title`} className={styles.sectionTitle}>{title}</h2>
       </header>
       {children}
     </section>
@@ -334,8 +328,6 @@ export default function ObjectDetailPage({
 
   return (
     <div className="workspace-page object-detail-page">
-      <PageTitle title={item ? item.name : 'Карточка объекта'} />
-
       {coreLoading ? (
         <ObjectPanelLoading title="Карточка объекта" />
       ) : coreError ? (
@@ -357,16 +349,11 @@ export default function ObjectDetailPage({
             </> : null}
           </nav>
 
-          <WorkspaceSection id="overview" title="Обзор" description="Основные данные, управление объектом и связанные операционные контексты.">
+          <WorkspaceSection id="overview" title="Обзор">
             {item.capabilities.canViewOperationalSections ? (
-              <div className="page-card workspace-surface">
-                <div className="section-header" style={{ paddingBottom: 0 }}>
-                  <div>
-                    <div className="section-title">Рабочий чат объектов</div>
-                    <div className="section-subtitle">Полный мессенджер живет отдельно от комментариев объекта.</div>
-                  </div>
-                  <Link href="/chats?room=objects">Открыть чат</Link>
-                </div>
+              <div className={`${styles.quickAction} page-card workspace-surface`}>
+                <div className="section-title">Рабочий чат</div>
+                <Link href="/chats?room=objects">Открыть</Link>
               </div>
             ) : null}
 
@@ -421,7 +408,7 @@ export default function ObjectDetailPage({
           </WorkspaceSection>
 
           {item.capabilities.canViewOperationalSections ? (
-            <WorkspaceSection id="today" title="Сегодня" description="Ежедневная операционная работа по объекту в одном месте.">
+            <WorkspaceSection id="today" title="Сегодня">
               <div className={styles.todayGrid}>
                 {arrivalLoading ? <ObjectPanelLoading title="Фото прибытия сегодня" /> : arrivalError ? (
                   <ObjectPanelError title="Фото прибытия сегодня" message={arrivalError} />
@@ -475,7 +462,7 @@ export default function ObjectDetailPage({
             </WorkspaceSection>
           ) : null}
 
-          <WorkspaceSection id="team" title="Команда" description="Текущий состав сотрудников, назначения и правила ставок.">
+          <WorkspaceSection id="team" title="Команда">
             {assignedEmployeesLoading ? <ObjectPanelLoading title="Состав сотрудников объекта" /> : assignedEmployeesError ? (
               <ObjectPanelError title="Состав сотрудников объекта" message={assignedEmployeesError} />
             ) : (
@@ -509,13 +496,13 @@ export default function ObjectDetailPage({
           </WorkspaceSection>
 
           {item.capabilities.canViewOperationalSections ? <>
-            <WorkspaceSection id="tasks" title="Задачи" description="Все задачи, связанные с этим объектом.">
+            <WorkspaceSection id="tasks" title="Задачи">
               {tasksLoading ? <ObjectPanelLoading title="Задачи объекта" /> : tasksError ? (
                 <ObjectPanelError title="Задачи объекта" message={tasksError} />
               ) : <TaskListTable items={tasks} />}
             </WorkspaceSection>
 
-            <WorkspaceSection id="inventory" title="Склад" description="Расходники объекта и разрешенные операции выдачи.">
+            <WorkspaceSection id="inventory" title="Склад">
               {objectInventoryLoading ? <ObjectPanelLoading title="Расходники объекта" /> : objectInventoryError ? (
                 <ObjectPanelError title="Расходники объекта" message={objectInventoryError} />
               ) : objectInventory ? (
@@ -536,13 +523,13 @@ export default function ObjectDetailPage({
               ) : null}
             </WorkspaceSection>
 
-            <WorkspaceSection id="equipment" title="Оборудование" description="Оборудование, закрепленное за объектом.">
+            <WorkspaceSection id="equipment" title="Оборудование">
               {objectEquipmentLoading ? <ObjectPanelLoading title="Оборудование объекта" /> : objectEquipmentError ? (
                 <ObjectPanelError title="Оборудование объекта" message={objectEquipmentError} />
               ) : objectEquipment ? <EquipmentScopePanel title="Оборудование объекта" units={objectEquipment.units} /> : null}
             </WorkspaceSection>
 
-            <WorkspaceSection id="files" title="Файлы" description="Документы и вложения объекта.">
+            <WorkspaceSection id="files" title="Файлы">
               {objectFilesLoading ? <ObjectPanelLoading title="Файлы объекта" /> : objectFilesError ? (
                 <ObjectPanelError title="Файлы объекта" message={objectFilesError} />
               ) : (
@@ -559,15 +546,10 @@ export default function ObjectDetailPage({
               )}
             </WorkspaceSection>
 
-            <WorkspaceSection id="history" title="История" description="Операционная лента и полная история изменений объекта.">
-              <div className="page-card workspace-surface">
-                <div className="section-header" style={{ paddingBottom: 0 }}>
-                  <div>
-                    <div className="section-title">Полная история изменений</div>
-                    <div className="section-subtitle">Аудит изменений объекта доступен отдельным представлением.</div>
-                  </div>
-                  <Link href={`/objects/${objectId}/history`}>Открыть историю</Link>
-                </div>
+            <WorkspaceSection id="history" title="История">
+              <div className={`${styles.quickAction} page-card workspace-surface`}>
+                <div className="section-title">История изменений</div>
+                <Link href={`/objects/${objectId}/history`}>Открыть</Link>
               </div>
               {feedLoading ? <ObjectPanelLoading title="Лента объекта" /> : feedError ? (
                 <ObjectPanelError title="Лента объекта" message={feedError} />
