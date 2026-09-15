@@ -141,8 +141,6 @@ test('one-time order completion cycles are access-safe, idempotent and serialize
           : [
               {
                 amount: 0,
-                paymentMethod: 'organization_transfer',
-                paymentDestination: 'organization',
                 zeroReason: 'payment_later',
               },
             ],
