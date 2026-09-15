@@ -673,13 +673,24 @@ export class SearchService {
         ? normalized.slice(1)
         : normalized;
 
-    const fragments: string[] = [];
-    for (let index = 0; index < subscriber.length; index += 3) {
-      const fragment = subscriber.slice(index, index + 3);
-      if (fragment.length >= 2) fragments.push(fragment);
+    if (subscriber.length === 10) {
+      return [
+        subscriber.slice(0, 3),
+        subscriber.slice(3, 6),
+        subscriber.slice(6, 8),
+        subscriber.slice(8, 10),
+      ];
     }
 
-    return fragments;
+    if (subscriber.length === 7) {
+      return [
+        subscriber.slice(0, 3),
+        subscriber.slice(3, 5),
+        subscriber.slice(5, 7),
+      ];
+    }
+
+    return subscriber.match(/\d{2,3}/g)?.filter((fragment) => fragment.length >= 2) ?? [];
   }
 
   private mapObject(item: {
