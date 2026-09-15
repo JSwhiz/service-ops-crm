@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   listObjectRegistrySignals,
@@ -32,6 +32,224 @@ const ISSUE_LABELS: Record<Exclude<ObjectIssueFilter, ''>, string> = {
   attendance_missing: 'Нет отметки присутствия',
   daily_report_missing: 'Нет дневного отчёта',
 };
+
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Активный' },
+  { value: 'frozen', label: 'Заморожен' },
+  { value: 'archived', label: 'Архив' },
+] as const;
+
+const ISSUE_OPTIONS = Object.entries(ISSUE_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+function SearchIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </svg>
+  );
+}
+
+function PlusIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function ChevronIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m7 10 5 5 5-5" />
+    </svg>
+  );
+}
+
+interface RegistryFilterSelectProps {
+  label: string;
+  value: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  onRemove: () => void;
+}
+
+function RegistryFilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+  onRemove,
+}: RegistryFilterSelectProps): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const valueLabel = options.find((option) => option.value === value)?.label ?? value;
+
+  useEffect(() => {
+    if (!open) return;
+    const pointer = (event: MouseEvent): void => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const keyboard = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', pointer);
+    document.addEventListener('keydown', keyboard);
+    return () => {
+      document.removeEventListener('mousedown', pointer);
+      document.removeEventListener('keydown', keyboard);
+    };
+  }, [open]);
+
+  return (
+    <div className={styles.filterControl} ref={rootRef}>
+      <button
+        type="button"
+        className={styles.filterTrigger}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className={styles.filterCopy}>
+          <span className={styles.filterLabel}>{label}</span>
+          <strong>{valueLabel}</strong>
+        </span>
+        <ChevronIcon />
+      </button>
+      <button
+        type="button"
+        className={styles.filterRemove}
+        aria-label={`Удалить фильтр «${label}»`}
+        title="Удалить фильтр"
+        onClick={onRemove}
+      >
+        ×
+      </button>
+
+      {open ? (
+        <div className={styles.filterDropdown} role="listbox" aria-label={label}>
+          <div className={styles.filterDropdownLabel}>{label}</div>
+          {options.map((option) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              className={styles.filterOption}
+              data-selected={option.value === value ? 'true' : 'false'}
+              key={option.value}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              <span>{option.label}</span>
+              {option.value === value ? <span className={styles.filterCheck} aria-hidden="true">✓</span> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface AddFilterMenuProps {
+  statusActive: boolean;
+  issueActive: boolean;
+  onStatus: (value: string) => void;
+  onIssue: (value: string) => void;
+}
+
+function AddFilterMenu({
+  statusActive,
+  issueActive,
+  onStatus,
+  onIssue,
+}: AddFilterMenuProps): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const hasAvailableFilters = !statusActive || !issueActive;
+
+  useEffect(() => {
+    if (!open) return;
+    const pointer = (event: MouseEvent): void => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const keyboard = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', pointer);
+    document.addEventListener('keydown', keyboard);
+    return () => {
+      document.removeEventListener('mousedown', pointer);
+      document.removeEventListener('keydown', keyboard);
+    };
+  }, [open]);
+
+  return (
+    <div className={styles.addFilterRoot} ref={rootRef}>
+      <button
+        type="button"
+        className={styles.addFilterButton}
+        disabled={!hasAvailableFilters}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <PlusIcon />
+        <span>{hasAvailableFilters ? 'Добавить фильтр' : 'Все фильтры добавлены'}</span>
+      </button>
+
+      {open ? (
+        <div className={styles.addFilterMenu} role="menu">
+          {!statusActive ? (
+            <div className={styles.addFilterSection}>
+              <div className={styles.filterDropdownLabel}>Статус</div>
+              {STATUS_OPTIONS.map((option) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.addFilterOption}
+                  key={option.value}
+                  onClick={() => {
+                    onStatus(option.value);
+                    setOpen(false);
+                  }}
+                >
+                  <span className={styles.addFilterOptionIcon}><PlusIcon /></span>
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {!issueActive ? (
+            <div className={styles.addFilterSection}>
+              <div className={styles.filterDropdownLabel}>Операционный сигнал</div>
+              {ISSUE_OPTIONS.map((option) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={styles.addFilterOption}
+                  key={option.value}
+                  onClick={() => {
+                    onIssue(option.value);
+                    setOpen(false);
+                  }}
+                >
+                  <span className={styles.addFilterOptionIcon}><PlusIcon /></span>
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function parsePage(value: string | null): number {
   const page = Number(value);
@@ -241,42 +459,57 @@ export default function ObjectsPage(): React.JSX.Element {
       </header>
 
       <div className={styles.toolbar}>
-        <label className={styles.control}>
-          <span className={styles.controlLabel}>Поиск</span>
+        <div className={styles.searchBox} data-active={searchInput ? 'true' : 'false'}>
+          <SearchIcon />
           <input
             type="search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="Название, адрес, ответственный или менеджер"
+            placeholder="Найти объект по названию, адресу, ответственному или менеджеру"
+            aria-label="Поиск по объектам"
           />
-        </label>
-
-        <label className={styles.control}>
-          <span className={styles.controlLabel}>Статус</span>
-          <select value={status} onChange={(event) => replaceQuery({ status: event.target.value || null, page: null })}>
-            <option value="">Все статусы</option>
-            <option value="active">Активный</option>
-            <option value="frozen">Заморожен</option>
-            <option value="archived">Архив</option>
-          </select>
-        </label>
-
-        <label className={styles.control}>
-          <span className={styles.controlLabel}>Операционный сигнал</span>
-          <select value={issue} onChange={(event) => replaceQuery({ issue: event.target.value || null, page: null })}>
-            <option value="">Все объекты</option>
-            {Object.entries(ISSUE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </label>
-      </div>
-
-      {(query || status || issue) ? (
-        <div className={styles.chips} aria-label="Активные фильтры">
-          {query ? <span className={styles.chip}>Поиск: {query}<button type="button" onClick={() => replaceQuery({ q: null, page: null })} aria-label="Сбросить поиск">×</button></span> : null}
-          {status ? <span className={styles.chip}>Статус: {status === 'active' ? 'Активный' : status === 'frozen' ? 'Заморожен' : 'Архив'}<button type="button" onClick={() => replaceQuery({ status: null, page: null })} aria-label="Сбросить статус">×</button></span> : null}
-          {issue ? <span className={styles.chip}>{ISSUE_LABELS[issue]}<button type="button" onClick={() => replaceQuery({ issue: null, page: null })} aria-label="Сбросить сигнал">×</button></span> : null}
+          {searchInput ? (
+            <button
+              type="button"
+              className={styles.searchClear}
+              onClick={() => setSearchInput('')}
+              aria-label="Очистить поиск"
+              title="Очистить поиск"
+            >
+              ×
+            </button>
+          ) : null}
         </div>
-      ) : null}
+
+        <div className={styles.filters} aria-label="Фильтры объектов">
+          {status ? (
+            <RegistryFilterSelect
+              label="Статус"
+              value={status}
+              options={STATUS_OPTIONS}
+              onChange={(value) => replaceQuery({ status: value, page: null })}
+              onRemove={() => replaceQuery({ status: null, page: null })}
+            />
+          ) : null}
+
+          {issue ? (
+            <RegistryFilterSelect
+              label="Операционный сигнал"
+              value={issue}
+              options={ISSUE_OPTIONS}
+              onChange={(value) => replaceQuery({ issue: value, page: null })}
+              onRemove={() => replaceQuery({ issue: null, page: null })}
+            />
+          ) : null}
+
+          <AddFilterMenu
+            statusActive={Boolean(status)}
+            issueActive={Boolean(issue)}
+            onStatus={(value) => replaceQuery({ status: value, page: null })}
+            onIssue={(value) => replaceQuery({ issue: value, page: null })}
+          />
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="page-card workspace-surface workspace-empty" aria-live="polite">Загрузка списка объектов...</div>
