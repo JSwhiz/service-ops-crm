@@ -33,7 +33,9 @@ export function ObjectEditForm({
     address: item.address,
     responsibleUserId: item.responsible?.id ?? '',
     seasonMode: item.seasonMode ?? '',
+    paymentType: item.paymentType ?? 'monthly',
     monthlySalary: String(item.monthlySalary),
+    dailyRate: String(item.dailyRate),
     notes: item.notes ?? '',
     counterpartyId: item.counterparty?.id ?? '',
   });
@@ -51,7 +53,9 @@ export function ObjectEditForm({
       address: item.address,
       responsibleUserId: item.responsible?.id ?? '',
       seasonMode: item.seasonMode ?? '',
+      paymentType: item.paymentType ?? 'monthly',
       monthlySalary: String(item.monthlySalary),
+      dailyRate: String(item.dailyRate),
       notes: item.notes ?? '',
       counterpartyId: item.counterparty?.id ?? '',
     });
@@ -108,7 +112,9 @@ export function ObjectEditForm({
       };
 
       if (canEditMonthlySalary) {
+        payload.paymentType = form.paymentType as 'monthly' | 'daily';
         payload.monthlySalary = Number(form.monthlySalary) || 0;
+        payload.dailyRate = Number(form.dailyRate) || 0;
       }
 
       await onSubmit(payload);
@@ -230,21 +236,63 @@ export function ObjectEditForm({
         </label>
 
         <label className={styles.field}>
-          <span className={styles.fieldLabel}>ЗП за месяц</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={form.monthlySalary}
-            onChange={(event) => setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))}
+          <span className={styles.fieldLabel}>Тип оплаты</span>
+          <select
+            value={form.paymentType}
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                paymentType: event.target.value as 'monthly' | 'daily',
+              }))
+            }
             disabled={!canEditMonthlySalary}
-          />
-          <span className={styles.inlineHelp}>
-            {canEditMonthlySalary
-              ? 'Ставка за рабочий день рассчитывается автоматически по выбранному месяцу в табеле.'
-              : 'Изменение месячной зарплаты доступно только учредителю и директору.'}
-          </span>
+          >
+            <option value="monthly">Фиксированная ЗП за месяц</option>
+            <option value="daily">Дневная ставка за выход</option>
+          </select>
+          {!canEditMonthlySalary ? (
+            <span className={styles.inlineHelp}>
+              Изменение условий оплаты доступно только учредителю и директору.
+            </span>
+          ) : null}
         </label>
+
+        {form.paymentType === 'monthly' ? (
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>ЗП за месяц</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.monthlySalary}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))
+              }
+              disabled={!canEditMonthlySalary}
+            />
+            <span className={styles.inlineHelp}>
+              Полный месяц — вся сумма. Неполный месяц или отсутствие —
+              пропорционально фактическим выходам.
+            </span>
+          </label>
+        ) : (
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Дневная ставка</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.dailyRate}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, dailyRate: event.target.value }))
+              }
+              disabled={!canEditMonthlySalary}
+            />
+            <span className={styles.inlineHelp}>
+              Начисление = количество фактических выходов × дневная ставка.
+            </span>
+          </label>
+        )}
 
         <label className={`${styles.field} ${styles.fullWidth}`}>
           <span className={styles.fieldLabel}>Комментарий</span>
