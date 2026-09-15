@@ -64,7 +64,7 @@ function ArrowIcon(): React.JSX.Element {
 
 function createMenuLabel(label: string): string {
   const short = label.replace(/^(Создать|Добавить)\s+/u, '');
-  return short ? short[0].toLocaleUpperCase('ru') + short.slice(1) : label;
+  return short ? short.charAt(0).toLocaleUpperCase('ru') + short.slice(1) : label;
 }
 
 function toCommandItem(item: {
