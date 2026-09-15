@@ -74,7 +74,12 @@ export function TimesheetGrid({
     <div className="timesheet-card">
       <div className="timesheet-card__meta">
         <div><strong>Объект:</strong> {timesheet.objectName}</div>
-        <div><strong>Ставка объекта:</strong> {timesheet.objectDailyRate}</div>
+        <div>
+          <strong>Оплата:</strong>{' '}
+          {timesheet.objectPaymentType === 'monthly'
+            ? `${moneyFormatter.format(timesheet.objectMonthlySalary)} / месяц`
+            : `${moneyFormatter.format(timesheet.objectDailyRate)} / выход`}
+        </div>
         <div><strong>Аванс:</strong> {moneyFormatter.format(timesheet.advanceTotal)}</div>
         <div><strong>ЗП:</strong> {moneyFormatter.format(timesheet.salaryTotal)}</div>
         <div><strong>Итого:</strong> {moneyFormatter.format(timesheet.monthTotal)}</div>
