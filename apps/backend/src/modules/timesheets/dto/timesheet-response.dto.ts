@@ -3,6 +3,7 @@ import type { TimesheetRatePolicySnapshot } from '../types/timesheet-rate-policy
 export class TimesheetResponseDto {
   objectId!: string;
   objectName!: string;
+  objectPaymentType!: 'monthly' | 'daily';
   objectDailyRate!: number;
   objectMonthlySalary!: number;
   objectCalculatedDailyRate!: number;
