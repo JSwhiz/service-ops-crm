@@ -537,6 +537,12 @@ a:hover {
   overflow-x: hidden;
 }
 
+/* Objects workspace is data-dense like the timesheet: use the whole available main column. */
+.app-content:has(.object-registry),
+.app-content:has(.object-detail-page) {
+  max-width: none;
+}
+
 .page-title {
   margin: 0 0 18px;
   font-size: 28px;
