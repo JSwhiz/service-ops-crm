@@ -171,10 +171,10 @@ export class TimesheetsService {
         row.entries.map((entry) => [entry.dayOfMonth, entry]),
       );
       const ratePolicy =
+        policyByEmployeeId.get(row.employeeId) ??
         row.entries
           .map((entry) => parseRatePolicySnapshot(entry.ratePolicySnapshot))
           .find((policy) => policy !== null) ??
-        policyByEmployeeId.get(row.employeeId) ??
         buildObjectDefaultRatePolicy({
           paymentType: object.paymentType as 'monthly' | 'daily',
           monthlySalary: object.monthlySalary,
@@ -623,17 +623,25 @@ export class TimesheetsService {
         month: query.month,
         scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
       });
-      const policy =
-        storedPolicy ??
-        factPolicy ??
-        (assignment?.ratePolicyUpdatedAt
+      const currentAssignmentPolicy = assignment
+        ? assignment.ratePolicyUpdatedAt
           ? normalizeRatePolicy(assignment, objectFallback.dailyRate)
           : buildObjectDefaultRatePolicy({
               paymentType: object.paymentType as 'monthly' | 'daily',
               monthlySalary: object.monthlySalary,
               dailyRate: object.dailyRate,
-              scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
-            }));
+              scheduleCode: assignment.ratePolicyScheduleCode,
+            })
+        : null;
+      const policy =
+        currentAssignmentPolicy ??
+        storedPolicy ??
+        factPolicy ??
+        buildObjectDefaultRatePolicy({
+          paymentType: object.paymentType as 'monthly' | 'daily',
+          monthlySalary: object.monthlySalary,
+          dailyRate: object.dailyRate,
+        });
       const calculated = calculateTimesheetAutoValues({
         year: query.year,
         month: query.month,
@@ -1408,7 +1416,7 @@ export class TimesheetsService {
         monthlySalary: true,
       },
     });
-    const ratePolicy = await this.loadRatePolicyForEmployee({
+    const currentRatePolicy = await this.loadRatePolicyForEmployee({
       client,
       objectId: params.objectId,
       employeeId: params.employeeId,
@@ -1418,6 +1426,9 @@ export class TimesheetsService {
       year: params.year,
       month: params.month,
     });
+    const ratePolicy =
+      parseRatePolicySnapshot(attendanceFact?.ratePolicySnapshot) ??
+      currentRatePolicy;
     const calculatedDay =
       calculateTimesheetAutoValues({
         year: params.year,
@@ -1887,10 +1898,10 @@ export class TimesheetsService {
         row.entries.map((entry) => [entry.dayOfMonth, entry]),
       );
       const ratePolicy =
+        policyByEmployeeId.get(row.employeeId) ??
         row.entries
           .map((entry) => parseRatePolicySnapshot(entry.ratePolicySnapshot))
           .find((policy) => policy !== null) ??
-        policyByEmployeeId.get(row.employeeId) ??
         buildObjectDefaultRatePolicy({
           paymentType: object.paymentType as 'monthly' | 'daily',
           monthlySalary: object.monthlySalary,
