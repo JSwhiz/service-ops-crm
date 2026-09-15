@@ -43,6 +43,7 @@ export interface TimesheetRatePolicy {
 export interface TimesheetMonth {
   objectId: string;
   objectName: string;
+  objectPaymentType: 'monthly' | 'daily';
   objectDailyRate: number;
   objectMonthlySalary: number;
   objectCalculatedDailyRate: number;
