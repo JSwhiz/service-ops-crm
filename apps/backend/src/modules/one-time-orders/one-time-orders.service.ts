@@ -3473,6 +3473,9 @@ export class OneTimeOrdersService {
       canViewAllPayments ||
       payment.recipientUserId === currentUserId ||
       (payment.paymentDestination === 'organization' &&
+        payment.recordedByUserId === currentUserId) ||
+      (payment.amount.isZero() &&
+        payment.zeroReason !== null &&
         payment.recordedByUserId === currentUserId)
     );
   }
