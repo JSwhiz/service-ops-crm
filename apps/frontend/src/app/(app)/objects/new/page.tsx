@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -209,9 +208,6 @@ function ManagerMultiSelect({
     <div className={styles.managerSelect} ref={rootRef}>
       <div className={styles.managerSelectLabel}>
         <span className={styles.fieldLabel}>Менеджеры</span>
-        {selectedUsers.length > 0 ? (
-          <span className={styles.managerCount}>Выбрано: {selectedUsers.length}</span>
-        ) : null}
       </div>
 
       <button
@@ -293,6 +289,17 @@ const PAYMENT_OPTIONS: CompactSelectOption[] = [
   { value: 'daily', label: 'Дневная ставка за выход' },
 ];
 
+function formatManagerCount(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  const noun = mod10 === 1 && mod100 !== 11
+    ? 'менеджер'
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? 'менеджера'
+      : 'менеджеров';
+  return `${count} ${noun}`;
+}
+
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
   const { user } = useAuth();
@@ -358,6 +365,7 @@ export default function NewObjectPage(): React.JSX.Element {
   }, [allowCreateObject]);
 
   const managerCandidates = managerUsers.filter((candidate) => candidate.id !== user?.id);
+  const selectedResponsible = responsibleCandidates.find((candidate) => candidate.id === responsibleUserId) ?? null;
   const responsibleOptions = responsibleCandidates.map((candidate) => ({
     value: candidate.id,
     label: getUserDisplayName(candidate),
@@ -410,13 +418,6 @@ export default function NewObjectPage(): React.JSX.Element {
 
   return (
     <div className={`workspace-page object-create-page ${styles.page}`}>
-      <header className={styles.pageHeader}>
-        <div className={styles.heading}>
-          <Link href="/objects" className={styles.backLink}>← К объектам</Link>
-          <h1>Новый объект</h1>
-        </div>
-      </header>
-
       <form className={styles.form} onSubmit={handleSubmit}>
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
@@ -566,9 +567,13 @@ export default function NewObjectPage(): React.JSX.Element {
           <div className={styles.sectionHeader}>
             <div className={styles.sectionTitleRow}>
               <h2>Команда объекта</h2>
-              {managerUserIds.length > 0 ? (
-                <span className={styles.sectionMeta}>{managerUserIds.length} менеджер(а)</span>
-              ) : null}
+              <span className={styles.sectionMeta}>
+                {selectedResponsible
+                  ? `Ответственный: ${getUserDisplayName(selectedResponsible)}`
+                  : 'Ответственный не выбран'}
+                <span aria-hidden="true"> · </span>
+                {formatManagerCount(managerUserIds.length)}
+              </span>
             </div>
           </div>
 
