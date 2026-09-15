@@ -59,11 +59,20 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
     }),
   ]);
 
-  const [managerOne, managerTwo, candidateObject] = await Promise.all([
+  const [managerOne, managerTwo, founder] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
-    prisma.object.findFirstOrThrow({ where: { deletedAt: null } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
   ]);
+
+  const candidateObject = await prisma.object.create({
+    data: {
+      name: 'Candidate notifications object',
+      address: 'Integration test',
+      status: 'active',
+      createdByUserId: founder.id,
+    },
+  });
 
   let phoneSequence = 1000;
   const createRegular = async (
@@ -81,8 +90,13 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
         managerUserId,
       }),
     });
-    assert.equal(response.status, 201);
-    const candidate = (await response.json()) as any;
+    const responseBody = await response.json();
+    assert.equal(
+      response.status,
+      201,
+      `candidate create failed: ${JSON.stringify(responseBody)}`,
+    );
+    const candidate = responseBody as any;
     assert.equal(candidate.object?.id, candidateObject.id);
     assert.equal(candidate.currentAssignment?.manager.id, managerUserId);
     return candidate;
