@@ -10,6 +10,7 @@ export interface EquipmentCatalogItem {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  unitsCount: number;
 }
 
 export interface EquipmentUnit {

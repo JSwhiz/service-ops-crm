@@ -6,11 +6,13 @@ import React, { useEffect, useState } from 'react';
 import {
   createEquipmentCatalogItem,
   createEquipmentUnit,
+  deleteEquipmentCatalogItem,
   listEquipmentCatalog,
 } from '@/entities/equipment/api/equipment-client';
 import type { EquipmentCatalogItem } from '@/entities/equipment/model/equipment.types';
 import {
   EquipmentCatalogItemForm,
+  EquipmentCatalogManager,
   EquipmentUnitForm,
 } from '@/features/equipment-form/ui/equipment-form';
 import { useAuth } from '@/shared/auth/use-auth';
@@ -25,6 +27,8 @@ export default function EquipmentNewPage(): React.JSX.Element {
   const router = useRouter();
   const canManageEquipmentCatalog =
     user?.capabilities?.canManageEquipmentCatalog ?? false;
+  const canDeleteEquipmentUnit =
+    user?.capabilities?.canDeleteEquipmentUnit ?? false;
   const [catalog, setCatalog] = useState<EquipmentCatalogItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,8 +92,16 @@ export default function EquipmentNewPage(): React.JSX.Element {
               setCatalog((current) => [created, ...current]);
             }}
           />
-          <EquipmentUnitForm
+          <EquipmentCatalogManager
             catalog={catalog}
+            canDelete={canDeleteEquipmentUnit}
+            onDelete={async (id) => {
+              await deleteEquipmentCatalogItem(id);
+              setCatalog((current) => current.filter((item) => item.id !== id));
+            }}
+          />
+          <EquipmentUnitForm
+            catalog={catalog.filter((item) => item.isActive)}
             onSubmit={async (payload) => {
               const created = await createEquipmentUnit(payload);
               router.push(`/equipment/${created.id}`);

@@ -24,7 +24,6 @@ export function InventoryItemForm({
     name: string;
     category: string;
     unit: string;
-    isActive: boolean;
     notes?: string;
   };
   submitLabel: string;
@@ -33,7 +32,6 @@ export function InventoryItemForm({
   const [name, setName] = useState(initialValue?.name ?? '');
   const [category, setCategory] = useState(initialValue?.category ?? '');
   const [unit, setUnit] = useState(initialValue?.unit ?? '');
-  const [isActive, setIsActive] = useState(initialValue?.isActive ?? true);
   const [notes, setNotes] = useState(initialValue?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -51,7 +49,6 @@ export function InventoryItemForm({
           name,
           category,
           unit,
-          isActive,
           ...(notes.trim() ? { notes: notes.trim() } : {}),
         })
           .catch((submitError) => {
@@ -119,15 +116,6 @@ export function InventoryItemForm({
           rows={4}
           style={{ width: '100%', padding: 10 }}
         />
-      </label>
-
-      <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input
-          type="checkbox"
-          checked={isActive}
-          onChange={(event) => setIsActive(event.target.checked)}
-        />
-        Позиция активна
       </label>
 
       {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}

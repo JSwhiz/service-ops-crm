@@ -42,6 +42,14 @@ export async function createEquipmentCatalogItem(
   });
 }
 
+export async function deleteEquipmentCatalogItem(
+  id: string,
+): Promise<{ id: string }> {
+  return fetcher<{ id: string }>(`/equipment/catalog/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function listEquipmentUnits(
   params?: ListEquipmentUnitsParams,
 ): Promise<EquipmentUnit[]> {

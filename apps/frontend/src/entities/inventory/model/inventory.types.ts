@@ -6,6 +6,7 @@ export interface InventoryItem {
   category: string;
   unit: string;
   isActive: boolean;
+  deletedAt: string | null;
   notes: string | null;
   currentUnitPrice: number | null;
   version: number;
@@ -159,7 +160,6 @@ export interface CreateInventoryItemPayload {
   name: string;
   category: string;
   unit: string;
-  isActive?: boolean;
   notes?: string;
 }
 
@@ -168,7 +168,6 @@ export interface UpdateInventoryItemPayload {
   name?: string;
   category?: string;
   unit?: string;
-  isActive?: boolean;
   notes?: string | null;
 }
 

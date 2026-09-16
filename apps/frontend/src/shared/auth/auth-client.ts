@@ -44,6 +44,7 @@ export interface AuthUser {
     canApproveAccountabilityClosure?: boolean;
     canAccessInventory?: boolean;
     canManageInventoryCatalog?: boolean;
+    canDeleteInventoryItem?: boolean;
     canCreateInventoryMovement?: boolean;
     canCreateInventoryReceipt?: boolean;
     canIssueInventoryToObject?: boolean;
@@ -55,6 +56,7 @@ export interface AuthUser {
     canResolveInventoryMissingPhotoApproval?: boolean;
     canAccessEquipment?: boolean;
     canManageEquipmentCatalog?: boolean;
+    canDeleteEquipmentUnit?: boolean;
     canAssignEquipmentToObject?: boolean;
     canAssignEquipmentToOneTimeOrder?: boolean;
     canReturnEquipment?: boolean;

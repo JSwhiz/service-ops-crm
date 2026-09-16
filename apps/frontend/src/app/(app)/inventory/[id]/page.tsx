@@ -11,7 +11,7 @@ import {
   listInventoryMovements,
   listInventoryObjectReferenceOptions,
   listInventoryOneTimeOrderReferenceOptions,
-  updateInventoryItem,
+  restoreInventoryItem,
 } from '@/entities/inventory/api/inventory-client';
 import type {
   InventoryItem,
@@ -22,7 +22,6 @@ import type {
 import { InventoryItemEditor } from '@/features/inventory-item-editor/ui/inventory-item-editor';
 import { InventoryMovementForm } from '@/features/inventory-movement-form/ui/inventory-movement-form';
 import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inventory-movement-list';
-import { ApiError } from '@/shared/api/fetcher';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   formatInventoryQuantity,
@@ -85,7 +84,8 @@ export default function InventoryItemDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [movementError, setMovementError] = useState<string | null>(null);
   const [itemActionError, setItemActionError] = useState<string | null>(null);
-  const canCreateMovement = item?.capabilities.canCreateMovement ?? false;
+  const canCreateMovement =
+    (item?.isActive ?? false) && (item?.capabilities.canCreateMovement ?? false);
   const canViewMovementHistory = item?.capabilities.canViewReports ?? false;
 
   useEffect(() => {
@@ -232,7 +232,7 @@ export default function InventoryItemDetailPage({
     selectedOrderId,
   ]);
 
-  const updateActiveState = async (isActive: boolean): Promise<void> => {
+  const handleRestore = async (): Promise<void> => {
     if (!item) {
       return;
     }
@@ -241,23 +241,13 @@ export default function InventoryItemDetailPage({
     setItemActionError(null);
 
     try {
-      const updated = await updateInventoryItem(item.id, {
-        expectedVersion: item.version,
-        isActive,
-      });
-      setItem(updated);
+      const restored = await restoreInventoryItem(item.id, item.version);
+      setItem(restored);
       setIsDeleteConfirmationOpen(false);
     } catch (actionError) {
-      if (
-        actionError instanceof ApiError &&
-        actionError.code === 'INVENTORY_ITEM_VERSION_CONFLICT'
-      ) {
-        setItemActionError('Карточка была изменена другим пользователем.');
-      } else {
-        setItemActionError(
-          getErrorMessage(actionError, 'Не удалось изменить статус позиции.'),
-        );
-      }
+      setItemActionError(
+        getErrorMessage(actionError, 'Не удалось восстановить позицию.'),
+      );
     } finally {
       setIsItemActionPending(false);
     }
@@ -318,7 +308,7 @@ export default function InventoryItemDetailPage({
                 >
                   {item.isActive ? 'Активна' : 'Удалена'}
                 </span>
-                {item.capabilities.canEditCatalog ? (
+                {item.capabilities.canEditCatalog && item.isActive ? (
                   <button
                     type="button"
                     className="button-secondary"
@@ -422,26 +412,33 @@ export default function InventoryItemDetailPage({
                 <div>
                   <div className="section-title">Управление карточкой</div>
                   <div className="page-muted">
-                    Удалённые позиции не участвуют в новых складских операциях.
+                    {item.isActive
+                      ? 'Удаление доступно только при нулевом остатке и без незавершённых операций.'
+                      : item.deletedAt
+                        ? `Удалена ${new Date(item.deletedAt).toLocaleString('ru-RU')}. История движений сохранена.`
+                        : 'Позиция недоступна для новых складских операций.'}
                   </div>
                 </div>
                 {item.isActive ? (
-                  <button
-                    type="button"
-                    className="button-danger"
-                    disabled={!item.capabilities.canDelete}
-                    onClick={() => setIsDeleteConfirmationOpen(true)}
-                  >
-                    Удалить
-                  </button>
+                  item.capabilities.canDelete ? (
+                    <button
+                      type="button"
+                      className="button-danger"
+                      onClick={() => setIsDeleteConfirmationOpen(true)}
+                    >
+                      Удалить
+                    </button>
+                  ) : null
                 ) : (
-                  <button
-                    type="button"
-                    disabled={isItemActionPending}
-                    onClick={() => void updateActiveState(true)}
-                  >
-                    Восстановить
-                  </button>
+                  item.capabilities.canDelete ? (
+                    <button
+                      type="button"
+                      disabled={isItemActionPending}
+                      onClick={() => void handleRestore()}
+                    >
+                      {isItemActionPending ? 'Восстанавливаем...' : 'Восстановить'}
+                    </button>
+                  ) : null
                 )}
               </div>
 

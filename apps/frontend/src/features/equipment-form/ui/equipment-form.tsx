@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import type {
   CreateEquipmentCatalogItemPayload,
@@ -24,6 +24,12 @@ export function EquipmentCatalogItemForm({
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!catalog.some((item) => item.id === catalogItemId)) {
+      setCatalogItemId(catalog[0]?.id ?? '');
+    }
+  }, [catalog, catalogItemId]);
 
   return (
     <form
@@ -57,6 +63,116 @@ export function EquipmentCatalogItemForm({
         {isSaving ? 'Создаем...' : 'Создать тип'}
       </button>
     </form>
+  );
+}
+
+export function EquipmentCatalogManager({
+  catalog,
+  canDelete,
+  onDelete,
+}: {
+  catalog: EquipmentCatalogItem[];
+  canDelete: boolean;
+  onDelete: (id: string) => Promise<void>;
+}): React.JSX.Element {
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="page-card" style={{ display: 'grid', gap: 12 }}>
+      <div className="section-header">
+        <div>
+          <div className="section-title">Типы оборудования</div>
+          <div className="page-muted">
+            Пустой тип можно удалить. Тип с заведёнными единицами сохраняется.
+          </div>
+        </div>
+      </div>
+
+      {catalog.length === 0 ? (
+        <div className="page-muted">Типы оборудования пока не созданы.</div>
+      ) : (
+        <div className="record-list">
+          {catalog.map((item) => {
+            const isConfirming = confirmId === item.id;
+            const canDeleteItem = canDelete && item.unitsCount === 0;
+
+            return (
+              <div key={item.id} className="record-card">
+                <div className="section-header">
+                  <div>
+                    <strong>{item.name}</strong>
+                    <div className="page-muted">
+                      {item.category}
+                      {item.brand ? ` · ${item.brand}` : ''}
+                      {item.model ? ` · ${item.model}` : ''}
+                      {item.unitsCount > 0
+                        ? ` · ${item.unitsCount} ед.`
+                        : ' · не используется'}
+                    </div>
+                  </div>
+                  {canDelete ? (
+                    <button
+                      type="button"
+                      className="button-danger"
+                      disabled={!canDeleteItem || pendingId === item.id}
+                      onClick={() => {
+                        setError(null);
+                        setConfirmId(item.id);
+                      }}
+                    >
+                      Удалить тип
+                    </button>
+                  ) : null}
+                </div>
+
+                {isConfirming && canDeleteItem ? (
+                  <div className="inline-notice inline-notice--warning">
+                    <strong>Удалить тип «{item.name}»?</strong>
+                    <div>Он не используется ни одной единицей оборудования.</div>
+                    <div className="action-row">
+                      <button
+                        type="button"
+                        className="button-danger"
+                        disabled={pendingId === item.id}
+                        onClick={() => {
+                          setPendingId(item.id);
+                          setError(null);
+                          void onDelete(item.id)
+                            .then(() => setConfirmId(null))
+                            .catch((deleteError: unknown) =>
+                              setError(
+                                getErrorMessage(
+                                  deleteError,
+                                  'Не удалось удалить тип оборудования.',
+                                ),
+                              ),
+                            )
+                            .finally(() => setPendingId(null));
+                        }}
+                      >
+                        {pendingId === item.id ? 'Удаляем...' : 'Удалить'}
+                      </button>
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        disabled={pendingId === item.id}
+                        onClick={() => setConfirmId(null)}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {error ? <div className="form-error">{error}</div> : null}
+    </div>
   );
 }
 

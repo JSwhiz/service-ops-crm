@@ -86,6 +86,16 @@ export async function deleteInventoryItem(
   );
 }
 
+export async function restoreInventoryItem(
+  id: string,
+  expectedVersion: number,
+): Promise<InventoryItem> {
+  return fetcher<InventoryItem>(`/inventory/items/${id}/restore`, {
+    method: 'POST',
+    body: JSON.stringify({ expectedVersion }),
+  });
+}
+
 export async function listInventoryMovements(
   params?: ListInventoryMovementsParams,
 ): Promise<InventoryMovementListResponse> {
