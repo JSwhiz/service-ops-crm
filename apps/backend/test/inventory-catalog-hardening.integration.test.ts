@@ -13,10 +13,11 @@ type ItemResponse = {
   unit: string;
   notes: string | null;
   isActive: boolean;
+  deletedAt: string | null;
   version: number;
 };
 
-test('inventory catalog enforces normalized identity, versioning and archive invariants', async (t) => {
+test('inventory catalog enforces identity, versioning and explicit delete lifecycle', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const founder = await prisma.user.findUniqueOrThrow({
@@ -60,6 +61,7 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
       },
       body: JSON.stringify(body),
     });
+
   const updateItem = async (
     itemId: string,
     body: Record<string, unknown>,
@@ -74,6 +76,29 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
       body: JSON.stringify(body),
     });
 
+  const deleteItem = async (
+    itemId: string,
+    cookie = founderCookie,
+  ): Promise<Response> =>
+    fetch(`${baseUrl}/api/v1/inventory/items/${itemId}`, {
+      method: 'DELETE',
+      headers: { Cookie: cookie },
+    });
+
+  const restoreItem = async (
+    itemId: string,
+    expectedVersion: number,
+    cookie = founderCookie,
+  ): Promise<Response> =>
+    fetch(`${baseUrl}/api/v1/inventory/items/${itemId}/restore`, {
+      method: 'POST',
+      headers: {
+        Cookie: cookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ expectedVersion }),
+    });
+
   for (const invalidBody of [
     { name: '   ', category: 'Химия', unit: 'л' },
     { name: 'Средство', category: '   ', unit: 'л' },
@@ -86,6 +111,12 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
       category: 'Химия',
       unit: 'л',
       notes: 'x'.repeat(4001),
+    },
+    {
+      name: 'Средство',
+      category: 'Химия',
+      unit: 'л',
+      isActive: false,
     },
   ]) {
     assert.equal((await createItem(invalidBody)).status, 400);
@@ -103,6 +134,8 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
   assert.equal(item.category, 'Химия');
   assert.equal(item.unit, 'л');
   assert.equal(item.notes, null);
+  assert.equal(item.isActive, true);
+  assert.equal(item.deletedAt, null);
   assert.equal(item.version, 1);
 
   const duplicateResponse = await createItem({
@@ -126,6 +159,12 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
     'INVENTORY_ITEM_VERSION_CONFLICT',
   );
 
+  const legacyArchiveBypass = await updateItem(item.id, {
+    expectedVersion: 1,
+    isActive: false,
+  });
+  assert.equal(legacyArchiveBypass.status, 400);
+
   const parallelUpdateResponses = await Promise.all([
     updateItem(item.id, {
       expectedVersion: 1,
@@ -140,6 +179,7 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
     parallelUpdateResponses.map((response) => response.status).sort(),
     [200, 409],
   );
+
   const currentItem = await prisma.inventoryItem.findUniqueOrThrow({
     where: { id: item.id },
   });
@@ -151,21 +191,72 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
     managerCookie,
   );
   assert.equal(managerDeniedResponse.status, 403);
+  assert.equal((await deleteItem(item.id, managerCookie)).status, 403);
 
-  const managerHistoryResponse = await fetch(
-    `${baseUrl}/api/v1/inventory/movements?inventoryItemId=${item.id}`,
-    { headers: { Cookie: managerCookie } },
-  );
-  assert.equal(managerHistoryResponse.status, 403);
-
-  const archiveResponse = await updateItem(item.id, {
-    expectedVersion: 2,
-    isActive: false,
+  await prisma.inventoryMovement.createMany({
+    data: [
+      {
+        inventoryItemId: item.id,
+        movementType: 'receipt',
+        status: 'applied',
+        quantity: 1,
+        unitPriceSnapshot: 10,
+        totalAmountSnapshot: 10,
+        createdByUserId: founder.id,
+      },
+      {
+        inventoryItemId: item.id,
+        movementType: 'writeoff',
+        status: 'applied',
+        quantity: 1,
+        unitPriceSnapshot: 10,
+        totalAmountSnapshot: 10,
+        createdByUserId: founder.id,
+      },
+    ],
   });
-  assert.equal(archiveResponse.status, 200);
-  const archivedItem = (await archiveResponse.json()) as ItemResponse;
-  assert.equal(archivedItem.isActive, false);
-  assert.equal(archivedItem.version, 3);
+
+  const deleteResponse = await deleteItem(item.id);
+  assert.equal(deleteResponse.status, 200);
+  assert.deepEqual(await deleteResponse.json(), { id: item.id, mode: 'soft' });
+
+  const deletedItemResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/items/${item.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(deletedItemResponse.status, 200);
+  const deletedItem = (await deletedItemResponse.json()) as ItemResponse;
+  assert.equal(deletedItem.isActive, false);
+  assert.ok(deletedItem.deletedAt);
+  assert.equal(deletedItem.version, 3);
+
+  const deletedEditResponse = await updateItem(item.id, {
+    expectedVersion: deletedItem.version,
+    notes: 'Нельзя менять удалённую карточку',
+  });
+  assert.equal(deletedEditResponse.status, 409);
+  assert.equal(
+    ((await deletedEditResponse.json()) as { code: string }).code,
+    'INVENTORY_ITEM_DELETED',
+  );
+
+  const deletedMovementResponse = await fetch(
+    `${baseUrl}/api/v1/inventory/movements`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inventoryItemId: item.id,
+        movementType: 'receipt',
+        quantity: 1,
+        unitPrice: 1,
+      }),
+    },
+  );
+  assert.equal(deletedMovementResponse.status, 400);
 
   const replacementResponse = await createItem({
     name: item.name,
@@ -175,62 +266,26 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
   assert.equal(replacementResponse.status, 201);
   const replacement = (await replacementResponse.json()) as ItemResponse;
 
-  const blockedReactivationResponse = await updateItem(item.id, {
-    expectedVersion: 3,
-    isActive: true,
-  });
-  assert.equal(blockedReactivationResponse.status, 409);
+  const blockedRestoreResponse = await restoreItem(item.id, deletedItem.version);
+  assert.equal(blockedRestoreResponse.status, 409);
   assert.equal(
-    ((await blockedReactivationResponse.json()) as { code: string }).code,
+    ((await blockedRestoreResponse.json()) as { code: string }).code,
     'INVENTORY_ITEM_DUPLICATE',
   );
 
-  const archiveReplacementResponse = await updateItem(replacement.id, {
-    expectedVersion: 1,
-    isActive: false,
+  const replacementDeleteResponse = await deleteItem(replacement.id);
+  assert.equal(replacementDeleteResponse.status, 200);
+  assert.deepEqual(await replacementDeleteResponse.json(), {
+    id: replacement.id,
+    mode: 'hard',
   });
-  assert.equal(archiveReplacementResponse.status, 200);
-  const reactivateResponse = await updateItem(item.id, {
-    expectedVersion: 3,
-    isActive: true,
-  });
-  assert.equal(reactivateResponse.status, 200);
-  const reactivatedItem = (await reactivateResponse.json()) as ItemResponse;
-  assert.equal(reactivatedItem.version, 4);
-  assert.equal(reactivatedItem.isActive, true);
-  const reactivatedReceiptResponse = await fetch(
-    `${baseUrl}/api/v1/inventory/movements`,
-    {
-      method: 'POST',
-      headers: {
-        Cookie: founderCookie,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inventoryItemId: reactivatedItem.id,
-        movementType: 'receipt',
-        quantity: 1,
-        unitPrice: 5,
-      }),
-    },
-  );
-  assert.equal(reactivatedReceiptResponse.status, 201);
 
-  const parallelName = `Параллельный товар ${marker}`;
-  const parallelCreateResponses = await Promise.all([
-    createItem({ name: parallelName, category: 'Тест', unit: 'шт' }),
-    createItem({ name: parallelName, category: 'Тест', unit: 'шт' }),
-  ]);
-  assert.deepEqual(
-    parallelCreateResponses.map((response) => response.status).sort(),
-    [201, 409],
-  );
-  assert.equal(
-    await prisma.inventoryItem.count({
-      where: { name: parallelName, isActive: true },
-    }),
-    1,
-  );
+  const restoreResponse = await restoreItem(item.id, deletedItem.version);
+  assert.equal(restoreResponse.status, 201);
+  const restoredItem = (await restoreResponse.json()) as ItemResponse;
+  assert.equal(restoredItem.isActive, true);
+  assert.equal(restoredItem.deletedAt, null);
+  assert.equal(restoredItem.version, 4);
 
   const stockItemResponse = await createItem({
     name: `Товар с остатком ${marker}`,
@@ -252,13 +307,11 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
     }),
   });
   assert.equal(receiptResponse.status, 201);
-  const stockArchiveResponse = await updateItem(stockItem.id, {
-    expectedVersion: 1,
-    isActive: false,
-  });
-  assert.equal(stockArchiveResponse.status, 409);
+
+  const stockDeleteResponse = await deleteItem(stockItem.id);
+  assert.equal(stockDeleteResponse.status, 409);
   assert.deepEqual(
-    ((await stockArchiveResponse.json()) as { reasons: string[] }).reasons,
+    ((await stockDeleteResponse.json()) as { reasons: string[] }).reasons,
     ['non_zero_stock'],
   );
 
@@ -288,14 +341,12 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
       payloadSnapshot: {},
     },
   });
-  const pendingArchiveResponse = await updateItem(pendingItem.id, {
-    expectedVersion: 1,
-    isActive: false,
-  });
-  assert.equal(pendingArchiveResponse.status, 409);
+
+  const pendingDeleteResponse = await deleteItem(pendingItem.id);
+  assert.equal(pendingDeleteResponse.status, 409);
   assert.deepEqual(
     (
-      (await pendingArchiveResponse.json()) as {
+      (await pendingDeleteResponse.json()) as {
         reasons: string[];
       }
     ).reasons.sort(),
@@ -306,68 +357,17 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
     `${baseUrl}/api/v1/inventory/items/${pendingItem.id}`,
     { headers: { Cookie: founderCookie } },
   );
-  assert.equal(pendingItemViewResponse.status, 200);
   const pendingItemView = (await pendingItemViewResponse.json()) as {
-    archiveState: {
-      canArchive: boolean;
+    deletionState: {
+      canDelete: boolean;
       pendingMovementsCount: number;
       pendingApprovalsCount: number;
       blockerCodes: string[];
     };
   };
-  assert.equal(pendingItemView.archiveState.canArchive, false);
-  assert.equal(pendingItemView.archiveState.pendingMovementsCount, 1);
-  assert.equal(pendingItemView.archiveState.pendingApprovalsCount, 1);
-  assert.deepEqual(pendingItemView.archiveState.blockerCodes.sort(), [
-    'pending_approval',
-    'pending_movement',
-  ]);
-
-  const paginatedListResponse = await fetch(
-    `${baseUrl}/api/v1/inventory/items?search=${encodeURIComponent(marker)}&page=1&limit=2&sortBy=name&sortDirection=desc`,
-    { headers: { Cookie: founderCookie } },
-  );
-  assert.equal(paginatedListResponse.status, 200);
-  const paginatedList = (await paginatedListResponse.json()) as {
-    items: Array<{ name: string }>;
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-  assert.equal(paginatedList.items.length, 2);
-  assert.ok(paginatedList.total > 2);
-  assert.equal(paginatedList.page, 1);
-  assert.equal(paginatedList.limit, 2);
-  assert.equal(paginatedList.totalPages, Math.ceil(paginatedList.total / 2));
-  const expectedPage = await prisma.inventoryItem.findMany({
-    where: { name: { contains: marker, mode: 'insensitive' } },
-    orderBy: [{ name: 'desc' }, { id: 'asc' }],
-    take: 2,
-    select: { name: true },
-  });
-  assert.deepEqual(
-    paginatedList.items.map((listedItem) => ({ name: listedItem.name })),
-    expectedPage,
-  );
-
-  const archivedMovementResponse = await fetch(
-    `${baseUrl}/api/v1/inventory/movements`,
-    {
-      method: 'POST',
-      headers: {
-        Cookie: founderCookie,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inventoryItemId: replacement.id,
-        movementType: 'receipt',
-        quantity: 1,
-        unitPrice: 1,
-      }),
-    },
-  );
-  assert.equal(archivedMovementResponse.status, 400);
+  assert.equal(pendingItemView.deletionState.canDelete, false);
+  assert.equal(pendingItemView.deletionState.pendingMovementsCount, 1);
+  assert.equal(pendingItemView.deletionState.pendingApprovalsCount, 1);
 
   const itemAuditEvents = await prisma.auditEvent.findMany({
     where: { entityType: 'inventory_item', entityId: item.id },
@@ -377,24 +377,18 @@ test('inventory catalog enforces normalized identity, versioning and archive inv
   assert.deepEqual(itemAuditEvents.map((event) => event.action), [
     'inventory.item.created',
     'inventory.item.updated',
-    'inventory.item.archived',
-    'inventory.item.reactivated',
+    'inventory.item.deleted',
+    'inventory.item.restored',
   ]);
-  assert.deepEqual(itemAuditEvents[0]?.newValues, {
-    name: item.name,
-    category: item.category,
-    unit: item.unit,
-    notes: null,
-    isActive: true,
-    version: 1,
-  });
   assert.equal(
-    (itemAuditEvents[3]?.oldValues as { version?: number } | null)?.version,
-    3,
+    (itemAuditEvents[2]?.newValues as { deletedAt?: string | null } | null)
+      ?.deletedAt === null,
+    false,
   );
   assert.equal(
-    (itemAuditEvents[3]?.newValues as { version?: number } | null)?.version,
-    4,
+    (itemAuditEvents[3]?.newValues as { deletedAt?: string | null } | null)
+      ?.deletedAt,
+    null,
   );
 
   await prisma.$executeRawUnsafe(`

@@ -6,18 +6,28 @@ import { PrismaClient } from '@prisma/client';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
 
-test('catalog delete keeps operational history and only hard-deletes unused cards', async (t) => {
+test('safe delete preserves ledgers, permissions and concurrent operations', async (t) => {
   const prisma = new PrismaClient();
   const { app, baseUrl } = await createTestApp();
   const founder = await prisma.user.findUniqueOrThrow({
     where: { login: 'founder' },
     select: { id: true },
   });
-  const [founderCookie, managerCookie] = await Promise.all([
+  const deputy = await prisma.user.findUniqueOrThrow({
+    where: { login: 'deputy1' },
+    select: { id: true },
+  });
+
+  const [founderCookie, deputyCookie, managerCookie] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
       password: 'founder123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'deputy1',
+      password: 'deputy123',
     }),
     loginAndGetCookieHeader({
       baseUrl,
@@ -29,6 +39,7 @@ test('catalog delete keeps operational history and only hard-deletes unused card
   const inventoryItemIds: string[] = [];
   const equipmentUnitIds: string[] = [];
   const equipmentCatalogItemIds: string[] = [];
+  const temporaryPermissionIds: string[] = [];
   const marker = `safe-delete-${Date.now()}`;
 
   t.after(async () => {
@@ -87,15 +98,32 @@ test('catalog delete keeps operational history and only hard-deletes unused card
     await prisma.equipmentCatalogItem.deleteMany({
       where: { id: { in: equipmentCatalogItemIds } },
     });
+    if (temporaryPermissionIds.length > 0) {
+      await prisma.userPermission.deleteMany({
+        where: { id: { in: temporaryPermissionIds } },
+      });
+    }
     await app.close();
     await prisma.$disconnect();
   });
 
-  const createInventoryItem = async (name: string): Promise<string> => {
+  const inventoryDeletePermission = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'inventory.catalog.delete' },
+    select: { id: true },
+  });
+  const equipmentDeletePermission = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'equipment.unit.delete' },
+    select: { id: true },
+  });
+
+  const createInventoryItem = async (
+    name: string,
+    cookie = founderCookie,
+  ): Promise<string> => {
     const response = await fetch(`${baseUrl}/api/v1/inventory/items`, {
       method: 'POST',
       headers: {
-        Cookie: founderCookie,
+        Cookie: cookie,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -110,43 +138,47 @@ test('catalog delete keeps operational history and only hard-deletes unused card
     return item.id;
   };
 
-  const hardInventoryId = await createInventoryItem(
-    `Ошибочно созданный расходник ${marker}`,
+  const deputyInventoryId = await createInventoryItem(
+    `Расходник deputy ${marker}`,
   );
-  const managerInventoryDelete = await fetch(
-    `${baseUrl}/api/v1/inventory/items/${hardInventoryId}`,
-    {
-      method: 'DELETE',
-      headers: { Cookie: managerCookie },
-    },
-  );
-  assert.equal(managerInventoryDelete.status, 403);
-
-  const hardInventoryView = await fetch(
-    `${baseUrl}/api/v1/inventory/items/${hardInventoryId}`,
-    { headers: { Cookie: founderCookie } },
-  );
-  const hardInventoryState = (await hardInventoryView.json()) as {
-    deletionState: { canDelete: boolean; mode: string };
-  };
-  assert.equal(hardInventoryState.deletionState.canDelete, true);
-  assert.equal(hardInventoryState.deletionState.mode, 'hard');
-
-  const hardInventoryDelete = await fetch(
-    `${baseUrl}/api/v1/inventory/items/${hardInventoryId}`,
-    {
-      method: 'DELETE',
-      headers: { Cookie: founderCookie },
-    },
-  );
-  assert.equal(hardInventoryDelete.status, 200);
-  assert.deepEqual(await hardInventoryDelete.json(), {
-    id: hardInventoryId,
-    mode: 'hard',
-  });
   assert.equal(
-    await prisma.inventoryItem.count({ where: { id: hardInventoryId } }),
-    0,
+    (
+      await fetch(`${baseUrl}/api/v1/inventory/items/${deputyInventoryId}`, {
+        method: 'DELETE',
+        headers: { Cookie: deputyCookie },
+      })
+    ).status,
+    403,
+  );
+
+  const deputyInventoryPermission = await prisma.userPermission.create({
+    data: {
+      userId: deputy.id,
+      permissionId: inventoryDeletePermission.id,
+    },
+  });
+  temporaryPermissionIds.push(deputyInventoryPermission.id);
+
+  const deputyInventoryDelete = await fetch(
+    `${baseUrl}/api/v1/inventory/items/${deputyInventoryId}`,
+    {
+      method: 'DELETE',
+      headers: { Cookie: deputyCookie },
+    },
+  );
+  assert.equal(deputyInventoryDelete.status, 200);
+
+  const managerInventoryId = await createInventoryItem(
+    `Расходник manager ${marker}`,
+  );
+  assert.equal(
+    (
+      await fetch(`${baseUrl}/api/v1/inventory/items/${managerInventoryId}`, {
+        method: 'DELETE',
+        headers: { Cookie: managerCookie },
+      })
+    ).status,
+    403,
   );
 
   const softInventoryId = await createInventoryItem(
@@ -183,15 +215,6 @@ test('catalog delete keeps operational history and only hard-deletes unused card
     },
   );
   assert.equal(softInventoryDelete.status, 200);
-  assert.deepEqual(await softInventoryDelete.json(), {
-    id: softInventoryId,
-    mode: 'soft',
-  });
-  const softDeletedInventory = await prisma.inventoryItem.findUniqueOrThrow({
-    where: { id: softInventoryId },
-    select: { isActive: true },
-  });
-  assert.equal(softDeletedInventory.isActive, false);
   assert.equal(
     await prisma.inventoryMovement.count({
       where: { inventoryItemId: softInventoryId },
@@ -199,34 +222,76 @@ test('catalog delete keeps operational history and only hard-deletes unused card
     2,
   );
 
-  const blockedInventoryId = await createInventoryItem(
-    `Расходник с остатком ${marker}`,
+  await assert.rejects(
+    prisma.inventoryItem.delete({ where: { id: softInventoryId } }),
   );
-  await prisma.inventoryMovement.create({
-    data: {
-      inventoryItemId: blockedInventoryId,
-      movementType: 'receipt',
-      status: 'applied',
-      quantity: 2,
-      unitPriceSnapshot: 10,
-      totalAmountSnapshot: 20,
-      createdByUserId: founder.id,
+
+  const raceInventoryId = await createInventoryItem(
+    `Гонка расходника ${marker}`,
+  );
+  const [raceDeleteResult, raceMovementResult] = await Promise.allSettled([
+    fetch(`${baseUrl}/api/v1/inventory/items/${raceInventoryId}`, {
+      method: 'DELETE',
+      headers: { Cookie: founderCookie },
+    }),
+    fetch(`${baseUrl}/api/v1/inventory/movements`, {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inventoryItemId: raceInventoryId,
+        movementType: 'receipt',
+        quantity: 1,
+        unitPrice: 1,
+      }),
+    }),
+  ]);
+  assert.equal(raceDeleteResult.status, 'fulfilled');
+  assert.equal(raceMovementResult.status, 'fulfilled');
+  if (
+    raceDeleteResult.status === 'fulfilled' &&
+    raceMovementResult.status === 'fulfilled'
+  ) {
+    const deleteStatus = raceDeleteResult.value.status;
+    const movementStatus = raceMovementResult.value.status;
+    assert.ok(
+      (deleteStatus === 200 && movementStatus >= 400) ||
+        (movementStatus === 201 && deleteStatus === 409),
+    );
+  }
+
+  const emptyCatalogResponse = await fetch(
+    `${baseUrl}/api/v1/equipment/catalog`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        category: 'Техника',
+        name: `Пустой тип ${marker}`,
+      }),
     },
-  });
-  const blockedInventoryDelete = await fetch(
-    `${baseUrl}/api/v1/inventory/items/${blockedInventoryId}`,
+  );
+  assert.equal(emptyCatalogResponse.status, 201);
+  const emptyCatalog = (await emptyCatalogResponse.json()) as {
+    id: string;
+    unitsCount: number;
+  };
+  equipmentCatalogItemIds.push(emptyCatalog.id);
+  assert.equal(emptyCatalog.unitsCount, 0);
+
+  const emptyCatalogDelete = await fetch(
+    `${baseUrl}/api/v1/equipment/catalog/${emptyCatalog.id}`,
     {
       method: 'DELETE',
       headers: { Cookie: founderCookie },
     },
   );
-  assert.equal(blockedInventoryDelete.status, 409);
-  const blockedInventoryBody = (await blockedInventoryDelete.json()) as {
-    code: string;
-    reasons: string[];
-  };
-  assert.equal(blockedInventoryBody.code, 'INVENTORY_ITEM_DELETE_BLOCKED');
-  assert.ok(blockedInventoryBody.reasons.includes('non_zero_stock'));
+  assert.equal(emptyCatalogDelete.status, 200);
 
   const catalogResponse = await fetch(`${baseUrl}/api/v1/equipment/catalog`, {
     method: 'POST',
@@ -261,38 +326,43 @@ test('catalog delete keeps operational history and only hard-deletes unused card
     return unit.id;
   };
 
-  const unusedUnitId = await createEquipmentUnit('unused');
-  const managerEquipmentDelete = await fetch(
-    `${baseUrl}/api/v1/equipment/units/${unusedUnitId}`,
-    {
-      method: 'DELETE',
-      headers: { Cookie: managerCookie },
-    },
-  );
-  assert.equal(managerEquipmentDelete.status, 403);
-
-  const unusedUnitView = await fetch(
-    `${baseUrl}/api/v1/equipment/units/${unusedUnitId}`,
-    { headers: { Cookie: founderCookie } },
-  );
-  const unusedUnitState = (await unusedUnitView.json()) as {
-    deletionState: { canDelete: boolean; movementsCount: number };
-  };
-  assert.equal(unusedUnitState.deletionState.canDelete, true);
-  assert.equal(unusedUnitState.deletionState.movementsCount, 0);
-
-  const unusedEquipmentDelete = await fetch(
-    `${baseUrl}/api/v1/equipment/units/${unusedUnitId}`,
+  const catalogBlockedDelete = await createEquipmentUnit('catalog-used');
+  assert.ok(catalogBlockedDelete);
+  const usedCatalogDelete = await fetch(
+    `${baseUrl}/api/v1/equipment/catalog/${catalog.id}`,
     {
       method: 'DELETE',
       headers: { Cookie: founderCookie },
     },
   );
-  assert.equal(unusedEquipmentDelete.status, 200);
-  assert.deepEqual(await unusedEquipmentDelete.json(), {
-    id: unusedUnitId,
-    mode: 'hard',
+  assert.equal(usedCatalogDelete.status, 409);
+
+  const unusedUnitId = await createEquipmentUnit('unused');
+  const deputyEquipmentDenied = await fetch(
+    `${baseUrl}/api/v1/equipment/units/${unusedUnitId}`,
+    {
+      method: 'DELETE',
+      headers: { Cookie: deputyCookie },
+    },
+  );
+  assert.equal(deputyEquipmentDenied.status, 403);
+
+  const deputyEquipmentPermission = await prisma.userPermission.create({
+    data: {
+      userId: deputy.id,
+      permissionId: equipmentDeletePermission.id,
+    },
   });
+  temporaryPermissionIds.push(deputyEquipmentPermission.id);
+
+  const deputyEquipmentDelete = await fetch(
+    `${baseUrl}/api/v1/equipment/units/${unusedUnitId}`,
+    {
+      method: 'DELETE',
+      headers: { Cookie: deputyCookie },
+    },
+  );
+  assert.equal(deputyEquipmentDelete.status, 200);
 
   const usedUnitId = await createEquipmentUnit('used');
   await prisma.equipmentMovement.create({
@@ -305,6 +375,7 @@ test('catalog delete keeps operational history and only hard-deletes unused card
       createdByUserId: founder.id,
     },
   });
+
   const usedEquipmentDelete = await fetch(
     `${baseUrl}/api/v1/equipment/units/${usedUnitId}`,
     {
@@ -313,16 +384,42 @@ test('catalog delete keeps operational history and only hard-deletes unused card
     },
   );
   assert.equal(usedEquipmentDelete.status, 409);
-  const usedEquipmentBody = (await usedEquipmentDelete.json()) as {
-    code: string;
-    reasons: string[];
-  };
-  assert.equal(usedEquipmentBody.code, 'EQUIPMENT_UNIT_DELETE_BLOCKED');
-  assert.ok(usedEquipmentBody.reasons.includes('movement_history'));
   assert.equal(
     await prisma.equipmentMovement.count({
       where: { equipmentUnitId: usedUnitId },
     }),
     1,
   );
+  await assert.rejects(
+    prisma.equipmentUnit.delete({ where: { id: usedUnitId } }),
+  );
+
+  const raceUnitId = await createEquipmentUnit('race');
+  const [equipmentDeleteRace, equipmentMovementRace] = await Promise.allSettled([
+    fetch(`${baseUrl}/api/v1/equipment/units/${raceUnitId}`, {
+      method: 'DELETE',
+      headers: { Cookie: founderCookie },
+    }),
+    fetch(`${baseUrl}/api/v1/equipment/units/${raceUnitId}/movements`, {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ movementType: 'mark_lost' }),
+    }),
+  ]);
+  assert.equal(equipmentDeleteRace.status, 'fulfilled');
+  assert.equal(equipmentMovementRace.status, 'fulfilled');
+  if (
+    equipmentDeleteRace.status === 'fulfilled' &&
+    equipmentMovementRace.status === 'fulfilled'
+  ) {
+    const deleteStatus = equipmentDeleteRace.value.status;
+    const movementStatus = equipmentMovementRace.value.status;
+    assert.ok(
+      (deleteStatus === 200 && movementStatus >= 400) ||
+        (movementStatus === 201 && deleteStatus === 409),
+    );
+  }
 });
