@@ -314,34 +314,48 @@ export class EquipmentService {
   ): Promise<EquipmentUnitResponseDto> {
     this.assertCatalogManageable(currentUser);
 
-    const catalogItem = await this.prisma.equipmentCatalogItem.findFirst({
-      where: { id: payload.catalogItemId, isActive: true },
-      select: { id: true },
-    });
+    const created = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "equipment_catalog_items"
+        WHERE "id" = ${payload.catalogItemId}
+        FOR UPDATE
+      `;
 
-    if (!catalogItem) {
-      throw new NotFoundException('Equipment catalog item not found');
-    }
+      const catalogItem = await tx.equipmentCatalogItem.findFirst({
+        where: { id: payload.catalogItemId, isActive: true },
+        select: { id: true },
+      });
 
-    const created = await this.prisma.equipmentUnit.create({
-      data: {
-        catalogItemId: catalogItem.id,
-        inventoryNumber: payload.inventoryNumber.trim(),
-        serialNumber: payload.serialNumber?.trim() || null,
-        notes: payload.notes?.trim() || null,
-        createdByUserId: currentUser.id,
-      },
-      include: this.unitInclude(),
-    });
+      if (!catalogItem) {
+        throw new NotFoundException('Equipment catalog item not found');
+      }
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'equipment_unit',
-      entityId: created.id,
-      actorUserId: currentUser.id,
-      action: 'equipment.unit.created',
-      newValues: {
-        inventoryNumber: created.inventoryNumber,
-      },
+      const unit = await tx.equipmentUnit.create({
+        data: {
+          catalogItemId: catalogItem.id,
+          inventoryNumber: payload.inventoryNumber.trim(),
+          serialNumber: payload.serialNumber?.trim() || null,
+          notes: payload.notes?.trim() || null,
+          createdByUserId: currentUser.id,
+        },
+        include: this.unitInclude(),
+      });
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'equipment_unit',
+          entityId: unit.id,
+          actorUserId: currentUser.id,
+          action: 'equipment.unit.created',
+          newValues: {
+            inventoryNumber: unit.inventoryNumber,
+          },
+        },
+        tx,
+      );
+
+      return unit;
     });
 
     return this.mapUnit(
