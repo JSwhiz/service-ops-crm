@@ -4,6 +4,7 @@ export class InventoryItemResponseDto {
   category!: string;
   unit!: string;
   isActive!: boolean;
+  deletedAt!: string | null;
   notes!: string | null;
   currentUnitPrice!: number | null;
   version!: number;

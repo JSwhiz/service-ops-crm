@@ -1,6 +1,5 @@
 import { Transform, Type } from 'class-transformer';
 import {
-  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -38,10 +37,6 @@ export class UpdateInventoryItemDto {
   @MinLength(1)
   @MaxLength(50)
   unit?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
 
   @IsOptional()
   @Transform(trimString)

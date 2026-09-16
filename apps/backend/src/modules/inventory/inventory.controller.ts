@@ -25,6 +25,7 @@ import { InventoryReportSummaryDto } from './dto/inventory-report-summary.dto';
 import { ListInventoryItemsQueryDto } from './dto/list-inventory-items-query.dto';
 import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-query.dto';
 import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
+import { RestoreInventoryItemDto } from './dto/restore-inventory-item.dto';
 import { InventoryService } from './inventory.service';
 import { canViewInventoryReports } from './utils/inventory-access.util';
 
@@ -81,6 +82,15 @@ export class InventoryController {
     @Param('id') id: string,
   ): Promise<{ id: string; mode: 'hard' | 'soft' }> {
     return this.inventoryService.deleteItem(user, id);
+  }
+
+  @Post('items/:id/restore')
+  restoreItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: RestoreInventoryItemDto,
+  ): Promise<InventoryItemResponseDto> {
+    return this.inventoryService.restoreItem(user, id, payload.expectedVersion);
   }
 
   @Get('movements')

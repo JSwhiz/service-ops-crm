@@ -78,6 +78,8 @@ type InventoryItemRecord = {
   category: string;
   unit: string;
   isActive: boolean;
+  deletedAt: Date | null;
+  deletedByUserId: string | null;
   notes: string | null;
   currentUnitPrice: Prisma.Decimal | null;
   version: number;
@@ -253,13 +255,14 @@ export class InventoryService {
 
     try {
       created = await this.prisma.$transaction(async (tx) => {
-        if (normalized.isActive) {
-          await this.assertNoActiveItemDuplicate(tx, normalized);
-        }
+        await this.assertNoActiveItemDuplicate(tx, normalized);
 
         const item = (await tx.inventoryItem.create({
           data: {
             ...normalized,
+            isActive: true,
+            deletedAt: null,
+            deletedByUserId: null,
             createdByUserId: currentUser.id,
           },
           include: {
@@ -340,22 +343,22 @@ export class InventoryService {
           });
         }
 
+        if (existing.deletedAt || !existing.isActive) {
+          throw new ConflictException({
+            code: 'INVENTORY_ITEM_DELETED',
+            message: 'Deleted inventory item cannot be edited',
+          });
+        }
+
         const nextValues = {
           name: normalized.name ?? existing.name,
           category: normalized.category ?? existing.category,
           unit: normalized.unit ?? existing.unit,
           notes:
             normalized.notes === undefined ? existing.notes : normalized.notes,
-          isActive: normalized.isActive ?? existing.isActive,
         };
 
-        if (existing.isActive && !nextValues.isActive) {
-          await this.assertItemArchivable(tx, existing.id);
-        }
-
-        if (nextValues.isActive) {
-          await this.assertNoActiveItemDuplicate(tx, nextValues, existing.id);
-        }
+        await this.assertNoActiveItemDuplicate(tx, nextValues, existing.id);
 
         const updateResult = await tx.inventoryItem.updateMany({
           where: {
@@ -387,12 +390,7 @@ export class InventoryService {
             },
           },
         })) as InventoryItemRecord;
-        const action =
-          existing.isActive && !item.isActive
-            ? 'inventory.item.archived'
-            : !existing.isActive && item.isActive
-              ? 'inventory.item.reactivated'
-              : 'inventory.item.updated';
+        const action = 'inventory.item.updated';
 
         await this.auditService.writeAuditEvent(
           {
@@ -425,7 +423,12 @@ export class InventoryService {
     currentUser: CurrentAuthUser,
     id: string,
   ): Promise<{ id: string; mode: 'hard' | 'soft' }> {
-    if (!canDeleteInventoryItem(this.getRoleCodes(currentUser))) {
+    if (
+      !canDeleteInventoryItem(
+        this.getRoleCodes(currentUser),
+        currentUser.permissionCodes,
+      )
+    ) {
       throw new ForbiddenException('Inventory item deletion denied');
     }
 
@@ -450,7 +453,7 @@ export class InventoryService {
         throw new NotFoundException('Inventory item not found');
       }
 
-      if (!existing.isActive) {
+      if (existing.deletedAt || !existing.isActive) {
         throw new ConflictException({
           code: 'INVENTORY_ITEM_ALREADY_DELETED',
           message: 'Inventory item is already deleted',
@@ -458,7 +461,7 @@ export class InventoryService {
       }
 
       try {
-        await this.assertItemArchivable(tx, existing.id);
+        await this.assertItemDeletable(tx, existing.id);
       } catch (error) {
         if (error instanceof ConflictException) {
           const response = error.getResponse();
@@ -495,6 +498,8 @@ export class InventoryService {
         where: { id: existing.id },
         data: {
           isActive: false,
+          deletedAt: new Date(),
+          deletedByUserId: currentUser.id,
           version: { increment: 1 },
         },
         include: {
@@ -518,6 +523,112 @@ export class InventoryService {
 
       return { id: existing.id, mode: 'soft' };
     });
+  }
+
+  async restoreItem(
+    currentUser: CurrentAuthUser,
+    id: string,
+    expectedVersion: number,
+  ): Promise<InventoryItemResponseDto> {
+    if (
+      !canDeleteInventoryItem(
+        this.getRoleCodes(currentUser),
+        currentUser.permissionCodes,
+      )
+    ) {
+      throw new ForbiddenException('Inventory item restore denied');
+    }
+
+    let restored: InventoryItemRecord;
+
+    try {
+      restored = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`
+          SELECT "id"
+          FROM "inventory_items"
+          WHERE "id" = ${id}
+          FOR UPDATE
+        `;
+
+        const existing = (await tx.inventoryItem.findUnique({
+          where: { id },
+          include: {
+            createdBy: {
+              select: { id: true, login: true, fullName: true },
+            },
+          },
+        })) as InventoryItemRecord | null;
+
+        if (!existing) {
+          throw new NotFoundException('Inventory item not found');
+        }
+
+        if (!existing.deletedAt || existing.isActive) {
+          throw new ConflictException({
+            code: 'INVENTORY_ITEM_NOT_DELETED',
+            message: 'Inventory item is not deleted',
+          });
+        }
+
+        if (existing.version !== expectedVersion) {
+          throw new ConflictException({
+            code: 'INVENTORY_ITEM_VERSION_CONFLICT',
+            message: 'Inventory item was changed by another user',
+          });
+        }
+
+        await this.assertNoActiveItemDuplicate(tx, existing, existing.id);
+
+        const updateResult = await tx.inventoryItem.updateMany({
+          where: { id, version: expectedVersion, isActive: false },
+          data: {
+            isActive: true,
+            deletedAt: null,
+            deletedByUserId: null,
+            version: { increment: 1 },
+          },
+        });
+
+        if (updateResult.count !== 1) {
+          throw new ConflictException({
+            code: 'INVENTORY_ITEM_VERSION_CONFLICT',
+            message: 'Inventory item was changed by another user',
+          });
+        }
+
+        const item = (await tx.inventoryItem.findUniqueOrThrow({
+          where: { id },
+          include: {
+            createdBy: {
+              select: { id: true, login: true, fullName: true },
+            },
+          },
+        })) as InventoryItemRecord;
+
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'inventory_item',
+            entityId: item.id,
+            actorUserId: currentUser.id,
+            action: 'inventory.item.restored',
+            oldValues: this.buildItemAuditSnapshot(existing),
+            newValues: this.buildItemAuditSnapshot(item),
+          },
+          tx,
+        );
+
+        return item;
+      });
+    } catch (error) {
+      this.rethrowInventoryItemDuplicate(error);
+    }
+
+    const stockByItemId = await this.loadStockSummariesByItemIds([restored.id]);
+    return this.mapItem(
+      restored,
+      stockByItemId.get(restored.id),
+      this.getGlobalCapabilities(currentUser),
+    );
   }
 
   async listMovements(
@@ -662,7 +773,9 @@ export class InventoryService {
     const [totalItems, totalActiveItems, movementCount, missingPhotoBridgeCount] =
       await Promise.all([
         this.prisma.inventoryItem.count(),
-        this.prisma.inventoryItem.count({ where: { isActive: true } }),
+        this.prisma.inventoryItem.count({
+          where: { isActive: true, deletedAt: null },
+        }),
         this.prisma.inventoryMovement.count(),
         this.prisma.inventoryMovement.count({
           where: {
@@ -932,6 +1045,7 @@ export class InventoryService {
           select: {
             id: true,
             isActive: true,
+            deletedAt: true,
             currentUnitPrice: true,
           },
         });
@@ -940,9 +1054,9 @@ export class InventoryService {
           throw new NotFoundException('Inventory item not found');
         }
 
-        if (!item.isActive) {
+        if (!item.isActive || item.deletedAt) {
           throw new BadRequestException(
-            'Inactive inventory item cannot be used in movements',
+            'Deleted inventory item cannot be used in movements',
           );
         }
 
@@ -1669,7 +1783,10 @@ export class InventoryService {
   private getGlobalCapabilities(
     currentUser: CurrentAuthUser,
   ): InventoryGlobalCapabilities {
-    return buildInventoryGlobalCapabilities(this.getRoleCodes(currentUser));
+    return buildInventoryGlobalCapabilities(
+      this.getRoleCodes(currentUser),
+      currentUser.permissionCodes,
+    );
   }
 
   private normalizeCreateItemPayload(payload: CreateInventoryItemDto): {
@@ -1677,7 +1794,6 @@ export class InventoryService {
     category: string;
     unit: string;
     notes: string | null;
-    isActive: boolean;
   } {
     return {
       name: this.normalizeCatalogText(payload.name, 'name', 2, 200),
@@ -1689,7 +1805,6 @@ export class InventoryService {
       ),
       unit: this.normalizeCatalogText(payload.unit, 'unit', 1, 50),
       notes: this.normalizeCatalogNotes(payload.notes),
-      isActive: payload.isActive ?? true,
     };
   }
 
@@ -1698,7 +1813,6 @@ export class InventoryService {
     category?: string;
     unit?: string;
     notes?: string | null;
-    isActive?: boolean;
   } {
     return {
       ...(payload.name === undefined
@@ -1720,9 +1834,6 @@ export class InventoryService {
       ...(payload.notes === undefined
         ? {}
         : { notes: this.normalizeCatalogNotes(payload.notes) }),
-      ...(payload.isActive === undefined
-        ? {}
-        : { isActive: payload.isActive }),
     };
   }
 
@@ -1770,6 +1881,7 @@ export class InventoryService {
     const duplicate = await tx.inventoryItem.findFirst({
       where: {
         isActive: true,
+        deletedAt: null,
         ...(excludeItemId ? { id: { not: excludeItemId } } : {}),
         name: { equals: item.name.trim(), mode: 'insensitive' },
         category: { equals: item.category.trim(), mode: 'insensitive' },
@@ -1783,7 +1895,7 @@ export class InventoryService {
     }
   }
 
-  private async assertItemArchivable(
+  private async assertItemDeletable(
     tx: Prisma.TransactionClient,
     itemId: string,
   ): Promise<void> {
@@ -1823,8 +1935,8 @@ export class InventoryService {
 
     if (reasons.length > 0) {
       throw new ConflictException({
-        code: 'INVENTORY_ITEM_ARCHIVE_BLOCKED',
-        message: 'Inventory item cannot be archived in its current state',
+        code: 'INVENTORY_ITEM_DELETE_BLOCKED',
+        message: 'Inventory item cannot be deleted in its current state',
         reasons,
         currentStock: Number(stockSummary.currentStock.toFixed(3)),
       });
@@ -1838,6 +1950,8 @@ export class InventoryService {
     notes: string | null;
     isActive: boolean;
     version: number;
+    deletedAt?: Date | null;
+    deletedByUserId?: string | null;
   }): Prisma.InputJsonObject {
     return {
       name: item.name,
@@ -1846,6 +1960,8 @@ export class InventoryService {
       notes: item.notes,
       isActive: item.isActive,
       version: item.version,
+      deletedAt: item.deletedAt?.toISOString() ?? null,
+      deletedByUserId: item.deletedByUserId ?? null,
     };
   }
 
@@ -2350,7 +2466,11 @@ export class InventoryService {
       ...(category
         ? { category: { equals: category, mode: 'insensitive' as const } }
         : {}),
-      ...(query.isActive === undefined ? {} : { isActive: query.isActive }),
+      ...(query.isActive === undefined
+        ? {}
+        : query.isActive
+          ? { isActive: true, deletedAt: null }
+          : { deletedAt: { not: null } }),
     };
   }
 
@@ -2598,6 +2718,7 @@ export class InventoryService {
       category: item.category,
       unit: item.unit,
       isActive: item.isActive,
+      deletedAt: item.deletedAt?.toISOString() ?? null,
       notes: item.notes,
       currentUnitPrice,
       version: item.version,
