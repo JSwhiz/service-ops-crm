@@ -51,12 +51,12 @@
 ## Route inventory
 
 | Module | Route | Screen type | Main components | CSS source | Legacy debt | Mobile strategy | Priority | Reference status |
-|---|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|---|---|
 | Auth | `/login` | utility | `LoginForm` | `login.module.css` | local hard-coded warm colors | split layout collapses in media query | P2 | REFERENCE |
 | Core | `/dashboard` | dashboard | role router, leadership/manager/HR/operation dashboards | dashboard modules + dashboard-workspace.css | several parallel dashboard primitive styles | responsive grids and stacked panels | P2 | REFERENCE |
 | Objects | `/objects` | registry | filters, object list table, preview drawer | objects-registry.module.css, object-list-table.module.css, object-preview-drawer.module.css | duplicate registry/table styling; raw table | mobile list/card variant | P2 | REFERENCE |
 | Objects | `/objects/new` | creation/edit form | object form, user selects, sections | new-object.module.css | 643-line page and 602-line CSS; raw select/form composition | grid collapses | P1 | MIGRATE |
-| Objects | `/objects/[id]` | entity detail/workspace | summary, state, status, team, staffing, arrival, report, comments, files, inventory | object-detail-workspace.module.css + shared object styles | 565-line composition; many bespoke panel states | workspace stacks/overflow rules | P1 | REFERENCE |
+| Objects | `/objects/[id]` | entity detail/workspace | summary, state, status, team, staffing, arrival, report, comments, files, inventory | object-detail-workspace.module.css + shared object styles | 565-line composition; many bespoke panel states | workspace stacks/overflow rules | P2 | REFERENCE |
 | Objects | `/objects/[id]/edit` | creation/edit form | `ObjectEditForm`/panel | global + object styles | inline styles/raw select in object edit feature | form grid collapse | P1 | MIGRATE |
 | Objects | `/objects/[id]/history` | entity detail/workspace | history list | global page-card | own history empty/loading treatment | single column | P2 | POLISH |
 | Orders | `/one-time-orders` | registry | order list table | global + feature table | raw table; thin page wrapper | table/list behavior via feature | P1 | MIGRATE |
@@ -93,7 +93,7 @@
 | Chats | `/chats` | communication | chat list, thread, composer, members, drawers | global + `topbar-communication.css` | 2 502-line monolith; many native dialogs and bespoke states | custom responsive chat layout | P0 | REDESIGN |
 | Files | `/files/[fileId]/view` | utility | file preview/viewer | global | local viewer/loading/error states | viewer-specific | P2 | POLISH |
 | Settings | `/settings` | utility | settings wrapper/content | global | 16-line thin page | inherited shell | P1 | POLISH |
-| Absences | `/user-absences` | registry | absence list/edit form | `user-absences.module.css` + global | miniaturized one-line CSS module; native confirm; raw select | toolbar/editor/list styles include responsive rules | P1 | POLISH |
+| Absences | `/user-absences` | registry | absence list/edit form | `user-absences.module.css` + global | minified one-line CSS module; native confirm; raw select | toolbar/editor/list styles include responsive rules | P1 | POLISH |
 
 Примечание: `/` — технический redirect, не самостоятельный пользовательский экран.
 
