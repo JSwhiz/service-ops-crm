@@ -5,7 +5,7 @@
 Аудит выполнен по `apps/frontend/src` без изменения application code, CSS или backend.
 
 - Frontend использует Next App Router: root redirect `/` → `/dashboard`, публичный `/login`, остальные пользовательские экраны находятся под `(app)` и защищаются `AppLayout`/auth provider.
-- Инвентарь содержит 43 `page.tsx`: 40 рабочих route-экранов, `/login` и root redirect; часть коротких страниц является thin wrapper над feature UI.
+- Инвентарь содержит 43 `page.tsx`: 41 route screen внутри `(app)`, `/login` и root redirect; часть коротких страниц является thin wrapper над feature UI.
 - UI сформирован двумя слоями. Новый нейтрально-тёплый foundation опирается на `design-tokens.css`, `ui-foundation.css`, `product-shell*.css`; старый слой сосредоточен в `app/globals.css` и использует холодную blue-палитру, градиенты и отдельные глобальные классы.
 - Shared shell уже выражен компонентами Sidebar, Header/Topbar, PageTitle, command/search, avatar, searchable/user select и media controls. При этом многие domain screens продолжают собирать собственные surfaces, forms, alerts и loading/empty/error states.
 - Главные зоны visual debt: `globals.css` (4 853 строки), `chats/page.tsx` (2 502), `employees/[id]/page.tsx` (1 104), `inventory/[id]/page.tsx` (688), `objects/new/page.tsx` (643), object registry/detail CSS (585/611 строк), inline styles и browser-native dialogs.
@@ -50,50 +50,50 @@
 
 ## Route inventory
 
-| Module | Route | Screen type | Main components | CSS source | Legacy debt | Mobile strategy | Priority |
+| Module | Route | Screen type | Main components | CSS source | Legacy debt | Mobile strategy | Priority | Reference status |
 |---|---|---|---|---|---|---|---|
-| Auth | `/login` | utility | `LoginForm` | `login.module.css` | local hard-coded warm colors | split layout collapses in media query | P1 |
-| Core | `/dashboard` | dashboard | role router, leadership/manager/HR/operation dashboards | dashboard modules + dashboard-workspace.css | several parallel dashboard primitive styles | responsive grids and stacked panels | P1 |
-| Objects | `/objects` | registry | filters, object list table, preview drawer | objects-registry.module.css, object-list-table.module.css, object-preview-drawer.module.css | duplicate registry/table styling; raw table | mobile list/card variant | P1 |
-| Objects | `/objects/new` | creation/edit form | object form, user selects, sections | new-object.module.css | 643-line page and 602-line CSS; raw select/form composition | grid collapses | P1 |
-| Objects | `/objects/[id]` | entity detail/workspace | summary, state, status, team, staffing, arrival, report, comments, files, inventory | object-detail-workspace.module.css + shared object styles | 565-line composition; many bespoke panel states | workspace stacks/overflow rules | P1 |
-| Objects | `/objects/[id]/edit` | creation/edit form | `ObjectEditForm`/panel | global + object styles | inline styles/raw select in object edit feature | form grid collapse | P1 |
-| Objects | `/objects/[id]/history` | entity detail/workspace | history list | global page-card | own history empty/loading treatment | single column | P2 |
-| Orders | `/one-time-orders` | registry | order list table | global + feature table | raw table; thin page wrapper | table/list behavior via feature | P1 |
-| Orders | `/one-time-orders/new` | creation/edit form | order form, confirmation | global + feature styles | native confirm; large local interaction logic | form grid responsive | P1 |
-| Orders | `/one-time-orders/[id]` | entity detail/workspace | summary, specification, managers, tasks, photos, files, comments, report, review, accountability | global + feature styles | 728-line page; many panel-local states and confirms | mixed stacked panels | P1 |
-| Orders | `/one-time-orders/[id]/workforce` | operational matrix | workforce/calendar controls | workforce.module.css | separate workforce styling | explicit mobile media query | P1 |
-| Orders | `/one-time-orders/calendar` | operational matrix | calendar feature | global/feature styles | 19-line wrapper; calendar-specific patterns | feature-owned | P2 |
-| Orders | `/one-time-orders/attention` | queue | attention table/list | global | raw table and bespoke queue surface | likely wide table/overflow | P1 |
-| Tasks | `/tasks` | registry | task list table, filters | global + task feature | raw table; thin wrapper | feature-defined list behavior | P1 |
-| Tasks | `/tasks/new` | creation/edit form | task form | global + task feature | thin wrapper; local form states | form responsive via global rules | P2 |
-| Tasks | `/tasks/[id]` | entity detail/workspace | task summary, result, assignees, confirmation actions | global | 460-line detail; native prompt/confirm | stacked detail/actions | P1 |
-| Timesheet | `/timesheet` | operational matrix | filters, grid, overview, corrections, legend, month picker | timesheet-page.css, timesheet-editing.css | domain CSS is large and separate; own cell states | horizontal grid/overflow plus responsive controls | P1 |
-| Employees | `/employees` | registry | filters, raw employee table, mobile cards, pagination | global | raw table + separate mobile markup | explicit mobile card list | P1 |
-| Employees | `/employees/new` | creation/edit form | employee form fields | global | thin page and inline/local states | global form rules | P2 |
-| Employees | `/employees/[id]` | entity detail/workspace | profile, assignments, availability, substitution, history | global | largest domain page (1 104); many inline styles, raw selects, native confirm | mostly stacked cards; bespoke | P0 |
-| Employees | `/employees/reserve` | registry | candidate/reserve wrapper | global + candidate feature | 6-line wrapper; presentation split from page | inherited | P2 |
-| Candidates | `/candidates` | registry | candidate registry | global + candidate feature | thin wrapper; own loading/error/empty | feature-owned | P2 |
-| Candidates | `/candidates/new` | creation/edit form | candidate form | global | local form states | global form rules | P2 |
-| Candidates | `/candidates/[id]` | entity detail/workspace | candidate profile/actions | global | 536-line detail; native confirm | stacked detail | P1 |
-| Counterparties | `/counterparties` | registry | registry table, pagination | global | raw table; local table implementation | likely overflow | P1 |
-| Counterparties | `/counterparties/new` | creation/edit form | counterparty form | global | local form implementation | global form rules | P2 |
-| Counterparties | `/counterparties/[id]` | entity detail/workspace | card/edit/archive actions | global | 474-line page; native confirm | stacked | P1 |
-| Inventory | `/inventory` | registry | item list, actions | global + inventory feature | inline styles, local states | responsive card/list via feature | P1 |
-| Inventory | `/inventory/new` | creation/edit form | inventory item form | global + feature | thin wrapper | feature-owned | P2 |
-| Inventory | `/inventory/[id]` | entity detail/workspace | item detail, movements, scope | global + feature | 688-line page; inline styles/raw select | stacked panels | P1 |
-| Inventory | `/inventory/movements` | registry | movement list/form | global + feature | raw selects and local loading/error | wide list/overflow | P1 |
-| Inventory | `/inventory/reports` | dashboard | report summary | global | inline styles; local state | single column | P2 |
-| Equipment | `/equipment` | registry | equipment list table | global + equipment feature | local table/empty/loading | feature-owned | P1 |
-| Equipment | `/equipment/new` | creation/edit form | equipment form | global + feature | inline styles; local error | form grid responsive | P1 |
-| Equipment | `/equipment/[id]` | entity detail/workspace | card, movement panel, scope panel | global + feature | local states and confirmation flow | stacked panels | P1 |
-| Accountability | `/accountability` | entity detail/workspace | account panel, expense form | global + accountability feature | 570-line page; many inline styles/raw select | stacked cards/forms | P1 |
-| Accountability | `/accountability/queue` | queue | queue summary/list | `queue.module.css` | compact one-off CSS and badge shapes | explicit 760px breakpoint | P1 |
-| Approvals | `/approvals` | queue | approval cards/filters/actions | global | local approval states; likely duplicate notices | stacked cards | P1 |
-| Chats | `/chats` | communication | chat list, thread, composer, members, drawers | global + `topbar-communication.css` | 2 502-line monolith; many native dialogs and bespoke states | custom responsive chat layout | P0 |
-| Files | `/files/[fileId]/view` | utility | file preview/viewer | global | local viewer/loading/error states | viewer-specific | P2 |
-| Settings | `/settings` | utility | settings wrapper/content | global | 16-line thin page | inherited shell | P2 |
-| Absences | `/user-absences` | registry | absence list/edit form | user-absences.module.css (empty) + global | module exists but is empty; native confirm; raw select | local page styles, likely stacked | P1 |
+| Auth | `/login` | utility | `LoginForm` | `login.module.css` | local hard-coded warm colors | split layout collapses in media query | P2 | REFERENCE |
+| Core | `/dashboard` | dashboard | role router, leadership/manager/HR/operation dashboards | dashboard modules + dashboard-workspace.css | several parallel dashboard primitive styles | responsive grids and stacked panels | P2 | REFERENCE |
+| Objects | `/objects` | registry | filters, object list table, preview drawer | objects-registry.module.css, object-list-table.module.css, object-preview-drawer.module.css | duplicate registry/table styling; raw table | mobile list/card variant | P2 | REFERENCE |
+| Objects | `/objects/new` | creation/edit form | object form, user selects, sections | new-object.module.css | 643-line page and 602-line CSS; raw select/form composition | grid collapses | P1 | MIGRATE |
+| Objects | `/objects/[id]` | entity detail/workspace | summary, state, status, team, staffing, arrival, report, comments, files, inventory | object-detail-workspace.module.css + shared object styles | 565-line composition; many bespoke panel states | workspace stacks/overflow rules | P1 | REFERENCE |
+| Objects | `/objects/[id]/edit` | creation/edit form | `ObjectEditForm`/panel | global + object styles | inline styles/raw select in object edit feature | form grid collapse | P1 | MIGRATE |
+| Objects | `/objects/[id]/history` | entity detail/workspace | history list | global page-card | own history empty/loading treatment | single column | P2 | POLISH |
+| Orders | `/one-time-orders` | registry | order list table | global + feature table | raw table; thin page wrapper | table/list behavior via feature | P1 | MIGRATE |
+| Orders | `/one-time-orders/new` | creation/edit form | order form, confirmation | global + feature styles | native confirm; large local interaction logic | form grid responsive | P1 | MIGRATE |
+| Orders | `/one-time-orders/[id]` | entity detail/workspace | summary, specification, managers, tasks, photos, files, comments, report, review, accountability | global + feature styles | 728-line page; many panel-local states and confirms | mixed stacked panels | P1 | MIGRATE |
+| Orders | `/one-time-orders/[id]/workforce` | operational matrix | workforce/calendar controls | workforce.module.css | separate workforce styling | explicit mobile media query | P1 | MIGRATE |
+| Orders | `/one-time-orders/calendar` | operational matrix | calendar feature | global/feature styles | 19-line wrapper; calendar-specific patterns | feature-owned | P2 | MIGRATE |
+| Orders | `/one-time-orders/attention` | queue | attention table/list | global | raw table and bespoke queue surface | wide table with horizontal overflow | P1 | MIGRATE |
+| Tasks | `/tasks` | registry | task list table, filters | global + task feature | raw table; thin wrapper | feature-defined list behavior | P1 | MIGRATE |
+| Tasks | `/tasks/new` | creation/edit form | task form | global + task feature | thin wrapper; local form states | form responsive via global rules | P2 | MIGRATE |
+| Tasks | `/tasks/[id]` | entity detail/workspace | task summary, result, assignees, confirmation actions | global | 460-line detail; native prompt/confirm | stacked detail/actions | P1 | MIGRATE |
+| Timesheet | `/timesheet` | operational matrix | filters, grid, overview, corrections, legend, month picker | timesheet-page.css, timesheet-editing.css | domain CSS is large and separate; own cell states | horizontal grid/overflow plus responsive controls | P1 | POLISH |
+| Employees | `/employees` | registry | filters, raw employee table, mobile cards, pagination | global | raw table + separate mobile markup | explicit mobile card list | P1 | MIGRATE |
+| Employees | `/employees/new` | creation/edit form | employee form fields | global | thin page and inline/local states | global form rules | P2 | MIGRATE |
+| Employees | `/employees/[id]` | entity detail/workspace | profile, assignments, availability, substitution, history | global | largest domain page (1 104); many inline styles, raw selects, native confirm | mostly stacked cards; bespoke | P0 | MIGRATE |
+| Employees | `/employees/reserve` | registry | candidate/reserve wrapper | global + candidate feature | 6-line wrapper; presentation split from page | inherited | P2 | POLISH |
+| Candidates | `/candidates` | registry | candidate registry | global + candidate feature | thin wrapper; own loading/error/empty | feature-owned | P2 | POLISH |
+| Candidates | `/candidates/new` | creation/edit form | candidate form | global | local form states | global form rules | P2 | POLISH |
+| Candidates | `/candidates/[id]` | entity detail/workspace | candidate profile/actions | global | 536-line detail; native confirm | stacked detail | P1 | POLISH |
+| Counterparties | `/counterparties` | registry | registry table, pagination | global | raw table; local table implementation | horizontal overflow | P1 | POLISH |
+| Counterparties | `/counterparties/new` | creation/edit form | counterparty form | global | local form implementation | global form rules | P2 | POLISH |
+| Counterparties | `/counterparties/[id]` | entity detail/workspace | card/edit/archive actions | global | 474-line page; native confirm | stacked | P1 | POLISH |
+| Inventory | `/inventory` | registry | raw inventory table, actions | global + inventory feature | inline styles, local states; raw table | horizontal overflow; no separate mobile card/list | P1 | MIGRATE |
+| Inventory | `/inventory/new` | creation/edit form | inventory item form | global + feature | thin wrapper | feature-owned | P2 | MIGRATE |
+| Inventory | `/inventory/[id]` | entity detail/workspace | item detail, movements, scope | global + feature | 688-line page; inline styles/raw select | stacked panels | P1 | MIGRATE |
+| Inventory | `/inventory/movements` | registry | movement list/form | global + feature | raw selects and local loading/error | wide list/overflow | P1 | MIGRATE |
+| Inventory | `/inventory/reports` | dashboard | report summary | global | inline styles; local state | single column | P2 | MIGRATE |
+| Equipment | `/equipment` | registry | stacked equipment card list (`EquipmentListTable`) | global + equipment feature | component name says Table, rendered UI is cards | stacked cards | P1 | MIGRATE |
+| Equipment | `/equipment/new` | creation/edit form | equipment form | global + feature | inline styles; local error | form grid responsive | P1 | MIGRATE |
+| Equipment | `/equipment/[id]` | entity detail/workspace | card, movement panel, scope panel | global + feature | local states and confirmation flow | stacked panels | P1 | MIGRATE |
+| Accountability | `/accountability` | entity detail/workspace | account panel, expense form | global + accountability feature | 570-line page; many inline styles/raw select | stacked cards/forms | P0 | REDESIGN |
+| Accountability | `/accountability/queue` | queue | queue summary/list | `queue.module.css` | compact one-off CSS and badge shapes | explicit 760px breakpoint | P0 | REDESIGN |
+| Approvals | `/approvals` | queue | approval cards/filters/actions | global | local approval states and duplicate notice patterns | stacked cards | P0 | REDESIGN |
+| Chats | `/chats` | communication | chat list, thread, composer, members, drawers | global + `topbar-communication.css` | 2 502-line monolith; many native dialogs and bespoke states | custom responsive chat layout | P0 | REDESIGN |
+| Files | `/files/[fileId]/view` | utility | file preview/viewer | global | local viewer/loading/error states | viewer-specific | P2 | POLISH |
+| Settings | `/settings` | utility | settings wrapper/content | global | 16-line thin page | inherited shell | P1 | POLISH |
+| Absences | `/user-absences` | registry | absence list/edit form | `user-absences.module.css` + global | miniaturized one-line CSS module; native confirm; raw select | toolbar/editor/list styles include responsive rules | P1 | POLISH |
 
 Примечание: `/` — технический redirect, не самостоятельный пользовательский экран.
 
@@ -101,7 +101,7 @@
 
 - `PageTitle`/page header: используется во многих route wrappers, но рядом встречаются локальные `h1`, `intro`, `header`, `section-header`.
 - Surfaces: `.page-card`, `.record-card`, `.workspace-surface`, `.hero-card`, `.panel`, `.summary`, object-specific surface classes. Семантически близкие containers имеют разные radius, padding, border and shadow rules.
-- Tables: registry tables для objects, employees, counterparties, orders, tasks, inventory, equipment; feature tables для timesheet/workforce/calendar. Есть 13 raw `<table>` implementations и отдельные mobile markup variants.
+- Tables: registry tables для objects, employees, counterparties, orders, tasks, inventory; feature tables для timesheet/workforce/calendar. Есть 13 raw `<table>` implementations; equipment uses a stacked card list despite the `EquipmentListTable` name. Mobile markup variants exist only in the screens that explicitly implement them.
 - Filters: object/task/timesheet filters, employee query filters, month picker, ad-hoc selects. Нет единого filter-bar contract.
 - Tabs/sections: detail workspaces используют section headers, link/action tabs and panels; отдельный универсальный tab primitive не обнаружен.
 - Forms: многочисленные label/input/select/textarea blocks; есть reusable `SearchableSelect`, `UserSearchSelect`, employee fields and domain forms, но layout/validation/error rendering повторяются локально.
@@ -113,7 +113,7 @@
 
 ## Browser-native interactions
 
-Найдены 12 файлов с `window.confirm`/`window.prompt`:
+Найдены 14 файлов с `window.confirm`/`window.prompt`:
 
 - `features/one-time-order-tasks/ui/one-time-order-tasks-panel.tsx` — confirm создания связанной задачи.
 - `features/one-time-order-calendar/ui/one-time-order-calendar.tsx` — confirm отмены записи.
@@ -127,9 +127,10 @@
 - `app/(app)/chats/page.tsx` — confirm выхода/закрытия чата.
 - `app/(app)/counterparties/[id]/page.tsx` — confirm архивации контрагента.
 - `app/(app)/tasks/[id]/page.tsx` — prompt причины и confirm удаления исполнителя/отмены задачи/сброса результата.
-- `app/(app)/one-time-orders/new/page.tsx` и `one-time-orders/[id]/page.tsx` — confirmation flows заказа.
+- `app/(app)/one-time-orders/new/page.tsx` — confirmation flow заказа.
+- `app/(app)/one-time-orders/[id]/page.tsx` — confirmation flow заказа.
 
-Количество вызовов больше количества файлов: native interaction scattered across route and feature layers.
+Количество вызовов может быть больше количества файлов: native interaction scattered across route and feature layers.
 
 ## Legacy visual tokens/colors
 
