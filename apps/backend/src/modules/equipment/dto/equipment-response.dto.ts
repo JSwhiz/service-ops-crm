@@ -10,6 +10,7 @@ export class EquipmentCatalogItemResponseDto {
   notes!: string | null;
   createdAt!: string;
   updatedAt!: string;
+  unitsCount!: number;
 }
 
 export class EquipmentMovementResponseDto {

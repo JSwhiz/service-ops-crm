@@ -157,10 +157,11 @@ export class EquipmentService {
     this.assertEquipmentVisible(currentUser);
 
     const items = await this.prisma.equipmentCatalogItem.findMany({
+      include: { _count: { select: { units: true } } },
       orderBy: [{ isActive: 'desc' }, { category: 'asc' }, { name: 'asc' }],
     });
 
-    return items.map((item) => this.mapCatalogItem(item));
+    return items.map((item) => this.mapCatalogItem(item, item._count.units));
   }
 
   async createCatalogItem(
@@ -193,6 +194,74 @@ export class EquipmentService {
     });
 
     return this.mapCatalogItem(created);
+  }
+
+  async deleteCatalogItem(
+    currentUser: CurrentAuthUser,
+    catalogItemId: string,
+  ): Promise<{ id: string }> {
+    if (
+      !canDeleteEquipmentUnit(
+        this.getRoleCodes(currentUser),
+        currentUser.permissionCodes,
+      )
+    ) {
+      throw new ForbiddenException('Equipment catalog deletion denied');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "equipment_catalog_items"
+        WHERE "id" = ${catalogItemId}
+        FOR UPDATE
+      `;
+
+      const item = await tx.equipmentCatalogItem.findUnique({
+        where: { id: catalogItemId },
+        select: {
+          id: true,
+          category: true,
+          name: true,
+          brand: true,
+          model: true,
+          notes: true,
+          _count: { select: { units: true } },
+        },
+      });
+
+      if (!item) {
+        throw new NotFoundException('Equipment catalog item not found');
+      }
+
+      if (item._count.units > 0) {
+        throw new ConflictException({
+          code: 'EQUIPMENT_CATALOG_DELETE_BLOCKED',
+          message: 'Equipment type is used by equipment units',
+          unitsCount: item._count.units,
+        });
+      }
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'equipment_catalog_item',
+          entityId: item.id,
+          actorUserId: currentUser.id,
+          action: 'equipment.catalog_item.deleted_permanently',
+          oldValues: {
+            category: item.category,
+            name: item.name,
+            brand: item.brand,
+            model: item.model,
+            notes: item.notes,
+          },
+        },
+        tx,
+      );
+
+      await tx.equipmentCatalogItem.delete({ where: { id: item.id } });
+      return { id: item.id };
+    });
   }
 
   async listUnits(
@@ -286,7 +355,12 @@ export class EquipmentService {
     currentUser: CurrentAuthUser,
     unitId: string,
   ): Promise<{ id: string; mode: 'hard' }> {
-    if (!canDeleteEquipmentUnit(this.getRoleCodes(currentUser))) {
+    if (
+      !canDeleteEquipmentUnit(
+        this.getRoleCodes(currentUser),
+        currentUser.permissionCodes,
+      )
+    ) {
       throw new ForbiddenException('Equipment unit deletion denied');
     }
 
@@ -398,28 +472,41 @@ export class EquipmentService {
 
     this.assertMovementCreatable(roleCodes, movementType);
 
-    const unit = await this.loadUnit(unitId);
-    const normalized = await this.normalizeMovement(unit, payload);
-    const requiresWriteoffApproval = movementType === 'writeoff';
-
-    if (requiresWriteoffApproval) {
-      const existingPendingWriteoff = await this.prisma.equipmentMovement.findFirst({
-        where: {
-          equipmentUnitId: unit.id,
-          movementType: 'writeoff',
-          status: 'pending_approval',
-        },
-        select: {
-          id: true,
-        },
-      });
-
-      if (existingPendingWriteoff) {
-        throw new ConflictException('Equipment writeoff approval is already pending');
-      }
-    }
-
     const created = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "equipment_units"
+        WHERE "id" = ${unitId}
+        FOR UPDATE
+      `;
+
+      const unit = (await tx.equipmentUnit.findUnique({
+        where: { id: unitId },
+        include: this.unitInclude(),
+      })) as EquipmentUnitRecord | null;
+
+      if (!unit) {
+        throw new NotFoundException('Equipment unit not found');
+      }
+
+      const normalized = await this.normalizeMovement(unit, payload);
+      const requiresWriteoffApproval = movementType === 'writeoff';
+
+      if (requiresWriteoffApproval) {
+        const existingPendingWriteoff = await tx.equipmentMovement.findFirst({
+          where: {
+            equipmentUnitId: unit.id,
+            movementType: 'writeoff',
+            status: 'pending_approval',
+          },
+          select: { id: true },
+        });
+
+        if (existingPendingWriteoff) {
+          throw new ConflictException('Equipment writeoff approval is already pending');
+        }
+      }
+
       const movement = await tx.equipmentMovement.create({
         data: {
           equipmentUnitId: unit.id,
@@ -472,6 +559,8 @@ export class EquipmentService {
       return {
         movement,
         approvalRequestId: approvalRequest?.id ?? null,
+        unitId: unit.id,
+        normalized,
       };
     });
 
@@ -481,11 +570,11 @@ export class EquipmentService {
       actorUserId: currentUser.id,
       action: `equipment.${movementType}`,
       newValues: {
-        equipmentUnitId: unit.id,
+        equipmentUnitId: created.unitId,
         status: created.movement.status,
-        toStatus: normalized.status,
-        toObjectId: normalized.currentObjectId,
-        toOneTimeOrderId: normalized.currentOneTimeOrderId,
+        toStatus: created.normalized.status,
+        toObjectId: created.normalized.currentObjectId,
+        toOneTimeOrderId: created.normalized.currentOneTimeOrderId,
       },
     });
 
@@ -1021,6 +1110,7 @@ export class EquipmentService {
 
   private mapCatalogItem(
     item: EquipmentCatalogRecord | Prisma.EquipmentCatalogItemGetPayload<object>,
+    unitsCount = 0,
   ): EquipmentCatalogItemResponseDto {
     return {
       id: item.id,
@@ -1032,6 +1122,7 @@ export class EquipmentService {
       notes: item.notes,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
+      unitsCount,
     };
   }
 
@@ -1284,7 +1375,10 @@ export class EquipmentService {
   private getGlobalCapabilities(
     currentUser: CurrentAuthUser,
   ): EquipmentGlobalCapabilities {
-    return buildEquipmentGlobalCapabilities(this.getRoleCodes(currentUser));
+    return buildEquipmentGlobalCapabilities(
+      this.getRoleCodes(currentUser),
+      currentUser.permissionCodes,
+    );
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {

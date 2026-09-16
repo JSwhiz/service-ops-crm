@@ -52,6 +52,14 @@ export class EquipmentController {
     return this.equipmentService.createCatalogItem(user, payload);
   }
 
+  @Delete('catalog/:id')
+  deleteCatalogItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<{ id: string }> {
+    return this.equipmentService.deleteCatalogItem(user, id);
+  }
+
   @Get('units')
   listUnits(
     @CurrentUser() user: CurrentAuthUser,
