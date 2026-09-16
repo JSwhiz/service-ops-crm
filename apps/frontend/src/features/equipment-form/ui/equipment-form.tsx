@@ -25,12 +25,6 @@ export function EquipmentCatalogItemForm({
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (!catalog.some((item) => item.id === catalogItemId)) {
-      setCatalogItemId(catalog[0]?.id ?? '');
-    }
-  }, [catalog, catalogItemId]);
-
   return (
     <form
       className="page-card"
@@ -189,6 +183,12 @@ export function EquipmentUnitForm({
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!catalog.some((item) => item.id === catalogItemId)) {
+      setCatalogItemId(catalog[0]?.id ?? '');
+    }
+  }, [catalog, catalogItemId]);
 
   return (
     <form
