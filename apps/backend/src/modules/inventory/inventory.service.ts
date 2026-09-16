@@ -2738,7 +2738,7 @@ export class InventoryService {
         adjustmentsCount: stockSummary?.adjustmentsCount ?? 0,
       },
       archiveState: {
-        canArchive: item.isActive && blockerCodes.length === 0,
+        canArchive: item.isActive && !item.deletedAt && blockerCodes.length === 0,
         pendingMovementsCount: stockSummary?.pendingMovementsCount ?? 0,
         pendingApprovalsCount: stockSummary?.pendingApprovalsCount ?? 0,
         blockerCodes,
@@ -2746,6 +2746,7 @@ export class InventoryService {
       deletionState: {
         canDelete:
           item.isActive &&
+          !item.deletedAt &&
           capabilities.canDeleteInventoryItem &&
           blockerCodes.length === 0,
         mode: (stockSummary?.movementsCount ?? 0) === 0 ? 'hard' : 'soft',

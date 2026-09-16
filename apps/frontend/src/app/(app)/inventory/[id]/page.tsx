@@ -394,7 +394,7 @@ export default function InventoryItemDetailPage({
             </div>
           </div>
 
-          {isEditing && item.capabilities.canEditCatalog ? (
+          {isEditing && item.isActive && item.capabilities.canEditCatalog ? (
             <InventoryItemEditor
               key={`${item.id}:${item.version}`}
               item={item}
@@ -406,7 +406,7 @@ export default function InventoryItemDetailPage({
             />
           ) : null}
 
-          {item.capabilities.canEditCatalog ? (
+          {item.capabilities.canEditCatalog || item.capabilities.canDelete ? (
             <div className="page-card" style={{ display: 'grid', gap: 12 }}>
               <div className="section-header">
                 <div>
