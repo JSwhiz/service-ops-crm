@@ -1,0 +1,151 @@
+.form {
+  width: min(100%, 390px);
+  display: grid;
+  gap: 22px;
+}
+
+.header {
+  display: grid;
+  gap: 6px;
+}
+
+.kicker {
+  color: #9a8577;
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin: 0;
+  color: #332c28;
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+}
+
+.header p {
+  margin: 0;
+  color: #82736a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.fields {
+  display: grid;
+  gap: 15px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.field > span:first-child {
+  color: #5f534c;
+  font-size: 12px;
+  font-weight: 670;
+}
+
+.field input {
+  width: 100%;
+  min-height: 43px;
+  border: 1px solid #d8d0ca;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #342d29;
+  padding: 10px 11px;
+  box-shadow: none;
+}
+
+.field input::placeholder {
+  color: #aaa099;
+}
+
+.field input:hover:not(:disabled) {
+  border-color: #b9aca3;
+}
+
+.field input:focus-visible {
+  outline: 2px solid rgba(105, 83, 70, 0.18);
+  outline-offset: 1px;
+  border-color: #8f7869;
+  box-shadow: none;
+}
+
+.passwordControl {
+  position: relative;
+  display: block;
+}
+
+.passwordControl input {
+  padding-right: 82px;
+}
+
+.passwordToggle {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  transform: translateY(-50%);
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #79675c;
+  padding: 4px 7px;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.passwordToggle:hover:not(:disabled) {
+  transform: translateY(-50%);
+  border-color: transparent;
+  background: #f1ece8;
+  box-shadow: none;
+}
+
+.error {
+  border: 1px solid #e3c3bc;
+  border-radius: 8px;
+  background: #fff6f3;
+  color: #a1483d;
+  padding: 10px 11px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.submit {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #5d4b41 !important;
+  border-radius: 8px !important;
+  background: #5d4b41 !important;
+  color: #fffaf6 !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.submit:hover:not(:disabled) {
+  transform: none !important;
+  border-color: #4f3f36 !important;
+  background: #4f3f36 !important;
+  box-shadow: none !important;
+}
+
+.submit:disabled {
+  border-color: #d8d0ca !important;
+  background: #e9e3de !important;
+  color: #a89d95 !important;
+}
+
+.footer {
+  padding-top: 14px;
+  border-top: 1px solid #ece6e1;
+  color: #9a8d85;
+  font-size: 11px;
+  line-height: 1.45;
+}

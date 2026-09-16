@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 
 import { useAuth } from '@/shared/auth/use-auth';
+
+import styles from './login-form.module.css';
 
 export function LoginForm(): React.JSX.Element {
   const router = useRouter();
@@ -13,6 +15,7 @@ export function LoginForm(): React.JSX.Element {
     login: '',
     password: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -34,39 +37,68 @@ export function LoginForm(): React.JSX.Element {
   };
 
   return (
-    <form className="page-card" onSubmit={handleSubmit}>
-      <h1 className="page-title">Вход в систему</h1>
+    <form className={styles.form} onSubmit={handleSubmit}>
+      <div className={styles.header}>
+        <div className={styles.kicker}>Рабочее пространство</div>
+        <h2>Вход</h2>
+        <p>Используй рабочий логин и пароль.</p>
+      </div>
 
-      <div style={{ display: 'grid', gap: 12 }}>
-        <label>
-          <div style={{ marginBottom: 6 }}>Логин</div>
+      <div className={styles.fields}>
+        <label className={styles.field}>
+          <span>Логин</span>
           <input
+            autoFocus
+            autoComplete="username"
             value={form.login}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, login: event.target.value }))
             }
-            style={{ width: '100%', padding: 10 }}
+            placeholder="Введите логин"
+            required
           />
         </label>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Пароль</div>
-          <input
-            type="password"
-            value={form.password}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, password: event.target.value }))
-            }
-            style={{ width: '100%', padding: 10 }}
-          />
+        <label className={styles.field}>
+          <span>Пароль</span>
+          <span className={styles.passwordControl}>
+            <input
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={form.password}
+              onChange={(event) =>
+                setForm((prev) => ({ ...prev, password: event.target.value }))
+              }
+              placeholder="Введите пароль"
+              required
+            />
+            <button
+              type="button"
+              className={styles.passwordToggle}
+              onClick={() => setShowPassword((value) => !value)}
+              aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+            >
+              {showPassword ? 'Скрыть' : 'Показать'}
+            </button>
+          </span>
         </label>
-
-        {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
-
-        <button type="submit" disabled={isSubmitting} style={{ padding: 10 }}>
-          {isSubmitting ? 'Входим...' : 'Войти'}
-        </button>
       </div>
+
+      {error ? (
+        <div className={styles.error} role="alert">
+          {error}
+        </div>
+      ) : null}
+
+      <button
+        type="submit"
+        className={styles.submit}
+        disabled={isSubmitting || !form.login.trim() || !form.password}
+      >
+        {isSubmitting ? 'Входим…' : 'Войти'}
+      </button>
+
+      <div className={styles.footer}>Доступ только для сотрудников компании.</div>
     </form>
   );
 }

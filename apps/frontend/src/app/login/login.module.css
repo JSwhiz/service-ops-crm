@@ -1,0 +1,152 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: #f3f0ec;
+}
+
+.shell {
+  width: min(980px, 100%);
+  min-height: 560px;
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(380px, 1.08fr);
+  overflow: hidden;
+  border: 1px solid #ddd5ce;
+  border-radius: 12px;
+  background: #fffdfb;
+}
+
+.brandPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 34px;
+  border-right: 1px solid #ddd5ce;
+  background: #ebe5df;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brandMark {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #5d4b41;
+  color: #fffaf6;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.brandText {
+  display: grid;
+  gap: 1px;
+  color: #3d332d;
+  line-height: 1.15;
+}
+
+.brandText strong {
+  font-size: 15px;
+  font-weight: 760;
+}
+
+.brandText span {
+  color: #85756b;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.brandCopy {
+  margin: auto 0;
+  max-width: 390px;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 13px;
+  color: #8c776a;
+  font-size: 11px;
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brandCopy h1 {
+  margin: 0;
+  color: #352d28;
+  font-size: clamp(30px, 3.5vw, 44px);
+  font-weight: 730;
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+}
+
+.brandCopy p {
+  max-width: 360px;
+  margin: 18px 0 0;
+  color: #71635a;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.brandFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 20px;
+  border-top: 1px solid #d8cfc7;
+  color: #8a7a70;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.formPane {
+  display: grid;
+  place-items: center;
+  padding: 48px clamp(28px, 5vw, 68px);
+  background: #fffdfb;
+}
+
+@media (max-width: 760px) {
+  .page {
+    align-items: start;
+    padding: 16px;
+  }
+
+  .shell {
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .brandPane {
+    gap: 30px;
+    padding: 22px;
+    border-right: 0;
+    border-bottom: 1px solid #ddd5ce;
+  }
+
+  .brandCopy {
+    margin: 16px 0 4px;
+  }
+
+  .brandCopy h1 {
+    max-width: 520px;
+    font-size: 30px;
+  }
+
+  .brandCopy p,
+  .brandFooter {
+    display: none;
+  }
+
+  .formPane {
+    padding: 32px 22px 36px;
+  }
+}
