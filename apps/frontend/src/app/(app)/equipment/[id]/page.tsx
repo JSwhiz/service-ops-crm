@@ -28,6 +28,19 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
 
+function getDeleteBlockerLabel(code: string): string {
+  switch (code) {
+    case 'movement_history':
+      return 'По оборудованию уже есть история операций. Для выбытия используйте списание.';
+    case 'assigned':
+      return 'Сначала верните оборудование с объекта или заказа.';
+    case 'not_in_storage':
+      return 'Удалить можно только оборудование в статусе «На складе».';
+    default:
+      return code;
+  }
+}
+
 export default function EquipmentDetailPage({
   params,
 }: {
@@ -186,13 +199,22 @@ export default function EquipmentDetailPage({
                 <button
                   type="button"
                   className="button-danger"
+                  disabled={!unit.deletionState.canDelete}
                   onClick={() => setIsDeleteConfirmationOpen(true)}
                 >
                   Удалить
                 </button>
               </div>
 
-              {isDeleteConfirmationOpen ? (
+              {!unit.deletionState.canDelete && unit.deletionState.blockerCodes.length > 0 ? (
+                <div className="page-muted">
+                  {unit.deletionState.blockerCodes
+                    .map((code) => getDeleteBlockerLabel(code))
+                    .join(' ')}
+                </div>
+              ) : null}
+
+              {isDeleteConfirmationOpen && unit.deletionState.canDelete ? (
                 <div className="inline-notice inline-notice--warning">
                   <strong>Удалить «{unit.catalogItem.name} · {unit.inventoryNumber}»?</strong>
                   <div>Карточка будет удалена безвозвратно, так как по ней ещё не было операций.</div>
