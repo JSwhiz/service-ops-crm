@@ -6,6 +6,7 @@ import {
   canIssueInventoryToObject,
   canIssueInventoryToOneTimeOrder,
   canManageInventoryCatalog,
+  canDeleteInventoryItem,
   canResolveInventoryMissingPhotoApproval,
   canReturnInventory,
   canViewInventoryReports,
@@ -15,6 +16,7 @@ import {
 export interface InventoryGlobalCapabilities {
   canAccessInventory: boolean;
   canManageInventoryCatalog: boolean;
+  canDeleteInventoryItem: boolean;
   canCreateInventoryMovement: boolean;
   canCreateInventoryReceipt: boolean;
   canIssueInventoryToObject: boolean;
@@ -32,6 +34,7 @@ export function buildInventoryGlobalCapabilities(
   return {
     canAccessInventory: canAccessInventory(roleCodes),
     canManageInventoryCatalog: canManageInventoryCatalog(roleCodes),
+    canDeleteInventoryItem: canDeleteInventoryItem(roleCodes),
     canCreateInventoryMovement: canCreateInventoryMovement(roleCodes),
     canCreateInventoryReceipt: canCreateInventoryReceipt(roleCodes),
     canIssueInventoryToObject: canIssueInventoryToObject(roleCodes),

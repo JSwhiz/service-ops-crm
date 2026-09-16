@@ -60,8 +60,14 @@ export class EquipmentUnitResponseDto {
   catalogItem!: EquipmentCatalogItemResponseDto;
   createdAt!: string;
   updatedAt!: string;
+  deletionState!: {
+    canDelete: boolean;
+    movementsCount: number;
+    blockerCodes: string[];
+  };
   capabilities!: {
     canCreateMovement: boolean;
+    canDelete: boolean;
     canAssignToObject: boolean;
     canAssignToOneTimeOrder: boolean;
     canReturn: boolean;

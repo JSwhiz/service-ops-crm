@@ -1230,7 +1230,7 @@ model InventoryMovement {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  inventoryItem        InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  inventoryItem        InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
   createdBy            User          @relation("InventoryMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   approvalBridgeResolvedBy User?     @relation("InventoryMovementApprovalResolvedBy", fields: [approvalBridgeResolvedByUserId], references: [id], onDelete: SetNull)
   relatedObject        Object?       @relation(fields: [relatedObjectId], references: [id], onDelete: SetNull)
@@ -1310,7 +1310,7 @@ model EquipmentMovement {
   createdByUserId         String
   createdAt               DateTime @default(now())
 
-  equipmentUnit        EquipmentUnit @relation(fields: [equipmentUnitId], references: [id], onDelete: Cascade)
+  equipmentUnit        EquipmentUnit @relation(fields: [equipmentUnitId], references: [id], onDelete: Restrict)
   fromObject           Object?       @relation("EquipmentMovementFromObject", fields: [fromObjectId], references: [id], onDelete: SetNull)
   toObject             Object?       @relation("EquipmentMovementToObject", fields: [toObjectId], references: [id], onDelete: SetNull)
   fromOneTimeOrder     OneTimeOrder? @relation("EquipmentMovementFromOneTimeOrder", fields: [fromOneTimeOrderId], references: [id], onDelete: SetNull)

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
@@ -72,6 +73,14 @@ export class InventoryController {
     @Body() payload: UpdateInventoryItemDto,
   ): Promise<InventoryItemResponseDto> {
     return this.inventoryService.updateItem(user, id, payload);
+  }
+
+  @Delete('items/:id')
+  deleteItem(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<{ id: string; mode: 'hard' | 'soft' }> {
+    return this.inventoryService.deleteItem(user, id);
   }
 
   @Get('movements')

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -73,6 +74,14 @@ export class EquipmentController {
     @Param('id') id: string,
   ): Promise<EquipmentUnitResponseDto> {
     return this.equipmentService.getUnitById(user, id);
+  }
+
+  @Delete('units/:id')
+  deleteUnit(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+  ): Promise<{ id: string; mode: 'hard' }> {
+    return this.equipmentService.deleteUnit(user, id);
   }
 
   @Get('units/:id/movements')

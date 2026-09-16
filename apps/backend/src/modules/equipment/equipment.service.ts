@@ -40,6 +40,7 @@ import {
 } from './utils/equipment-capabilities.util';
 import {
   canAccessEquipment,
+  canDeleteEquipmentUnit,
   canAssignEquipmentToObject,
   canAssignEquipmentToOneTimeOrder,
   canManageEquipmentCatalog,
@@ -102,6 +103,7 @@ type EquipmentUnitRecord = {
   catalogItem: EquipmentCatalogRecord;
   currentObject: ObjectScope | null;
   currentOneTimeOrder: OrderScope | null;
+  _count: { movements: number };
 };
 
 type EquipmentMovementRecord = {
@@ -278,6 +280,78 @@ export class EquipmentService {
       currentUser,
       this.getGlobalCapabilities(currentUser),
     );
+  }
+
+  async deleteUnit(
+    currentUser: CurrentAuthUser,
+    unitId: string,
+  ): Promise<{ id: string; mode: 'hard' }> {
+    if (!canDeleteEquipmentUnit(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('Equipment unit deletion denied');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "equipment_units"
+        WHERE "id" = ${unitId}
+        FOR UPDATE
+      `;
+
+      const unit = await tx.equipmentUnit.findUnique({
+        where: { id: unitId },
+        select: {
+          id: true,
+          catalogItemId: true,
+          inventoryNumber: true,
+          serialNumber: true,
+          status: true,
+          notes: true,
+          currentObjectId: true,
+          currentOneTimeOrderId: true,
+          _count: { select: { movements: true } },
+        },
+      });
+
+      if (!unit) {
+        throw new NotFoundException('Equipment unit not found');
+      }
+
+      const blockerCodes = [
+        ...(unit._count.movements > 0 ? ['movement_history'] : []),
+        ...(unit.currentObjectId || unit.currentOneTimeOrderId ? ['assigned'] : []),
+        ...(unit.status !== 'in_storage' ? ['not_in_storage'] : []),
+      ];
+
+      if (blockerCodes.length > 0) {
+        throw new ConflictException({
+          code: 'EQUIPMENT_UNIT_DELETE_BLOCKED',
+          message: 'Used equipment cannot be deleted; use the writeoff workflow',
+          reasons: blockerCodes,
+          movementsCount: unit._count.movements,
+        });
+      }
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'equipment_unit',
+          entityId: unit.id,
+          actorUserId: currentUser.id,
+          action: 'equipment.unit.deleted_permanently',
+          oldValues: {
+            catalogItemId: unit.catalogItemId,
+            inventoryNumber: unit.inventoryNumber,
+            serialNumber: unit.serialNumber,
+            status: unit.status,
+            notes: unit.notes,
+          },
+        },
+        tx,
+      );
+
+      await tx.equipmentUnit.delete({ where: { id: unit.id } });
+      return { id: unit.id, mode: 'hard' };
+    });
   }
 
   async listUnitMovements(
@@ -1001,8 +1075,23 @@ export class EquipmentService {
       catalogItem: this.mapCatalogItem(unit.catalogItem),
       createdAt: unit.createdAt.toISOString(),
       updatedAt: unit.updatedAt.toISOString(),
+      deletionState: {
+        canDelete:
+          capabilities.canDeleteEquipmentUnit &&
+          unit._count.movements === 0 &&
+          !unit.currentObject &&
+          !unit.currentOneTimeOrder &&
+          unit.status === 'in_storage',
+        movementsCount: unit._count.movements,
+        blockerCodes: [
+          ...(unit._count.movements > 0 ? ['movement_history'] : []),
+          ...(unit.currentObject || unit.currentOneTimeOrder ? ['assigned'] : []),
+          ...(unit.status !== 'in_storage' ? ['not_in_storage'] : []),
+        ],
+      },
       capabilities: {
         canCreateMovement: capabilities.canAccessEquipment,
+        canDelete: capabilities.canDeleteEquipmentUnit,
         canAssignToObject: capabilities.canAssignEquipmentToObject,
         canAssignToOneTimeOrder: capabilities.canAssignEquipmentToOneTimeOrder,
         canReturn: capabilities.canReturnEquipment,
@@ -1141,6 +1230,7 @@ export class EquipmentService {
           },
         },
       },
+      _count: { select: { movements: true } },
     };
   }
 
@@ -1178,6 +1268,7 @@ export class EquipmentService {
     return {
       canAccessEquipment: false,
       canManageEquipmentCatalog: false,
+      canDeleteEquipmentUnit: false,
       canAssignEquipmentToObject: false,
       canAssignEquipmentToOneTimeOrder: false,
       canReturnEquipment: false,

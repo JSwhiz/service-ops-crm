@@ -29,6 +29,10 @@ export function canManageEquipmentCatalog(roleCodes: string[]): boolean {
   return canOperateEquipment(roleCodes);
 }
 
+export function canDeleteEquipmentUnit(roleCodes: string[]): boolean {
+  return canOperateEquipment(roleCodes);
+}
+
 export function canAssignEquipmentToObject(roleCodes: string[]): boolean {
   return canOperateEquipment(roleCodes);
 }

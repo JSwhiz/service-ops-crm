@@ -32,6 +32,10 @@ export function canManageInventoryCatalog(roleCodes: string[]): boolean {
   return canOperateInventory(roleCodes);
 }
 
+export function canDeleteInventoryItem(roleCodes: string[]): boolean {
+  return canOperateInventory(roleCodes);
+}
+
 export function canCreateInventoryMovement(roleCodes: string[]): boolean {
   return canOperateInventory(roleCodes);
 }

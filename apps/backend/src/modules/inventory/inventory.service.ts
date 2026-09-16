@@ -46,6 +46,7 @@ import {
   canAccessInventory,
   canAdjustInventory,
   canCreateInventoryMovement,
+  canDeleteInventoryItem,
   canCreateInventoryReceipt,
   canIssueInventoryToObject,
   canIssueInventoryToOneTimeOrder,
@@ -418,6 +419,105 @@ export class InventoryService {
       stockByItemId.get(updated.id),
       this.getGlobalCapabilities(currentUser),
     );
+  }
+
+  async deleteItem(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<{ id: string; mode: 'hard' | 'soft' }> {
+    if (!canDeleteInventoryItem(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('Inventory item deletion denied');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "inventory_items"
+        WHERE "id" = ${id}
+        FOR UPDATE
+      `;
+
+      const existing = (await tx.inventoryItem.findUnique({
+        where: { id },
+        include: {
+          createdBy: {
+            select: { id: true, login: true, fullName: true },
+          },
+        },
+      })) as InventoryItemRecord | null;
+
+      if (!existing) {
+        throw new NotFoundException('Inventory item not found');
+      }
+
+      if (!existing.isActive) {
+        throw new ConflictException({
+          code: 'INVENTORY_ITEM_ALREADY_DELETED',
+          message: 'Inventory item is already deleted',
+        });
+      }
+
+      try {
+        await this.assertItemArchivable(tx, existing.id);
+      } catch (error) {
+        if (error instanceof ConflictException) {
+          const response = error.getResponse();
+          const body = typeof response === 'object' && response !== null ? response : {};
+          throw new ConflictException({
+            ...(body as Record<string, unknown>),
+            code: 'INVENTORY_ITEM_DELETE_BLOCKED',
+            message: 'Inventory item cannot be deleted in its current state',
+          });
+        }
+        throw error;
+      }
+
+      const movementsCount = await tx.inventoryMovement.count({
+        where: { inventoryItemId: existing.id },
+      });
+
+      if (movementsCount === 0) {
+        await this.auditService.writeAuditEvent(
+          {
+            entityType: 'inventory_item',
+            entityId: existing.id,
+            actorUserId: currentUser.id,
+            action: 'inventory.item.deleted_permanently',
+            oldValues: this.buildItemAuditSnapshot(existing),
+          },
+          tx,
+        );
+        await tx.inventoryItem.delete({ where: { id: existing.id } });
+        return { id: existing.id, mode: 'hard' };
+      }
+
+      const deleted = await tx.inventoryItem.update({
+        where: { id: existing.id },
+        data: {
+          isActive: false,
+          version: { increment: 1 },
+        },
+        include: {
+          createdBy: {
+            select: { id: true, login: true, fullName: true },
+          },
+        },
+      });
+
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'inventory_item',
+          entityId: existing.id,
+          actorUserId: currentUser.id,
+          action: 'inventory.item.deleted',
+          oldValues: this.buildItemAuditSnapshot(existing),
+          newValues: this.buildItemAuditSnapshot(deleted),
+        },
+        tx,
+      );
+
+      return { id: existing.id, mode: 'soft' };
+    });
   }
 
   async listMovements(
@@ -2522,8 +2622,19 @@ export class InventoryService {
         pendingApprovalsCount: stockSummary?.pendingApprovalsCount ?? 0,
         blockerCodes,
       },
+      deletionState: {
+        canDelete:
+          item.isActive &&
+          capabilities.canDeleteInventoryItem &&
+          blockerCodes.length === 0,
+        mode: (stockSummary?.movementsCount ?? 0) === 0 ? 'hard' : 'soft',
+        pendingMovementsCount: stockSummary?.pendingMovementsCount ?? 0,
+        pendingApprovalsCount: stockSummary?.pendingApprovalsCount ?? 0,
+        blockerCodes,
+      },
       capabilities: {
         canEditCatalog: capabilities.canManageInventoryCatalog,
+        canDelete: capabilities.canDeleteInventoryItem,
         canCreateMovement: capabilities.canCreateInventoryMovement,
         canCreateReceipt: capabilities.canCreateInventoryReceipt,
         canIssueToObject: capabilities.canIssueInventoryToObject,

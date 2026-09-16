@@ -3,6 +3,7 @@ import {
   canAssignEquipmentToObject,
   canAssignEquipmentToOneTimeOrder,
   canManageEquipmentCatalog,
+  canDeleteEquipmentUnit,
   canMarkEquipmentBroken,
   canMoveEquipment,
   canReturnEquipment,
@@ -15,6 +16,7 @@ import {
 export interface EquipmentGlobalCapabilities {
   canAccessEquipment: boolean;
   canManageEquipmentCatalog: boolean;
+  canDeleteEquipmentUnit: boolean;
   canAssignEquipmentToObject: boolean;
   canAssignEquipmentToOneTimeOrder: boolean;
   canReturnEquipment: boolean;
@@ -32,6 +34,7 @@ export function buildEquipmentGlobalCapabilities(
   return {
     canAccessEquipment: canAccessEquipment(roleCodes),
     canManageEquipmentCatalog: canManageEquipmentCatalog(roleCodes),
+    canDeleteEquipmentUnit: canDeleteEquipmentUnit(roleCodes),
     canAssignEquipmentToObject: canAssignEquipmentToObject(roleCodes),
     canAssignEquipmentToOneTimeOrder:
       canAssignEquipmentToOneTimeOrder(roleCodes),
