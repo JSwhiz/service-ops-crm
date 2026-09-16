@@ -46,7 +46,7 @@ export function InventoryItemListTable({
                   : `${item.currentUnitPrice.toLocaleString('ru-RU')} ₽`}
               </td>
               <td>{item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽</td>
-              <td>{item.isActive ? 'Активна' : 'Неактивна'}</td>
+              <td>{item.isActive ? 'Активна' : 'Удалена'}</td>
               <td>{item.summary.movementsCount}</td>
               <td align="right">
                 {item.capabilities.canEditCatalog ? (

@@ -28,7 +28,7 @@ export default function InventoryPage(): React.JSX.Element {
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [category, setCategory] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'archived'>(
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'deleted'>(
     'active',
   );
   const [sortBy, setSortBy] = useState<
@@ -167,13 +167,13 @@ export default function InventoryPage(): React.JSX.Element {
                   value={activeFilter}
                   onChange={(event) => {
                     setActiveFilter(
-                      event.target.value as 'all' | 'active' | 'archived',
+                      event.target.value as 'all' | 'active' | 'deleted',
                     );
                     setPage(1);
                   }}
                 >
                   <option value="active">Активные</option>
-                  <option value="archived">Архивные</option>
+                  <option value="deleted">Удалённые</option>
                   <option value="all">Все</option>
                 </select>
               </label>

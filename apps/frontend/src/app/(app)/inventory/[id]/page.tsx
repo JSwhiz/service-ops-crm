@@ -1,10 +1,12 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import {
   createInventoryMovement,
+  deleteInventoryItem,
   getInventoryItemById,
   listInventoryMovements,
   listInventoryObjectReferenceOptions,
@@ -36,7 +38,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function getArchiveBlockerLabel(code: string): string {
+function getDeleteBlockerLabel(code: string): string {
   switch (code) {
     case 'non_zero_stock':
       return 'Остаток должен быть равен нулю.';
@@ -54,6 +56,7 @@ export default function InventoryItemDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const router = useRouter();
   const [itemId, setItemId] = useState<string | null>(null);
   const [item, setItem] = useState<InventoryItem | null>(null);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
@@ -76,7 +79,7 @@ export default function InventoryItemDetailPage({
   const [isLoading, setIsLoading] = useState(true);
   const [isMovementsLoading, setIsMovementsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [isArchiveConfirmationOpen, setIsArchiveConfirmationOpen] =
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] =
     useState(false);
   const [isItemActionPending, setIsItemActionPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -243,7 +246,7 @@ export default function InventoryItemDetailPage({
         isActive,
       });
       setItem(updated);
-      setIsArchiveConfirmationOpen(false);
+      setIsDeleteConfirmationOpen(false);
     } catch (actionError) {
       if (
         actionError instanceof ApiError &&
@@ -255,6 +258,34 @@ export default function InventoryItemDetailPage({
           getErrorMessage(actionError, 'Не удалось изменить статус позиции.'),
         );
       }
+    } finally {
+      setIsItemActionPending(false);
+    }
+  };
+
+  const handleDelete = async (): Promise<void> => {
+    if (!item) {
+      return;
+    }
+
+    setIsItemActionPending(true);
+    setItemActionError(null);
+
+    try {
+      const result = await deleteInventoryItem(item.id);
+      if (result.mode === 'hard') {
+        router.push('/inventory');
+        router.refresh();
+        return;
+      }
+
+      const updated = await getInventoryItemById(item.id);
+      setItem(updated);
+      setIsDeleteConfirmationOpen(false);
+    } catch (actionError) {
+      setItemActionError(
+        getErrorMessage(actionError, 'Не удалось удалить позицию.'),
+      );
     } finally {
       setIsItemActionPending(false);
     }
@@ -285,7 +316,7 @@ export default function InventoryItemDetailPage({
                   className="status-pill"
                   data-status={item.isActive ? 'active' : 'archived'}
                 >
-                  {item.isActive ? 'Активна' : 'В архиве'}
+                  {item.isActive ? 'Активна' : 'Удалена'}
                 </span>
                 {item.capabilities.canEditCatalog ? (
                   <button
@@ -389,19 +420,19 @@ export default function InventoryItemDetailPage({
             <div className="page-card" style={{ display: 'grid', gap: 12 }}>
               <div className="section-header">
                 <div>
-                  <div className="section-title">Статус позиции</div>
+                  <div className="section-title">Управление карточкой</div>
                   <div className="page-muted">
-                    Архивная позиция остаётся в истории, но недоступна для новых
-                    движений.
+                    Удалённые позиции не участвуют в новых складских операциях.
                   </div>
                 </div>
                 {item.isActive ? (
                   <button
                     type="button"
                     className="button-danger"
-                    onClick={() => setIsArchiveConfirmationOpen(true)}
+                    disabled={!item.capabilities.canDelete}
+                    onClick={() => setIsDeleteConfirmationOpen(true)}
                   >
-                    Архивировать
+                    Удалить
                   </button>
                 ) : (
                   <button
@@ -414,39 +445,52 @@ export default function InventoryItemDetailPage({
                 )}
               </div>
 
-              {isArchiveConfirmationOpen && item.isActive ? (
+              {isDeleteConfirmationOpen && item.isActive ? (
                 <div className="inline-notice inline-notice--warning">
-                  <strong>Проверка перед архивированием</strong>
+                  <strong>Удалить «{item.name}»?</strong>
+                  {item.deletionState.mode === 'hard' ? (
+                    <div>
+                      Карточка ещё не использовалась и будет удалена безвозвратно.
+                    </div>
+                  ) : (
+                    <div>
+                      Позиция исчезнет из рабочего каталога. История из{' '}
+                      {item.summary.movementsCount} движений сохранится.
+                    </div>
+                  )}
                   <div>
                     Остаток: {formatInventoryQuantity(item.currentStock, item.unit)}
                   </div>
-                  <div>
-                    Движений на согласовании:{' '}
-                    {item.archiveState.pendingMovementsCount}; согласований:{' '}
-                    {item.archiveState.pendingApprovalsCount}
-                  </div>
-                  {item.archiveState.blockerCodes.map((code) => (
-                    <div key={code}>{getArchiveBlockerLabel(code)}</div>
+                  {item.deletionState.blockerCodes.map((code) => (
+                    <div key={code}>{getDeleteBlockerLabel(code)}</div>
                   ))}
                   <div className="action-row">
                     <button
                       type="button"
                       className="button-danger"
-                      disabled={
-                        !item.archiveState.canArchive || isItemActionPending
-                      }
-                      onClick={() => void updateActiveState(false)}
+                      disabled={!item.deletionState.canDelete || isItemActionPending}
+                      onClick={() => void handleDelete()}
                     >
-                      Подтвердить архивирование
+                      {isItemActionPending ? 'Удаляем...' : 'Удалить'}
                     </button>
                     <button
                       type="button"
                       className="button-secondary"
-                      onClick={() => setIsArchiveConfirmationOpen(false)}
+                      onClick={() => setIsDeleteConfirmationOpen(false)}
+                      disabled={isItemActionPending}
                     >
                       Отмена
                     </button>
                   </div>
+                </div>
+              ) : null}
+
+              {item.isActive && item.deletionState.blockerCodes.length > 0 ? (
+                <div className="page-muted">
+                  Удаление сейчас недоступно: {' '}
+                  {item.deletionState.blockerCodes
+                    .map((code) => getDeleteBlockerLabel(code))
+                    .join(' ')}
                 </div>
               ) : null}
 

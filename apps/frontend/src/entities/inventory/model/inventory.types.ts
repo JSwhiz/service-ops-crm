@@ -32,8 +32,16 @@ export interface InventoryItem {
     pendingApprovalsCount: number;
     blockerCodes: string[];
   };
+  deletionState: {
+    canDelete: boolean;
+    mode: 'hard' | 'soft';
+    pendingMovementsCount: number;
+    pendingApprovalsCount: number;
+    blockerCodes: string[];
+  };
   capabilities: {
     canEditCatalog: boolean;
+    canDelete: boolean;
     canCreateMovement: boolean;
     canCreateReceipt: boolean;
     canIssueToObject: boolean;

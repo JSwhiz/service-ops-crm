@@ -77,6 +77,15 @@ export async function updateInventoryItem(
   });
 }
 
+export async function deleteInventoryItem(
+  id: string,
+): Promise<{ id: string; mode: 'hard' | 'soft' }> {
+  return fetcher<{ id: string; mode: 'hard' | 'soft' }>(
+    `/inventory/items/${id}`,
+    { method: 'DELETE' },
+  );
+}
+
 export async function listInventoryMovements(
   params?: ListInventoryMovementsParams,
 ): Promise<InventoryMovementListResponse> {

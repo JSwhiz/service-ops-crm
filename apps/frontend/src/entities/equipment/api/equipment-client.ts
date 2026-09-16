@@ -64,6 +64,14 @@ export async function getEquipmentUnitById(id: string): Promise<EquipmentUnit> {
   return fetcher<EquipmentUnit>(`/equipment/units/${id}`, { method: 'GET' });
 }
 
+export async function deleteEquipmentUnit(
+  id: string,
+): Promise<{ id: string; mode: 'hard' }> {
+  return fetcher<{ id: string; mode: 'hard' }>(`/equipment/units/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function listEquipmentMovements(
   unitId: string,
 ): Promise<EquipmentMovement[]> {

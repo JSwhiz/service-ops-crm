@@ -1,9 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 import {
   createEquipmentMovement,
+  deleteEquipmentUnit,
   getEquipmentUnitById,
   listEquipmentMovements,
 } from '@/entities/equipment/api/equipment-client';
@@ -31,11 +33,15 @@ export default function EquipmentDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const router = useRouter();
   const [unit, setUnit] = useState<EquipmentUnit | null>(null);
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [orders, setOrders] = useState<OneTimeOrderListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleteConfirmationOpen, setIsDeleteConfirmationOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadAll = async (id: string, cancelled = false): Promise<void> => {
@@ -167,6 +173,67 @@ export default function EquipmentDetailPage({
               </div>
             ) : null}
           </div>
+
+          {unit.capabilities.canDelete ? (
+            <div className="page-card" style={{ display: 'grid', gap: 12 }}>
+              <div className="section-header">
+                <div>
+                  <div className="section-title">Удаление карточки</div>
+                  <div className="page-muted">
+                    Доступно только для ошибочно заведённого оборудования без истории операций.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="button-danger"
+                  onClick={() => setIsDeleteConfirmationOpen(true)}
+                >
+                  Удалить
+                </button>
+              </div>
+
+              {isDeleteConfirmationOpen ? (
+                <div className="inline-notice inline-notice--warning">
+                  <strong>Удалить «{unit.catalogItem.name} · {unit.inventoryNumber}»?</strong>
+                  <div>Карточка будет удалена безвозвратно, так как по ней ещё не было операций.</div>
+                  <div className="action-row">
+                    <button
+                      type="button"
+                      className="button-danger"
+                      disabled={isDeleting}
+                      onClick={() => {
+                        setIsDeleting(true);
+                        setDeleteError(null);
+                        void deleteEquipmentUnit(unit.id)
+                          .then(() => {
+                            router.push('/equipment');
+                            router.refresh();
+                          })
+                          .catch((deleteFailure: unknown) => {
+                            setDeleteError(
+                              getErrorMessage(deleteFailure, 'Не удалось удалить оборудование.'),
+                            );
+                          })
+                          .finally(() => setIsDeleting(false));
+                      }}
+                    >
+                      {isDeleting ? 'Удаляем...' : 'Удалить'}
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      disabled={isDeleting}
+                      onClick={() => setIsDeleteConfirmationOpen(false)}
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {deleteError ? <div className="form-error">{deleteError}</div> : null}
+            </div>
+          ) : null}
 
           <EquipmentMovementPanel
             unit={unit}
