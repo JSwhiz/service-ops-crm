@@ -232,9 +232,11 @@ export class AuthService {
     });
     const inventoryCapabilities = buildInventoryGlobalCapabilities(
       user.roleCodes,
+      user.permissionCodes,
     );
     const equipmentCapabilities = buildEquipmentGlobalCapabilities(
       user.roleCodes,
+      user.permissionCodes,
     );
     const chatCapabilities = buildChatGlobalCapabilities(user.roleCodes);
     const oneTimeOrderCapabilities = buildOneTimeOrderGlobalCapabilities({
@@ -318,6 +320,8 @@ export class AuthService {
         canAccessInventory: inventoryCapabilities.canAccessInventory,
         canManageInventoryCatalog:
           inventoryCapabilities.canManageInventoryCatalog,
+        canDeleteInventoryItem:
+          inventoryCapabilities.canDeleteInventoryItem,
         canCreateInventoryMovement:
           inventoryCapabilities.canCreateInventoryMovement,
         canCreateInventoryReceipt:
@@ -335,6 +339,8 @@ export class AuthService {
         canAccessEquipment: equipmentCapabilities.canAccessEquipment,
         canManageEquipmentCatalog:
           equipmentCapabilities.canManageEquipmentCatalog,
+        canDeleteEquipmentUnit:
+          equipmentCapabilities.canDeleteEquipmentUnit,
         canAssignEquipmentToObject:
           equipmentCapabilities.canAssignEquipmentToObject,
         canAssignEquipmentToOneTimeOrder:

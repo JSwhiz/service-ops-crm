@@ -114,6 +114,8 @@ async function main(): Promise<void> {
     { code: "objects.read", name: "Чтение объектов" },
     { code: "objects.create", name: "Создание объектов" },
     { code: "objects.update", name: "Изменение объектов" },
+    { code: "inventory.catalog.delete", name: "Удаление карточек расходников" },
+    { code: "equipment.unit.delete", name: "Удаление ошибочно заведённого оборудования" },
     { code: "tasks.read", name: "Чтение задач" },
     { code: "tasks.create", name: "Создание задач" },
     { code: "tasks.update", name: "Изменение задач" },
@@ -351,6 +353,29 @@ async function main(): Promise<void> {
       isActive: true,
     },
   });
+
+  for (const permissionCode of [
+    "inventory.catalog.delete",
+    "equipment.unit.delete",
+  ]) {
+    const permission = permissionsByCode.get(permissionCode);
+    if (!permission) {
+      throw new Error(`Permission ${permissionCode} was not created`);
+    }
+    await prisma.userPermission.upsert({
+      where: {
+        userId_permissionId: {
+          userId: deputyDirectorUser.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        userId: deputyDirectorUser.id,
+        permissionId: permission.id,
+      },
+    });
+  }
 
   const additionalProfiles = [
     {

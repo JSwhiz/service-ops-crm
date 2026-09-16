@@ -1,6 +1,7 @@
 import { LEADERSHIP_OBJECT_ROLE_CODES } from '../../objects/utils/object-access.util';
 
 export const INVENTORY_OPERATIONAL_ROLE_CODES = ['deputy_director'] as const;
+export const INVENTORY_DELETE_PERMISSION_CODE = 'inventory.catalog.delete';
 export const INVENTORY_READONLY_MANAGER_ROLE_CODES = [
   'manager',
   'senior_manager',
@@ -32,8 +33,14 @@ export function canManageInventoryCatalog(roleCodes: string[]): boolean {
   return canOperateInventory(roleCodes);
 }
 
-export function canDeleteInventoryItem(roleCodes: string[]): boolean {
-  return canOperateInventory(roleCodes);
+export function canDeleteInventoryItem(
+  roleCodes: string[],
+  permissionCodes: string[] = [],
+): boolean {
+  return (
+    hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES) ||
+    permissionCodes.includes(INVENTORY_DELETE_PERMISSION_CODE)
+  );
 }
 
 export function canCreateInventoryMovement(roleCodes: string[]): boolean {

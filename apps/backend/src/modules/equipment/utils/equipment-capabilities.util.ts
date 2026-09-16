@@ -30,11 +30,12 @@ export interface EquipmentGlobalCapabilities {
 
 export function buildEquipmentGlobalCapabilities(
   roleCodes: string[],
+  permissionCodes: string[] = [],
 ): EquipmentGlobalCapabilities {
   return {
     canAccessEquipment: canAccessEquipment(roleCodes),
     canManageEquipmentCatalog: canManageEquipmentCatalog(roleCodes),
-    canDeleteEquipmentUnit: canDeleteEquipmentUnit(roleCodes),
+    canDeleteEquipmentUnit: canDeleteEquipmentUnit(roleCodes, permissionCodes),
     canAssignEquipmentToObject: canAssignEquipmentToObject(roleCodes),
     canAssignEquipmentToOneTimeOrder:
       canAssignEquipmentToOneTimeOrder(roleCodes),

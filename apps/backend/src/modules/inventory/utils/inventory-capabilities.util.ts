@@ -30,11 +30,12 @@ export interface InventoryGlobalCapabilities {
 
 export function buildInventoryGlobalCapabilities(
   roleCodes: string[],
+  permissionCodes: string[] = [],
 ): InventoryGlobalCapabilities {
   return {
     canAccessInventory: canAccessInventory(roleCodes),
     canManageInventoryCatalog: canManageInventoryCatalog(roleCodes),
-    canDeleteInventoryItem: canDeleteInventoryItem(roleCodes),
+    canDeleteInventoryItem: canDeleteInventoryItem(roleCodes, permissionCodes),
     canCreateInventoryMovement: canCreateInventoryMovement(roleCodes),
     canCreateInventoryReceipt: canCreateInventoryReceipt(roleCodes),
     canIssueInventoryToObject: canIssueInventoryToObject(roleCodes),

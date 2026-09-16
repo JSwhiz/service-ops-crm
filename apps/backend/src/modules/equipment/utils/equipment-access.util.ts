@@ -1,6 +1,7 @@
 import { LEADERSHIP_OBJECT_ROLE_CODES } from '../../objects/utils/object-access.util';
 
 export const EQUIPMENT_OPERATIONAL_ROLE_CODES = ['deputy_director'] as const;
+export const EQUIPMENT_DELETE_PERMISSION_CODE = 'equipment.unit.delete';
 export const EQUIPMENT_READONLY_MANAGER_ROLE_CODES = [
   'manager',
   'senior_manager',
@@ -29,8 +30,14 @@ export function canManageEquipmentCatalog(roleCodes: string[]): boolean {
   return canOperateEquipment(roleCodes);
 }
 
-export function canDeleteEquipmentUnit(roleCodes: string[]): boolean {
-  return canOperateEquipment(roleCodes);
+export function canDeleteEquipmentUnit(
+  roleCodes: string[],
+  permissionCodes: string[] = [],
+): boolean {
+  return (
+    hasAnyRole(roleCodes, LEADERSHIP_OBJECT_ROLE_CODES) ||
+    permissionCodes.includes(EQUIPMENT_DELETE_PERMISSION_CODE)
+  );
 }
 
 export function canAssignEquipmentToObject(roleCodes: string[]): boolean {

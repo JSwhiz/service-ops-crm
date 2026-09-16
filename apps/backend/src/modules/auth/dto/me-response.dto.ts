@@ -42,6 +42,7 @@ export class MeResponseDto {
     canApproveAccountabilityClosure: boolean;
     canAccessInventory: boolean;
     canManageInventoryCatalog: boolean;
+    canDeleteInventoryItem: boolean;
     canCreateInventoryMovement: boolean;
     canCreateInventoryReceipt: boolean;
     canIssueInventoryToObject: boolean;
@@ -53,6 +54,7 @@ export class MeResponseDto {
     canResolveInventoryMissingPhotoApproval: boolean;
     canAccessEquipment: boolean;
     canManageEquipmentCatalog: boolean;
+    canDeleteEquipmentUnit: boolean;
     canAssignEquipmentToObject: boolean;
     canAssignEquipmentToOneTimeOrder: boolean;
     canReturnEquipment: boolean;

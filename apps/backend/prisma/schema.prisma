@@ -44,6 +44,7 @@ model User {
   completedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCompletedBy")
   deletedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationDeletedBy")
   createdInventoryItems       InventoryItem[] @relation("InventoryItemCreatedBy")
+  deletedInventoryItems       InventoryItem[] @relation("InventoryItemDeletedBy")
   createdInventoryMovements   InventoryMovement[] @relation("InventoryMovementCreatedBy")
   resolvedInventoryMovementApprovals InventoryMovement[] @relation("InventoryMovementApprovalResolvedBy")
   createdEquipmentCatalogItems EquipmentCatalogItem[] @relation("EquipmentCatalogItemCreatedBy")
@@ -1197,13 +1198,18 @@ model InventoryItem {
   currentUnitPrice Decimal? @db.Decimal(12, 2)
   version         Int      @default(1)
   createdByUserId String
+  deletedByUserId String?
+  deletedAt       DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   createdBy       User                @relation("InventoryItemCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  deletedBy       User?               @relation("InventoryItemDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
   movements       InventoryMovement[]
 
   @@index([createdByUserId])
+  @@index([deletedByUserId])
+  @@index([deletedAt])
   @@index([category])
   @@index([isActive])
   @@map("inventory_items")
