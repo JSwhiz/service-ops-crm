@@ -13,8 +13,8 @@
 }
 
 .filterHeading,
-.detailHeader,
-.queueRowTop {
+.queueRowTop,
+.detailStatusRow {
   display: flex;
   min-width: 0;
   align-items: flex-start;
@@ -24,7 +24,6 @@
 
 .sectionTitle,
 .sectionDescription,
-.detailTitle,
 .contextSummary,
 .preWrap {
   margin: 0;
@@ -71,10 +70,10 @@
   font-weight: 600;
 }
 
-.control,
-.textarea {
+.control {
   width: 100%;
   min-height: var(--ui-control-md);
+  padding: 0 var(--ui-space-3);
   border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface);
@@ -87,24 +86,11 @@
     box-shadow var(--ui-duration-fast) var(--ui-ease-standard);
 }
 
-.control {
-  padding: 0 var(--ui-space-3);
-}
-
-.textarea {
-  min-height: 96px;
-  padding: var(--ui-space-3);
-  line-height: var(--ui-leading-normal);
-  resize: vertical;
-}
-
-.control:hover:not(:disabled),
-.textarea:hover:not(:disabled) {
+.control:hover:not(:disabled) {
   border-color: var(--ui-border-hover);
 }
 
-.control:focus-visible,
-.textarea:focus-visible {
+.control:focus-visible {
   outline: 0;
   border-color: var(--ui-focus-border);
   box-shadow: var(--ui-focus-ring);
@@ -131,15 +117,17 @@
   color: var(--ui-text-tertiary);
 }
 
-.workspace {
-  display: grid;
+.queueFocusTarget {
   min-width: 0;
-  gap: var(--ui-space-4);
+}
+
+.queueFocusTarget:focus-visible {
+  outline: 0;
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-focus-ring);
 }
 
 .queueSurface,
-.detailSurface,
-.detailPlaceholder,
 .loadingSurface {
   min-width: 0;
 }
@@ -260,35 +248,21 @@
   color: var(--ui-text-tertiary);
 }
 
-.detailSurface,
-.detailPlaceholder {
-  align-self: start;
-  padding: var(--ui-space-4);
-}
-
-.detailSurface {
+.detailContent {
   display: grid;
+  min-width: 0;
   gap: var(--ui-space-5);
 }
 
-.detailHeading {
-  display: grid;
-  min-width: 0;
-  gap: var(--ui-space-1);
+.detailStatusRow {
+  align-items: center;
 }
 
 .detailEyebrow {
   color: var(--ui-text-tertiary);
   font-size: var(--ui-text-xs);
+  font-weight: 600;
   line-height: var(--ui-leading-normal);
-}
-
-.detailTitle {
-  color: var(--ui-text);
-  font-size: var(--ui-text-xl);
-  font-weight: 700;
-  line-height: var(--ui-leading-tight);
-  overflow-wrap: anywhere;
 }
 
 .detailMeta,
@@ -373,31 +347,13 @@
   color: var(--ui-accent-hover);
 }
 
-.detailActions,
-.rejectActions {
+.detailActions {
   display: flex;
   align-items: center;
   gap: var(--ui-space-2);
   flex-wrap: wrap;
-}
-
-.detailActions {
   padding-top: var(--ui-space-4);
   border-top: 1px solid var(--ui-border);
-}
-
-.rejectEditor {
-  display: grid;
-  gap: var(--ui-space-3);
-  padding: var(--ui-space-4);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface-subtle);
-}
-
-.detailPlaceholder :global(.ui-empty-state) {
-  border: 0;
-  background: transparent;
 }
 
 .loadingSurface {
@@ -416,20 +372,12 @@
   border-bottom: 0;
 }
 
-@media (min-width: 1040px) {
-  .workspace {
-    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
-    align-items: start;
-  }
-}
-
 @media (max-width: 760px) {
   .page {
     gap: var(--ui-space-4);
   }
 
-  .filterHeading,
-  .detailHeader {
+  .filterHeading {
     flex-direction: column;
   }
 
@@ -448,14 +396,12 @@
     min-height: 72px;
   }
 
-  .detailActions,
-  .rejectActions {
+  .detailActions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .detailActions :global(.ui-button),
-  .rejectActions :global(.ui-button) {
+  .detailActions :global(.ui-button) {
     width: 100%;
     min-height: 44px;
   }
