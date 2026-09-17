@@ -41,3 +41,23 @@ When changing domain terms, always verify against:
 When adding or changing module scope, always verify against:
 
 - docs/product/product-contract.md
+
+## Frontend UI contract
+
+Before any frontend visual/UI changes, read:
+
+- docs/ui/UI_AUDIT.md
+- docs/ui/UI_ARCHITECTURE.md
+- docs/ui/COMPONENT_CONTRACTS.md
+- docs/ui/MODULE_ROADMAP.md
+
+These UI documents supplement the primary product contracts listed under Read docs first. They do not override business/product documentation or change Contract priority.
+
+- Do not introduce a new visual pattern when an existing documented pattern solves the task.
+- UI-only tasks do not change API, DTO, ACL, schema, or business lifecycle.
+- Shared primitives evolve through real consumers; do not implement optional capabilities in advance "just in case".
+- Do not rewrite existing reference implementations without a concrete reason.
+- Reference implementations: App shell, Login, Dashboard, Objects registry, Objects detail.
+- Preserve Objects detail anchor navigation as an intentional exception.
+- A Chats visual refactor must not simultaneously move or rewrite realtime effects, socket ordering, deduplication, or the scroll controller.
+- Replace browser-native confirm/prompt gradually within the migration of the corresponding module.

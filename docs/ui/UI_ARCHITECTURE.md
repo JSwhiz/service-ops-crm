@@ -14,6 +14,8 @@
 
 Одна операция имеет одинаковые название, место, pending/error и confirmation behavior во всех модулях. Доступность действия определяется существующими capabilities. Шаблон сам не проверяет роли и не разрешает операцию. Существующие удачные экраны сохраняются: shell, login, dashboard, Objects registry/detail.
 
+Shared primitive API развивается через реальные consumers. Не реализовывать optional capabilities до первого module use-case. Wave 0A/0B ограничены базовыми и interaction primitives из Roadmap; остальные концептуальные контракты реализуются вместе с первым модулем-потребителем.
+
 ## Information hierarchy
 
 | Уровень | Содержание | Представление |
@@ -136,7 +138,9 @@ PageHeader → RegistryToolbar (композиция FilterBar, не второ�
 
 ### Entity Workspace
 
-Back/breadcrumb → EntityHeader → EntitySummary → Tabs → content. Identity слева, status рядом/на следующей строке, actions справа. Summary: до 4 ключевых значений, компактная полоса, mobile 2 колонки. Детальные поля в sections. Destructive management — overflow с объяснением последствий. Tabs записывают `tab` в URL без потери existing params; недоступная вкладка не рендерится; неизвестная возвращает к первой разрешённой. Не терять draft при смене вкладки.
+Back / breadcrumb → EntityHeader → EntitySummary → Content navigation when needed → Content. Identity слева, status рядом/на следующей строке, actions справа. Summary: до 4 ключевых значений, компактная полоса, mobile 2 колонки. Детальные поля в sections. Destructive management — overflow с объяснением последствий. Tabs записывают `tab` в URL без потери existing params; недоступная вкладка не рендерится; неизвестная возвращает к первой разрешённой. Не терять draft при смене вкладки.
+
+Tabs нужны при нескольких устойчивых независимых областях контента, существенном сокращении длинного vertical document или частом переключении между разделами. Они уместны для Employees, One-time orders, Tasks и Inventory. Для Counterparties, Candidates и простых utility/entity screens достаточно Sections без Tabs. Shared Tabs появляется вместе с первым реальным tabbed workspace, не заранее в Wave 0.
 
 Исключение reference: Objects detail сохраняет существующие anchor sections (`#overview`, `#today`, `#team`, `#tasks`, `#inventory`, `#equipment`, `#files`, `#history`). Это navigation по одному workspace, не ложный ARIA tablist. Миграция на Tabs не обязательна и не входит в waves.
 
@@ -165,6 +169,8 @@ Click пустой области строки повторяет main link; sel
 EmptyState располагается на всю ширину, error отделён от zero records. При refetch старые строки сохраняются с aria-busy; их mutable actions блокируются только если данные могут устареть для операции. Pagination использует server totals; client pagination допустима для полного списка, никогда не изображает несуществующий backend total.
 
 Mobile choice задаётся module roadmap: compact list для identity-oriented registry; horizontal table для stock/finance/comparison; matrix всегда scroll. Данные hidden columns доступны в detail. Не рендерить одновременно две доступные для screen reader копии списка.
+
+DataTable v1 создаётся вместе с Inventory: rows, rowKey, columns, identity link/row navigation, supported sorting, loading, empty, basic horizontal overflow и accessibility semantics. Pagination также появляется с Inventory. Mobile list adapter, универсальные row actions и неиспользуемые column options не входят в v1; Equipment может расширить API при подтверждённой потребности. Conceptual contract is not a mandate to implement all options in v1.
 
 ## Form architecture
 

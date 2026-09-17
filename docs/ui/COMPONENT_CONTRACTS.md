@@ -8,6 +8,8 @@
 
 KEEP — сохранить поведение/API; EXTEND — совместимо расширить; REPLACE — заменить конкретную legacy implementation постепенно; NEW — отсутствует самостоятельный общий contract. Имена здесь обозначают ответственность; re-export или wrapper допустим, rename-only rewrite не нужен.
 
+Shared primitive API развивается через реальные consumers. Не реализовывать optional capabilities до первого module use-case. Conceptual contract is not a mandate to implement all options in v1. Wave 0A/0B ограничены списками в Roadmap; NEW здесь означает наличие контракта, а не задачу реализовать компонент заранее.
+
 ## Disposition of current components
 
 | Current | Decision | Target / condition |
@@ -15,11 +17,11 @@ KEEP — сохранить поведение/API; EXTEND — совмести�
 | AppShell, AppShellClient, AppSidebar, AppHeader, NavLink | KEEP | Сохранить layout, permissions, rail, global actions; только точечная интеграция shared controls |
 | LoginForm | KEEP | Сохранить flow/password toggle/error; токенизация лишь при локальном polish |
 | PageTitle | EXTEND | PageHeader-композиция; прежний `title` API остаётся валиден |
-| foundation Button, IconButton | EXTEND | pending/quiet danger/touch semantics, не второй button kit |
+| foundation Button, IconButton | EXTEND | pending/touch semantics, не второй button kit |
 | foundation Surface | EXTEND | padding, as, role-safe composition |
 | foundation Badge | EXTEND | StatusBadge adapter, compact radius; не глобальный резкий reset существующих badges |
 | foundation EmptyState, Skeleton | EXTEND | filter-empty/busy host и однотонная skeleton treatment |
-| foundation Tooltip | EXTEND | Escape dismiss, viewport bounds; сохранять keyboard label, не помещать интерактивные controls внутрь |
+| foundation Tooltip | KEEP | Не задача Wave 0: без нового positioning engine, viewport collision и сложного Escape lifecycle. Accessibility polish в поздней Wave 3/4 только по проблеме реального consumer; сохранять keyboard label |
 | SearchableSelect | EXTEND | id, label/error association, verified keyboard/listbox behavior; сохранить async/cache semantics |
 | UserSearchSelect | KEEP | User-specific selection adapter; не заменять employee selection, не делать новый enum ролей |
 | MonthPeriodPicker | KEEP | Период матрицы; проверить token/focus/touch при Wave 3 |
@@ -67,6 +69,8 @@ Desktop и medium используют геометрию Architecture; mobile �
 
 ### Section — NEW lightweight composition
 
+В Wave 0A только если действительно нужен базовым primitives; иначе вместе с первым module use-case.
+
 - Responsibility/use: именованная группа workspace/form; не отдельный route header.
 - Variants/API: `title`, `description?`, `action?`, `children`, `headingLevel=2|3`, `divider?`; plain/inset. Не новый Card clone.
 - Interaction: optional action локальная; не сворачивать по умолчанию обязательные поля.
@@ -78,8 +82,8 @@ Desktop и medium используют геометрию Architecture; mobile �
 ### Button — EXTEND foundation
 
 - Responsibility/use: действие/submit; не navigation.
-- Variants/API: сохранить `variant=default|primary|ghost|danger`, `size=sm|md|lg`, `fullWidth`; добавить `pending`, `pendingLabel?`, `tone=neutral|danger` для quiet danger. Semantic secondary = default, quiet = ghost; не переименовывать API ради терминов.
-- Interaction: type=button default; явный submit у формы; pending исключает double invocation и сохраняет label/ширину; danger fill только в confirmation.
+- Variants/API: сохранить `variant=default|primary|ghost|danger`, `size=sm|md|lg`, `fullWidth`; добавить только необходимые behavior props: `pending`, `pendingLabel?`. Не добавлять `tone` в Button. Semantic secondary = default, quiet = ghost; не переименовывать API ради терминов.
+- Interaction: type=button default; явный submit у формы; pending исключает double invocation и сохраняет label/ширину; filled danger Button только внутри destructive confirmation. Quiet destructive action — OverflowMenu item с danger semantics; отдельный ghost-danger Button не вводить до реального consumer requirement.
 - Responsive: 36px default, 44px touch; fullWidth по layout, не автоматически у всех buttons.
 - Accessibility/example: native disabled, aria-busy pending, reason рядом; «Сохранить расход».
 
@@ -116,12 +120,16 @@ Desktop и medium используют геометрию Architecture; mobile �
 
 ### FilterBar — NEW composition
 
+Первый consumer — Approvals (Wave 1a); не реализовывать заранее в Wave 0.
+
 - Responsibility/use: applied filter state + advanced editing. RegistryToolbar — его usage pattern, не отдельный kit.
 - Variants/API: `search?`, `primaryFilters` (≤2), `advancedContent?`, `appliedChips`, `advancedCount`, `onApply`, `onReset`; registry/queue/matrix density. Domain владеет query parsing.
 - Interaction: primary immediate, advanced draft с apply; reset оставляет scoped chip до явного снятия. Нет advanced toggle без content.
 - Responsive/accessibility: desktop Popover, mobile Drawer; search отдельно; accessible form/region label, focus returns на «Фильтры». Пример Inventory status/category + advanced sorting если поддерживается.
 
 ### FilterChip — NEW
+
+Первый consumer — scoped/applied filters Approvals (Wave 1a); не реализовывать заранее в Wave 0.
 
 - Responsibility/use: видимое applied condition; не status и не decorative tag.
 - Variants/API: `label`, `valueLabel`, `onRemove?`, `scope=false`; removable/locked-scope.
@@ -131,6 +139,10 @@ Desktop и medium используют геометрию Architecture; mobile �
 ## Collections and feedback
 
 ### DataTable — NEW, keep domain adapters
+
+**Implementation v1:** первый consumer — Inventory (Wave 1b). Реализовать только rows, rowKey, columns, identity link/row navigation, supported sorting, loading, empty, basic horizontal overflow и accessibility semantics. Ошибку можно показать соседним Alert, действия Inventory — через конкретный column renderer. Не реализовывать заранее `mobileMode=list`, `renderMobileRow`, универсальный row action framework, все optional column capabilities или возможности, которые Inventory не использует. Equipment позже может добавить mobile compact list adapter и row actions при подтверждённой потребности экрана. Conceptual contract is not a mandate to implement all options in v1.
+
+Ниже сохранён целевой conceptual API; опции вне v1 добавляются по consumers:
 
 - Responsibility/use: сравнение записей; не editable timesheet и не chat messages.
 - Variants/API: `rows`, `rowKey`, `columns[{key,header,render,align,sortKey?,width?,primary?}]`, `rowHref?`, `rowActions?`, `sort?`, `onSort?`, `loading`, `error?`, `empty`, `mobileMode=scroll|list`, `renderMobileRow?`; dense default. No fetch/business sort inside.
@@ -146,6 +158,8 @@ Desktop и medium используют геометрию Architecture; mobile �
 - Responsive/accessibility: text wrap при нужде, цвет дополняет текст; «Ожидает решения» warning, «Архив» muted.
 
 ### Tabs — NEW, separate navigation mode
+
+Появляется с первым реальным tabbed Entity Workspace, не в Wave 0. Sections без Tabs допустимы для простой сущности; Objects сохраняет anchor navigation.
 
 - Responsibility/use: несколько content areas одной сущности; не filters и не якорная navigation Objects.
 - Variants/API: `items[{id,label,count?}]`, `value`, `onChange`, `panels`; content mode. Route navigation mode использует `href` и обычный nav, не tab roles.
@@ -174,6 +188,8 @@ Desktop и medium используют геометрию Architecture; mobile �
 - Responsive/accessibility: повторяет реальный layout; aria-hidden; 5 строк inventory table на initial request.
 
 ### Pagination — NEW
+
+Первый consumer — Inventory, одновременно с DataTable v1. Другие режимы добавляются только при реальном use-case.
 
 - Responsibility/use: навигация по реально известным страницам; не infinite chat history.
 - Variants/API: `page`, `pageSize`, `total`, `onPageChange`, `pending?`; compact/default. Если API не даёт total — отдельный next/previous режим с `hasNext`, не выдумывать count.
@@ -210,7 +226,9 @@ Desktop и medium используют геометрию Architecture; mobile �
 - Interaction: base modal lifecycle, parent retains selection/query/scroll; nested ReasonDialog suspends parent trap. Закрытие возвращает trigger, после удаления — ближайший доступный item.
 - Responsive/accessibility: 480/640px, mobile full viewport; labelled dialog, Escape/close; ApprovalDetail в Drawer без N+1 загрузки каждого row.
 
-### Popover — NEW shared positioning shell
+### Popover — NEW shared positioning shell, consumer-driven
+
+Не реализовывать как самостоятельный большой primitive в Wave 0. Для OverflowMenu достаточно его минимального внутреннего positioning behavior. Shared Popover выделяется вместе с реальным consumer (например advanced filters Approvals) только в нужном ему объёме; не строить универсальный positioning engine заранее.
 
 - Responsibility/use: advanced filters/короткий picker. Не reason-required operation.
 - Variants/API: `trigger`, `open`, `onOpenChange`, `content`, `placement`; меню использует OverflowMenu, произвольная форма не получает role=menu.
