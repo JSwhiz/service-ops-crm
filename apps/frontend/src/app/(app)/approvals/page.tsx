@@ -413,10 +413,8 @@ export default function ApprovalsPage(): React.JSX.Element {
         ),
       );
 
-      if (!preserveContent) {
-        setItems([]);
-        setSelectedId(null);
-      }
+      setItems([]);
+      setSelectedId(null);
     } finally {
       if (!preserveContent) {
         setIsLoading(false);
@@ -608,6 +606,15 @@ export default function ApprovalsPage(): React.JSX.Element {
           tone="danger"
           role="alert"
           title="Не удалось обновить очередь"
+          action={
+            <Button
+              onClick={() => {
+                void loadRequests();
+              }}
+            >
+              Обновить очередь
+            </Button>
+          }
         >
           {loadError}
         </Alert>

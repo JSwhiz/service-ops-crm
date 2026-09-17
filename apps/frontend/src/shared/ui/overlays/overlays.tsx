@@ -118,6 +118,7 @@ function OverlayFrame({
       )}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
+      aria-modal="true"
       aria-busy={busy || undefined}
       onCancel={(event) => {
         event.preventDefault();
