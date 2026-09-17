@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   approveApprovalRequest,
@@ -31,6 +31,11 @@ import {
   Skeleton,
   Surface,
 } from '@/shared/ui/foundation';
+import {
+  ConfirmDialog,
+  Drawer,
+  ReasonDialog,
+} from '@/shared/ui/overlays';
 
 import styles from './approvals.module.css';
 
@@ -41,7 +46,8 @@ interface BusinessContextItem {
   value: string;
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -105,8 +111,14 @@ function getApprovalSubtitle(item: ApprovalRequestItem): string | null {
     const movementLabel = movementType
       ? getInventoryMovementTypeLabel(movementType)
       : null;
+
     return movementType
-      ? [movementLabel === movementType ? 'Движение расходников' : movementLabel, ...rest]
+      ? [
+          movementLabel === movementType
+            ? 'Движение расходников'
+            : movementLabel,
+          ...rest,
+        ]
           .filter(Boolean)
           .join(' · ')
       : subtitle;
@@ -114,11 +126,23 @@ function getApprovalSubtitle(item: ApprovalRequestItem): string | null {
 
   if (item.approvalType === 'object_change_confirmation') {
     const objectName = getStringValue(item.payloadSnapshot, 'objectName');
-    const currentStatus = getStringValue(item.payloadSnapshot, 'currentStatus');
-    const requestedStatus = getStringValue(item.payloadSnapshot, 'requestedStatus');
+    const currentStatus = getStringValue(
+      item.payloadSnapshot,
+      'currentStatus',
+    );
+    const requestedStatus = getStringValue(
+      item.payloadSnapshot,
+      'requestedStatus',
+    );
 
     if (objectName && currentStatus && requestedStatus) {
-      return `${objectName} · ${getObjectStatusLabel(currentStatus)} → ${getObjectStatusLabel(requestedStatus)}`;
+      return (
+        objectName +
+        ' · ' +
+        getObjectStatusLabel(currentStatus) +
+        ' → ' +
+        getObjectStatusLabel(requestedStatus)
+      );
     }
   }
 
@@ -143,7 +167,7 @@ function getNumberValue(
 
 function formatDateOnly(value: string): string {
   const [year, month, day] = value.split('-');
-  return year && month && day ? `${day}.${month}.${year}` : value;
+  return year && month && day ? day + '.' + month + '.' + year : value;
 }
 
 function getBusinessContext(item: ApprovalRequestItem): BusinessContextItem[] {
@@ -164,53 +188,79 @@ function getBusinessContext(item: ApprovalRequestItem): BusinessContextItem[] {
   const currentDayValue = getNumberValue(payload, 'currentDayValue');
   const requestedDayValue = getNumberValue(payload, 'requestedDayValue');
 
-  if (taskTitle) context.push({ label: 'Задача', value: taskTitle });
-  if (objectName) context.push({ label: 'Объект', value: objectName });
+  if (taskTitle) {
+    context.push({ label: 'Задача', value: taskTitle });
+  }
+  if (objectName) {
+    context.push({ label: 'Объект', value: objectName });
+  }
   if (inventoryNumber) {
     context.push({ label: 'Инвентарный номер', value: inventoryNumber });
   }
-  if (employeeName) context.push({ label: 'Сотрудник', value: employeeName });
+  if (employeeName) {
+    context.push({ label: 'Сотрудник', value: employeeName });
+  }
 
   if (startDate && endDate) {
     context.push({
       label: 'Период',
-      value: `${formatDateOnly(startDate)} — ${formatDateOnly(endDate)}`,
+      value: formatDateOnly(startDate) + ' — ' + formatDateOnly(endDate),
     });
   }
 
   if (year !== null && month !== null && dayOfMonth !== null) {
     context.push({
       label: 'Дата табеля',
-      value: `${String(dayOfMonth).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year}`,
+      value:
+        String(dayOfMonth).padStart(2, '0') +
+        '.' +
+        String(month).padStart(2, '0') +
+        '.' +
+        year,
     });
   }
 
   if (currentDayValue !== null) {
-    context.push({ label: 'Текущее значение', value: String(currentDayValue) });
+    context.push({
+      label: 'Текущее значение',
+      value: String(currentDayValue),
+    });
   }
   if (requestedDayValue !== null) {
-    context.push({ label: 'Предложенное значение', value: String(requestedDayValue) });
+    context.push({
+      label: 'Предложенное значение',
+      value: String(requestedDayValue),
+    });
   }
 
   if (fromStatus && toStatus) {
     context.push({
       label: 'Изменение состояния',
-      value: `${getEquipmentStatusLabel(fromStatus)} → ${getEquipmentStatusLabel(toStatus)}`,
+      value:
+        getEquipmentStatusLabel(fromStatus) +
+        ' → ' +
+        getEquipmentStatusLabel(toStatus),
     });
   }
 
-  if (comment) context.push({ label: 'Комментарий запроса', value: comment });
+  if (comment) {
+    context.push({ label: 'Комментарий запроса', value: comment });
+  }
 
   return context;
 }
 
 function getRelatedEntityLink(item: ApprovalRequestItem): React.ReactNode {
   if (item.sourceEntityType === 'task') {
-    return <Link href={`/tasks/${item.sourceEntityId}`}>Открыть задачу</Link>;
+    return (
+      <Link href={'/tasks/' + item.sourceEntityId}>Открыть задачу</Link>
+    );
   }
 
   if (item.sourceEntityType === 'object') {
-    return <Link href={`/objects/${item.sourceEntityId}`}>Открыть объект</Link>;
+    return (
+      <Link href={'/objects/' + item.sourceEntityId}>Открыть объект</Link>
+    );
   }
 
   if (
@@ -218,7 +268,7 @@ function getRelatedEntityLink(item: ApprovalRequestItem): React.ReactNode {
     typeof item.payloadSnapshot.inventoryItemId === 'string'
   ) {
     return (
-      <Link href={`/inventory/${item.payloadSnapshot.inventoryItemId}`}>
+      <Link href={'/inventory/' + item.payloadSnapshot.inventoryItemId}>
         Открыть расходник
       </Link>
     );
@@ -229,7 +279,7 @@ function getRelatedEntityLink(item: ApprovalRequestItem): React.ReactNode {
     typeof item.payloadSnapshot.equipmentUnitId === 'string'
   ) {
     return (
-      <Link href={`/equipment/${item.payloadSnapshot.equipmentUnitId}`}>
+      <Link href={'/equipment/' + item.payloadSnapshot.equipmentUnitId}>
         Открыть оборудование
       </Link>
     );
@@ -241,12 +291,14 @@ function getRelatedEntityLink(item: ApprovalRequestItem): React.ReactNode {
     typeof item.payloadSnapshot.year === 'number' &&
     typeof item.payloadSnapshot.month === 'number'
   ) {
+    const query = new URLSearchParams({
+      objectId: item.payloadSnapshot.objectId,
+      year: String(item.payloadSnapshot.year),
+      month: String(item.payloadSnapshot.month),
+    });
+
     return (
-      <Link
-        href={`/timesheet?objectId=${item.payloadSnapshot.objectId}&year=${item.payloadSnapshot.year}&month=${item.payloadSnapshot.month}`}
-      >
-        Открыть табель
-      </Link>
+      <Link href={'/timesheet?' + query.toString()}>Открыть табель</Link>
     );
   }
 
@@ -267,16 +319,43 @@ export default function ApprovalsPage(): React.JSX.Element {
   const sourceEntityId = searchParams.get('sourceEntityId') ?? '';
   const dateFrom = searchParams.get('dateFrom') ?? '';
   const dateTo = searchParams.get('dateTo') ?? '';
+
   const [items, setItems] = useState<ApprovalRequestItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState('');
-  const selectedItem = items.find((item) => item.id === selectedId) ?? null;
-  const hasEditableFilters = Boolean(status || approvalType || dateFrom || dateTo);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const queueFallbackRef = useRef<HTMLDivElement>(null);
+
+  const selectedItem =
+    items.find((item) => item.id === selectedId) ?? null;
+  const hasEditableFilters = Boolean(
+    status || approvalType || dateFrom || dateTo,
+  );
   const hasScope = Boolean(sourceEntityType || sourceEntityId);
+  const selectedActing = Boolean(
+    selectedItem && actingId === selectedItem.id,
+  );
+
+  const clearDecisionDialogs = (): void => {
+    setRejectingId(null);
+    setRejectComment('');
+    setRejectError(null);
+    setCancellingId(null);
+    setCancelError(null);
+  };
+
+  const closeDetail = (): void => {
+    setSelectedId(null);
+    setDetailError(null);
+    clearDecisionDialogs();
+  };
 
   const updateQuery = (updates: Record<string, string>): void => {
     const nextParams = new URLSearchParams(searchParams.toString());
@@ -289,17 +368,26 @@ export default function ApprovalsPage(): React.JSX.Element {
       }
     }
 
+    closeDetail();
+
     const query = nextParams.toString();
-    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    router.push(query ? pathname + '?' + query : pathname, { scroll: false });
   };
 
   const resetFilters = (): void => {
-    updateQuery({ status: '', approvalType: '', dateFrom: '', dateTo: '' });
+    updateQuery({
+      status: '',
+      approvalType: '',
+      dateFrom: '',
+      dateTo: '',
+    });
   };
 
-  const loadRequests = async (): Promise<void> => {
-    setIsLoading(true);
-    setError(null);
+  const loadRequests = async (preserveContent = false): Promise<void> => {
+    if (!preserveContent) {
+      setIsLoading(true);
+    }
+    setLoadError(null);
 
     try {
       const response = await listApprovalRequests({
@@ -310,34 +398,81 @@ export default function ApprovalsPage(): React.JSX.Element {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       });
+
       setItems(response);
       setSelectedId((currentId) =>
         currentId && response.some((item) => item.id === currentId)
           ? currentId
           : null,
       );
-    } catch (loadError) {
-      setError(
-        getErrorMessage(loadError, 'Не удалось загрузить очередь согласований.'),
+    } catch (loadFailure) {
+      setLoadError(
+        getErrorMessage(
+          loadFailure,
+          'Не удалось загрузить очередь согласований.',
+        ),
       );
-      setItems([]);
-      setSelectedId(null);
+
+      if (!preserveContent) {
+        setItems([]);
+        setSelectedId(null);
+      }
     } finally {
-      setIsLoading(false);
+      if (!preserveContent) {
+        setIsLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     void loadRequests();
-  }, [status, approvalType, sourceEntityType, sourceEntityId, dateFrom, dateTo]);
+  }, [
+    status,
+    approvalType,
+    sourceEntityType,
+    sourceEntityId,
+    dateFrom,
+    dateTo,
+  ]);
 
   const approveRequest = (item: ApprovalRequestItem): void => {
     setActingId(item.id);
+    setDetailError(null);
+
     void approveApprovalRequest(item.id)
-      .then(loadRequests)
+      .then(() => loadRequests(true))
       .catch((approveError) => {
-        setError(
-          getErrorMessage(approveError, 'Не удалось подтвердить согласование.'),
+        setDetailError(
+          getErrorMessage(
+            approveError,
+            'Не удалось подтвердить согласование.',
+          ),
+        );
+      })
+      .finally(() => {
+        setActingId(null);
+      });
+  };
+
+  const rejectRequest = (
+    item: ApprovalRequestItem,
+    reason: string,
+  ): void => {
+    setActingId(item.id);
+    setRejectError(null);
+
+    void rejectApprovalRequest(item.id, reason)
+      .then(() => loadRequests(true))
+      .then(() => {
+        setRejectingId(null);
+        setRejectComment('');
+      })
+      .catch((rejectFailure) => {
+        setRejectError(
+          getErrorMessage(
+            rejectFailure,
+            'Не удалось отклонить согласование.',
+          ),
         );
       })
       .finally(() => {
@@ -347,29 +482,19 @@ export default function ApprovalsPage(): React.JSX.Element {
 
   const cancelRequest = (item: ApprovalRequestItem): void => {
     setActingId(item.id);
-    void cancelApprovalRequest(item.id)
-      .then(loadRequests)
-      .catch((cancelError) => {
-        setError(
-          getErrorMessage(cancelError, 'Не удалось отменить согласование.'),
-        );
-      })
-      .finally(() => {
-        setActingId(null);
-      });
-  };
+    setCancelError(null);
 
-  const rejectRequest = (item: ApprovalRequestItem): void => {
-    setActingId(item.id);
-    void rejectApprovalRequest(item.id, rejectComment)
-      .then(loadRequests)
+    void cancelApprovalRequest(item.id)
+      .then(() => loadRequests(true))
       .then(() => {
-        setRejectingId(null);
-        setRejectComment('');
+        setCancellingId(null);
       })
-      .catch((rejectError) => {
-        setError(
-          getErrorMessage(rejectError, 'Не удалось отклонить согласование.'),
+      .catch((cancelFailure) => {
+        setCancelError(
+          getErrorMessage(
+            cancelFailure,
+            'Не удалось отменить согласование.',
+          ),
         );
       })
       .finally(() => {
@@ -384,12 +509,17 @@ export default function ApprovalsPage(): React.JSX.Element {
         description="Очередь запросов, ожидающих решения, и история завершённых согласований."
       />
 
-      <Surface className={styles.filters} role="region" aria-label="Фильтры согласований">
+      <Surface
+        className={styles.filters}
+        role="region"
+        aria-label="Фильтры согласований"
+      >
         <div className={styles.filterHeading}>
           <div>
             <h2 className={styles.sectionTitle}>Фильтры</h2>
             <p className={styles.sectionDescription}>
-              Статус и тип применяются сразу. Период ограничивает дату создания запроса.
+              Статус и тип применяются сразу. Период ограничивает дату
+              создания запроса.
             </p>
           </div>
           {hasEditableFilters ? (
@@ -405,7 +535,9 @@ export default function ApprovalsPage(): React.JSX.Element {
               <select
                 className={styles.control}
                 value={status}
-                onChange={(event) => updateQuery({ status: event.target.value })}
+                onChange={(event) =>
+                  updateQuery({ status: event.target.value })
+                }
               >
                 {APPROVAL_STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -464,14 +596,20 @@ export default function ApprovalsPage(): React.JSX.Element {
           <div className={styles.scope}>
             <span className={styles.scopeLabel}>Контекст очереди</span>
             <strong>{getApprovalSourceLabel(sourceEntityType)}</strong>
-            <span>Контекст задан ссылкой и сохраняется при сбросе фильтров.</span>
+            <span>
+              Контекст задан ссылкой и сохраняется при сбросе фильтров.
+            </span>
           </div>
         ) : null}
       </Surface>
 
-      {error ? (
-        <Alert tone="danger" role="alert" title="Не удалось выполнить запрос">
-          {error}
+      {loadError ? (
+        <Alert
+          tone="danger"
+          role="alert"
+          title="Не удалось обновить очередь"
+        >
+          {loadError}
         </Alert>
       ) : null}
 
@@ -490,7 +628,7 @@ export default function ApprovalsPage(): React.JSX.Element {
             </div>
           ))}
         </Surface>
-      ) : items.length === 0 && !error ? (
+      ) : items.length === 0 && !loadError ? (
         <EmptyState
           title="Согласований не найдено"
           description={
@@ -505,86 +643,167 @@ export default function ApprovalsPage(): React.JSX.Element {
           }
         />
       ) : items.length > 0 ? (
-        <div className={styles.workspace}>
-          <Surface
-            className={styles.queueSurface}
-            role="region"
-            aria-labelledby="approvals-queue-title"
+        <Surface
+          className={styles.queueSurface}
+          role="region"
+          aria-labelledby="approvals-queue-title"
+        >
+          <div className={styles.queueHeader}>
+            <div>
+              <h2
+                className={styles.sectionTitle}
+                id="approvals-queue-title"
+              >
+                Очередь решений
+              </h2>
+              <p className={styles.sectionDescription}>
+                {items.length}{' '}
+                {items.length === 1 ? 'запрос' : 'запросов'} в текущей
+                выборке
+              </p>
+            </div>
+          </div>
+
+          <div
+            ref={queueFallbackRef}
+            className={styles.queueList}
+            tabIndex={-1}
           >
-            <div className={styles.queueHeader}>
-              <div>
-                <h2 className={styles.sectionTitle} id="approvals-queue-title">
-                  Очередь решений
-                </h2>
-                <p className={styles.sectionDescription}>
-                  {items.length} {items.length === 1 ? 'запрос' : 'запросов'} в текущей выборке
-                </p>
-              </div>
-            </div>
+            {items.map((item) => {
+              const subtitle = getApprovalSubtitle(item);
+              const isSelected = item.id === selectedId;
 
-            <div className={styles.queueList}>
-              {items.map((item) => {
-                const subtitle = getApprovalSubtitle(item);
-                const isSelected = item.id === selectedId;
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={styles.queueRow}
-                    data-selected={isSelected || undefined}
-                    aria-current={isSelected ? 'true' : undefined}
-                    onClick={() => setSelectedId(item.id)}
-                  >
-                    <span className={styles.queueRowTop}>
-                      <strong className={styles.queueTitle}>{getApprovalTitle(item)}</strong>
-                      <ApprovalStatusBadge status={item.status} />
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={styles.queueRow}
+                  data-selected={isSelected || undefined}
+                  aria-current={isSelected ? 'true' : undefined}
+                  onClick={() => {
+                    setDetailError(null);
+                    clearDecisionDialogs();
+                    setSelectedId(item.id);
+                  }}
+                >
+                  <span className={styles.queueRowTop}>
+                    <strong className={styles.queueTitle}>
+                      {getApprovalTitle(item)}
+                    </strong>
+                    <ApprovalStatusBadge status={item.status} />
+                  </span>
+                  {subtitle ? (
+                    <span className={styles.queueSubtitle}>
+                      {subtitle}
                     </span>
-                    {subtitle ? <span className={styles.queueSubtitle}>{subtitle}</span> : null}
-                    <span className={styles.queueType}>
-                      {getApprovalTypeLabel(item.approvalType)}
-                    </span>
-                    <span className={styles.queueMeta}>
-                      <span>{getUserDisplayName(item.createdBy)}</span>
-                      <time dateTime={item.createdAt}>
-                        {new Date(item.createdAt).toLocaleString('ru-RU')}
-                      </time>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </Surface>
-
-          {selectedItem ? (
-            <ApprovalDetail
-              item={selectedItem}
-              acting={actingId === selectedItem.id}
-              rejecting={rejectingId === selectedItem.id}
-              rejectComment={rejectComment}
-              onApprove={() => approveRequest(selectedItem)}
-              onCancel={() => cancelRequest(selectedItem)}
-              onRejectStart={() => {
-                setRejectingId(selectedItem.id);
-                setRejectComment('');
-              }}
-              onRejectCommentChange={setRejectComment}
-              onReject={() => rejectRequest(selectedItem)}
-              onRejectCancel={() => {
-                setRejectingId(null);
-                setRejectComment('');
-              }}
-            />
-          ) : (
-            <Surface className={styles.detailPlaceholder} tone="subtle">
-              <EmptyState
-                title="Выберите согласование"
-                description="Откройте строку очереди, чтобы увидеть контекст и доступные действия."
-              />
-            </Surface>
-          )}
-        </div>
+                  ) : null}
+                  <span className={styles.queueType}>
+                    {getApprovalTypeLabel(item.approvalType)}
+                  </span>
+                  <span className={styles.queueMeta}>
+                    <span>{getUserDisplayName(item.createdBy)}</span>
+                    <time dateTime={item.createdAt}>
+                      {new Date(item.createdAt).toLocaleString('ru-RU')}
+                    </time>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Surface>
       ) : null}
+
+      <Drawer
+        open={Boolean(selectedItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDetail();
+          }
+        }}
+        title={
+          selectedItem
+            ? getApprovalTitle(selectedItem)
+            : 'Согласование'
+        }
+        description={
+          selectedItem ? getApprovalSubtitle(selectedItem) ?? undefined : undefined
+        }
+        busy={selectedActing}
+        returnFocusRef={queueFallbackRef}
+      >
+        {selectedItem ? (
+          <ApprovalDetail
+            item={selectedItem}
+            acting={selectedActing}
+            actionError={detailError}
+            onApprove={() => approveRequest(selectedItem)}
+            onReject={() => {
+              setRejectError(null);
+              setRejectComment('');
+              setRejectingId(selectedItem.id);
+            }}
+            onCancel={() => {
+              setCancelError(null);
+              setCancellingId(selectedItem.id);
+            }}
+          />
+        ) : null}
+      </Drawer>
+
+      <ReasonDialog
+        open={Boolean(
+          selectedItem && rejectingId === selectedItem.id,
+        )}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectingId(null);
+            setRejectComment('');
+            setRejectError(null);
+          }
+        }}
+        title="Отклонить согласование?"
+        description="Укажите причину решения."
+        reason={rejectComment}
+        onReasonChange={setRejectComment}
+        onConfirm={(reason) => {
+          if (selectedItem) {
+            rejectRequest(selectedItem, reason);
+          }
+        }}
+        reasonLabel="Причина отклонения"
+        confirmLabel="Отклонить"
+        pending={Boolean(
+          selectedItem && actingId === selectedItem.id,
+        )}
+        error={rejectError}
+        returnFocusRef={queueFallbackRef}
+      />
+
+      <ConfirmDialog
+        open={Boolean(
+          selectedItem && cancellingId === selectedItem.id,
+        )}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCancellingId(null);
+            setCancelError(null);
+          }
+        }}
+        title="Отменить запрос?"
+        consequence="Подтвердите отмену этого запроса согласования."
+        confirmLabel="Отменить запрос"
+        tone="danger"
+        pending={Boolean(
+          selectedItem && actingId === selectedItem.id,
+        )}
+        error={cancelError}
+        onConfirm={() => {
+          if (selectedItem) {
+            cancelRequest(selectedItem);
+          }
+        }}
+        returnFocusRef={queueFallbackRef}
+      />
     </div>
   );
 }
@@ -592,46 +811,27 @@ export default function ApprovalsPage(): React.JSX.Element {
 interface ApprovalDetailProps {
   item: ApprovalRequestItem;
   acting: boolean;
-  rejecting: boolean;
-  rejectComment: string;
+  actionError: string | null;
   onApprove: () => void;
-  onCancel: () => void;
-  onRejectStart: () => void;
-  onRejectCommentChange: (value: string) => void;
   onReject: () => void;
-  onRejectCancel: () => void;
+  onCancel: () => void;
 }
 
 function ApprovalDetail({
   item,
   acting,
-  rejecting,
-  rejectComment,
+  actionError,
   onApprove,
-  onCancel,
-  onRejectStart,
-  onRejectCommentChange,
   onReject,
-  onRejectCancel,
+  onCancel,
 }: ApprovalDetailProps): React.JSX.Element {
   const context = getBusinessContext(item);
-  const subtitle = getApprovalSubtitle(item);
   const resultText = getStringValue(item.payloadSnapshot, 'resultText');
   const relatedEntityLink = getRelatedEntityLink(item);
 
   return (
-    <Surface
-      className={styles.detailSurface}
-      role="region"
-      aria-labelledby="approval-detail-title"
-    >
-      <div className={styles.detailHeader}>
-        <div className={styles.detailHeading}>
-          <span className={styles.detailEyebrow}>Выбранное согласование</span>
-          <h2 className={styles.detailTitle} id="approval-detail-title">
-            {getApprovalTitle(item)}
-          </h2>
-        </div>
+    <div className={styles.detailContent}>
+      <div className={styles.detailStatusLine}>
         <ApprovalStatusBadge status={item.status} />
       </div>
 
@@ -654,32 +854,38 @@ function ApprovalDetail({
         </div>
       </dl>
 
-      {subtitle || context.length > 0 ? (
-        <section className={styles.detailSection} aria-labelledby="approval-context-title">
+      {context.length > 0 ? (
+        <section
+          className={styles.detailSection}
+          aria-labelledby="approval-context-title"
+        >
           <h3 id="approval-context-title">Контекст</h3>
-          {subtitle ? <p className={styles.contextSummary}>{subtitle}</p> : null}
-          {context.length > 0 ? (
-            <dl className={styles.contextList}>
-              {context.map((entry) => (
-                <div key={`${entry.label}-${entry.value}`}>
-                  <dt>{entry.label}</dt>
-                  <dd>{entry.value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
+          <dl className={styles.contextList}>
+            {context.map((entry) => (
+              <div key={entry.label + '-' + entry.value}>
+                <dt>{entry.label}</dt>
+                <dd>{entry.value}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       ) : null}
 
       {resultText ? (
-        <section className={styles.detailSection} aria-labelledby="approval-result-title">
+        <section
+          className={styles.detailSection}
+          aria-labelledby="approval-result-title"
+        >
           <h3 id="approval-result-title">Результат</h3>
           <p className={styles.preWrap}>{resultText}</p>
         </section>
       ) : null}
 
       {item.decisionComment ? (
-        <section className={styles.detailSection} aria-labelledby="approval-decision-title">
+        <section
+          className={styles.detailSection}
+          aria-labelledby="approval-decision-title"
+        >
           <h3 id="approval-decision-title">Комментарий решения</h3>
           <p className={styles.preWrap}>{item.decisionComment}</p>
         </section>
@@ -687,6 +893,16 @@ function ApprovalDetail({
 
       {relatedEntityLink ? (
         <div className={styles.relatedLink}>{relatedEntityLink}</div>
+      ) : null}
+
+      {actionError ? (
+        <Alert
+          tone="danger"
+          role="alert"
+          title="Не удалось выполнить действие"
+        >
+          {actionError}
+        </Alert>
       ) : null}
 
       {item.capabilities.canApprove ||
@@ -703,45 +919,20 @@ function ApprovalDetail({
               Подтвердить
             </Button>
           ) : null}
+
           {item.capabilities.canReject ? (
-            <Button disabled={acting} onClick={onRejectStart}>
+            <Button disabled={acting} onClick={onReject}>
               Отклонить
             </Button>
           ) : null}
+
           {item.capabilities.canCancel ? (
-            <Button variant="ghost" pending={acting} onClick={onCancel}>
+            <Button variant="ghost" disabled={acting} onClick={onCancel}>
               Отменить запрос
             </Button>
           ) : null}
         </div>
       ) : null}
-
-      {rejecting ? (
-        <div className={styles.rejectEditor}>
-          <Field label="Причина отклонения" required>
-            <textarea
-              className={styles.textarea}
-              rows={4}
-              value={rejectComment}
-              onChange={(event) => onRejectCommentChange(event.target.value)}
-            />
-          </Field>
-          <div className={styles.rejectActions}>
-            <Button
-              variant="primary"
-              pending={acting}
-              pendingLabel="Отклонение…"
-              disabled={!rejectComment.trim()}
-              onClick={onReject}
-            >
-              Подтвердить отклонение
-            </Button>
-            <Button variant="ghost" disabled={acting} onClick={onRejectCancel}>
-              Отмена
-            </Button>
-          </div>
-        </div>
-      ) : null}
-    </Surface>
+    </div>
   );
 }
