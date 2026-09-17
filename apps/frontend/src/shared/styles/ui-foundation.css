@@ -420,11 +420,14 @@
     flex-direction: column;
   }
 
-  .ui-alert__action,
   .ui-page-header__actions,
   .ui-entity-header__actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .ui-alert__action {
+    align-self: flex-start;
   }
 }
 

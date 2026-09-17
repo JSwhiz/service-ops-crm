@@ -72,15 +72,11 @@ export function Alert({
   action,
   className,
   children,
-  role,
   ...props
 }: AlertProps): React.JSX.Element {
-  const resolvedRole = role ?? (tone === 'danger' ? 'alert' : tone === 'success' ? 'status' : undefined);
-
   return (
     <div
       className={classes('ui-alert', `ui-alert--${tone}`, className)}
-      role={resolvedRole}
       {...props}
     >
       <div className="ui-alert__content">
@@ -122,7 +118,7 @@ export function Field({
   const controlId = children.props.id ?? generatedId;
   const descriptionId = description ? `${controlId}-description` : undefined;
   const errorId = error ? `${controlId}-error` : undefined;
-  const describedBy = [children.props['aria-describedby'], descriptionId, errorId]
+  const describedBy = [errorId, descriptionId, children.props['aria-describedby']]
     .filter(Boolean)
     .join(' ') || undefined;
   const control = React.cloneElement(children, {
@@ -139,15 +135,15 @@ export function Field({
         {label}
         {required ? <span className="ui-field__required" aria-hidden="true"> *</span> : null}
       </label>
-      {description ? (
-        <div id={descriptionId} className="ui-field__description">
-          {description}
-        </div>
-      ) : null}
       {control}
       {error ? (
         <div id={errorId} className="ui-field__error">
           {error}
+        </div>
+      ) : null}
+      {description ? (
+        <div id={descriptionId} className="ui-field__description">
+          {description}
         </div>
       ) : null}
     </div>
