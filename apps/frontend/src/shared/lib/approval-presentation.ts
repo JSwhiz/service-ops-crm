@@ -14,7 +14,7 @@ export const APPROVAL_TYPE_OPTIONS = [
   },
   {
     value: 'inventory_exception_confirmation',
-    label: 'Inventory exception',
+    label: 'Исключение по расходникам',
   },
   {
     value: 'accountability_closure_confirmation',
@@ -51,7 +51,7 @@ const APPROVAL_STATUS_LABELS: Record<string, string> = {
 
 const APPROVAL_TYPE_LABELS: Record<string, string> = {
   task_result_confirmation: 'Результат задачи',
-  inventory_exception_confirmation: 'Inventory exception',
+  inventory_exception_confirmation: 'Исключение по расходникам',
   inventory_return_confirmation: 'Возврат расходников',
   inventory_writeoff_confirmation: 'Списание расходников',
   equipment_return_confirmation: 'Возврат оборудования',
@@ -63,9 +63,23 @@ const APPROVAL_TYPE_LABELS: Record<string, string> = {
 };
 
 export function getApprovalStatusLabel(status: string): string {
-  return APPROVAL_STATUS_LABELS[status] ?? status;
+  return APPROVAL_STATUS_LABELS[status] ?? 'Неизвестный статус';
 }
 
 export function getApprovalTypeLabel(type: string): string {
-  return APPROVAL_TYPE_LABELS[type] ?? type;
+  return APPROVAL_TYPE_LABELS[type] ?? 'Неизвестный тип согласования';
+}
+
+const APPROVAL_SOURCE_LABELS: Record<string, string> = {
+  task: 'Задача',
+  object: 'Объект',
+  inventory_movement: 'Движение расходников',
+  equipment_movement: 'Движение оборудования',
+  timesheet_exception: 'Исключение табеля',
+  accountability_closure: 'Сверка подотчёта',
+  one_time_manager_availability: 'Доступность менеджера',
+};
+
+export function getApprovalSourceLabel(sourceEntityType: string): string {
+  return APPROVAL_SOURCE_LABELS[sourceEntityType] ?? 'Связанная запись';
 }
