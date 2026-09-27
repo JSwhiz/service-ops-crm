@@ -108,9 +108,9 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
           <PendingMediaList
             files={pendingFiles}
             onRemove={(index) => setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-            emptyText="Новых фото нет."
+            emptyText=""
           />
-          <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Фото пока не загружено." />
+          <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Фото пока нет." />
         </div>
 
         {error ? <div className={styles.error}>{error}</div> : null}

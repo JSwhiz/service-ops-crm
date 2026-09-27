@@ -134,7 +134,6 @@ export function ObjectEditForm({
     <form className={styles.surface} onSubmit={handleSubmit}>
       <div>
         <h2 className={styles.title}>Данные объекта</h2>
-        <p className={styles.description}>Основные реквизиты и параметры, которые относятся к карточке объекта.</p>
       </div>
 
       <div className={styles.formGrid}>

@@ -30,7 +30,7 @@ export function ObjectFeedList({
             >
               <div className={styles.meta}>
                 {item.title} · {getUserDisplayName(item.author)} ·{' '}
-                {new Date(item.occurredAt).toLocaleString('ru-RU')}
+                {new Date(item.occurredAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
               </div>
               <div className={styles.description}>{item.description}</div>
               {item.attachments.length > 0 ? (

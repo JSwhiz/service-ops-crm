@@ -59,10 +59,6 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           <div className="detail-value">{item.address}</div>
         </div>
         <div className="detail-field">
-          <div className="detail-label">Сезон</div>
-          <div className="detail-value">{getSeasonLabel(item.seasonMode)}</div>
-        </div>
-        <div className="detail-field">
           <div className="detail-label">Контрагент</div>
           <div className="detail-value">
             {item.counterparty ? (
@@ -85,11 +81,14 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           </div>
         </div>
         <div className="detail-field">
-          <div className="detail-label">Оплата</div>
+          <div className="detail-label">Условия</div>
           <div className="detail-value">
-            {item.paymentType === 'monthly'
-              ? `${item.monthlySalary.toLocaleString('ru-RU')} ₽ / месяц`
-              : `${item.dailyRate.toLocaleString('ru-RU')} ₽ / выход`}
+            {getSeasonLabel(item.seasonMode)}
+            <span className="identity-secondary">
+              {item.paymentType === 'monthly'
+                ? `${item.monthlySalary.toLocaleString('ru-RU')} ₽ / месяц`
+                : `${item.dailyRate.toLocaleString('ru-RU')} ₽ / выход`}
+            </span>
           </div>
         </div>
       </div>

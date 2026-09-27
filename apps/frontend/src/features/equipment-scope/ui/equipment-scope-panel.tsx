@@ -18,7 +18,7 @@ export function EquipmentScopePanel({
     <div className={`page-card ${styles.workPanel}`}>
       <div className={styles.panelHeader}>
         <div className="section-title">{title}</div>
-        <span className={styles.panelMeta}>{units.length}</span>
+        {units.length > 0 ? <span className={styles.panelMeta}>{units.length}</span> : null}
       </div>
 
       {units.length === 0 ? (

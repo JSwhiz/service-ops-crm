@@ -33,26 +33,25 @@
   gap: 12px;
   min-width: 0;
   padding: 10px 11px;
-  border: 1px solid #e7dfd9;
-  border-radius: 8px;
-  background: #fffdfb;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
   transition: background 120ms ease, border-color 120ms ease;
 }
 
 .employeeCard:hover {
-  border-color: #ddd3cc;
-  background: #faf7f4;
+  border-color: var(--ui-border);
+  background: var(--ui-surface-hover);
 }
 
 .employeeCardUnavailable {
-  border-color: #ead7d2;
-  background: #fbf4f2;
+  background: var(--ui-danger-subtle);
 }
 
 .employeeCardUnavailable:hover {
-  border-color: #dfc8c1;
-  background: #f9efec;
+  background: var(--ui-danger-subtle);
 }
 
 .employeeInfo {
@@ -74,10 +73,10 @@
   gap: 5px;
   width: fit-content;
   padding: 3px 7px;
-  border: 1px solid #dfc8c1;
-  border-radius: 999px;
-  background: #f8ece8;
-  color: #8d4939;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-danger-subtle);
+  color: var(--ui-danger);
   font-size: 12px;
   font-weight: 650;
   line-height: 1.2;

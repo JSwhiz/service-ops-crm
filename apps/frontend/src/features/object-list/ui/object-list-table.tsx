@@ -140,7 +140,7 @@ export function ObjectListTable({
 
   return (
     <>
-      <div className="page-card workspace-surface data-table-shell object-table-scroll">
+      <div className={`page-card workspace-surface data-table-shell object-table-scroll ${styles.desktopTable}`}>
         <table className={`object-registry-table ${styles.table}`}>
           <thead>
             <tr>
@@ -225,6 +225,39 @@ export function ObjectListTable({
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className={styles.mobileList} role="list" aria-label="Список объектов">
+        {items.map((item) => {
+          const today = signals.get(item.id);
+          const responsibleName = item.responsible ? getUserDisplayName(item.responsible) : 'Не назначен';
+
+          return (
+            <article className={styles.mobileItem} role="listitem" key={`mobile-${item.id}`}>
+              <div className={styles.mobileTopline}>
+                <div className={styles.mobileIdentity}>
+                  <strong>{item.name}</strong>
+                  <span>{[item.internalName, item.address].filter(Boolean).join(' · ') || 'Адрес не указан'}</span>
+                </div>
+                <span className={styles.status} data-status={item.status}>
+                  <span className={styles.statusDot} aria-hidden="true" />
+                  {getStatusLabel(item.status)}
+                </span>
+              </div>
+              <div className={styles.mobileFacts}>
+                <span><span>Ответственный</span><strong>{responsibleName}</strong></span>
+                <span><span>Команда</span><strong>{item.employees.length} {getEmployeeLabel(item.employees.length)}</strong></span>
+                {item.capabilities.canViewOperationalSections && today ? (
+                  <span><span>Сегодня</span><strong>{renderTodaySignal(today)}</strong></span>
+                ) : null}
+              </div>
+              <div className={styles.mobileActions}>
+                <button type="button" onClick={() => setPreviewItem(item)}>Быстрый просмотр</button>
+                <Link href={`/objects/${item.id}`}>Открыть карточку</Link>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       <ObjectPreviewDrawer item={previewItem} onClose={() => setPreviewItem(null)} />

@@ -16,10 +16,11 @@
   display: flex;
   gap: 2px;
   overflow-x: auto;
-  padding: 5px;
-  border: 1px solid #e5ddd6;
-  border-radius: 9px;
-  background: rgba(255, 253, 251, 0.98);
+  padding: 5px 0;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: var(--ui-canvas);
   box-shadow: none;
   backdrop-filter: blur(10px);
   scrollbar-width: none;
@@ -48,10 +49,15 @@
 
 .navigation a:hover,
 .navigation a:focus-visible {
-  border-color: #e5ddd6;
-  background: #faf7f4;
-  color: #332d29;
+  border-color: transparent;
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
   outline: none;
+}
+
+.navigation a:focus-visible {
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: -2px;
 }
 
 /* Full object card behaves as a workspace rather than one endless document. */
@@ -81,15 +87,15 @@
 .workspace:has(:global(#equipment):target) .navigation a[href="#equipment"],
 .workspace:has(:global(#files):target) .navigation a[href="#files"],
 .workspace:has(:global(#history):target) .navigation a[href="#history"] {
-  border-color: #d9cec6;
-  background: #f4eee9;
-  color: #3e342e;
+  border-color: transparent;
+  background: var(--ui-accent-subtle);
+  color: var(--ui-text);
 }
 
 .workspace:not(:has(.section:target)) .navigation a[href="#overview"] {
-  border-color: #d9cec6;
-  background: #f4eee9;
-  color: #3e342e;
+  border-color: transparent;
+  background: var(--ui-accent-subtle);
+  color: var(--ui-text);
 }
 
 .sectionHeader {
@@ -136,13 +142,13 @@
 .workspace :global(button),
 .workspace :global(.button-link) {
   appearance: none;
-  min-height: 36px;
-  border: 1px solid #d9cec6;
-  border-radius: 7px;
+  min-height: var(--ui-control-md);
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-md);
   padding: 8px 12px;
-  background: #fffdfb;
+  background: transparent;
   box-shadow: none;
-  color: #4c413a;
+  color: var(--ui-text-secondary);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -155,10 +161,10 @@
 
 .workspace :global(button:hover:not(:disabled)),
 .workspace :global(.button-link:hover) {
-  border-color: #cdbfb5;
-  background: #faf7f4;
+  border-color: transparent;
+  background: var(--ui-surface-hover);
   box-shadow: none;
-  color: #332d29;
+  color: var(--ui-text);
   transform: none;
 }
 
@@ -175,9 +181,9 @@
 
 .workspace :global(button:disabled) {
   cursor: not-allowed;
-  border-color: #e2dad4;
-  background: #f5f1ee;
-  color: #aaa097;
+  border-color: transparent;
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-disabled);
   opacity: 1;
 }
 
@@ -185,12 +191,12 @@
 .workspace :global(select),
 .workspace :global(textarea) {
   width: 100%;
-  min-height: 40px;
+  min-height: var(--ui-control-lg);
   box-sizing: border-box;
-  border: 1px solid #ddd3cc;
-  border-radius: 7px;
-  background: #fffdfb;
-  color: #3f3732;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  color: var(--ui-text);
   font: inherit;
   font-size: 13px;
   box-shadow: none;
@@ -213,10 +219,10 @@
   appearance: none;
   cursor: pointer;
   padding-right: 34px;
-  background-color: #fffdfb;
+  background-color: var(--ui-surface);
   background-image:
-    linear-gradient(45deg, transparent 50%, #766960 50%),
-    linear-gradient(135deg, #766960 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--ui-text-secondary) 50%),
+    linear-gradient(135deg, var(--ui-text-secondary) 50%, transparent 50%);
   background-position:
     calc(100% - 16px) 50%,
     calc(100% - 12px) 50%;
@@ -231,7 +237,7 @@
 
 .workspace :global(input::placeholder),
 .workspace :global(textarea::placeholder) {
-  color: #a4978e;
+  color: var(--ui-text-tertiary);
 }
 
 .section > :global(.page-card) :global(.section-header) > a {
@@ -265,15 +271,15 @@
 
 .workspace :global(.page-card),
 .workspace :global(.workspace-surface) {
-  border-color: #e5ddd6;
-  border-radius: 9px;
-  background: #fffdfb;
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
   box-shadow: none;
   animation: none;
 }
 
 .workspace :global(.page-card) {
-  padding: 14px;
+  padding: 16px;
 }
 
 .workspace :global(.section-title) {
@@ -286,14 +292,15 @@
 }
 
 .workspace :global(.record-card) {
-  border-color: #e7dfd9;
-  border-radius: 7px;
-  background: #fffdfb;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
 .workspace :global(.record-card:hover) {
-  background: #faf7f4;
+  background: var(--ui-surface-subtle);
   box-shadow: none;
   transform: none;
 }
@@ -375,7 +382,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .workspace :global(.object-summary) {
@@ -419,17 +430,17 @@
 }
 
 .workspace :global(.object-summary__facts) {
-  grid-template-columns: 1.2fr 0.65fr 1fr 1fr 1fr;
-  border: 1px solid #e8e0da;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #fffdfb;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .workspace :global(.object-summary__facts .detail-field) {
   min-width: 0;
   padding: 10px 12px;
-  border-right: 1px solid #eee7e1;
+  border-right: 1px solid var(--ui-border);
 }
 
 .workspace :global(.object-summary__facts .detail-field:last-child) {
@@ -456,21 +467,35 @@
   display: grid;
   gap: 4px;
   padding: 10px 12px;
-  border: 1px solid #eee7e1;
-  border-radius: 8px;
-  background: #faf8f5;
+  border: 0;
+  border-left: 2px solid var(--ui-border-strong);
+  border-radius: 0;
+  background: var(--ui-surface-subtle);
 }
 
 .workspace :global(.object-summary__primary-action) {
-  border-color: #65564d;
-  background: #65564d;
-  color: #fffdfb;
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface);
+  color: var(--ui-text);
 }
 
 .workspace :global(.object-summary__primary-action:hover) {
-  border-color: #554940;
-  background: #554940;
-  color: #fffdfb;
+  border-color: var(--ui-border-hover);
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+
+.workspace :global(.object-summary__actions .button-link:not(.object-summary__primary-action)) {
+  min-height: var(--ui-control-md);
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-text-secondary);
+}
+
+.workspace :global(.object-summary__actions .button-link:not(.object-summary__primary-action):hover) {
+  border-color: transparent;
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
 }
 
 .workspace :global(.object-status-control) {
@@ -593,6 +618,10 @@
 
   .workspace :global(.object-summary__facts) {
     grid-template-columns: 1fr;
+  }
+
+  .workspace :global(.object-summary__facts .detail-field) {
+    border-right: 0;
   }
 }
 

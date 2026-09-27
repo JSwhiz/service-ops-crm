@@ -287,17 +287,6 @@ const PAYMENT_OPTIONS: CompactSelectOption[] = [
   { value: 'daily', label: 'Дневная ставка за выход' },
 ];
 
-function formatManagerCount(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  const noun = mod10 === 1 && mod100 !== 11
-    ? 'менеджер'
-    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-      ? 'менеджера'
-      : 'менеджеров';
-  return `${count} ${noun}`;
-}
-
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
   const { user } = useAuth();
@@ -363,7 +352,6 @@ export default function NewObjectPage(): React.JSX.Element {
   }, [allowCreateObject]);
 
   const managerCandidates = managerUsers.filter((candidate) => candidate.id !== user?.id);
-  const selectedResponsible = responsibleCandidates.find((candidate) => candidate.id === responsibleUserId) ?? null;
   const responsibleOptions = responsibleCandidates.map((candidate) => ({
     value: candidate.id,
     label: getUserDisplayName(candidate),
@@ -565,13 +553,6 @@ export default function NewObjectPage(): React.JSX.Element {
           <div className={styles.sectionHeader}>
             <div className={styles.sectionTitleRow}>
               <h2>Команда объекта</h2>
-              <span className={styles.sectionMeta}>
-                {selectedResponsible
-                  ? `Ответственный: ${getUserDisplayName(selectedResponsible)}`
-                  : 'Ответственный не выбран'}
-                <span aria-hidden="true"> · </span>
-                {formatManagerCount(managerUserIds.length)}
-              </span>
             </div>
           </div>
 

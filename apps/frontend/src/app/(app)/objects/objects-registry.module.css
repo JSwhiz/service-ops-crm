@@ -7,18 +7,15 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, auto);
+  gap: 12px;
   align-items: center;
-  padding: 10px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-lg);
-  background: var(--ui-surface);
+  padding: 0;
 }
 
 .searchBox {
   min-width: 0;
-  min-height: 38px;
+  min-height: var(--ui-control-lg);
   display: flex;
   align-items: center;
   gap: 9px;
@@ -53,7 +50,7 @@
 .searchBox input {
   width: 100%;
   min-width: 0;
-  height: 36px;
+  height: calc(var(--ui-control-lg) - 2px);
   padding: 0;
   border: 0;
   outline: 0;
@@ -132,27 +129,22 @@
   display: flex;
   align-items: stretch;
   min-width: 0;
-  min-height: 38px;
-  border: 1px solid #ddd6cf;
+  min-height: var(--ui-control-lg);
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
-  background: #faf8f5;
+  background: var(--ui-surface);
   box-shadow: none;
 }
 
 .filterControl:hover,
 .filterControl:focus-within {
-  border-color: #c9beb5;
-  background: #f8f5f1;
-}
-
-.filterControl:focus-within {
-  outline: 0;
-  box-shadow: none;
+  border-color: var(--ui-border-hover);
+  background: var(--ui-surface);
 }
 
 .filterTrigger {
   min-width: 0;
-  min-height: 36px;
+  min-height: calc(var(--ui-control-lg) - 2px);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -169,7 +161,7 @@
 
 .filterTrigger:hover,
 .filterTrigger[aria-expanded='true'] {
-  background: #f3efeb;
+  background: var(--ui-surface-hover);
   color: var(--ui-text);
   box-shadow: none;
   transform: none;
@@ -185,7 +177,8 @@
 .filterOption:focus-visible,
 .addFilterOption:focus,
 .addFilterOption:focus-visible {
-  outline: 0;
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: -2px;
   box-shadow: none;
 }
 
@@ -216,7 +209,7 @@
 .filterCopy strong {
   min-width: 0;
   overflow: hidden;
-  color: #4d443e;
+  color: var(--ui-text);
   font-size: 12.5px;
   font-weight: 680;
   text-overflow: ellipsis;
@@ -225,7 +218,7 @@
 .filterRemove {
   width: 30px;
   min-width: 30px;
-  min-height: 36px;
+  min-height: calc(var(--ui-control-lg) - 2px);
   display: grid;
   place-items: center;
   padding: 0;
@@ -242,8 +235,8 @@
 }
 
 .filterRemove:hover {
-  background: #eee9e4;
-  color: #4d443e;
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
   box-shadow: none;
   transform: none;
 }
@@ -312,15 +305,15 @@
 }
 
 .addFilterButton {
-  min-height: 38px;
+  min-height: var(--ui-control-lg);
   display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 0 11px;
-  border: 1px solid var(--ui-border-strong);
+  border: 1px solid transparent;
   border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-  color: var(--ui-text-secondary);
+  background: transparent;
+  color: var(--ui-accent);
   box-shadow: none;
   font: inherit;
   font-size: var(--ui-text-sm);
@@ -337,8 +330,8 @@
 
 .addFilterButton:hover:not(:disabled),
 .addFilterButton[aria-expanded='true'] {
-  border-color: var(--ui-border-hover);
-  background: var(--ui-surface-hover);
+  border-color: transparent;
+  background: var(--ui-accent-subtle);
   color: var(--ui-text);
   box-shadow: none;
   transform: none;
@@ -374,8 +367,8 @@
 .page .addFilterOption:focus-visible,
 .page .addFilterButton:focus,
 .page .addFilterButton:focus-visible {
-  outline: 0 !important;
-  outline-offset: 0;
+  outline: 2px solid var(--ui-focus-border) !important;
+  outline-offset: -2px;
   box-shadow: none !important;
 }
 
@@ -395,7 +388,7 @@
   flex: 0 0 27px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--ui-border);
+  border: 0;
   border-radius: var(--ui-radius-sm);
   background: var(--ui-surface-subtle);
   color: var(--ui-accent);
@@ -437,12 +430,12 @@
 }
 
 .page .createButton {
-  min-height: 38px;
+  min-height: var(--ui-control-lg);
   gap: 7px;
   padding-inline: 12px;
-  border-color: #65564d;
-  background: #65564d;
-  color: #fffdfb;
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-accent-contrast);
   white-space: nowrap;
 }
 
@@ -453,8 +446,8 @@
 }
 
 .page .createButton:hover {
-  border-color: #554940;
-  background: #554940;
+  border-color: var(--ui-accent-hover);
+  background: var(--ui-accent-hover);
   color: #ffffff;
 }
 
@@ -472,12 +465,12 @@
 .pagination button {
   appearance: none;
   min-height: 36px;
-  border: 1px solid #d9cec6;
-  border-radius: 7px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-md);
   padding: 8px 12px;
-  background: #fffdfb;
+  background: transparent;
   box-shadow: none;
-  color: #4c413a;
+  color: var(--ui-text-secondary);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -487,9 +480,9 @@
 }
 
 .pagination button:hover:not(:disabled) {
-  border-color: #cdbfb5;
-  background: #faf7f4;
-  color: #332d29;
+  border-color: transparent;
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
 }
 
 .pagination button:focus-visible {
@@ -499,7 +492,8 @@
 
 .pagination button:disabled {
   cursor: not-allowed;
-  opacity: 0.52;
+  color: var(--ui-text-disabled);
+  opacity: 1;
 }
 
 .pagination {

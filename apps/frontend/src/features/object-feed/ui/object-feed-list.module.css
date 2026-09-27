@@ -8,26 +8,27 @@
 }
 
 .list {
-  gap: 8px;
+  gap: 0;
 }
 
 .item {
   display: grid;
-  gap: 4px;
-  padding: 11px 12px;
-  border: 1px solid #e7dfd9;
-  border-radius: 7px;
-  background: #fffdfb;
+  gap: 5px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .meta {
-  color: #887a71;
+  color: var(--ui-text-secondary);
   font-size: 12px;
   line-height: 1.4;
 }
 
 .description {
-  color: #3f3732;
+  color: var(--ui-text);
   font-size: 13px;
   line-height: 1.5;
 }

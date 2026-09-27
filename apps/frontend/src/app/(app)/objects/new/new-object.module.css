@@ -12,10 +12,11 @@
 
 .section {
   min-width: 0;
-  padding: 15px;
-  border: 1px solid #e2dad3;
-  border-radius: 9px;
-  background: #fffdfb;
+  padding: 4px 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -24,9 +25,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 11px;
-  padding-bottom: 9px;
-  border-bottom: 1px solid #eee7e1;
+  margin-bottom: 12px;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .sectionHeader h2 {
@@ -407,18 +408,18 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 10px 0 2px;
-  border-top: 1px solid #eee7e1;
+  padding: 12px 0 2px;
+  border-top: 0;
 }
 
 .form button.cancelButton,
 .form button.primaryButton {
   appearance: none;
-  min-height: 39px;
+  min-height: var(--ui-control-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-md);
   padding: 8px 14px;
   box-shadow: none;
   font: inherit;
@@ -436,9 +437,9 @@
 }
 
 .form button.primaryButton {
-  border: 1px solid #65564d;
-  background: #65564d;
-  color: #fffdfb;
+  border: 1px solid var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-accent-contrast);
 }
 
 .form button.cancelButton:hover:not(:disabled) {
@@ -449,8 +450,8 @@
 }
 
 .form button.primaryButton:hover:not(:disabled) {
-  border-color: #554940;
-  background: #554940;
+  border-color: var(--ui-accent-hover);
+  background: var(--ui-accent-hover);
   box-shadow: none;
   transform: none;
 }
@@ -584,7 +585,7 @@
   }
 
   .section {
-    padding: 14px;
+    padding: 2px 0 14px;
   }
 
   .conditionsGrid {

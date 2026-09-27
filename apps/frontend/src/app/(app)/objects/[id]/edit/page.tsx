@@ -135,11 +135,8 @@ export default function EditObjectPage({
         }}
       />
 
-      <div className={styles.surfaceCompact}>
-        <div className={styles.actions}>
-          <button type="button" onClick={() => router.push(`/objects/${objectId}`)}>Вернуться в карточку</button>
-          <button type="button" onClick={() => router.push('/objects')}>К списку объектов</button>
-        </div>
+      <div className={styles.backRow}>
+        <button type="button" onClick={() => router.push(`/objects/${objectId}`)}>Вернуться в карточку</button>
       </div>
     </div>
   );

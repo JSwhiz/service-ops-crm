@@ -22,9 +22,9 @@
   height: 24px;
   display: inline-grid;
   place-items: center;
-  border: 1px solid #e1d8d1;
-  border-radius: 6px;
-  background: #f8f4f1;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-muted);
   color: #71645c;
   font-size: 11.5px;
   font-weight: 700;
@@ -42,10 +42,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 8px 7px 10px;
-  border: 1px solid #e7dfd9;
-  border-radius: 7px;
-  background: #fffdfb;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .identity {
@@ -72,8 +73,7 @@
 }
 
 .addControl {
-  padding-top: 11px;
-  border-top: 1px solid #eee7e1;
+  padding-top: 2px;
 }
 
 .addControl :global(.searchable-select) {
@@ -103,17 +103,18 @@
 }
 
 .empty {
-  color: #8a7e76;
+  color: var(--ui-text-secondary);
   font-size: 12.5px;
   line-height: 1.4;
 }
 
 .error {
-  border: 1px solid #ead7d2;
-  border-radius: 7px;
+  border: 0;
+  border-left: 2px solid var(--ui-danger);
+  border-radius: 0;
   padding: 8px 9px;
-  background: #fbf4f2;
-  color: #934f40;
+  background: var(--ui-danger-subtle);
+  color: var(--ui-danger);
   font-size: 12.5px;
 }
 

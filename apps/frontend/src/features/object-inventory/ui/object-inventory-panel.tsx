@@ -167,12 +167,12 @@ export function ObjectInventoryPanel({
                 {movement.unitPriceSnapshot.toLocaleString('ru-RU')} ₽ / {movement.inventoryItem.unit} •{' '}
                 {movement.totalAmountSnapshot.toLocaleString('ru-RU')} ₽
               </div>
-              <div className="page-muted">
-                Списал: {getUserDisplayName(movement.createdBy)} • {new Date(movement.createdAt).toLocaleString('ru-RU')}
+                <div className="page-muted">
+                {getUserDisplayName(movement.createdBy)} · {new Date(movement.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
               </div>
               <div>
                 {movement.projection.hasEvidence
-                  ? 'Фото приложено'
+                  ? 'Фото есть'
                   : movement.approvalRequest
                     ? 'Ожидает согласования'
                     : movement.projection.approvalBridgeResolvedAt

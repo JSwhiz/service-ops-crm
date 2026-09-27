@@ -42,7 +42,7 @@ export function PendingMediaList({
   }, [files]);
 
   if (files.length === 0) {
-    return <div className="page-muted">{emptyText}</div>;
+    return emptyText ? <div className="page-muted">{emptyText}</div> : <></>;
   }
 
   const previewByKey = new Map(

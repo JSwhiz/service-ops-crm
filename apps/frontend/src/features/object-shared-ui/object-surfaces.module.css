@@ -10,9 +10,9 @@
   display: grid;
   gap: 16px;
   padding: 18px;
-  border: 1px solid #e5ddd6;
-  border-radius: 9px;
-  background: #fffdfb;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
   box-shadow: none;
 }
 
@@ -20,9 +20,9 @@
   display: grid;
   gap: 12px;
   padding: 16px 18px;
-  border: 1px solid #e5ddd6;
-  border-radius: 9px;
-  background: #fffdfb;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
   box-shadow: none;
 }
 
@@ -144,15 +144,14 @@
 }
 
 .emptyState {
-  min-height: 48px;
+  min-height: 24px;
   display: flex;
   align-items: center;
-  padding: 10px 12px;
-  border: 1px dashed #e1d8d1;
-  border-radius: 7px;
-  background: #faf8f5;
-  color: #8a7e76;
-  font-size: 12.5px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -175,7 +174,7 @@
 .surfaceCompact :global(select),
 .surfaceCompact :global(textarea) {
   width: 100%;
-  min-height: 38px;
+  min-height: 40px;
   box-sizing: border-box;
   border: 1px solid #ddd3cc;
   border-radius: 7px;
@@ -204,6 +203,14 @@
 
 .surface :global(select),
 .surfaceCompact :global(select) {
+  appearance: none;
+  padding-right: 34px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ui-text-secondary) 50%),
+    linear-gradient(135deg, var(--ui-text-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
   cursor: pointer;
 }
 
@@ -251,12 +258,12 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  border: 1px solid #d9cec6;
-  border-radius: 7px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-md);
   padding: 8px 12px;
-  background: #fffdfb;
+  background: var(--ui-surface);
   box-shadow: none;
-  color: #4c413a;
+  color: var(--ui-text-secondary);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -271,8 +278,8 @@
 .surfaceCompact :global(button:hover:not(:disabled)),
 .buttonLike:hover,
 .backLink:hover {
-  border-color: #cdbfb5;
-  background: #faf7f4;
+  border-color: var(--ui-border-hover);
+  background: var(--ui-surface-hover);
   box-shadow: none;
   color: #332d29;
   transform: none;
@@ -306,9 +313,10 @@
   gap: 10px;
   min-height: 42px;
   padding: 9px 10px;
-  border: 1px solid #e5ddd6;
-  border-radius: 7px;
-  background: #fffdfb;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
   color: #3f3732;
   font-size: 13px;
   cursor: pointer;
@@ -316,8 +324,8 @@
 }
 
 .optionRow:hover {
-  border-color: #d9cec6;
-  background: #faf7f4;
+  border-color: var(--ui-border);
+  background: var(--ui-surface-hover);
 }
 
 .recordCard {
@@ -454,6 +462,31 @@
 .backRow {
   display: flex;
   align-items: center;
+}
+
+.backRow > button {
+  min-height: var(--ui-control-md);
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.backRow > button:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--ui-accent-subtle);
+  box-shadow: none;
+  transform: none;
+}
+
+.backRow > button:focus-visible {
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: 2px;
 }
 
 .historyHeader {
