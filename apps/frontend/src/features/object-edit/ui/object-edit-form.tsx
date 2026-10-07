@@ -182,6 +182,7 @@ export function ObjectEditForm({
               placeholder="Без привязки"
               searchPlaceholder="Название или юридическое название"
               emptyText="Контрагенты не найдены"
+              viewportAware
               asyncSearch={async (query) =>
                 (await listCounterpartyReferences({ q: query, limit: 20 })).map(
                   (counterparty): SearchableSelectOption => ({
@@ -222,39 +223,48 @@ export function ObjectEditForm({
           )}
         </div>
 
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Сезон</span>
-          <select
+        <div className={styles.field}>
+          <SearchableSelect
+            label="Сезон"
             value={form.seasonMode}
-            onChange={(event) => setForm((prev) => ({ ...prev, seasonMode: event.target.value }))}
-          >
-            <option value="">Без сезонности</option>
-            <option value="summer">Летний</option>
-            <option value="winter">Зимний</option>
-          </select>
-        </label>
+            options={[
+              { value: '', label: 'Без сезонности' },
+              { value: 'summer', label: 'Летний' },
+              { value: 'winter', label: 'Зимний' },
+            ]}
+            searchable={false}
+            clearable={false}
+            viewportAware
+            disabled={isSubmitting}
+            onChange={(seasonMode) => setForm((prev) => ({ ...prev, seasonMode }))}
+          />
+        </div>
 
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Тип оплаты</span>
-          <select
+        <div className={styles.field}>
+          <SearchableSelect
+            label="Тип оплаты"
             value={form.paymentType}
-            onChange={(event) =>
+            options={[
+              { value: 'monthly', label: 'Фиксированная ЗП за месяц' },
+              { value: 'daily', label: 'Дневная ставка за выход' },
+            ]}
+            searchable={false}
+            clearable={false}
+            viewportAware
+            disabled={!canEditMonthlySalary || isSubmitting}
+            onChange={(paymentType) =>
               setForm((prev) => ({
                 ...prev,
-                paymentType: event.target.value as 'monthly' | 'daily',
+                paymentType: paymentType as 'monthly' | 'daily',
               }))
             }
-            disabled={!canEditMonthlySalary}
-          >
-            <option value="monthly">Фиксированная ЗП за месяц</option>
-            <option value="daily">Дневная ставка за выход</option>
-          </select>
+          />
           {!canEditMonthlySalary ? (
             <span className={styles.inlineHelp}>
               Изменение условий оплаты доступно только учредителю и директору.
             </span>
           ) : null}
-        </label>
+        </div>
 
         {form.paymentType === 'monthly' ? (
           <label className={styles.field}>

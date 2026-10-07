@@ -13,6 +13,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { ApprovalRequestResponseDto } from './dto/approval-request-response.dto';
+import { ApprovalRequestListResponseDto } from './dto/approval-request-list-response.dto';
 import { ListApprovalRequestsQueryDto } from './dto/list-approval-requests-query.dto';
 import {
   ApproveApprovalRequestDto,
@@ -40,7 +41,7 @@ export class ApprovalsController {
   listRequests(
     @CurrentUser() user: CurrentAuthUser,
     @Query() query: ListApprovalRequestsQueryDto,
-  ): Promise<ApprovalRequestResponseDto[]> {
+  ): Promise<ApprovalRequestResponseDto[] | ApprovalRequestListResponseDto> {
     return this.approvalsService.listRequests(user, query);
   }
 

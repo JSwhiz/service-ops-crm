@@ -1,4 +1,5 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 import {
   APPROVAL_SOURCE_ENTITY_TYPES,
@@ -7,6 +8,24 @@ import {
 } from '../constants/approval.constants';
 
 export class ListApprovalRequestsQueryDto {
+  @Transform(({ value }) =>
+    value === undefined || value === '' ? undefined : Number(value),
+  )
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @Transform(({ value }) => {
+    if (value === undefined || value === '') return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 100) : parsed;
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit?: number;
+
   @IsOptional()
   @IsString()
   @IsIn(APPROVAL_STATUSES)

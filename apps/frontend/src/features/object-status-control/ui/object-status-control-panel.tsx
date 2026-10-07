@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React, { useMemo, useState } from 'react';
 
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
+import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
 type ObjectStatusCode = 'active' | 'frozen' | 'archived';
 
@@ -64,22 +65,23 @@ export function ObjectStatusControlPanel({
 
   return (
     <div className="page-card workspace-surface object-status-control">
-      <div className="section-header object-status-control__header">
+      <div className={`${styles.statusHeader} object-status-control__header`}>
         <div className="section-title">Статус объекта</div>
-        <span className="status-pill" data-status={currentStatus}>{getStatusLabel(currentStatus)}</span>
-      </div>
-
-      <div className={styles.statusActions}>
-        {availableTransitions.map((statusCode) => (
-          <button
-            key={statusCode}
-            type="button"
-            disabled={isSubmitting}
-            onClick={() => void handleChangeStatus(statusCode)}
-          >
-            {isSubmitting ? 'Сохраняем…' : getTransitionLabel(statusCode)}
-          </button>
-        ))}
+        <div className={styles.statusControls}>
+          <span className="status-pill" data-status={currentStatus}>{getStatusLabel(currentStatus)}</span>
+          {availableTransitions.map((statusCode) => (
+            <button
+              key={statusCode}
+              className={statusCode === 'frozen' || statusCode === 'archived' ? 'object-status-control__action' : undefined}
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => void handleChangeStatus(statusCode)}
+            >
+              {statusCode === 'frozen' ? <MediaActionIcon name="freeze" /> : statusCode === 'archived' ? <MediaActionIcon name="archive" /> : null}
+              {isSubmitting ? 'Сохраняем…' : getTransitionLabel(statusCode)}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error ? <div className={styles.error}>{error}</div> : null}

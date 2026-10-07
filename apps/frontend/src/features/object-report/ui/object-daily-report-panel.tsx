@@ -60,15 +60,24 @@ export function ObjectDailyReportPanel({ item, onSave }: ObjectDailyReportPanelP
 
         <div className={styles.mediaSection}>
           <MediaActionPicker
+            iconOnly
             disabled={isSubmitting}
             onPick={async (file) => setPendingFiles((prev) => [...prev, file])}
           />
-          <PendingMediaList
-            files={pendingFiles}
-            onRemove={(index) => setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-            emptyText="Новых вложений нет."
-          />
-          <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Вложений пока нет." />
+          {pendingFiles.length > 0 ? (
+            <div className={styles.pendingFilesViewport}>
+              <PendingMediaList
+                files={pendingFiles}
+                onRemove={(index) => setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+                emptyText=""
+              />
+            </div>
+          ) : null}
+          {(item?.attachments.length ?? 0) > 0 ? (
+            <div className={styles.savedPhotosViewport}>
+              <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Вложений пока нет." />
+            </div>
+          ) : pendingFiles.length === 0 ? <div className={styles.emptyState}>Вложений пока нет.</div> : null}
         </div>
 
         {error ? <div className={styles.error}>{error}</div> : null}

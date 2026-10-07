@@ -176,7 +176,7 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
   }, [canCreateOneTimeOrder, copyFromId, searchParams]);
 
   return (
-    <>
+    <div className="page-stack workspace-page order-detail-page">
       <PageTitle
         title={copyFromId ? 'Скопировать разовый заказ' : 'Создать разовый заказ'}
       />
@@ -267,6 +267,6 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
           }}
         />
       )}
-    </>
+    </div>
   );
 }

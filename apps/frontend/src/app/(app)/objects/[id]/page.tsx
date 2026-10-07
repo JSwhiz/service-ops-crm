@@ -107,9 +107,7 @@ function WorkspaceSection({
 }): React.JSX.Element {
   return (
     <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
-      <header className={styles.sectionHeader}>
-        <h2 id={`${id}-title`} className={styles.sectionTitle}>{title}</h2>
-      </header>
+      <h2 id={`${id}-title`} className={styles.visuallyHidden}>{title}</h2>
       {children}
     </section>
   );
@@ -372,7 +370,8 @@ export default function ObjectDetailPage({
                 ) : <>
                   {canManageResponsibles ? (
                     <ObjectTeamPanel
-                      title="Ответственные объекта"
+                      title="Ответственный объекта"
+                      replaceOnly
                       currentItems={item.responsibles}
                       availableUsers={responsibleCandidates}
                       emptyCurrentText="Ответственные пока не назначены."
@@ -419,7 +418,7 @@ export default function ObjectDetailPage({
                       photoType: payload.photoType ?? 'other',
                       comment: payload.comment,
                     });
-                    await Promise.all(payload.files.map((file) => uploadFileToEntity({ entityType: 'object_arrival_photo', entityId: saved.id, file })));
+                    await Promise.all(payload.files.map((file, index) => uploadFileToEntity({ entityType: 'object_arrival_photo', entityId: saved.id, file, originalName: payload.fileNames[index] ?? file.name })));
                     await Promise.all([loadArrival(objectId), loadFeed(objectId)]);
                   }} />
                 )}
@@ -499,7 +498,7 @@ export default function ObjectDetailPage({
             <WorkspaceSection id="tasks" title="Задачи">
               {tasksLoading ? <ObjectPanelLoading title="Задачи объекта" /> : tasksError ? (
                 <ObjectPanelError title="Задачи объекта" message={tasksError} />
-              ) : <TaskListTable items={tasks} />}
+              ) : <TaskListTable items={tasks} emptyText="На объект пока не назначены задачи." />}
             </WorkspaceSection>
 
             <WorkspaceSection id="inventory" title="Склад">
@@ -524,9 +523,9 @@ export default function ObjectDetailPage({
             </WorkspaceSection>
 
             <WorkspaceSection id="equipment" title="Оборудование">
-              {objectEquipmentLoading ? <ObjectPanelLoading title="Оборудование объекта" /> : objectEquipmentError ? (
+              {objectEquipmentLoading ? <ObjectPanelLoading title="Закреплённое оборудование" /> : objectEquipmentError ? (
                 <ObjectPanelError title="Оборудование объекта" message={objectEquipmentError} />
-              ) : objectEquipment ? <EquipmentScopePanel title="Оборудование объекта" units={objectEquipment.units} /> : null}
+              ) : objectEquipment ? <EquipmentScopePanel className={styles.equipmentPanel} title="Закреплённое оборудование" units={objectEquipment.units} /> : null}
             </WorkspaceSection>
 
             <WorkspaceSection id="files" title="Файлы">
@@ -534,14 +533,15 @@ export default function ObjectDetailPage({
                 <ObjectPanelError title="Файлы объекта" message={objectFilesError} />
               ) : (
                 <EntityFilesPanel
-                  title="Файлы объекта"
+                  title="Вложения"
+                  iconOnlyMediaActions
                   files={objectFiles}
                   canUpload={item.capabilities.canEdit}
                   onUpload={async (file) => {
                     await uploadFileToEntity({ entityType: 'object', entityId: objectId, file });
                     await loadObjectFiles(objectId);
                   }}
-                  emptyText="Файлы объекта пока не загружены."
+                  emptyText="Вложений пока нет."
                 />
               )}
             </WorkspaceSection>
@@ -551,8 +551,8 @@ export default function ObjectDetailPage({
                 <div className="section-title">История изменений</div>
                 <Link href={`/objects/${objectId}/history`}>Открыть</Link>
               </div>
-              {feedLoading ? <ObjectPanelLoading title="Лента объекта" /> : feedError ? (
-                <ObjectPanelError title="Лента объекта" message={feedError} />
+              {feedLoading ? <ObjectPanelLoading title="Лента событий" /> : feedError ? (
+                <ObjectPanelError title="Лента событий" message={feedError} />
               ) : <ObjectFeedList items={feed} />}
             </WorkspaceSection>
           </> : null}

@@ -215,7 +215,7 @@ export default function AccountabilityPage(): React.JSX.Element {
     <>
       <PageTitle title="Подотчет" />
 
-      <div className="page-stack">
+      <div className="page-stack workspace-page accountability-workspace">
         {actionError ? (
           <div className="page-card" style={{ color: '#b91c1c' }}>
             {actionError}
@@ -323,12 +323,12 @@ export default function AccountabilityPage(): React.JSX.Element {
         ) : null}
 
         {canReviewAccountability ? (
-          <div className="page-card" style={{ display: 'grid', gap: 18 }}>
+          <div className="page-card workspace-surface accountability-review" style={{ display: 'grid', gap: 18 }}>
             <div className="section-header">
               <div>
                 <div className="section-title">Сверка и выдача денег</div>
                 <div className="section-subtitle">
-                  Review-экран руководства для живых подотчетных контуров.
+                  Просматривайте остатки сотрудников и выдавайте средства из одного места.
                 </div>
               </div>
             </div>
@@ -386,7 +386,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                   </div>
                 </div>
                 <div className="detail-field">
-                  <div className="detail-label">Статус account</div>
+                  <div className="detail-label">Статус контура</div>
                   <div className="detail-value">
                     {reviewView
                       ? getAccountabilityAccountStatusLabel(reviewView.account.status)
@@ -492,13 +492,13 @@ export default function AccountabilityPage(): React.JSX.Element {
                           </div>
                         </div>
                         <div className="detail-field">
-                          <div className="detail-label">Выдано</div>
+                          <div className="detail-label">Пополнено</div>
                           <div className="detail-value">
                             {formatMoney(item.summary.totalFunding)}
                           </div>
                         </div>
                         <div className="detail-field">
-                          <div className="detail-label">Submitted</div>
+                          <div className="detail-label">На проверке</div>
                           <div className="detail-value">
                             {item.summary.submittedExpensesCount}
                           </div>

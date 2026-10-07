@@ -1,7 +1,9 @@
 import { fetcher } from '@/shared/api/fetcher';
 
 import type {
+  ApprovalRequestPage,
   ApprovalRequestItem,
+  ListApprovalRequestsPageParams,
   ListApprovalRequestsParams,
 } from '../model/approval.types';
 
@@ -29,6 +31,14 @@ export async function listApprovalRequests(
   params?: ListApprovalRequestsParams,
 ): Promise<ApprovalRequestItem[]> {
   return fetcher<ApprovalRequestItem[]>(`/approvals${buildQuery(params)}`, {
+    method: 'GET',
+  });
+}
+
+export async function listApprovalRequestsPage(
+  params: ListApprovalRequestsPageParams,
+): Promise<ApprovalRequestPage> {
+  return fetcher<ApprovalRequestPage>(`/approvals${buildQuery(params)}`, {
     method: 'GET',
   });
 }

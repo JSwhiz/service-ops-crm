@@ -181,12 +181,19 @@
   left: 0;
   width: 100%;
   min-width: 220px;
-  overflow: hidden;
+  max-height: var(--anchored-popover-max-height, 230px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid #d8cec7;
   border-radius: 8px;
   padding: 5px;
   background: #fffdfb;
   box-shadow: 0 12px 26px rgba(63, 48, 39, 0.11);
+}
+
+.selectPopover[data-placement='top'] {
+  top: auto;
+  bottom: calc(100% + 5px);
 }
 
 .selectOption {
@@ -252,7 +259,11 @@
 }
 
 .managerPopover {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: var(--anchored-popover-max-height, 340px);
   padding: 7px;
+  overflow: hidden;
 }
 
 .managerSearchWrap {
@@ -266,7 +277,8 @@
 
 .managerOptions {
   display: grid;
-  max-height: 270px;
+  min-height: 0;
+  max-height: min(220px, calc(var(--anchored-popover-max-height, 340px) - 58px));
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #c8bbb1 transparent;
@@ -523,6 +535,11 @@
   border-radius: 8px;
   background: #fffdfb;
   box-shadow: 0 12px 26px rgba(63, 48, 39, 0.11);
+}
+
+.form :global(.searchable-select__popover[data-placement='top']) {
+  top: auto;
+  bottom: calc(100% + 5px);
 }
 
 .form :global(.searchable-select__popover input) {

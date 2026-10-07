@@ -799,7 +799,7 @@ model OneTimeOrder {
   financialNotes    String?
   expenseNotes      String?
   reviewText        String?
-  reviewRating      Int?
+  reviewRating      Float?
   reviewUpdatedAt   DateTime?
   reviewUpdatedByUserId String?
   workCycle         Int      @default(1)

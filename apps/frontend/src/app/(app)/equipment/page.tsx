@@ -8,6 +8,7 @@ import type { EquipmentUnit } from '@/entities/equipment/model/equipment.types';
 import { EquipmentListTable } from '@/features/equipment-list/ui/equipment-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -65,6 +66,16 @@ export default function EquipmentPage(): React.JSX.Element {
     };
   }, [canAccessEquipment, search, status]);
 
+  const statusOptions = [
+    { value: 'in_storage', label: 'На складе' },
+    { value: 'assigned_to_object', label: 'На объекте' },
+    { value: 'assigned_to_one_time_order', label: 'На заказе' },
+    { value: 'under_repair', label: 'В ремонте' },
+    { value: 'broken', label: 'Неисправно' },
+    { value: 'lost', label: 'Утеряно' },
+    { value: 'written_off', label: 'Списано' },
+  ];
+
   return (
     <>
       <PageTitle title="Оборудование" />
@@ -72,51 +83,19 @@ export default function EquipmentPage(): React.JSX.Element {
       {!canAccessEquipment ? (
         <div className="page-card">У вас нет доступа к equipment-модулю.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
-          <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              }}
-            >
-              <label>
-                <div style={{ marginBottom: 6 }}>Поиск</div>
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  style={{ width: '100%', padding: 10 }}
-                  placeholder="Название, инвентарный или серийный номер"
-                />
-              </label>
-              <label>
-                <div style={{ marginBottom: 6 }}>Статус</div>
-                <select
-                  value={status}
-                  onChange={(event) => setStatus(event.target.value)}
-                  style={{ width: '100%', padding: 10 }}
-                >
-                  <option value="">Все статусы</option>
-                  <option value="in_storage">На складе</option>
-                  <option value="assigned_to_object">На объекте</option>
-                  <option value="assigned_to_one_time_order">На заказе</option>
-                  <option value="under_repair">В ремонте</option>
-                  <option value="broken">Неисправно</option>
-                  <option value="lost">Утеряно</option>
-                  <option value="written_off">Списано</option>
-                </select>
-              </label>
-            </div>
-
-            {canManageEquipmentCatalog ? (
-              <div>
-                <Link href="/equipment/new">
-                  <button type="button">Добавить оборудование</button>
-                </Link>
-              </div>
-            ) : null}
-          </div>
+        <div className="page-stack workspace-page equipment-workspace">
+          <RegistryToolbar
+            searchValue={search}
+            searchLabel="Поиск по оборудованию"
+            searchPlaceholder="Название, инвентарный или серийный номер"
+            onSearchChange={setSearch}
+            activeFilters={status ? [{
+              id: 'status', label: 'Статус', value: status, options: statusOptions,
+              onChange: setStatus, onRemove: () => setStatus(''),
+            }] : []}
+            availableFilters={status ? [] : [{ id: 'status', label: 'Статус', options: statusOptions, onAdd: setStatus }]}
+            actions={canManageEquipmentCatalog ? <Link className="button-link" href="/equipment/new">Добавить оборудование</Link> : null}
+          />
 
           {isLoading ? (
             <div className="page-card">Загрузка...</div>

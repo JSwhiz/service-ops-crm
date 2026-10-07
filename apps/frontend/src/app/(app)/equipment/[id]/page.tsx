@@ -128,7 +128,7 @@ export default function EquipmentDetailPage({
   }, [params]);
 
   return (
-    <>
+    <div className="workspace-page equipment-workspace">
       <PageTitle
         title={unit ? `${unit.catalogItem.name} · ${unit.inventoryNumber}` : 'Оборудование'}
       />
@@ -282,6 +282,6 @@ export default function EquipmentDetailPage({
       ) : (
         <div className="page-card">Оборудование не найдено.</div>
       )}
-    </>
+    </div>
   );
 }

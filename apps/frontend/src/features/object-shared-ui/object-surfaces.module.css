@@ -79,6 +79,191 @@
   gap: 12px;
 }
 
+.statusHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.statusControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.statusControls :global(.object-status-control__action) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.statusControls :global(.object-status-control__action svg) {
+  display: block;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+}
+
+.statusHeader :global(.section-title) {
+  margin: 0;
+}
+
+.categoryField :global(.detail-label) {
+  color: #51453d;
+  font-size: 13px;
+  font-weight: 740;
+}
+
+.categoryField :global(.searchable-select__trigger) {
+  min-height: 44px;
+  border: 1px solid #cbbdb2;
+  border-radius: 8px;
+  background: #fffdfb;
+  box-shadow: 0 1px 2px rgba(63, 48, 39, 0.05);
+}
+
+.pendingFilesViewport,
+.savedFilesViewport,
+.savedPhotosViewport,
+.attendanceList {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #c8bbb1 transparent;
+  scroll-snap-type: y mandatory;
+  scroll-padding-block: 2px;
+}
+
+.pendingFilesViewport {
+  max-height: 244px;
+}
+
+.savedFilesViewport {
+  max-height: 212px;
+}
+
+.savedPhotosViewport {
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+}
+
+.pendingFilesViewport :global(.pending-media-item),
+.savedFilesViewport :global(.attachment-file-card),
+.savedPhotosViewport :global(.attachment-image-card-shell) {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.savedPhotosViewport :global(.attachment-image-grid) {
+  width: 100%;
+  grid-template-columns: unset;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 24px) / 4);
+  gap: 8px;
+}
+
+.savedPhotosViewport :global(.attachment-image-card-shell) {
+  aspect-ratio: 1;
+  min-width: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.savedPhotosViewport :global(.attachment-image-card) {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: 1;
+}
+
+.savedPhotosViewport :global(.attachment-image-card img) {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.savedPhotosViewport :global(.attachment-download-link) {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 7px;
+}
+
+.savedPhotosViewport :global(.attachment-download-link svg) {
+  width: 28px;
+  height: 28px;
+}
+
+.savedPhotosViewport :global(.attachment-preview-stack),
+.savedFilesViewport :global(.attachment-preview-stack) {
+  min-width: 0;
+}
+
+.savedPhotosViewport :global(.attachment-file-list),
+.savedFilesViewport :global(.attachment-file-list) {
+  max-height: 212px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scroll-snap-type: y mandatory;
+}
+
+.savedPhotosViewport :global(.attachment-file-card),
+.savedFilesViewport :global(.attachment-file-card) {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.attendanceList {
+  max-height: 284px;
+}
+
+.attendanceList > * {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.attendanceList > :global(.record-card) {
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.attendanceList :global(.attendance-hours-control) {
+  max-width: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0 30px;
+}
+
+.attendanceList :global(.attendance-hours-control input) {
+  width: 88px;
+  min-height: 32px;
+}
+
+@media (max-width: 760px) {
+  .statusHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .statusControls {
+    justify-content: flex-start;
+  }
+}
+
 .panelHeader {
   display: flex;
   align-items: center;

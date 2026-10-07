@@ -282,7 +282,7 @@ export default function InventoryItemDetailPage({
   };
 
   return (
-    <>
+    <div className="workspace-page inventory-workspace">
       <PageTitle title={item ? item.name : 'Карточка расходника'} />
 
       {isLoading ? (
@@ -683,6 +683,6 @@ export default function InventoryItemDetailPage({
       ) : (
         <div className="page-card">Расходник не найден.</div>
       )}
-    </>
+    </div>
   );
 }

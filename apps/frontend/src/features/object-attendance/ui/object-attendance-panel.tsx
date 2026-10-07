@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
+import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
 
 interface ObjectAttendancePanelProps {
   employees: ObjectEmployeeOption[];
@@ -84,23 +85,6 @@ export function ObjectAttendancePanel({
     getDefaultWorkedHours,
   ]);
 
-  const getAvailabilityExplanation = (employee: ObjectEmployeeOption): string | null => {
-    if (!employee.availability.isUnavailable) return null;
-
-    const modeLabel = employee.availability.availabilityMode === 'full_day'
-      ? 'Недоступен весь день'
-      : 'Недоступен по времени';
-    const periodLabel = employee.availability.startDate && employee.availability.endDate
-      ? `${new Date(employee.availability.startDate).toLocaleString('ru-RU')} — ${new Date(employee.availability.endDate).toLocaleString('ru-RU')}`
-      : employee.availability.startDate
-        ? `с ${new Date(employee.availability.startDate).toLocaleString('ru-RU')}`
-        : 'период не указан';
-
-    return employee.availability.comment
-      ? `${modeLabel}. ${periodLabel}. Причина: ${employee.availability.comment}`
-      : `${modeLabel}. ${periodLabel}.`;
-  };
-
   const toggleEmployee = (employeeId: string): void => {
     setSelectedIds((prev) => {
       if (prev.includes(employeeId)) return prev.filter((id) => id !== employeeId);
@@ -151,29 +135,29 @@ export function ObjectAttendancePanel({
         <div className="page-muted">Для объекта пока не задан состав сотрудников.</div>
       ) : (
         <form onSubmit={handleSubmit}>
-          <div className="record-list">
+          <div className={`record-list ${styles.attendanceList}`}>
             {safeEmployees.map((employee) => (
-              <label
+              <div
                 key={employee.id}
                 className="record-card"
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr)',
+                  gap: 8,
                   border: employee.availability.isUnavailable ? '1px solid #ead7d2' : undefined,
                   background: employee.availability.isUnavailable ? '#fbf4f2' : undefined,
                   opacity: employee.availability.isUnavailable && !selectedIds.includes(employee.id) ? 0.75 : 1,
                 }}
-                title={getAvailabilityExplanation(employee) ?? undefined}
+                title={getAvailabilityLabel(employee.availability) ?? undefined}
               >
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(employee.id)}
-                  onChange={() => toggleEmployee(employee.id)}
-                  disabled={employee.availability.isUnavailable && !selectedIds.includes(employee.id)}
-                />
-                <div style={{ display: 'grid', gap: 4 }}>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(employee.id)}
+                    onChange={() => toggleEmployee(employee.id)}
+                    disabled={employee.availability.isUnavailable && !selectedIds.includes(employee.id)}
+                  />
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span>{employee.fullName}</span>
                     {!employee.isAssignedToObject ? <span className="status-pill">Подмена</span> : null}
                     {employee.activeSubstitutions
@@ -186,28 +170,28 @@ export function ObjectAttendancePanel({
                       .map((item) => (
                         <span key={item.id} className="page-muted">Замещается: {item.counterpartEmployeeName}</span>
                       ))}
-                  </div>
-                  {employee.availability.isUnavailable ? (
-                    <div style={{ color: '#9a4f3e', fontSize: 13 }}>{getAvailabilityExplanation(employee)}</div>
-                  ) : null}
-                  {selectedIds.includes(employee.id) ? (
-                    <label className="attendance-hours-control">
-                      <span>Часы</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="24"
-                        step="0.5"
-                        value={workedHoursById[employee.id] ?? getDefaultWorkedHours(employee.id)}
-                        onChange={(event) => setWorkedHoursById((current) => ({
-                          ...current,
-                          [employee.id]: event.target.value,
-                        }))}
-                      />
-                    </label>
-                  ) : null}
-                </div>
-              </label>
+                  </span>
+                </label>
+                {employee.availability.isUnavailable ? (
+                  <div style={{ color: '#80655c', fontSize: 12 }}>{getAvailabilityLabel(employee.availability)}</div>
+                ) : null}
+                {selectedIds.includes(employee.id) ? (
+                  <label className="attendance-hours-control">
+                    <span>Часы</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="24"
+                      step="0.5"
+                      value={workedHoursById[employee.id] ?? getDefaultWorkedHours(employee.id)}
+                      onChange={(event) => setWorkedHoursById((current) => ({
+                        ...current,
+                        [employee.id]: event.target.value,
+                      }))}
+                    />
+                  </label>
+                ) : null}
+              </div>
             ))}
           </div>
 

@@ -16,6 +16,8 @@ import type {
   UserAbsenceUserOption,
 } from '@/entities/user-absence/model/user-absence.types';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 
 import styles from './user-absences.module.css';
 
@@ -64,6 +66,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [periodFilterActive, setPeriodFilterActive] = useState(searchParams.has('from') || searchParams.has('to'));
   const [editing, setEditing] = useState<UserAbsenceItem | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState({
@@ -83,6 +86,10 @@ export default function UserAbsencesPage(): React.JSX.Element {
     const serialized = next.toString();
     router.replace(serialized ? `/user-absences?${serialized}` : '/user-absences', { scroll: false });
   };
+
+  useEffect(() => {
+    setPeriodFilterActive(searchParams.has('from') || searchParams.has('to'));
+  }, [searchParams]);
 
   const load = async (): Promise<void> => {
     setLoading(true);
@@ -164,6 +171,15 @@ export default function UserAbsencesPage(): React.JSX.Element {
 
   const todayCount = items.filter((item) => item.startDate <= today && item.endDate >= today).length;
   const upcomingCount = items.filter((item) => item.startDate > today).length;
+  const typeOptions = Object.entries(TYPE_LABELS).map(([value, label]) => ({ value, label }));
+  const activeFilters: ActiveRegistryFilter[] = ([
+    periodFilterActive ? { id: 'period', label: 'Период', value: `${from} — ${to}`, options: [], onChange: () => undefined, onRemove: () => { setPeriodFilterActive(false); router.replace('/user-absences', { scroll: false }); }, customControl: <div className="registry-date-range"><input aria-label="Дата с" type="date" max={to || undefined} value={from} onChange={(event) => replaceFilter({ from: event.target.value || null })} /><span>—</span><input aria-label="Дата по" type="date" min={from || undefined} value={to} onChange={(event) => replaceFilter({ to: event.target.value || null })} /></div> } : null,
+    type ? { id: 'type', label: 'Тип', value: type, options: typeOptions, onChange: (value: string) => replaceFilter({ absenceType: value || null }), onRemove: () => replaceFilter({ absenceType: null }) } : null,
+  ].filter(Boolean) as ActiveRegistryFilter[]);
+  const availableFilters: AvailableRegistryFilter[] = ([
+    !periodFilterActive ? { id: 'period', label: 'Период', options: [{ value: 'period', label: 'Выбрать даты' }], onAdd: () => setPeriodFilterActive(true) } : null,
+    !type ? { id: 'type', label: 'Тип', options: typeOptions, onAdd: (value: string) => replaceFilter({ absenceType: value }) } : null,
+  ].filter(Boolean) as AvailableRegistryFilter[]);
 
   return (
     <div className={styles.root}>
@@ -174,15 +190,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
         <strong>{upcomingCount}</strong><span>запланированных отсутствий</span>
       </div>
 
-      <div className={styles.toolbar}>
-        <div className={styles.filters}>
-          <label className={styles.field}><span>С</span><input type="date" value={from} onChange={(event) => replaceFilter({ from: event.target.value || null })} /></label>
-          <label className={styles.field}><span>По</span><input type="date" min={from || undefined} value={to} onChange={(event) => replaceFilter({ to: event.target.value || null })} /></label>
-          <label className={styles.field}><span>Тип</span><select value={type} onChange={(event) => replaceFilter({ absenceType: event.target.value || null })}><option value="">Все</option><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></select></label>
-          {(searchParams.has('from') || searchParams.has('to') || searchParams.has('absenceType')) ? <button className={styles.button} type="button" onClick={() => router.replace('/user-absences', { scroll: false })}>Сбросить</button> : null}
-        </div>
-        {canManage ? <button className={`${styles.button} ${styles.primary}`} type="button" onClick={openCreate}>Добавить отсутствие</button> : null}
-      </div>
+      <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeFilters} availableFilters={availableFilters} actions={canManage ? <button className={`${styles.button} ${styles.primary}`} type="button" onClick={openCreate}>Добавить отсутствие</button> : null} />
 
       {editorOpen && canManage ? (
         <div className={styles.editor}>

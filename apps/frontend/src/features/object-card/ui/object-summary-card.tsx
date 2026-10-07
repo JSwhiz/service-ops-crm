@@ -42,7 +42,12 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
             <div className="hero-title">{item.name}</div>
             <span className="status-pill" data-status={item.status}>{getStatusLabel(item.status)}</span>
           </div>
-          {item.internalName ? <div className="hero-meta">{item.internalName}</div> : null}
+          {item.internalName ? (
+            <div className="object-summary__internal-name">
+              <span>Внутреннее имя</span>
+              <strong>{item.internalName}</strong>
+            </div>
+          ) : null}
         </div>
 
         <div className="action-row object-summary__actions">
@@ -56,7 +61,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
       <div className="detail-grid object-summary__facts">
         <div className="detail-field">
           <div className="detail-label">Адрес</div>
-          <div className="detail-value">{item.address}</div>
+          <div className="detail-value">{item.address || 'Не указан'}</div>
         </div>
         <div className="detail-field">
           <div className="detail-label">Контрагент</div>
@@ -81,7 +86,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           </div>
         </div>
         <div className="detail-field">
-          <div className="detail-label">Условия</div>
+          <div className="detail-label">Сезонность и оплата</div>
           <div className="detail-value">
             {getSeasonLabel(item.seasonMode)}
             <span className="identity-secondary">

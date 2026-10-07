@@ -13,6 +13,7 @@ import { formatInventoryQuantity } from '@/shared/lib/inventory-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -82,20 +83,23 @@ export function ObjectInventoryPanel({
           }}
         >
           <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <label>
-              <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Расходник</div>
-              <select
+            <div className={styles.field}>
+              <SearchableSelect
+                label="Расходник"
                 value={inventoryItemId}
-                onChange={(event) => setInventoryItemId(event.target.value)}
-                required
-              >
-                {availableItems.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} • {formatInventoryQuantity(item.currentStock, item.unit)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                options={availableItems.map((item) => ({
+                  value: item.id,
+                  label: `${item.name} • ${formatInventoryQuantity(item.currentStock, item.unit)}`,
+                  searchText: item.name,
+                }))}
+                placeholder="Выберите расходник"
+                searchPlaceholder="Название расходника"
+                searchable
+                clearable={false}
+                viewportAware
+                onChange={setInventoryItemId}
+              />
+            </div>
 
             <label>
               <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Количество</div>
@@ -132,17 +136,23 @@ export function ObjectInventoryPanel({
           <div>
             <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Фото подтверждения</div>
             <MediaActionPicker
+              iconOnly
               allowGenericFile={false}
               onPick={async (file) => {
                 setEvidenceFiles((current) => [...current, file]);
               }}
             />
-            <PendingMediaList
-              files={evidenceFiles}
-              onRemove={(index) =>
-                setEvidenceFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
-              }
-            />
+            {evidenceFiles.length > 0 ? (
+              <div className={styles.pendingFilesViewport}>
+                <PendingMediaList
+                  files={evidenceFiles}
+                  onRemove={(index) =>
+                    setEvidenceFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                  }
+                  emptyText=""
+                />
+              </div>
+            ) : <div className={styles.emptyState}>Фото не добавлены.</div>}
           </div>
 
           {error ? <div className={styles.error}>{error}</div> : null}
@@ -197,10 +207,11 @@ export function ObjectInventoryPanel({
                 </Link>
               ) : null}
               {movement.comment ? <div>{movement.comment}</div> : null}
-              <AttachmentPreviewList
-                files={movement.attachments}
-                emptyText="Подтверждающие фото пока не приложены."
-              />
+              {movement.attachments.length > 0 ? (
+                <div className={styles.savedPhotosViewport}>
+                  <AttachmentPreviewList files={movement.attachments} />
+                </div>
+              ) : null}
             </div>
           ))
         )}

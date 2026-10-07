@@ -26,6 +26,8 @@ export default function FileViewerPage(): React.JSX.Element {
   const [textPreview, setTextPreview] = useState<string | null>(null);
   const [textTruncated, setTextTruncated] = useState(false);
   const [showOriginalSize, setShowOriginalSize] = useState(false);
+  const [useOriginalImage, setUseOriginalImage] = useState(false);
+  const [imageUnavailable, setImageUnavailable] = useState(false);
   const [pollTimedOut, setPollTimedOut] = useState(false);
   const [pollingRun, setPollingRun] = useState(0);
 
@@ -215,13 +217,27 @@ export default function FileViewerPage(): React.JSX.Element {
           </div>
         ) : null}
 
-        {view.previewStatus === 'ready' && view.previewType === 'image' && inlineUrl ? (
+        {view.previewStatus === 'ready' && view.previewType === 'image' && inlineUrl && !imageUnavailable ? (
           <div
             className={`file-viewer-image${
               showOriginalSize ? ' file-viewer-image--original' : ''
             }`}
           >
-            <img src={inlineUrl} alt={view.originalName} />
+            <img
+              src={useOriginalImage ? resolveFileApiUrl(`/api/v1/files/${view.id}/content`) : inlineUrl}
+              alt={view.originalName}
+              onError={() => {
+                if (!useOriginalImage) setUseOriginalImage(true);
+                else setImageUnavailable(true);
+              }}
+            />
+          </div>
+        ) : null}
+
+        {imageUnavailable ? (
+          <div className="file-viewer-state">
+            <strong>Не удалось открыть изображение</strong>
+            <span>Оригинал файла также недоступен для просмотра. Попробуйте скачать его.</span>
           </div>
         ) : null}
 

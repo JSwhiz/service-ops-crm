@@ -15,7 +15,7 @@ export default function InventoryNewPage(): React.JSX.Element {
     user?.capabilities?.canManageInventoryCatalog ?? false;
 
   return (
-    <>
+    <div className="workspace-page inventory-workspace">
       <PageTitle title="Новая номенклатура" />
 
       {!canManageInventoryCatalog ? (
@@ -31,6 +31,6 @@ export default function InventoryNewPage(): React.JSX.Element {
           }}
         />
       )}
-    </>
+    </div>
   );
 }

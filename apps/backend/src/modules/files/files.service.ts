@@ -96,8 +96,19 @@ export class FilesService {
     this.assertValidFieldCode(entityType, body.fieldCode ?? null);
     await this.assertEntityWritable(currentUser, entityType, body.entityId);
 
+    const originalName = Array.from(body.originalName ?? file.originalname)
+      .map((character) => {
+        const code = character.charCodeAt(0);
+        return character === '/' || character === '\\' || code < 32 || code === 127
+          ? '_'
+          : character;
+      })
+      .join('')
+      .trim()
+      .slice(0, 255) || 'file';
+
     const verifiedMimeType = this.detectMimeType(file.buffer, file.mimetype);
-    const objectKey = this.buildObjectKey(entityType, file.originalname);
+    const objectKey = this.buildObjectKey(entityType, originalName);
     const storageResult = await this.storageService.uploadObject({
       objectKey,
       body: file.buffer,
@@ -110,7 +121,7 @@ export class FilesService {
         data: {
           bucket: storageResult.bucket,
           objectKey: storageResult.objectKey,
-          originalName: file.originalname,
+          originalName,
           mimeType: verifiedMimeType,
           sizeBytes: file.size,
           uploadedByUserId: currentUser.id,

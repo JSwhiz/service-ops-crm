@@ -153,7 +153,7 @@ export function AccountabilityExpenseForm({
             void handleSave(false);
           }}
         >
-          {isSubmitting ? 'Сохраняем...' : 'Сохранить draft'}
+          {isSubmitting ? 'Сохраняем...' : 'Сохранить черновик'}
         </button>
         <button
           type="button"

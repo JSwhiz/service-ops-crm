@@ -29,6 +29,7 @@ import {
   TASK_RESULT_CONFIRMATION_TYPE,
 } from './constants/approval.constants';
 import { ApprovalRequestResponseDto } from './dto/approval-request-response.dto';
+import { ApprovalRequestListResponseDto } from './dto/approval-request-list-response.dto';
 import { ListApprovalRequestsQueryDto } from './dto/list-approval-requests-query.dto';
 import {
   ApproveApprovalRequestDto,
@@ -98,24 +99,64 @@ export class ApprovalsService {
 
   async listRequests(
     currentUser: CurrentAuthUser,
+    query: ListApprovalRequestsQueryDto & { page?: undefined; limit?: undefined },
+  ): Promise<ApprovalRequestResponseDto[]>;
+  async listRequests(
+    currentUser: CurrentAuthUser,
+    query: ListApprovalRequestsQueryDto & { page: number },
+  ): Promise<ApprovalRequestListResponseDto>;
+  async listRequests(
+    currentUser: CurrentAuthUser,
     query: ListApprovalRequestsQueryDto,
-  ): Promise<ApprovalRequestResponseDto[]> {
-    const requests = (await this.prisma.approvalRequest.findMany({
-      where: {
-        ...this.buildVisibilityWhere(currentUser),
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.approvalType ? { approvalType: query.approvalType } : {}),
-        ...(query.sourceEntityType
-          ? { sourceEntityType: query.sourceEntityType }
-          : {}),
-        ...(query.sourceEntityId ? { sourceEntityId: query.sourceEntityId } : {}),
-        ...this.buildDateRangeWhere(query),
-      },
-      include: this.approvalInclude(),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    })) as ApprovalRequestRecord[];
+  ): Promise<ApprovalRequestResponseDto[] | ApprovalRequestListResponseDto>;
+  async listRequests(
+    currentUser: CurrentAuthUser,
+    query: ListApprovalRequestsQueryDto,
+  ): Promise<ApprovalRequestResponseDto[] | ApprovalRequestListResponseDto> {
+    const where: Prisma.ApprovalRequestWhereInput = {
+      ...this.buildVisibilityWhere(currentUser),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.approvalType ? { approvalType: query.approvalType } : {}),
+      ...(query.sourceEntityType
+        ? { sourceEntityType: query.sourceEntityType }
+        : {}),
+      ...(query.sourceEntityId ? { sourceEntityId: query.sourceEntityId } : {}),
+      ...this.buildDateRangeWhere(query),
+    };
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const shouldPaginate = query.page !== undefined || query.limit !== undefined;
 
-    return requests.map((request) => this.mapRequest(request, currentUser));
+    if (!shouldPaginate) {
+      const requests = (await this.prisma.approvalRequest.findMany({
+        where,
+        include: this.approvalInclude(),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })) as ApprovalRequestRecord[];
+
+      return requests.map((request) => this.mapRequest(request, currentUser));
+    }
+
+    const [total, requests] = await this.prisma.$transaction([
+      this.prisma.approvalRequest.count({ where }),
+      this.prisma.approvalRequest.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: this.approvalInclude(),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+    ]);
+
+    return {
+      items: (requests as ApprovalRequestRecord[]).map((request) =>
+        this.mapRequest(request, currentUser),
+      ),
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
   }
 
   async getRequestById(
@@ -293,7 +334,8 @@ export class ApprovalsService {
       const dateTo = new Date(query.dateTo);
 
       if (!Number.isNaN(dateTo.getTime())) {
-        createdAt.lte = dateTo;
+        dateTo.setUTCDate(dateTo.getUTCDate() + 1);
+        createdAt.lt = dateTo;
       }
     }
 

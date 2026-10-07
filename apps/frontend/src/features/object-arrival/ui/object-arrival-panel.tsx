@@ -11,6 +11,7 @@ import {
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 interface ObjectArrivalPanelProps {
   item: ObjectArrivalPhoto | null;
@@ -19,6 +20,7 @@ interface ObjectArrivalPanelProps {
     photoType?: string;
     comment?: string;
     files: File[];
+    fileNames: Array<string | undefined>;
   }) => Promise<void>;
 }
 
@@ -34,6 +36,7 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
     comment: item?.comment ?? '',
   });
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingFileNames, setPendingFileNames] = useState<Array<string | undefined>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +46,7 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
       comment: item?.comment ?? '',
     });
     setPendingFiles([]);
+    setPendingFileNames([]);
   }, [item]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -54,8 +58,10 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
         photoType: form.photoType || undefined,
         comment: form.comment || undefined,
         files: pendingFiles,
+        fileNames: pendingFileNames,
       });
       setPendingFiles([]);
+      setPendingFileNames([]);
     } catch {
       setError('Не удалось сохранить фото прибытия.');
     } finally {
@@ -76,17 +82,21 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
       </div>
 
       <form className={styles.panelForm} onSubmit={handleSubmit}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Категория</span>
-          <select
+        <div className={`${styles.field} ${styles.categoryField}`}>
+          <SearchableSelect
+            label="Категория"
             value={form.photoType}
-            onChange={(event) => setForm((prev) => ({ ...prev, photoType: event.target.value }))}
-          >
-            {MEDIA_CATEGORY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
+            options={MEDIA_CATEGORY_OPTIONS.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+            searchable={false}
+            clearable={false}
+            viewportAware
+            disabled={isSubmitting}
+            onChange={(photoType) => setForm((prev) => ({ ...prev, photoType }))}
+          />
+        </div>
 
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Комментарий</span>
@@ -100,17 +110,29 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
 
         <div className={styles.mediaSection}>
           <MediaActionPicker
+            iconOnly
             disabled={isSubmitting}
             allowGenericFile={false}
             genericFileAccept="image/*"
-            onPick={async (file) => setPendingFiles((prev) => [...prev, file])}
+            onPick={async (file) => { setPendingFiles((prev) => [...prev, file]); setPendingFileNames((prev) => [...prev, undefined]); }}
           />
-          <PendingMediaList
-            files={pendingFiles}
-            onRemove={(index) => setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-            emptyText=""
-          />
-          <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Фото пока нет." />
+          {pendingFiles.length > 0 ? (
+            <div className={styles.pendingFilesViewport}>
+              <PendingMediaList
+                files={pendingFiles}
+                displayNames={pendingFileNames}
+                onRemove={(index) => { setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index)); setPendingFileNames((prev) => prev.filter((_, itemIndex) => itemIndex !== index)); }}
+                onRename={(index, name) => setPendingFileNames((prev) => prev.map((current, itemIndex) => itemIndex === index ? name : current))}
+                iconActions
+                emptyText=""
+              />
+            </div>
+          ) : null}
+          {(item?.attachments.length ?? 0) > 0 ? (
+            <div className={styles.savedPhotosViewport}>
+              <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Фото пока нет." iconDownload />
+            </div>
+          ) : <div className={styles.emptyState}>Фото пока нет.</div>}
         </div>
 
         {error ? <div className={styles.error}>{error}</div> : null}

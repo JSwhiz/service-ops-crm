@@ -23,7 +23,9 @@
 .directoryGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  column-gap: 22px;
+  row-gap: 0;
+  align-items: stretch;
 }
 
 .employeeCard {
@@ -47,11 +49,11 @@
 }
 
 .employeeCardUnavailable {
-  background: var(--ui-danger-subtle);
+  background: transparent;
 }
 
 .employeeCardUnavailable:hover {
-  background: var(--ui-danger-subtle);
+  background: var(--ui-surface-hover);
 }
 
 .employeeInfo {
@@ -92,8 +94,8 @@
 }
 
 .availabilityText {
-  color: #9a4f3e;
-  font-size: 13px;
+  color: #80655c;
+  font-size: 12px;
   line-height: 1.4;
 }
 

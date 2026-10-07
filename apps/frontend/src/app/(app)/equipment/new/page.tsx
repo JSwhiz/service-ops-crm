@@ -71,7 +71,7 @@ export default function EquipmentNewPage(): React.JSX.Element {
   }, [canManageEquipmentCatalog]);
 
   return (
-    <>
+    <div className="workspace-page equipment-workspace">
       <PageTitle title="Новое оборудование" />
 
       {!canManageEquipmentCatalog ? (
@@ -85,7 +85,7 @@ export default function EquipmentNewPage(): React.JSX.Element {
           {error}
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div className="page-stack">
           <EquipmentCatalogItemForm
             onSubmit={async (payload) => {
               const created = await createEquipmentCatalogItem(payload);
@@ -109,6 +109,6 @@ export default function EquipmentNewPage(): React.JSX.Element {
           />
         </div>
       )}
-    </>
+    </div>
   );
 }

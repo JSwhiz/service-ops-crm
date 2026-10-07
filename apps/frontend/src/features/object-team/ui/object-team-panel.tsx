@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { ObjectAssignedUser } from '@/entities/object/model/object.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
@@ -9,6 +10,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
 import styles from './object-team-panel.module.css';
 
@@ -20,6 +22,8 @@ interface ObjectTeamPanelProps {
   emptyAvailableText: string;
   addButtonText: string;
   removeButtonText: string;
+  minimumItemsToKeep?: number;
+  replaceOnly?: boolean;
   onAdd: (userId: string) => Promise<void>;
   onRemove: (userId: string) => Promise<void>;
 }
@@ -32,12 +36,16 @@ export function ObjectTeamPanel({
   emptyAvailableText,
   addButtonText,
   removeButtonText,
+  minimumItemsToKeep = 0,
+  replaceOnly = false,
   onAdd,
   onRemove,
 }: ObjectTeamPanelProps): React.JSX.Element {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isReplacementOpen, setIsReplacementOpen] = useState(false);
+  const [replacementQuery, setReplacementQuery] = useState('');
   const currentIds = useMemo(() => new Set(currentItems.map((item) => item.userId)), [currentItems]);
 
   const options = availableUsers
@@ -48,6 +56,22 @@ export function ObjectTeamPanel({
       description: getUserSecondaryLabel(user) || undefined,
       searchText: `${user.fullName} ${user.login}`,
     }));
+  const replacementOptions = options.filter((option) =>
+    `${option.label} ${option.searchText ?? ''}`
+      .toLocaleLowerCase('ru')
+      .includes(replacementQuery.trim().toLocaleLowerCase('ru')),
+  );
+
+  useEffect(() => {
+    if (!isReplacementOpen) return;
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setIsReplacementOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isReplacementOpen]);
 
   const handleAdd = (userId: string): void => {
     if (!userId) return;
@@ -55,7 +79,11 @@ export function ObjectTeamPanel({
     setError(null);
     setIsSubmitting(true);
     void onAdd(userId)
-      .then(() => setSelectedUserId(''))
+      .then(() => {
+        setSelectedUserId('');
+        setIsReplacementOpen(false);
+        setReplacementQuery('');
+      })
       .catch((caughtError) => {
         setError(
           caughtError instanceof Error && caughtError.message.trim()
@@ -84,7 +112,51 @@ export function ObjectTeamPanel({
     <div className={`page-card ${styles.panel}`}>
       <div className={styles.header}>
         <div className={styles.title}>{title}</div>
-        <span className={styles.count}>{currentItems.length}</span>
+        {replaceOnly ? (
+          <div className={styles.replacementControl}>
+            <button
+              className={styles.replaceButton}
+              type="button"
+              disabled={isSubmitting || options.length === 0}
+              aria-label={currentItems.length ? 'Заменить ответственного' : 'Назначить ответственного'}
+              aria-expanded={isReplacementOpen}
+              title={currentItems.length ? 'Заменить ответственного' : 'Назначить ответственного'}
+              onClick={() => setIsReplacementOpen((open) => !open)}
+            >
+              <MediaActionIcon name="replace" />
+            </button>
+            {isReplacementOpen && typeof document !== 'undefined' ? createPortal(
+              <div className={styles.replacementOverlay} onMouseDown={(event) => { if (event.target === event.currentTarget) setIsReplacementOpen(false); }}>
+                <section className={styles.replacementDialog} role="dialog" aria-modal="true" aria-labelledby="replace-responsible-title">
+                  <header className={styles.dialogHeader}>
+                    <div>
+                      <h2 id="replace-responsible-title">Заменить ответственного</h2>
+                      <p>Выберите сотрудника, который будет отвечать за объект</p>
+                    </div>
+                    <button className={styles.dialogClose} type="button" aria-label="Закрыть" onClick={() => setIsReplacementOpen(false)}><MediaActionIcon name="close" /></button>
+                  </header>
+                <input
+                  autoFocus
+                  type="search"
+                  value={replacementQuery}
+                  aria-label="Поиск ответственного"
+                  placeholder="Поиск по ФИО или логину"
+                  onChange={(event) => setReplacementQuery(event.target.value)}
+                />
+                <div className={styles.replacementOptions} role="listbox" aria-label="Кандидаты на роль ответственного">
+                  {replacementOptions.length ? replacementOptions.map((option) => (
+                    <button key={option.value} type="button" role="option" onClick={() => handleAdd(option.value)} disabled={isSubmitting}>
+                      <strong>{option.label}</strong>
+                      {option.description ? <span>{option.description}</span> : null}
+                    </button>
+                  )) : <div className={styles.empty}>{emptyAvailableText}</div>}
+                </div>
+                </section>
+              </div>,
+              document.body,
+            ) : null}
+          </div>
+        ) : <span className={styles.count}>{currentItems.length}</span>}
       </div>
 
       <section className={styles.group}>
@@ -100,16 +172,24 @@ export function ObjectTeamPanel({
                     <span>{getUserSecondaryLabel(item)}</span>
                   ) : null}
                 </span>
-                <button type="button" disabled={isSubmitting} onClick={() => handleRemove(item.userId)}>
+                {!replaceOnly ? <button
+                  type="button"
+                  disabled={isSubmitting || currentItems.length <= minimumItemsToKeep}
+                  title={currentItems.length <= minimumItemsToKeep ? 'Нельзя снять последнего ответственного' : undefined}
+                  onClick={() => handleRemove(item.userId)}
+                >
                   {removeButtonText}
-                </button>
+                </button> : null}
               </div>
             ))}
           </div>
         )}
+        {!replaceOnly && currentItems.length > 0 && currentItems.length <= minimumItemsToKeep ? (
+          <div className={styles.empty}>У объекта должен оставаться хотя бы один ответственный.</div>
+        ) : null}
       </section>
 
-      <div className={styles.addControl}>
+      {!replaceOnly ? <div className={styles.addControl}>
         {options.length > 0 ? (
           <SearchableSelect
             label="Добавить"
@@ -119,13 +199,14 @@ export function ObjectTeamPanel({
             searchPlaceholder="ФИО или логин"
             emptyText={emptyAvailableText}
             clearable={false}
+            viewportAware
             onChange={handleAdd}
             disabled={isSubmitting}
           />
         ) : (
           <div className={styles.empty}>{emptyAvailableText}</div>
         )}
-      </div>
+      </div> : null}
 
       {error ? <div className={styles.error}>{error}</div> : null}
     </div>

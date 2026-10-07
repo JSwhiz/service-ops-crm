@@ -14,12 +14,14 @@ export function EntityFilesPanel({
   canUpload,
   onUpload,
   emptyText,
+  iconOnlyMediaActions = false,
 }: {
   title: string;
   files: AttachedFile[];
   canUpload: boolean;
   onUpload: (file: File) => Promise<void>;
   emptyText: string;
+  iconOnlyMediaActions?: boolean;
 }): React.JSX.Element {
   return (
     <div className={`page-card ${styles.workPanel}`}>
@@ -28,7 +30,7 @@ export function EntityFilesPanel({
         <span className={styles.panelMeta}>{files.length}</span>
       </div>
 
-      {canUpload ? <MediaActionPicker onPick={onUpload} /> : null}
+      {canUpload ? <MediaActionPicker iconOnly={iconOnlyMediaActions} onPick={onUpload} /> : null}
 
       {files.length === 0 ? (
         <div className={styles.emptyState}>{emptyText}</div>

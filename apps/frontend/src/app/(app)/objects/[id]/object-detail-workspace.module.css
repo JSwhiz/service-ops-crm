@@ -98,38 +98,143 @@
   color: var(--ui-text);
 }
 
-.sectionHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 1px 2px 0;
-}
-
-.sectionTitle {
-  margin: 0;
-  color: #332d29;
-  font-size: 17px;
-  font-weight: 760;
-  letter-spacing: -0.012em;
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .todayGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  align-items: stretch;
+  gap: 20px;
+  align-items: start;
 }
 
 .todayGrid > :global(.page-card) {
-  height: 100%;
+  height: auto;
+  margin-top: 0;
+  padding: 14px;
+  border-radius: 10px;
+  background: #faf8f6;
 }
 
 .twoColumn {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 26px;
   align-items: start;
+}
+
+.workspace .section > :global(.page-card),
+.workspace .todayGrid > :global(.page-card),
+.workspace .twoColumn > :global(.page-card) {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.workspace .section > :global(.page-card:hover),
+.workspace .todayGrid > :global(.page-card:hover),
+.workspace .twoColumn > :global(.page-card:hover) {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.workspace .section > :global(.page-card).equipmentPanel {
+  padding: 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #faf8f6;
+}
+
+.workspace .section > :global(.page-card).equipmentPanel:hover {
+  background: #faf8f6;
+  box-shadow: none;
+  transform: none;
+}
+
+.workspace .todayGrid > :global(.page-card) {
+  padding: 14px;
+  border-radius: 10px;
+  background: #faf8f6;
+}
+
+.workspace .todayGrid > :global(.page-card:hover) {
+  background: #faf8f6;
+}
+
+.workspace .section > :global(.page-card:has(textarea)) {
+  padding: 14px;
+  border-radius: 10px;
+  background: #faf8f6;
+}
+
+.workspace :global(.hero-card .object-summary__facts) {
+  border: 0;
+  border-top: 1px solid var(--ui-border);
+  border-bottom: 0;
+  border-radius: 0;
+}
+
+.quickAction {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 0 12px !important;
+  border-bottom: 1px solid var(--ui-border) !important;
+}
+
+.quickAction :global(.section-title) {
+  font-size: 15px;
+}
+
+.workspace :global(.object-status-control) {
+  padding: 4px 0 12px !important;
+  border-bottom: 1px solid var(--ui-border) !important;
+}
+
+.workspace :global(.object-status-control__header .section-title) {
+  font-size: 15px;
+}
+
+.workspace :global(.object-status-control__header + *) {
+  margin-top: 8px;
+}
+
+.workspace .twoColumn > :global(.page-card) {
+  min-width: 0;
+}
+
+.workspace .twoColumn > :global(.page-card) :global(.title) {
+  margin: 0;
+}
+
+.workspace .todayGrid > :global(.page-card:not(:last-child)) {
+  border-right: 1px solid var(--ui-border);
+  padding-right: 18px;
+}
+
+.workspace .todayGrid > :global(.page-card:not(:first-child)) {
+  padding-left: 2px;
+}
+
+.workspace .section > :global(.page-card) + :global(.page-card) {
+  border-top: 1px solid var(--ui-border);
+  padding-top: 14px;
 }
 
 .overviewMeta {
@@ -288,7 +393,19 @@
 
 .workspace :global(.section-subtitle),
 .workspace :global(.page-muted) {
-  color: #887a71;
+  color: #665a52;
+}
+
+.workspace :global(.detail-label),
+.workspace :global(.form-label),
+.workspace :global(label) {
+  color: #5e5149;
+}
+
+.workspace :global(input::placeholder),
+.workspace :global(textarea::placeholder) {
+  color: #786b62;
+  opacity: 1;
 }
 
 .workspace :global(.record-card) {
@@ -391,13 +508,13 @@
 
 .workspace :global(.object-summary) {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 16px;
+  padding: 18px 20px;
 }
 
 .workspace :global(.object-summary__top) {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
@@ -405,32 +522,55 @@
 .workspace :global(.object-summary__identity) {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 7px;
 }
 
 .workspace :global(.object-summary__title-row) {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 9px;
   flex-wrap: wrap;
 }
 
 .workspace :global(.object-summary .hero-title) {
   color: #302a26;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 760;
-  line-height: 1.15;
+  line-height: 1.2;
   letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
 }
 
-.workspace :global(.object-summary .hero-meta) {
+.workspace :global(.object-summary__title-row .status-pill) {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.workspace :global(.object-summary__internal-name) {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.workspace :global(.object-summary__internal-name span) {
   color: #80746c;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.workspace :global(.object-summary__internal-name strong) {
+  min-width: 0;
+  color: #51463f;
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .workspace :global(.object-summary__facts) {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr)) minmax(0, 1.05fr);
+  column-gap: 20px;
   overflow: visible;
   border: 0;
   border-radius: 0;
@@ -439,27 +579,43 @@
 
 .workspace :global(.object-summary__facts .detail-field) {
   min-width: 0;
-  padding: 10px 12px;
-  border-right: 1px solid var(--ui-border);
+  padding: 13px 0 2px;
+  border: 0;
 }
 
-.workspace :global(.object-summary__facts .detail-field:last-child) {
-  border-right: 0;
+.workspace :global(.object-summary__facts .detail-field > .detail-value a) {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+.workspace :global(.object-summary__facts .detail-field > .detail-value a:hover) {
+  color: var(--ui-accent, #3568a8);
+  text-decoration: underline;
 }
 
 .workspace :global(.object-summary .detail-label) {
-  margin: 0 0 4px;
-  color: #8a7e76;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  margin: 0 0 5px;
+  color: #80746c;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .workspace :global(.object-summary .detail-value) {
-  color: #3d3530;
-  font-size: 13px;
-  font-weight: 620;
+  color: #352e29;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.workspace :global(.object-summary .identity-secondary) {
+  margin-top: 3px;
+  color: #776b63;
+  font-size: 12.5px;
+  font-weight: 500;
   line-height: 1.35;
 }
 
@@ -545,6 +701,11 @@
   box-shadow: 0 12px 26px rgba(63, 48, 39, 0.11);
 }
 
+.workspace :global(.searchable-select__popover[data-placement='top']) {
+  top: auto;
+  bottom: calc(100% + 5px);
+}
+
 .workspace :global(.searchable-select__options) {
   scrollbar-width: thin;
   scrollbar-color: #c8bbb1 transparent;
@@ -568,12 +729,23 @@
     grid-template-columns: 1fr;
   }
 
-  .workspace :global(.object-summary__facts) {
+  .workspace :global(.hero-card .object-summary__facts) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .workspace :global(.object-summary__facts .detail-field) {
-    border-bottom: 1px solid #eee7e1;
+  .workspace :global(.hero-card .object-summary__facts .detail-field) {
+    border-bottom: 0;
+  }
+
+  .workspace .todayGrid > :global(.page-card:not(:last-child)) {
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .workspace .todayGrid > :global(.page-card:not(:first-child)) {
+    border-top: 1px solid var(--ui-border);
+    padding-top: 14px;
+    padding-left: 0;
   }
 }
 
@@ -598,11 +770,6 @@
     scroll-margin-top: 116px;
   }
 
-  .sectionHeader {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .workspace :global(.object-summary__top) {
     align-items: stretch;
     flex-direction: column;
@@ -616,12 +783,21 @@
     flex: 1 1 auto;
   }
 
-  .workspace :global(.object-summary__facts) {
+  .workspace :global(.hero-card .object-summary__facts) {
     grid-template-columns: 1fr;
   }
 
-  .workspace :global(.object-summary__facts .detail-field) {
+  .workspace :global(.hero-card .object-summary__facts .detail-field) {
     border-right: 0;
+  }
+
+  .workspace :global(.object-summary__facts) {
+    column-gap: 14px;
+    row-gap: 2px;
+  }
+
+  .workspace :global(.object-summary__facts .detail-field) {
+    padding-block: 10px 4px;
   }
 }
 

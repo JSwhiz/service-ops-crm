@@ -87,7 +87,7 @@ export default function InventoryReportsPage(): React.JSX.Element {
   }, [canAccessInventory, canViewInventoryReports]);
 
   return (
-    <>
+    <div className="workspace-page inventory-workspace">
       <PageTitle title="Отчеты по расходникам" />
 
       {!canAccessInventory || !canViewInventoryReports ? (
@@ -99,12 +99,12 @@ export default function InventoryReportsPage(): React.JSX.Element {
           {error}
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div className="page-stack">
           {summary ? <InventoryReportSummary {...summary} /> : null}
           <InventoryItemListTable items={items} />
           <InventoryMovementList items={movements} />
         </div>
       )}
-    </>
+    </div>
   );
 }

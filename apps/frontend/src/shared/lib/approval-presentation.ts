@@ -17,6 +17,10 @@ export const APPROVAL_TYPE_OPTIONS = [
     label: 'Исключение по расходникам',
   },
   {
+    value: 'inventory_return_confirmation',
+    label: 'Возврат расходников',
+  },
+  {
     value: 'accountability_closure_confirmation',
     label: 'Сверка подотчета',
   },
@@ -31,6 +35,10 @@ export const APPROVAL_TYPE_OPTIONS = [
   {
     value: 'equipment_writeoff_confirmation',
     label: 'Списание оборудования',
+  },
+  {
+    value: 'equipment_return_confirmation',
+    label: 'Возврат оборудования',
   },
   {
     value: 'manual_timesheet_exception_confirmation',
@@ -79,6 +87,31 @@ const APPROVAL_SOURCE_LABELS: Record<string, string> = {
   accountability_closure: 'Сверка подотчёта',
   one_time_manager_availability: 'Доступность менеджера',
 };
+
+export const APPROVAL_SOURCE_OPTIONS = [
+  { value: 'task', label: 'Задача' },
+  { value: 'object', label: 'Объект' },
+  {
+    value: 'inventory_movement',
+    label: 'Движение расходников',
+  },
+  {
+    value: 'equipment_movement',
+    label: 'Движение оборудования',
+  },
+  {
+    value: 'timesheet_exception',
+    label: 'Исключение табеля',
+  },
+  {
+    value: 'accountability_closure',
+    label: 'Сверка подотчёта',
+  },
+  {
+    value: 'one_time_manager_availability',
+    label: 'Доступность менеджера',
+  },
+] as const;
 
 export function getApprovalSourceLabel(sourceEntityType: string): string {
   return APPROVAL_SOURCE_LABELS[sourceEntityType] ?? 'Связанная запись';

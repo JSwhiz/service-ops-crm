@@ -9,9 +9,17 @@ import {
   getTaskStatusLabel,
 } from '@/shared/lib/task-presentation';
 
-export function TaskListTable({ items, embedded = false }: { items: TaskItem[]; embedded?: boolean }): React.JSX.Element {
+export function TaskListTable({
+  items,
+  embedded = false,
+  emptyText = 'Задачи не найдены.',
+}: {
+  items: TaskItem[];
+  embedded?: boolean;
+  emptyText?: string;
+}): React.JSX.Element {
   if (items.length === 0) {
-    return <div className={embedded ? 'page-muted' : 'page-card workspace-surface workspace-empty'}>Задачи не найдены.</div>;
+    return <div className={embedded ? 'page-muted' : 'page-card workspace-surface workspace-empty'}>{emptyText}</div>;
   }
 
   return (

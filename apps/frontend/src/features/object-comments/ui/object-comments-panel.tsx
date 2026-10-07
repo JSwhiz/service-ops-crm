@@ -43,26 +43,31 @@ export function ObjectCommentsPanel({ items, onCreate }: ObjectCommentsPanelProp
       </div>
 
       <form className={styles.panelForm} onSubmit={handleSubmit}>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Новый комментарий</span>
+        <div className={styles.field}>
           <textarea
+            aria-label="Комментарий к объекту"
             value={content}
             onChange={(event) => setContent(event.target.value)}
             rows={3}
             placeholder="Что важно зафиксировать по объекту"
           />
-        </label>
+        </div>
 
         <div className={styles.mediaSection}>
           <MediaActionPicker
+            iconOnly
             disabled={isSubmitting}
             onPick={async (file) => setPendingFiles((prev) => [...prev, file])}
           />
-          <PendingMediaList
-            files={pendingFiles}
-            onRemove={(index) => setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-            emptyText="Новых вложений нет."
-          />
+          {pendingFiles.length > 0 ? (
+            <div className={styles.pendingFilesViewport}>
+              <PendingMediaList
+                files={pendingFiles}
+                onRemove={(index) => setPendingFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
+                emptyText=""
+              />
+            </div>
+          ) : null}
         </div>
 
         {error ? <div className={styles.error}>{error}</div> : null}
@@ -87,7 +92,9 @@ export function ObjectCommentsPanel({ items, onCreate }: ObjectCommentsPanelProp
               <div className={styles.panelMeta}>{getUserDisplayName(item.createdBy)}</div>
               {item.content ? <div>{item.content}</div> : null}
               {item.attachments.length > 0 ? (
-                <AttachmentPreviewList files={item.attachments} />
+                <div className={styles.savedPhotosViewport}>
+                  <AttachmentPreviewList files={item.attachments} />
+                </div>
               ) : null}
             </div>
           ))}

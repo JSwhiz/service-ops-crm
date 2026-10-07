@@ -1,17 +1,22 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
+import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
+
+import styles from './media-action-picker.module.css';
 
 export function MediaActionPicker({
   onPick,
   disabled = false,
   allowGenericFile = true,
   genericFileAccept,
+  iconOnly = false,
 }: {
   onPick: (file: File) => Promise<void>;
   disabled?: boolean;
   allowGenericFile?: boolean;
   genericFileAccept?: string;
+  iconOnly?: boolean;
 }): React.JSX.Element {
   const [isBusy, setIsBusy] = useState(false);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -40,7 +45,7 @@ export function MediaActionPicker({
   const isDisabled = disabled || isBusy;
 
   return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <div className={styles.actions} aria-label="Добавить вложение">
       <input
         ref={cameraInputRef}
         type="file"
@@ -65,30 +70,40 @@ export function MediaActionPicker({
       />
 
       <button
+        className={iconOnly ? styles.iconButton : undefined}
         type="button"
         disabled={isDisabled}
         onClick={() => cameraInputRef.current?.click()}
+        aria-label="Сделать фото"
+        title="Сделать фото"
       >
-        {isBusy ? 'Загружаем...' : 'Сделать фото'}
+        {iconOnly ? <MediaActionIcon name="camera" /> : isBusy ? 'Загружаем…' : 'Сделать фото'}
       </button>
 
       <button
+        className={iconOnly ? styles.iconButton : undefined}
         type="button"
         disabled={isDisabled}
         onClick={() => galleryInputRef.current?.click()}
+        aria-label="Выбрать из галереи"
+        title="Выбрать из галереи"
       >
-        Выбрать из галереи
+        {iconOnly ? <MediaActionIcon name="gallery" /> : 'Выбрать из галереи'}
       </button>
 
       {allowGenericFile ? (
         <button
+          className={iconOnly ? styles.iconButton : undefined}
           type="button"
           disabled={isDisabled}
           onClick={() => fileInputRef.current?.click()}
+          aria-label="Выбрать файл"
+          title="Выбрать файл"
         >
-          Выбрать файл
+          {iconOnly ? <MediaActionIcon name="file" /> : 'Выбрать файл'}
         </button>
       ) : null}
+      {isBusy ? <span className={styles.visuallyHidden} role="status">Загружаем файл…</span> : null}
     </div>
   );
 }

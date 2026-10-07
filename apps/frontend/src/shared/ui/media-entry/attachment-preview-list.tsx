@@ -10,6 +10,7 @@ import {
   retryFilePreview,
 } from '@/entities/file/api/file-client';
 import type { FilePreviewItem, FileView } from '@/entities/file/model/file.types';
+import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
 const PREVIEW_POLL_ATTEMPTS = 40;
 
@@ -24,11 +25,12 @@ function getFileTypeLabel(file: FilePreviewItem): string {
   return extension && extension.length <= 5 ? extension : 'FILE';
 }
 
-function AttachmentPreviewCard({ file }: { file: FilePreviewItem }): React.JSX.Element {
+function AttachmentPreviewCard({ file, iconDownload = false }: { file: FilePreviewItem; iconDownload?: boolean }): React.JSX.Element {
   const [view, setView] = useState<FileView | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [pollingRun, setPollingRun] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +94,7 @@ function AttachmentPreviewCard({ file }: { file: FilePreviewItem }): React.JSX.E
   const thumbnailUrl = view?.thumbnailUrl
     ? resolveFileApiUrl(view.thumbnailUrl)
     : null;
+  const originalInlineUrl = resolveFileApiUrl(`/api/v1/files/${file.id}/content`);
 
   if (isImage) {
     return (
@@ -104,7 +107,11 @@ function AttachmentPreviewCard({ file }: { file: FilePreviewItem }): React.JSX.E
           aria-label={`Открыть ${file.originalName}`}
         >
           {thumbnailUrl ? (
-            <img src={thumbnailUrl} alt={file.originalName} />
+            <img
+              src={thumbnailFailed ? originalInlineUrl : thumbnailUrl}
+              alt={file.originalName}
+              onError={() => setThumbnailFailed(true)}
+            />
           ) : (
             <span className="attachment-preview-skeleton">
               {view?.previewStatus === 'failed'
@@ -118,8 +125,9 @@ function AttachmentPreviewCard({ file }: { file: FilePreviewItem }): React.JSX.E
           href={downloadUrl}
           className="attachment-download-link"
           aria-label={`Скачать ${file.originalName}`}
+          title="Скачать"
         >
-          Скачать
+          {iconDownload ? <MediaActionIcon name="download" /> : 'Скачать'}
         </a>
         {view?.previewStatus === 'failed' && view.previewType !== 'unsupported' ? (
           <button
@@ -185,9 +193,11 @@ function AttachmentPreviewCard({ file }: { file: FilePreviewItem }): React.JSX.E
 export function AttachmentPreviewList({
   files,
   emptyText = 'Вложений пока нет.',
+  iconDownload = false,
 }: {
   files: FilePreviewItem[];
   emptyText?: string;
+  iconDownload?: boolean;
 }): React.JSX.Element {
   if (files.length === 0) {
     return <div className="page-muted">{emptyText}</div>;
@@ -209,7 +219,7 @@ export function AttachmentPreviewList({
           )}`}
         >
           {imageFiles.map((file) => (
-            <AttachmentPreviewCard key={file.id} file={file} />
+            <AttachmentPreviewCard key={file.id} file={file} iconDownload={iconDownload} />
           ))}
         </div>
       ) : null}

@@ -10,9 +10,13 @@ import { listTasks } from '@/entities/task/api/task-client';
 import type { TaskListResponse } from '@/entities/task/model/task.types';
 import { listSystemUsers } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
-import { TaskFilters, type TaskFilterValue } from '@/features/task-filters/ui/task-filters';
+import type { TaskFilterValue } from '@/features/task-filters/ui/task-filters';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
+import { getUserDisplayName } from '@/shared/lib/display-name';
 
 const EMPTY_RESULT: TaskListResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 1 };
 
@@ -27,6 +31,8 @@ function TasksRegistry(): React.JSX.Element {
   const [result, setResult] = useState(EMPTY_RESULT);
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [users, setUsers] = useState<SystemUserOption[]>([]);
+  const [objectFilterActive, setObjectFilterActive] = useState(false);
+  const [assigneeFilterActive, setAssigneeFilterActive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +46,13 @@ function TasksRegistry(): React.JSX.Element {
     sortBy: (searchParams.get('sortBy') as TaskFilterValue['sortBy']) ?? 'createdAt',
     sortDirection: (searchParams.get('sortDirection') as TaskFilterValue['sortDirection']) ?? 'desc',
   }), [queryKey, searchParams]);
+
+  useEffect(() => {
+    setObjectFilterActive(Boolean(filters.objectId));
+  }, [filters.objectId]);
+  useEffect(() => {
+    setAssigneeFilterActive(Boolean(filters.assigneeUserId));
+  }, [filters.assigneeUserId]);
 
   useEffect(() => {
     void Promise.all([
@@ -91,14 +104,58 @@ function TasksRegistry(): React.JSX.Element {
     router.replace(`/tasks${next.toString() ? `?${next.toString()}` : ''}`);
   };
 
+  const filterOptions = {
+    mode: [
+      { value: 'assigned', label: 'Мои задачи' },
+      { value: 'created', label: 'Созданные мной' },
+      { value: 'objects', label: 'Мои объекты' },
+    ],
+    status: TASK_STATUS_OPTIONS.map(({ value, label }) => ({ value, label })),
+    object: objects.map((object) => ({ value: object.id, label: object.name })),
+    assignee: users.map((user) => ({ value: user.id, label: getUserDisplayName(user) })),
+    overdue: [{ value: 'true', label: 'Только просроченные' }],
+    sort: [
+      { value: 'createdAt:desc', label: 'Сначала новые' },
+      { value: 'updatedAt:desc', label: 'Недавно изменённые' },
+      { value: 'dueAt:asc', label: 'Ближайший срок' },
+      { value: 'title:asc', label: 'По названию' },
+    ],
+  };
+  const selectedAssignee = users.find((user) => user.id === filters.assigneeUserId);
+
+  const activeFilters = [
+    filters.mode !== 'all' ? { id: 'mode', label: 'Контур', value: filters.mode, options: filterOptions.mode, onChange: (value: string) => updateQuery({ mode: value }), onRemove: () => updateQuery({ mode: 'all' }) } : null,
+    filters.status ? { id: 'status', label: 'Статус', value: filters.status, options: filterOptions.status, onChange: (value: string) => updateQuery({ status: value }), onRemove: () => updateQuery({ status: '' }) } : null,
+    objectFilterActive || filters.objectId ? { id: 'object', label: 'Объект', value: filters.objectId, options: filterOptions.object, onChange: (value: string) => updateQuery({ objectId: value }), onRemove: () => { setObjectFilterActive(false); updateQuery({ objectId: '' }); }, customControl: <SearchableSelect label="Объект" hideLabel value={filters.objectId} options={filterOptions.object} placeholder="Все объекты" searchPlaceholder="Введите название объекта" minimumSearchLength={2} searchPromptText="Введите не менее 2 символов, чтобы найти объект" searchInputVariant="registry" onChange={(value) => updateQuery({ objectId: value })} /> } : null,
+    assigneeFilterActive || filters.assigneeUserId ? { id: 'assignee', label: 'Исполнитель', value: filters.assigneeUserId, options: selectedAssignee ? [{ value: selectedAssignee.id, label: getUserDisplayName(selectedAssignee) }] : [], onChange: (value: string) => updateQuery({ assigneeUserId: value }), onRemove: () => { setAssigneeFilterActive(false); updateQuery({ assigneeUserId: '' }); }, customControl: <SearchableSelect label="Исполнитель" hideLabel value={filters.assigneeUserId} options={filterOptions.assignee} selectedOption={selectedAssignee ? { value: selectedAssignee.id, label: getUserDisplayName(selectedAssignee) } : null} placeholder="Все исполнители" searchPlaceholder="Введите имя исполнителя" minimumSearchLength={2} searchPromptText="Введите не менее 2 символов, чтобы найти исполнителя" searchInputVariant="registry" onChange={(value) => updateQuery({ assigneeUserId: value })} /> } : null,
+    filters.overdue ? { id: 'overdue', label: 'Срок', value: 'true', options: filterOptions.overdue, onChange: () => undefined, onRemove: () => updateQuery({ overdue: false }) } : null,
+    (filters.sortBy !== 'createdAt' || filters.sortDirection !== 'desc') ? { id: 'sort', label: 'Сортировка', value: `${filters.sortBy}:${filters.sortDirection}`, options: filterOptions.sort, onChange: (value: string) => { const [sortBy, sortDirection] = value.split(':') as [TaskFilterValue['sortBy'], TaskFilterValue['sortDirection']]; updateQuery({ sortBy, sortDirection }); }, onRemove: () => updateQuery({ sortBy: 'createdAt', sortDirection: 'desc' }) } : null,
+  ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
+
+  const availableFilters = [
+    filters.mode === 'all' ? { id: 'mode', label: 'Контур', options: filterOptions.mode, onAdd: (value: string) => updateQuery({ mode: value }) } : null,
+    !filters.status ? { id: 'status', label: 'Статус', options: filterOptions.status, onAdd: (value: string) => updateQuery({ status: value }) } : null,
+    !objectFilterActive && !filters.objectId ? { id: 'object', label: 'Объект', options: [{ value: 'object', label: 'Выбрать объект' }], onAdd: () => setObjectFilterActive(true) } : null,
+    !assigneeFilterActive && !filters.assigneeUserId ? { id: 'assignee', label: 'Исполнитель', options: [{ value: 'assignee', label: 'Выбрать исполнителя' }], onAdd: () => setAssigneeFilterActive(true) } : null,
+    !filters.overdue ? { id: 'overdue', label: 'Срок', options: filterOptions.overdue, onAdd: () => updateQuery({ overdue: true }) } : null,
+    filters.sortBy === 'createdAt' && filters.sortDirection === 'desc' ? { id: 'sort', label: 'Сортировка', options: filterOptions.sort, onAdd: (value: string) => { const [sortBy, sortDirection] = value.split(':') as [TaskFilterValue['sortBy'], TaskFilterValue['sortDirection']]; updateQuery({ sortBy, sortDirection }); } } : null,
+  ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
+
   return (
     <div className="page-stack workspace-page task-registry">
       <PageTitle title="Задачи" />
       <div className="page-card workspace-surface task-page-heading registry-header">
         <div><div className="section-title">Реестр задач</div><div className="page-muted">{result.total} доступных задач</div></div>
-        <Link className="task-primary-link" href="/tasks/new">Создать задачу</Link>
       </div>
-      <TaskFilters value={filters} objects={objects} users={users} onChange={updateQuery} />
+      <RegistryToolbar
+        searchValue={filters.q}
+        searchLabel="Поиск по задачам"
+        searchPlaceholder="Задача, объект, автор или исполнитель"
+        onSearchChange={(value) => updateQuery({ q: value })}
+        activeFilters={activeFilters}
+        availableFilters={availableFilters}
+        actions={<Link className="task-primary-link" href="/tasks/new">Создать задачу</Link>}
+      />
       {isLoading ? <div className="page-card">Загрузка…</div> : error ? (
         <div className="page-card task-error" role="alert">{error}</div>
       ) : <TaskListTable items={result.items} />}

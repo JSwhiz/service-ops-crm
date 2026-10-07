@@ -17,6 +17,8 @@ import {
 } from '@/shared/lib/accountability-presentation';
 import { getUserDisplayName, getUserSecondaryLabel } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 
 import { AccountabilityExpenseForm } from './accountability-expense-form';
 
@@ -61,6 +63,7 @@ export function AccountabilityAccountPanel({
   const [orderFilter, setOrderFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [periodFilterActive, setPeriodFilterActive] = useState(false);
   const latestClosure = view.closures[0] ?? null;
 
   const orderIds = useMemo(
@@ -73,6 +76,53 @@ export function AccountabilityAccountPanel({
     [view.expenses, view.fundings],
   );
   const activeOrderFilter = orderIds.includes(orderFilter) ? orderFilter : '';
+  const orderFilterOptions = orderIds.map((orderId) => ({
+    value: orderId,
+    label: `Разовый заказ · ${orderId.slice(0, 8)}`,
+  }));
+  const activeLedgerFilters = ([
+    activeOrderFilter ? {
+      id: 'order',
+      label: 'Разовый заказ',
+      value: activeOrderFilter,
+      options: orderFilterOptions,
+      onChange: setOrderFilter,
+      onRemove: () => setOrderFilter(''),
+    } : null,
+    periodFilterActive ? {
+      id: 'period',
+      label: 'Период',
+      value: dateFrom || dateTo ? `${dateFrom || '…'} — ${dateTo || '…'}` : 'Любые даты',
+      options: [],
+      onChange: () => undefined,
+      onRemove: () => {
+        setDateFrom('');
+        setDateTo('');
+        setPeriodFilterActive(false);
+      },
+      customControl: (
+        <div className="registry-date-range">
+          <input aria-label="Дата с" type="date" max={dateTo || undefined} value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+          <span>—</span>
+          <input aria-label="Дата по" type="date" min={dateFrom || undefined} value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+        </div>
+      ),
+    } : null,
+  ].filter(Boolean) as ActiveRegistryFilter[]);
+  const availableLedgerFilters = ([
+    !activeOrderFilter && orderFilterOptions.length > 0 ? {
+      id: 'order',
+      label: 'Разовый заказ',
+      options: orderFilterOptions,
+      onAdd: setOrderFilter,
+    } : null,
+    !periodFilterActive ? {
+      id: 'period',
+      label: 'Период',
+      options: [{ value: 'period', label: 'Выбрать даты' }],
+      onAdd: () => setPeriodFilterActive(true),
+    } : null,
+  ].filter(Boolean) as AvailableRegistryFilter[]);
   const isWithinDates = (value: string): boolean => {
     const date = value.slice(0, 10);
     return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
@@ -110,9 +160,9 @@ export function AccountabilityAccountPanel({
       { label: 'Текущий остаток', value: formatMoney(view.summary.currentBalance) },
       { label: 'Прогнозный остаток', value: formatMoney(view.summary.forecastBalance) },
       { label: 'На подтверждении', value: formatMoney(submittedAmount) },
-      { label: 'Выдано всего', value: formatMoney(view.summary.totalFunding) },
+      { label: 'Пополнено всего', value: formatMoney(view.summary.totalFunding) },
       {
-        label: 'Занесено расходов',
+        label: 'Всего расходов',
         value: formatMoney(view.summary.totalRecordedExpenses),
       },
       {
@@ -132,7 +182,7 @@ export function AccountabilityAccountPanel({
   );
 
   return (
-    <div className="page-stack">
+    <div className="page-stack accountability-account-panel">
       <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
         <div className="section-header">
           <div>
@@ -175,11 +225,11 @@ export function AccountabilityAccountPanel({
 
         <div className="detail-grid">
           <div className="detail-field">
-            <div className="detail-label">Draft расходов</div>
+            <div className="detail-label">Черновики расходов</div>
             <div className="detail-value">{view.summary.draftExpensesCount}</div>
           </div>
           <div className="detail-field">
-            <div className="detail-label">Submitted расходов</div>
+            <div className="detail-label">Расходы на проверке</div>
             <div className="detail-value">
               {view.summary.submittedExpensesCount}
             </div>
@@ -223,54 +273,19 @@ export function AccountabilityAccountPanel({
       ) : null}
 
       {view.fundings.length > 0 || view.expenses.length > 0 ? (
-        <div className="page-card page-card--subtle accountability-ledger-filters">
-          <div>
-            <div className="section-title">Фильтры финансовой истории</div>
-            <div className="section-subtitle">
-              Отбор применяется к поступлениям и расходам ниже.
-            </div>
-          </div>
-          <div className="field-grid">
-            <label>
-              <span>Разовый заказ</span>
-              <select
-                value={activeOrderFilter}
-                onChange={(event) => setOrderFilter(event.target.value)}
-              >
-                <option value="">Все заказы и ручные операции</option>
-                {orderIds.map((orderId) => (
-                  <option key={orderId} value={orderId}>
-                    Разовый заказ · {orderId.slice(0, 8)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Дата с</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(event) => setDateFrom(event.target.value)}
-              />
-            </label>
-            <label>
-              <span>Дата по</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(event) => setDateTo(event.target.value)}
-              />
-            </label>
-          </div>
-        </div>
+        <section className="page-card page-card--subtle accountability-ledger-filters">
+          <div className="section-title">Фильтры финансовой истории</div>
+          <div className="section-subtitle">Отбор применяется к поступлениям и расходам ниже.</div>
+          <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeLedgerFilters} availableFilters={availableLedgerFilters} />
+        </section>
       ) : null}
 
       <div className="page-card" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
-            <div className="section-title">Выдачи денег</div>
+            <div className="section-title">Пополнения подотчёта</div>
             <div className="section-subtitle">
-              Пополнения подотчетного контура пользователя.
+              Здесь отражаются ручные выдачи и только те выплаты по разовым заказам, которые направлены в личный подотчёт.
             </div>
           </div>
         </div>
@@ -297,9 +312,9 @@ export function AccountabilityAccountPanel({
                 </div>
                 <div className="page-muted" style={{ marginTop: 6 }}>
                   Зафиксировал: {getUserDisplayName(funding.recordedBy ?? funding.issuedBy)}
-                  {funding.oneTimeOrderId
-                    ? ` · заказ ${funding.oneTimeOrderId.slice(0, 8)}`
-                    : ''}
+                  {funding.oneTimeOrderId ? (
+                    <> · <Link href={`/one-time-orders/${funding.oneTimeOrderId}`}>Открыть разовый заказ</Link></>
+                  ) : null}
                 </div>
                 {funding.comment ? (
                   <div style={{ marginTop: 8 }}>{funding.comment}</div>
@@ -315,7 +330,7 @@ export function AccountabilityAccountPanel({
           <div>
             <div className="section-title">Расходы</div>
             <div className="section-subtitle">
-              Draft редактирует только владелец. Submitted решает reviewer.
+              Черновик может изменить владелец. Отправленный расход ожидает решения проверяющего.
             </div>
           </div>
         </div>
@@ -455,7 +470,7 @@ export function AccountabilityAccountPanel({
           <div>
             <div className="section-title">Сверка и закрытие</div>
             <div className="section-subtitle">
-              Closure attempts хранятся отдельно и не теряют историю.
+              Все решения и комментарии по сверкам сохраняются в истории.
             </div>
           </div>
         </div>

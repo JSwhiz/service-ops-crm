@@ -15,6 +15,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
 
 import styles from './new-object.module.css';
 
@@ -72,6 +73,9 @@ function CompactSelect({
 }: CompactSelectProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const { placement, availableHeight } = usePopoverPlacement(open, triggerRef, popoverRef, 230);
   const selected = options.find((option) => option.value === value) ?? options[0];
 
   useEffect(() => {
@@ -96,6 +100,7 @@ function CompactSelect({
     <div className={styles.compactSelect} ref={rootRef}>
       <span className={styles.fieldLabel}>{label}</span>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.selectTrigger}
         aria-haspopup="listbox"
@@ -108,7 +113,14 @@ function CompactSelect({
       </button>
 
       {open ? (
-        <div className={styles.selectPopover} role="listbox" aria-label={label}>
+        <div
+          ref={popoverRef}
+          className={styles.selectPopover}
+          role="listbox"
+          aria-label={label}
+          data-placement={placement}
+          style={{ '--anchored-popover-max-height': `${availableHeight}px` } as React.CSSProperties}
+        >
           {options.map((option) => {
             const isSelected = option.value === value;
             return (
@@ -151,7 +163,10 @@ function ManagerMultiSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const { placement, availableHeight } = usePopoverPlacement(open, triggerRef, popoverRef);
   const normalizedQuery = query.trim().toLocaleLowerCase('ru');
 
   const visibleOptions = options
@@ -209,6 +224,7 @@ function ManagerMultiSelect({
       <span className={styles.fieldLabel}>Менеджеры</span>
 
       <button
+        ref={triggerRef}
         type="button"
         className={styles.selectTrigger}
         aria-haspopup="listbox"
@@ -223,7 +239,12 @@ function ManagerMultiSelect({
       </button>
 
       {open ? (
-        <div className={`${styles.selectPopover} ${styles.managerPopover}`}>
+        <div
+          ref={popoverRef}
+          className={`${styles.selectPopover} ${styles.managerPopover}`}
+          data-placement={placement}
+          style={{ '--anchored-popover-max-height': `${availableHeight}px` } as React.CSSProperties}
+        >
           <div className={styles.managerSearchWrap}>
             <input
               ref={searchRef}
@@ -453,6 +474,7 @@ export default function NewObjectPage(): React.JSX.Element {
                   placeholder="Без привязки"
                   searchPlaceholder="Название или юридическое название"
                   emptyText="Контрагенты не найдены"
+                  viewportAware
                   asyncSearch={async (query) =>
                     (await listCounterpartyReferences({ q: query, limit: 20 })).map(
                       (counterparty) => ({
@@ -570,6 +592,7 @@ export default function NewObjectPage(): React.JSX.Element {
                 searchPlaceholder="ФИО или логин"
                 emptyText="Подходящие пользователи не найдены"
                 clearable={false}
+                viewportAware
                 onChange={setResponsibleUserId}
                 disabled={isSubmitting}
               />
