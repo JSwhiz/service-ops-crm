@@ -137,6 +137,9 @@ test('responsible can view object core but cannot edit it or manage managers by 
 
   assert.equal(readPayload.capabilities.canEdit, false);
   assert.equal(readPayload.capabilities.canManageManagers, false);
+  await prisma.notification.deleteMany({
+    where: { entityType: 'object', entityId: SEEDED_OBJECT_ID },
+  });
 
   const deniedUpdate = await fetch(
     `${baseUrl}/api/v1/objects/${SEEDED_OBJECT_ID}`,
@@ -175,6 +178,16 @@ test('responsible can view object core but cannot edit it or manage managers by 
   };
 
   assert.equal(updatedPayload.notes, 'Founder updated object note in integration test');
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        recipientUserId: managerTwo.id,
+        type: 'object.updated',
+        entityId: SEEDED_OBJECT_ID,
+      },
+    }),
+    1,
+  );
 });
 
 test('object seasonality is optional and accepts only canonical values', async (t) => {

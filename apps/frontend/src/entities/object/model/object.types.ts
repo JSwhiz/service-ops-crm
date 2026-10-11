@@ -54,9 +54,19 @@ export interface ServiceObject {
   address: string;
   status: string;
   seasonMode: string | null;
+  summerWindowCleaning: boolean;
+  engineeringRequired: boolean;
+  winterTractorMode: 'none' | 'with_removal' | 'without_removal';
+  instructionSteps: string[];
   paymentType: 'monthly' | 'daily';
   dailyRate: number;
   monthlySalary: number;
+  summerPaymentType: 'monthly' | 'daily';
+  summerDailyRate: number;
+  summerMonthlySalary: number;
+  winterPaymentType: 'monthly' | 'daily';
+  winterDailyRate: number;
+  winterMonthlySalary: number;
   notes: string | null;
   counterparty: {
     id: string;
@@ -94,6 +104,8 @@ export interface ServiceObject {
     canViewBasicProfile: boolean;
     canViewOperationalSections: boolean;
     canManageEmployees: boolean;
+    canViewEmployees?: boolean;
+    canOperateAttendance?: boolean;
   };
 }
 

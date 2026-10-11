@@ -3,11 +3,14 @@ import {
   IsArray,
   IsDateString,
   IsNumber,
+  IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   Max,
   Min,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -21,6 +24,22 @@ class ObjectAttendanceEmployeeFactDto {
   @Min(0)
   @Max(24)
   workedHours?: number;
+
+  @IsOptional()
+  @IsIn(['complex_shift', 'side_job'])
+  ratePolicyType?: 'complex_shift' | 'side_job';
+
+  @IsOptional()
+  @IsInt() @Min(0) @Max(2147483647)
+  rateAmount?: number;
+
+  @IsOptional()
+  @IsString() @MaxLength(1000)
+  rateReason?: string;
+
+  @IsOptional()
+  @IsIn([true])
+  clearRateOverride?: true;
 }
 
 export class UpsertObjectAttendanceDto {

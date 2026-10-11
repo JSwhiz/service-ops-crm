@@ -10,6 +10,10 @@
   gap: 10px;
 }
 
+.header:has(.replacementControl) {
+  justify-content: flex-start;
+}
+
 .title {
   color: #3f3732;
   font-size: 15px;
@@ -22,12 +26,179 @@
   height: 24px;
   display: inline-grid;
   place-items: center;
-  border: 1px solid #e1d8d1;
-  border-radius: 6px;
-  background: #f8f4f1;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-muted);
   color: #71645c;
   font-size: 11.5px;
   font-weight: 700;
+}
+
+.replacementControl {
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: 4px;
+}
+
+.replaceButton {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  color: #65564d;
+  background: #f3efeb;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.replaceButton:hover:not(:disabled) {
+  background: #f2eeea;
+}
+
+.replaceButton:focus-visible {
+  outline: 2px solid #9b7b67;
+  outline-offset: 2px;
+}
+
+.replaceButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.replaceButton svg {
+  width: 28px;
+  height: 28px;
+}
+
+.replacementOverlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(35, 29, 25, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.replacementDialog {
+  display: grid;
+  width: min(460px, 100%);
+  max-height: min(620px, calc(100dvh - 48px));
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 16px;
+  padding: 22px;
+  overflow: hidden;
+  border: 1px solid rgba(113, 94, 80, 0.18);
+  border-radius: 16px;
+  background: var(--ui-surface);
+  box-shadow: 0 24px 72px rgba(31, 24, 20, 0.26);
+}
+
+.dialogHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.dialogHeader h2 {
+  margin: 0;
+  color: var(--ui-text-primary);
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.dialogHeader p {
+  margin: 5px 0 0;
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dialogClose {
+  display: flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  color: #65564d;
+  background: #f3efeb;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.dialogClose svg {
+  width: 19px;
+  height: 19px;
+}
+
+.replacementDialog > input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ui-text-primary);
+  font: inherit;
+}
+
+.replacementOptions {
+  display: grid;
+  min-height: 0;
+  max-height: min(420px, 52vh);
+  margin-top: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.replacementOptions > button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 8px;
+  color: var(--ui-text-primary);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.replacementOptions > button:hover:not(:disabled) {
+  background: var(--ui-surface-muted);
+}
+
+.replacementOptions > button:disabled {
+  opacity: 0.6;
+}
+
+.replacementOptions > button strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.replacementOptions > button span {
+  color: var(--ui-text-secondary);
+  font-size: 11.5px;
+}
+
+@media (max-width: 620px) {
+  .replacementOverlay {
+    padding: 14px;
+  }
+
+  .replacementDialog {
+    max-height: calc(100dvh - 28px);
+    padding: 18px;
+  }
 }
 
 .group,
@@ -42,10 +213,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 8px 7px 10px;
-  border: 1px solid #e7dfd9;
-  border-radius: 7px;
-  background: #fffdfb;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
 }
 
 .identity {
@@ -72,8 +244,7 @@
 }
 
 .addControl {
-  padding-top: 11px;
-  border-top: 1px solid #eee7e1;
+  padding-top: 2px;
 }
 
 .addControl :global(.searchable-select) {
@@ -103,17 +274,18 @@
 }
 
 .empty {
-  color: #8a7e76;
+  color: var(--ui-text-secondary);
   font-size: 12.5px;
   line-height: 1.4;
 }
 
 .error {
-  border: 1px solid #ead7d2;
-  border-radius: 7px;
+  border: 0;
+  border-left: 2px solid var(--ui-danger);
+  border-radius: 0;
   padding: 8px 9px;
-  background: #fbf4f2;
-  color: #934f40;
+  background: var(--ui-danger-subtle);
+  color: var(--ui-danger);
   font-size: 12.5px;
 }
 

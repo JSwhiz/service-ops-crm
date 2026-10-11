@@ -21,6 +21,9 @@ import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inv
 import { INVENTORY_MOVEMENT_TYPE_OPTIONS } from '@/shared/lib/inventory-presentation';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -47,11 +50,14 @@ export default function InventoryMovementsPage(): React.JSX.Element {
   const [movementStatus, setMovementStatus] = useState('');
   const [selectedItemId, setSelectedItemId] = useState('');
   const [selectedObjectId, setSelectedObjectId] = useState('');
+  const [objectFilterActive, setObjectFilterActive] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [approvalBridgeOnly, setApprovalBridgeOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [periodFilterActive, setPeriodFilterActive] = useState(false);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +100,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
         if (!cancelled) {
           setItems(loadedItems.items);
           setMovements(loadedMovements.items);
+          setTotal(loadedMovements.total);
           setTotalPages(loadedMovements.totalPages);
           setObjectOptions(loadedObjects);
           setOneTimeOrderOptions(loadedOrders);
@@ -132,14 +139,40 @@ export default function InventoryMovementsPage(): React.JSX.Element {
     page,
   ]);
 
+  const movementTypeOptions = INVENTORY_MOVEMENT_TYPE_OPTIONS.map((option) => ({ value: option.value, label: option.label }));
+  const movementStatusOptions = [
+    { value: 'applied', label: 'Применено' },
+    { value: 'pending_approval', label: 'Ожидает согласования' },
+    { value: 'rejected', label: 'Отклонено' },
+    { value: 'cancelled', label: 'Отменено' },
+  ];
+  const activeFilters = [
+    movementType ? { id: 'type', label: 'Тип движения', value: movementType, options: movementTypeOptions, onChange: (value: string) => { setMovementType(value); setPage(1); }, onRemove: () => { setMovementType(''); setPage(1); } } : null,
+    movementStatus ? { id: 'status', label: 'Статус', value: movementStatus, options: movementStatusOptions, onChange: (value: string) => { setMovementStatus(value); setPage(1); }, onRemove: () => { setMovementStatus(''); setPage(1); } } : null,
+    selectedItemId ? { id: 'item', label: 'Номенклатура', value: selectedItemId, options: items.map((item) => ({ value: item.id, label: item.name })), onChange: (value: string) => { setSelectedItemId(value); setPage(1); }, onRemove: () => { setSelectedItemId(''); setPage(1); } } : null,
+    objectFilterActive || selectedObjectId ? { id: 'object', label: 'Объект', value: selectedObjectId, options: objectOptions.map((item) => ({ value: item.id, label: item.name })), onChange: (value: string) => { setSelectedObjectId(value); setPage(1); }, onRemove: () => { setSelectedObjectId(''); setObjectFilterActive(false); setPage(1); }, customControl: <SearchableSelect label="Объект" hideLabel value={selectedObjectId} options={objectOptions.map((item) => ({ value: item.id, label: item.name }))} placeholder="Все объекты" searchPlaceholder="Введите название объекта" minimumSearchLength={2} searchPromptText="Введите не менее 2 символов, чтобы найти объект" searchInputVariant="registry" onChange={(value) => { setSelectedObjectId(value); setPage(1); }} /> } : null,
+    selectedOrderId ? { id: 'order', label: 'Разовый заказ', value: selectedOrderId, options: oneTimeOrderOptions.map((item) => ({ value: item.id, label: item.title })), onChange: (value: string) => { setSelectedOrderId(value); setPage(1); }, onRemove: () => { setSelectedOrderId(''); setPage(1); } } : null,
+    periodFilterActive ? { id: 'period', label: 'Период', value: dateFrom || dateTo ? `${dateFrom || '…'} — ${dateTo || '…'}` : 'Любые даты', options: [], onChange: () => undefined, onRemove: () => { setDateFrom(''); setDateTo(''); setPeriodFilterActive(false); setPage(1); }, customControl: <div className="registry-date-range"><input aria-label="Дата с" type="date" max={dateTo || undefined} value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} /><span>—</span><input aria-label="Дата по" type="date" min={dateFrom || undefined} value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></div> } : null,
+    approvalBridgeOnly ? { id: 'bridge', label: 'Фото', value: 'true', options: [{ value: 'true', label: 'Только без фото / bridge' }], onChange: () => undefined, onRemove: () => { setApprovalBridgeOnly(false); setPage(1); } } : null,
+  ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
+  const availableFilters = [
+    !movementType ? { id: 'type', label: 'Тип движения', options: movementTypeOptions, onAdd: (value: string) => { setMovementType(value); setPage(1); } } : null,
+    !movementStatus ? { id: 'status', label: 'Статус', options: movementStatusOptions, onAdd: (value: string) => { setMovementStatus(value); setPage(1); } } : null,
+    !selectedItemId ? { id: 'item', label: 'Номенклатура', options: items.map((item) => ({ value: item.id, label: item.name })), onAdd: (value: string) => { setSelectedItemId(value); setPage(1); } } : null,
+    !objectFilterActive && !selectedObjectId ? { id: 'object', label: 'Объект', options: [{ value: 'object', label: 'Выбрать объект' }], onAdd: () => { setObjectFilterActive(true); setPage(1); } } : null,
+    !selectedOrderId ? { id: 'order', label: 'Разовый заказ', options: oneTimeOrderOptions.map((item) => ({ value: item.id, label: item.title })), onAdd: (value: string) => { setSelectedOrderId(value); setPage(1); } } : null,
+    !periodFilterActive ? { id: 'period', label: 'Период', options: [{ value: 'period', label: 'Выбрать даты' }], onAdd: () => { setPeriodFilterActive(true); setPage(1); } } : null,
+    !approvalBridgeOnly ? { id: 'bridge', label: 'Фото', options: [{ value: 'true', label: 'Только без фото / bridge' }], onAdd: () => { setApprovalBridgeOnly(true); setPage(1); } } : null,
+  ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
+
   return (
-    <>
+    <div className="workspace-page inventory-workspace">
       <PageTitle title="Движения расходников" />
 
       {!canAccessInventory ? (
         <div className="page-card">У вас нет доступа к inventory-модулю.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
+        <div className="page-stack">
           <InventoryMovementForm
             items={items}
             objectOptions={objectOptions}
@@ -153,17 +186,18 @@ export default function InventoryMovementsPage(): React.JSX.Element {
             canReturn={capabilities?.canReturnInventory ?? false}
             canWriteoff={capabilities?.canWriteoffInventory ?? false}
             canAdjust={capabilities?.canAdjustInventory ?? false}
-            onSubmit={async ({ payload, evidenceFiles }) => {
+            onSubmit={async ({ payload }) => {
               const created = await createInventoryMovement(payload);
-
-              for (const file of evidenceFiles) {
-                await uploadFileToEntity({
-                  entityType: 'inventory_movement',
-                  entityId: created.id,
-                  file,
-                });
-              }
-
+              return created;
+            }}
+            onAttachEvidence={async (movementId, files) => {
+              await Promise.all(files.map((file) => uploadFileToEntity({
+                entityType: 'inventory_movement',
+                entityId: movementId,
+                file,
+              })));
+            }}
+            onRefresh={async () => {
               const [updatedItems, updatedMovements] = await Promise.all([
                 listInventoryItems({ isActive: true, limit: 100 }),
                 listInventoryMovements({
@@ -186,148 +220,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
             }}
           />
 
-          <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-            <div style={{ fontWeight: 600 }}>Фильтры</div>
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              }}
-            >
-              <label>
-                <div style={{ marginBottom: 6 }}>Тип движения</div>
-                <select
-                  value={movementType}
-                  onChange={(event) => {
-                    setMovementType(event.target.value);
-                    setPage(1);
-                  }}
-                  style={{ width: '100%', padding: 10 }}
-                >
-                  <option value="">Все типы</option>
-                  {INVENTORY_MOVEMENT_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <div style={{ marginBottom: 6 }}>Статус</div>
-                <select
-                  value={movementStatus}
-                  onChange={(event) => {
-                    setMovementStatus(event.target.value);
-                    setPage(1);
-                  }}
-                  style={{ width: '100%', padding: 10 }}
-                >
-                  <option value="">Все статусы</option>
-                  <option value="applied">Применено</option>
-                  <option value="pending_approval">Ожидает согласования</option>
-                  <option value="rejected">Отклонено</option>
-                  <option value="cancelled">Отменено</option>
-                </select>
-              </label>
-
-              <label>
-                <div style={{ marginBottom: 6 }}>Номенклатура</div>
-                <select
-                  value={selectedItemId}
-                  onChange={(event) => {
-                    setSelectedItemId(event.target.value);
-                    setPage(1);
-                  }}
-                  style={{ width: '100%', padding: 10 }}
-                >
-                  <option value="">Все позиции</option>
-                  {items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <div style={{ marginBottom: 6 }}>Объект</div>
-                <select
-                  value={selectedObjectId}
-                  onChange={(event) => {
-                    setSelectedObjectId(event.target.value);
-                    setPage(1);
-                  }}
-                  style={{ width: '100%', padding: 10 }}
-                >
-                  <option value="">Все объекты</option>
-                  {objectOptions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <div style={{ marginBottom: 6 }}>Разовый заказ</div>
-                <select
-                  value={selectedOrderId}
-                  onChange={(event) => {
-                    setSelectedOrderId(event.target.value);
-                    setPage(1);
-                  }}
-                  style={{ width: '100%', padding: 10 }}
-                >
-                  <option value="">Все заказы</option>
-                  {oneTimeOrderOptions.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <div style={{ marginBottom: 6 }}>Период: с</div>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(event) => {
-                    setDateFrom(event.target.value);
-                    setPage(1);
-                  }}
-                  style={{ width: '100%', padding: 10 }}
-                />
-              </label>
-
-              <label>
-                <div style={{ marginBottom: 6 }}>Период: по</div>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(event) => {
-                    setDateTo(event.target.value);
-                    setPage(1);
-                  }}
-                  style={{ width: '100%', padding: 10 }}
-                />
-              </label>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={approvalBridgeOnly}
-                  onChange={(event) => {
-                    setApprovalBridgeOnly(event.target.checked);
-                    setPage(1);
-                  }}
-                />
-                Только без фото / bridge
-              </label>
-            </div>
-          </div>
+          <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeFilters} availableFilters={availableFilters} />
 
           {isLoading ? (
             <div className="page-card">Загрузка...</div>
@@ -339,31 +232,11 @@ export default function InventoryMovementsPage(): React.JSX.Element {
             <InventoryMovementList items={movements} />
           )}
 
-          {totalPages > 1 ? (
-            <div className="page-card pagination-row">
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={page <= 1 || isLoading}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Назад
-              </button>
-              <span className="page-muted">
-                Страница {page} из {totalPages}
-              </span>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={page >= totalPages || isLoading}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Далее
-              </button>
-            </div>
-          ) : null}
+          {!isLoading && !error ? <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы движений расходников"
+            summary={total > 0 ? `Показано ${(page - 1) * 25 + 1}–${Math.min(page * 25, total)} из ${total}` : 'Движения не найдены'}
+            onPageChange={setPage} /> : null}
         </div>
       )}
-    </>
+    </div>
   );
 }

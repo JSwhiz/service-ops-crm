@@ -8,23 +8,37 @@ import {
   getTaskPriorityLabel,
   getTaskStatusLabel,
 } from '@/shared/lib/task-presentation';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
 
-export function TaskListTable({ items, embedded = false }: { items: TaskItem[]; embedded?: boolean }): React.JSX.Element {
+export function TaskListTable({
+  items,
+  embedded = false,
+  emptyText = 'Задачи не найдены.',
+}: {
+  items: TaskItem[];
+  embedded?: boolean;
+  emptyText?: string;
+}): React.JSX.Element {
   if (items.length === 0) {
-    return <div className={embedded ? 'page-muted' : 'page-card workspace-surface workspace-empty'}>Задачи не найдены.</div>;
+    return <div className={embedded ? 'page-muted' : 'page-card workspace-surface workspace-empty'}>{emptyText}</div>;
   }
 
   return (
-    <div className={embedded ? 'task-table-scroll' : 'page-card workspace-surface data-table-shell task-table-scroll'}>
-      <table className="task-table">
+    <DataTable
+      label="Таблица задач"
+      className="task-table"
+      frameClassName={embedded ? 'task-table-scroll' : 'page-card workspace-surface data-table-shell task-table-scroll'}
+    >
         <thead>
           <tr>
-            <th>Задача</th>
-            <th>Связи</th>
-            <th>Исполнители</th>
-            <th>Прогресс</th>
-            <th>Срок</th>
-            <th>Статус</th>
+            <th scope="col">Задача</th>
+            <th scope="col">Связи</th>
+            <th scope="col">Исполнители</th>
+            <th scope="col">Прогресс</th>
+            <th scope="col">Срок</th>
+            <th scope="col">Статус</th>
+            <th scope="col" aria-label="Открыть полную карточку" />
           </tr>
         </thead>
         <tbody>
@@ -50,10 +64,10 @@ export function TaskListTable({ items, embedded = false }: { items: TaskItem[]; 
                 <span className="status-pill" data-status={item.status}>{getTaskStatusLabel(item.status)}</span>
                 {item.requiresConfirmation ? <span className="task-table__meta">С подтверждением</span> : null}
               </td>
+              <td className="registry-open-cell"><RegistryOpenLink href={`/tasks/${item.id}`} label={`Открыть задачу ${item.title}`} /></td>
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+    </DataTable>
   );
 }

@@ -2,114 +2,73 @@ import Link from 'next/link';
 import React from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
-import { getUserDisplayName } from '@/shared/lib/display-name';
-import {
-  getOneTimeOrderPlannedPaymentMethodLabel,
-  getOneTimeOrderStatusLabel,
-} from '@/shared/lib/one-time-order-presentation';
+import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import { Button, EntityHeader } from '@/shared/ui/foundation';
+import styles from './one-time-order-summary-card.module.css';
 
 export function OneTimeOrderSummaryCard({
   item,
+  onEdit,
+  onComplete,
+  isEditing = false,
 }: {
   item: OneTimeOrderItem;
+  onEdit?: () => void;
+  onComplete?: () => void;
+  isEditing?: boolean;
 }): React.JSX.Element {
-  return (
-    <div
-      className="page-card hero-card"
-      style={{ display: 'grid', gap: 18 }}
-    >
-      <div className="section-header">
-        <div>
-          <div className="hero-title">{item.title}</div>
-          <div className="hero-meta">{item.executionAddress}</div>
-        </div>
-        <div className="action-row">
-          <Link className="button-link" href={`/one-time-orders/${item.id}/workforce`}>
-            Команда и табель
-          </Link>
-          <span className="status-pill" data-status={item.status}>
-            {getOneTimeOrderStatusLabel(item.status)}
-          </span>
-        </div>
-      </div>
+  const status = <span className="status-pill" data-status={item.status}>{getOneTimeOrderStatusLabel(item.status)}</span>;
+  const facts = [
+    {
+      label: 'Дата исполнения',
+      value: item.executionDate ? new Date(item.executionDate).toLocaleDateString('ru-RU') : 'Не назначена',
+    },
+    {
+      label: 'Контакт',
+      value: item.contactPhone ? `${item.contactName} · ${item.contactPhone}` : item.contactName,
+    },
+    {
+      label: 'Сумма заказа',
+      value: item.agreedSum !== null ? `${item.agreedSum.toLocaleString('ru-RU')} ₽` : 'Не указана',
+    },
+    {
+      label: 'Объект',
+      value: item.linkedObject
+        ? item.linkedObject.canOpenObjectCard
+          ? <Link href={`/objects/${item.linkedObject.id}`}>{item.linkedObject.name}</Link>
+          : `${item.linkedObject.name} (без доступа к карточке)`
+        : 'Не привязан',
+    },
+  ];
 
-      <div className="detail-grid">
-        <Field
-          label="Дата исполнения"
-          value={
-            item.executionDate
-              ? new Date(item.executionDate).toLocaleDateString('ru-RU')
-              : '—'
-          }
-        />
-        <Field
-          label="Контакт"
-          value={
-            item.contactPhone
-              ? `${item.contactName} (${item.contactPhone})`
-              : item.contactName
-          }
-        />
-        <Field
-          label="Сумма"
-          value={
-            item.agreedSum !== null
-              ? `${item.agreedSum.toLocaleString('ru-RU')} ₽`
-              : '—'
-          }
-        />
-        <Field
-          label="Плановый способ оплаты"
-          value={
-            item.plannedPaymentMethod
-              ? getOneTimeOrderPlannedPaymentMethodLabel(
-                  item.plannedPaymentMethod,
-                )
-              : '—'
-          }
-        />
-        <Field
-          label="Связанный объект"
-          value={
-            item.linkedObject
-              ? item.linkedObject.canOpenObjectCard
-                ? item.linkedObject.name
-                : `${item.linkedObject.name} (без доступа к карточке)`
-              : '—'
-          }
-          href={
-            item.linkedObject?.canOpenObjectCard
-              ? `/objects/${item.linkedObject.id}`
-              : undefined
-          }
-        />
-        <Field
-          label="Менеджеры"
-          value={item.managers.map(getUserDisplayName).join(', ') || '—'}
-        />
-        <Field label="Описание" value={item.description ?? '—'} />
-        <Field label="Финансовые заметки" value={item.financialNotes ?? '—'} />
-        <Field label="Расходные заметки" value={item.expenseNotes ?? '—'} />
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: string;
-  href?: string;
-}): React.JSX.Element {
   return (
-    <div className="detail-field">
-      <div className="detail-label">{label}</div>
-      <div className="detail-value">
-        {href ? <Link href={href}>{value}</Link> : value}
+    <section className={`page-card workspace-surface hero-card ${styles.summary}`}>
+      <EntityHeader
+        title={item.title}
+        status={status}
+        metadata={item.executionAddress || 'Адрес выполнения не указан'}
+        actions={(
+          <div className="action-row one-time-order-summary__actions">
+            {onComplete && item.capabilities.canComplete ? (
+              <Button variant="primary" onClick={onComplete}>Завершить работу</Button>
+            ) : null}
+            {onEdit && item.capabilities.canEditOperationalFields ? (
+              <Button onClick={onEdit}>{isEditing ? 'Закрыть редактирование' : 'Редактировать'}</Button>
+            ) : null}
+            {item.capabilities.canCopy ? (
+              <Link className="ui-button" href={`/one-time-orders/new?copyFrom=${item.id}`}>Скопировать заказ</Link>
+            ) : null}
+          </div>
+        )}
+      />
+      <div className={`detail-grid ${styles.facts}`}>
+        {facts.map((fact) => (
+          <div className="detail-field" key={fact.label}>
+            <div className="detail-label">{fact.label}</div>
+            <div className={`detail-value ${styles.factValue}`}>{fact.value}</div>
+          </div>
+        ))}
       </div>
-    </div>
+    </section>
   );
 }

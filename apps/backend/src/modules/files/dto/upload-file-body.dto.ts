@@ -15,4 +15,9 @@ export class UploadFileBodyDto {
   @IsString()
   @MaxLength(100)
   fieldCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  originalName?: string;
 }

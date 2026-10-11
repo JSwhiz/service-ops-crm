@@ -33,6 +33,24 @@ export interface ChatRealtimeEvent {
   payload: Record<string, unknown>;
 }
 
+export interface NotificationRealtimeEvent {
+  type: 'notification.created';
+  recipientUserIds: string[];
+  payload: {
+    id: string;
+    type: string;
+    title: string;
+    body: string | null;
+    entityType: string | null;
+    entityId: string | null;
+    targetUrl: string | null;
+    readAt: null;
+    createdAt: string;
+  };
+}
+
+export type RealtimeEvent = ChatRealtimeEvent | NotificationRealtimeEvent;
+
 interface RealtimeClient {
   userId: string;
   socket: Socket;
@@ -88,7 +106,7 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async publish(event: ChatRealtimeEvent): Promise<void> {
+  async publish(event: RealtimeEvent): Promise<void> {
     await this.redisService
       .getClient()
       .publish(CHAT_REDIS_CHANNEL, JSON.stringify(event));
@@ -185,7 +203,7 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
 
   private handleRedisEvent(message: string): void {
     try {
-      const event = JSON.parse(message) as ChatRealtimeEvent;
+      const event = JSON.parse(message) as RealtimeEvent;
       const recipients = new Set(event.recipientUserIds);
 
       for (const client of this.clients) {

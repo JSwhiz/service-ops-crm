@@ -61,7 +61,7 @@ export default function NewTaskPage(): React.JSX.Element {
   }, [targets]);
 
   return (
-    <div className="page-stack">
+    <div className="page-stack workspace-page task-detail-page">
       <PageTitle title="Создать задачу" />
       {isLoading ? <div className="page-card">Загрузка…</div> : error ? (
         <div className="page-card task-error" role="alert">{error}</div>

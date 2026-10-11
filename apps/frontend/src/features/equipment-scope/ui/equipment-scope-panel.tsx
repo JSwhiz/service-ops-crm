@@ -10,15 +10,17 @@ import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
 export function EquipmentScopePanel({
   title,
   units,
+  className,
 }: {
   title: string;
   units: EquipmentUnit[];
+  className?: string;
 }): React.JSX.Element {
   return (
-    <div className={`page-card ${styles.workPanel}`}>
+    <div className={`page-card ${styles.workPanel} ${className ?? ''}`}>
       <div className={styles.panelHeader}>
         <div className="section-title">{title}</div>
-        <span className={styles.panelMeta}>{units.length}</span>
+        {units.length > 0 ? <span className={styles.panelMeta}>{units.length}</span> : null}
       </div>
 
       {units.length === 0 ? (

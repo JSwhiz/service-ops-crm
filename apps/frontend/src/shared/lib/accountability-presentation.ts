@@ -44,6 +44,8 @@ export function getAccountabilityExpenseCategoryLabel(
       return 'Услуги';
     case 'other':
       return 'Другое';
+    case 'employee_payout':
+      return 'Выплата сотруднику';
     case null:
       return 'Без категории';
     default:
@@ -66,6 +68,10 @@ export function getAccountabilityClosureStatusLabel(status: string): string {
 
 export function getAccountabilityFundingTypeLabel(type: string): string {
   switch (type) {
+    case 'external_receipt':
+      return 'Внешнее поступление';
+    case 'external_receipt_reversal':
+      return 'Сторнирование внешнего поступления';
     case 'manual_issue':
       return 'Выдача денег';
     case 'one_time_order_receipt':

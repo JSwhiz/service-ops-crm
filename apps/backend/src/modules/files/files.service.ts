@@ -34,6 +34,7 @@ import {
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
 import { StorageService } from '../storage/storage.service';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import {
@@ -96,8 +97,19 @@ export class FilesService {
     this.assertValidFieldCode(entityType, body.fieldCode ?? null);
     await this.assertEntityWritable(currentUser, entityType, body.entityId);
 
+    const originalName = Array.from(body.originalName ?? file.originalname)
+      .map((character) => {
+        const code = character.charCodeAt(0);
+        return character === '/' || character === '\\' || code < 32 || code === 127
+          ? '_'
+          : character;
+      })
+      .join('')
+      .trim()
+      .slice(0, 255) || 'file';
+
     const verifiedMimeType = this.detectMimeType(file.buffer, file.mimetype);
-    const objectKey = this.buildObjectKey(entityType, file.originalname);
+    const objectKey = this.buildObjectKey(entityType, originalName);
     const storageResult = await this.storageService.uploadObject({
       objectKey,
       body: file.buffer,
@@ -110,7 +122,7 @@ export class FilesService {
         data: {
           bucket: storageResult.bucket,
           objectKey: storageResult.objectKey,
-          originalName: file.originalname,
+          originalName,
           mimeType: verifiedMimeType,
           sizeBytes: file.size,
           uploadedByUserId: currentUser.id,
@@ -701,6 +713,8 @@ export class FilesService {
         return this.canAccessEquipmentMovement(currentUser, entityId, 'read');
       case 'accountability_expense':
         return this.canAccessAccountabilityExpense(currentUser, entityId, 'read');
+      case 'accountability_funding':
+        return this.canAccessAccountabilityFunding(currentUser, entityId, 'read');
       case 'chat_message':
         return this.canAccessChatMessage(currentUser, entityId, 'read');
     }
@@ -760,6 +774,8 @@ export class FilesService {
         return this.canAccessEquipmentMovement(currentUser, entityId, 'write');
       case 'accountability_expense':
         return this.canAccessAccountabilityExpense(currentUser, entityId, 'write');
+      case 'accountability_funding':
+        return this.canAccessAccountabilityFunding(currentUser, entityId, 'write');
       case 'chat_message':
         return this.canAccessChatMessage(currentUser, entityId, 'write');
     }
@@ -796,7 +812,8 @@ export class FilesService {
     return (
       hasWideObjectAccess(roleCodes) ||
       object.createdByUserId === currentUser.id ||
-      object.assignments.some((assignment) => assignment.userId === currentUser.id)
+      object.assignments.some((assignment) => assignment.userId === currentUser.id) ||
+      hasDelegatedObjectAction(currentUser.id, objectId, 'view')
     );
   }
 
@@ -822,7 +839,8 @@ export class FilesService {
 
     return (
       canEditObject(roleCodes) ||
-      (object.status === 'frozen' && canOverrideFrozenObject(roleCodes))
+      (object.status === 'frozen' && canOverrideFrozenObject(roleCodes)) ||
+      hasDelegatedObjectAction(currentUser.id, objectId, 'edit')
     );
   }
 
@@ -950,6 +968,7 @@ export class FilesService {
         createdByUserId: true,
         relatedObject: {
           select: {
+            id: true,
             createdByUserId: true,
             assignments: {
               where: {
@@ -994,6 +1013,7 @@ export class FilesService {
 
     return (
       canAccessInventory(roleCodes) ||
+      hasDelegatedObjectAction(currentUser.id, movement.relatedObject?.id, 'view') ||
       movement.createdByUserId === currentUser.id ||
       (!!movement.relatedObject &&
         (movement.relatedObject.createdByUserId === currentUser.id ||
@@ -1021,6 +1041,7 @@ export class FilesService {
         createdByUserId: true,
         fromObject: {
           select: {
+            id: true,
             createdByUserId: true,
             assignments: {
               where: { isActive: true },
@@ -1030,6 +1051,7 @@ export class FilesService {
         },
         toObject: {
           select: {
+            id: true,
             createdByUserId: true,
             assignments: {
               where: { isActive: true },
@@ -1073,6 +1095,7 @@ export class FilesService {
     const canReadObjectLike = (object: typeof movement.fromObject) =>
       !!object &&
       (object.createdByUserId === currentUser.id ||
+        hasDelegatedObjectAction(currentUser.id, object.id, 'view') ||
         object.assignments.some(
           (assignment) => assignment.userId === currentUser.id,
         ));
@@ -1299,6 +1322,29 @@ export class FilesService {
         permissionCodes: this.getPermissionCodes(currentUser),
       })
     );
+  }
+
+  private async canAccessAccountabilityFunding(
+    currentUser: CurrentAuthUser,
+    fundingId: string,
+    mode: 'read' | 'write',
+  ): Promise<boolean> {
+    const funding = await this.prisma.accountabilityFunding.findUnique({
+      where: { id: fundingId },
+      select: {
+        fundingType: true,
+        accountabilityAccount: { select: { userId: true } },
+      },
+    });
+    if (!funding) throw new NotFoundException('Attachment target accountability funding not found');
+    const isOwner = funding.accountabilityAccount.userId === currentUser.id;
+    if (mode === 'write') {
+      return isOwner && funding.fundingType === 'external_receipt';
+    }
+    return isOwner || canReviewAccountability({
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+    });
   }
 
   private async canCurrentUserViewOwnAccountability(

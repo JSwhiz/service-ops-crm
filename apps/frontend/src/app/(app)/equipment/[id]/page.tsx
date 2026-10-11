@@ -81,7 +81,12 @@ export default function EquipmentDetailPage({
             setObjects(response);
           }
         }),
-        listOneTimeOrders({
+      );
+    } else if (!cancelled) {
+      setObjects([]);
+    }
+    if (loadedUnit.capabilities.canAssignToOneTimeOrder) {
+      requests.push(listOneTimeOrders({
           limit: 100,
           sortBy: 'title',
           sortDirection: 'asc',
@@ -89,10 +94,8 @@ export default function EquipmentDetailPage({
           if (!cancelled) {
             setOrders(response.items);
           }
-        }),
-      );
+        }));
     } else if (!cancelled) {
-      setObjects([]);
       setOrders([]);
     }
 
@@ -128,7 +131,7 @@ export default function EquipmentDetailPage({
   }, [params]);
 
   return (
-    <>
+    <div className="workspace-page equipment-workspace">
       <PageTitle
         title={unit ? `${unit.catalogItem.name} · ${unit.inventoryNumber}` : 'Оборудование'}
       />
@@ -282,6 +285,6 @@ export default function EquipmentDetailPage({
       ) : (
         <div className="page-card">Оборудование не найдено.</div>
       )}
-    </>
+    </div>
   );
 }

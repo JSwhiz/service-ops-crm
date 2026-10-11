@@ -4,6 +4,7 @@ import test from 'node:test';
 import { PrismaClient } from '@prisma/client';
 
 import {
+  SEEDED_OBJECT_ID,
   SEEDED_EMPLOYEE_IDS,
   cleanupCoreTestObject,
   createCoreTestObject,
@@ -158,6 +159,10 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
   const founder = await prisma.user.findUniqueOrThrow({
     where: { login: 'founder' },
     select: { id: true },
+  });
+  const currentManager = await prisma.user.findUniqueOrThrow({
+    where: { login: 'manager1' },
+    select: { fullName: true },
   });
 
   await prisma.objectAttendanceFact.createMany({
@@ -391,6 +396,27 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
     2,
   );
 
+  // Legacy production objects use canonical UUID-shaped IDs that are not RFC UUID v4.
+  // They must remain usable in filters and detail routes.
+  const legacyObjectOverviewResponse = await api(
+    baseUrl,
+    founderCookie,
+    `/timesheets/overview?year=${year}&month=${month}&objectId=${SEEDED_OBJECT_ID}`,
+  );
+  assert.equal(legacyObjectOverviewResponse.status, 200);
+  const legacyObjectDetailResponse = await api(
+    baseUrl,
+    founderCookie,
+    `/timesheets?objectId=${SEEDED_OBJECT_ID}&year=${year}&month=${month}`,
+  );
+  assert.equal(legacyObjectDetailResponse.status, 200);
+  const legacyObjectReferenceResponse = await api(
+    baseUrl,
+    founderCookie,
+    `/timesheets/overview/references/objects?selectedId=${SEEDED_OBJECT_ID}`,
+  );
+  assert.equal(legacyObjectReferenceResponse.status, 200);
+
   const firstIvan = overview.rows.find(
     (row) => row.objectId === first.objectId && row.employeeId === SEEDED_EMPLOYEE_IDS.ivan,
   );
@@ -544,6 +570,8 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
   assert.ok(workbookText.indexOf('>29<') < workbookText.indexOf('Аванс'));
   assert.ok(workbookText.indexOf('Аванс') < workbookText.indexOf('ЗП'));
   assert.ok(workbookText.indexOf('ЗП') < workbookText.indexOf('Итого'));
+  assert.ok(workbookText.includes('Менеджер на момент выгрузки'));
+  assert.ok(workbookText.includes(currentManager.fullName));
   assert.match(workbookText, /ИТОГО/);
   for (const value of [
     firstIvan.advanceTotal,

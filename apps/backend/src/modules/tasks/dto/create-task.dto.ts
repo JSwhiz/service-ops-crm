@@ -49,6 +49,14 @@ export class CreateTaskDto {
   visibilityMode?: 'scope' | 'selected';
 
   @IsOptional()
+  @IsIn(['all_users', 'selected_users', 'target_participants', 'private'])
+  visibilityType?:
+    | 'all_users'
+    | 'selected_users'
+    | 'target_participants'
+    | 'private';
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   visibleUserIds?: string[];
@@ -58,21 +66,15 @@ export class CreateTaskDto {
   requiresConfirmation?: boolean;
 
   @IsOptional()
-  @IsIn([
-    'none',
-    'comment_or_file',
-    'comment_required',
-    'file_required',
-  ])
+  @IsIn(['none', 'comment_or_file', 'comment_required', 'file_required'])
   completionRequirement?:
     | 'none'
     | 'comment_or_file'
     | 'comment_required'
     | 'file_required';
 
-  @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  dueDate?: string | null;
+  dueDate!: string;
 
   @IsOptional()
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)

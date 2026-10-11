@@ -9,8 +9,10 @@ import type {
   CounterpartyListResponse,
 } from '@/entities/counterparty/model/counterparty.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+
+import styles from './counterparties.module.css';
 
 const EMPTY: CounterpartyListResponse = {
   items: [],
@@ -19,6 +21,146 @@ const EMPTY: CounterpartyListResponse = {
   total: 0,
   totalPages: 0,
 };
+
+const shortDateFormatter = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'short',
+});
+
+const fullDateFormatter = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Активные' },
+  { value: 'archived', label: 'Архив' },
+] as const;
+
+function SearchIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </svg>
+  );
+}
+
+function PlusIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function ChevronIcon(): React.JSX.Element {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m7 10 5 5 5-5" />
+    </svg>
+  );
+}
+
+function StatusFilter({
+  value,
+  onChange,
+  onReset,
+}: {
+  value: 'active' | 'archived' | 'all';
+  onChange: (value: 'active' | 'archived' | 'all') => void;
+  onReset: () => void;
+}): React.JSX.Element {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption = STATUS_OPTIONS.find((option) => option.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent): void => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className={styles.addFilterRoot} ref={rootRef}>
+      {selectedOption ? (
+        <div className={styles.filterControl}>
+          <button
+            type="button"
+            className={styles.filterTrigger}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            onClick={() => setOpen((current) => !current)}
+          >
+            <span className={styles.filterCopy}>
+              <span className={styles.filterLabel}>Статус</span>
+              <strong>{selectedOption.label}</strong>
+            </span>
+            <ChevronIcon />
+          </button>
+          <button
+            type="button"
+            className={styles.filterRemove}
+            aria-label="Убрать фильтр статуса"
+            title="Убрать фильтр"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.currentTarget.blur();
+              onReset();
+            }}
+          >
+            ×
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={styles.addFilterButton}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <PlusIcon />
+          <span>Добавить фильтр</span>
+        </button>
+      )}
+      {open ? (
+        <div className={selectedOption ? styles.filterDropdown : styles.addFilterMenu} role={selectedOption ? 'listbox' : 'menu'} aria-label="Статус контрагента">
+          {!selectedOption ? <div className={styles.filterDropdownLabel}>Статус</div> : null}
+          {STATUS_OPTIONS.map((option) => (
+            <button
+              type="button"
+              role={selectedOption ? 'option' : 'menuitem'}
+              aria-selected={selectedOption ? option.value === value : undefined}
+              className={selectedOption ? styles.filterOption : styles.addFilterOption}
+              data-selected={option.value === value ? 'true' : 'false'}
+              key={option.value}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              {!selectedOption ? <span className={styles.addFilterOptionIcon}><PlusIcon /></span> : null}
+              <span>{option.label}</span>
+              {selectedOption && option.value === value ? <span className={styles.filterCheck} aria-hidden="true">✓</span> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function CounterpartiesPage(): React.JSX.Element {
   const { user } = useAuth();
@@ -30,7 +172,7 @@ export default function CounterpartiesPage(): React.JSX.Element {
   const q = searchParams.get('q') ?? '';
   const status =
     (searchParams.get('status') as 'active' | 'archived' | 'all' | null) ??
-    'active';
+    'all';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
 
   const [search, setSearch] = useState(q);
@@ -95,78 +237,59 @@ export default function CounterpartiesPage(): React.JSX.Element {
 
   if (!canAccess) {
     return (
-      <>
-        <PageTitle title="Контрагенты" />
-        <div className="page-card">У вас нет доступа к контрагентам.</div>
-      </>
+      <div className={`workspace-page counterparty-workspace ${styles.page}`}>
+        <div className={`page-card workspace-surface ${styles.surface} ${styles.emptyState}`}>У вас нет доступа к контрагентам.</div>
+      </div>
     );
   }
 
   return (
-    <div className="workspace-page page-stack">
-      <PageTitle title="Контрагенты" />
-
-      <section className="page-card workspace-surface section-header registry-header">
-        <div>
-          <div className="section-title">Реестр контрагентов</div>
-          <div className="page-muted">Найдено: {result.total}</div>
-        </div>
-        {canManage ? (
-          <Link className="button-link" href="/counterparties/new">
-            Добавить контрагента
-          </Link>
-        ) : null}
-      </section>
-
-      <section className="page-card workspace-surface filter-panel">
-        <label>
-          <span className="detail-label">Поиск</span>
+    <div className={`workspace-page counterparty-workspace ${styles.page}`}>
+      <section className={styles.toolbar} aria-label="Поиск и фильтр контрагентов">
+        <label className={styles.searchField}>
+          <SearchIcon />
           <input
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Название, юр. название или контакт"
+            aria-label="Поиск контрагентов"
           />
+          {search ? (
+            <button type="button" className={styles.searchClear} aria-label="Очистить поиск" onClick={() => setSearch('')}>×</button>
+          ) : null}
         </label>
-        <SearchableSelect
-          label="Статус"
-          value={status}
-          clearable={false}
-          options={[
-            { value: 'active', label: 'Активные' },
-            { value: 'archived', label: 'Архив' },
-            { value: 'all', label: 'Все' },
-          ]}
-          onChange={(value) =>
-            replaceQuery({
-              status: value === 'active' ? null : value,
-              page: null,
-            })
-          }
-        />
-        <button
-          type="button"
-          className="button-secondary"
-          onClick={() => {
-            setSearch('');
-            router.replace(pathname, { scroll: false });
-          }}
-        >
-          Сбросить
-        </button>
+        <div className={styles.toolbarActions}>
+          <StatusFilter
+            value={status}
+            onChange={(value) => replaceQuery({ status: value, page: null })}
+            onReset={() => replaceQuery({ status: null, page: null })}
+          />
+          {canManage ? (
+            <Link className={`${styles.primaryButton} ${styles.createButton}`} href="/counterparties/new">
+              <PlusIcon />
+              <span>Создать контрагента</span>
+            </Link>
+          ) : null}
+        </div>
       </section>
 
       {loading ? (
-        <div className="page-card">Загрузка...</div>
+        <div className={`page-card workspace-surface ${styles.surface} ${styles.loading}`}>Загружаем контрагентов…</div>
       ) : error ? (
-        <div className="page-card inline-notice inline-notice--warning">
+        <div className={`${styles.surface} ${styles.error}`} role="alert">
           {error}
         </div>
       ) : result.items.length === 0 ? (
-        <div className="page-card">Контрагенты не найдены.</div>
+        <div className={`page-card workspace-surface ${styles.surface} ${styles.emptyState}`}>
+          {q || status !== 'all' ? 'По заданным условиям контрагенты не найдены.' : 'Контрагентов пока нет.'}
+        </div>
       ) : (
-        <div className="page-card workspace-surface data-table-shell">
-          <table className="data-table">
+        <DataTable
+          label="Таблица контрагентов"
+          className={`object-registry-table ${styles.table}`}
+          frameClassName={`page-card workspace-surface data-table-shell ${styles.surface} ${styles.tableShell} ${styles.tableScroll}`}
+        >
             <thead>
               <tr>
                 <th>Контрагент</th>
@@ -174,17 +297,18 @@ export default function CounterpartiesPage(): React.JSX.Element {
                 <th>Основной контакт</th>
                 <th>Статус</th>
                 <th>Изменён</th>
+                <th aria-label="Открыть карточку" />
               </tr>
             </thead>
             <tbody>
               {result.items.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <Link href={`/counterparties/${item.id}`}>
+                    <Link className={styles.entityLink} href={`/counterparties/${item.id}`}>
                       {item.name}
                     </Link>
                     {item.legalName ? (
-                      <div className="page-muted">{item.legalName}</div>
+                      <div className={styles.muted}>{item.legalName}</div>
                     ) : null}
                   </td>
                   <td>{item.objectCount}</td>
@@ -193,46 +317,41 @@ export default function CounterpartiesPage(): React.JSX.Element {
                       <>
                         <div>{item.contactName ?? 'Контакт не указан'}</div>
                         {item.contactPhone ? (
-                          <div className="page-muted">{item.contactPhone}</div>
+                          <div className={styles.muted}>{item.contactPhone}</div>
                         ) : null}
                       </>
                     ) : (
-                      <span className="page-muted">Не указан</span>
+                      <span className={styles.muted}>Не указан</span>
                     )}
                   </td>
                   <td>
-                    <span className="status-pill" data-status={item.status}>
+                    <span className={styles.statusPill} data-status={item.status}>
+                      <span className={styles.statusDot} aria-hidden="true" />
                       {item.status === 'active' ? 'Активный' : 'Архив'}
                     </span>
                   </td>
-                  <td>{new Date(item.updatedAt).toLocaleString('ru-RU')}</td>
+                  <td title={fullDateFormatter.format(new Date(item.updatedAt))}>
+                    {shortDateFormatter.format(new Date(item.updatedAt))}
+                  </td>
+                  <td className={styles.actionCell}>
+                    <Link className={styles.openLink} href={`/counterparties/${item.id}`} aria-label={`Открыть контрагента ${item.name}`}>
+                      ›
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+        </DataTable>
       )}
 
-      {result.totalPages > 1 ? (
-        <div className="page-card workspace-surface pagination-row">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => replaceQuery({ page: String(page - 1) })}
-          >
-            Назад
-          </button>
-          <span>
-            Страница {page} из {result.totalPages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= result.totalPages}
-            onClick={() => replaceQuery({ page: String(page + 1) })}
-          >
-            Далее
-          </button>
-        </div>
+      {!loading && !error ? (
+        <TablePagination
+          page={page}
+          totalPages={result.totalPages}
+          onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
+          summary={result.total > 0 ? `Показано ${(page - 1) * result.limit + 1}–${Math.min(page * result.limit, result.total)} из ${result.total}` : 'Ничего не найдено'}
+          label="Страницы контрагентов"
+        />
       ) : null}
     </div>
   );

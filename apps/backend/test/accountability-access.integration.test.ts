@@ -16,6 +16,7 @@ interface MePayload {
     canIssueAccountabilityFunds: boolean;
     canReviewAccountability: boolean;
     canApproveAccountabilityClosure: boolean;
+    canRecordExternalReceipt: boolean;
   };
 }
 
@@ -207,13 +208,14 @@ test('own accountability access follows manager assignment and receipt eligibili
 
   const unrelatedMe = await getMe(unrelatedCookie);
   assert.equal(unrelatedMe.capabilities.canViewOwnAccountability, false);
-  assert.equal(unrelatedMe.capabilities.canAccessAccountability, false);
+  assert.equal(unrelatedMe.capabilities.canAccessAccountability, true);
+  assert.equal(unrelatedMe.capabilities.canRecordExternalReceipt, true);
 
   const unrelatedOwnResponse = await fetch(
     `${baseUrl}/api/v1/accountability/me`,
     { headers: { Cookie: unrelatedCookie } },
   );
-  assert.equal(unrelatedOwnResponse.status, 403);
+  assert.equal(unrelatedOwnResponse.status, 200);
 
   const unrelatedExpenseResponse = await fetch(
     `${baseUrl}/api/v1/accountability/me/expenses`,
@@ -231,6 +233,73 @@ test('own accountability access follows manager assignment and receipt eligibili
     await prisma.accountabilityAccount.count({ where: { userId: unrelated.id } }),
     0,
   );
+
+  const externalReceiptResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/me/fundings/external`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: unrelatedCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: 275.5,
+        source: 'Возврат личных средств',
+        comment: 'Зафиксировано вне заказов',
+      }),
+    },
+  );
+  assert.equal(externalReceiptResponse.status, 201);
+  const externalReceipt = (await externalReceiptResponse.json()) as {
+    id: string;
+    amount: number;
+    source: string;
+    fundingType: string;
+    entryDirection: string;
+  };
+  assert.equal(externalReceipt.amount, 275.5);
+  assert.equal(externalReceipt.source, 'Возврат личных средств');
+  assert.equal(externalReceipt.fundingType, 'external_receipt');
+  assert.equal(externalReceipt.entryDirection, 'credit');
+  const forbiddenReversalResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/fundings/${externalReceipt.id}/reverse`,
+    {
+      method: 'POST',
+      headers: { Cookie: unrelatedCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Нет права корректировки' }),
+    },
+  );
+  assert.equal(forbiddenReversalResponse.status, 403);
+  const reversalResponse = await fetch(
+    `${baseUrl}/api/v1/accountability/fundings/${externalReceipt.id}/reverse`,
+    {
+      method: 'POST',
+      headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Исправление тестовой записи' }),
+    },
+  );
+  assert.equal(reversalResponse.status, 201);
+  const reversal = (await reversalResponse.json()) as {
+    fundingType: string;
+    entryDirection: string;
+    reversalOfFundingId: string;
+  };
+  assert.equal(reversal.fundingType, 'external_receipt_reversal');
+  assert.equal(reversal.entryDirection, 'debit');
+  assert.equal(reversal.reversalOfFundingId, externalReceipt.id);
+  const unrelatedOwnLedger = await fetch(
+    `${baseUrl}/api/v1/accountability/me`,
+    { headers: { Cookie: unrelatedCookie } },
+  );
+  const unrelatedLedgerPayload = (await unrelatedOwnLedger.json()) as {
+    summary: { currentBalance: number };
+    fundings: Array<{ fundingType: string }>;
+    capabilities: { canCreateExpense: boolean };
+  };
+  assert.equal(unrelatedLedgerPayload.summary.currentBalance, 0);
+  assert.ok(unrelatedLedgerPayload.fundings.some((item) => item.fundingType === 'external_receipt'));
+  assert.ok(unrelatedLedgerPayload.fundings.some((item) => item.fundingType === 'external_receipt_reversal'));
+  assert.equal(unrelatedLedgerPayload.capabilities.canCreateExpense, false);
 
   const reviewPermission = await prisma.permission.findUniqueOrThrow({
     where: { code: 'accountability.review' },

@@ -1,7 +1,9 @@
-import { IsInt, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsInt, IsString, Matches, Max, Min } from 'class-validator';
+
+const CANONICAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class CreateTimesheetManualExceptionDto {
-  @IsUUID('4')
+  @Matches(CANONICAL_UUID_PATTERN)
   objectId!: string;
 
   @IsInt()
@@ -14,7 +16,7 @@ export class CreateTimesheetManualExceptionDto {
   @Max(12)
   month!: number;
 
-  @IsUUID('4')
+  @Matches(CANONICAL_UUID_PATTERN)
   employeeId!: string;
 
   @IsInt()

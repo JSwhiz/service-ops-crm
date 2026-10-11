@@ -16,11 +16,15 @@ export async function uploadFileToEntity(params: {
   entityType: string;
   entityId: string;
   file: File;
+  originalName?: string;
   fieldCode?: string;
 }): Promise<AttachedFile> {
   const formData = new FormData();
   formData.set('entityType', params.entityType);
   formData.set('entityId', params.entityId);
+  // Multipart filename headers are decoded inconsistently by some servers;
+  // send the display name as a UTF-8 form field as well.
+  formData.set('originalName', params.originalName ?? params.file.name);
 
   if (params.fieldCode) {
     formData.set('fieldCode', params.fieldCode);

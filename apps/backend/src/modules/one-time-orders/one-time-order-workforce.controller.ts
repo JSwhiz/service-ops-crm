@@ -3,24 +3,28 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { StreamableFile } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import {
   AddOneTimeOrderEmployeeDto,
+  OneTimeOrderAttendanceQueryDto,
   OneTimeOrderTimesheetQueryDto,
   SubmitOneTimeOrderAttendanceDto,
   UpdateOneTimeOrderEmployeePaymentDto,
 } from './dto/one-time-order-workforce.dto';
 import {
   OneTimeOrderAttendanceResponse,
+  OneTimeOrderAttendanceCoverageResponse,
   OneTimeOrderTimesheetResponse,
   OneTimeOrderWorkforceEmployee,
   OneTimeOrderWorkforceService,
@@ -92,8 +96,17 @@ export class OneTimeOrderWorkforceController {
   getTodayAttendance(
     @CurrentUser() user: CurrentAuthUser,
     @Param('orderId') orderId: string,
+    @Query() query: OneTimeOrderAttendanceQueryDto,
   ): Promise<OneTimeOrderAttendanceResponse> {
-    return this.oneTimeOrderWorkforceService.getTodayAttendance(user, orderId);
+    return this.oneTimeOrderWorkforceService.getAttendance(user, orderId, query.date);
+  }
+
+  @Get('attendance/coverage')
+  getAttendanceCoverage(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('orderId') orderId: string,
+  ): Promise<OneTimeOrderAttendanceCoverageResponse> {
+    return this.oneTimeOrderWorkforceService.getAttendanceCoverage(user, orderId);
   }
 
   @Post('attendance/today')
@@ -106,6 +119,8 @@ export class OneTimeOrderWorkforceController {
       user,
       orderId,
       payload.employeeIds,
+      payload.operationDate,
+      payload.correctionReason,
     );
   }
 
@@ -120,6 +135,19 @@ export class OneTimeOrderWorkforceController {
       orderId,
       query.month,
       query.workCycle,
+    );
+  }
+
+  @Get('timesheet/export.xlsx')
+  @Header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+  @Header('Content-Disposition', 'attachment; filename="one-time-order-workforce.xlsx"')
+  async exportTimesheet(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('orderId') orderId: string,
+    @Query() query: OneTimeOrderTimesheetQueryDto,
+  ): Promise<StreamableFile> {
+    return new StreamableFile(
+      await this.oneTimeOrderWorkforceService.exportTimesheet(user, orderId, query),
     );
   }
 }

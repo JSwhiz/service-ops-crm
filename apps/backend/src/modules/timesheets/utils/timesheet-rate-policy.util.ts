@@ -1,4 +1,5 @@
 import {
+  TIMESHEET_RATE_POLICY_TYPES,
   TimesheetRatePolicySnapshot,
   TimesheetRatePolicyType,
 } from '../types/timesheet-rate-policy.type';
@@ -38,6 +39,8 @@ const RATE_POLICY_LABELS: Record<TimesheetRatePolicyType, string> = {
   per_attendance: 'За выход',
   partial_shift: 'Частичная смена',
   agreed_substitution_rate: 'Подмена по договоренности',
+  complex_shift: 'Сложный выход',
+  side_job: 'Подработка',
 };
 
 export function getRatePolicyLabel(policy: TimesheetRatePolicySnapshot): string {
@@ -281,6 +284,8 @@ export function calculateTimesheetAutoValues(params: {
       return result;
 
     case 'agreed_substitution_rate':
+    case 'complex_shift':
+    case 'side_job':
       for (const fact of factsByDay.values()) {
         const factPolicy =
           parseRatePolicySnapshot(fact.ratePolicySnapshot) ?? params.policy;
@@ -288,9 +293,11 @@ export function calculateTimesheetAutoValues(params: {
           autoValue: factPolicy.baseAmount,
           workedHours: fact.workedHours,
           ratePolicySnapshot: factPolicy,
-          calculationExplanation: factPolicy.notes
-            ? `Договорная ставка. Основание: ${factPolicy.notes}`
-            : 'Договорная ставка подмены',
+          calculationExplanation: factPolicy.ratePolicyType === 'agreed_substitution_rate'
+            ? factPolicy.notes
+              ? `Договорная ставка. Основание: ${factPolicy.notes}`
+              : 'Договорная ставка подмены'
+            : `${RATE_POLICY_LABELS[factPolicy.ratePolicyType]}: ставка задана вручную${factPolicy.notes ? `. Основание: ${factPolicy.notes}` : ''}`,
         });
       }
       return result;
@@ -443,16 +450,7 @@ function roundByPolicy(
 }
 
 function isRatePolicyType(value: string): value is TimesheetRatePolicyType {
-  return [
-    'daily_rate',
-    'monthly_fixed',
-    'monthly_excluding_holidays',
-    'shift_2_2_fixed',
-    'shift_2_2_by_actual_shifts',
-    'per_attendance',
-    'partial_shift',
-    'agreed_substitution_rate',
-  ].includes(value);
+  return (TIMESHEET_RATE_POLICY_TYPES as readonly string[]).includes(value);
 }
 
 function normalizeScheduleCode(value: string | null | undefined) {

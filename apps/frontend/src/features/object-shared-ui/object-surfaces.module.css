@@ -10,9 +10,9 @@
   display: grid;
   gap: 16px;
   padding: 18px;
-  border: 1px solid #e5ddd6;
-  border-radius: 9px;
-  background: #fffdfb;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
   box-shadow: none;
 }
 
@@ -20,9 +20,9 @@
   display: grid;
   gap: 12px;
   padding: 16px 18px;
-  border: 1px solid #e5ddd6;
-  border-radius: 9px;
-  background: #fffdfb;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
   box-shadow: none;
 }
 
@@ -58,6 +58,21 @@
   min-width: 0;
 }
 
+.field > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  color: #493f39;
+  font-size: 13px;
+}
+
+.field > label > input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #68564a;
+}
+
 .fieldLabel {
   margin: 0;
   color: #685d55;
@@ -77,6 +92,191 @@
   display: grid;
   align-content: start;
   gap: 12px;
+}
+
+.statusHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.statusControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.statusControls :global(.object-status-control__action) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.statusControls :global(.object-status-control__action svg) {
+  display: block;
+  width: 19px;
+  height: 19px;
+  flex: 0 0 auto;
+}
+
+.statusHeader :global(.section-title) {
+  margin: 0;
+}
+
+.categoryField :global(.detail-label) {
+  color: #51453d;
+  font-size: 13px;
+  font-weight: 740;
+}
+
+.categoryField :global(.searchable-select__trigger) {
+  min-height: 44px;
+  border: 1px solid #cbbdb2;
+  border-radius: 8px;
+  background: #fffdfb;
+  box-shadow: 0 1px 2px rgba(63, 48, 39, 0.05);
+}
+
+.pendingFilesViewport,
+.savedFilesViewport,
+.savedPhotosViewport,
+.attendanceList {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #c8bbb1 transparent;
+  scroll-snap-type: y mandatory;
+  scroll-padding-block: 2px;
+}
+
+.pendingFilesViewport {
+  max-height: 244px;
+}
+
+.savedFilesViewport {
+  max-height: 212px;
+}
+
+.savedPhotosViewport {
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+}
+
+.pendingFilesViewport :global(.pending-media-item),
+.savedFilesViewport :global(.attachment-file-card),
+.savedPhotosViewport :global(.attachment-image-card-shell) {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.savedPhotosViewport :global(.attachment-image-grid) {
+  width: 100%;
+  grid-template-columns: unset;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 24px) / 4);
+  gap: 8px;
+}
+
+.savedPhotosViewport :global(.attachment-image-card-shell) {
+  aspect-ratio: 1;
+  min-width: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.savedPhotosViewport :global(.attachment-image-card) {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: 1;
+}
+
+.savedPhotosViewport :global(.attachment-image-card img) {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.savedPhotosViewport :global(.attachment-download-link) {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 7px;
+}
+
+.savedPhotosViewport :global(.attachment-download-link svg) {
+  width: 28px;
+  height: 28px;
+}
+
+.savedPhotosViewport :global(.attachment-preview-stack),
+.savedFilesViewport :global(.attachment-preview-stack) {
+  min-width: 0;
+}
+
+.savedPhotosViewport :global(.attachment-file-list),
+.savedFilesViewport :global(.attachment-file-list) {
+  max-height: 212px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scroll-snap-type: y mandatory;
+}
+
+.savedPhotosViewport :global(.attachment-file-card),
+.savedFilesViewport :global(.attachment-file-card) {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.attendanceList {
+  max-height: 284px;
+}
+
+.attendanceList > * {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.attendanceList > :global(.record-card) {
+  gap: 6px;
+  padding: 8px 10px;
+}
+
+.attendanceList :global(.attendance-hours-control) {
+  max-width: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0 30px;
+}
+
+.attendanceList :global(.attendance-hours-control input) {
+  width: 88px;
+  min-height: 32px;
+}
+
+@media (max-width: 760px) {
+  .statusHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .statusControls {
+    justify-content: flex-start;
+  }
 }
 
 .panelHeader {
@@ -144,15 +344,14 @@
 }
 
 .emptyState {
-  min-height: 48px;
+  min-height: 24px;
   display: flex;
   align-items: center;
-  padding: 10px 12px;
-  border: 1px dashed #e1d8d1;
-  border-radius: 7px;
-  background: #faf8f5;
-  color: #8a7e76;
-  font-size: 12.5px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -175,7 +374,7 @@
 .surfaceCompact :global(select),
 .surfaceCompact :global(textarea) {
   width: 100%;
-  min-height: 38px;
+  min-height: 40px;
   box-sizing: border-box;
   border: 1px solid #ddd3cc;
   border-radius: 7px;
@@ -204,6 +403,14 @@
 
 .surface :global(select),
 .surfaceCompact :global(select) {
+  appearance: none;
+  padding-right: 34px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ui-text-secondary) 50%),
+    linear-gradient(135deg, var(--ui-text-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
   cursor: pointer;
 }
 
@@ -251,12 +458,12 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  border: 1px solid #d9cec6;
-  border-radius: 7px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-md);
   padding: 8px 12px;
-  background: #fffdfb;
+  background: var(--ui-surface);
   box-shadow: none;
-  color: #4c413a;
+  color: var(--ui-text-secondary);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -271,8 +478,8 @@
 .surfaceCompact :global(button:hover:not(:disabled)),
 .buttonLike:hover,
 .backLink:hover {
-  border-color: #cdbfb5;
-  background: #faf7f4;
+  border-color: var(--ui-border-hover);
+  background: var(--ui-surface-hover);
   box-shadow: none;
   color: #332d29;
   transform: none;
@@ -306,9 +513,10 @@
   gap: 10px;
   min-height: 42px;
   padding: 9px 10px;
-  border: 1px solid #e5ddd6;
-  border-radius: 7px;
-  background: #fffdfb;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
   color: #3f3732;
   font-size: 13px;
   cursor: pointer;
@@ -316,8 +524,8 @@
 }
 
 .optionRow:hover {
-  border-color: #d9cec6;
-  background: #faf7f4;
+  border-color: var(--ui-border);
+  background: var(--ui-surface-hover);
 }
 
 .recordCard {
@@ -454,6 +662,31 @@
 .backRow {
   display: flex;
   align-items: center;
+}
+
+.backRow > button {
+  min-height: var(--ui-control-md);
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.backRow > button:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--ui-accent-subtle);
+  box-shadow: none;
+  transform: none;
+}
+
+.backRow > button:focus-visible {
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: 2px;
 }
 
 .historyHeader {

@@ -216,6 +216,21 @@ export class CandidatesService {
         }, tx);
       }
 
+      const hrUserIds = await this.notificationsService.listActiveUserIdsByRoles(
+        ['hr'],
+        tx,
+      );
+      await this.notificationsService.createForRecipients({
+        recipientUserIds: hrUserIds.filter((userId) => userId !== currentUser.id),
+        type: 'candidate.created',
+        title: 'Добавлен новый кандидат',
+        body: created.fullName,
+        entityType: 'candidate',
+        entityId: created.id,
+        targetUrl: `/candidates/${encodeURIComponent(created.id)}`,
+        dedupeKey: `candidate:${created.id}:created`,
+      }, tx);
+
       if (created.objectId) {
         await this.auditService.writeAuditEvent({
           entityType: 'candidate',

@@ -1,0 +1,2 @@
+.content[hidden] { display: none; }
+.longText { white-space: pre-wrap; overflow-wrap: anywhere; }

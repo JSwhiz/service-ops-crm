@@ -16,9 +16,16 @@ test('task auto-close is due-aware, cycle-safe and idempotent', async (t) => {
     where: { login: 'manager1' },
     select: { id: true },
   });
+  const managerTwo = await prisma.user.findUniqueOrThrow({
+    where: { login: 'manager2' },
+    select: { id: true },
+  });
 
   t.after(async () => {
     await app?.close();
+    await prisma.notification.deleteMany({
+      where: { entityType: 'task', entityId: { in: createdTaskIds } },
+    });
     await prisma.task.deleteMany({ where: { id: { in: createdTaskIds } } });
     await prisma.$disconnect();
   });
@@ -133,6 +140,33 @@ test('task auto-close is due-aware, cycle-safe and idempotent', async (t) => {
       where: { taskId: concurrentTaskId, eventType: 'task.auto_closed' },
     }),
     1,
+  );
+
+  const overdueTask = await prisma.task.create({
+    data: {
+      title: `Overdue notification ${marker}`,
+      priority: 'important_not_urgent',
+      status: 'in_progress',
+      createdByUserId: manager.id,
+      dueAt: new Date(now.getTime() - 60_000),
+      assignees: { create: { userId: managerTwo.id } },
+    },
+    select: { id: true },
+  });
+  createdTaskIds.push(overdueTask.id);
+  await worker.processOverdueTasks(now);
+  await worker.processOverdueTasks(now);
+  const overdueNotifications = await prisma.notification.findMany({
+    where: {
+      entityType: 'task',
+      entityId: overdueTask.id,
+      type: 'task.overdue',
+    },
+    select: { recipientUserId: true },
+  });
+  assert.deepEqual(
+    overdueNotifications.map(({ recipientUserId }) => recipientUserId).sort(),
+    [manager.id, managerTwo.id].sort(),
   );
 
   const workerInternals = worker as unknown as {

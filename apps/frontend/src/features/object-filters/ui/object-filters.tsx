@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 interface ObjectFiltersProps {
   search: string;
@@ -34,19 +35,22 @@ export function ObjectFilters({
         />
       </label>
 
-      <label>
-        <div style={{ marginBottom: 6 }}>Статус</div>
-        <select
+      <div>
+        <SearchableSelect
+          label="Статус"
           value={status}
-          onChange={(event) => onStatusChange(event.target.value)}
-          style={{ width: '100%', padding: 10 }}
-        >
-          <option value="">Все</option>
-          <option value="active">Активный</option>
-          <option value="frozen">Заморожен</option>
-          <option value="archived">Архив</option>
-        </select>
-      </label>
+          onChange={onStatusChange}
+          options={[
+            { value: '', label: 'Все' },
+            { value: 'active', label: 'Активный' },
+            { value: 'frozen', label: 'Заморожен' },
+            { value: 'archived', label: 'Архив' },
+          ]}
+          searchable={false}
+          clearable={false}
+          viewportAware
+        />
+      </div>
     </div>
   );
 }

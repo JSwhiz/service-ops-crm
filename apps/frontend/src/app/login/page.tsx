@@ -15,22 +15,11 @@ export default function LoginPage(): React.JSX.Element {
             </span>
             <span className={styles.brandText}>
               <strong>Service Ops</strong>
-              <span>Workspace</span>
             </span>
           </div>
 
           <div className={styles.brandCopy}>
-            <span className={styles.eyebrow}>Операционная система</span>
             <h1>Вся ежедневная работа — в одном пространстве.</h1>
-            <p>
-              Объекты, сотрудники, задачи, расходники и оборудование без лишних
-              переходов между сервисами.
-            </p>
-          </div>
-
-          <div className={styles.brandFooter}>
-            <span>Внутренний доступ</span>
-            <span>Service Ops</span>
           </div>
         </aside>
 

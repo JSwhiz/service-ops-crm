@@ -23,7 +23,7 @@ export function InventoryReportSummary({
       label: 'Оценка остатка',
       value: `${totalStockValueEstimate.toLocaleString('ru-RU')} ₽`,
     },
-    { label: 'Без фото / bridge', value: missingPhotoBridgeCount },
+    { label: 'Без фото — ждут согласования', value: missingPhotoBridgeCount },
   ];
 
   return (

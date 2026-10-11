@@ -19,7 +19,12 @@ import {
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { canViewObjectByScope } from '../objects/utils/object-access.util';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  hasDelegatedTaskAction,
+  usedObjectDelegations,
+} from '../user-substitutions/object-delegation.context';
 import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
 
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -36,15 +41,13 @@ import {
   TaskCompletionAttachmentDto,
   TaskCompletionListResponseDto,
 } from './dto/task-completion-response.dto';
-import {
-  TaskListResponseDto,
-  TaskResponseDto,
-} from './dto/task-response.dto';
+import { TaskListResponseDto, TaskResponseDto } from './dto/task-response.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import {
   buildTaskAccessWhere,
   hasWideTaskAccess,
+  TASK_LEADERSHIP_ROLE_CODES,
 } from './utils/task-access.util';
 import { parseTaskDeadline } from './utils/task-deadline.util';
 import { normalizeTaskUserIds } from './utils/task-user-ids.util';
@@ -89,6 +92,7 @@ interface TaskView {
   status: string;
   objectId: string | null;
   oneTimeOrderId: string | null;
+  scopeType: string;
   dueAt: Date | null;
   dueTimeSpecified: boolean;
   requiresConfirmation: boolean;
@@ -98,6 +102,7 @@ interface TaskView {
   cancelledAt: Date | null;
   cancellationReason: string | null;
   workCycle: number;
+  visibilityType: string;
   visibilityMode: string;
   resultText: string | null;
   submittedAt: Date | null;
@@ -126,6 +131,38 @@ interface TaskView {
   visibilityUsers: Array<{
     user: { id: string; login: string; fullName: string };
   }>;
+}
+
+type TaskVisibilityType =
+  | 'all_users'
+  | 'selected_users'
+  | 'target_participants'
+  | 'private';
+
+function resolveTaskScopeType(
+  objectId: string | null | undefined,
+  oneTimeOrderId: string | null | undefined,
+  visibilityType: TaskVisibilityType,
+): 'general' | 'personal' | 'object' | 'one_time_order' {
+  if (oneTimeOrderId) return 'one_time_order';
+  if (objectId) return 'object';
+  return visibilityType === 'all_users' ? 'general' : 'personal';
+}
+
+function resolveTaskVisibilityType(params: {
+  requested?: TaskVisibilityType;
+  legacyMode?: 'scope' | 'selected';
+  hasTarget: boolean;
+  visibleUserIds: string[];
+}): TaskVisibilityType {
+  if (params.requested) return params.requested;
+  if (params.legacyMode === 'scope' && params.hasTarget) {
+    return 'target_participants';
+  }
+  if (params.legacyMode === 'selected' && params.visibleUserIds.length > 0) {
+    return 'selected_users';
+  }
+  return 'private';
 }
 
 interface TaskLifecycleView {
@@ -159,6 +196,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly notificationsService: NotificationsService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -274,75 +312,103 @@ export class TasksService {
       );
     }
 
-    const visibilityMode = payload.visibilityMode ?? (object ? 'scope' : 'selected');
+    const visibilityType = resolveTaskVisibilityType({
+      requested: payload.visibilityType,
+      legacyMode: payload.visibilityMode,
+      hasTarget: Boolean(object || order),
+      visibleUserIds,
+    });
+    const scopeType = resolveTaskScopeType(
+      object?.id,
+      order?.id,
+      visibilityType,
+    );
+    const visibilityMode =
+      visibilityType === 'target_participants' ? 'scope' : 'selected';
     const deadline = parseTaskDeadline({
       dueDate: payload.dueDate,
       dueTime: payload.dueTime,
       timeZone: this.getAppTimeZone(),
     });
 
-    if (!object && visibilityMode === 'scope') {
+    if (!deadline.dueAt) {
+      throw new BadRequestException('Task deadline is required');
+    }
+
+    if (visibilityType === 'target_participants' && !object && !order) {
       throw new BadRequestException(
-        'Scope visibility requires an object linkage',
+        'Target participant visibility requires an object or order linkage',
       );
     }
 
-    if (object && visibilityMode === 'selected') {
-      const objectUserIds = new Set(
-        object.assignments.map((assignment) => assignment.userId),
-      );
-      const invalidVisibleUser = visibleUserIds.find(
-        (userId) => !objectUserIds.has(userId),
-      );
+    this.assertVisibilitySelection(object, order, visibilityType, visibleUserIds);
 
-      if (invalidVisibleUser) {
-        throw new BadRequestException(
-          'Selected task visibility users must be active object users',
-        );
-      }
-    }
-
-    const task = (await this.prisma.task.create({
-      data: {
-        title: payload.title,
-        description: payload.description ?? null,
-        priority: payload.priority,
-        status: 'in_progress',
-        objectId: payload.objectId ?? null,
-        oneTimeOrderId: payload.oneTimeOrderId ?? null,
-        createdByUserId: currentUser.id,
-        requiresConfirmation: payload.requiresConfirmation ?? true,
-        completionRequirement:
-          payload.completionRequirement ?? 'comment_or_file',
-        dueAt: deadline.dueAt,
-        dueTimeSpecified: deadline.dueTimeSpecified,
-        visibilityMode,
-        assignees: {
-          create: assigneeUserIds.map((userId) => ({
-            userId,
-          })),
-        },
-        visibilityUsers: {
-          create: visibleUserIds.map((userId) => ({
-            userId,
-            addedByUserId: currentUser.id,
-          })),
-        },
-        historyEvents: {
-          create: {
-            actorUserId: currentUser.id,
-            eventType: 'task.created',
-            payload: {
-              objectId: payload.objectId ?? null,
-              oneTimeOrderId: payload.oneTimeOrderId ?? null,
-              assigneeUserIds,
-              visibilityMode,
-              visibleUserIds,
+    const task = (await this.prisma.$transaction(async (tx) => {
+      const created = (await tx.task.create({
+        data: {
+          title: payload.title,
+          description: payload.description ?? null,
+          priority: payload.priority,
+          status: 'in_progress',
+          objectId: payload.objectId ?? null,
+          oneTimeOrderId: payload.oneTimeOrderId ?? null,
+          scopeType,
+          createdByUserId: currentUser.id,
+          requiresConfirmation: payload.requiresConfirmation ?? true,
+          completionRequirement:
+            payload.completionRequirement ?? 'comment_or_file',
+          visibilityType,
+          dueAt: deadline.dueAt,
+          dueTimeSpecified: deadline.dueTimeSpecified,
+          visibilityMode,
+          assignees: {
+            create: assigneeUserIds.map((userId) => ({
+              userId,
+            })),
+          },
+          visibilityUsers: {
+            create: visibleUserIds.map((userId) => ({
+              userId,
+              addedByUserId: currentUser.id,
+            })),
+          },
+          historyEvents: {
+            create: {
+              actorUserId: currentUser.id,
+              eventType: 'task.created',
+              payload: {
+                delegations: usedObjectDelegations(),
+                objectId: payload.objectId ?? null,
+                oneTimeOrderId: payload.oneTimeOrderId ?? null,
+                assigneeUserIds,
+                scopeType,
+                visibilityType,
+                visibilityMode,
+                visibleUserIds,
+              },
             },
           },
         },
-      },
-      include: this.getTaskInclude(),
+        include: this.getTaskInclude(),
+      })) as TaskView;
+
+      await this.notificationsService.createForRecipients(
+        {
+          recipientUserIds: assigneeUserIds.filter(
+            (userId) => userId !== currentUser.id,
+          ),
+          type: 'task.assigned',
+          title: 'Назначена новая задача',
+          body: created.title,
+          entityType: 'task',
+          entityId: created.id,
+          targetUrl: `/tasks?taskId=${encodeURIComponent(created.id)}`,
+          dedupeKey: `task:${created.id}:created`,
+        },
+        tx,
+      );
+
+      return created;
     })) as TaskView;
 
     return this.mapTask(task, currentUser);
@@ -364,7 +430,18 @@ export class TasksService {
     if (!existing) {
       throw new NotFoundException('Task not found');
     }
-    this.assertTaskCreator(currentUser, existing.createdByUserId);
+    this.assertTaskCreator(currentUser, existing);
+    if (
+      existing.createdByUserId !== currentUser.id &&
+      ((payload.objectId !== undefined &&
+        payload.objectId !== existing.objectId) ||
+        (payload.oneTimeOrderId !== undefined &&
+          payload.oneTimeOrderId !== existing.oneTimeOrderId))
+    ) {
+      throw new ForbiddenException(
+        'Delegated task cannot be moved outside its original context',
+      );
+    }
     this.assertTaskMutable(existing.status);
 
     const objectId =
@@ -401,16 +478,34 @@ export class TasksService {
       throw new ForbiddenException('Task update denied for selected order');
     }
 
-    const visibleUserIds = Array.from(
+    const requestedVisibleUserIds = Array.from(
       new Set(
         payload.visibleUserIds ??
           existing.visibilityUsers.map((item) => item.userId),
       ),
     );
+    let visibilityType = resolveTaskVisibilityType({
+      requested: payload.visibilityType ??
+        (!payload.visibilityMode ? existing.visibilityType as TaskVisibilityType : undefined),
+      legacyMode: payload.visibilityMode,
+      hasTarget: Boolean(object || order),
+      visibleUserIds: requestedVisibleUserIds,
+    });
+    if (visibilityType === 'target_participants' && !object && !order) {
+      // Removing the last target must not leave a task accidentally public or
+      // make a legacy target-scoped task impossible to update.
+      visibilityType = 'private';
+    }
+    const visibleUserIds =
+      payload.visibleUserIds === undefined &&
+      visibilityType !== existing.visibilityType
+        ? []
+        : requestedVisibleUserIds;
     await this.assertActiveUsers(visibleUserIds, 'task visibility users');
+    const scopeType = resolveTaskScopeType(object?.id, order?.id, visibilityType);
     const visibilityMode =
-      payload.visibilityMode ?? existing.visibilityMode;
-    this.assertVisibilitySelection(object, visibilityMode, visibleUserIds);
+      visibilityType === 'target_participants' ? 'scope' : 'selected';
+    this.assertVisibilitySelection(object, order, visibilityType, visibleUserIds);
 
     const deadline =
       payload.dueDate !== undefined || payload.dueTime !== undefined
@@ -423,6 +518,12 @@ export class TasksService {
             dueAt: existing.dueAt,
             dueTimeSpecified: existing.dueTimeSpecified,
           };
+    if (
+      !deadline.dueAt &&
+      (payload.dueDate !== undefined || payload.dueTime !== undefined)
+    ) {
+      throw new BadRequestException('Task deadline cannot be cleared');
+    }
     const nextValues = {
       title: payload.title ?? existing.title,
       description:
@@ -432,10 +533,12 @@ export class TasksService {
       priority: payload.priority ?? existing.priority,
       objectId,
       oneTimeOrderId,
+      scopeType,
       requiresConfirmation:
         payload.requiresConfirmation ?? existing.requiresConfirmation,
       completionRequirement:
         payload.completionRequirement ?? existing.completionRequirement,
+      visibilityType,
       dueAt: deadline.dueAt,
       dueTimeSpecified: deadline.dueTimeSpecified,
       visibilityMode,
@@ -458,22 +561,22 @@ export class TasksService {
         ));
 
     if (requiresReset && !payload.resetCompletions) {
-      throw new ConflictException(
-        'Task update requires resetCompletions=true',
-      );
+      throw new ConflictException('Task update requires resetCompletions=true');
     }
 
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertTaskCreator(currentUser, task.createdByUserId);
+      this.assertTaskCreator(currentUser, task);
       this.assertTaskMutable(task.status);
       const lockedRequiresReset =
         significantChange &&
         (task.assignees.some(
           (assignment) => assignment.isActive && assignment.isCompleted,
         ) ||
-          ['awaiting_confirmation', 'pending_auto_close'].includes(task.status));
+          ['awaiting_confirmation', 'pending_auto_close'].includes(
+            task.status,
+          ));
 
       if (lockedRequiresReset && !payload.resetCompletions) {
         throw new ConflictException(
@@ -496,9 +599,13 @@ export class TasksService {
         data: nextValues,
       });
 
-      if (payload.visibleUserIds !== undefined || payload.visibilityMode) {
+      if (
+        payload.visibleUserIds !== undefined ||
+        payload.visibilityMode ||
+        payload.visibilityType
+      ) {
         await tx.taskVisibilityUser.deleteMany({ where: { taskId } });
-        if (visibleUserIds.length > 0) {
+        if (visibilityType === 'selected_users' && visibleUserIds.length > 0) {
           await tx.taskVisibilityUser.createMany({
             data: visibleUserIds.map((userId) => ({
               taskId,
@@ -512,15 +619,44 @@ export class TasksService {
           taskId,
           currentUser.id,
           'task.visibility_changed',
-          { visibilityMode, visibleUserIds },
+          { scopeType, visibilityType, visibilityMode, visibleUserIds },
         );
       }
 
       if (!lockedRequiresReset) {
-        await this.writeTaskHistory(tx, taskId, currentUser.id, 'task.updated', {
-          significantChange,
-          resetCompletions: false,
-        });
+        await this.writeTaskHistory(
+          tx,
+          taskId,
+          currentUser.id,
+          'task.updated',
+          {
+            significantChange,
+            resetCompletions: false,
+          },
+        );
+      }
+
+      const deadlineChanged =
+        nextValues.dueAt?.getTime() !== existing.dueAt?.getTime();
+      if (deadlineChanged) {
+        await this.notificationsService.createForRecipients(
+          {
+            recipientUserIds: [
+              ...existing.assignees
+                .filter((assignee) => assignee.isActive)
+                .map((assignee) => assignee.userId),
+              existing.createdByUserId,
+            ].filter((userId) => userId !== currentUser.id),
+            type: 'task.deadline_changed',
+            title: 'Изменён срок задачи',
+            body: nextValues.title,
+            entityType: 'task',
+            entityId: taskId,
+            targetUrl: `/tasks?taskId=${encodeURIComponent(taskId)}`,
+            dedupeKey: `task:${taskId}:deadline:${nextValues.dueAt?.toISOString() ?? 'none'}`,
+          },
+          tx,
+        );
       }
     });
 
@@ -657,11 +793,17 @@ export class TasksService {
           completedAt: submittedAt,
         },
       });
-      await this.writeTaskHistory(tx, task.id, currentUser.id, 'task.assignee_completed', {
-        userId: currentUser.id,
-        completionId: completion.id,
-        workCycle: task.workCycle,
-      });
+      await this.writeTaskHistory(
+        tx,
+        task.id,
+        currentUser.id,
+        'task.assignee_completed',
+        {
+          userId: currentUser.id,
+          completionId: completion.id,
+          workCycle: task.workCycle,
+        },
+      );
 
       const allCompleted = task.assignees
         .filter((item) => item.isActive && item.id !== assignment.id)
@@ -686,6 +828,7 @@ export class TasksService {
             currentUser.id,
             submittedAt,
           );
+          await this.notifyTaskConfirmation(tx, task, currentUser.id);
           await this.writeTaskHistory(
             tx,
             task.id,
@@ -707,7 +850,10 @@ export class TasksService {
             task.id,
             currentUser.id,
             'task.auto_close_scheduled',
-            { workCycle: task.workCycle, autoCloseAt: autoCloseAt.toISOString() },
+            {
+              workCycle: task.workCycle,
+              autoCloseAt: autoCloseAt.toISOString(),
+            },
           );
         }
       }
@@ -785,7 +931,12 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     taskId: string,
   ): Promise<TaskResponseDto> {
-    await this.completeTaskByActor(currentUser, taskId, 'awaiting_confirmation', 'task.confirmed');
+    await this.completeTaskByActor(
+      currentUser,
+      taskId,
+      'awaiting_confirmation',
+      'task.confirmed',
+    );
     return this.getTaskById(currentUser, taskId);
   }
 
@@ -793,7 +944,12 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     taskId: string,
   ): Promise<TaskResponseDto> {
-    await this.completeTaskByActor(currentUser, taskId, 'pending_auto_close', 'task.completed_manually');
+    await this.completeTaskByActor(
+      currentUser,
+      taskId,
+      'pending_auto_close',
+      'task.completed_manually',
+    );
     return this.getTaskById(currentUser, taskId);
   }
 
@@ -837,13 +993,17 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task.createdByUserId);
+      this.assertLifecycleManager(currentUser, task);
       if (
-        !['in_progress', 'awaiting_confirmation', 'pending_auto_close'].includes(
-          task.status,
-        )
+        ![
+          'in_progress',
+          'awaiting_confirmation',
+          'pending_auto_close',
+        ].includes(task.status)
       ) {
-        throw new ConflictException('Task cannot be cancelled from this status');
+        throw new ConflictException(
+          'Task cannot be cancelled from this status',
+        );
       }
 
       const now = new Date();
@@ -858,10 +1018,16 @@ export class TasksService {
         },
       });
       await this.cancelPendingTaskApproval(tx, task.id, currentUser.id, reason);
-      await this.writeTaskHistory(tx, task.id, currentUser.id, 'task.cancelled', {
-        reason,
-        workCycle: task.workCycle,
-      });
+      await this.writeTaskHistory(
+        tx,
+        task.id,
+        currentUser.id,
+        'task.cancelled',
+        {
+          reason,
+          workCycle: task.workCycle,
+        },
+      );
     });
 
     return this.getTaskById(currentUser, taskId);
@@ -878,7 +1044,7 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertTaskCreator(currentUser, task.createdByUserId);
+      this.assertTaskCreator(currentUser, task);
       this.assertTaskMutable(task.status);
 
       for (const userId of userIds) {
@@ -917,10 +1083,16 @@ export class TasksService {
           });
         }
 
-        await this.writeTaskHistory(tx, task.id, currentUser.id, 'task.assignee_added', {
-          userId,
-          workCycle: task.workCycle,
-        });
+        await this.writeTaskHistory(
+          tx,
+          task.id,
+          currentUser.id,
+          'task.assignee_added',
+          {
+            userId,
+            workCycle: task.workCycle,
+          },
+        );
       }
 
       await tx.task.update({
@@ -941,7 +1113,7 @@ export class TasksService {
     const result = await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertTaskCreator(currentUser, task.createdByUserId);
+      this.assertTaskCreator(currentUser, task);
       this.assertTaskMutable(task.status);
       const activeAssignees = task.assignees.filter((item) => item.isActive);
       const assignment = activeAssignees.find((item) => item.userId === userId);
@@ -950,7 +1122,9 @@ export class TasksService {
         throw new NotFoundException('Active task assignee not found');
       }
       if (activeAssignees.length <= 1) {
-        throw new ConflictException('Last active task assignee cannot be removed');
+        throw new ConflictException(
+          'Last active task assignee cannot be removed',
+        );
       }
 
       await tx.taskAssignee.update({
@@ -962,10 +1136,16 @@ export class TasksService {
         },
       });
       await this.cancelPendingTaskApproval(tx, task.id, currentUser.id);
-      await this.writeTaskHistory(tx, task.id, currentUser.id, 'task.assignee_removed', {
-        userId,
-        workCycle: task.workCycle,
-      });
+      await this.writeTaskHistory(
+        tx,
+        task.id,
+        currentUser.id,
+        'task.assignee_removed',
+        {
+          userId,
+          workCycle: task.workCycle,
+        },
+      );
 
       return this.recalculateTaskAfterAssigneeChange(
         tx,
@@ -1167,7 +1347,7 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task.createdByUserId);
+      this.assertLifecycleManager(currentUser, task);
       if (task.status !== expectedStatus) {
         throw new ConflictException('Task is not ready for completion');
       }
@@ -1234,18 +1414,14 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task.createdByUserId);
+      this.assertLifecycleManager(currentUser, task);
       if (!allowedStatuses.includes(task.status)) {
-        throw new ConflictException('Task cannot return to work from this status');
+        throw new ConflictException(
+          'Task cannot return to work from this status',
+        );
       }
 
-      await this.resetTaskCycle(
-        tx,
-        task,
-        currentUser.id,
-        reason,
-        eventType,
-      );
+      await this.resetTaskCycle(tx, task, currentUser.id, reason, eventType);
     });
   }
 
@@ -1319,12 +1495,7 @@ export class TasksService {
       },
     });
     if (cancelApproval) {
-      await this.cancelPendingTaskApproval(
-        tx,
-        task.id,
-        actorUserId,
-        reason,
-      );
+      await this.cancelPendingTaskApproval(tx, task.id, actorUserId, reason);
     }
     await this.writeTaskHistory(tx, task.id, actorUserId, eventType, {
       reason,
@@ -1366,6 +1537,7 @@ export class TasksService {
         actorUserId,
         new Date(),
       );
+      await this.notifyTaskConfirmation(tx, task, actorUserId);
       await this.writeTaskHistory(
         tx,
         task.id,
@@ -1430,6 +1602,33 @@ export class TasksService {
     });
 
     return request.id;
+  }
+
+  private async notifyTaskConfirmation(
+    tx: Prisma.TransactionClient,
+    task: TaskLifecycleView,
+    actorUserId: string,
+  ): Promise<void> {
+    const leadershipUserIds =
+      await this.notificationsService.listActiveUserIdsByRoles(
+        [...TASK_LEADERSHIP_ROLE_CODES],
+        tx,
+      );
+    await this.notificationsService.createForRecipients(
+      {
+        recipientUserIds: leadershipUserIds.filter(
+          (userId) => userId !== actorUserId,
+        ),
+        type: 'task.awaiting_confirmation',
+        title: 'Задача ожидает подтверждения',
+        body: task.title,
+        entityType: 'task',
+        entityId: task.id,
+        targetUrl: `/tasks?taskId=${encodeURIComponent(task.id)}`,
+        dedupeKey: `task:${task.id}:confirmation:${task.workCycle}`,
+      },
+      tx,
+    );
   }
 
   private async cancelPendingTaskApproval(
@@ -1615,20 +1814,32 @@ export class TasksService {
 
   private assertTaskCreator(
     currentUser: CurrentAuthUser,
-    createdByUserId: string,
+    task: {
+      createdByUserId: string;
+      objectId: string | null;
+      oneTimeOrderId: string | null;
+    },
   ): void {
-    if (createdByUserId !== currentUser.id) {
+    if (
+      task.createdByUserId !== currentUser.id &&
+      !hasDelegatedTaskAction(currentUser.id, task, 'creator')
+    ) {
       throw new ForbiddenException('Only task creator can change task body');
     }
   }
 
   private assertLifecycleManager(
     currentUser: CurrentAuthUser,
-    createdByUserId: string,
+    task: {
+      createdByUserId: string;
+      objectId: string | null;
+      oneTimeOrderId: string | null;
+    },
   ): void {
     if (
-      createdByUserId !== currentUser.id &&
-      !hasWideTaskAccess(this.getRoleCodes(currentUser))
+      task.createdByUserId !== currentUser.id &&
+      !hasWideTaskAccess(this.getRoleCodes(currentUser)) &&
+      !hasDelegatedTaskAction(currentUser.id, task, 'lifecycle')
     ) {
       throw new ForbiddenException('Task lifecycle action denied');
     }
@@ -1642,28 +1853,50 @@ export class TasksService {
 
   private assertVisibilitySelection(
     object: { assignments: Array<{ userId: string }> } | null,
-    visibilityMode: string,
+    order: { assignments: Array<{ userId: string }> } | null,
+    visibilityType: TaskVisibilityType,
     visibleUserIds: string[],
   ): void {
-    if (!object && visibilityMode === 'scope') {
-      throw new BadRequestException('Scope visibility requires an object linkage');
-    }
-    if (object && visibilityMode === 'selected') {
-      const allowedUserIds = new Set(
-        object.assignments.map((assignment) => assignment.userId),
+    if (
+      visibilityType === 'target_participants' &&
+      !object &&
+      !order
+    ) {
+      throw new BadRequestException(
+        'Target participant visibility requires an object or order linkage',
       );
-      if (visibleUserIds.some((userId) => !allowedUserIds.has(userId))) {
+    }
+    if (visibilityType === 'selected_users') {
+      if (!visibleUserIds.length) {
         throw new BadRequestException(
-          'Selected task visibility users must be active object users',
+          'Selected task visibility requires at least one user',
         );
       }
+      const allowedUserIds = new Set([
+        ...(object?.assignments.map((assignment) => assignment.userId) ?? []),
+        ...(order?.assignments.map((assignment) => assignment.userId) ?? []),
+      ]);
+      if (
+        (object || order) &&
+        visibleUserIds.some((userId) => !allowedUserIds.has(userId))
+      ) {
+        throw new BadRequestException(
+          'Selected visibility users must participate in the linked target',
+        );
+      }
+    } else if (visibleUserIds.length) {
+      throw new BadRequestException(
+        'Visible users can only be set for selected_users visibility',
+      );
     }
   }
 
   private normalizeReason(reason: string): string {
     const normalized = reason.trim();
     if (normalized.length < 3) {
-      throw new BadRequestException('Reason must contain at least 3 characters');
+      throw new BadRequestException(
+        'Reason must contain at least 3 characters',
+      );
     }
     return normalized;
   }
@@ -1676,7 +1909,17 @@ export class TasksService {
     payload: Prisma.InputJsonValue,
   ): Promise<void> {
     await tx.taskHistoryEvent.create({
-      data: { taskId, actorUserId, eventType, payload },
+      data: {
+        taskId,
+        actorUserId,
+        eventType,
+        payload: {
+          ...(payload && typeof payload === 'object' && !Array.isArray(payload)
+            ? payload
+            : {}),
+          delegations: usedObjectDelegations(),
+        },
+      },
     });
   }
 
@@ -1742,7 +1985,10 @@ export class TasksService {
         include: {
           user: true,
           completions: {
-            orderBy: [{ workCycle: 'desc' as const }, { attemptNumber: 'desc' as const }],
+            orderBy: [
+              { workCycle: 'desc' as const },
+              { attemptNumber: 'desc' as const },
+            ],
           },
         },
       },
@@ -1969,10 +2215,15 @@ export class TasksService {
     return order;
   }
 
-  private mapTask(task: TaskView, currentUser: CurrentAuthUser): TaskResponseDto {
+  private mapTask(
+    task: TaskView,
+    currentUser: CurrentAuthUser,
+  ): TaskResponseDto {
     const roleCodes = this.getRoleCodes(currentUser);
     const isWideAccess = hasWideTaskAccess(roleCodes);
-    const isCreator = task.createdBy.id === currentUser.id;
+    const isCreator =
+      task.createdBy.id === currentUser.id ||
+      hasDelegatedTaskAction(currentUser.id, task, 'creator', false);
     const myAssignment = task.assignees.find(
       (assignee) => assignee.user.id === currentUser.id && assignee.isActive,
     );
@@ -1995,12 +2246,17 @@ export class TasksService {
       (assignee) => assignee.isCompleted,
     ).length;
     const now = Date.now();
-    const isTerminal = ['completed', 'cancelled', 'closed'].includes(task.status);
-    const isLifecycleManager = isCreator || isWideAccess;
+    const isTerminal = ['completed', 'cancelled', 'closed'].includes(
+      task.status,
+    );
+    const isLifecycleManager =
+      isCreator ||
+      isWideAccess ||
+      hasDelegatedTaskAction(currentUser.id, task, 'lifecycle', false);
     const canCompleteMyAssignment = Boolean(
       myAssignment &&
-        !myAssignment.isCompleted &&
-        task.status === 'in_progress',
+      !myAssignment.isCompleted &&
+      task.status === 'in_progress',
     );
     const responseStatus = task.status === 'closed' ? 'completed' : task.status;
 
@@ -2088,7 +2344,11 @@ export class TasksService {
         completed: completedCount,
         total: activeAssignees.length,
       },
-      visibilityMode: task.visibilityMode,
+      scopeType: task.scopeType as TaskResponseDto['scopeType'],
+      visibilityType:
+        task.visibilityType as TaskResponseDto['visibilityType'],
+      visibilityMode:
+        task.visibilityType === 'target_participants' ? 'scope' : 'selected',
       visibleUsers: task.visibilityUsers.map(({ user }) => ({
         id: user.id,
         login: user.login,
@@ -2103,9 +2363,9 @@ export class TasksService {
             );
 
             return {
-            assigneeId: myAssignment.id,
-            isCompleted: myAssignment.isCompleted,
-            completedAt: myAssignment.completedAt?.toISOString() ?? null,
+              assigneeId: myAssignment.id,
+              isCompleted: myAssignment.isCompleted,
+              completedAt: myAssignment.completedAt?.toISOString() ?? null,
               currentCompletion: currentCompletion
                 ? {
                     id: currentCompletion.id,
@@ -2124,9 +2384,7 @@ export class TasksService {
         canEdit: isCreator && !isTerminal,
         canManageAssignees: isCreator && !isTerminal,
         canCompleteMyAssignment,
-        canUndoMyCompletion: Boolean(
-          myAssignment?.isCompleted && !isTerminal,
-        ),
+        canUndoMyCompletion: Boolean(myAssignment?.isCompleted && !isTerminal),
         canConfirm:
           isLifecycleManager && task.status === 'awaiting_confirmation',
         canCompleteNow:
@@ -2137,9 +2395,11 @@ export class TasksService {
         canReopen: isLifecycleManager && task.status === 'completed',
         canCancel:
           isLifecycleManager &&
-          ['in_progress', 'awaiting_confirmation', 'pending_auto_close'].includes(
-            task.status,
-          ),
+          [
+            'in_progress',
+            'awaiting_confirmation',
+            'pending_auto_close',
+          ].includes(task.status),
         canViewHistory: true,
       },
     };
@@ -2176,10 +2436,7 @@ export class TasksService {
       },
       orderBy: { createdAt: 'asc' },
     });
-    const filesByCompletion = new Map<
-      string,
-      TaskCompletionAttachmentDto[]
-    >();
+    const filesByCompletion = new Map<string, TaskCompletionAttachmentDto[]>();
 
     for (const attachment of attachments) {
       const files = filesByCompletion.get(attachment.entityId) ?? [];
@@ -2202,7 +2459,10 @@ export class TasksService {
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
-    if (Array.isArray(currentUser.roleCodes) && currentUser.roleCodes.length > 0) {
+    if (
+      Array.isArray(currentUser.roleCodes) &&
+      currentUser.roleCodes.length > 0
+    ) {
       return currentUser.roleCodes;
     }
 

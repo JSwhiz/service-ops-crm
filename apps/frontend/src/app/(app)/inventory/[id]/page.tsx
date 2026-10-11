@@ -22,6 +22,7 @@ import type {
 import { InventoryItemEditor } from '@/features/inventory-item-editor/ui/inventory-item-editor';
 import { InventoryMovementForm } from '@/features/inventory-movement-form/ui/inventory-movement-form';
 import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inventory-movement-list';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   formatInventoryQuantity,
@@ -282,7 +283,7 @@ export default function InventoryItemDetailPage({
   };
 
   return (
-    <>
+    <div className="workspace-page inventory-workspace">
       <PageTitle title={item ? item.name : 'Карточка расходника'} />
 
       {isLoading ? (
@@ -521,17 +522,18 @@ export default function InventoryItemDetailPage({
               canWriteoff={item.capabilities.canWriteoff}
               canAdjust={item.capabilities.canAdjust}
               defaultInventoryItemId={item.id}
-              onSubmit={async ({ payload, evidenceFiles }) => {
+              onSubmit={async ({ payload }) => {
                 const created = await createInventoryMovement(payload);
-
-                for (const file of evidenceFiles) {
-                  await uploadFileToEntity({
-                    entityType: 'inventory_movement',
-                    entityId: created.id,
-                    file,
-                  });
-                }
-
+                return created;
+              }}
+              onAttachEvidence={async (movementId, files) => {
+                await Promise.all(files.map((file) => uploadFileToEntity({
+                  entityType: 'inventory_movement',
+                  entityId: movementId,
+                  file,
+                })));
+              }}
+              onRefresh={async () => {
                 const updatedItem = await getInventoryItemById(item.id);
                 setItem(updatedItem);
                 setMovementPage(1);
@@ -650,39 +652,15 @@ export default function InventoryItemDetailPage({
                 <InventoryMovementList items={movements} />
               )}
 
-              {movementTotalPages > 1 ? (
-                <div className="page-card pagination-row">
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    disabled={movementPage <= 1 || isMovementsLoading}
-                    onClick={() =>
-                      setMovementPage((current) => Math.max(1, current - 1))
-                    }
-                  >
-                    Назад
-                  </button>
-                  <span className="page-muted">
-                    Страница {movementPage} из {movementTotalPages}
-                  </span>
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    disabled={
-                      movementPage >= movementTotalPages || isMovementsLoading
-                    }
-                    onClick={() => setMovementPage((current) => current + 1)}
-                  >
-                    Далее
-                  </button>
-                </div>
-              ) : null}
+              {!isMovementsLoading && !movementError ? <TablePagination page={movementPage} totalPages={movementTotalPages} pending={isMovementsLoading} label="Страницы истории движений"
+                summary={movementTotal > 0 ? `Показано ${(movementPage - 1) * 20 + 1}–${Math.min(movementPage * 20, movementTotal)} из ${movementTotal}` : 'Движения не найдены'}
+                onPageChange={setMovementPage} /> : null}
             </>
           ) : null}
         </div>
       ) : (
         <div className="page-card">Расходник не найден.</div>
       )}
-    </>
+    </div>
   );
 }

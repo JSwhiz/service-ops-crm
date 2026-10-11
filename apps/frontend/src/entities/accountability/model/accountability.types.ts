@@ -11,12 +11,16 @@ export interface AccountabilityFundingEntry {
   id: string;
   amount: number;
   comment: string | null;
+  source: string | null;
+  attachments: AttachedFile[];
   issuedAt: string;
   fundingType: string;
   entryDirection: string;
   oneTimeOrderPaymentId: string | null;
   oneTimeOrderId: string | null;
   oneTimeOrderCompletionId: string | null;
+  reversalOfFundingId: string | null;
+  reversedByFundingId: string | null;
   issuedBy: AccountabilityUserSummary;
   recordedBy: AccountabilityUserSummary | null;
 }
@@ -25,6 +29,9 @@ export interface AccountabilityExpenseItem {
   id: string;
   oneTimeOrderId: string | null;
   oneTimeOrderCompletionId: string | null;
+  oneTimeOrderWorkCycle: number | null;
+  employeeId: string | null;
+  employeeFullName: string | null;
   expenseCategory: string | null;
   expenseDate: string | null;
   amount: number;
@@ -94,6 +101,8 @@ export interface AccountabilityAccountView {
     canIssueFunding: boolean;
     canReviewExpenses: boolean;
     canApproveAccountabilityClosure: boolean;
+    canReverseExternalReceipts: boolean;
+    canRecordExternalReceipt: boolean;
   };
   fundings: AccountabilityFundingEntry[];
   expenses: AccountabilityExpenseItem[];
@@ -117,6 +126,8 @@ export interface SaveAccountabilityExpensePayload {
   description: string;
   oneTimeOrderId?: string;
   oneTimeOrderCompletionId?: string | null;
+  oneTimeOrderWorkCycle?: number;
+  employeeId?: string | null;
   expenseCategory?: AccountabilityExpenseCategory;
   expenseDate?: string;
 }
@@ -126,7 +137,8 @@ export type AccountabilityExpenseCategory =
   | 'delivery'
   | 'transport'
   | 'services'
-  | 'other';
+  | 'other'
+  | 'employee_payout';
 
 export interface OneTimeOrderAccountabilityView {
   order: {
@@ -136,6 +148,7 @@ export interface OneTimeOrderAccountabilityView {
   visibilityScope: 'own' | 'administrative';
   capabilities: {
     canCreateExpense: boolean;
+    canCreateEmployeePayout: boolean;
     canReviewExpenses: boolean;
   };
   accounts: Array<{

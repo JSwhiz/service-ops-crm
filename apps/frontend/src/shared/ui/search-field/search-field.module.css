@@ -1,0 +1,88 @@
+.searchBox {
+  min-width: 0;
+  min-height: var(--ui-control-lg);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-tertiary);
+  transition: border-color var(--ui-duration-fast) var(--ui-ease-standard), background-color var(--ui-duration-fast) var(--ui-ease-standard), box-shadow var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.searchBox:hover {
+  border-color: var(--ui-border-hover);
+  background: var(--ui-surface-hover);
+}
+
+.searchBox:focus-within {
+  border-color: var(--ui-focus-border);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-focus-ring);
+}
+
+.searchBox > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.searchBox input {
+  width: 100%;
+  min-width: 0;
+  height: calc(var(--ui-control-lg) - 2px);
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ui-text);
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--ui-text-sm);
+}
+
+.searchBox input:focus,
+.searchBox input:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.searchBox input::placeholder { color: var(--ui-text-tertiary); }
+.searchBox input::-webkit-search-cancel-button { display: none; }
+
+.clearButton {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  box-shadow: none;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.clearButton:hover,
+.clearButton:focus-visible {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+  transform: none;
+}
+
+.clearButton:focus-visible { outline: 0; box-shadow: var(--ui-focus-ring); }
+
+@media (max-width: 760px) {
+  .searchBox { min-height: 44px; }
+  .searchBox input { height: 42px; }
+  .clearButton { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+}

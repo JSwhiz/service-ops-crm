@@ -59,6 +59,7 @@ export class ObjectRegistrySignalsService {
     const permissionCodes = currentUser.permissionCodes ?? [];
     const visibleIds = objects
       .filter((object) => buildObjectCapabilities({
+        objectId: object.id,
         currentUserId: currentUser.id,
         roleCodes,
         permissionCodes,

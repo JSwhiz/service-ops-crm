@@ -27,7 +27,12 @@ import type {
   EmployeeWorkScheduleCode,
 } from '@/entities/employee/model/employee.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { formatRegistryDate } from '@/shared/lib/registry-presentation';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -131,6 +136,8 @@ export default function EmployeesPage(): React.JSX.Element {
 
   const [searchInput, setSearchInput] = useState(querySearch);
   const [workTimeInput, setWorkTimeInput] = useState(workTimeSearch);
+  const [workTimeFilterActive, setWorkTimeFilterActive] = useState(Boolean(workTimeSearch));
+  const [objectFilterActive, setObjectFilterActive] = useState(Boolean(objectId));
   const [result, setResult] = useState<EmployeeListResponse>(EMPTY_RESULT);
   const [objects, setObjects] = useState<EmployeeObjectReference[]>([]);
   const [positions, setPositions] = useState<EmployeePositionReference[]>([]);
@@ -138,7 +145,6 @@ export default function EmployeesPage(): React.JSX.Element {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const replaceQuery = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -152,6 +158,8 @@ export default function EmployeesPage(): React.JSX.Element {
 
   useEffect(() => setSearchInput(querySearch), [querySearch]);
   useEffect(() => setWorkTimeInput(workTimeSearch), [workTimeSearch]);
+  useEffect(() => setWorkTimeFilterActive(Boolean(workTimeSearch)), [workTimeSearch]);
+  useEffect(() => setObjectFilterActive(Boolean(objectId)), [objectId]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -168,7 +176,7 @@ export default function EmployeesPage(): React.JSX.Element {
     let cancelled = false;
     setIsLoadingReferences(true);
     void Promise.all([
-      listEmployeeObjectReferences(undefined, objectId || undefined),
+      objectId ? listEmployeeObjectReferences(undefined, objectId) : Promise.resolve([]),
       listEmployeePositionReferences(),
     ])
       .then(([nextObjects, nextPositions]) => {
@@ -233,7 +241,7 @@ export default function EmployeesPage(): React.JSX.Element {
     assignmentFilter, workScheduleCode, workTimeSearch].filter(Boolean).length;
   const firstItem = result.total === 0 ? 0 : (result.page - 1) * result.limit + 1;
   const lastItem = Math.min(result.total, result.page * result.limit);
-  const objectOptions = objects.map((object) => ({ value: object.id, label: object.name }));
+  const selectedObjectOption = objects.find((object) => object.id === objectId);
   const positionOptions = positions.map((item) => ({ value: item.value, label: item.label }));
 
   const setTab = (nextTab: typeof tab): void => {
@@ -244,51 +252,37 @@ export default function EmployeesPage(): React.JSX.Element {
     });
   };
 
-  const filterFields = (
-    <div className="employee-filter-grid">
-      <SearchableSelect label="Объект" value={objectId} options={objectOptions}
-        placeholder="Все объекты" loading={isLoadingReferences}
-        asyncSearch={searchObjectOptions}
-        onChange={(value) => replaceQuery({ objectId: value || null, page: null })} />
-      <SearchableSelect label="Должность" value={position} options={positionOptions}
-        placeholder="Все должности" loading={isLoadingReferences}
-        asyncSearch={searchPositionOptions}
-        onChange={(value) => replaceQuery({ position: value || null, page: null })} />
-      <SearchableSelect label="Статус работы" value={employmentStatus}
-        placeholder="Все статусы" options={[{ value: 'active', label: 'Работает' }, { value: 'inactive', label: 'Неактивен' }]}
-        onChange={(value) => replaceQuery({ employmentStatus: value || null, page: null })} />
-      <SearchableSelect label="График" value={workScheduleCode} placeholder="Любой график"
-        options={EMPLOYEE_SCHEDULE_OPTIONS}
-        onChange={(value) => replaceQuery({ workScheduleCode: value || null, page: null })} />
-      <label><span className="detail-label">Время работы</span><input value={workTimeInput}
-        onChange={(event) => setWorkTimeInput(event.target.value)} placeholder="Например: 08:00–17:00" /></label>
-      <SearchableSelect label="Месяц рождения" value={birthMonth} placeholder="Любой месяц"
-        options={MONTH_OPTIONS} onChange={(value) => replaceQuery({ birthMonth: value || null, page: null })} />
-      <SearchableSelect label="Назначение на объект" value={assignmentFilter} placeholder="Любое"
-        options={[{ value: 'true', label: 'Назначен на объект' }, { value: 'false', label: 'Без активного объекта' }]}
-        onChange={(value) => replaceQuery({ hasActiveObjectAssignment: value || null, page: null })} />
-      <SearchableSelect label="Сортировка" value={sortBy} clearable={false}
-        options={[{ value: 'fullName', label: 'ФИО' }, { value: 'position', label: 'Должность' },
-          { value: 'employeeType', label: 'Тип сотрудника' }, { value: 'employmentStatus', label: 'Статус работы' },
-          { value: 'birthDate', label: 'Дата рождения' }, { value: 'updatedAt', label: 'Дата изменения' }]}
-        onChange={(value) => replaceQuery({ sortBy: value, page: null })} />
-      <SearchableSelect label="Порядок" value={sortOrder} clearable={false}
-        options={[{ value: 'asc', label: 'По возрастанию' }, { value: 'desc', label: 'По убыванию' }]}
-        onChange={(value) => replaceQuery({ sortOrder: value === 'asc' ? null : value, page: null })} />
-    </div>
-  );
+  const statusOptions = [{ value: 'active', label: 'Работает' }, { value: 'inactive', label: 'Неактивен' }];
+  const assignmentOptions = [{ value: 'true', label: 'Назначен на объект' }, { value: 'false', label: 'Без активного объекта' }];
+  const sortOptions = [{ value: 'fullName', label: 'ФИО' }, { value: 'position', label: 'Должность' }, { value: 'employeeType', label: 'Тип сотрудника' }, { value: 'employmentStatus', label: 'Статус работы' }, { value: 'birthDate', label: 'Дата рождения' }, { value: 'updatedAt', label: 'Дата изменения' }];
+  const sortValue = `${sortBy}:${sortOrder}`;
+  const sortValueOptions = sortOptions.flatMap((option) => [{ value: `${option.value}:asc`, label: `${option.label} · по возрастанию` }, { value: `${option.value}:desc`, label: `${option.label} · по убыванию` }]);
+  const activeRegistryFilters: ActiveRegistryFilter[] = ([
+    objectFilterActive || objectId ? { id: 'object', label: 'Объект', value: objectId, options: selectedObjectOption ? [{ value: objectId, label: selectedObjectOption.name }] : [], onChange: (value: string) => replaceQuery({ objectId: value || null, page: null }), onRemove: () => { setObjectFilterActive(false); replaceQuery({ objectId: null, page: null }); }, customControl: <SearchableSelect label="Объект" hideLabel value={objectId} options={[]} selectedOption={selectedObjectOption ? { value: objectId, label: selectedObjectOption.name } : null} placeholder="Все объекты" loading={isLoadingReferences} asyncSearch={searchObjectOptions} minimumSearchLength={2} searchPlaceholder="Введите название объекта" searchPromptText="Введите не менее 2 символов, чтобы найти объект" searchInputVariant="registry" onChange={(value) => replaceQuery({ objectId: value || null, page: null })} /> } : null,
+    position ? { id: 'position', label: 'Должность', value: position, options: positionOptions, onChange: (value: string) => replaceQuery({ position: value || null, page: null }), onRemove: () => replaceQuery({ position: null, page: null }), customControl: <SearchableSelect label="Должность" hideLabel value={position} options={positionOptions} placeholder="Все должности" loading={isLoadingReferences} minimumSearchLength={2} searchPlaceholder="Введите должность" searchPromptText="Введите не менее 2 символов, чтобы найти должность" searchInputVariant="registry" asyncSearch={searchPositionOptions} onChange={(value) => replaceQuery({ position: value || null, page: null })} /> } : null,
+    employmentStatus ? { id: 'employment', label: 'Статус работы', value: employmentStatus, options: statusOptions, onChange: (value: string) => replaceQuery({ employmentStatus: value || null, page: null }), onRemove: () => replaceQuery({ employmentStatus: null, page: null }) } : null,
+    workScheduleCode ? { id: 'schedule', label: 'График', value: workScheduleCode, options: EMPLOYEE_SCHEDULE_OPTIONS, onChange: (value: string) => replaceQuery({ workScheduleCode: value || null, page: null }), onRemove: () => replaceQuery({ workScheduleCode: null, page: null }) } : null,
+    workTimeFilterActive ? { id: 'worktime', label: 'Время работы', value: workTimeSearch, options: [], onChange: (value: string) => setWorkTimeInput(value), onRemove: () => { setWorkTimeInput(''); setWorkTimeFilterActive(false); replaceQuery({ workTimeSearch: null, page: null }); }, customControl: <input aria-label="Фильтр времени работы" placeholder="Например: 08:00–17:00" value={workTimeInput} onChange={(event) => setWorkTimeInput(event.target.value)} /> } : null,
+    birthMonth ? { id: 'birth-month', label: 'Месяц рождения', value: birthMonth, options: MONTH_OPTIONS, onChange: (value: string) => replaceQuery({ birthMonth: value || null, page: null }), onRemove: () => replaceQuery({ birthMonth: null, page: null }) } : null,
+    assignmentFilter ? { id: 'assignment', label: 'Назначение', value: assignmentFilter, options: assignmentOptions, onChange: (value: string) => replaceQuery({ hasActiveObjectAssignment: value || null, page: null }), onRemove: () => replaceQuery({ hasActiveObjectAssignment: null, page: null }) } : null,
+    sortValue !== 'fullName:asc' ? { id: 'sort', label: 'Сортировка', value: sortValue, options: sortValueOptions, onChange: (value: string) => { const [sortBy, sortOrder] = value.split(':') as [EmployeeSortField, 'asc' | 'desc']; replaceQuery({ sortBy, sortOrder: sortOrder === 'asc' ? null : sortOrder, page: null }); }, onRemove: () => replaceQuery({ sortBy: null, sortOrder: null, page: null }) } : null,
+  ].filter(Boolean) as ActiveRegistryFilter[]);
+  const availableRegistryFilters: AvailableRegistryFilter[] = ([
+    !objectFilterActive && !objectId ? { id: 'object', label: 'Объект', options: [{ value: 'object', label: 'Выбрать объект' }], onAdd: () => setObjectFilterActive(true) } : null,
+    !position && positionOptions.length ? { id: 'position', label: 'Должность', options: positionOptions, onAdd: (value: string) => replaceQuery({ position: value, page: null }) } : null,
+    !employmentStatus ? { id: 'employment', label: 'Статус работы', options: statusOptions, onAdd: (value: string) => replaceQuery({ employmentStatus: value, page: null }) } : null,
+    !workScheduleCode ? { id: 'schedule', label: 'График', options: EMPLOYEE_SCHEDULE_OPTIONS, onAdd: (value: string) => replaceQuery({ workScheduleCode: value, page: null }) } : null,
+    !workTimeFilterActive ? { id: 'worktime', label: 'Время работы', options: [{ value: 'worktime', label: 'Указать время' }], onAdd: () => { setWorkTimeFilterActive(true); setWorkTimeInput(''); } } : null,
+    !birthMonth ? { id: 'birth-month', label: 'Месяц рождения', options: MONTH_OPTIONS, onAdd: (value: string) => replaceQuery({ birthMonth: value, page: null }) } : null,
+    !assignmentFilter ? { id: 'assignment', label: 'Назначение на объект', options: assignmentOptions, onAdd: (value: string) => replaceQuery({ hasActiveObjectAssignment: value, page: null }) } : null,
+    sortValue === 'fullName:asc' ? { id: 'sort', label: 'Сортировка', options: sortValueOptions, onAdd: (value: string) => { const [sortBy, sortOrder] = value.split(':') as [EmployeeSortField, 'asc' | 'desc']; replaceQuery({ sortBy, sortOrder: sortOrder === 'asc' ? null : sortOrder, page: null }); } } : null,
+  ].filter(Boolean) as AvailableRegistryFilter[]);
 
   return (
-    <><PageTitle title="Сотрудники" />
-      {!canAccessEmployeesHr ? (
+    <>{!canAccessEmployeesHr ? (
         <div className="page-card inline-notice inline-notice--warning">У вас нет доступа к HR-контуру сотрудников.</div>
       ) : (
         <div className="page-stack workspace-page employee-registry">
-          <section className="page-card workspace-surface section-header registry-header"><div><div className="section-title">Реестр сотрудников</div>
-            <div className="section-subtitle">Контакты, графики и текущие назначения в одном списке.</div></div>
-            {result.capabilities.canCreate ? <Link className="button-link" href="/employees/new">Добавить сотрудника</Link> : null}
-          </section>
-
           <nav className="employee-tabs" aria-label="Разделы реестра">
             {([['all', 'Все сотрудники'], ['regular', 'Постоянные'], ['one_time', 'Разовые'], ['archived', 'Архив']] as const)
               .map(([value, label]) => <button key={value} type="button" className={tab === value ? 'is-active' : undefined}
@@ -296,41 +290,33 @@ export default function EmployeesPage(): React.JSX.Element {
             {user?.capabilities?.canAccessCandidates ? <Link href="/employees/reserve">Резерв</Link> : null}
           </nav>
 
-          <section className="page-card workspace-surface employee-search-row">
-            <label className="employee-main-search"><span className="detail-label">Поиск</span>
-              <input type="search" value={searchInput} onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Поиск по ФИО или телефону" /></label>
-            <button type="button" className="button-secondary employee-filter-toggle" onClick={() => setFiltersOpen(true)}>
-              Фильтры{activeFilterCount ? ` · ${activeFilterCount}` : ''}</button>
-          </section>
-
-          <section className="page-card workspace-surface filter-panel employee-filter-panel">{filterFields}<div className="action-row">
-            <button type="button" className="button-secondary" onClick={() => router.replace(pathname, { scroll: false })}>
-              Сбросить фильтры{activeFilterCount ? ` (${activeFilterCount})` : ''}</button></div></section>
-
-          {filtersOpen ? <div className="employee-filter-sheet" role="dialog" aria-modal="true">
-            <button type="button" className="employee-filter-sheet__backdrop" aria-label="Закрыть фильтры" onClick={() => setFiltersOpen(false)} />
-            <div className="employee-filter-sheet__panel"><div className="section-header"><div className="section-title">Фильтры</div>
-              <button type="button" className="button-secondary" onClick={() => setFiltersOpen(false)}>Готово</button></div>
-              {filterFields}<button type="button" className="button-secondary" onClick={() => { router.replace(pathname, { scroll: false }); setFiltersOpen(false); }}>Сбросить фильтры</button>
-            </div></div> : null}
+          <RegistryToolbar
+            searchValue={searchInput}
+            searchLabel="Поиск по сотрудникам"
+            searchPlaceholder="Поиск по ФИО или телефону"
+            onSearchChange={setSearchInput}
+            activeFilters={activeRegistryFilters}
+            availableFilters={availableRegistryFilters}
+            actions={result.capabilities.canCreate ? <Link className="button-link button-link--primary" href="/employees/new">Добавить сотрудника</Link> : null}
+          />
 
           {isLoading ? <div className="page-card employee-loading" aria-live="polite">Загружаем сотрудников...</div>
             : error ? <div className="page-card inline-notice inline-notice--warning"><div>{error}</div>
               <button type="button" className="button-secondary" onClick={() => setReloadKey((current) => current + 1)}>Повторить</button></div>
-            : result.items.length === 0 ? <div className="page-card">{querySearch || activeFilterCount
+            : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">{querySearch || activeFilterCount
               ? 'По выбранным фильтрам сотрудников нет.' : 'Сотрудники не найдены.'}</div>
-            : <><div className="page-card workspace-surface data-table-shell employee-table-wrap"><table className="employee-registry-table"><thead><tr>
+            : <><DataTable label="Таблица сотрудников" className="employee-registry-table" frameClassName="page-card workspace-surface data-table-shell employee-table-wrap"><thead><tr>
               <th>ФИО</th><th>Телефон</th><th>Должность</th><th>Тип</th><th>Статус</th><th>Дата рождения</th>
-              <th>График</th><th>Время работы</th><th>Ставка за день</th><th>Текущие объекты</th><th>Изменён</th>
+              <th>График</th><th>Время работы</th><th>Ставка за день</th><th>Текущие объекты</th><th>Изменён</th><th aria-label="Открыть" />
             </tr></thead><tbody>{result.items.map((item) => <tr key={item.id} tabIndex={0}
               onClick={() => router.push(`/employees/${item.id}`)} onKeyDown={(event) => { if (event.key === 'Enter') router.push(`/employees/${item.id}`); }}>
-              <td><Link href={`/employees/${item.id}`}>{item.fullName}</Link></td><td>{item.phone ?? '—'}</td><td>{item.position ?? '—'}</td>
+              <td title={item.fullName}><Link href={`/employees/${item.id}`}>{item.fullName}</Link></td><td title={item.phone ?? undefined}>{item.phone ?? '—'}</td><td title={item.position ?? undefined}>{item.position ?? '—'}</td>
               <td><span className="employee-type-badge">{getEmployeeTypeLabel(item.employeeType)}</span></td><td>{getEmployeeStatusLabel(item.employmentStatus)}</td>
               <td>{formatEmployeeDate(item.birthDate)}</td><td title={item.workScheduleCustom ?? undefined}>{getEmployeeScheduleLabel(item.workScheduleCode, item.workScheduleCustom)}</td>
-              <td>{item.workTimeText ?? '—'}</td><td>{formatEmployeeRate(item.baseDailyRate)}</td><td><div className="employee-object-chips">
+              <td title={item.workTimeText ?? undefined}>{item.workTimeText ?? '—'}</td><td>{formatEmployeeRate(item.baseDailyRate)}</td><td title={item.currentObjects.map((object) => object.name).join(', ') || undefined}><div className="employee-object-chips">
                 {item.currentObjects.length ? item.currentObjects.map((object) => <span key={object.id}>{object.name}</span>) : '—'}</div></td>
-              <td>{new Date(item.updatedAt).toLocaleDateString('ru-RU')}</td></tr>)}</tbody></table></div>
+              <td title={new Date(item.updatedAt).toLocaleString('ru-RU')}>{formatRegistryDate(item.updatedAt)}</td>
+              <td className="registry-open-cell"><RegistryOpenLink href={`/employees/${item.id}`} label={`Открыть сотрудника ${item.fullName}`} /></td></tr>)}</tbody></DataTable>
               <div className="employee-mobile-list">{result.items.map((item) => <Link key={item.id} href={`/employees/${item.id}`} className="page-card employee-mobile-card">
                 <div className="section-header"><div><strong>{item.fullName}</strong><div className="page-muted">{item.position ?? 'Должность не указана'}</div></div>
                   <span className="employee-type-badge">{getEmployeeTypeLabel(item.employeeType)}</span></div>
@@ -339,13 +325,12 @@ export default function EmployeesPage(): React.JSX.Element {
                 <div className="employee-object-chips">{item.currentObjects.length ? item.currentObjects.map((object) => <span key={object.id}>{object.name}</span>) : <span>Без объекта</span>}</div>
               </Link>)}</div></>}
 
-          {result.total > 0 ? <div className="page-card workspace-surface pagination-row"><span className="page-muted">{firstItem}–{lastItem} из {result.total}</span>
-            <SearchableSelect label="На странице" value={String(limit)} clearable={false}
+          <TablePagination page={result.page} totalPages={result.totalPages} pending={isLoading} label="Страницы сотрудников"
+            summary={result.total > 0 ? `Показано ${firstItem}–${lastItem} из ${result.total}` : 'Сотрудники не найдены'}
+            onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
+            beforeNavigation={<SearchableSelect label="На странице" value={String(limit)} clearable={false}
               options={[25, 50, 100].map((value) => ({ value: String(value), label: String(value) }))}
-              onChange={(value) => replaceQuery({ limit: value === String(DEFAULT_LIMIT) ? null : value, page: null })} />
-            <button type="button" className="button-secondary" disabled={result.page <= 1 || isLoading} onClick={() => replaceQuery({ page: String(result.page - 1) })}>Назад</button>
-            <button type="button" className="button-secondary" disabled={result.page >= result.totalPages || isLoading} onClick={() => replaceQuery({ page: String(result.page + 1) })}>Вперёд</button>
-          </div> : null}
+              onChange={(value) => replaceQuery({ limit: value === String(DEFAULT_LIMIT) ? null : value, page: null })} />} />
         </div>
       )}</>
   );

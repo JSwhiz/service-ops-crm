@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 interface ObjectEditPanelProps {
   item: ServiceObject;
@@ -274,40 +275,44 @@ export function ObjectEditPanel({
               />
             </label>
 
-            <label>
-              <div style={{ marginBottom: 6 }}>Статус</div>
-              <select
+            <div>
+              <SearchableSelect
+                label="Статус"
                 value={form.status}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, status: event.target.value }))
-                }
-                style={{ width: '100%', padding: 10 }}
+                onChange={(status) => setForm((prev) => ({ ...prev, status }))}
+                options={[
+                  { value: 'active', label: 'Активный' },
+                  { value: 'frozen', label: 'Заморожен' },
+                  { value: 'archived', label: 'Архив' },
+                ]}
+                searchable={false}
+                clearable={false}
+                viewportAware
                 disabled={!allowStatusEdit || isSubmitting}
-              >
-                <option value="active">Активный</option>
-                <option value="frozen">Заморожен</option>
-                <option value="archived">Архив</option>
-              </select>
-            </label>
+              />
+            </div>
 
-            <label>
-              <div style={{ marginBottom: 6 }}>Сезон</div>
-              <select
+            <div>
+              <SearchableSelect
+                label="Сезон"
                 value={form.seasonMode}
-                onChange={(event) =>
+                onChange={(seasonMode) =>
                   setForm((prev) => ({
                     ...prev,
-                    seasonMode: event.target.value,
+                    seasonMode,
                   }))
                 }
-                style={{ width: '100%', padding: 10 }}
+                options={[
+                  { value: '', label: 'Без сезонности' },
+                  { value: 'summer', label: 'Летний' },
+                  { value: 'winter', label: 'Зимний' },
+                ]}
+                searchable={false}
+                clearable={false}
+                viewportAware
                 disabled={!allowBaseFieldsEdit || isSubmitting}
-              >
-                <option value="">Без сезонности</option>
-                <option value="summer">Летний</option>
-                <option value="winter">Зимний</option>
-              </select>
-            </label>
+              />
+            </div>
 
             <label>
               <div style={{ marginBottom: 6 }}>Ставка за день</div>

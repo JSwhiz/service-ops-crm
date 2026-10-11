@@ -24,6 +24,8 @@ import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.d
 import { EquipmentService } from '../equipment/equipment.service';
 import { SafeFileResponseDto } from '../files/dto/safe-file-response.dto';
 import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
+import { LEADERSHIP_OBJECT_ROLE_CODES } from '../objects/utils/object-access.util';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { TasksService } from '../tasks/tasks.service';
@@ -78,6 +80,7 @@ import {
   canAccessOneTimeOrders,
   hasOneTimeOrderPermission,
   hasWideOneTimeOrderAccess,
+  ONE_TIME_ORDER_MANAGER_ROLE_CODES,
   ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION,
 } from './utils/one-time-order-access.util';
 
@@ -342,6 +345,7 @@ export class OneTimeOrdersService {
     private readonly equipmentService: EquipmentService,
     private readonly chatsService: ChatsService,
     private readonly oneTimeOrderConflictService: OneTimeOrderConflictService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async listOrders(
@@ -803,6 +807,13 @@ export class OneTimeOrdersService {
         },
       });
 
+      await this.notifyOrderCreated(
+        tx,
+        order,
+        managerUserIds,
+        currentUser.id,
+      );
+
       return order as OneTimeOrderView;
     });
 
@@ -946,6 +957,12 @@ export class OneTimeOrdersService {
         },
         metadata: { sourceOneTimeOrderId },
       });
+      await this.notifyOrderCreated(
+        tx,
+        order,
+        managerUsers.map((user) => user.id),
+        currentUser.id,
+      );
       return order as OneTimeOrderView;
     });
 
@@ -1145,6 +1162,12 @@ export class OneTimeOrdersService {
           action: 'one_time_order.updated',
           metadata: { changes },
         });
+        await this.notifyOrderChanged(
+          tx,
+          order,
+          managerUserIds,
+          currentUser.id,
+        );
       }
 
       return order;
@@ -2221,7 +2244,7 @@ export class OneTimeOrdersService {
               excludeOrderId: id,
               conflictFingerprint: payload.conflictFingerprint,
             });
-      await tx.oneTimeOrderAssignment.upsert({
+      const assignment = await tx.oneTimeOrderAssignment.upsert({
         where: {
           oneTimeOrderId_userId_assignmentRoleCode: {
             oneTimeOrderId: id,
@@ -2256,6 +2279,19 @@ export class OneTimeOrdersService {
           managerFullName: manager.fullName,
         },
       });
+      if (!order.assignments.some((item) =>
+        item.userId === manager.id &&
+        item.assignmentRoleCode === 'one_time_manager' &&
+        item.isActive,
+      )) {
+        await this.notifyOrderAssignmentChanged(
+          tx,
+          { id, title: order.title, updatedAt: assignment.updatedAt },
+          [manager.id],
+          currentUser.id,
+          'назначен',
+        );
+      }
     });
 
     return this.getOrderById(currentUser, id);
@@ -2269,6 +2305,15 @@ export class OneTimeOrdersService {
     await this.getOrderForManagerChange(currentUser, id);
 
     await this.prisma.$transaction(async (tx) => {
+      const assignment = await tx.oneTimeOrderAssignment.findFirst({
+        where: {
+          oneTimeOrderId: id,
+          userId,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+        select: { updatedAt: true },
+      });
       const result = await tx.oneTimeOrderAssignment.updateMany({
         where: {
           oneTimeOrderId: id,
@@ -2292,6 +2337,25 @@ export class OneTimeOrdersService {
         action: 'one_time_order.manager_removed',
         metadata: { managerUserId: userId },
       });
+      const remainingManagerIds = await tx.oneTimeOrderAssignment.findMany({
+        where: {
+          oneTimeOrderId: id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+        select: { userId: true },
+      });
+      await this.notifyOrderAssignmentChanged(
+        tx,
+        {
+          id,
+          title: (await tx.oneTimeOrder.findUniqueOrThrow({ where: { id }, select: { title: true } })).title,
+          updatedAt: assignment?.updatedAt ?? new Date(),
+        },
+        [...remainingManagerIds.map(({ userId: managerId }) => managerId), userId],
+        currentUser.id,
+        'снят',
+      );
     });
 
     return this.getOrderById(currentUser, id);
@@ -4220,6 +4284,88 @@ export class OneTimeOrdersService {
     ) {
       throw new ForbiddenException('One-time order review registry access denied');
     }
+  }
+
+  private async notifyOrderCreated(
+    tx: Prisma.TransactionClient,
+    order: { id: string; title: string },
+    assignedManagerUserIds: string[],
+    actorUserId: string,
+  ): Promise<void> {
+    const [managerUserIds, leadershipUserIds] = await Promise.all([
+      this.notificationsService.listActiveUserIdsByRoles(
+        [...ONE_TIME_ORDER_MANAGER_ROLE_CODES],
+        tx,
+      ),
+      this.notificationsService.listActiveUserIdsByRoles(
+        [...LEADERSHIP_OBJECT_ROLE_CODES],
+        tx,
+      ),
+    ]);
+    await this.notificationsService.createForRecipients({
+      recipientUserIds: [
+        ...assignedManagerUserIds,
+        ...managerUserIds,
+        ...leadershipUserIds,
+      ].filter((userId) => userId !== actorUserId),
+      type: 'one_time_order.created',
+      title: 'Создан новый разовый заказ',
+      body: order.title,
+      entityType: 'one_time_order',
+      entityId: order.id,
+      targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
+      dedupeKey: `one-time-order:${order.id}:created`,
+    }, tx);
+  }
+
+  private async notifyOrderChanged(
+    tx: Prisma.TransactionClient,
+    order: { id: string; title: string; updatedAt: Date },
+    assignedManagerUserIds: string[],
+    actorUserId: string,
+  ): Promise<void> {
+    const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(
+      [...LEADERSHIP_OBJECT_ROLE_CODES],
+      tx,
+    );
+    await this.notificationsService.createForRecipients({
+      recipientUserIds: [
+        ...assignedManagerUserIds,
+        ...leadershipUserIds,
+      ].filter((userId) => userId !== actorUserId),
+      type: 'one_time_order.updated',
+      title: 'Изменён разовый заказ',
+      body: order.title,
+      entityType: 'one_time_order',
+      entityId: order.id,
+      targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
+      dedupeKey: `one-time-order:${order.id}:updated:${order.updatedAt.toISOString()}`,
+    }, tx);
+  }
+
+  private async notifyOrderAssignmentChanged(
+    tx: Prisma.TransactionClient,
+    order: { id: string; title: string; updatedAt: Date },
+    managerUserIds: string[],
+    actorUserId: string,
+    action: 'назначен' | 'снят',
+  ): Promise<void> {
+    const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(
+      [...LEADERSHIP_OBJECT_ROLE_CODES],
+      tx,
+    );
+    await this.notificationsService.createForRecipients({
+      recipientUserIds: [...managerUserIds, ...leadershipUserIds].filter(
+        (userId) => userId !== actorUserId,
+      ),
+      type: `one_time_order.manager_${action === 'назначен' ? 'assigned' : 'removed'}`,
+      title: `Менеджер ${action} на разовый заказ`,
+      body: order.title,
+      entityType: 'one_time_order',
+      entityId: order.id,
+      targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
+      dedupeKey: `one-time-order:${order.id}:manager:${action}:${order.updatedAt.toISOString()}`,
+    }, tx);
   }
 
   private assertCanAccessRegistry(currentUser: CurrentAuthUser): void {

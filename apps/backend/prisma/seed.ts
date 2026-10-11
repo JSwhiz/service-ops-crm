@@ -168,9 +168,16 @@ async function main(): Promise<void> {
       code: "one_time_order.calendar.manage",
       name: "Управление календарём разовых заказов",
     },
+    { code: "user_absences.view_all", name: "Просмотр календарей всех пользователей" },
+    { code: "user_absences.manage", name: "Управление календарями всех пользователей" },
+    { code: "user_absences.view_private_reasons", name: "Просмотр причин отсутствия" },
     {
       code: "one_time_order.manage_all",
       name: "Полное управление разовыми заказами",
+    },
+    {
+      code: "chat.room.close_global",
+      name: "Глобальное закрытие групповых чатов",
     },
   ];
 
@@ -339,6 +346,60 @@ async function main(): Promise<void> {
     },
   });
 
+  for (const permissionCode of [
+    "user_absences.view_all",
+    "user_absences.manage",
+    "user_absences.view_private_reasons",
+  ]) {
+    const permission = permissionsByCode.get(permissionCode);
+    if (!permission) {
+      throw new Error(`Permission ${permissionCode} was not created`);
+    }
+    await prisma.userPermission.upsert({
+      where: {
+        userId_permissionId: {
+          userId: hrUser.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        userId: hrUser.id,
+        permissionId: permission.id,
+      },
+    });
+  }
+
+  // Calendar-wide access is personal to Kireeva; it must never be inherited
+  // from an HR or leadership role in a freshly seeded environment.
+  await prisma.rolePermission.deleteMany({
+    where: {
+      permission: {
+          code: {
+            in: [
+              "user_absences.view_all",
+              "user_absences.manage",
+              "user_absences.view_private_reasons",
+            ],
+          },
+      },
+    },
+  });
+  await prisma.userPermission.deleteMany({
+    where: {
+      userId: { not: hrUser.id },
+      permission: {
+        code: {
+          in: [
+            "user_absences.view_all",
+            "user_absences.manage",
+            "user_absences.view_private_reasons",
+          ],
+        },
+      },
+    },
+  });
+
   const deputyDirectorUser = await prisma.user.upsert({
     where: { login: "gorbacheva" },
     update: {
@@ -459,6 +520,32 @@ async function main(): Promise<void> {
       },
     });
 
+  }
+
+  const globalChatCloserPermission = permissionsByCode.get(
+    "chat.room.close_global",
+  );
+  if (!globalChatCloserPermission) {
+    throw new Error("Permission chat.room.close_global was not created");
+  }
+  const existingGlobalChatClosers = await prisma.user.findMany({
+    where: { login: { in: ["gerasimov", "lebedev", "stepanova"] } },
+    select: { id: true },
+  });
+  for (const user of existingGlobalChatClosers) {
+    await prisma.userPermission.upsert({
+      where: {
+        userId_permissionId: {
+          userId: user.id,
+          permissionId: globalChatCloserPermission.id,
+        },
+      },
+      update: {},
+      create: {
+        userId: user.id,
+        permissionId: globalChatCloserPermission.id,
+      },
+    });
   }
 
   const calendarManagerLogins = [

@@ -17,6 +17,9 @@ import {
 } from '@/shared/lib/accountability-presentation';
 import { getUserDisplayName, getUserSecondaryLabel } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 
 import { AccountabilityExpenseForm } from './accountability-expense-form';
 
@@ -31,15 +34,24 @@ export function AccountabilityAccountPanel({
   title,
   view,
   isOwnView,
+  section,
+  onSectionChange,
+  movementContent,
+  idPrefix,
   onSaveExpense,
   onSubmitExpense,
   onApproveExpense,
   onRejectExpense,
   onRequestClosure,
+  onReverseExternalReceipt,
 }: {
   title: string;
   view: AccountabilityAccountView;
   isOwnView: boolean;
+  section: 'overview' | 'movements' | 'expenses' | 'reconciliation';
+  onSectionChange: (section: 'overview' | 'movements' | 'expenses' | 'reconciliation') => void;
+  movementContent?: React.ReactNode;
+  idPrefix: string;
   onSaveExpense: (payload: {
     expenseId?: string;
     amount: number;
@@ -51,6 +63,7 @@ export function AccountabilityAccountPanel({
   onApproveExpense: (expenseId: string) => Promise<void>;
   onRejectExpense: (expenseId: string, comment: string) => Promise<void>;
   onRequestClosure: () => Promise<void>;
+  onReverseExternalReceipt: (fundingId: string, reason: string) => Promise<void>;
 }): React.JSX.Element {
   const [editingExpense, setEditingExpense] =
     useState<AccountabilityExpenseItem | null>(null);
@@ -58,9 +71,12 @@ export function AccountabilityAccountPanel({
     null,
   );
   const [expenseRejectComment, setExpenseRejectComment] = useState('');
+  const [reversingFundingId, setReversingFundingId] = useState<string | null>(null);
+  const [fundingReversalReason, setFundingReversalReason] = useState('');
   const [orderFilter, setOrderFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [periodFilterActive, setPeriodFilterActive] = useState(false);
   const latestClosure = view.closures[0] ?? null;
 
   const orderIds = useMemo(
@@ -73,6 +89,53 @@ export function AccountabilityAccountPanel({
     [view.expenses, view.fundings],
   );
   const activeOrderFilter = orderIds.includes(orderFilter) ? orderFilter : '';
+  const orderFilterOptions = orderIds.map((orderId) => ({
+    value: orderId,
+    label: `Разовый заказ · ${orderId.slice(0, 8)}`,
+  }));
+  const activeLedgerFilters = ([
+    activeOrderFilter ? {
+      id: 'order',
+      label: 'Разовый заказ',
+      value: activeOrderFilter,
+      options: orderFilterOptions,
+      onChange: setOrderFilter,
+      onRemove: () => setOrderFilter(''),
+    } : null,
+    periodFilterActive ? {
+      id: 'period',
+      label: 'Период',
+      value: dateFrom || dateTo ? `${dateFrom || '…'} — ${dateTo || '…'}` : 'Любые даты',
+      options: [],
+      onChange: () => undefined,
+      onRemove: () => {
+        setDateFrom('');
+        setDateTo('');
+        setPeriodFilterActive(false);
+      },
+      customControl: (
+        <div className="registry-date-range">
+          <input aria-label="Дата с" type="date" max={dateTo || undefined} value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+          <span>—</span>
+          <input aria-label="Дата по" type="date" min={dateFrom || undefined} value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+        </div>
+      ),
+    } : null,
+  ].filter(Boolean) as ActiveRegistryFilter[]);
+  const availableLedgerFilters = ([
+    !activeOrderFilter && orderFilterOptions.length > 0 ? {
+      id: 'order',
+      label: 'Разовый заказ',
+      options: orderFilterOptions,
+      onAdd: setOrderFilter,
+    } : null,
+    !periodFilterActive ? {
+      id: 'period',
+      label: 'Период',
+      options: [{ value: 'period', label: 'Выбрать даты' }],
+      onAdd: () => setPeriodFilterActive(true),
+    } : null,
+  ].filter(Boolean) as AvailableRegistryFilter[]);
   const isWithinDates = (value: string): boolean => {
     const date = value.slice(0, 10);
     return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
@@ -105,35 +168,34 @@ export function AccountabilityAccountPanel({
     [view.expenses],
   );
 
-  const summaryCards = useMemo(
+  const overviewCards = useMemo(
     () => [
       { label: 'Текущий остаток', value: formatMoney(view.summary.currentBalance) },
       { label: 'Прогнозный остаток', value: formatMoney(view.summary.forecastBalance) },
       { label: 'На подтверждении', value: formatMoney(submittedAmount) },
-      { label: 'Выдано всего', value: formatMoney(view.summary.totalFunding) },
-      {
-        label: 'Занесено расходов',
-        value: formatMoney(view.summary.totalRecordedExpenses),
-      },
-      {
-        label: 'Подтверждено',
-        value: formatMoney(view.summary.totalApprovedExpenses),
-      },
-      {
-        label: 'Отклонено',
-        value: formatMoney(view.summary.totalRejectedExpenses),
-      },
-      {
-        label: 'Сверено',
-        value: formatMoney(view.summary.totalReconciledExpenses),
-      },
     ],
     [submittedAmount, view.summary],
   );
+  const accountSections = useMemo(
+    () => [
+      { value: 'overview', label: 'Обзор' },
+      { value: 'movements', label: 'Движения' },
+      ...(!isOwnView || view.capabilities.canCreateExpense || view.expenses.length > 0
+        ? [{ value: 'expenses', label: 'Расходы' }]
+        : []),
+      ...(!isOwnView || view.capabilities.canRequestClosure || view.closures.length > 0
+        ? [{ value: 'reconciliation', label: 'Сверка и закрытие' }]
+        : []),
+    ],
+    [isOwnView, view.capabilities.canCreateExpense, view.capabilities.canRequestClosure, view.closures.length, view.expenses.length],
+  );
+  const activeSection = accountSections.some((item) => item.value === section)
+    ? section
+    : 'overview';
 
   return (
-    <div className="page-stack">
-      <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
+    <div className="page-stack accountability-account-panel">
+      <div className="page-card hero-card accountability-account-overview" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
             <div className="hero-title">{title}</div>
@@ -163,114 +225,80 @@ export function AccountabilityAccountPanel({
             Активный подотчетный контур для пользователя еще не открыт.
           </div>
         )}
-
-        <div className="stat-grid">
-          {summaryCards.map((card) => (
-            <div key={card.label} className="stat-card">
-              <div className="detail-label">{card.label}</div>
-              <div className="stat-card__value">{card.value}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="detail-grid">
-          <div className="detail-field">
-            <div className="detail-label">Draft расходов</div>
-            <div className="detail-value">{view.summary.draftExpensesCount}</div>
-          </div>
-          <div className="detail-field">
-            <div className="detail-label">Submitted расходов</div>
-            <div className="detail-value">
-              {view.summary.submittedExpensesCount}
-            </div>
-          </div>
-          <div className="detail-field">
-            <div className="detail-label">Последняя сверка</div>
-            <div className="detail-value">
-              {latestClosure
-                ? getAccountabilityClosureStatusLabel(latestClosure.status)
-                : 'Сверки еще не было'}
-            </div>
-          </div>
-        </div>
-
-        {isOwnView && view.capabilities.canRequestClosure ? (
-          <div className="action-row">
-            <button
-              type="button"
-              onClick={() => {
-                void onRequestClosure();
-              }}
-            >
-              Отправить на сверку
-            </button>
-          </div>
-        ) : null}
       </div>
 
-      {isOwnView ? (
-        <AccountabilityExpenseForm
-          initialExpense={editingExpense}
-          canCreate={view.capabilities.canCreateExpense || Boolean(editingExpense)}
-          onSave={async (payload) => {
-            await onSaveExpense(payload);
-            setEditingExpense(null);
-          }}
-          onCancelEdit={() => {
-            setEditingExpense(null);
-          }}
-        />
-      ) : null}
+      <WorkspaceTabs
+        items={accountSections}
+        value={activeSection}
+        onChange={(value) => onSectionChange(value as typeof section)}
+        label="Разделы подотчёта"
+        idPrefix={idPrefix}
+      />
 
-      {view.fundings.length > 0 || view.expenses.length > 0 ? (
-        <div className="page-card page-card--subtle accountability-ledger-filters">
-          <div>
-            <div className="section-title">Фильтры финансовой истории</div>
-            <div className="section-subtitle">
-              Отбор применяется к поступлениям и расходам ниже.
+      <section
+        className="accountability-section-panel"
+        role="tabpanel"
+        id={`${idPrefix}-panel-overview`}
+        aria-labelledby={`${idPrefix}-tab-overview`}
+        hidden={activeSection !== 'overview'}
+      >
+        <div className="page-card" style={{ display: 'grid', gap: 16 }}>
+          <div className="stat-grid">
+            {overviewCards.map((card) => (
+              <div key={card.label} className="stat-card">
+                <div className="detail-label">{card.label}</div>
+                <div className="stat-card__value">{card.value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="accountability-overview-meta">
+            <span>Черновики расходов: <strong>{view.summary.draftExpensesCount}</strong></span>
+            <span>На проверке: <strong>{view.summary.submittedExpensesCount}</strong></span>
+            <span>Последняя сверка: <strong>{latestClosure
+              ? getAccountabilityClosureStatusLabel(latestClosure.status)
+              : 'не проводилась'}</strong></span>
+          </div>
+          <details className="accountability-secondary-totals">
+            <summary>Дополнительные финансовые итоги</summary>
+            <div className="detail-grid">
+              <div className="detail-field"><div className="detail-label">Поступило всего</div><div className="detail-value">{formatMoney(view.summary.totalFunding)}</div></div>
+              <div className="detail-field"><div className="detail-label">Всего учтено в расходах</div><div className="detail-value">{formatMoney(view.summary.totalRecordedExpenses)}</div></div>
+              <div className="detail-field"><div className="detail-label">Подтверждено</div><div className="detail-value">{formatMoney(view.summary.totalApprovedExpenses)}</div></div>
+              <div className="detail-field"><div className="detail-label">Отклонено</div><div className="detail-value">{formatMoney(view.summary.totalRejectedExpenses)}</div></div>
+              <div className="detail-field"><div className="detail-label">Сверено</div><div className="detail-value">{formatMoney(view.summary.totalReconciledExpenses)}</div></div>
             </div>
-          </div>
-          <div className="field-grid">
-            <label>
-              <span>Разовый заказ</span>
-              <select
-                value={activeOrderFilter}
-                onChange={(event) => setOrderFilter(event.target.value)}
-              >
-                <option value="">Все заказы и ручные операции</option>
-                {orderIds.map((orderId) => (
-                  <option key={orderId} value={orderId}>
-                    Разовый заказ · {orderId.slice(0, 8)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Дата с</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(event) => setDateFrom(event.target.value)}
-              />
-            </label>
-            <label>
-              <span>Дата по</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(event) => setDateTo(event.target.value)}
-              />
-            </label>
-          </div>
+          </details>
+          {isOwnView && view.capabilities.canRequestClosure ? (
+            <div className="action-row">
+              <button type="button" onClick={() => void onRequestClosure()}>Отправить на сверку</button>
+            </div>
+          ) : null}
         </div>
+      </section>
+
+      <section
+        className="accountability-section-panel page-stack"
+        role="tabpanel"
+        id={`${idPrefix}-panel-movements`}
+        aria-labelledby={`${idPrefix}-tab-movements`}
+        hidden={activeSection !== 'movements'}
+      >
+        {movementContent}
+      {activeSection === 'movements' && (view.fundings.length > 0 || view.expenses.length > 0) ? (
+        <section className="page-card page-card--subtle accountability-ledger-filters">
+          <div className="section-title">Фильтры финансовой истории</div>
+          <div className="section-subtitle">Отбор применяется к поступлениям и расходам ниже.</div>
+          <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeLedgerFilters} availableFilters={availableLedgerFilters} />
+        </section>
       ) : null}
 
+      {activeSection === 'movements' ? (
       <div className="page-card" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
-            <div className="section-title">Выдачи денег</div>
+            <div className="section-title">Движения средств</div>
             <div className="section-subtitle">
-              Пополнения подотчетного контура пользователя.
+              Поступления, выдачи и сторно. Платёж по разовому заказу появляется здесь, если он зачислен именно в этот подотчёт.
             </div>
           </div>
         </div>
@@ -278,7 +306,7 @@ export function AccountabilityAccountPanel({
         {filteredFundings.length === 0 ? (
           <div className="page-muted">По выбранным фильтрам поступлений нет.</div>
         ) : (
-          <div className="record-list local-scroll local-scroll--sm">
+          <div className="record-list">
             {filteredFundings.map((funding) => (
               <div key={funding.id} className="record-card">
                 <div className="section-header" style={{ paddingBottom: 0 }}>
@@ -297,25 +325,85 @@ export function AccountabilityAccountPanel({
                 </div>
                 <div className="page-muted" style={{ marginTop: 6 }}>
                   Зафиксировал: {getUserDisplayName(funding.recordedBy ?? funding.issuedBy)}
-                  {funding.oneTimeOrderId
-                    ? ` · заказ ${funding.oneTimeOrderId.slice(0, 8)}`
-                    : ''}
+                  {funding.oneTimeOrderId ? (
+                    <> · <Link href={`/one-time-orders/${funding.oneTimeOrderId}`}>Открыть разовый заказ</Link></>
+                  ) : null}
                 </div>
                 {funding.comment ? (
                   <div style={{ marginTop: 8 }}>{funding.comment}</div>
+                ) : null}
+                {funding.source ? (
+                  <div className="page-muted" style={{ marginTop: 6 }}>
+                    Источник: {funding.source}
+                  </div>
+                ) : null}
+                {funding.attachments.length > 0 ? (
+                  <div style={{ marginTop: 10 }}>
+                    <AttachmentPreviewList files={funding.attachments} emptyText="Вложения отсутствуют." />
+                  </div>
+                ) : null}
+                {funding.reversedByFundingId ? (
+                  <div className="page-muted" style={{ marginTop: 8 }}>Поступление сторнировано.</div>
+                ) : null}
+                {view.capabilities.canReverseExternalReceipts && funding.fundingType === 'external_receipt' && !funding.reversedByFundingId ? (
+                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                    {reversingFundingId === funding.id ? (
+                      <>
+                        <textarea rows={2} value={fundingReversalReason} onChange={(event) => setFundingReversalReason(event.target.value)} maxLength={500} placeholder="Причина сторнирования (обязательно)" />
+                        <div className="action-row">
+                          <button type="button" disabled={!fundingReversalReason.trim()} onClick={() => void onReverseExternalReceipt(funding.id, fundingReversalReason.trim()).then(() => { setReversingFundingId(null); setFundingReversalReason(''); }).catch(() => undefined)}>Провести сторно</button>
+                          <button type="button" className="button-secondary" onClick={() => { setReversingFundingId(null); setFundingReversalReason(''); }}>Отмена</button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="action-row"><button type="button" className="button-secondary" onClick={() => setReversingFundingId(funding.id)}>Сторнировать поступление</button></div>
+                    )}
+                  </div>
                 ) : null}
               </div>
             ))}
           </div>
         )}
       </div>
+      ) : null}
+      </section>
 
+      <section
+        className="accountability-section-panel page-stack"
+        role="tabpanel"
+        id={`${idPrefix}-panel-expenses`}
+        aria-labelledby={`${idPrefix}-tab-expenses`}
+        hidden={activeSection !== 'expenses'}
+      >
+      {isOwnView ? (
+        <AccountabilityExpenseForm
+          initialExpense={editingExpense}
+          canCreate={view.capabilities.canCreateExpense || Boolean(editingExpense)}
+          onSave={async (payload) => {
+            await onSaveExpense(payload);
+            setEditingExpense(null);
+          }}
+          onCancelEdit={() => {
+            setEditingExpense(null);
+          }}
+        />
+      ) : null}
+
+      {(view.fundings.length > 0 || view.expenses.length > 0) ? (
+        <section className="page-card page-card--subtle accountability-ledger-filters">
+          <div className="section-title">Фильтры финансовой истории</div>
+          <div className="section-subtitle">Отбор применяется к поступлениям и расходам ниже.</div>
+          <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeLedgerFilters} availableFilters={availableLedgerFilters} />
+        </section>
+      ) : null}
+
+      {activeSection === 'expenses' ? (
       <div className="page-card" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
             <div className="section-title">Расходы</div>
             <div className="section-subtitle">
-              Draft редактирует только владелец. Submitted решает reviewer.
+              Черновик может изменить владелец. Отправленный расход ожидает решения проверяющего.
             </div>
           </div>
         </div>
@@ -323,7 +411,7 @@ export function AccountabilityAccountPanel({
         {filteredExpenses.length === 0 ? (
           <div className="page-muted">По выбранным фильтрам расходов нет.</div>
         ) : (
-          <div className="record-list local-scroll local-scroll--lg">
+          <div className="record-list">
             {filteredExpenses.map((expense) => (
               <div key={expense.id} className="record-card" style={{ display: 'grid', gap: 10 }}>
                 <div className="section-header" style={{ paddingBottom: 0 }}>
@@ -349,6 +437,22 @@ export function AccountabilityAccountPanel({
                 </div>
 
                 <div style={{ whiteSpace: 'pre-wrap' }}>{expense.description}</div>
+
+                {expense.expenseCategory === 'employee_payout' ? (
+                  <div className="accountability-payout-context">
+                    <strong>Выплата за разовый заказ</strong>
+                    <span>Сотрудник: {expense.employeeFullName || 'не указан'}</span>
+                    <span>Цикл: {expense.oneTimeOrderWorkCycle ?? 'не указан'}</span>
+                    {expense.oneTimeOrderId ? (
+                      <Link href={`/one-time-orders/${expense.oneTimeOrderId}`}>
+                        Открыть заказ
+                      </Link>
+                    ) : null}
+                    <span className="page-muted">
+                      Статус выплаты: {getAccountabilityExpenseStatusLabel(expense.status)}
+                    </span>
+                  </div>
+                ) : null}
 
                 {expense.rejectionComment ? (
                   <div className="record-card" style={{ background: '#fef2f2' }}>
@@ -449,13 +553,23 @@ export function AccountabilityAccountPanel({
           </div>
         )}
       </div>
+      ) : null}
+      </section>
 
+      <section
+        className="accountability-section-panel"
+        role="tabpanel"
+        id={`${idPrefix}-panel-reconciliation`}
+        aria-labelledby={`${idPrefix}-tab-reconciliation`}
+        hidden={activeSection !== 'reconciliation'}
+      >
+      {activeSection === 'reconciliation' ? (
       <div className="page-card" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
             <div className="section-title">Сверка и закрытие</div>
             <div className="section-subtitle">
-              Closure attempts хранятся отдельно и не теряют историю.
+              Все решения и комментарии по сверкам сохраняются в истории.
             </div>
           </div>
         </div>
@@ -463,13 +577,15 @@ export function AccountabilityAccountPanel({
         {view.closures.length === 0 ? (
           <div className="page-muted">Попыток сверки пока не было.</div>
         ) : (
-          <div className="record-list local-scroll local-scroll--sm">
+          <div className="record-list">
             {view.closures.map((closure) => (
               <ClosureCard key={closure.id} closure={closure} />
             ))}
           </div>
         )}
       </div>
+      ) : null}
+      </section>
     </div>
   );
 }

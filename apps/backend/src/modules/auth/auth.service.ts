@@ -229,6 +229,7 @@ export class AuthService {
       permissionCodes: user.permissionCodes,
       hasActiveOneTimeManagerAssignment: activeManagerAssignment !== null,
       hasHistoricalOneTimeOrderReceipt: historicalOneTimeOrderReceipt !== null,
+      isActiveUser: user.isActive,
     });
     const inventoryCapabilities = buildInventoryGlobalCapabilities(
       user.roleCodes,
@@ -317,6 +318,8 @@ export class AuthService {
           accountabilityCapabilities.canReviewAccountability,
         canApproveAccountabilityClosure:
           accountabilityCapabilities.canApproveAccountabilityClosure,
+        canRecordExternalReceipt:
+          accountabilityCapabilities.canRecordExternalReceipt,
         canAccessInventory: inventoryCapabilities.canAccessInventory,
         canManageInventoryCatalog:
           inventoryCapabilities.canManageInventoryCatalog,

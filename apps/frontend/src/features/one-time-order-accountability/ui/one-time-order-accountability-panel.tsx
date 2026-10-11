@@ -6,8 +6,10 @@ import type {
   AccountabilityExpenseCategory,
   OneTimeOrderAccountabilityView,
 } from '@/entities/accountability/model/accountability.types';
+import type { OneTimeWorkforceEmployee } from '@/entities/one-time-order/api/one-time-order-workforce-client';
 import type { OneTimeOrderCompletion } from '@/entities/one-time-order/model/one-time-order.types';
 import {
+  getAccountabilityAccountStatusLabel,
   getAccountabilityExpenseCategoryLabel,
   getAccountabilityExpenseStatusLabel,
   getAccountabilityFundingTypeLabel,
@@ -16,6 +18,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 const CATEGORY_OPTIONS: Array<{
   value: AccountabilityExpenseCategory;
@@ -26,6 +29,7 @@ const CATEGORY_OPTIONS: Array<{
   { value: 'transport', label: 'Транспорт' },
   { value: 'services', label: 'Услуги' },
   { value: 'other', label: 'Другое' },
+  { value: 'employee_payout', label: 'Выплата сотруднику' },
 ];
 
 function formatMoney(value: number): string {
@@ -39,15 +43,21 @@ export function OneTimeOrderAccountabilityPanel({
   view,
   completions,
   orderStatus,
+  workforce,
+  workCycle,
   onCreateExpense,
 }: {
   view: OneTimeOrderAccountabilityView;
   completions: OneTimeOrderCompletion[];
   orderStatus: string;
+  workforce: OneTimeWorkforceEmployee[];
+  workCycle: number;
   onCreateExpense: (payload: {
     amount: number;
     description: string;
     oneTimeOrderCompletionId: string | null;
+    employeeId: string | null;
+    oneTimeOrderWorkCycle: number | null;
     expenseCategory: AccountabilityExpenseCategory;
     expenseDate: string;
     files: File[];
@@ -64,6 +74,8 @@ export function OneTimeOrderAccountabilityPanel({
   const [files, setFiles] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [completionSelection, setCompletionSelection] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+  const isEmployeePayout = expenseCategory === 'employee_payout';
   const completionOptionsKey = completions
     .map((completion) => `${completion.id}:${completion.workCycle}`)
     .join('|');
@@ -91,7 +103,8 @@ export function OneTimeOrderAccountabilityPanel({
       normalizedAmount <= 0 ||
       !normalizedDescription ||
       !expenseDate ||
-      !completionSelection ||
+      (!isEmployeePayout && !completionSelection) ||
+      (isEmployeePayout && !employeeId) ||
       (submitAfterSave && files.length === 0)
     ) {
       return;
@@ -103,7 +116,11 @@ export function OneTimeOrderAccountabilityPanel({
         amount: normalizedAmount,
         description: normalizedDescription,
         oneTimeOrderCompletionId:
-          completionSelection === 'order_only' ? null : completionSelection,
+          isEmployeePayout || completionSelection === 'order_only'
+            ? null
+            : completionSelection,
+        employeeId: isEmployeePayout ? employeeId : null,
+        oneTimeOrderWorkCycle: isEmployeePayout ? workCycle : null,
         expenseCategory,
         expenseDate,
         files,
@@ -112,6 +129,7 @@ export function OneTimeOrderAccountabilityPanel({
       setAmount('');
       setDescription('');
       setFiles([]);
+      setEmployeeId('');
     } finally {
       setIsSaving(false);
     }
@@ -121,15 +139,15 @@ export function OneTimeOrderAccountabilityPanel({
     <div className="page-card" style={{ display: 'grid', gap: 18 }}>
       <div className="section-header">
         <div>
-          <div className="section-title">Подотчет по заказу</div>
+          <div className="section-title">Подотчёт по заказу</div>
           <div className="section-subtitle">
-            Поступления и расходы показываются только в разрешенном backend scope.
+            Здесь учитываются деньги менеджера и расходы, оформленные по этому заказу.
           </div>
         </div>
         <span className="status-pill">
           {view.visibilityScope === 'administrative'
-            ? 'Административный просмотр'
-            : 'Мой подотчет'}
+            ? 'Все доступные счета'
+            : 'Мой подотчёт'}
         </span>
       </div>
 
@@ -138,7 +156,7 @@ export function OneTimeOrderAccountabilityPanel({
           <div>
             <strong>Добавить расход по заказу</strong>
             <div className="page-muted">
-              Для отправки на проверку приложите чек или документ.
+            Выплата станет фактически учтённой после подтверждения расхода. Для отправки на проверку приложите чек или документ.
             </div>
           </div>
           <div className="field-grid">
@@ -160,50 +178,50 @@ export function OneTimeOrderAccountabilityPanel({
                 onChange={(event) => setExpenseDate(event.target.value)}
               />
             </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span>Категория</span>
-              <select
+            <SearchableSelect
+                label="Категория"
                 value={expenseCategory}
-                onChange={(event) =>
-                  setExpenseCategory(
-                    event.target.value as AccountabilityExpenseCategory,
-                  )
-                }
-              >
-                {CATEGORY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {completions.length > 0 ? (
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span>Цикл заказа</span>
-                <select
+                options={CATEGORY_OPTIONS.filter(
+                  (option) =>
+                    option.value !== 'employee_payout' ||
+                    view.capabilities.canCreateEmployeePayout,
+                ).map((option) => ({ value: option.value, label: option.label }))}
+                searchable={false}
+                clearable={false}
+                onChange={(value) => setExpenseCategory(value as AccountabilityExpenseCategory)}
+            />
+            {isEmployeePayout ? (
+              <SearchableSelect
+                label="Сотрудник"
+                value={employeeId}
+                options={workforce.map((employee) => ({
+                  value: employee.employeeId,
+                  label: employee.fullName,
+                  description: employee.isActive ? employee.position ?? undefined : 'Состав прошлого периода',
+                }))}
+                placeholder="Выберите сотрудника заказа"
+                searchPlaceholder="Найти сотрудника"
+                emptyText="В этом цикле сотрудников нет"
+                clearable={false}
+                onChange={setEmployeeId}
+              />
+            ) : null}
+            {!isEmployeePayout && completions.length > 0 ? (
+              <SearchableSelect
+                  label="Цикл заказа"
                   value={completionSelection}
-                  onChange={(event) =>
-                    setCompletionSelection(event.target.value)
-                  }
-                >
-                  {completions.length > 1 ? (
-                    <option value="">Выберите цикл</option>
-                  ) : null}
-                  {orderStatus !== 'completed' ? (
-                    <option value="order_only">
-                      Текущий цикл, до завершения
-                    </option>
-                  ) : null}
-                  {completions.map((completion) => (
-                    <option key={completion.id} value={completion.id}>
-                      Цикл {completion.workCycle}
-                      {completion.completionSource === 'legacy_unknown'
-                        ? ' · исторический'
-                        : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  options={[
+                    ...(orderStatus !== 'completed' ? [{ value: 'order_only', label: 'Текущий цикл, до завершения' }] : []),
+                    ...completions.map((completion) => ({
+                      value: completion.id,
+                      label: `Цикл ${completion.workCycle}${completion.completionSource === 'legacy_unknown' ? ' · исторический' : ''}`,
+                    })),
+                  ]}
+                  placeholder="Выберите цикл"
+                  searchable={false}
+                  clearable={false}
+                  onChange={setCompletionSelection}
+              />
             ) : null}
             <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1' }}>
               <span>Описание</span>
@@ -231,7 +249,7 @@ export function OneTimeOrderAccountabilityPanel({
           <div className="action-row">
             <button
               type="button"
-              disabled={isSaving || !completionSelection}
+              disabled={isSaving || (!isEmployeePayout && !completionSelection)}
               onClick={() => void save(false)}
             >
               Сохранить черновик
@@ -239,7 +257,9 @@ export function OneTimeOrderAccountabilityPanel({
             <button
               type="button"
               disabled={
-                isSaving || !completionSelection || files.length === 0
+                isSaving ||
+                (!isEmployeePayout && !completionSelection) ||
+                files.length === 0
               }
               onClick={() => void save(true)}
             >
@@ -271,7 +291,7 @@ export function OneTimeOrderAccountabilityPanel({
                     className="status-pill"
                     data-status={account.accountStatus}
                   >
-                    {account.accountStatus}
+                    {getAccountabilityAccountStatusLabel(account.accountStatus)}
                   </span>
                 </div>
                 <div className="stat-grid">
@@ -288,13 +308,16 @@ export function OneTimeOrderAccountabilityPanel({
                     value={formatMoney(account.summary.currentBalance)}
                   />
                   <SummaryItem
-                    label="На подтверждении"
+                    label="На проверке"
                     value={formatMoney(submittedAmount)}
                   />
                   <SummaryItem
                     label="Прогнозный остаток"
                     value={formatMoney(account.summary.forecastBalance)}
                   />
+                </div>
+                <div className="page-muted">
+                  Текущий остаток учитывает проведённые поступления и подтверждённые расходы. Прогноз дополнительно вычитает расходы, отправленные на проверку.
                 </div>
 
                 {account.fundings.length > 0 ? (
@@ -331,6 +354,12 @@ export function OneTimeOrderAccountabilityPanel({
                               {getAccountabilityExpenseCategoryLabel(
                                 expense.expenseCategory,
                               )}
+                              {expense.employeeFullName
+                                ? ` · ${expense.employeeFullName}`
+                                : ''}
+                              {expense.oneTimeOrderWorkCycle
+                                ? ` · Цикл ${expense.oneTimeOrderWorkCycle}`
+                                : ''}
                               {expense.expenseDate
                                 ? ` · ${new Date(`${expense.expenseDate}T00:00:00`).toLocaleDateString('ru-RU')}`
                                 : ''}

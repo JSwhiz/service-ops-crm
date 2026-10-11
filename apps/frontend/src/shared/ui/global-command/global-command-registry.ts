@@ -63,7 +63,8 @@ export function resolveGlobalNavigation(user: AuthUser | null): CommandItem[] {
     { id: 'nav-timesheet', group: 'Навигация', label: 'Табель', href: '/timesheet', kind: 'navigation', keywords: 'табель выплаты зарплата аванс' },
     ...(capabilities?.canAccessCandidates ? [{ id: 'nav-candidates', group: 'Навигация' as const, label: 'Кандидаты', href: '/candidates', kind: 'navigation' as const }] : []),
     ...(capabilities?.canAccessEmployeesHr ? [{ id: 'nav-employees', group: 'Навигация' as const, label: 'Сотрудники', href: '/employees', kind: 'navigation' as const, keywords: 'работники персонал hr' }] : []),
-    { id: 'nav-user-absences', group: 'Навигация', label: 'Отсутствия', href: '/user-absences', kind: 'navigation', keywords: 'отпуск больничный отгул отсутствия график' },
+    { id: 'nav-user-absences', group: 'Навигация', label: 'Календарь пользователей', href: '/user-absences', kind: 'navigation', keywords: 'календарь пользователей отпуск больничный отгул график' },
+    { id: 'nav-user-substitutions', group: 'Навигация', label: 'Замещения', href: '/user-substitutions', kind: 'navigation', keywords: 'замещения отпуск заместитель делегирование объектов' },
     ...(capabilities?.canAccessChats ? [{ id: 'nav-chats', group: 'Навигация' as const, label: 'Чаты', href: '/chats', kind: 'navigation' as const }] : []),
     { id: 'nav-settings', group: 'Навигация', label: 'Настройки', href: '/settings', kind: 'navigation' },
   ];

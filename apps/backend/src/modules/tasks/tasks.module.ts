@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AuditModule } from '../audit/audit.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
 import { TaskAutoCloseService } from './task-auto-close.service';
@@ -8,7 +9,7 @@ import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 
 @Module({
-  imports: [PrismaModule, AuditModule],
+  imports: [PrismaModule, AuditModule, NotificationsModule],
   controllers: [TasksController],
   providers: [TasksService, TaskAutoCloseService],
   exports: [TasksService, TaskAutoCloseService],

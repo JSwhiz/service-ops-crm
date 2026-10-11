@@ -5,7 +5,8 @@ import React, { useState } from 'react';
 
 import { createCounterparty } from '@/entities/counterparty/api/counterparty-client';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+
+import styles from '../counterparties.module.css';
 
 export default function NewCounterpartyPage(): React.JSX.Element {
   const router = useRouter();
@@ -22,19 +23,16 @@ export default function NewCounterpartyPage(): React.JSX.Element {
 
   if (!(user?.capabilities?.canManageCounterparties ?? false)) {
     return (
-      <>
-        <PageTitle title="Новый контрагент" />
-        <div className="page-card">Недостаточно прав.</div>
-      </>
+      <div className={`workspace-page counterparty-workspace ${styles.page}`}>
+        <div className={`page-card workspace-surface ${styles.surface} ${styles.emptyState}`}>Недостаточно прав.</div>
+      </div>
     );
   }
 
   return (
-    <div className="workspace-page page-stack">
-      <PageTitle title="Новый контрагент" />
+    <div className={`workspace-page counterparty-workspace ${styles.page} ${styles.createPage}`}>
       <form
-        className="page-card workspace-surface"
-        style={{ display: 'grid', gap: 16 }}
+        className={styles.createForm}
         onSubmit={(event) => {
           event.preventDefault();
           setSaving(true);
@@ -57,13 +55,14 @@ export default function NewCounterpartyPage(): React.JSX.Element {
             .finally(() => setSaving(false));
         }}
       >
-        <div className="section-title">Основные данные</div>
-        <div className="field-grid">
+        <h1 className={styles.createTitle}>Основные данные</h1>
+        <div className={styles.formFields}>
           <label>
-            <span>Название *</span>
+            <span>Название <b aria-hidden="true">*</b></span>
             <input
               required
               minLength={2}
+              placeholder="Например, ООО «Чистота»"
               value={form.name}
               onChange={(event) =>
                 setForm((current) => ({ ...current, name: event.target.value }))
@@ -73,6 +72,7 @@ export default function NewCounterpartyPage(): React.JSX.Element {
           <label>
             <span>Юридическое название</span>
             <input
+              placeholder="Полное название организации"
               value={form.legalName}
               onChange={(event) =>
                 setForm((current) => ({
@@ -85,6 +85,7 @@ export default function NewCounterpartyPage(): React.JSX.Element {
           <label>
             <span>Основной контакт</span>
             <input
+              placeholder="ФИО контактного лица"
               value={form.contactName}
               onChange={(event) =>
                 setForm((current) => ({
@@ -97,6 +98,8 @@ export default function NewCounterpartyPage(): React.JSX.Element {
           <label>
             <span>Телефон</span>
             <input
+              type="tel"
+              placeholder="+7 (___) ___-__-__"
               value={form.contactPhone}
               onChange={(event) =>
                 setForm((current) => ({
@@ -106,10 +109,11 @@ export default function NewCounterpartyPage(): React.JSX.Element {
               }
             />
           </label>
-          <label style={{ gridColumn: '1 / -1' }}>
+          <label className={styles.fullRow}>
             <span>Комментарий</span>
             <textarea
               rows={4}
+              placeholder="Условия сотрудничества, важные договорённости…"
               value={form.notes}
               onChange={(event) =>
                 setForm((current) => ({
@@ -120,16 +124,10 @@ export default function NewCounterpartyPage(): React.JSX.Element {
             />
           </label>
         </div>
-        {error ? <div className="form-error">{error}</div> : null}
-        <div className="action-row">
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={() => router.push('/counterparties')}
-          >
-            Отмена
-          </button>
-          <button type="submit" disabled={saving || form.name.trim().length < 2}>
+        {error ? <div className={styles.error} role="alert">{error}</div> : null}
+        <div className={styles.formActions}>
+          <button type="button" className={styles.secondaryButton} onClick={() => router.push('/counterparties')}>Отмена</button>
+          <button className={styles.primaryButton} type="submit" disabled={saving || form.name.trim().length < 2}>
             {saving ? 'Сохраняем...' : 'Создать'}
           </button>
         </div>

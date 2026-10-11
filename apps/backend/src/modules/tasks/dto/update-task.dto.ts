@@ -62,6 +62,14 @@ export class UpdateTaskDto {
   visibilityMode?: 'scope' | 'selected';
 
   @IsOptional()
+  @IsIn(['all_users', 'selected_users', 'target_participants', 'private'])
+  visibilityType?:
+    | 'all_users'
+    | 'selected_users'
+    | 'target_participants'
+    | 'private';
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   visibleUserIds?: string[];

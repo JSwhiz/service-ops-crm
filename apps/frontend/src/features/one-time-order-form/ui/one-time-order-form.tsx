@@ -209,8 +209,9 @@ export function OneTimeOrderForm({
   };
 
   return (
-    <form className="page-card" onSubmit={handleSubmit}>
+    <form className="page-card one-time-order-form" onSubmit={handleSubmit}>
       <div
+        className="one-time-order-form__fields"
         style={{
           display: 'grid',
           gap: 12,
@@ -245,33 +246,27 @@ export function OneTimeOrderForm({
         </label>
 
         {allowStatusEdit ? (
-          <label>
-            <div style={{ marginBottom: 6 }}>Статус</div>
-            <select
+          <SearchableSelect
+              label="Статус"
               value={form.status}
+              options={ONE_TIME_ORDER_STATUS_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+              searchable={false}
+              clearable={false}
               onChange={(event) =>
-                setForm((prev) => ({ ...prev, status: event.target.value }))
+                setForm((prev) => ({ ...prev, status: event }))
               }
-              style={{ width: '100%', padding: 10 }}
-            >
-              {ONE_TIME_ORDER_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          />
         ) : null}
 
-        <fieldset style={{ gridColumn: '1 / -1' }}>
+        <fieldset className="one-time-order-date-mode" style={{ gridColumn: '1 / -1' }}>
           <legend>Дата выполнения</legend>
-          <div className="action-row">
+          <div className="one-time-order-date-mode__options">
             {[
               { value: 'none', label: 'Без даты' },
               { value: 'single', label: 'Один день' },
               { value: 'range', label: 'Несколько дней' },
             ].map((option) => (
-              <label key={option.value}>
+              <label className="one-time-order-date-mode__option" key={option.value}>
                 <input
                   type="radio"
                   name="one-time-order-date-mode"
@@ -395,27 +390,21 @@ export function OneTimeOrderForm({
                 style={{ width: '100%', padding: 10 }}
               />
             </label>
-            <label>
-              <div style={{ marginBottom: 6 }}>Плановый способ оплаты</div>
-              <select
+            <SearchableSelect
+                label="Плановый способ оплаты"
                 value={form.plannedPaymentMethod}
-                onChange={(event) =>
+                options={ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                placeholder="Не указан"
+                searchable={false}
+                clearable={false}
+                required={requirePlannedPaymentMethod}
+                onChange={(value) =>
                   setForm((prev) => ({
                     ...prev,
-                    plannedPaymentMethod: event.target.value,
+                    plannedPaymentMethod: value,
                   }))
                 }
-                required={requirePlannedPaymentMethod}
-                style={{ width: '100%', padding: 10 }}
-              >
-                <option value="">Не указан</option>
-                {ONE_TIME_ORDER_PLANNED_PAYMENT_METHOD_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            />
           </>
         ) : null}
 

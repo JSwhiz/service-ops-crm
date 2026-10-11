@@ -8,7 +8,13 @@ import { listCandidateManagers, listCandidates } from '@/entities/candidate/api/
 import { CANDIDATE_SLA_OPTIONS, CANDIDATE_STATUS_OPTIONS, CANDIDATE_TYPE_OPTIONS, candidateSlaLabel, candidateStatusLabel, candidateTypeLabel } from '@/entities/candidate/lib/candidate-presentation';
 import type { CandidateArchiveState, CandidateListResponse, CandidateSlaState, CandidateStatus, CandidateType } from '@/entities/candidate/model/candidate.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { formatRegistryDate } from '@/shared/lib/registry-presentation';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 const EMPTY: CandidateListResponse = { items: [], page: 1, limit: 25, total: 0, totalPages: 0 };
 
@@ -27,6 +33,7 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const [search, setSearch] = useState(q);
   const [manager, setManager] = useState<SearchableSelectOption | null>(null);
+  const [managerFilterActive, setManagerFilterActive] = useState(Boolean(managerUserId));
   const [result, setResult] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +48,7 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
   };
 
   useEffect(() => setSearch(q), [q]);
+  useEffect(() => setManagerFilterActive(Boolean(managerUserId)), [managerUserId]);
   useEffect(() => { const timer = window.setTimeout(() => { const value = search.trim(); if (value !== q) replaceQuery({ q: value || null, page: null }); }, 300); return () => window.clearTimeout(timer); }, [q, search]);
   useEffect(() => {
     if (!managerUserId) { setManager(null); return; }
@@ -57,6 +65,20 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
       .catch(() => { if (sequence === sequenceRef.current) setError('Не удалось загрузить кандидатов.'); })
       .finally(() => { if (sequence === sequenceRef.current) setLoading(false); });
   }, [archiveState, canAccess, managerUserId, page, q, slaState, status, type]);
+
+  const activeRegistryFilters = ([
+    !fixedType && type ? { id: 'type', label: 'Тип', value: type, options: CANDIDATE_TYPE_OPTIONS, onChange: (value: string) => replaceQuery({ candidateType: value || null, page: null }), onRemove: () => replaceQuery({ candidateType: null, page: null }) } : null,
+    status ? { id: 'status', label: 'Статус', value: status, options: CANDIDATE_STATUS_OPTIONS, onChange: (value: string) => replaceQuery({ status: value || null, page: null }), onRemove: () => replaceQuery({ status: null, page: null }) } : null,
+    managerFilterActive ? { id: 'manager', label: 'Менеджер', value: managerUserId, options: manager ? [{ value: managerUserId, label: manager.label }] : [], onChange: (value: string) => replaceQuery({ managerUserId: value || null, page: null }), onRemove: () => { replaceQuery({ managerUserId: null, page: null }); setManagerFilterActive(false); }, customControl: <SearchableSelect label="Менеджер" hideLabel value={managerUserId} selectedOption={manager} options={[]} placeholder="Все менеджеры" minimumSearchLength={2} searchPlaceholder="Введите ФИО или логин" searchPromptText="Введите не менее 2 символов, чтобы найти менеджера" searchInputVariant="registry" onChange={(value) => replaceQuery({ managerUserId: value || null, page: null })} asyncSearch={async (value) => (await listCandidateManagers({ q: value })).map((item) => ({ value: item.id, label: item.fullName || item.login, description: `@${item.login}`, searchText: item.login }))} /> } : null,
+    slaState ? { id: 'sla', label: 'SLA', value: slaState, options: CANDIDATE_SLA_OPTIONS, onChange: (value: string) => replaceQuery({ slaState: value || null, page: null }), onRemove: () => replaceQuery({ slaState: null, page: null }) } : null,
+    !fixedType ? { id: 'archive', label: 'Архив', value: archiveState, options: [{ value: 'active', label: 'Активные' }, { value: 'archived', label: 'Архив' }, { value: 'all', label: 'Все' }], onChange: (value: string) => replaceQuery({ archiveState: value === 'active' ? null : value, page: null }), onRemove: () => replaceQuery({ archiveState: 'all', page: null }) } : null,
+  ].filter(Boolean) as ActiveRegistryFilter[]);
+  const availableRegistryFilters = ([
+    !fixedType && !type ? { id: 'type', label: 'Тип', options: CANDIDATE_TYPE_OPTIONS, onAdd: (value: string) => replaceQuery({ candidateType: value, page: null }) } : null,
+    !status ? { id: 'status', label: 'Статус', options: CANDIDATE_STATUS_OPTIONS, onAdd: (value: string) => replaceQuery({ status: value, page: null }) } : null,
+    !managerFilterActive ? { id: 'manager', label: 'Менеджер', options: [{ value: 'manager', label: 'Выбрать менеджера' }], onAdd: () => setManagerFilterActive(true) } : null,
+    !slaState ? { id: 'sla', label: 'SLA', options: CANDIDATE_SLA_OPTIONS, onAdd: (value: string) => replaceQuery({ slaState: value, page: null }) } : null,
+  ].filter(Boolean) as AvailableRegistryFilter[]);
   useEffect(() => {
     if (!result.items.some((item) => item.slaState === 'awaiting_response')) return;
     const timer = window.setInterval(() => setClock((value) => value + 1), 60_000);
@@ -65,19 +87,9 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
 
   if (!canAccess) return <div className="page-card">У вас нет доступа к кандидатам.</div>;
   return <div className="candidate-registry page-stack workspace-page">
-    <section className="page-card workspace-surface section-header registry-header"><div><div className="section-title">{fixedType === 'reserve' ? 'Кандидаты резерва' : 'Реестр кандидатов'}</div><div className="page-muted">Найдено: {result.total}</div></div>{canManage && !fixedType ? <Link className="button-link" href="/candidates/new">Добавить кандидата</Link> : null}</section>
-    <section className="page-card workspace-surface filter-panel candidate-filters">
-      <label><span className="detail-label">Поиск</span><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ФИО или телефон" /></label>
-      {!fixedType ? <SearchableSelect label="Тип" value={type} options={CANDIDATE_TYPE_OPTIONS} placeholder="Все типы" onChange={(value) => replaceQuery({ candidateType: value || null, page: null })} /> : null}
-      <SearchableSelect label="Статус" value={status} options={CANDIDATE_STATUS_OPTIONS} placeholder="Все статусы" onChange={(value) => replaceQuery({ status: value || null, page: null })} />
-      <SearchableSelect label="Менеджер" value={managerUserId} selectedOption={manager} options={[]} placeholder="Все менеджеры" onChange={(value) => replaceQuery({ managerUserId: value || null, page: null })} asyncSearch={async (value) => (await listCandidateManagers({ q: value })).map((item) => ({ value: item.id, label: item.fullName || item.login, description: `@${item.login}`, searchText: item.login }))} />
-      <SearchableSelect label="SLA" value={slaState} options={CANDIDATE_SLA_OPTIONS} placeholder="Любое состояние" onChange={(value) => replaceQuery({ slaState: value || null, page: null })} />
-      {!fixedType ? <SearchableSelect label="Архив" value={archiveState} clearable={false} options={[{ value: 'active', label: 'Активные' }, { value: 'archived', label: 'Архив' }, { value: 'all', label: 'Все' }]} onChange={(value) => replaceQuery({ archiveState: value === 'active' ? null : value, page: null })} /> : null}
-      <button type="button" className="button-secondary" onClick={() => { setSearch(''); router.replace(pathname, { scroll: false }); }}>Сбросить</button>
-    </section>
-    {loading ? <div className="page-card">Загрузка...</div> : error ? <div className="page-card inline-notice inline-notice--warning">{error}</div> : result.items.length === 0 ? <div className="page-card">Кандидаты не найдены.</div> : <>
-      <div className="page-card workspace-surface data-table-shell candidate-table-wrap">
-        <table className="data-table candidate-table">
+    <RegistryToolbar searchValue={search} searchLabel="Поиск по кандидатам" searchPlaceholder="ФИО или телефон" onSearchChange={setSearch} activeFilters={activeRegistryFilters} availableFilters={availableRegistryFilters} actions={canManage && !fixedType ? <Link className="button-link button-link--primary" href="/candidates/new">Добавить кандидата</Link> : null} />
+    {loading ? <div className="page-card workspace-surface workspace-empty">Загрузка...</div> : error ? <div className="page-card inline-notice inline-notice--warning">{error}</div> : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">Кандидаты не найдены.</div> : <>
+      <DataTable label="Таблица кандидатов" className="data-table candidate-table" frameClassName="page-card workspace-surface data-table-shell candidate-table-wrap">
           <thead>
             <tr>
               <th>Кандидат</th>
@@ -87,6 +99,7 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
               <th>Последняя обратная связь</th>
               <th>SLA</th>
               <th>Изменён</th>
+              <th aria-label="Открыть" />
             </tr>
           </thead>
           <tbody>
@@ -144,12 +157,12 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
                     )}
                   </span>
                 </td>
-                <td>{new Date(item.updatedAt).toLocaleString('ru-RU')}</td>
+                <td title={new Date(item.updatedAt).toLocaleString('ru-RU')}>{formatRegistryDate(item.updatedAt)}</td>
+                <td className="registry-open-cell"><RegistryOpenLink href={`/candidates/${item.id}`} label={`Открыть кандидата ${item.fullName}`} /></td>
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+      </DataTable>
       <div className="candidate-mobile-list">
         {result.items.map((item) => (
           <Link
@@ -186,6 +199,8 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
         ))}
       </div>
     </>}
-    {result.totalPages > 1 ? <div className="page-card workspace-surface pagination-row"><button type="button" disabled={page <= 1} onClick={() => replaceQuery({ page: String(page - 1) })}>Назад</button><span>Страница {page} из {result.totalPages}</span><button type="button" disabled={page >= result.totalPages} onClick={() => replaceQuery({ page: String(page + 1) })}>Далее</button></div> : null}
+    {!loading && !error ? <TablePagination page={page} totalPages={result.totalPages} label="Страницы кандидатов"
+      summary={result.total > 0 ? `Показано ${(page - 1) * result.limit + 1}–${Math.min(page * result.limit, result.total)} из ${result.total}` : 'Кандидаты не найдены'}
+      onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })} /> : null}
   </div>;
 }

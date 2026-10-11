@@ -63,6 +63,7 @@ import { LinkedOneTimeOrdersPanel } from '@/features/linked-one-time-orders/ui/l
 import { ObjectArrivalPanel } from '@/features/object-arrival/ui/object-arrival-panel';
 import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-attendance-panel';
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
+import { ObjectRubberMatsPanel } from '@/features/object-rubber-mats/ui/object-rubber-mats-panel';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
 import { ObjectInventoryPanel } from '@/features/object-inventory/ui/object-inventory-panel';
@@ -107,9 +108,7 @@ function WorkspaceSection({
 }): React.JSX.Element {
   return (
     <section id={id} className={styles.section} aria-labelledby={`${id}-title`}>
-      <header className={styles.sectionHeader}>
-        <h2 id={`${id}-title`} className={styles.sectionTitle}>{title}</h2>
-      </header>
+      <h2 id={`${id}-title`} className={styles.visuallyHidden}>{title}</h2>
       {children}
     </section>
   );
@@ -282,7 +281,7 @@ export default function ObjectDetailPage({
       const core = await loadCore(resolved.id, cancelled);
       if (!core || cancelled) return;
 
-      const employeeLoads = [loadAssignedEmployees(resolved.id, cancelled)];
+      const employeeLoads = core.capabilities.canViewEmployees === false ? [] : [loadAssignedEmployees(resolved.id, cancelled)];
       if (core.capabilities.canManageEmployees) employeeLoads.push(loadDirectory(resolved.id, '', cancelled));
       const operationalLoads = core.capabilities.canViewOperationalSections
         ? [
@@ -290,7 +289,8 @@ export default function ObjectDetailPage({
             loadComments(resolved.id, cancelled), loadFeed(resolved.id, cancelled),
             loadLinkedOrders(resolved.id, cancelled), loadObjectInventory(resolved.id, cancelled),
             loadObjectEquipment(resolved.id, cancelled), loadObjectFiles(resolved.id, cancelled),
-            loadTasks(resolved.id, cancelled), loadAttendance(resolved.id, cancelled),
+            loadTasks(resolved.id, cancelled),
+            ...(core.capabilities.canOperateAttendance === false ? [] : [loadAttendance(resolved.id, cancelled)]),
           ]
         : [];
       await Promise.all([...employeeLoads, ...operationalLoads]);
@@ -344,6 +344,7 @@ export default function ObjectDetailPage({
               <a href="#tasks">Задачи</a>
               <a href="#inventory">Склад</a>
               <a href="#equipment">Оборудование</a>
+              <a href="#rubber-mats">Ковры</a>
               <a href="#files">Файлы</a>
               <a href="#history">История</a>
             </> : null}
@@ -372,7 +373,8 @@ export default function ObjectDetailPage({
                 ) : <>
                   {canManageResponsibles ? (
                     <ObjectTeamPanel
-                      title="Ответственные объекта"
+                      title="Ответственный объекта"
+                      replaceOnly
                       currentItems={item.responsibles}
                       availableUsers={responsibleCandidates}
                       emptyCurrentText="Ответственные пока не назначены."
@@ -419,7 +421,7 @@ export default function ObjectDetailPage({
                       photoType: payload.photoType ?? 'other',
                       comment: payload.comment,
                     });
-                    await Promise.all(payload.files.map((file) => uploadFileToEntity({ entityType: 'object_arrival_photo', entityId: saved.id, file })));
+                    await Promise.all(payload.files.map((file, index) => uploadFileToEntity({ entityType: 'object_arrival_photo', entityId: saved.id, file, originalName: payload.fileNames[index] ?? file.name })));
                     await Promise.all([loadArrival(objectId), loadFeed(objectId)]);
                   }} />
                 )}
@@ -434,13 +436,14 @@ export default function ObjectDetailPage({
                   }} />
                 )}
 
-                {attendanceLoading ? <ObjectPanelLoading title="Кто был сегодня на объекте" /> : attendanceError ? (
+                {item.capabilities.canOperateAttendance === false ? null : attendanceLoading ? <ObjectPanelLoading title="Кто был сегодня на объекте" /> : attendanceError ? (
                   <ObjectPanelError title="Кто был сегодня на объекте" message={attendanceError} />
                 ) : (
                   <ObjectAttendancePanel
                     employees={attendanceEmployees}
                     initialEmployeeIds={attendanceEmployeeIds}
                     initialEmployeeFacts={attendanceEmployeeFacts}
+                    canEditRates={item.capabilities.canEditDailyRate}
                     operationDate={todayAsBusinessDate()}
                     onSave={async (payload) => {
                       await upsertObjectAttendance(objectId, payload);
@@ -463,7 +466,7 @@ export default function ObjectDetailPage({
           ) : null}
 
           <WorkspaceSection id="team" title="Команда">
-            {assignedEmployeesLoading ? <ObjectPanelLoading title="Состав сотрудников объекта" /> : assignedEmployeesError ? (
+            {item.capabilities.canViewEmployees === false ? null : assignedEmployeesLoading ? <ObjectPanelLoading title="Состав сотрудников объекта" /> : assignedEmployeesError ? (
               <ObjectPanelError title="Состав сотрудников объекта" message={assignedEmployeesError} />
             ) : (
               <ObjectStaffingPanel
@@ -499,7 +502,7 @@ export default function ObjectDetailPage({
             <WorkspaceSection id="tasks" title="Задачи">
               {tasksLoading ? <ObjectPanelLoading title="Задачи объекта" /> : tasksError ? (
                 <ObjectPanelError title="Задачи объекта" message={tasksError} />
-              ) : <TaskListTable items={tasks} />}
+              ) : <TaskListTable items={tasks} emptyText="На объект пока не назначены задачи." />}
             </WorkspaceSection>
 
             <WorkspaceSection id="inventory" title="Склад">
@@ -516,32 +519,40 @@ export default function ObjectDetailPage({
                       quantity: payload.quantity,
                       comment: payload.comment,
                     });
-                    await Promise.all(payload.evidenceFiles.map((file) => uploadFileToEntity({ entityType: 'inventory_movement', entityId: created.id, file })));
-                    await loadObjectInventory(objectId);
+                    return created.id;
                   }}
+                  onAttachEvidence={async (movementId, files) => {
+                    await Promise.all(files.map((file) => uploadFileToEntity({ entityType: 'inventory_movement', entityId: movementId, file })));
+                  }}
+                  onRefresh={() => loadObjectInventory(objectId)}
                 />
               ) : null}
             </WorkspaceSection>
 
             <WorkspaceSection id="equipment" title="Оборудование">
-              {objectEquipmentLoading ? <ObjectPanelLoading title="Оборудование объекта" /> : objectEquipmentError ? (
+              {objectEquipmentLoading ? <ObjectPanelLoading title="Закреплённое оборудование" /> : objectEquipmentError ? (
                 <ObjectPanelError title="Оборудование объекта" message={objectEquipmentError} />
-              ) : objectEquipment ? <EquipmentScopePanel title="Оборудование объекта" units={objectEquipment.units} /> : null}
+              ) : objectEquipment ? <EquipmentScopePanel className={styles.equipmentPanel} title="Закреплённое оборудование" units={objectEquipment.units} /> : null}
             </WorkspaceSection>
 
-            <WorkspaceSection id="files" title="Файлы">
-              {objectFilesLoading ? <ObjectPanelLoading title="Файлы объекта" /> : objectFilesError ? (
-                <ObjectPanelError title="Файлы объекта" message={objectFilesError} />
+            <WorkspaceSection id="rubber-mats" title="Резиновые ковры">
+              <ObjectRubberMatsPanel objectId={objectId} />
+            </WorkspaceSection>
+
+            <WorkspaceSection id="files" title="Материалы об объекте">
+              {objectFilesLoading ? <ObjectPanelLoading title="Материалы об объекте" /> : objectFilesError ? (
+                <ObjectPanelError title="Материалы об объекте" message={objectFilesError} />
               ) : (
                 <EntityFilesPanel
-                  title="Файлы объекта"
+                  title="Материалы об объекте"
+                  iconOnlyMediaActions
                   files={objectFiles}
                   canUpload={item.capabilities.canEdit}
                   onUpload={async (file) => {
                     await uploadFileToEntity({ entityType: 'object', entityId: objectId, file });
                     await loadObjectFiles(objectId);
                   }}
-                  emptyText="Файлы объекта пока не загружены."
+                  emptyText="Вложений пока нет."
                 />
               )}
             </WorkspaceSection>
@@ -551,8 +562,8 @@ export default function ObjectDetailPage({
                 <div className="section-title">История изменений</div>
                 <Link href={`/objects/${objectId}/history`}>Открыть</Link>
               </div>
-              {feedLoading ? <ObjectPanelLoading title="Лента объекта" /> : feedError ? (
-                <ObjectPanelError title="Лента объекта" message={feedError} />
+              {feedLoading ? <ObjectPanelLoading title="Лента событий" /> : feedError ? (
+                <ObjectPanelError title="Лента событий" message={feedError} />
               ) : <ObjectFeedList items={feed} />}
             </WorkspaceSection>
           </> : null}

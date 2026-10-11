@@ -69,6 +69,8 @@ import {
 } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { OneTimeOrderSummaryCard } from '@/features/one-time-order-card/ui/one-time-order-summary-card';
+import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
+import { ConfirmDialog } from '@/shared/ui/overlays';
 import { OneTimeOrderForm } from '@/features/one-time-order-form/ui/one-time-order-form';
 import { OneTimeOrderManagersPanel } from '@/features/one-time-order-managers/ui/one-time-order-managers-panel';
 import { OneTimeOrderInventoryPanel } from '@/features/one-time-order-inventory/ui/one-time-order-inventory-panel';
@@ -88,10 +90,11 @@ import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-sco
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
   getOneTimeOrderConflictTypeLabel,
+  getOneTimeOrderPlannedPaymentMethodLabel,
   getOneTimeOrderStatusLabel,
 } from '@/shared/lib/one-time-order-presentation';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
+import styles from './one-time-order-detail.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -112,21 +115,7 @@ function toObjectOption(object: ServiceObject): SearchableSelectOption {
   };
 }
 
-function confirmScheduleConflicts(
-  conflicts: Array<{ date: string; type: string; user: { fullName: string } }>,
-): boolean {
-  const details = conflicts
-    .filter((conflict) => conflict.type !== 'pending_availability_request')
-    .slice(0, 8)
-    .map(
-      (conflict) =>
-        `${conflict.date} · ${conflict.user.fullName} · ${getOneTimeOrderConflictTypeLabel(conflict.type)}`,
-    )
-    .join('\n');
-  return window.confirm(
-    `Найдены конфликты расписания:\n${details}\n\nПродолжить?`,
-  );
-}
+type ScheduleConflict = { date: string; type: string; user: { fullName: string } };
 
 export default function OneTimeOrderDetailPage({
   params,
@@ -149,8 +138,51 @@ export default function OneTimeOrderDetailPage({
   const [taskAssignees, setTaskAssignees] = useState<SystemUserOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState('overview');
+  const [isEditing, setIsEditing] = useState(false);
+  const [scheduleConflictPrompt, setScheduleConflictPrompt] = useState<{
+    conflicts: ScheduleConflict[];
+    resolve: (confirmed: boolean) => void;
+  } | null>(null);
+
+  const confirmScheduleConflicts = (conflicts: ScheduleConflict[]): Promise<boolean> =>
+    new Promise((resolve) => setScheduleConflictPrompt({ conflicts, resolve }));
+
+  const closeScheduleConflictPrompt = (confirmed: boolean): void => {
+    setScheduleConflictPrompt((current) => {
+      current?.resolve(confirmed);
+      return null;
+    });
+  };
 
   const canSelectLinkedObject = Boolean(item?.capabilities.canChangeLinkedObject);
+
+  const sections = [
+    { value: 'overview', label: 'Обзор' },
+    { value: 'execution', label: 'Работы' },
+    { value: 'team', label: 'Команда' },
+    { value: 'finance', label: 'Финансы и ресурсы' },
+    { value: 'materials', label: 'Медиа' },
+    { value: 'discussion', label: 'Комментарии' },
+    { value: 'history', label: 'История' },
+  ];
+
+  useEffect(() => {
+    const syncFromUrl = (): void => {
+      const candidate = new URL(window.location.href).searchParams.get('section');
+      setActiveSection(sections.some((section) => section.value === candidate) ? candidate! : 'overview');
+    };
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, []);
+
+  const selectSection = (section: string): void => {
+    setActiveSection(section);
+    const url = new URL(window.location.href);
+    url.searchParams.set('section', section);
+    window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+  };
 
   const editableInitialValue = useMemo(
     () =>
@@ -295,8 +327,6 @@ export default function OneTimeOrderDetailPage({
 
   return (
     <div className="workspace-page order-detail-page">
-      <PageTitle title={item ? item.title : 'Разовый заказ'} />
-
       {isLoading ? (
         <div className="page-card workspace-empty">Загрузка...</div>
       ) : error ? (
@@ -305,8 +335,21 @@ export default function OneTimeOrderDetailPage({
         </div>
       ) : item ? (
         <div className="page-stack order-detail-workspace">
-          <OneTimeOrderSummaryCard item={item} />
+          <OneTimeOrderSummaryCard
+            item={item}
+            isEditing={isEditing}
+            onEdit={() => { setIsEditing((value) => !value); selectSection('overview'); }}
+            onComplete={() => { selectSection('finance'); window.setTimeout(() => document.getElementById('order-completion')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }}
+          />
 
+          <WorkspaceTabs
+            items={sections}
+            value={activeSection}
+            onChange={selectSection}
+            label="Разделы разового заказа"
+          />
+
+          <div className={styles.content} id="workspace-panel-team" role="tabpanel" aria-labelledby="workspace-tab-team" hidden={activeSection !== 'team'}>
           <section className="page-card workspace-surface">
             <div className="section-header">
               <div>
@@ -353,73 +396,41 @@ export default function OneTimeOrderDetailPage({
               </div>
             )}
           </section>
-
-          {item.capabilities.canCopy ? (
-            <div className="action-row">
-              <Link
-                className="button-link"
-                href={`/one-time-orders/new?copyFrom=${item.id}`}
-              >
-                Скопировать заказ
-              </Link>
-            </div>
-          ) : null}
-
-          <OneTimeOrderCompletionPanel
+          <OneTimeOrderManagersPanel
             item={item}
-            completions={completions}
-            onComplete={async (payload) => {
-              await completeOneTimeOrder(item.id, payload);
-              await loadAll(item.id);
+            searchCandidates={(query) => listOneTimeOrderManagerCandidates(item.id, query)}
+            onAssign={async (userId) => {
+              let conflictFingerprint: string | undefined;
+              if (item.executionStartDate && item.executionEndDate) {
+                const result = await checkOneTimeOrderConflicts({
+                  executionStartDate: item.executionStartDate,
+                  executionEndDate: item.executionEndDate,
+                  managerUserIds: [userId], excludeOrderId: item.id,
+                });
+                if (result.hasConflicts) {
+                  const confirmed = await confirmScheduleConflicts(result.conflicts);
+                  if (!confirmed) return;
+                  conflictFingerprint = result.conflictFingerprint;
+                }
+              }
+              const updated = await assignOneTimeOrderManager(item.id, userId, conflictFingerprint);
+              setItem(updated); await loadAll(item.id);
             }}
-            onReopen={async () => {
-              await reopenOneTimeOrder(item.id);
-              await loadAll(item.id);
-            }}
-            onCorrectPayment={async (paymentId, payload) => {
-              await correctOneTimeOrderPayment(item.id, paymentId, payload);
-              await loadAll(item.id);
-            }}
-          />
-
-          <OneTimeOrderReviewPanel
-            item={item}
-            onSave={async (payload) => {
-              const updated = await updateOneTimeOrderReview(item.id, payload);
-              setItem(updated);
-              await loadAll(item.id);
-            }}
-            onClear={async () => {
-              const updated = await clearOneTimeOrderReview(item.id);
-              setItem(updated);
-              await loadAll(item.id);
+            onRemove={async (userId) => {
+              const updated = await removeOneTimeOrderManager(item.id, userId);
+              setItem(updated); await loadAll(item.id);
             }}
           />
-
-          <OneTimeOrderSpecificationPanel
-            orderId={item.id}
-            canManage={item.capabilities.canManageSpecification}
-          />
-
-          <div className="page-card">
-            <div className="section-header" style={{ paddingBottom: 0 }}>
-              <div>
-                <div className="section-title">Рабочий чат разовых заказов</div>
-                <div className="section-subtitle">
-                  Полный мессенджер живет отдельно от комментариев заказа.
-                </div>
-              </div>
-              <Link href="/chats?room=one_time_orders">Открыть чат</Link>
-            </div>
           </div>
 
+          <div className={styles.content} id="workspace-panel-overview" role="tabpanel" aria-labelledby="workspace-tab-overview" hidden={activeSection !== 'overview'}>
           {item.capabilities.canChangeStatus ? (
             <div className="page-card">
               <div className="section-header" style={{ marginBottom: 12 }}>
                 <div>
                   <div className="section-title">Статус заказа</div>
                   <div className="section-subtitle">
-                    Переходы доступны только если их разрешил backend.
+                    Выберите следующий статус заказа.
                   </div>
                 </div>
                 <span className="status-pill" data-status={item.status}>
@@ -452,7 +463,7 @@ export default function OneTimeOrderDetailPage({
                           excludeOrderId: item.id,
                         });
                         if (result.hasConflicts) {
-                          const confirmed = confirmScheduleConflicts(result.conflicts);
+                          const confirmed = await confirmScheduleConflicts(result.conflicts);
                           if (!confirmed) return;
                           conflictFingerprint = result.conflictFingerprint;
                         }
@@ -473,7 +484,20 @@ export default function OneTimeOrderDetailPage({
             </div>
           ) : null}
 
-          {item.capabilities.canEditOperationalFields && editableInitialValue ? (
+          {item.description ? (
+            <section className="page-card workspace-surface">
+              <h2 className="section-title">Описание заказа</h2>
+              <p className={styles.longText}>{item.description}</p>
+            </section>
+          ) : null}
+
+          <OneTimeOrderReviewPanel
+            item={item}
+            onSave={async (payload) => { const updated = await updateOneTimeOrderReview(item.id, payload); setItem(updated); await loadAll(item.id); }}
+            onClear={async () => { const updated = await clearOneTimeOrderReview(item.id); setItem(updated); await loadAll(item.id); }}
+          />
+
+          {isEditing && item.capabilities.canEditOperationalFields && editableInitialValue ? (
             <OneTimeOrderForm
               initialLinkedObjectOption={
                 item.linkedObject
@@ -517,7 +541,7 @@ export default function OneTimeOrderDetailPage({
                     excludeOrderId: item.id,
                   });
                   if (result.hasConflicts) {
-                    const confirmed = confirmScheduleConflicts(result.conflicts);
+                    const confirmed = await confirmScheduleConflicts(result.conflicts);
                     if (!confirmed) return;
                     conflictFingerprint = result.conflictFingerprint;
                   }
@@ -527,51 +551,43 @@ export default function OneTimeOrderDetailPage({
                   conflictFingerprint,
                 });
                 setItem(updated);
+                setIsEditing(false);
                 await loadAll(item.id);
               }}
             />
           ) : null}
+          </div>
 
-          <OneTimeOrderManagersPanel
+          <div className={styles.content} id="workspace-panel-finance" role="tabpanel" aria-labelledby="workspace-tab-finance" hidden={activeSection !== 'finance'}>
+          {item.financialNotes || item.expenseNotes || item.plannedPaymentMethod ? (
+            <section className="page-card workspace-surface">
+              <div className="section-header">
+                <div>
+                  <h2 className="section-title">Условия заказа</h2>
+                  <div className="section-subtitle">Договорённости и заметки; это не подтверждение полученных денег.</div>
+                </div>
+              </div>
+              <div className="detail-grid">
+                {item.plannedPaymentMethod ? <div className="detail-field"><div className="detail-label">Плановый способ оплаты</div><div className="detail-value">{getOneTimeOrderPlannedPaymentMethodLabel(item.plannedPaymentMethod)}</div></div> : null}
+                {item.financialNotes ? <div className="detail-field"><div className="detail-label">Заметка по оплате</div><div className="detail-value one-time-order-long-text">{item.financialNotes}</div></div> : null}
+                {item.expenseNotes ? <div className="detail-field"><div className="detail-label">Заметка о расходах</div><div className="detail-value one-time-order-long-text">{item.expenseNotes}</div></div> : null}
+              </div>
+            </section>
+          ) : null}
+          <OneTimeOrderCompletionPanel
             item={item}
-            searchCandidates={(query) =>
-              listOneTimeOrderManagerCandidates(item.id, query)
-            }
-            onAssign={async (userId) => {
-              let conflictFingerprint: string | undefined;
-              if (item.executionStartDate && item.executionEndDate) {
-                const result = await checkOneTimeOrderConflicts({
-                  executionStartDate: item.executionStartDate,
-                  executionEndDate: item.executionEndDate,
-                  managerUserIds: [userId],
-                  excludeOrderId: item.id,
-                });
-                if (result.hasConflicts) {
-                  const confirmed = confirmScheduleConflicts(result.conflicts);
-                  if (!confirmed) return;
-                  conflictFingerprint = result.conflictFingerprint;
-                }
-              }
-              const updated = await assignOneTimeOrderManager(
-                item.id,
-                userId,
-                conflictFingerprint,
-              );
-              setItem(updated);
-              await loadAll(item.id);
-            }}
-            onRemove={async (userId) => {
-              const updated = await removeOneTimeOrderManager(item.id, userId);
-              setItem(updated);
-              await loadAll(item.id);
-            }}
+            completions={completions}
+            onComplete={async (payload) => { await completeOneTimeOrder(item.id, payload); await loadAll(item.id); }}
+            onReopen={async () => { await reopenOneTimeOrder(item.id); await loadAll(item.id); }}
+            onCorrectPayment={async (paymentId, payload) => { await correctOneTimeOrderPayment(item.id, paymentId, payload); await loadAll(item.id); }}
           />
-
           {accountability ? (
             <OneTimeOrderAccountabilityPanel
               view={accountability}
               completions={completions}
               orderStatus={item.status}
+              workforce={workforce}
+              workCycle={item.workCycle}
               onCreateExpense={async (payload) => {
                 const expense = await createAccountabilityExpense({
                   amount: payload.amount,
@@ -579,6 +595,9 @@ export default function OneTimeOrderDetailPage({
                   oneTimeOrderId: item.id,
                   oneTimeOrderCompletionId:
                     payload.oneTimeOrderCompletionId,
+                  employeeId: payload.employeeId,
+                  oneTimeOrderWorkCycle:
+                    payload.oneTimeOrderWorkCycle ?? undefined,
                   expenseCategory: payload.expenseCategory,
                   expenseDate: payload.expenseDate,
                 });
@@ -601,7 +620,13 @@ export default function OneTimeOrderDetailPage({
               }}
             />
           ) : null}
+          <OneTimeOrderInventoryPanel items={inventoryMovements} />
+          {equipment ? (
+            <EquipmentScopePanel title="Оборудование заказа" units={equipment.units} />
+          ) : null}
+          </div>
 
+          <div className={styles.content} id="workspace-panel-discussion" role="tabpanel" aria-labelledby="workspace-tab-discussion" hidden={activeSection !== 'discussion'}>
           <OneTimeOrderCommentsPanel
             items={comments}
             canCreate={item.capabilities.canComment}
@@ -623,7 +648,16 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+          <div className="page-card">
+            <div className="section-header" style={{ paddingBottom: 0 }}>
+              <div><div className="section-title">Рабочий чат разовых заказов</div><div className="section-subtitle">Полный мессенджер живет отдельно от комментариев заказа.</div></div>
+              <Link href="/chats?room=one_time_orders">Открыть чат</Link>
+            </div>
+          </div>
+          </div>
 
+          <div className={styles.content} id="workspace-panel-execution" role="tabpanel" aria-labelledby="workspace-tab-execution" hidden={activeSection !== 'execution'}>
+          <OneTimeOrderSpecificationPanel orderId={item.id} canManage={item.capabilities.canManageSpecification} />
           <OneTimeOrderDailyReportPanel
             item={dailyReport}
             onSave={async (payload) => {
@@ -644,7 +678,18 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+          <OneTimeOrderTasksPanel
+            items={tasks} assigneeOptions={taskAssignees}
+            canCreateTask={item.capabilities.canCreateTask}
+            linkedObject={item.linkedObject}
+            onCreate={async ({ linkToObject, ...payload }) => {
+              await createTask({ ...payload, ...(item.linkedObject && linkToObject ? { objectId: item.linkedObject.id } : {}), oneTimeOrderId: item.id, visibilityType: 'target_participants', requiresConfirmation: true, completionRequirement: 'comment_or_file' });
+              await loadAll(item.id);
+            }}
+          />
+          </div>
 
+          <div className={styles.content} id="workspace-panel-materials" role="tabpanel" aria-labelledby="workspace-tab-materials" hidden={activeSection !== 'materials'}>
           <OneTimeOrderPhotosPanel
             items={photos}
             canCreate={item.capabilities.canUploadPhotos}
@@ -689,40 +734,39 @@ export default function OneTimeOrderDetailPage({
             }}
           />
 
-          <OneTimeOrderInventoryPanel items={inventoryMovements} />
+          </div>
 
-          {equipment ? (
-            <EquipmentScopePanel title="Оборудование заказа" units={equipment.units} />
-          ) : null}
-
-          <OneTimeOrderTasksPanel
-            items={tasks}
-            assigneeOptions={taskAssignees}
-            canCreateTask={item.capabilities.canCreateTask}
-            linkedObject={item.linkedObject}
-            onCreate={async ({ linkToObject, ...payload }) => {
-              await createTask({
-                ...payload,
-                ...(item.linkedObject && linkToObject
-                  ? { objectId: item.linkedObject.id }
-                  : {}),
-                oneTimeOrderId: item.id,
-                visibilityMode:
-                  item.linkedObject && linkToObject
-                    ? 'scope'
-                    : 'selected',
-                requiresConfirmation: true,
-                completionRequirement: 'comment_or_file',
-              });
-              await loadAll(item.id);
-            }}
-          />
-
-          <OneTimeOrderHistoryList items={history} />
+          <div className={styles.content} id="workspace-panel-history" role="tabpanel" aria-labelledby="workspace-tab-history" hidden={activeSection !== 'history'}>
+            <OneTimeOrderHistoryList items={history} />
+          </div>
         </div>
       ) : (
         <div className="page-card workspace-empty">Разовый заказ не найден.</div>
       )}
+      <ConfirmDialog
+        open={scheduleConflictPrompt !== null}
+        onOpenChange={(open) => { if (!open) closeScheduleConflictPrompt(false); }}
+        title="Конфликт расписания"
+        consequence={(
+          <div>
+            <div>Для этого действия найдены пересечения. Продолжить?</div>
+            {scheduleConflictPrompt ? (
+              <ul>
+                {scheduleConflictPrompt.conflicts
+                  .filter((conflict) => conflict.type !== 'pending_availability_request')
+                  .slice(0, 8)
+                  .map((conflict, index) => (
+                    <li key={`${conflict.date}-${conflict.user.fullName}-${index}`}>
+                      {conflict.date} · {conflict.user.fullName} · {getOneTimeOrderConflictTypeLabel(conflict.type)}
+                    </li>
+                  ))}
+              </ul>
+            ) : null}
+          </div>
+        )}
+        confirmLabel="Продолжить"
+        onConfirm={() => closeScheduleConflictPrompt(true)}
+      />
     </div>
   );
 }

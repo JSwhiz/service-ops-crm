@@ -20,6 +20,8 @@ import {
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { Button } from '@/shared/ui/foundation';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 export function EquipmentMovementPanel({
   unit,
@@ -34,7 +36,7 @@ export function EquipmentMovementPanel({
   orders: OneTimeOrderListItem[];
   onCreateMovement: (params: CreateEquipmentMovementFormPayload) => Promise<void>;
 }): React.JSX.Element {
-  const [movementType, setMovementType] = useState('issue_to_object');
+  const [requestedMovementType, setMovementType] = useState('issue_to_object');
   const [toObjectId, setToObjectId] = useState('');
   const [toOneTimeOrderId, setToOneTimeOrderId] = useState('');
   const [comment, setComment] = useState('');
@@ -42,10 +44,22 @@ export function EquipmentMovementPanel({
   const [isSaving, setIsSaving] = useState(false);
 
   const canSubmit = unit.capabilities.canCreateMovement;
+  const allowedTypes = EQUIPMENT_MOVEMENT_OPTIONS.filter((type) => {
+    switch (type) {
+      case 'issue_to_object': return unit.capabilities.canAssignToObject;
+      case 'issue_to_one_time_order': return unit.capabilities.canAssignToOneTimeOrder;
+      case 'return_to_storage': return unit.capabilities.canReturn;
+      case 'send_to_repair': return unit.capabilities.canSendToRepair;
+      case 'return_from_repair': return unit.capabilities.canReturnFromRepair;
+      case 'mark_broken': case 'mark_lost': return unit.capabilities.canMarkBroken;
+      case 'writeoff': return unit.capabilities.canWriteoff;
+    }
+  });
+  const movementType = allowedTypes.find((value) => value === requestedMovementType) ?? allowedTypes[0] ?? '';
 
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      {canSubmit ? (
+      {canSubmit && allowedTypes.length ? (
         <form
           className="page-card"
           style={{ display: 'grid', gap: 12 }}
@@ -79,34 +93,12 @@ export function EquipmentMovementPanel({
               </div>
             </div>
           </div>
-          <select value={movementType} onChange={(event) => setMovementType(event.target.value)}>
-            {EQUIPMENT_MOVEMENT_OPTIONS.filter((type) =>
-              type === 'writeoff' ? unit.capabilities.canWriteoff : true,
-            ).map((type) => (
-              <option key={type} value={type}>
-                {getEquipmentMovementLabel(type)}
-              </option>
-            ))}
-          </select>
+          <SearchableSelect label="Операция" value={movementType} onChange={setMovementType} clearable={false} searchable={false} viewportAware disabled={isSaving} options={allowedTypes.map((type) => ({ value: type, label: getEquipmentMovementLabel(type) }))} />
           {movementType === 'issue_to_object' ? (
-            <select value={toObjectId} onChange={(event) => setToObjectId(event.target.value)} required>
-              <option value="">Выберите объект</option>
-              {objects.map((object) => (
-                <option key={object.id} value={object.id}>
-                  {object.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect label="Объект" value={toObjectId} onChange={setToObjectId} required viewportAware disabled={isSaving} placeholder="Выберите объект" options={objects.map((object) => ({ value: object.id, label: object.name }))} />
           ) : null}
           {movementType === 'issue_to_one_time_order' ? (
-            <select value={toOneTimeOrderId} onChange={(event) => setToOneTimeOrderId(event.target.value)} required>
-              <option value="">Выберите заказ</option>
-              {orders.map((order) => (
-                <option key={order.id} value={order.id}>
-                  {order.title}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect label="Заказ" value={toOneTimeOrderId} onChange={setToOneTimeOrderId} required viewportAware disabled={isSaving} placeholder="Выберите заказ" options={orders.map((order) => ({ value: order.id, label: order.title }))} />
           ) : null}
           <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={2} placeholder="Комментарий" />
           <div style={{ display: 'grid', gap: 8 }}>
@@ -129,9 +121,9 @@ export function EquipmentMovementPanel({
             />
           </div>
           <div className="action-row">
-            <button type="submit" disabled={isSaving}>
+            <Button type="submit" variant="primary" pending={isSaving} disabled={(movementType === 'issue_to_object' && !toObjectId) || (movementType === 'issue_to_one_time_order' && !toOneTimeOrderId)}>
               {isSaving ? 'Сохраняем...' : 'Записать операцию'}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}

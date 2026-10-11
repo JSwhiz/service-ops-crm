@@ -73,8 +73,9 @@ export function formatTaskHistoryEvent(event: TaskHistoryEvent): string {
     'task.returned_to_work': `${actor} вернул(а) задачу в работу`,
     'task.reopened': `${actor} переоткрыл(а) задачу`,
     'task.cancelled': `${actor} отменил(а) задачу`,
+    'task.legacy_result_migrated': 'Результат прежнего формата перенесён в историю',
   };
-  return labels[event.eventType] ?? event.eventType;
+  return labels[event.eventType] ?? 'Изменение задачи';
 }
 
 export const TASK_STATUS_OPTIONS = [

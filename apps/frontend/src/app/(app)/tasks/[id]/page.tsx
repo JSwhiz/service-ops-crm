@@ -38,6 +38,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { formatTaskHistoryEvent } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 export default function TaskDetailPage({
   params,
@@ -57,7 +58,9 @@ export default function TaskDetailPage({
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [orders, setOrders] = useState<OneTimeOrderListItem[]>([]);
   const [candidateUsers, setCandidateUsers] = useState<SystemUserOption[]>([]);
-  const [visibilityUsers, setVisibilityUsers] = useState<SystemUserOption[]>([]);
+  const [visibilityUsers, setVisibilityUsers] = useState<SystemUserOption[]>(
+    [],
+  );
   const [isEditing, setIsEditing] = useState(false);
   const [newAssigneeId, setNewAssigneeId] = useState('');
   const [autoCloseSeconds, setAutoCloseSeconds] = useState<number | null>(null);
@@ -105,10 +108,13 @@ export default function TaskDetailPage({
   };
 
   useEffect(() => {
-    void params.then(({ id }) => {
-      setTaskId(id);
-      return loadTask(id);
-    }).catch(() => setError('Не удалось загрузить карточку задачи.')).finally(() => setIsLoading(false));
+    void params
+      .then(({ id }) => {
+        setTaskId(id);
+        return loadTask(id);
+      })
+      .catch(() => setError('Не удалось загрузить карточку задачи.'))
+      .finally(() => setIsLoading(false));
   }, [params]);
 
   useEffect(() => {
@@ -127,7 +133,10 @@ export default function TaskDetailPage({
     return () => window.clearInterval(timer);
   }, [item?.autoCloseAt, item?.id, item?.status]);
 
-  const loadCandidates = async (objectId: string, oneTimeOrderId: string): Promise<void> => {
+  const loadCandidates = async (
+    objectId: string,
+    oneTimeOrderId: string,
+  ): Promise<void> => {
     const target = {
       ...(objectId ? { objectId } : {}),
       ...(oneTimeOrderId ? { oneTimeOrderId } : {}),
@@ -147,7 +156,11 @@ export default function TaskDetailPage({
     try {
       const [nextObjects, nextOrders] = await Promise.all([
         listObjects(),
-        listOneTimeOrders({ limit: 100, sortBy: 'title', sortDirection: 'asc' }),
+        listOneTimeOrders({
+          limit: 100,
+          sortBy: 'title',
+          sortDirection: 'asc',
+        }),
       ]);
       setObjects(nextObjects);
       setOrders(nextOrders.items);
@@ -167,7 +180,11 @@ export default function TaskDetailPage({
       await action();
       await loadTask(taskId);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Не удалось выполнить действие.');
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Не удалось выполнить действие.',
+      );
     } finally {
       setIsActionBusy(false);
     }
@@ -179,59 +196,145 @@ export default function TaskDetailPage({
   };
 
   if (isLoading) return <div className="page-card">Загрузка…</div>;
-  if (!item) return <div className="page-card task-error">{error ?? 'Задача не найдена.'}</div>;
+  if (!item)
+    return (
+      <div className="page-card task-error">
+        {error ?? 'Задача не найдена.'}
+      </div>
+    );
 
-  const activeAssignees = item.assignees.filter((assignee) => assignee.isActive);
+  const activeAssignees = item.assignees.filter(
+    (assignee) => assignee.isActive,
+  );
 
   return (
     <div className="page-stack workspace-page task-detail-page">
       <div className="page-card workspace-surface task-page-heading registry-header">
         <PageTitle title="Карточка задачи" />
         <div className="action-row">
-          {item.capabilities.canEdit ? <button type="button" disabled={isActionBusy} onClick={() => void openEditor()}>Редактировать</button> : null}
-          {item.capabilities.canConfirm ? <button type="button" disabled={isActionBusy} onClick={() => void runAction(() => confirmTask(taskId))}>Подтвердить и завершить</button> : null}
-          {item.capabilities.canCompleteNow ? <button type="button" disabled={isActionBusy} onClick={() => void runAction(() => completeTaskNow(taskId))}>Завершить сейчас</button> : null}
-          {item.capabilities.canReturnToWork ? <ReasonAction label="Вернуть в работу" disabled={isActionBusy} askReason={askReason} onRun={(reason) => runAction(() => returnTaskToWork(taskId, reason))} /> : null}
-          {item.capabilities.canReopen ? <ReasonAction label="Переоткрыть" disabled={isActionBusy} askReason={askReason} onRun={(reason) => runAction(() => reopenTask(taskId, reason))} /> : null}
-          {item.capabilities.canCancel ? <ReasonAction label="Отменить задачу" dangerous disabled={isActionBusy} askReason={askReason} onRun={(reason) => runAction(() => cancelTask(taskId, reason))} /> : null}
+          {item.capabilities.canEdit ? (
+            <button
+              type="button"
+              disabled={isActionBusy}
+              onClick={() => void openEditor()}
+            >
+              Редактировать
+            </button>
+          ) : null}
+          {item.capabilities.canConfirm ? (
+            <button
+              type="button"
+              disabled={isActionBusy}
+              onClick={() => void runAction(() => confirmTask(taskId))}
+            >
+              Подтвердить и завершить
+            </button>
+          ) : null}
+          {item.capabilities.canCompleteNow ? (
+            <button
+              type="button"
+              disabled={isActionBusy}
+              onClick={() => void runAction(() => completeTaskNow(taskId))}
+            >
+              Завершить сейчас
+            </button>
+          ) : null}
+          {item.capabilities.canReturnToWork ? (
+            <ReasonAction
+              label="Вернуть в работу"
+              disabled={isActionBusy}
+              askReason={askReason}
+              onRun={(reason) =>
+                runAction(() => returnTaskToWork(taskId, reason))
+              }
+            />
+          ) : null}
+          {item.capabilities.canReopen ? (
+            <ReasonAction
+              label="Переоткрыть"
+              disabled={isActionBusy}
+              askReason={askReason}
+              onRun={(reason) => runAction(() => reopenTask(taskId, reason))}
+            />
+          ) : null}
+          {item.capabilities.canCancel ? (
+            <ReasonAction
+              label="Отменить задачу"
+              dangerous
+              disabled={isActionBusy}
+              askReason={askReason}
+              onRun={(reason) => runAction(() => cancelTask(taskId, reason))}
+            />
+          ) : null}
         </div>
       </div>
 
-      {error ? <div className="task-alert task-alert--danger" role="alert">{error}</div> : null}
+      {error ? (
+        <div className="task-alert task-alert--danger" role="alert">
+          {error}
+        </div>
+      ) : null}
       <TaskSummaryCard item={item} autoCloseSeconds={autoCloseSeconds} />
 
       <div className="task-detail-grid">
         <section className="page-card">
           <div className="section-header">
-            <div><div className="section-title">Исполнители</div><div className="section-subtitle">Результат фиксируется отдельно для каждого пользователя.</div></div>
-            <strong>{item.completionProgress.completed} / {item.completionProgress.total}</strong>
+            <div>
+              <div className="section-title">Исполнители</div>
+              <div className="section-subtitle">
+                Результат фиксируется отдельно для каждого пользователя.
+              </div>
+            </div>
+            <strong>
+              {item.completionProgress.completed} /{' '}
+              {item.completionProgress.total}
+            </strong>
           </div>
           <div className="record-list task-assignee-list">
             {item.assignees.map((assignee) => (
-              <article className={`record-card ${!assignee.isActive ? 'task-assignee--inactive' : ''}`} key={assignee.id}>
+              <article
+                className={`record-card ${!assignee.isActive ? 'task-assignee--inactive' : ''}`}
+                key={assignee.id}
+              >
                 <div className="section-header">
                   <div>
                     <strong>{getUserDisplayName(assignee)}</strong>
                     <div className="section-subtitle">
-                      {!assignee.isActive ? 'Удалён из текущего состава' : assignee.isCompleted && assignee.completedAt
-                        ? `Выполнено ${formatDateTime(assignee.completedAt)}` : 'В работе'}
+                      {!assignee.isActive
+                        ? 'Удалён из текущего состава'
+                        : assignee.isCompleted && assignee.completedAt
+                          ? `Выполнено ${formatDateTime(assignee.completedAt)}`
+                          : 'В работе'}
                     </div>
                   </div>
-                  {item.capabilities.canManageAssignees && assignee.isActive && activeAssignees.length > 1 ? (
+                  {item.capabilities.canManageAssignees &&
+                  assignee.isActive &&
+                  activeAssignees.length > 1 ? (
                     <button
                       type="button"
                       disabled={isActionBusy}
                       onClick={() => {
-                        if (window.confirm(`Удалить исполнителя ${getUserDisplayName(assignee)}?`)) {
-                          void runAction(() => removeTaskAssignee(taskId, assignee.id));
+                        if (
+                          window.confirm(
+                            `Удалить исполнителя ${getUserDisplayName(assignee)}?`,
+                          )
+                        ) {
+                          void runAction(() =>
+                            removeTaskAssignee(taskId, assignee.id),
+                          );
                         }
                       }}
-                    >Удалить</button>
+                    >
+                      Удалить
+                    </button>
                   ) : null}
                 </div>
                 {assignee.currentCompletion ? (
                   <div className="task-assignee__result">
-                    <div>{assignee.currentCompletion.completionText || 'Комментарий не указан.'}</div>
+                    <div>
+                      {assignee.currentCompletion.completionText ||
+                        'Комментарий не указан.'}
+                    </div>
                     <AttachmentPreviewList
                       files={assignee.currentCompletion.attachments}
                       emptyText="Файлы не приложены."
@@ -244,17 +347,42 @@ export default function TaskDetailPage({
 
           {item.capabilities.canManageAssignees ? (
             <div className="task-add-assignee">
-              <select value={newAssigneeId} onFocus={() => {
-                if (candidateUsers.length === 0) void loadCandidates(item.objectId ?? '', item.oneTimeOrderId ?? '');
-              }} onChange={(event) => setNewAssigneeId(event.target.value)}>
+              <select
+                value={newAssigneeId}
+                onFocus={() => {
+                  if (candidateUsers.length === 0)
+                    void loadCandidates(
+                      item.objectId ?? '',
+                      item.oneTimeOrderId ?? '',
+                    );
+                }}
+                onChange={(event) => setNewAssigneeId(event.target.value)}
+              >
                 <option value="">Добавить исполнителя…</option>
-                {candidateUsers.filter((user) => !activeAssignees.some((assignee) => assignee.id === user.id)).map((user) => (
-                  <option key={user.id} value={user.id}>{getUserDisplayName(user)}</option>
-                ))}
+                {candidateUsers
+                  .filter(
+                    (user) =>
+                      !activeAssignees.some(
+                        (assignee) => assignee.id === user.id,
+                      ),
+                  )
+                  .map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {getUserDisplayName(user)}
+                    </option>
+                  ))}
               </select>
-              <button type="button" disabled={!newAssigneeId || isActionBusy} onClick={() => {
-                void runAction(() => addTaskAssignees(taskId, [newAssigneeId])).then(() => setNewAssigneeId(''));
-              }}>Добавить</button>
+              <button
+                type="button"
+                disabled={!newAssigneeId || isActionBusy}
+                onClick={() => {
+                  void runAction(() =>
+                    addTaskAssignees(taskId, [newAssigneeId]),
+                  ).then(() => setNewAssigneeId(''));
+                }}
+              >
+                Добавить
+              </button>
             </div>
           ) : null}
         </section>
@@ -289,12 +417,15 @@ export default function TaskDetailPage({
                     <div>
                       <strong>{getUserDisplayName(completion.assignee)}</strong>
                       <div className="section-subtitle">
-                        Цикл {completion.workCycle} · попытка {completion.attemptNumber} ·{' '}
+                        Цикл {completion.workCycle} · попытка{' '}
+                        {completion.attemptNumber} ·{' '}
                         {getCompletionStatusLabel(completion.status)}
                       </div>
                     </div>
                     <time>
-                      {formatDateTime(completion.cancelledAt ?? completion.submittedAt)}
+                      {formatDateTime(
+                        completion.cancelledAt ?? completion.submittedAt,
+                      )}
                     </time>
                   </div>
                   <div>
@@ -313,29 +444,9 @@ export default function TaskDetailPage({
               ))
             )}
           </div>
-          {completions.totalPages > 1 ? (
-            <div className="action-row">
-              <button
-                type="button"
-                disabled={isActionBusy || completions.page <= 1}
-                onClick={() => void loadCompletionPage(completions.page - 1)}
-              >
-                Назад
-              </button>
-              <span>
-                Страница {completions.page} из {completions.totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={
-                  isActionBusy || completions.page >= completions.totalPages
-                }
-                onClick={() => void loadCompletionPage(completions.page + 1)}
-              >
-                Далее
-              </button>
-            </div>
-          ) : null}
+          {completions.totalPages > 0 ? <TablePagination page={completions.page} totalPages={completions.totalPages} pending={isActionBusy}
+            label="Страницы отчётов о выполнении" summary={completions.total > 0 ? `Показано ${(completions.page - 1) * completions.limit + 1}–${Math.min(completions.page * completions.limit, completions.total)} из ${completions.total}` : 'Отчётов пока нет'}
+            onPageChange={(page) => void loadCompletionPage(page)} /> : null}
         </section>
       ) : null}
 
@@ -343,21 +454,37 @@ export default function TaskDetailPage({
         <section className="page-card">
           <div className="section-title">История</div>
           <div className="task-history local-scroll local-scroll--lg">
-            {history.length === 0 ? <div className="page-muted">История пока пуста.</div> : history.map((event) => (
-              <article key={event.id} className="task-history__item">
-                <time>{formatDateTime(event.createdAt)}</time>
-                <strong>{formatTaskHistoryEvent(event)}</strong>
-                {typeof event.payload?.reason === 'string' ? <span>Причина: {event.payload.reason}</span> : null}
-              </article>
-            ))}
+            {history.length === 0 ? (
+              <div className="page-muted">История пока пуста.</div>
+            ) : (
+              history.map((event) => (
+                <article key={event.id} className="task-history__item">
+                  <time>{formatDateTime(event.createdAt)}</time>
+                  <strong>{formatTaskHistoryEvent(event)}</strong>
+                  {typeof event.payload?.reason === 'string' ? (
+                    <span>Причина: {event.payload.reason}</span>
+                  ) : null}
+                </article>
+              ))
+            )}
           </div>
         </section>
       ) : null}
 
       {isEditing ? (
         <div className="task-modal-backdrop" role="presentation">
-          <div className="task-modal" role="dialog" aria-modal="true" aria-label="Редактировать задачу">
-            <div className="section-header"><div className="section-title">Редактировать задачу</div><button type="button" onClick={() => setIsEditing(false)}>Закрыть</button></div>
+          <div
+            className="task-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Редактировать задачу"
+          >
+            <div className="section-header">
+              <div className="section-title">Редактировать задачу</div>
+              <button type="button" onClick={() => setIsEditing(false)}>
+                Закрыть
+              </button>
+            </div>
             <TaskForm
               key={`${item.id}:${item.updatedAt}`}
               isEdit
@@ -366,16 +493,29 @@ export default function TaskDetailPage({
               users={candidateUsers}
               visibilityUsers={visibilityUsers}
               initialValue={buildEditValue(item)}
-              onTargetsChange={(objectId, oneTimeOrderId) => void loadCandidates(objectId, oneTimeOrderId)}
+              onTargetsChange={(objectId, oneTimeOrderId) =>
+                void loadCandidates(objectId, oneTimeOrderId)
+              }
               onCancel={() => setIsEditing(false)}
               onSubmit={async (formPayload) => {
                 const payload = mapEditPayload(formPayload);
                 try {
                   await updateTask(taskId, payload);
                 } catch (caught) {
-                  const requiresReset = caught instanceof Error && caught.message.includes('resetCompletions');
-                  if (!requiresReset || !window.confirm('Изменение содержания вернёт задачу в работу и снимет отметки выполнения. Старые результаты сохранятся в истории. Продолжить?')) throw caught;
-                  await updateTask(taskId, { ...payload, resetCompletions: true });
+                  const requiresReset =
+                    caught instanceof Error &&
+                    caught.message.includes('resetCompletions');
+                  if (
+                    !requiresReset ||
+                    !window.confirm(
+                      'Изменение содержания вернёт задачу в работу и снимет отметки выполнения. Старые результаты сохранятся в истории. Продолжить?',
+                    )
+                  )
+                    throw caught;
+                  await updateTask(taskId, {
+                    ...payload,
+                    resetCompletions: true,
+                  });
                 }
                 setIsEditing(false);
                 await loadTask(taskId);
@@ -388,22 +528,41 @@ export default function TaskDetailPage({
   );
 }
 
-function ReasonAction({ label, dangerous = false, disabled, askReason, onRun }: {
+function ReasonAction({
+  label,
+  dangerous = false,
+  disabled,
+  askReason,
+  onRun,
+}: {
   label: string;
   dangerous?: boolean;
   disabled: boolean;
   askReason: (label: string) => string | null;
   onRun: (reason: string) => Promise<void>;
 }): React.JSX.Element {
-  return <button type="button" className={dangerous ? 'task-danger-button' : undefined} disabled={disabled} onClick={() => {
-    if (dangerous && !window.confirm('Отменить задачу?')) return;
-    const reason = askReason('Укажите причину (минимум 3 символа)');
-    if (reason) void onRun(reason);
-  }}>{label}</button>;
+  return (
+    <button
+      type="button"
+      className={dangerous ? 'task-danger-button' : undefined}
+      disabled={disabled}
+      onClick={() => {
+        if (dangerous && !window.confirm('Отменить задачу?')) return;
+        const reason = askReason('Укажите причину (минимум 3 символа)');
+        if (reason) void onRun(reason);
+      }}
+    >
+      {label}
+    </button>
+  );
 }
 
 function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Moscow' }).format(new Date(value));
+  return new Intl.DateTimeFormat('ru-RU', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Europe/Moscow',
+  }).format(new Date(value));
 }
 
 function getCompletionStatusLabel(status: string): string {
@@ -416,13 +575,26 @@ function getCompletionStatusLabel(status: string): string {
   return labels[status] ?? status;
 }
 
-function getMoscowDateParts(value: string | null): { date: string; time: string } {
+function getMoscowDateParts(value: string | null): {
+  date: string;
+  time: string;
+} {
   if (!value) return { date: '', time: '' };
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
   }).formatToParts(new Date(value));
-  const get = (type: Intl.DateTimeFormatPartTypes): string => parts.find((part) => part.type === type)?.value ?? '';
-  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` };
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    time: `${get('hour')}:${get('minute')}`,
+  };
 }
 
 function buildEditValue(item: TaskItem): Partial<TaskFormInitialValue> {
@@ -433,8 +605,10 @@ function buildEditValue(item: TaskItem): Partial<TaskFormInitialValue> {
     priority: item.priority,
     objectId: item.objectId ?? '',
     oneTimeOrderId: item.oneTimeOrderId ?? '',
-    assigneeUserIds: item.assignees.filter((assignee) => assignee.isActive).map((assignee) => assignee.id),
-    visibilityMode: item.visibilityMode,
+    assigneeUserIds: item.assignees
+      .filter((assignee) => assignee.isActive)
+      .map((assignee) => assignee.id),
+    visibilityType: item.visibilityType,
     visibleUserIds: item.visibleUsers.map((user) => user.id),
     requiresConfirmation: item.requiresConfirmation,
     completionRequirement: item.completionRequirement,
@@ -450,11 +624,11 @@ function mapEditPayload(payload: CreateTaskPayload): UpdateTaskPayload {
     priority: payload.priority,
     objectId: payload.objectId ?? null,
     oneTimeOrderId: payload.oneTimeOrderId ?? null,
-    visibilityMode: payload.visibilityMode,
+    visibilityType: payload.visibilityType,
     visibleUserIds: payload.visibleUserIds ?? [],
     requiresConfirmation: payload.requiresConfirmation,
     completionRequirement: payload.completionRequirement,
-    dueDate: payload.dueDate ?? null,
+    dueDate: payload.dueDate,
     dueTime: payload.dueTime ?? null,
   };
 }

@@ -71,6 +71,7 @@ export function OneTimeOrderManagersPanel({
         <div style={{ display: 'grid', gap: 8 }}>
           <SearchableSelect
             label="Назначить менеджера"
+            viewportAware
             value={pickerValue}
             options={[]}
             clearable={false}

@@ -17,6 +17,27 @@ export interface CounterpartyObjectSummary {
   status: string;
 }
 
+export interface CounterpartyInventoryMovement {
+  id: string;
+  inventoryItem: { id: string; name: string; category: string; unit: string; isActive: boolean };
+  movementType: string;
+  status: string;
+  quantity: number;
+  signedQuantity: number;
+  comment: string | null;
+  createdAt: string;
+  createdBy: { id: string; login: string; fullName: string };
+  relatedObject: { id: string; name: string; canOpenObjectCard: boolean } | null;
+}
+
+export interface CounterpartyInventoryMovementList {
+  items: CounterpartyInventoryMovement[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export interface CounterpartyCard extends CounterpartyListItem {
   notes: string | null;
   createdAt: string;
@@ -26,6 +47,7 @@ export interface CounterpartyCard extends CounterpartyListItem {
     fullName: string;
   };
   visibleObjectCount: number;
+  masterObject: CounterpartyObjectSummary | null;
   objects: CounterpartyObjectSummary[];
   capabilities: {
     canManage: boolean;

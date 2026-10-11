@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 
 import type { OneTimeOrderSortField } from '@/entities/one-time-order/api/one-time-order-client';
 import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { OneTimeOrderPreviewDrawer } from './one-time-order-preview-drawer';
 
 export function OneTimeOrderListTable({
   items,
@@ -19,6 +21,9 @@ export function OneTimeOrderListTable({
   sortDirection: 'asc' | 'desc';
   onSort: (field: OneTimeOrderSortField) => void;
 }): React.JSX.Element {
+  const [previewItem, setPreviewItem] = useState<OneTimeOrderListItem | null>(null);
+  const closePreview = useCallback(() => setPreviewItem(null), []);
+
   if (items.length === 0) {
     return <div className="page-card workspace-surface workspace-empty">Разовые заказы не найдены.</div>;
   }
@@ -37,45 +42,79 @@ export function OneTimeOrderListTable({
     </button>
   );
 
+  const ariaSort = (field: OneTimeOrderSortField): 'ascending' | 'descending' | 'none' => {
+    if (sortBy !== field) return 'none';
+    return sortDirection === 'asc' ? 'ascending' : 'descending';
+  };
+
   return (
-    <div className="page-card workspace-surface data-table-shell one-time-order-table-scroll">
-      <table className="one-time-order-registry-table">
+    <>
+      <DataTable
+        label="Таблица разовых заказов"
+        className="one-time-order-registry-table"
+        frameClassName="page-card workspace-surface data-table-shell one-time-order-table-scroll"
+      >
         <thead>
           <tr>
-            <th>{sortButton('title', 'Заказ')}</th>
-            <th>{sortButton('executionStartDate', 'Даты')}</th>
-            <th>Адрес</th>
-            <th>{sortButton('status', 'Статус')}</th>
-            <th>Менеджеры</th>
-            <th>Объект</th>
-            <th>ТЗ</th>
-            <th>Задачи</th>
-            <th>Оценка</th>
-            <th>Отзыв</th>
-            <th>Действия</th>
+            <th scope="col" aria-sort={ariaSort('title')}>{sortButton('title', 'Заказ')}</th>
+            <th scope="col" aria-sort={ariaSort('executionStartDate')}>{sortButton('executionStartDate', 'Даты')}</th>
+            <th scope="col">Адрес</th>
+            <th scope="col" aria-sort={ariaSort('status')}>{sortButton('status', 'Статус')}</th>
+            <th scope="col">Менеджеры</th>
+            <th scope="col">Объект</th>
+            <th scope="col">ТЗ</th>
+            <th scope="col">Задачи</th>
+            <th scope="col">Отзыв</th>
+            <th scope="col" aria-label="Быстрый просмотр" />
           </tr>
         </thead>
         <tbody>
           {items.map((item) => {
             const href = `/one-time-orders/${item.id}`;
+            const executionDateMeta = getExecutionDateMeta(
+              item.executionStartDate,
+              item.executionEndDate,
+              item.durationDays,
+            );
 
             return (
-              <tr key={item.id}>
+              <tr
+                key={item.id}
+                className="one-time-order-preview-row"
+                tabIndex={0}
+                aria-label={`Быстрый просмотр заказа ${item.title}`}
+                onClick={() => setPreviewItem(item)}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setPreviewItem(item);
+                  }
+                }}
+              >
                 <td data-label="Заказ">
-                  <Link href={href}><strong>{item.title}</strong></Link>
+                  <Link href={href} onClick={(event) => event.stopPropagation()}><strong>{item.title}</strong></Link>
                   <span className="one-time-order-table-meta">
                     {item.contact.name}
                     {item.contact.phone ? ` · ${item.contact.phone}` : ''}
                   </span>
                 </td>
                 <td data-label="Даты">
-                  {formatExecutionRange(
-                    item.executionStartDate,
-                    item.executionEndDate,
-                  )}
-                  {item.durationDays ? (
+                  <span
+                    className="one-time-order-execution-date"
+                    title={formatExecutionRangeFull(
+                      item.executionStartDate,
+                      item.executionEndDate,
+                    )}
+                  >
+                    {formatExecutionRange(
+                      item.executionStartDate,
+                      item.executionEndDate,
+                    )}
+                  </span>
+                  {executionDateMeta ? (
                     <span className="one-time-order-table-meta">
-                      {item.durationDays} дн.
+                      {executionDateMeta}
                     </span>
                   ) : null}
                 </td>
@@ -91,7 +130,7 @@ export function OneTimeOrderListTable({
                 <td data-label="Объект">
                   {item.linkedObject ? (
                     item.linkedObject.canOpenObjectCard ? (
-                      <Link href={`/objects/${item.linkedObject.id}`}>
+                      <Link href={`/objects/${item.linkedObject.id}`} onClick={(event) => event.stopPropagation()}>
                         {item.linkedObject.name}
                       </Link>
                     ) : (
@@ -102,36 +141,42 @@ export function OneTimeOrderListTable({
                   )}
                 </td>
                 <td data-label="ТЗ">
-                  {item.specificationProgress.completed} /{' '}
-                  {item.specificationProgress.total}
+                  <span
+                    className="one-time-order-specification-progress"
+                    data-complete={item.specificationProgress.total > 0 && item.specificationProgress.completed >= item.specificationProgress.total}
+                    title={`Выполнено пунктов ТЗ: ${item.specificationProgress.completed} из ${item.specificationProgress.total}`}
+                  >
+                    <strong>{item.specificationProgress.completed}</strong>
+                    <span aria-hidden="true">/</span>
+                    {item.specificationProgress.total}
+                  </span>
                 </td>
                 <td data-label="Задачи">{item.accessibleTaskCount}</td>
-                <td data-label="Оценка">
-                  {item.reviewRating ? '★'.repeat(item.reviewRating) : '—'}
-                </td>
                 <td data-label="Отзыв">
-                  <span title={item.reviewPreview ?? undefined}>
+                  <span className="one-time-order-review-preview" title={item.reviewPreview ?? undefined}>
                     {item.reviewPreview || '—'}
                   </span>
                 </td>
-                <td data-label="Действия">
+                <td data-label="">
                   <div className="one-time-order-table-actions">
-                    {item.capabilities.canEditReview ? (
-                      <Link href={`${href}#review`}>
-                        {item.reviewRating !== null || item.reviewPreview
-                          ? 'Изменить отзыв'
-                          : 'Написать отзыв'}
-                      </Link>
-                    ) : null}
-                    <Link href={href}>Открыть</Link>
+                    <Link
+                      href={href}
+                      className="one-time-order-preview-trigger"
+                      aria-label={`Открыть заказ ${item.title} полностью`}
+                      title="Открыть полную карточку"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <span aria-hidden="true">›</span>
+                    </Link>
                   </div>
                 </td>
               </tr>
             );
           })}
         </tbody>
-      </table>
-    </div>
+      </DataTable>
+      <OneTimeOrderPreviewDrawer item={previewItem} onClose={closePreview} />
+    </>
   );
 }
 
@@ -140,16 +185,70 @@ function formatExecutionRange(
   endDate: string | null,
 ): string {
   if (!startDate) return 'Без даты';
-  if (!endDate || endDate === startDate) return formatBusinessDate(startDate);
-  return `${formatBusinessDate(startDate)} – ${formatBusinessDate(endDate)}`;
+  if (!endDate || endDate === startDate) return formatCompactBusinessDate(startDate);
+
+  const start = parseBusinessDate(startDate);
+  const end = parseBusinessDate(endDate);
+  if (start.year === end.year && start.month === end.month) {
+    return `${start.day}–${end.day} ${formatMonth(start.month)}`;
+  }
+  if (start.year === end.year) {
+    return `${formatDayAndMonth(start)} – ${formatDayAndMonth(end)}`;
+  }
+  return `${formatDayAndMonth(start)} – ${formatDayAndMonth(end)}`;
 }
 
-function formatBusinessDate(value: string): string {
+function formatExecutionRangeFull(startDate: string | null, endDate: string | null): string {
+  if (!startDate) return 'Дата выполнения не указана';
+  const start = formatFullBusinessDate(startDate);
+  if (!endDate || endDate === startDate) return start;
+  return `${start} – ${formatFullBusinessDate(endDate)}`;
+}
+
+function parseBusinessDate(value: string): { day: number; month: number; year: number } {
   const [year, month, day] = value.split('-').map(Number);
+  return { day: day!, month: month!, year: year! };
+}
+
+function formatCompactBusinessDate(value: string): string {
+  const date = parseBusinessDate(value);
+  return formatDayAndMonth(date);
+}
+
+function getExecutionDateMeta(
+  startDate: string | null,
+  endDate: string | null,
+  durationDays: number | null,
+): string {
+  const years = startDate
+    ? (() => {
+        const startYear = parseBusinessDate(startDate).year;
+        const endYear = endDate ? parseBusinessDate(endDate).year : startYear;
+        if (startYear === new Date().getFullYear() && endYear === startYear) return '';
+        return startYear === endYear ? String(startYear) : `${startYear}–${endYear}`;
+      })()
+    : '';
+  return [years, durationDays ? `${durationDays} дн.` : ''].filter(Boolean).join(' · ');
+}
+
+function formatDayAndMonth(date: { day: number; month: number; year: number }): string {
+  return `${date.day} ${formatMonth(date.month)}`;
+}
+
+function formatMonth(month: number): string {
+  const monthLabels = [
+    'янв.', 'февр.', 'мар.', 'апр.', 'мая', 'июн.',
+    'июл.', 'авг.', 'сент.', 'окт.', 'нояб.', 'дек.',
+  ];
+  return monthLabels[month - 1] ?? '';
+}
+
+function formatFullBusinessDate(value: string): string {
+  const { day, month, year } = parseBusinessDate(value);
   return new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
-    month: '2-digit',
+    month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
-  }).format(new Date(Date.UTC(year!, month! - 1, day!)));
+  }).format(new Date(Date.UTC(year, month - 1, day)));
 }

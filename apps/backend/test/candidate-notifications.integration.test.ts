@@ -4,7 +4,9 @@ import test from 'node:test';
 import { PrismaClient } from '@prisma/client';
 
 import { CandidateReminderService } from '../src/modules/candidates/candidate-reminder.service';
+import { EmployeeBirthdayNotificationService } from '../src/modules/employees/employee-birthday-notification.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
+import { LEADERSHIP_OBJECT_ROLE_CODES } from '../src/modules/objects/utils/object-access.util';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
 
@@ -59,10 +61,11 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
     }),
   ]);
 
-  const [managerOne, managerTwo, founder] = await Promise.all([
+  const [managerOne, managerTwo, founder, hrUser] = await Promise.all([
     prisma.user.findUniqueOrThrow({ where: { login: 'manager1' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'manager2' } }),
     prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'hr1' } }),
   ]);
 
   const candidateObject = await prisma.object.create({
@@ -128,6 +131,16 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
     }),
     1,
   );
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        recipientUserId: hrUser.id,
+        type: 'candidate.response_overdue',
+        entityId: candidate.id,
+      },
+    }),
+    1,
+  );
   assert.ok(
     (
       await prisma.candidateManagerAssignment.findUniqueOrThrow({
@@ -139,6 +152,10 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
   const unread = await api(baseUrl, managerCookie, '/notifications/unread-count');
   assert.equal(unread.status, 200);
   assert.equal(((await unread.json()) as { count: number }).count, 2);
+
+  const hrUnread = await api(baseUrl, hrCookie, '/notifications/unread-count');
+  assert.equal(hrUnread.status, 200);
+  assert.equal(((await hrUnread.json()) as { count: number }).count, 1);
 
   const list = await api(
     baseUrl,
@@ -221,6 +238,18 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
         recipientUserId: managerOne.id,
         dedupeKey: 'candidate-notification-dedupe',
       },
+    }),
+    1,
+  );
+  const dedupedNotification = await prisma.notification.findFirstOrThrow({
+    where: {
+      recipientUserId: managerOne.id,
+      dedupeKey: 'candidate-notification-dedupe',
+    },
+  });
+  assert.equal(
+    await prisma.notificationOutbox.count({
+      where: { notificationId: dedupedNotification.id },
     }),
     1,
   );
@@ -357,4 +386,70 @@ test('candidate SLA reminders and generic notifications are idempotent and isola
       0,
     );
   }
+});
+
+test('employee birthday notifications reach HR and leadership once per year', async (t) => {
+  const prisma = new PrismaClient();
+  const { app } = await createTestApp();
+  t.after(async () => {
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const [hr, founder] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { login: 'hr1' } }),
+    prisma.user.findUniqueOrThrow({ where: { login: 'founder' } }),
+  ]);
+  const employee = await prisma.employee.create({
+    data: {
+      fullName: 'Birthday notification test',
+      employmentStatus: 'active',
+      birthDate: new Date('1990-03-12T00:00:00.000Z'),
+    },
+  });
+  const service = app.get(EmployeeBirthdayNotificationService);
+  const notificationsService = app.get(NotificationsService);
+  const testDate = new Date('2026-03-12T12:00:00.000Z');
+
+  const firstPassCount = await service.notifyTodaysBirthdays(testDate);
+  assert.ok(firstPassCount >= 1);
+  assert.equal(await service.notifyTodaysBirthdays(testDate), firstPassCount);
+  const matchingNotifications = await prisma.notification.findMany({
+      where: {
+        entityType: 'employee',
+        entityId: employee.id,
+        type: 'employee.birthday',
+      },
+      select: { recipientUserId: true, dedupeKey: true },
+    });
+  const expectedRecipients = await notificationsService.listActiveUserIdsByRoles([
+    'hr',
+    ...LEADERSHIP_OBJECT_ROLE_CODES,
+  ]);
+  assert.equal(matchingNotifications.length, expectedRecipients.length);
+  assert.equal(
+    new Set(matchingNotifications.map(({ recipientUserId }) => recipientUserId)).size,
+    matchingNotifications.length,
+  );
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        recipientUserId: hr.id,
+        entityId: employee.id,
+        type: 'employee.birthday',
+        dedupeKey: `employee:${employee.id}:birthday:2026`,
+      },
+    }),
+    1,
+  );
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        recipientUserId: founder.id,
+        entityId: employee.id,
+        type: 'employee.birthday',
+      },
+    }),
+    1,
+  );
 });

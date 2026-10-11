@@ -29,6 +29,7 @@ import {
   TASK_RESULT_CONFIRMATION_TYPE,
 } from './constants/approval.constants';
 import { ApprovalRequestResponseDto } from './dto/approval-request-response.dto';
+import { ApprovalRequestListResponseDto } from './dto/approval-request-list-response.dto';
 import { ListApprovalRequestsQueryDto } from './dto/list-approval-requests-query.dto';
 import {
   ApproveApprovalRequestDto,
@@ -98,24 +99,90 @@ export class ApprovalsService {
 
   async listRequests(
     currentUser: CurrentAuthUser,
+    query: ListApprovalRequestsQueryDto & { page?: undefined; limit?: undefined },
+  ): Promise<ApprovalRequestResponseDto[]>;
+  async listRequests(
+    currentUser: CurrentAuthUser,
+    query: ListApprovalRequestsQueryDto & { page: number },
+  ): Promise<ApprovalRequestListResponseDto>;
+  async listRequests(
+    currentUser: CurrentAuthUser,
     query: ListApprovalRequestsQueryDto,
-  ): Promise<ApprovalRequestResponseDto[]> {
-    const requests = (await this.prisma.approvalRequest.findMany({
-      where: {
-        ...this.buildVisibilityWhere(currentUser),
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.approvalType ? { approvalType: query.approvalType } : {}),
-        ...(query.sourceEntityType
-          ? { sourceEntityType: query.sourceEntityType }
-          : {}),
-        ...(query.sourceEntityId ? { sourceEntityId: query.sourceEntityId } : {}),
-        ...this.buildDateRangeWhere(query),
-      },
-      include: this.approvalInclude(),
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    })) as ApprovalRequestRecord[];
+  ): Promise<ApprovalRequestResponseDto[] | ApprovalRequestListResponseDto>;
+  async listRequests(
+    currentUser: CurrentAuthUser,
+    query: ListApprovalRequestsQueryDto,
+  ): Promise<ApprovalRequestResponseDto[] | ApprovalRequestListResponseDto> {
+    const where: Prisma.ApprovalRequestWhereInput = {
+      ...this.buildVisibilityWhere(currentUser),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.approvalType ? { approvalType: query.approvalType } : {}),
+      ...(query.sourceEntityType
+        ? { sourceEntityType: query.sourceEntityType }
+        : {}),
+      ...(query.sourceEntityId ? { sourceEntityId: query.sourceEntityId } : {}),
+      ...this.buildDateRangeWhere(query),
+    };
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const shouldPaginate = query.page !== undefined || query.limit !== undefined;
 
-    return requests.map((request) => this.mapRequest(request, currentUser));
+    if (query.search) {
+      // Apply visibility and structured filters in the database first. Search
+      // then runs over the complete authorized queue before pagination, never
+      // over only the current page.
+      const requests = (await this.prisma.approvalRequest.findMany({
+        where,
+        include: this.approvalInclude(),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })) as ApprovalRequestRecord[];
+      const normalizedSearch = query.search.toLocaleLowerCase('ru');
+      const matching = requests
+        .map((request) => this.mapRequest(request, currentUser))
+        .filter((request) => this.matchesSearch(request, normalizedSearch));
+
+      if (!shouldPaginate) return matching;
+
+      const start = (page - 1) * limit;
+      return {
+        items: matching.slice(start, start + limit),
+        page,
+        limit,
+        total: matching.length,
+        totalPages: matching.length === 0 ? 0 : Math.ceil(matching.length / limit),
+      };
+    }
+
+    if (!shouldPaginate) {
+      const requests = (await this.prisma.approvalRequest.findMany({
+        where,
+        include: this.approvalInclude(),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })) as ApprovalRequestRecord[];
+
+      return requests.map((request) => this.mapRequest(request, currentUser));
+    }
+
+    const [total, requests] = await this.prisma.$transaction([
+      this.prisma.approvalRequest.count({ where }),
+      this.prisma.approvalRequest.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: this.approvalInclude(),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+    ]);
+
+    return {
+      items: (requests as ApprovalRequestRecord[]).map((request) =>
+        this.mapRequest(request, currentUser),
+      ),
+      page,
+      limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
   }
 
   async getRequestById(
@@ -293,11 +360,59 @@ export class ApprovalsService {
       const dateTo = new Date(query.dateTo);
 
       if (!Number.isNaN(dateTo.getTime())) {
-        createdAt.lte = dateTo;
+        dateTo.setUTCDate(dateTo.getUTCDate() + 1);
+        createdAt.lt = dateTo;
       }
     }
 
     return Object.keys(createdAt).length > 0 ? { createdAt } : {};
+  }
+
+  private matchesSearch(
+    request: ApprovalRequestResponseDto,
+    normalizedSearch: string,
+  ): boolean {
+    const statusLabels: Record<string, string> = {
+      pending: 'ожидает решения',
+      approved: 'подтверждено',
+      rejected: 'отклонено',
+      cancelled: 'отменено',
+    };
+    const searchableValues = [
+      request.summary.title,
+      request.summary.subtitle,
+      request.approvalType,
+      request.sourceEntityType,
+      request.status,
+      statusLabels[request.status],
+      request.decisionComment,
+      request.createdBy.fullName,
+      request.createdBy.login,
+      this.collectSearchablePayloadText(request.payloadSnapshot),
+    ];
+
+    return searchableValues.some((value) =>
+      value?.toLocaleLowerCase('ru').includes(normalizedSearch),
+    );
+  }
+
+  private collectSearchablePayloadText(value: unknown, key = ''): string {
+    if (/id$/i.test(key) || /uuid/i.test(key)) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.collectSearchablePayloadText(item)).join(' ');
+    }
+    if (value !== null && typeof value === 'object') {
+      return Object.entries(value as Record<string, unknown>)
+        .map(([nestedKey, nestedValue]) =>
+          this.collectSearchablePayloadText(nestedValue, nestedKey),
+        )
+        .join(' ');
+    }
+    return '';
   }
 
   private approvalInclude() {

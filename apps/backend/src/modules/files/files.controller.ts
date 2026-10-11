@@ -39,6 +39,19 @@ interface UploadedFilePayload {
   buffer: Buffer;
 }
 
+function buildContentDispositionFilename(originalName: string): string {
+  const safeName = originalName.replace(/["\\\r\n]/g, '_');
+  const asciiFallback = safeName
+    .replace(/[^\x20-\x7e]/g, '_')
+    .replace(/[;\\]/g, '_');
+  const utf8Name = encodeURIComponent(safeName).replace(
+    /[!'()*]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
+  return `filename="${asciiFallback}"; filename*=UTF-8''${utf8Name}`;
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller('files')
 export class FilesController {
@@ -65,14 +78,12 @@ export class FilesController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
     const file = await this.filesService.getContentById(user, id);
-    const safeFileName = file.originalName.replace(/["\r\n]/g, '_');
-
     this.setPrivateContentHeaders(response);
     response.setHeader('Content-Type', file.mimeType);
     response.setHeader('Content-Length', String(file.sizeBytes));
     response.setHeader(
       'Content-Disposition',
-      `${download === '1' ? 'attachment' : file.mimeType.startsWith('image/') ? 'inline' : 'attachment'}; filename="${safeFileName}"`,
+      `${download === '1' ? 'attachment' : file.mimeType.startsWith('image/') ? 'inline' : 'attachment'}; ${buildContentDispositionFilename(file.originalName)}`,
     );
     response.send(file.body);
   }
@@ -152,13 +163,12 @@ export class FilesController {
     },
     sandbox: boolean,
   ): void {
-    const safeFileName = file.originalName.replace(/["\r\n]/g, '_');
     this.setPrivateContentHeaders(response);
     response.setHeader('Content-Type', file.mimeType);
     response.setHeader('Content-Length', String(file.sizeBytes));
     response.setHeader(
       'Content-Disposition',
-      `inline; filename="${safeFileName}"`,
+      `inline; ${buildContentDispositionFilename(file.originalName)}`,
     );
     response.setHeader(
       'Content-Security-Policy',

@@ -1,0 +1,88 @@
+.iconButton {
+  display: flex !important;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 7px;
+  color: #65564d;
+  background: #f3efeb;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-left: 0 !important;
+}
+
+.iconActionRow :global(.pending-media-item__body) {
+  flex: 1 1 auto;
+}
+
+.iconActionRow :global(.pending-media-item__body > strong) {
+  min-width: 0;
+}
+
+.actionGroup {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-left: 0 !important;
+}
+
+.iconButton:hover {
+  color: #3f332c;
+  background: #f2eeea;
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid #9b7b67;
+  outline-offset: 2px;
+}
+
+.iconButton svg {
+  display: block;
+  width: 30px;
+  height: 30px;
+}
+
+.renameField {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.renameField input {
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 50px;
+  height: 34px;
+  padding: 0 8px;
+  color: #352d28;
+  background: #fff;
+  border: 1px solid #cbbdb2;
+  border-radius: 7px;
+  font: inherit;
+}
+
+.renameField .iconButton {
+  flex: 0 0 44px;
+}
+
+.extension {
+  color: #78695e;
+  white-space: nowrap;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}

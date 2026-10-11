@@ -125,6 +125,7 @@ test('global search and recent resolution preserve domain ACL boundaries', async
         objectId: assignedObject.id,
         createdByUserId: creator.id,
         visibilityMode: 'scope',
+        visibilityType: 'target_participants',
       },
     }),
     prisma.task.create({
@@ -135,6 +136,7 @@ test('global search and recent resolution preserve domain ACL boundaries', async
         objectId: foreignObject.id,
         createdByUserId: creator.id,
         visibilityMode: 'scope',
+        visibilityType: 'target_participants',
       },
     }),
   ]);
@@ -229,6 +231,7 @@ test('global search and recent resolution preserve domain ACL boundaries', async
           objectId: assignedObject.id,
           createdByUserId: creator.id,
           visibilityMode: 'scope',
+          visibilityType: 'target_participants',
         },
       }),
       prisma.task.create({
@@ -239,6 +242,7 @@ test('global search and recent resolution preserve domain ACL boundaries', async
           objectId: assignedObject.id,
           createdByUserId: creator.id,
           visibilityMode: 'scope',
+          visibilityType: 'target_participants',
         },
       }),
       prisma.counterparty.create({

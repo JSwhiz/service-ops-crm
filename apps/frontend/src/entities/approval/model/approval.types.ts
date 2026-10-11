@@ -37,10 +37,24 @@ export interface ApprovalRequestItem {
 }
 
 export interface ListApprovalRequestsParams {
+  search?: string;
   status?: string;
   approvalType?: string;
   sourceEntityType?: string;
   sourceEntityId?: string;
   dateFrom?: string;
   dateTo?: string;
+}
+
+export interface ApprovalRequestPage {
+  items: ApprovalRequestItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ListApprovalRequestsPageParams extends ListApprovalRequestsParams {
+  page: number;
+  limit: number;
 }

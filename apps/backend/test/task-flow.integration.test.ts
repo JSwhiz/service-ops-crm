@@ -57,23 +57,25 @@ test('task lifecycle keeps per-assignee results and one shared confirmation', as
       select: { id: true },
     }),
   ]);
-  const [founderCookie, managerOneCookie, managerTwoCookie] = await Promise.all([
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'founder',
-      password: 'founder123',
-    }),
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'manager1',
-      password: 'manager123',
-    }),
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'manager2',
-      password: 'manager123',
-    }),
-  ]);
+  const [founderCookie, managerOneCookie, managerTwoCookie] = await Promise.all(
+    [
+      loginAndGetCookieHeader({
+        baseUrl,
+        login: 'founder',
+        password: 'founder123',
+      }),
+      loginAndGetCookieHeader({
+        baseUrl,
+        login: 'manager1',
+        password: 'manager123',
+      }),
+      loginAndGetCookieHeader({
+        baseUrl,
+        login: 'manager2',
+        password: 'manager123',
+      }),
+    ],
+  );
 
   t.after(async () => {
     const approvalIds = (
@@ -88,7 +90,12 @@ test('task lifecycle keeps per-assignee results and one shared confirmation', as
     await prisma.auditEvent.deleteMany({
       where: { entityType: 'approval_request', entityId: { in: approvalIds } },
     });
-    await prisma.approvalRequest.deleteMany({ where: { id: { in: approvalIds } } });
+    await prisma.approvalRequest.deleteMany({
+      where: { id: { in: approvalIds } },
+    });
+    await prisma.notification.deleteMany({
+      where: { entityType: 'task', entityId: { in: createdTaskIds } },
+    });
     await prisma.task.deleteMany({ where: { id: { in: createdTaskIds } } });
     await app.close();
     await prisma.$disconnect();
@@ -108,11 +115,24 @@ test('task lifecycle keeps per-assignee results and one shared confirmation', as
       visibilityMode: 'selected',
       requiresConfirmation: true,
       completionRequirement: 'comment_required',
+      dueDate: '2030-01-15',
     }),
   });
   assert.equal(createResponse.status, 201);
   const created = (await createResponse.json()) as TaskPayload;
   createdTaskIds.push(created.id);
+  const taskAssignmentNotifications = await prisma.notification.findMany({
+    where: {
+      entityType: 'task',
+      entityId: created.id,
+      type: 'task.assigned',
+    },
+    select: { recipientUserId: true },
+  });
+  assert.deepEqual(
+    taskAssignmentNotifications.map(({ recipientUserId }) => recipientUserId),
+    [managerTwo.id],
+  );
   assert.equal(created.status, 'in_progress');
   assert.deepEqual(created.completionProgress, { completed: 0, total: 2 });
 
@@ -282,15 +302,22 @@ test('task lifecycle keeps per-assignee results and one shared confirmation', as
     },
   );
   assert.equal(cancelResponse.status, 201);
-  assert.equal(((await cancelResponse.json()) as TaskPayload).status, 'cancelled');
+  assert.equal(
+    ((await cancelResponse.json()) as TaskPayload).status,
+    'cancelled',
+  );
 
   const historyResponse = await fetch(
     `${baseUrl}/api/v1/tasks/${created.id}/history`,
     { headers: { Cookie: managerOneCookie } },
   );
   assert.equal(historyResponse.status, 200);
-  const history = (await historyResponse.json()) as Array<{ eventType: string }>;
-  assert.ok(history.some((event) => event.eventType === 'task.assignee_completed'));
+  const history = (await historyResponse.json()) as Array<{
+    eventType: string;
+  }>;
+  assert.ok(
+    history.some((event) => event.eventType === 'task.assignee_completed'),
+  );
   assert.ok(history.some((event) => event.eventType === 'task.reopened'));
   assert.ok(history.some((event) => event.eventType === 'task.cancelled'));
 
@@ -335,6 +362,7 @@ test('task lifecycle keeps per-assignee results and one shared confirmation', as
       assigneeUserIds: [managerOne.id],
       visibilityMode: 'selected',
       completionRequirement: 'comment_required',
+      dueDate: '2030-01-15',
     }),
   });
   const concurrentTask = (await concurrentCreate.json()) as TaskPayload;
@@ -429,7 +457,10 @@ test('task deadlines, dual targets and completion file requirements are enforced
     });
     await prisma.file.deleteMany({ where: { id: { in: createdFileIds } } });
     await prisma.approvalRequest.deleteMany({
-      where: { sourceEntityType: 'task', sourceEntityId: { in: createdTaskIds } },
+      where: {
+        sourceEntityType: 'task',
+        sourceEntityId: { in: createdTaskIds },
+      },
     });
     await prisma.task.deleteMany({ where: { id: { in: createdTaskIds } } });
     await prisma.oneTimeOrder.delete({ where: { id: order.id } });
@@ -513,7 +544,10 @@ test('task deadlines, dual targets and completion file requirements are enforced
     managerCookie,
     created.id,
   );
-  assert.equal(completedWithFile.assignees[0]?.currentCompletion?.attachments.length, 1);
+  assert.equal(
+    completedWithFile.assignees[0]?.currentCompletion?.attachments.length,
+    1,
+  );
   const currentAttachment = completedWithFile.assignees[0]?.currentCompletion
     ?.attachments[0] as Record<string, unknown> | undefined;
   assert.ok(currentAttachment);
@@ -551,11 +585,14 @@ test('task deadlines, dual targets and completion file requirements are enforced
   );
   assert.equal(oldFileDoesNotCount.status, 400);
 
-  const clearRequirement = await fetch(`${baseUrl}/api/v1/tasks/${created.id}`, {
-    method: 'PATCH',
-    headers: { Cookie: managerCookie, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ completionRequirement: 'none' }),
-  });
+  const clearRequirement = await fetch(
+    `${baseUrl}/api/v1/tasks/${created.id}`,
+    {
+      method: 'PATCH',
+      headers: { Cookie: managerCookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completionRequirement: 'none' }),
+    },
+  );
   assert.equal(clearRequirement.status, 200);
   const finishWithoutReport = await fetch(
     `${baseUrl}/api/v1/tasks/${created.id}/assignees/me/complete`,
@@ -609,19 +646,7 @@ test('task deadlines, dual targets and completion file requirements are enforced
       visibilityMode: 'selected',
     }),
   });
-  assert.equal(noDeadlineResponse.status, 201);
-  const noDeadline = (await noDeadlineResponse.json()) as TaskPayload;
-  createdTaskIds.push(noDeadline.id);
-  assert.equal(noDeadline.dueAt, null);
-
-  await prisma.task.update({
-    where: { id: noDeadline.id },
-    data: { status: 'closed' },
-  });
-  assert.equal(
-    (await getTaskPayload(baseUrl, managerCookie, noDeadline.id)).status,
-    'completed',
-  );
+  assert.equal(noDeadlineResponse.status, 400);
 
   const exactTimeResponse = await fetch(`${baseUrl}/api/v1/tasks`, {
     method: 'POST',
@@ -640,6 +665,19 @@ test('task deadlines, dual targets and completion file requirements are enforced
   createdTaskIds.push(exactTime.id);
   assert.equal(exactTime.dueAt, '2030-01-15T09:30:00.000Z');
   assert.equal(exactTime.dueTimeSpecified, true);
+
+  const clearDeadlineResponse = await fetch(
+    `${baseUrl}/api/v1/tasks/${exactTime.id}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Cookie: managerCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ dueDate: null }),
+    },
+  );
+  assert.equal(clearDeadlineResponse.status, 400);
 
   const invalidTimeOnly = await fetch(`${baseUrl}/api/v1/tasks`, {
     method: 'POST',

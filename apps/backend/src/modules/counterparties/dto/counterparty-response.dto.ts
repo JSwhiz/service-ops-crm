@@ -34,6 +34,7 @@ export interface CounterpartyCardResponseDto extends CounterpartyListItemDto {
     fullName: string;
   };
   visibleObjectCount: number;
+  masterObject: CounterpartyObjectSummaryDto | null;
   objects: CounterpartyObjectSummaryDto[];
   capabilities: {
     canManage: boolean;

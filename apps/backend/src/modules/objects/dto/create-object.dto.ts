@@ -1,12 +1,15 @@
 import { Transform } from 'class-transformer';
 import {
   ArrayUnique,
+  ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
@@ -34,6 +37,26 @@ export class CreateObjectDto {
   seasonMode?: 'summer' | 'winter' | null;
 
   @IsOptional()
+  @IsBoolean()
+  summerWindowCleaning?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  engineeringRequired?: boolean;
+
+  @IsOptional()
+  @IsIn(['none', 'with_removal', 'without_removal'])
+  winterTractorMode?: 'none' | 'with_removal' | 'without_removal';
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MaxLength(240, { each: true })
+  instructionSteps?: string[];
+
+  @IsOptional()
   @IsString()
   notes?: string;
 
@@ -55,6 +78,19 @@ export class CreateObjectDto {
   @IsInt()
   @Min(0)
   monthlySalary?: number;
+
+  @IsOptional() @IsIn(['monthly', 'daily'])
+  summerPaymentType?: 'monthly' | 'daily';
+  @IsOptional() @IsInt() @Min(0)
+  summerDailyRate?: number;
+  @IsOptional() @IsInt() @Min(0)
+  summerMonthlySalary?: number;
+  @IsOptional() @IsIn(['monthly', 'daily'])
+  winterPaymentType?: 'monthly' | 'daily';
+  @IsOptional() @IsInt() @Min(0)
+  winterDailyRate?: number;
+  @IsOptional() @IsInt() @Min(0)
+  winterMonthlySalary?: number;
 
   @IsOptional()
   @IsArray()

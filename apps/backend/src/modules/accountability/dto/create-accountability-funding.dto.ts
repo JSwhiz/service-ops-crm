@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class CreateAccountabilityFundingDto {
   @Type(() => Number)
@@ -9,5 +9,11 @@ export class CreateAccountabilityFundingDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
   comment?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(200)
+  source?: string;
 }

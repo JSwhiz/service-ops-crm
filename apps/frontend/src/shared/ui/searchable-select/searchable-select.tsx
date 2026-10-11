@@ -2,6 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 
+import { usePopoverPlacement } from './use-popover-placement';
+import styles from './searchable-select.module.css';
+
 export interface SearchableSelectOption {
   value: string;
   label: string;
@@ -24,6 +27,13 @@ interface SearchableSelectProps {
     query: string,
   ) => Promise<SearchableSelectOption[]>;
   selectedOption?: SearchableSelectOption | null;
+  searchable?: boolean;
+  viewportAware?: boolean;
+  required?: boolean;
+  hideLabel?: boolean;
+  minimumSearchLength?: number;
+  searchPromptText?: string;
+  searchInputVariant?: 'default' | 'registry';
 }
 
 export function SearchableSelect({
@@ -39,8 +49,17 @@ export function SearchableSelect({
   clearable = true,
   asyncSearch,
   selectedOption = null,
+  searchable = true,
+  viewportAware = true,
+  required = false,
+  hideLabel = false,
+  minimumSearchLength = 0,
+  searchPromptText,
+  searchInputVariant = 'default',
 }: SearchableSelectProps): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const asyncSearchRef = useRef(asyncSearch);
   const optionsRef = useRef(options);
@@ -52,6 +71,11 @@ export function SearchableSelect({
   const [asyncOptions, setAsyncOptions] = useState(options);
   const [isAsyncLoading, setIsAsyncLoading] = useState(false);
   const [asyncError, setAsyncError] = useState(false);
+  const { placement, availableHeight } = usePopoverPlacement(
+    isOpen && viewportAware,
+    triggerRef,
+    popoverRef,
+  );
 
   optionsRef.current = options;
 
@@ -69,15 +93,16 @@ export function SearchableSelect({
     optionCacheRef.current.get(value) ??
     null;
   const normalizedQuery = query.trim().toLocaleLowerCase('ru');
+  const needsMoreSearch = normalizedQuery.length < minimumSearchLength;
   const visibleOptions = asyncSearch
-    ? asyncOptions
+    ? needsMoreSearch ? [] : asyncOptions
     : normalizedQuery
-      ? options.filter((option) =>
+      ? normalizedQuery.length < minimumSearchLength ? [] : options.filter((option) =>
           `${option.label} ${option.searchText ?? ''}`
             .toLocaleLowerCase('ru')
             .includes(normalizedQuery),
         )
-      : options;
+      : minimumSearchLength > 0 ? [] : options;
 
   useEffect(() => {
     asyncSearchRef.current = asyncSearch;
@@ -87,8 +112,15 @@ export function SearchableSelect({
     const onPointerDown = (event: MouseEvent): void => {
       if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
     };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
     document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, []);
 
   useEffect(() => {
@@ -103,6 +135,14 @@ export function SearchableSelect({
   useEffect(() => {
     if (!isOpen || !asyncSearchRef.current) {
       setIsAsyncLoading(false);
+      return;
+    }
+
+    if (query.trim().length < minimumSearchLength) {
+      requestSequenceRef.current += 1;
+      setAsyncOptions([]);
+      setIsAsyncLoading(false);
+      setAsyncError(false);
       return;
     }
 
@@ -140,7 +180,7 @@ export function SearchableSelect({
         requestSequenceRef.current += 1;
       }
     };
-  }, [isOpen, query]);
+  }, [isOpen, minimumSearchLength, query]);
 
   const choose = (nextValue: string): void => {
     onChange(nextValue);
@@ -149,12 +189,15 @@ export function SearchableSelect({
 
   return (
     <div className="searchable-select" ref={rootRef}>
-      <span className="detail-label">{label}</span>
+      {hideLabel ? null : <span className="detail-label">{label}</span>}
       <button
+        ref={triggerRef}
         type="button"
         className="searchable-select__trigger"
+        aria-label={hideLabel ? label : undefined}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-required={required || undefined}
         disabled={disabled || loading}
         onClick={() => setIsOpen((current) => !current)}
       >
@@ -164,35 +207,43 @@ export function SearchableSelect({
         <span aria-hidden="true">⌄</span>
       </button>
       {isOpen ? (
-        <div className="searchable-select__popover">
-          <input
-            ref={searchRef}
-            type="search"
-            value={query}
-            placeholder={searchPlaceholder}
-            aria-label={`Поиск: ${label}`}
-            onChange={(event) => {
-              setQuery(event.target.value);
-              setActiveIndex(0);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'ArrowDown') {
-                event.preventDefault();
-                setActiveIndex((current) =>
-                  Math.min(current + 1, Math.max(0, visibleOptions.length - 1)),
-                );
-              } else if (event.key === 'ArrowUp') {
-                event.preventDefault();
-                setActiveIndex((current) => Math.max(0, current - 1));
-              } else if (event.key === 'Enter' && visibleOptions[activeIndex]) {
-                event.preventDefault();
-                choose(visibleOptions[activeIndex].value);
-              } else if (event.key === 'Escape') {
-                setIsOpen(false);
-              }
-            }}
-          />
-          <div className="searchable-select__options" role="listbox">
+        <div
+          ref={popoverRef}
+          className="searchable-select__popover"
+          data-placement={viewportAware ? placement : undefined}
+          style={viewportAware ? { '--anchored-popover-max-height': `${availableHeight}px` } as React.CSSProperties : undefined}
+        >
+          {searchable ? (
+            <input
+              ref={searchRef}
+              type="search"
+              className={searchInputVariant === 'registry' ? styles.registrySearchInput : undefined}
+              value={query}
+              placeholder={searchPlaceholder}
+              aria-label={`Поиск: ${label}`}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setActiveIndex(0);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  setActiveIndex((current) =>
+                    Math.min(current + 1, Math.max(0, visibleOptions.length - 1)),
+                  );
+                } else if (event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  setActiveIndex((current) => Math.max(0, current - 1));
+                } else if (event.key === 'Enter' && visibleOptions[activeIndex]) {
+                  event.preventDefault();
+                  choose(visibleOptions[activeIndex].value);
+                } else if (event.key === 'Escape') {
+                  setIsOpen(false);
+                }
+              }}
+            />
+          ) : null}
+          <div className="searchable-select__options" role="listbox" aria-label={label}>
             {clearable && value ? (
               <button type="button" onClick={() => choose('')}>
                 Очистить выбор
@@ -205,7 +256,9 @@ export function SearchableSelect({
                 Не удалось загрузить варианты
               </div>
             ) : visibleOptions.length === 0 ? (
-              <div className="searchable-select__empty">{emptyText}</div>
+              <div className="searchable-select__empty">
+                {needsMoreSearch && searchPromptText ? searchPromptText : emptyText}
+              </div>
             ) : (
               visibleOptions.map((option, index) => (
                 <button

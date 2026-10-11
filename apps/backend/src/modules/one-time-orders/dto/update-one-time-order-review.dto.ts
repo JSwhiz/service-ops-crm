@@ -1,5 +1,6 @@
 import {
-  IsInt,
+  IsIn,
+  IsNumber,
   IsOptional,
   IsString,
   Max,
@@ -14,7 +15,8 @@ export class UpdateOneTimeOrderReviewDto {
   reviewText?: string | null;
 
   @IsOptional()
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 1 })
+  @IsIn([1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])
   @Min(1)
   @Max(5)
   reviewRating?: number | null;

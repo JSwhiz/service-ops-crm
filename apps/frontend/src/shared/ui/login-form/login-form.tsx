@@ -39,9 +39,7 @@ export function LoginForm(): React.JSX.Element {
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
       <div className={styles.header}>
-        <div className={styles.kicker}>Рабочее пространство</div>
         <h2>Вход</h2>
-        <p>Используй рабочий логин и пароль.</p>
       </div>
 
       <div className={styles.fields}>

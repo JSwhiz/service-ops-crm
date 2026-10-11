@@ -15,6 +15,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
 
 import styles from './new-object.module.css';
 
@@ -72,6 +73,9 @@ function CompactSelect({
 }: CompactSelectProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const { placement, availableHeight } = usePopoverPlacement(open, triggerRef, popoverRef, 230);
   const selected = options.find((option) => option.value === value) ?? options[0];
 
   useEffect(() => {
@@ -96,6 +100,7 @@ function CompactSelect({
     <div className={styles.compactSelect} ref={rootRef}>
       <span className={styles.fieldLabel}>{label}</span>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.selectTrigger}
         aria-haspopup="listbox"
@@ -108,7 +113,14 @@ function CompactSelect({
       </button>
 
       {open ? (
-        <div className={styles.selectPopover} role="listbox" aria-label={label}>
+        <div
+          ref={popoverRef}
+          className={styles.selectPopover}
+          role="listbox"
+          aria-label={label}
+          data-placement={placement}
+          style={{ '--anchored-popover-max-height': `${availableHeight}px` } as React.CSSProperties}
+        >
           {options.map((option) => {
             const isSelected = option.value === value;
             return (
@@ -151,7 +163,10 @@ function ManagerMultiSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const { placement, availableHeight } = usePopoverPlacement(open, triggerRef, popoverRef);
   const normalizedQuery = query.trim().toLocaleLowerCase('ru');
 
   const visibleOptions = options
@@ -209,6 +224,7 @@ function ManagerMultiSelect({
       <span className={styles.fieldLabel}>Менеджеры</span>
 
       <button
+        ref={triggerRef}
         type="button"
         className={styles.selectTrigger}
         aria-haspopup="listbox"
@@ -223,7 +239,12 @@ function ManagerMultiSelect({
       </button>
 
       {open ? (
-        <div className={`${styles.selectPopover} ${styles.managerPopover}`}>
+        <div
+          ref={popoverRef}
+          className={`${styles.selectPopover} ${styles.managerPopover}`}
+          data-placement={placement}
+          style={{ '--anchored-popover-max-height': `${availableHeight}px` } as React.CSSProperties}
+        >
           <div className={styles.managerSearchWrap}>
             <input
               ref={searchRef}
@@ -287,17 +308,6 @@ const PAYMENT_OPTIONS: CompactSelectOption[] = [
   { value: 'daily', label: 'Дневная ставка за выход' },
 ];
 
-function formatManagerCount(count: number): string {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  const noun = mod10 === 1 && mod100 !== 11
-    ? 'менеджер'
-    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-      ? 'менеджера'
-      : 'менеджеров';
-  return `${count} ${noun}`;
-}
-
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
   const { user } = useAuth();
@@ -308,10 +318,20 @@ export default function NewObjectPage(): React.JSX.Element {
     address: '',
     status: 'active',
     seasonMode: '',
+    summerWindowCleaning: false,
+    engineeringRequired: false,
+    winterTractorMode: 'none' as 'none' | 'with_removal' | 'without_removal',
     paymentType: 'monthly' as 'monthly' | 'daily',
     monthlySalary: '0',
     dailyRate: '0',
+    summerPaymentType: 'monthly' as 'monthly' | 'daily',
+    summerMonthlySalary: '0',
+    summerDailyRate: '0',
+    winterPaymentType: 'monthly' as 'monthly' | 'daily',
+    winterMonthlySalary: '0',
+    winterDailyRate: '0',
     notes: '',
+    instructionStepsText: '',
   });
 
   const [responsibleCandidates, setResponsibleCandidates] = useState<SystemUserOption[]>([]);
@@ -363,7 +383,6 @@ export default function NewObjectPage(): React.JSX.Element {
   }, [allowCreateObject]);
 
   const managerCandidates = managerUsers.filter((candidate) => candidate.id !== user?.id);
-  const selectedResponsible = responsibleCandidates.find((candidate) => candidate.id === responsibleUserId) ?? null;
   const responsibleOptions = responsibleCandidates.map((candidate) => ({
     value: candidate.id,
     label: getUserDisplayName(candidate),
@@ -394,9 +413,19 @@ export default function NewObjectPage(): React.JSX.Element {
         address: form.address.trim(),
         status: form.status,
         seasonMode: form.seasonMode || null,
+        summerWindowCleaning: form.summerWindowCleaning,
+        engineeringRequired: form.engineeringRequired,
+        winterTractorMode: form.winterTractorMode,
+        instructionSteps: form.instructionStepsText.split('\n').map((step) => step.trim()).filter(Boolean),
         paymentType: form.paymentType,
         monthlySalary: Number(form.monthlySalary) || 0,
         dailyRate: Number(form.dailyRate) || 0,
+        summerPaymentType: form.summerPaymentType,
+        summerMonthlySalary: Number(form.summerMonthlySalary) || 0,
+        summerDailyRate: Number(form.summerDailyRate) || 0,
+        winterPaymentType: form.winterPaymentType,
+        winterMonthlySalary: Number(form.winterMonthlySalary) || 0,
+        winterDailyRate: Number(form.winterDailyRate) || 0,
         notes: form.notes.trim() || undefined,
         counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
         managerUserIds,
@@ -465,6 +494,7 @@ export default function NewObjectPage(): React.JSX.Element {
                   placeholder="Без привязки"
                   searchPlaceholder="Название или юридическое название"
                   emptyText="Контрагенты не найдены"
+                  viewportAware
                   asyncSearch={async (query) =>
                     (await listCounterpartyReferences({ q: query, limit: 20 })).map(
                       (counterparty) => ({
@@ -510,54 +540,22 @@ export default function NewObjectPage(): React.JSX.Element {
               disabled={isSubmitting}
             />
 
-            <CompactSelect
-              label="Тип оплаты"
-              value={form.paymentType}
-              options={PAYMENT_OPTIONS}
-              onChange={(value) =>
-                setForm((prev) => ({
-                  ...prev,
-                  paymentType: value as 'monthly' | 'daily',
-                }))
-              }
-              disabled={isSubmitting}
-            />
-
-            {form.paymentType === 'monthly' ? (
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>ЗП за месяц</span>
+            {(['summer', 'winter'] as const).map((season) => {
+              const label = season === 'summer' ? 'Летняя ставка' : 'Зимняя ставка';
+              const type = season === 'summer' ? form.summerPaymentType : form.winterPaymentType;
+              const typeKey = season === 'summer' ? 'summerPaymentType' : 'winterPaymentType';
+              const amountKey = season === 'summer'
+                ? type === 'monthly' ? 'summerMonthlySalary' : 'summerDailyRate'
+                : type === 'monthly' ? 'winterMonthlySalary' : 'winterDailyRate';
+              return <div className={styles.field} key={season}>
+                <span className={styles.fieldLabel}>{label}</span>
+                <CompactSelect label={`Тип расчёта (${label.toLocaleLowerCase('ru-RU')})`} value={type} options={PAYMENT_OPTIONS} onChange={(value) => setForm((previous) => ({ ...previous, [typeKey]: value as 'monthly' | 'daily' }))} disabled={isSubmitting} />
                 <div className={styles.moneyField}>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.monthlySalary}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))
-                    }
-                    disabled={isSubmitting}
-                  />
-                  <span>₽</span>
+                  <input aria-label={`${type === 'monthly' ? 'Зарплата за месяц' : 'Ставка за выход'} — ${label.toLocaleLowerCase('ru-RU')}`} type="number" min="0" step="1" value={form[amountKey]} onChange={(event) => setForm((previous) => ({ ...previous, [amountKey]: event.target.value }))} disabled={isSubmitting} />
+                  <span>{type === 'monthly' ? '₽ / месяц' : '₽ / выход'}</span>
                 </div>
-              </label>
-            ) : (
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Дневная ставка</span>
-                <div className={styles.moneyField}>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.dailyRate}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, dailyRate: event.target.value }))
-                    }
-                    disabled={isSubmitting}
-                  />
-                  <span>₽</span>
-                </div>
-              </label>
-            )}
+              </div>;
+            })}
           </div>
         </section>
 
@@ -565,13 +563,6 @@ export default function NewObjectPage(): React.JSX.Element {
           <div className={styles.sectionHeader}>
             <div className={styles.sectionTitleRow}>
               <h2>Команда объекта</h2>
-              <span className={styles.sectionMeta}>
-                {selectedResponsible
-                  ? `Ответственный: ${getUserDisplayName(selectedResponsible)}`
-                  : 'Ответственный не выбран'}
-                <span aria-hidden="true"> · </span>
-                {formatManagerCount(managerUserIds.length)}
-              </span>
             </div>
           </div>
 
@@ -589,6 +580,7 @@ export default function NewObjectPage(): React.JSX.Element {
                 searchPlaceholder="ФИО или логин"
                 emptyText="Подходящие пользователи не найдены"
                 clearable={false}
+                viewportAware
                 onChange={setResponsibleUserId}
                 disabled={isSubmitting}
               />
@@ -605,9 +597,60 @@ export default function NewObjectPage(): React.JSX.Element {
 
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Что важно знать об объекте</h2>
+            <h2>Сезонные профили</h2>
           </div>
 
+          <div className={styles.fieldGrid}>
+            <label className={styles.checkboxField}>
+              <input type="checkbox" checked={form.summerWindowCleaning} onChange={(event) => setForm((prev) => ({ ...prev, summerWindowCleaning: event.target.checked }))} disabled={isSubmitting} />
+              <span>Лето: мыть окна</span>
+            </label>
+            <div className={`${styles.field} ${styles.fullWidth}`}>
+              <CompactSelect
+                label="Зима: трактор"
+                value={form.winterTractorMode}
+                options={[
+                  { value: 'none', label: 'Не нужен' },
+                  { value: 'with_removal', label: 'С вывозом' },
+                  { value: 'without_removal', label: 'Без вывоза' },
+                ]}
+                onChange={(value) => setForm((prev) => ({ ...prev, winterTractorMode: value as typeof prev.winterTractorMode }))}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Дополнительные работы</h2>
+          </div>
+          <label className={styles.checkboxField}>
+            <input type="checkbox" checked={form.engineeringRequired} onChange={(event) => setForm((prev) => ({ ...prev, engineeringRequired: event.target.checked }))} disabled={isSubmitting} />
+            <span>Инженерка</span>
+          </label>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Инструкции для объекта</h2>
+          </div>
+
+          <textarea
+            className={styles.notesField}
+            aria-label="Постоянные инструкции для объекта"
+            value={form.instructionStepsText}
+            onChange={(event) => setForm((prev) => ({ ...prev, instructionStepsText: event.target.value }))}
+            placeholder="Один постоянный шаг на строку, например: Проверить входную группу"
+            disabled={isSubmitting}
+          />
+          <p className={styles.helperText}>Это постоянные инструкции, а не отметки выполнения смены. Отчёт по каждому выходу добавим отдельно.</p>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Что важно знать об объекте</h2>
+          </div>
           <textarea
             className={styles.notesField}
             aria-label="Что важно знать об объекте"

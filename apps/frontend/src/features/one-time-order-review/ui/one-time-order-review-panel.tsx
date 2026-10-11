@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
+import { ConfirmDialog } from '@/shared/ui/overlays';
 
 export function OneTimeOrderReviewPanel({
   item,
@@ -18,21 +19,20 @@ export function OneTimeOrderReviewPanel({
   onClear: () => Promise<void>;
 }): React.JSX.Element {
   const [text, setText] = useState(item.reviewText ?? '');
-  const [rating, setRating] = useState(
-    item.reviewRating === null ? '' : String(item.reviewRating),
-  );
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setText(item.reviewText ?? '');
-    setRating(item.reviewRating === null ? '' : String(item.reviewRating));
-  }, [item.reviewRating, item.reviewText]);
+  }, [item.reviewText]);
 
   useEffect(() => {
     if (window.location.hash !== '#review') return;
+    setIsEditing(true);
     window.requestAnimationFrame(() => {
       sectionRef.current?.scrollIntoView({ block: 'start' });
       if (item.capabilities.canEditReview) {
@@ -44,31 +44,31 @@ export function OneTimeOrderReviewPanel({
   const hasReview = item.reviewText !== null || item.reviewRating !== null;
 
   return (
+    <>
     <section id="review" ref={sectionRef} className="page-card one-time-order-review-section">
       <div className="section-header">
         <div>
           <div className="section-title">Отзыв</div>
           <div className="section-subtitle">
-            {item.reviewRating ? '★'.repeat(item.reviewRating) : 'Без оценки'}
             {item.reviewUpdatedBy
-              ? ` · ${getUserDisplayName(item.reviewUpdatedBy)}`
+              ? getUserDisplayName(item.reviewUpdatedBy)
               : ''}
             {item.reviewUpdatedAt
-              ? ` · ${new Date(item.reviewUpdatedAt).toLocaleString('ru-RU')}`
+              ? `${item.reviewUpdatedBy ? ' · ' : ''}${new Date(item.reviewUpdatedAt).toLocaleString('ru-RU')}`
               : ''}
           </div>
         </div>
       </div>
 
-      {item.capabilities.canEditReview ? (
+      {item.capabilities.canEditReview && isEditing ? (
         <form
           className="page-stack"
           onSubmit={async (event) => {
             event.preventDefault();
             setError(null);
 
-            if (!text.trim() && !rating) {
-              setError('Укажите оценку или текст отзыва.');
+            if (!text.trim()) {
+              setError('Введите текст отзыва.');
               return;
             }
 
@@ -76,8 +76,10 @@ export function OneTimeOrderReviewPanel({
             try {
               await onSave({
                 reviewText: text.trim() || null,
-                reviewRating: rating ? Number(rating) : null,
+                // Preserve legacy rating data; rating controls are intentionally hidden.
+                reviewRating: item.reviewRating,
               });
+              setIsEditing(false);
             } catch {
               setError('Не удалось сохранить отзыв.');
             } finally {
@@ -85,20 +87,6 @@ export function OneTimeOrderReviewPanel({
             }
           }}
         >
-          <label>
-            <div className="detail-label">Оценка</div>
-            <select
-              value={rating}
-              onChange={(event) => setRating(event.target.value)}
-            >
-              <option value="">Без оценки</option>
-              {[1, 2, 3, 4, 5].map((value) => (
-                <option key={value} value={value}>
-                  {'★'.repeat(value)}
-                </option>
-              ))}
-            </select>
-          </label>
           <label>
             <div className="detail-label">Текст отзыва</div>
             <textarea
@@ -111,38 +99,57 @@ export function OneTimeOrderReviewPanel({
           </label>
           {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
           <div className="action-row">
-            <button type="submit" disabled={isSaving}>
+            <button type="submit" disabled={isSaving || !text.trim()}>
               {isSaving ? 'Сохраняем...' : 'Сохранить отзыв'}
+            </button>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={isSaving}
+              onClick={() => { setText(item.reviewText ?? ''); setError(null); setIsEditing(false); }}
+            >
+              Отмена
             </button>
             {hasReview ? (
               <button
                 type="button"
                 className="button-secondary"
                 disabled={isSaving}
-                onClick={async () => {
-                  if (!window.confirm('Очистить отзыв?')) {
-                    return;
-                  }
-
-                  setIsSaving(true);
-                  setError(null);
-                  try {
-                    await onClear();
-                  } catch {
-                    setError('Не удалось очистить отзыв.');
-                  } finally {
-                    setIsSaving(false);
-                  }
-                }}
+                onClick={() => setClearConfirmOpen(true)}
               >
-                Очистить
+                Удалить отзыв
               </button>
             ) : null}
           </div>
         </form>
       ) : (
-        <div>{item.reviewText ?? 'Отзыв пока не заполнен.'}</div>
+        <div className="action-row" style={{ justifyContent: 'space-between' }}>
+          <div>{item.reviewText ?? 'Отзыв пока не заполнен.'}</div>
+          {item.capabilities.canEditReview ? (
+            <button type="button" className="button-secondary" onClick={() => setIsEditing(true)}>
+              {hasReview ? 'Изменить отзыв' : 'Добавить отзыв'}
+            </button>
+          ) : null}
+        </div>
       )}
     </section>
+    <ConfirmDialog
+      open={clearConfirmOpen}
+      onOpenChange={setClearConfirmOpen}
+      title="Удалить отзыв?"
+      consequence="Будут удалены текст отзыва и сохранённая оценка. Это действие нельзя отменить."
+      confirmLabel="Удалить отзыв"
+      tone="danger"
+      pending={isSaving}
+      onConfirm={() => {
+        setIsSaving(true);
+        setError(null);
+        void onClear()
+          .then(() => { setClearConfirmOpen(false); setIsEditing(false); })
+          .catch(() => setError('Не удалось очистить отзыв.'))
+          .finally(() => setIsSaving(false));
+      }}
+    />
+    </>
   );
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 import {
   SEEDED_OBJECT_ID,
@@ -207,6 +207,9 @@ test('object attendance today returns saved worked hours for controlled UI state
     employeeFacts: Array<{
       employeeId: string;
       workedHours: number | null;
+      ratePolicyType: string | null;
+      rateAmount: number;
+      rateReason: string | null;
     }>;
   };
 
@@ -215,8 +218,91 @@ test('object attendance today returns saved worked hours for controlled UI state
     {
       employeeId: SEEDED_EMPLOYEE_IDS.ivan,
       workedHours: 5,
+      ratePolicyType: 'daily_rate',
+      rateAmount: 2500,
+      rateReason: null,
     },
   ]);
+});
+
+test('attendance keeps historical snapshots, stores manual per-shift rates, and clears them explicitly', async (t) => {
+  const prisma = new PrismaClient();
+  const { app, baseUrl } = await createTestApp();
+  const founderCookie = await loginAndGetCookieHeader({ baseUrl, login: 'founder', password: 'founder123' });
+  const targetDate = getSafeBusinessDate(new Date().getDate());
+  const { objectId } = await createCoreTestObject(prisma);
+
+  t.after(async () => {
+    await cleanupCoreTestObject(prisma, objectId);
+    await app.close();
+    await prisma.$disconnect();
+  });
+
+  const endpoint = `${baseUrl}/api/v1/objects/${objectId}/attendance`;
+  const save = (employeeFacts: unknown[]) => fetch(endpoint, {
+    method: 'POST',
+    headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ operationDate: targetDate.operationDate, employeeIds: [SEEDED_EMPLOYEE_IDS.ivan], employeeFacts }),
+  });
+
+  const special = await save([{
+    employeeId: SEEDED_EMPLOYEE_IDS.ivan,
+    workedHours: 8,
+    ratePolicyType: 'side_job',
+    rateAmount: 2700,
+    rateReason: 'Дополнительная смена по запросу заказчика',
+  }]);
+  assert.equal(special.status, 201);
+
+  const storedAfterFirstSave = await prisma.timesheetDayEntry.findFirstOrThrow({
+    where: { row: { timesheetMonth: { objectId, year: targetDate.year, month: targetDate.month }, employeeId: SEEDED_EMPLOYEE_IDS.ivan }, dayOfMonth: targetDate.dayOfMonth },
+  });
+  assert.equal(storedAfterFirstSave.autoValue, 2700);
+  assert.equal(storedAfterFirstSave.dayValue, 2700);
+  assert.equal((storedAfterFirstSave.ratePolicySnapshot as { ratePolicyType: string }).ratePolicyType, 'side_job');
+
+  const repeated = await save([{
+    employeeId: SEEDED_EMPLOYEE_IDS.ivan,
+    workedHours: 8,
+    ratePolicyType: 'side_job',
+    rateAmount: 2700,
+    rateReason: 'Дополнительная смена по запросу заказчика',
+  }]);
+  assert.equal(repeated.status, 201);
+  const storedAfterRepeat = await prisma.timesheetDayEntry.findUniqueOrThrow({ where: { id: storedAfterFirstSave.id } });
+  assert.equal(storedAfterRepeat.updatedAt.toISOString(), storedAfterFirstSave.updatedAt.toISOString());
+  assert.equal(storedAfterRepeat.dayValue, 2700);
+
+  const changedDefault = await fetch(`${baseUrl}/api/v1/objects/${objectId}/employees/${SEEDED_EMPLOYEE_IDS.ivan}/rate-policy`, {
+    method: 'PUT',
+    headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ratePolicyType: 'daily_rate', baseAmount: 2200 }),
+  });
+  assert.equal(changedDefault.status, 200);
+
+  const clearSpecial = await save([{
+    employeeId: SEEDED_EMPLOYEE_IDS.ivan,
+    workedHours: 8,
+    clearRateOverride: true,
+  }]);
+  assert.equal(clearSpecial.status, 201);
+  const restored = await prisma.timesheetDayEntry.findUniqueOrThrow({ where: { id: storedAfterFirstSave.id } });
+  assert.equal(restored.autoValue, 2200);
+  assert.equal(restored.dayValue, 2200);
+
+  const snapshotBeforeRepeat = await prisma.objectAttendanceFact.findFirstOrThrow({ where: { objectId, employeeId: SEEDED_EMPLOYEE_IDS.ivan, operationDate: { gte: new Date(targetDate.year, targetDate.month - 1, targetDate.dayOfMonth), lt: new Date(targetDate.year, targetDate.month - 1, targetDate.dayOfMonth + 1) } } });
+  await prisma.objectAttendanceFact.update({ where: { id: snapshotBeforeRepeat.id }, data: { ratePolicySnapshot: Prisma.JsonNull, dailyRateSnapshot: 777 } });
+  const changeCurrentPolicy = await fetch(`${baseUrl}/api/v1/objects/${objectId}/employees/${SEEDED_EMPLOYEE_IDS.ivan}/rate-policy`, {
+    method: 'PUT',
+    headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ratePolicyType: 'daily_rate', baseAmount: 9999 }),
+  });
+  assert.equal(changeCurrentPolicy.status, 200);
+  const preserveLegacy = await save([]);
+  assert.equal(preserveLegacy.status, 201);
+  const legacyEntry = await prisma.timesheetDayEntry.findUniqueOrThrow({ where: { id: storedAfterFirstSave.id } });
+  assert.equal(legacyEntry.autoValue, 777);
+  assert.equal(legacyEntry.dayValue, 777);
 });
 
 test('object staffing and attendance surface active substitution and block unavailable employee selection', async (t) => {

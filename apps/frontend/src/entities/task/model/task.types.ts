@@ -90,6 +90,9 @@ export interface TaskItem {
   submittedBy: TaskUser | null;
   assignees: TaskAssignee[];
   completionProgress: { completed: number; total: number };
+  scopeType: 'general' | 'personal' | 'object' | 'one_time_order';
+  visibilityType: 'all_users' | 'selected_users' | 'target_participants' | 'private';
+  /** @deprecated Use visibilityType. */
   visibilityMode: 'scope' | 'selected';
   visibleUsers: TaskUser[];
   myAssignment: {
@@ -133,11 +136,11 @@ export interface CreateTaskPayload {
   objectId?: string;
   oneTimeOrderId?: string;
   assigneeUserIds: string[];
-  visibilityMode: 'scope' | 'selected';
+  visibilityType: 'all_users' | 'selected_users' | 'target_participants' | 'private';
   visibleUserIds?: string[];
   requiresConfirmation: boolean;
   completionRequirement: TaskCompletionRequirement;
-  dueDate?: string | null;
+  dueDate: string;
   dueTime?: string | null;
 }
 
@@ -147,7 +150,7 @@ export interface UpdateTaskPayload {
   priority?: TaskPriority;
   objectId?: string | null;
   oneTimeOrderId?: string | null;
-  visibilityMode?: 'scope' | 'selected';
+  visibilityType?: 'all_users' | 'selected_users' | 'target_participants' | 'private';
   visibleUserIds?: string[];
   requiresConfirmation?: boolean;
   completionRequirement?: TaskCompletionRequirement;

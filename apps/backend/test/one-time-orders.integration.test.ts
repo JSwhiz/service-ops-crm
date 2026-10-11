@@ -178,23 +178,25 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
     await prisma.$disconnect();
   });
 
-  const [founderCookie, managerOneCookie, managerTwoCookie] = await Promise.all([
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'founder',
-      password: 'founder123',
-    }),
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'manager1',
-      password: 'manager123',
-    }),
-    loginAndGetCookieHeader({
-      baseUrl,
-      login: 'manager2',
-      password: 'manager123',
-    }),
-  ]);
+  const [founderCookie, managerOneCookie, managerTwoCookie] = await Promise.all(
+    [
+      loginAndGetCookieHeader({
+        baseUrl,
+        login: 'founder',
+        password: 'founder123',
+      }),
+      loginAndGetCookieHeader({
+        baseUrl,
+        login: 'manager1',
+        password: 'manager123',
+      }),
+      loginAndGetCookieHeader({
+        baseUrl,
+        login: 'manager2',
+        password: 'manager123',
+      }),
+    ],
+  );
 
   const requiredCreateFields = {
     title: `Payment validation ${Date.now()}`,
@@ -279,6 +281,39 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
   orderId = createdOrder.id;
   assert.equal(createdOrder.plannedPaymentMethod, 'cash');
   assert.equal(createdOrder.linkedObject?.id, SEEDED_OBJECT_ID);
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        recipientUserId: managerOne.id,
+        type: 'one_time_order.created',
+        entityId: orderId,
+      },
+    }),
+    1,
+  );
+
+  const assignManagerResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${orderId}/managers`,
+    {
+      method: 'POST',
+      headers: {
+        Cookie: founderCookie,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId: managerTwo.id }),
+    },
+  );
+  assert.equal(assignManagerResponse.status, 201);
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        recipientUserId: managerTwo.id,
+        type: 'one_time_order.manager_assigned',
+        entityId: orderId,
+      },
+    }),
+    1,
+  );
 
   const operationalFinancialPatch = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${orderId}`,
@@ -292,6 +327,22 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
     },
   );
   assert.equal(operationalFinancialPatch.status, 403);
+
+  const removeManagerResponse = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/${orderId}/managers/${managerTwo.id}`,
+    { method: 'DELETE', headers: { Cookie: founderCookie } },
+  );
+  assert.equal(removeManagerResponse.status, 200);
+  assert.equal(
+    await prisma.notification.count({
+      where: {
+        recipientUserId: managerTwo.id,
+        type: 'one_time_order.manager_removed',
+        entityId: orderId,
+      },
+    }),
+    1,
+  );
 
   for (const plannedPaymentMethod of [
     'cash',
@@ -324,8 +375,11 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
   );
   assert.equal(nullPaymentMethodPatch.status, 200);
   assert.equal(
-    ((await nullPaymentMethodPatch.json()) as { plannedPaymentMethod: string | null })
-      .plannedPaymentMethod,
+    (
+      (await nullPaymentMethodPatch.json()) as {
+        plannedPaymentMethod: string | null;
+      }
+    ).plannedPaymentMethod,
     null,
   );
   assert.equal(
@@ -353,7 +407,9 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
     /plannedPaymentMethod/,
   );
   assert.equal(createdOrder.linkedObject?.canOpenObjectCard, true);
-  assert.ok(createdOrder.managers.some((manager) => manager.userId === managerOne.id));
+  assert.ok(
+    createdOrder.managers.some((manager) => manager.userId === managerOne.id),
+  );
 
   const ownOrderResponse = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${orderId}`,
@@ -463,7 +519,9 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   assert.equal(commentUploadResponse.status, 201);
 
-  createdFileIds.push(((await commentUploadResponse.json()) as { id: string }).id);
+  createdFileIds.push(
+    ((await commentUploadResponse.json()) as { id: string }).id,
+  );
 
   const dailyReportResponse = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${orderId}/daily-report/today`,
@@ -503,7 +561,9 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   assert.equal(reportUploadResponse.status, 201);
 
-  createdFileIds.push(((await reportUploadResponse.json()) as { id: string }).id);
+  createdFileIds.push(
+    ((await reportUploadResponse.json()) as { id: string }).id,
+  );
 
   const photoCreateResponse = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${orderId}/photos`,
@@ -544,7 +604,9 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   assert.equal(photoUploadResponse.status, 201);
 
-  createdFileIds.push(((await photoUploadResponse.json()) as { id: string }).id);
+  createdFileIds.push(
+    ((await photoUploadResponse.json()) as { id: string }).id,
+  );
 
   const form = new FormData();
   form.set('entityType', 'one_time_order');
@@ -580,6 +642,7 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
       priority: 'important_not_urgent',
       oneTimeOrderId: orderId,
       assigneeUserIds: [managerOne.id],
+      dueDate: '2030-01-15',
     }),
   });
 
@@ -624,7 +687,9 @@ test('one-time order happy path supports manager scope, comments, files, tasks a
 
   assert.equal(statusChangeResponse.status, 200);
 
-  const updatedOrder = (await statusChangeResponse.json()) as { status: string };
+  const updatedOrder = (await statusChangeResponse.json()) as {
+    status: string;
+  };
   assert.equal(updatedOrder.status, 'in_progress');
 
   const linkedOrdersProjectionResponse = await fetch(

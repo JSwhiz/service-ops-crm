@@ -12,10 +12,11 @@
 
 .section {
   min-width: 0;
-  padding: 15px;
-  border: 1px solid #e2dad3;
-  border-radius: 9px;
-  background: #fffdfb;
+  padding: 4px 0 16px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -24,9 +25,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 11px;
-  padding-bottom: 9px;
-  border-bottom: 1px solid #eee7e1;
+  margin-bottom: 12px;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .sectionHeader h2 {
@@ -95,6 +96,29 @@
   line-height: 1.3;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.checkboxField {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  color: #493f39;
+  font-size: 13.5px;
+  font-weight: 560;
+}
+
+.checkboxField input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #68564a;
+}
+
+.helperText {
+  margin: 0;
+  color: #8b8078;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .form input:not([type='checkbox']):not([type='radio']),
@@ -180,12 +204,19 @@
   left: 0;
   width: 100%;
   min-width: 220px;
-  overflow: hidden;
+  max-height: var(--anchored-popover-max-height, 230px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid #d8cec7;
   border-radius: 8px;
   padding: 5px;
   background: #fffdfb;
   box-shadow: 0 12px 26px rgba(63, 48, 39, 0.11);
+}
+
+.selectPopover[data-placement='top'] {
+  top: auto;
+  bottom: calc(100% + 5px);
 }
 
 .selectOption {
@@ -251,7 +282,11 @@
 }
 
 .managerPopover {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: var(--anchored-popover-max-height, 340px);
   padding: 7px;
+  overflow: hidden;
 }
 
 .managerSearchWrap {
@@ -265,7 +300,8 @@
 
 .managerOptions {
   display: grid;
-  max-height: 270px;
+  min-height: 0;
+  max-height: min(220px, calc(var(--anchored-popover-max-height, 340px) - 58px));
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #c8bbb1 transparent;
@@ -407,18 +443,18 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding: 10px 0 2px;
-  border-top: 1px solid #eee7e1;
+  padding: 12px 0 2px;
+  border-top: 0;
 }
 
 .form button.cancelButton,
 .form button.primaryButton {
   appearance: none;
-  min-height: 39px;
+  min-height: var(--ui-control-md);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 7px;
+  border-radius: var(--ui-radius-md);
   padding: 8px 14px;
   box-shadow: none;
   font: inherit;
@@ -436,9 +472,9 @@
 }
 
 .form button.primaryButton {
-  border: 1px solid #65564d;
-  background: #65564d;
-  color: #fffdfb;
+  border: 1px solid var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-accent-contrast);
 }
 
 .form button.cancelButton:hover:not(:disabled) {
@@ -449,8 +485,8 @@
 }
 
 .form button.primaryButton:hover:not(:disabled) {
-  border-color: #554940;
-  background: #554940;
+  border-color: var(--ui-accent-hover);
+  background: var(--ui-accent-hover);
   box-shadow: none;
   transform: none;
 }
@@ -524,6 +560,11 @@
   box-shadow: 0 12px 26px rgba(63, 48, 39, 0.11);
 }
 
+.form :global(.searchable-select__popover[data-placement='top']) {
+  top: auto;
+  bottom: calc(100% + 5px);
+}
+
 .form :global(.searchable-select__popover input) {
   margin-bottom: 6px;
 }
@@ -584,7 +625,7 @@
   }
 
   .section {
-    padding: 14px;
+    padding: 2px 0 14px;
   }
 
   .conditionsGrid {

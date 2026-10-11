@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import {
@@ -16,6 +17,8 @@ import {
 
 export const USER_ABSENCE_VIEW_ALL_PERMISSION = 'user_absences.view_all';
 export const USER_ABSENCE_MANAGE_PERMISSION = 'user_absences.manage';
+export const USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION =
+  'user_absences.view_private_reasons';
 
 interface CurrentAuthUser {
   id: string;
@@ -58,11 +61,19 @@ function ensureRange(startDate: string, endDate: string): void {
 
 @Injectable()
 export class UserAbsencesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async list(user: CurrentAuthUser, query: ListUserAbsencesQueryDto): Promise<UserAbsenceListResponseDto> {
+    if (query.from && query.to) ensureRange(query.from, query.to);
     const canViewAll = hasPermission(user, USER_ABSENCE_VIEW_ALL_PERMISSION);
-    const canManage = hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION);
+    const canManageAll = hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION);
+    const canViewPrivateReasons = hasPermission(
+      user,
+      USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION,
+    );
     if (query.userId && query.userId !== user.id && !canViewAll) {
       throw new ForbiddenException('Недостаточно прав для просмотра отсутствий другого пользователя');
     }
@@ -76,6 +87,7 @@ export class UserAbsencesService {
       FROM "user_absences" ua
       JOIN "users" u ON u."id" = ua."userId"
       WHERE u."deletedAt" IS NULL
+        AND ua."deletedAt" IS NULL
         ${requestedUserId ? Prisma.sql`AND ua."userId" = ${requestedUserId}` : Prisma.empty}
         ${query.absenceType ? Prisma.sql`AND ua."absenceType" = ${query.absenceType}` : Prisma.empty}
         ${query.from ? Prisma.sql`AND ua."endDate" >= CAST(${query.from} AS DATE)` : Prisma.empty}
@@ -84,13 +96,26 @@ export class UserAbsencesService {
     `);
 
     return {
-      items: rows.map((row) => this.map(row)),
-      capabilities: { canViewAll, canManage },
+      items: rows.map((row) =>
+        this.map(
+          row,
+          canViewPrivateReasons || row.userId === user.id,
+        ),
+      ),
+      capabilities: {
+        canViewAll,
+        canManage: true,
+        canManageAll,
+        canViewPrivateReasons,
+      },
     };
   }
 
   async listManageableUsers(user: CurrentAuthUser): Promise<Array<{ id: string; login: string; fullName: string }>> {
-    this.assertManage(user);
+    if (!user.isActive) throw new ForbiddenException('Активный пользователь обязателен');
+    if (!hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION)) {
+      return [{ id: user.id, login: user.login, fullName: user.fullName }];
+    }
     return this.prisma.user.findMany({
       where: { isActive: true, deletedAt: null },
       select: { id: true, login: true, fullName: true },
@@ -99,24 +124,58 @@ export class UserAbsencesService {
   }
 
   async create(user: CurrentAuthUser, payload: CreateUserAbsenceDto): Promise<UserAbsenceResponseDto> {
-    this.assertManage(user);
+    this.assertCanManageTarget(user, payload.userId);
     ensureRange(payload.startDate, payload.endDate);
-    await this.assertTargetUser(payload.userId);
-    await this.assertNoOverlap(payload.userId, payload.startDate, payload.endDate);
-
     const id = randomUUID();
-    await this.prisma.$executeRaw(Prisma.sql`
-      INSERT INTO "user_absences"
-        ("id", "userId", "absenceType", "startDate", "endDate", "comment", "createdByUserId", "createdAt", "updatedAt")
-      VALUES
-        (${id}, ${payload.userId}, ${payload.absenceType}, CAST(${payload.startDate} AS DATE), CAST(${payload.endDate} AS DATE), ${payload.comment?.trim() || null}, ${user.id}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `);
-    return this.getById(id);
+    const comment = payload.comment?.trim() || null;
+    const auditValues = {
+      userId: payload.userId,
+      absenceType: payload.absenceType,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      comment,
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockAndAssertTargetUser(tx, payload.userId);
+      await this.assertNoOverlap(
+        payload.userId,
+        payload.startDate,
+        payload.endDate,
+        undefined,
+        tx,
+      );
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO "user_absences"
+          ("id", "userId", "absenceType", "startDate", "endDate", "comment", "createdByUserId", "updatedByUserId", "createdAt", "updatedAt")
+        VALUES
+          (${id}, ${payload.userId}, ${payload.absenceType}, CAST(${payload.startDate} AS DATE), CAST(${payload.endDate} AS DATE), ${comment}, ${user.id}, ${user.id}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'user_absence',
+          entityId: id,
+          actorUserId: user.id,
+          action: 'user_absence.created',
+          newValues: auditValues,
+          metadata: { targetUserId: payload.userId },
+        },
+        tx,
+      );
+    });
+    return this.getById(id, this.canViewPrivateReasons(user) || payload.userId === user.id);
   }
 
   async update(user: CurrentAuthUser, id: string, payload: UpdateUserAbsenceDto): Promise<UserAbsenceResponseDto> {
-    this.assertManage(user);
-    const current = await this.getById(id);
+    const current = await this.getById(id, true, hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION) ? undefined : user.id);
+    this.assertCanManageTarget(user, current.userId);
+    if (
+      Object.prototype.hasOwnProperty.call(payload, 'comment') &&
+      current.userId !== user.id &&
+      !this.canViewPrivateReasons(user)
+    ) {
+      throw new ForbiddenException('Изменять приватную причину отсутствия может только пользователь с отдельным правом');
+    }
     const startDate = payload.startDate ?? current.startDate;
     const endDate = payload.endDate ?? current.endDate;
     const absenceType = payload.absenceType ?? current.absenceType;
@@ -124,24 +183,83 @@ export class UserAbsencesService {
       ? payload.comment?.trim() || null
       : current.comment;
     ensureRange(startDate, endDate);
-    await this.assertNoOverlap(current.userId, startDate, endDate, id);
+    const oldValues = {
+      userId: current.userId,
+      absenceType: current.absenceType,
+      startDate: current.startDate,
+      endDate: current.endDate,
+      comment: current.comment,
+    };
+    const newValues = {
+      ...oldValues,
+      absenceType,
+      startDate,
+      endDate,
+      comment,
+    };
 
-    await this.prisma.$executeRaw(Prisma.sql`
-      UPDATE "user_absences"
-      SET "absenceType" = ${absenceType},
-          "startDate" = CAST(${startDate} AS DATE),
-          "endDate" = CAST(${endDate} AS DATE),
-          "comment" = ${comment},
-          "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "id" = ${id}
-    `);
-    return this.getById(id);
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockAndAssertTargetUser(tx, current.userId);
+      await this.assertNoOverlap(current.userId, startDate, endDate, id, tx);
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "user_absences"
+        SET "absenceType" = ${absenceType},
+            "startDate" = CAST(${startDate} AS DATE),
+            "endDate" = CAST(${endDate} AS DATE),
+            "comment" = ${comment},
+            "updatedByUserId" = ${user.id},
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${id} AND "deletedAt" IS NULL
+      `);
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'user_absence',
+          entityId: id,
+          actorUserId: user.id,
+          action: 'user_absence.updated',
+          oldValues,
+          newValues,
+          metadata: { targetUserId: current.userId },
+        },
+        tx,
+      );
+    });
+    return this.getById(id, this.canViewPrivateReasons(user) || current.userId === user.id);
   }
 
   async remove(user: CurrentAuthUser, id: string): Promise<{ id: string; deleted: true }> {
-    this.assertManage(user);
-    await this.getById(id);
-    await this.prisma.$executeRaw(Prisma.sql`DELETE FROM "user_absences" WHERE "id" = ${id}`);
+    const current = await this.getById(id, true, hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION) ? undefined : user.id);
+    this.assertCanManageTarget(user, current.userId);
+    const deletedAt = new Date().toISOString();
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockAndAssertTargetUser(tx, current.userId);
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "user_absences"
+        SET "deletedAt" = CURRENT_TIMESTAMP,
+            "deletedByUserId" = ${user.id},
+            "updatedByUserId" = ${user.id},
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "id" = ${id} AND "deletedAt" IS NULL
+      `);
+      await this.auditService.writeAuditEvent(
+        {
+          entityType: 'user_absence',
+          entityId: id,
+          actorUserId: user.id,
+          action: 'user_absence.deleted',
+          oldValues: {
+            userId: current.userId,
+            absenceType: current.absenceType,
+            startDate: current.startDate,
+            endDate: current.endDate,
+            comment: current.comment,
+          },
+          newValues: { deletedAt },
+          metadata: { targetUserId: current.userId },
+        },
+        tx,
+      );
+    });
     return { id, deleted: true };
   }
 
@@ -152,6 +270,7 @@ export class UserAbsencesService {
       JOIN "users" u ON u."id" = ua."userId"
       WHERE u."isActive" = TRUE
         AND u."deletedAt" IS NULL
+        AND ua."deletedAt" IS NULL
         AND ua."startDate" <= CAST(${date} AS DATE)
         AND ua."endDate" >= CAST(${date} AS DATE)
     `);
@@ -168,6 +287,7 @@ export class UserAbsencesService {
       JOIN "users" u ON u."id" = ua."userId"
       WHERE u."isActive" = TRUE
         AND u."deletedAt" IS NULL
+        AND ua."deletedAt" IS NULL
         AND ua."endDate" >= CAST(${date} AS DATE)
       ORDER BY
         CASE WHEN ua."startDate" <= CAST(${date} AS DATE) THEN 0 ELSE 1 END ASC,
@@ -175,28 +295,46 @@ export class UserAbsencesService {
         u."fullName" ASC
       LIMIT ${limit}
     `);
-    return rows.map((row) => this.map(row));
+    return rows.map((row) => this.map(row, false));
   }
 
-  private assertManage(user: CurrentAuthUser): void {
-    if (!hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION)) {
+  private assertCanManageTarget(user: CurrentAuthUser, targetUserId: string): void {
+    if (!user.isActive) {
+      throw new ForbiddenException('Активный пользователь обязателен');
+    }
+    if (targetUserId !== user.id && !hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION)) {
       throw new ForbiddenException('Недостаточно прав для управления отсутствиями пользователей');
     }
   }
 
-  private async assertTargetUser(userId: string): Promise<void> {
-    const exists = await this.prisma.user.findFirst({
-      where: { id: userId, isActive: true, deletedAt: null },
-      select: { id: true },
-    });
-    if (!exists) throw new NotFoundException('Пользователь не найден');
+  private canViewPrivateReasons(user: CurrentAuthUser): boolean {
+    return hasPermission(user, USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION);
   }
 
-  private async assertNoOverlap(userId: string, startDate: string, endDate: string, excludeId?: string): Promise<void> {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+  private async lockAndAssertTargetUser(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ): Promise<void> {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT "id" FROM "users"
+      WHERE "id" = ${userId} AND "isActive" = TRUE AND "deletedAt" IS NULL
+      FOR UPDATE
+    `);
+    if (!rows[0]) throw new NotFoundException('Пользователь не найден');
+  }
+
+  private async assertNoOverlap(
+    userId: string,
+    startDate: string,
+    endDate: string,
+    excludeId?: string,
+    database: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<void> {
+    const rows = await database.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT "id"
       FROM "user_absences"
       WHERE "userId" = ${userId}
+        AND "deletedAt" IS NULL
         ${excludeId ? Prisma.sql`AND "id" <> ${excludeId}` : Prisma.empty}
         AND "startDate" <= CAST(${endDate} AS DATE)
         AND "endDate" >= CAST(${startDate} AS DATE)
@@ -207,7 +345,7 @@ export class UserAbsencesService {
     }
   }
 
-  private async getById(id: string): Promise<UserAbsenceResponseDto> {
+  private async getById(id: string, includePrivateReason = false, ownerUserId?: string): Promise<UserAbsenceResponseDto> {
     const rows = await this.prisma.$queryRaw<UserAbsenceRow[]>(Prisma.sql`
       SELECT
         ua."id", ua."userId", u."login", u."fullName", ua."absenceType",
@@ -215,14 +353,15 @@ export class UserAbsencesService {
         ua."createdAt", ua."updatedAt"
       FROM "user_absences" ua
       JOIN "users" u ON u."id" = ua."userId"
-      WHERE ua."id" = ${id}
+      WHERE ua."id" = ${id} AND ua."deletedAt" IS NULL
+        ${ownerUserId ? Prisma.sql`AND ua."userId" = ${ownerUserId}` : Prisma.empty}
       LIMIT 1
     `);
     if (!rows[0]) throw new NotFoundException('Запись об отсутствии не найдена');
-    return this.map(rows[0]);
+    return this.map(rows[0], includePrivateReason);
   }
 
-  private map(row: UserAbsenceRow): UserAbsenceResponseDto {
+  private map(row: UserAbsenceRow, includePrivateReason: boolean): UserAbsenceResponseDto {
     return {
       id: row.id,
       userId: row.userId,
@@ -230,7 +369,7 @@ export class UserAbsencesService {
       absenceType: row.absenceType,
       startDate: dateOnly(row.startDate),
       endDate: dateOnly(row.endDate),
-      comment: row.comment,
+      comment: includePrivateReason ? row.comment : null,
       createdByUserId: row.createdByUserId,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

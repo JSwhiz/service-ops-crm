@@ -1,0 +1,101 @@
+.frame {
+  min-width: 0;
+}
+
+.table {
+  min-width: 820px;
+}
+
+.table td {
+  white-space: nowrap;
+}
+
+.name {
+  display: block;
+  color: #342e29;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.name:hover,
+.table td > a:not(.name):hover {
+  color: #6f5747;
+  text-decoration: underline;
+}
+
+.secondary {
+  display: block;
+  margin-top: 3px;
+  color: #83786f;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.muted {
+  color: #83786f;
+}
+
+.arrowCell {
+  width: 38px;
+  padding-inline: 8px !important;
+  text-align: center !important;
+}
+
+.mobileList {
+  display: none;
+}
+
+.mobileRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobileRow > input {
+  flex: 0 0 auto;
+}
+
+.mobileRow > .mobileCard {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mobileCard {
+  display: grid;
+  gap: 9px;
+  color: #342e29;
+  text-decoration: none;
+}
+
+.mobileHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobileHeading > span:first-child {
+  min-width: 0;
+}
+
+.mobileHeading strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.mobileMeta {
+  color: #83786f;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .frame {
+    display: none;
+  }
+
+  .mobileList {
+    display: grid;
+    gap: 8px;
+  }
+}

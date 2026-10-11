@@ -5,6 +5,8 @@ import React, { useEffect, useState } from 'react';
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 import type { UpdateObjectEmployeeRatePolicyPayload } from '@/entities/object/api/object-operations-client';
 import sharedStyles from '@/features/object-shared-ui/object-surfaces.module.css';
+import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from './object-staffing-panel.module.css';
 
@@ -34,9 +36,40 @@ const RATE_POLICY_OPTIONS = [
   ['shift_2_2_by_actual_shifts', '2/2 по сменам'],
   ['partial_shift', 'Частичная смена'],
   ['agreed_substitution_rate', 'Подмена по договоренности'],
+  ['complex_shift', 'Сложный выход'],
+  ['side_job', 'Подработка'],
 ] as const;
 
 const SCHEDULE_OPTIONS = ['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'];
+
+function RateSelect({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+  searchable = false,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  searchable?: boolean;
+}): React.JSX.Element {
+  return (
+    <SearchableSelect
+      label={label}
+      value={value}
+      options={options}
+      onChange={onChange}
+      searchable={searchable}
+      clearable={false}
+      viewportAware
+      disabled={disabled}
+    />
+  );
+}
 
 function buildInitialRateForm(employee: ObjectEmployeeOption): {
   ratePolicyType: string;
@@ -107,6 +140,7 @@ export function ObjectStaffingPanel({
   const assigned = assignedEmployees ?? [];
   const directory = directoryEmployees ?? [];
   const assignedIds = new Set(assigned.map((employee) => employee.id));
+  const addableEmployees = directory.filter((employee) => !assignedIds.has(employee.id));
   const visibleSubstitutions = Array.from(
     assigned.reduce<
       Map<
@@ -128,29 +162,6 @@ export function ObjectStaffingPanel({
       return accumulator;
     }, new Map()).values(),
   );
-
-  const getAvailabilityExplanation = (
-    employee: ObjectEmployeeOption,
-  ): string | null => {
-    if (!employee.availability.isUnavailable) {
-      return null;
-    }
-
-    const modeLabel =
-      employee.availability.availabilityMode === 'full_day'
-        ? 'Недоступен весь день'
-        : 'Недоступен по времени';
-    const periodLabel =
-      employee.availability.startDate && employee.availability.endDate
-        ? `${new Date(employee.availability.startDate).toLocaleString('ru-RU')} — ${new Date(employee.availability.endDate).toLocaleString('ru-RU')}`
-        : employee.availability.startDate
-          ? `с ${new Date(employee.availability.startDate).toLocaleString('ru-RU')}`
-          : 'период не указан';
-
-    return employee.availability.comment
-      ? `${modeLabel}. ${periodLabel}. Причина: ${employee.availability.comment}`
-      : `${modeLabel}. ${periodLabel}.`;
-  };
 
   useEffect(() => {
     if (!editingRateEmployee) {
@@ -233,7 +244,7 @@ export function ObjectStaffingPanel({
                   ? styles.employeeCardUnavailable
                   : ''
               }`}
-              title={getAvailabilityExplanation(employee) ?? undefined}
+              title={getAvailabilityLabel(employee.availability) ?? undefined}
             >
               <div className={styles.employeeInfo}>
                 <div className={styles.employeeNameRow}>
@@ -285,7 +296,7 @@ export function ObjectStaffingPanel({
                 </div>
                 {employee.availability.isUnavailable ? (
                   <div className={styles.availabilityText}>
-                    {getAvailabilityExplanation(employee)}
+                    {getAvailabilityLabel(employee.availability)}
                   </div>
                 ) : null}
               </div>
@@ -328,24 +339,19 @@ export function ObjectStaffingPanel({
             </div>
 
             <div className={styles.ratePolicyGrid}>
-              <label>
-                <span>Тип расчета</span>
-                <select
-                  value={rateForm.ratePolicyType}
-                  onChange={(event) =>
-                    setRateForm((current) => ({
-                      ...current,
-                      ratePolicyType: event.target.value,
-                    }))
-                  }
-                >
-                  {RATE_POLICY_OPTIONS.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <RateSelect
+                label="Тип расчета"
+                value={rateForm.ratePolicyType}
+                options={RATE_POLICY_OPTIONS.map(([value, label]) => ({ value, label }))}
+                searchable
+                disabled={isSavingRate}
+                onChange={(ratePolicyType) =>
+                  setRateForm((current) => ({
+                    ...current,
+                    ratePolicyType,
+                  }))
+                }
+              />
 
               <label>
                 <span>Сумма / ставка</span>
@@ -363,24 +369,18 @@ export function ObjectStaffingPanel({
               </label>
 
               {['monthly_fixed'].includes(rateForm.ratePolicyType) ? (
-                <label>
-                  <span>График</span>
-                  <select
-                    value={rateForm.scheduleCode}
-                    onChange={(event) =>
-                      setRateForm((current) => ({
-                        ...current,
-                        scheduleCode: event.target.value,
-                      }))
-                    }
-                  >
-                    {SCHEDULE_OPTIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <RateSelect
+                  label="График"
+                  value={rateForm.scheduleCode}
+                  options={SCHEDULE_OPTIONS.map((item) => ({ value: item, label: item }))}
+                  disabled={isSavingRate}
+                  onChange={(scheduleCode) =>
+                    setRateForm((current) => ({
+                      ...current,
+                      scheduleCode,
+                    }))
+                  }
+                />
               ) : null}
 
               {rateForm.ratePolicyType === 'monthly_excluding_holidays' ? (
@@ -420,37 +420,37 @@ export function ObjectStaffingPanel({
 
               {rateForm.ratePolicyType === 'shift_2_2_by_actual_shifts' ? (
                 <>
-                  <label>
-                    <span>Округление</span>
-                    <select
-                      value={rateForm.roundingMode}
-                      onChange={(event) =>
+                  <RateSelect
+                    label="Округление"
+                    value={rateForm.roundingMode}
+                    options={[
+                      { value: 'none', label: 'Без шага' },
+                      { value: 'nearest_step', label: 'До шага' },
+                    ]}
+                    disabled={isSavingRate}
+                    onChange={(roundingMode) =>
+                      setRateForm((current) => ({
+                        ...current,
+                        roundingMode,
+                      }))
+                    }
+                  />
+                  {rateForm.roundingMode === 'nearest_step' ? (
+                    <RateSelect
+                      label="Шаг"
+                      value={rateForm.roundingStep}
+                      options={[
+                        { value: '50', label: '50' },
+                        { value: '100', label: '100' },
+                      ]}
+                      disabled={isSavingRate}
+                      onChange={(roundingStep) =>
                         setRateForm((current) => ({
                           ...current,
-                          roundingMode: event.target.value,
+                          roundingStep,
                         }))
                       }
-                    >
-                      <option value="none">Без шага</option>
-                      <option value="nearest_step">До шага</option>
-                    </select>
-                  </label>
-                  {rateForm.roundingMode === 'nearest_step' ? (
-                    <label>
-                      <span>Шаг</span>
-                      <select
-                        value={rateForm.roundingStep}
-                        onChange={(event) =>
-                          setRateForm((current) => ({
-                            ...current,
-                            roundingStep: event.target.value,
-                          }))
-                        }
-                      >
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                      </select>
-                    </label>
+                    />
                   ) : null}
                 </>
               ) : null}
@@ -474,7 +474,7 @@ export function ObjectStaffingPanel({
                 </label>
               ) : null}
 
-              {rateForm.ratePolicyType === 'agreed_substitution_rate' ? (
+              {['agreed_substitution_rate', 'complex_shift', 'side_job'].includes(rateForm.ratePolicyType) ? (
                 <label className={styles.fullWidth}>
                   <span>Основание договорной ставки</span>
                   <textarea
@@ -532,7 +532,7 @@ export function ObjectStaffingPanel({
 
       {canManageAssignments ? (
         <>
-          <div className={styles.sectionHeading}>Доступные сотрудники <span>{directory.length}</span></div>
+          <div className={styles.sectionHeading}>Можно добавить <span>{addableEmployees.length}</span></div>
 
           {searchError ? (
             <div className={`${sharedStyles.error} ${styles.feedbackError}`}>
@@ -542,11 +542,11 @@ export function ObjectStaffingPanel({
 
           {isSearching ? (
             <div className="page-muted">Поиск...</div>
-          ) : directory.length === 0 ? (
+          ) : addableEmployees.length === 0 ? (
             <div className="page-muted">Подходящих сотрудников не найдено.</div>
           ) : (
             <div className={styles.directoryGrid}>
-              {directory.map((employee) => (
+              {addableEmployees.map((employee) => (
                 <div
                   key={employee.id}
                   className={`${styles.employeeCard} ${
@@ -554,7 +554,7 @@ export function ObjectStaffingPanel({
                       ? styles.employeeCardUnavailable
                       : ''
                   }`}
-                  title={getAvailabilityExplanation(employee) ?? undefined}
+                  title={getAvailabilityLabel(employee.availability) ?? undefined}
                 >
                   <div className={styles.employeeInfo}>
                     <div className={styles.employeeNameRow}>
@@ -567,18 +567,14 @@ export function ObjectStaffingPanel({
                     </div>
                     {employee.availability.isUnavailable ? (
                       <div className={styles.availabilityText}>
-                        {getAvailabilityExplanation(employee)}
+                        {getAvailabilityLabel(employee.availability)}
                       </div>
                     ) : null}
                   </div>
 
-                  {assignedIds.has(employee.id) ? (
-                    <span className="page-muted">Уже в составе</span>
-                  ) : (
-                    <button type="button" onClick={() => void onAdd(employee.id)}>
-                      Добавить
-                    </button>
-                  )}
+                  <button type="button" onClick={() => void onAdd(employee.id)}>
+                    В состав
+                  </button>
                 </div>
               ))}
             </div>

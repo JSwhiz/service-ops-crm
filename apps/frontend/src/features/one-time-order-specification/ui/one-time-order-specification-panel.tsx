@@ -16,6 +16,7 @@ import type { OneTimeOrderSpecificationItem } from '@/entities/one-time-order/mo
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { ConfirmDialog } from '@/shared/ui/overlays';
 
 export function OneTimeOrderSpecificationPanel({
   orderId,
@@ -31,6 +32,8 @@ export function OneTimeOrderSpecificationPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<OneTimeOrderSpecificationItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const load = async (): Promise<void> => {
     setItems(await listOneTimeOrderSpecificationItems(orderId));
@@ -79,6 +82,7 @@ export function OneTimeOrderSpecificationPanel({
   };
 
   return (
+    <>
     <section className="page-card page-stack">
       <div className="section-header">
         <div>
@@ -105,16 +109,7 @@ export function OneTimeOrderSpecificationPanel({
             try {
               if (editingId) {
                 const editingItem = items.find((item) => item.id === editingId);
-                const reopenCompleted = Boolean(
-                  editingItem?.isCompleted &&
-                    window.confirm(
-                      'Пункт уже выполнен. Сохранить изменения и переоткрыть его?',
-                    ),
-                );
-
-                if (editingItem?.isCompleted && !reopenCompleted) {
-                  return;
-                }
+                const reopenCompleted = Boolean(editingItem?.isCompleted);
 
                 await updateOneTimeOrderSpecificationItem(orderId, editingId, {
                   title,
@@ -166,7 +161,11 @@ export function OneTimeOrderSpecificationPanel({
           </label>
           <div className="action-row">
             <button type="submit" disabled={isBusy}>
-              {editingId ? 'Сохранить пункт' : 'Добавить пункт'}
+              {editingId
+                ? items.find((item) => item.id === editingId)?.isCompleted
+                  ? 'Сохранить и переоткрыть'
+                  : 'Сохранить пункт'
+                : 'Добавить пункт'}
             </button>
             {editingId ? (
               <button type="button" className="button-secondary" onClick={resetForm}>
@@ -259,16 +258,7 @@ export function OneTimeOrderSpecificationPanel({
                     <button
                       type="button"
                       className="button-danger"
-                      onClick={async () => {
-                        if (!window.confirm('Удалить пункт ТЗ?')) {
-                          return;
-                        }
-                        await deleteOneTimeOrderSpecificationItem(
-                          orderId,
-                          item.id,
-                        );
-                        await load();
-                      }}
+                      onClick={() => setDeleteTarget(item)}
                     >
                       Удалить
                     </button>
@@ -304,5 +294,25 @@ export function OneTimeOrderSpecificationPanel({
         )}
       </div>
     </section>
+    <ConfirmDialog
+      open={deleteTarget !== null}
+      onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+      title="Удалить пункт технического задания?"
+      consequence={deleteTarget ? `«${deleteTarget.title}» будет удалён из задания.` : ''}
+      confirmLabel="Удалить пункт"
+      tone="danger"
+      pending={isDeleting}
+      error={error}
+      onConfirm={() => {
+        if (!deleteTarget) return;
+        setIsDeleting(true);
+        setError(null);
+        void deleteOneTimeOrderSpecificationItem(orderId, deleteTarget.id)
+          .then(async () => { setDeleteTarget(null); await load(); })
+          .catch(() => setError('Не удалось удалить пункт ТЗ.'))
+          .finally(() => setIsDeleting(false));
+      }}
+    />
+    </>
   );
 }

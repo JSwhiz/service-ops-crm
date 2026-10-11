@@ -11,20 +11,27 @@ export class AccountabilityFundingResponseDto {
   id!: string;
   amount!: number;
   comment!: string | null;
+  source!: string | null;
   issuedAt!: string;
   fundingType!: string;
   entryDirection!: string;
   oneTimeOrderPaymentId!: string | null;
   oneTimeOrderId!: string | null;
   oneTimeOrderCompletionId!: string | null;
+  reversalOfFundingId!: string | null;
+  reversedByFundingId!: string | null;
   issuedBy!: AccountabilityUserSummaryDto;
   recordedBy!: AccountabilityUserSummaryDto | null;
+  attachments!: SafeFileResponseDto[];
 }
 
 export class AccountabilityExpenseResponseDto {
   id!: string;
   oneTimeOrderId!: string | null;
   oneTimeOrderCompletionId!: string | null;
+  oneTimeOrderWorkCycle!: number | null;
+  employeeId!: string | null;
+  employeeFullName!: string | null;
   expenseCategory!: string | null;
   expenseDate!: string | null;
   amount!: number;
@@ -94,6 +101,8 @@ export class AccountabilityAccountViewDto {
     canIssueFunding: boolean;
     canReviewExpenses: boolean;
     canApproveAccountabilityClosure: boolean;
+    canRecordExternalReceipt: boolean;
+    canReverseExternalReceipts: boolean;
   };
   fundings!: AccountabilityFundingResponseDto[];
   expenses!: AccountabilityExpenseResponseDto[];
@@ -124,6 +133,7 @@ export class OneTimeOrderAccountabilityViewDto {
   visibilityScope!: 'own' | 'administrative';
   capabilities!: {
     canCreateExpense: boolean;
+    canCreateEmployeePayout: boolean;
     canReviewExpenses: boolean;
   };
   accounts!: OneTimeOrderAccountabilityAccountDto[];

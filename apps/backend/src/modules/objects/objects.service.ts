@@ -19,6 +19,8 @@ import {
   canViewCounterparties,
 } from '../counterparties/utils/counterparty-access.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { delegatedObjectIds, hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
@@ -36,6 +38,7 @@ import {
   canOverrideFrozenObject,
   hasHrObjectView,
   hasWideObjectAccess,
+  LEADERSHIP_OBJECT_ROLE_CODES,
 } from './utils/object-access.util';
 import { buildObjectCapabilities } from './utils/object-capabilities.util';
 
@@ -70,11 +73,22 @@ interface ObjectView {
   address: string;
   status: string;
   seasonMode: string | null;
+  summerWindowCleaning: boolean;
+  engineeringRequired: boolean;
+  winterTractorMode: 'none' | 'with_removal' | 'without_removal';
+  instructionSteps: string[];
   paymentType: 'monthly' | 'daily';
   dailyRate: number;
   monthlySalary: number;
+  summerPaymentType: 'monthly' | 'daily';
+  summerDailyRate: number;
+  summerMonthlySalary: number;
+  winterPaymentType: 'monthly' | 'daily';
+  winterDailyRate: number;
+  winterMonthlySalary: number;
   notes: string | null;
   counterpartyId: string | null;
+  masterForCounterpartyId?: string | null;
   counterparty?: {
     id: string;
     name: string;
@@ -98,7 +112,7 @@ interface ObjectView {
   }>;
 }
 
-type AuditPrimitive = string | number | boolean | null;
+type AuditPrimitive = Prisma.InputJsonValue | null;
 
 type ObjectUpdateChangeSet = Record<
   string,
@@ -114,6 +128,7 @@ export class ObjectsService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly chatsService: ChatsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async listObjects(
@@ -354,11 +369,31 @@ export class ObjectsService {
           address: payload.address,
           status: payload.status ?? 'active',
           seasonMode: payload.seasonMode ?? null,
-          paymentType:
-            payload.paymentType ??
-            ((payload.monthlySalary ?? 0) > 0 ? 'monthly' : 'daily'),
-          dailyRate: payload.dailyRate ?? 0,
-          monthlySalary: payload.monthlySalary ?? 0,
+          summerWindowCleaning: payload.summerWindowCleaning ?? false,
+          engineeringRequired: payload.engineeringRequired ?? false,
+          winterTractorMode: payload.winterTractorMode ?? 'none',
+          instructionSteps: (payload.instructionSteps ?? []).map((step) => step.trim()).filter(Boolean),
+          paymentType: payload.seasonMode === 'summer'
+            ? payload.summerPaymentType ?? payload.paymentType ?? 'daily'
+            : payload.seasonMode === 'winter'
+              ? payload.winterPaymentType ?? payload.paymentType ?? 'daily'
+              : payload.paymentType ?? ((payload.monthlySalary ?? 0) > 0 ? 'monthly' : 'daily'),
+          dailyRate: payload.seasonMode === 'summer'
+            ? payload.summerDailyRate ?? payload.dailyRate ?? 0
+            : payload.seasonMode === 'winter'
+              ? payload.winterDailyRate ?? payload.dailyRate ?? 0
+              : payload.dailyRate ?? 0,
+          monthlySalary: payload.seasonMode === 'summer'
+            ? payload.summerMonthlySalary ?? payload.monthlySalary ?? 0
+            : payload.seasonMode === 'winter'
+              ? payload.winterMonthlySalary ?? payload.monthlySalary ?? 0
+              : payload.monthlySalary ?? 0,
+          summerPaymentType: payload.summerPaymentType ?? payload.paymentType ?? 'daily',
+          summerDailyRate: payload.summerDailyRate ?? payload.dailyRate ?? 0,
+          summerMonthlySalary: payload.summerMonthlySalary ?? payload.monthlySalary ?? 0,
+          winterPaymentType: payload.winterPaymentType ?? payload.paymentType ?? 'daily',
+          winterDailyRate: payload.winterDailyRate ?? payload.dailyRate ?? 0,
+          winterMonthlySalary: payload.winterMonthlySalary ?? payload.monthlySalary ?? 0,
           notes: payload.notes ?? null,
           counterpartyId: payload.counterpartyId ?? null,
           createdByUserId: currentUser.id,
@@ -408,6 +443,25 @@ export class ObjectsService {
         });
       }
 
+      const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(
+        [...LEADERSHIP_OBJECT_ROLE_CODES],
+        tx,
+      );
+      await this.notificationsService.createForRecipients({
+        recipientUserIds: [
+          responsibleUser.id,
+          ...managerUsers.map((manager) => manager.id),
+          ...leadershipUserIds,
+        ].filter((userId) => userId !== currentUser.id),
+        type: 'object.created',
+        title: 'Создан новый объект',
+        body: object.name,
+        entityType: 'object',
+        entityId: object.id,
+        targetUrl: `/objects/${encodeURIComponent(object.id)}`,
+        dedupeKey: `object:${object.id}:created`,
+      }, tx);
+
       return tx.object.findUniqueOrThrow({
         where: { id: object.id },
         include: {
@@ -434,9 +488,19 @@ export class ObjectsService {
         address: created.address,
         status: created.status,
         seasonMode: created.seasonMode,
+        summerWindowCleaning: created.summerWindowCleaning,
+        engineeringRequired: created.engineeringRequired,
+        winterTractorMode: created.winterTractorMode,
+        instructionSteps: created.instructionSteps,
         paymentType: created.paymentType,
         dailyRate: created.dailyRate,
         monthlySalary: created.monthlySalary,
+        summerPaymentType: created.summerPaymentType,
+        summerDailyRate: created.summerDailyRate,
+        summerMonthlySalary: created.summerMonthlySalary,
+        winterPaymentType: created.winterPaymentType,
+        winterDailyRate: created.winterDailyRate,
+        winterMonthlySalary: created.winterMonthlySalary,
         counterpartyId: created.counterpartyId,
         managerUserIds,
         responsibleUserId: responsibleUser.id,
@@ -473,6 +537,18 @@ export class ObjectsService {
     const roleCodes = this.getRoleCodes(currentUser);
 
     const existing = await this.getEditableObject(currentUser, id);
+    const nextSeasonMode = payload.seasonMode !== undefined ? payload.seasonMode : existing.seasonMode;
+    const nextSummerPaymentType = payload.summerPaymentType ?? existing.summerPaymentType;
+    const nextSummerDailyRate = payload.summerDailyRate ?? existing.summerDailyRate;
+    const nextSummerMonthlySalary = payload.summerMonthlySalary ?? existing.summerMonthlySalary;
+    const nextWinterPaymentType = payload.winterPaymentType ?? existing.winterPaymentType;
+    const nextWinterDailyRate = payload.winterDailyRate ?? existing.winterDailyRate;
+    const nextWinterMonthlySalary = payload.winterMonthlySalary ?? existing.winterMonthlySalary;
+    const activeSeasonRates = nextSeasonMode === 'summer'
+      ? { paymentType: nextSummerPaymentType, dailyRate: nextSummerDailyRate, monthlySalary: nextSummerMonthlySalary }
+      : nextSeasonMode === 'winter'
+        ? { paymentType: nextWinterPaymentType, dailyRate: nextWinterDailyRate, monthlySalary: nextWinterMonthlySalary }
+        : null;
 
     if (
       (payload.paymentType !== undefined ||
@@ -481,6 +557,14 @@ export class ObjectsService {
       !canEditObjectDailyRate(roleCodes)
     ) {
       throw new ForbiddenException('Object salary editing denied');
+    }
+
+    if (
+      (payload.summerPaymentType !== undefined || payload.summerDailyRate !== undefined || payload.summerMonthlySalary !== undefined ||
+        payload.winterPaymentType !== undefined || payload.winterDailyRate !== undefined || payload.winterMonthlySalary !== undefined) &&
+      !canEditObjectDailyRate(roleCodes)
+    ) {
+      throw new ForbiddenException('Object seasonal rate editing denied');
     }
 
     if (
@@ -554,6 +638,20 @@ export class ObjectsService {
       };
     }
 
+    const normalizedInstructionSteps = payload.instructionSteps?.map((step) => step.trim()).filter(Boolean);
+    if (payload.summerWindowCleaning !== undefined && payload.summerWindowCleaning !== existing.summerWindowCleaning) {
+      changes.summerWindowCleaning = { oldValue: existing.summerWindowCleaning, newValue: payload.summerWindowCleaning };
+    }
+    if (payload.engineeringRequired !== undefined && payload.engineeringRequired !== existing.engineeringRequired) {
+      changes.engineeringRequired = { oldValue: existing.engineeringRequired, newValue: payload.engineeringRequired };
+    }
+    if (payload.winterTractorMode !== undefined && payload.winterTractorMode !== existing.winterTractorMode) {
+      changes.winterTractorMode = { oldValue: existing.winterTractorMode, newValue: payload.winterTractorMode };
+    }
+    if (normalizedInstructionSteps && JSON.stringify(normalizedInstructionSteps) !== JSON.stringify(existing.instructionSteps)) {
+      changes.instructionSteps = { oldValue: existing.instructionSteps, newValue: normalizedInstructionSteps };
+    }
+
     if (payload.notes !== undefined && payload.notes !== existing.notes) {
       changes.notes = {
         oldValue: existing.notes,
@@ -601,6 +699,13 @@ export class ObjectsService {
       };
     }
 
+    for (const field of ['summerPaymentType', 'summerDailyRate', 'summerMonthlySalary', 'winterPaymentType', 'winterDailyRate', 'winterMonthlySalary'] as const) {
+      const nextValue = payload[field];
+      if (nextValue !== undefined && nextValue !== existing[field]) {
+        changes[field] = { oldValue: existing[field], newValue: nextValue };
+      }
+    }
+
     if (
       selectedResponsible &&
       selectedResponsible.id !== currentResponsible?.user.id
@@ -624,6 +729,10 @@ export class ObjectsService {
           ...(payload.seasonMode !== undefined
             ? { seasonMode: payload.seasonMode }
             : {}),
+          ...(payload.summerWindowCleaning !== undefined ? { summerWindowCleaning: payload.summerWindowCleaning } : {}),
+          ...(payload.engineeringRequired !== undefined ? { engineeringRequired: payload.engineeringRequired } : {}),
+          ...(payload.winterTractorMode !== undefined ? { winterTractorMode: payload.winterTractorMode } : {}),
+          ...(normalizedInstructionSteps !== undefined ? { instructionSteps: normalizedInstructionSteps } : {}),
           ...(payload.paymentType !== undefined
             ? { paymentType: payload.paymentType }
             : {}),
@@ -631,12 +740,22 @@ export class ObjectsService {
           ...(payload.counterpartyId !== undefined
             ? { counterpartyId: payload.counterpartyId }
             : {}),
+          ...(payload.counterpartyId !== undefined && payload.counterpartyId !== existing.counterpartyId && existing.masterForCounterpartyId
+            ? { masterForCounterpartyId: null }
+            : {}),
           ...(payload.dailyRate !== undefined
             ? { dailyRate: payload.dailyRate }
             : {}),
           ...(payload.monthlySalary !== undefined
             ? { monthlySalary: payload.monthlySalary }
             : {}),
+          ...(activeSeasonRates ? activeSeasonRates : {}),
+          ...(payload.summerPaymentType !== undefined ? { summerPaymentType: payload.summerPaymentType } : {}),
+          ...(payload.summerDailyRate !== undefined ? { summerDailyRate: payload.summerDailyRate } : {}),
+          ...(payload.summerMonthlySalary !== undefined ? { summerMonthlySalary: payload.summerMonthlySalary } : {}),
+          ...(payload.winterPaymentType !== undefined ? { winterPaymentType: payload.winterPaymentType } : {}),
+          ...(payload.winterDailyRate !== undefined ? { winterDailyRate: payload.winterDailyRate } : {}),
+          ...(payload.winterMonthlySalary !== undefined ? { winterMonthlySalary: payload.winterMonthlySalary } : {}),
         },
       });
 
@@ -644,6 +763,19 @@ export class ObjectsService {
         payload.counterpartyId !== undefined &&
         payload.counterpartyId !== existing.counterpartyId
       ) {
+        if (existing.masterForCounterpartyId) {
+          await this.auditService.writeAuditEvent(
+            {
+              entityType: 'counterparty',
+              entityId: existing.masterForCounterpartyId,
+              actorUserId: currentUser.id,
+              action: 'counterparty.master_object_cleared',
+              oldValues: { objectId: id },
+              newValues: { reason: 'object_counterparty_changed' },
+            },
+            tx,
+          );
+        }
         if (existing.counterpartyId) {
           await this.auditService.writeAuditEvent(
             {
@@ -706,7 +838,7 @@ export class ObjectsService {
         });
       }
 
-      return tx.object.findUniqueOrThrow({
+      const updatedObject = await tx.object.findUniqueOrThrow({
         where: { id },
         include: {
           assignments: {
@@ -718,6 +850,28 @@ export class ObjectsService {
           },
         },
       });
+
+      if (Object.keys(changes).length > 0) {
+        const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(
+          [...LEADERSHIP_OBJECT_ROLE_CODES],
+          tx,
+        );
+        await this.notificationsService.createForRecipients({
+          recipientUserIds: [
+            ...updatedObject.assignments.map((assignment) => assignment.userId),
+            ...leadershipUserIds,
+          ].filter((userId) => userId !== currentUser.id),
+          type: 'object.updated',
+          title: 'Изменён объект',
+          body: updatedObject.name,
+          entityType: 'object',
+          entityId: id,
+          targetUrl: `/objects/${encodeURIComponent(id)}`,
+          dedupeKey: `object:${id}:updated:${updatedObject.updatedAt.toISOString()}`,
+        }, tx);
+      }
+
+      return updatedObject;
     }).catch((error: unknown) =>
       this.rethrowResponsibleAssignmentError(error),
     )) as ObjectView;
@@ -741,7 +895,7 @@ export class ObjectsService {
   ): Promise<ApprovalRequestResponseDto> {
     const existing = await this.getObjectById(currentUser, id);
 
-    if (!canManageObjectResponsibles(this.getRoleCodes(currentUser))) {
+    if (!canManageObjectResponsibles(this.getRoleCodes(currentUser)) && !hasDelegatedObjectAction(currentUser.id, id, 'status')) {
       throw new ForbiddenException('Object status changing denied');
     }
 
@@ -1005,7 +1159,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canManageObjectResponsibles(roleCodes)) {
+    if (!canManageObjectResponsibles(roleCodes) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
       throw new ForbiddenException('Responsible management denied');
     }
 
@@ -1075,7 +1229,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canManageObjectResponsibles(roleCodes)) {
+    if (!canManageObjectResponsibles(roleCodes) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
       throw new ForbiddenException('Responsible management denied');
     }
 
@@ -1119,7 +1273,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canManageObjectResponsibles(roleCodes)) {
+    if (!canManageObjectResponsibles(roleCodes) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
       throw new ForbiddenException('Manager management denied');
     }
 
@@ -1190,7 +1344,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canManageObjectResponsibles(roleCodes)) {
+    if (!canManageObjectResponsibles(roleCodes) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
       throw new ForbiddenException('Manager management denied');
     }
 
@@ -1290,7 +1444,8 @@ export class ObjectsService {
 
     const allowedToEdit =
       canEditObject(roleCodes) ||
-      (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes));
+      (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes)) ||
+      hasDelegatedObjectAction(currentUser.id, id, 'edit');
 
     if (!allowedToEdit) {
       throw new ForbiddenException('Object editing denied');
@@ -1321,6 +1476,7 @@ export class ObjectsService {
     return {
       deletedAt: null,
       OR: [
+        { id: { in: delegatedObjectIds(currentUser.id) } },
         {
           createdByUserId: currentUser.id,
         },
@@ -1458,6 +1614,15 @@ export class ObjectsService {
     const responsible = mappedAssignments.find(
       (assignment) => assignment.roleCode === 'responsible',
     );
+    const capabilities = buildObjectCapabilities({
+      objectId: item.id,
+      currentUserId: currentUser.id,
+      roleCodes,
+      permissionCodes: currentUser.permissionCodes ?? [],
+      objectStatus: item.status,
+      createdByUserId: item.createdByUserId,
+      assignments: mappedAssignments,
+    });
 
     return {
       id: item.id,
@@ -1466,9 +1631,19 @@ export class ObjectsService {
       address: item.address,
       status: item.status,
       seasonMode: item.seasonMode,
+      summerWindowCleaning: item.summerWindowCleaning,
+      engineeringRequired: item.engineeringRequired,
+      winterTractorMode: item.winterTractorMode,
+      instructionSteps: item.instructionSteps,
       paymentType: item.paymentType,
       dailyRate: item.dailyRate,
       monthlySalary: item.monthlySalary,
+      summerPaymentType: item.summerPaymentType,
+      summerDailyRate: item.summerDailyRate,
+      summerMonthlySalary: item.summerMonthlySalary,
+      winterPaymentType: item.winterPaymentType,
+      winterDailyRate: item.winterDailyRate,
+      winterMonthlySalary: item.winterMonthlySalary,
       notes: item.notes,
       counterparty: item.counterparty
         ? {
@@ -1496,23 +1671,14 @@ export class ObjectsService {
             fullName: responsible.fullName,
           }
         : null,
-      employees: (item.employeeAssignments ?? []).map(
-        (assignment) => assignment.employee,
-      ),
-      capabilities: (() => {
-        const capabilities = buildObjectCapabilities({
-          currentUserId: currentUser.id,
-          roleCodes,
-          permissionCodes: currentUser.permissionCodes ?? [],
-          objectStatus: item.status,
-          createdByUserId: item.createdByUserId,
-          assignments: mappedAssignments,
-        });
-        return {
+      employees: (item.employeeAssignments ?? []).map((assignment) => ({
+        ...assignment.employee,
+        baseDailyRate: capabilities.canViewEmployees ? assignment.employee.baseDailyRate : null,
+      })),
+      capabilities: {
           ...capabilities,
           canEditMonthlySalary: capabilities.canEditDailyRate,
-        };
-      })(),
+      },
     };
   }
 

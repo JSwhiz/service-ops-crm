@@ -40,6 +40,7 @@ export class MeResponseDto {
     canIssueAccountabilityFunds: boolean;
     canReviewAccountability: boolean;
     canApproveAccountabilityClosure: boolean;
+    canRecordExternalReceipt: boolean;
     canAccessInventory: boolean;
     canManageInventoryCatalog: boolean;
     canDeleteInventoryItem: boolean;
