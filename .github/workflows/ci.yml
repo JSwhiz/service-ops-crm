@@ -14,7 +14,7 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -34,6 +34,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build pinned MinIO test images from official releases
+        run: |
+          docker build \
+            --build-arg MINIO_VERSION=RELEASE.2025-06-13T11-33-47Z \
+            -f .github/docker/minio-test.Dockerfile \
+            -t service-ops-ci/minio:RELEASE.2025-06-13T11-33-47Z .
+          docker build \
+            --build-arg MC_VERSION=RELEASE.2025-08-13T08-35-41Z \
+            -f .github/docker/mc-test.Dockerfile \
+            -t service-ops-ci/mc:RELEASE.2025-08-13T08-35-41Z .
+
       - name: Create infra env file
         run: |
           cat > .env.infra.local <<'EOF'
@@ -44,8 +55,8 @@ jobs:
           POSTGRES_HOST_PORT=55432
           REDIS_IMAGE=redis:7.4.8
           REDIS_HOST_PORT=6379
-          MINIO_IMAGE=minio/minio:RELEASE.2025-06-13T11-33-47Z
-          MINIO_MC_IMAGE=minio/mc:RELEASE.2025-08-13T08-35-41Z
+          MINIO_IMAGE=service-ops-ci/minio:RELEASE.2025-06-13T11-33-47Z
+          MINIO_MC_IMAGE=service-ops-ci/mc:RELEASE.2025-08-13T08-35-41Z
           MINIO_ROOT_USER=minioadmin
           MINIO_ROOT_PASSWORD=minioadminpassword
           MINIO_HOST_PORT=9000
