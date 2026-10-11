@@ -41,6 +41,9 @@ export const FILE_ATTACHMENT_POLICY = {
   accountability_expense: {
     fieldCodes: [],
   },
+  accountability_funding: {
+    fieldCodes: [],
+  },
   chat_message: {
     fieldCodes: [],
   },

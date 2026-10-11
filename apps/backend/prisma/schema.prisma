@@ -8,102 +8,108 @@ datasource db {
 }
 
 model User {
-  id                          String   @id @default(uuid())
-  login                       String   @unique
-  passwordHash                String?
-  fullName                    String
-  isActive                    Boolean  @default(true)
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
-  deletedAt                   DateTime?
+  id           String    @id @default(uuid())
+  login        String    @unique
+  passwordHash String?
+  fullName     String
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
 
-  roles                       UserRole[]
-  permissions                 UserPermission[]
-  visibilityGroups            UserVisibilityGroup[]
-  approvalCapabilities        UserApprovalCapability[]
-  createdApprovalRequests     ApprovalRequest[] @relation("ApprovalRequestCreatedBy")
-  resolvedApprovalRequests    ApprovalRequest[] @relation("ApprovalRequestResolvedBy")
-  cancelledApprovalRequests   ApprovalRequest[] @relation("ApprovalRequestCancelledBy")
-  createdChatRooms            ChatRoom[] @relation("ChatRoomCreatedBy")
-  deletedChatRooms            ChatRoom[] @relation("ChatRoomDeletedBy")
-  chatRoomParticipants        ChatRoomParticipant[]
-  authoredChatMessages        ChatMessage[] @relation("ChatMessageAuthor")
-  deletedChatMessages         ChatMessage[] @relation("ChatMessageDeletedBy")
-  chatMessageReactions        ChatMessageReaction[]
-  editedChatMessageHistory    ChatMessageEditHistory[] @relation("ChatMessageEditHistoryEditedBy")
-  auditEvents                 AuditEvent[] @relation("AuditActor")
-  createdObjects              Object[] @relation("ObjectCreatedBy")
-  createdCounterparties       Counterparty[] @relation("CounterpartyCreatedBy")
-  createdOneTimeOrders        OneTimeOrder[] @relation("OneTimeOrderCreatedBy")
-  reviewedOneTimeOrders       OneTimeOrder[] @relation("OneTimeOrderReviewUpdatedBy")
-  completedOneTimeOrders      OneTimeOrder[] @relation("OneTimeOrderCompletedBy")
-  oneTimeOrderCompletions     OneTimeOrderCompletion[] @relation("OneTimeOrderCompletionCompletedBy")
-  receivedOneTimeOrderCompletionPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderCompletionPaymentRecipient")
-  recordedOneTimeOrderCompletionPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderCompletionPaymentRecordedBy")
-  createdOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCreatedBy")
-  completedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationCompletedBy")
-  deletedOneTimeOrderSpecificationItems OneTimeOrderSpecificationItem[] @relation("OneTimeOrderSpecificationDeletedBy")
-  createdInventoryItems       InventoryItem[] @relation("InventoryItemCreatedBy")
-  deletedInventoryItems       InventoryItem[] @relation("InventoryItemDeletedBy")
-  createdInventoryMovements   InventoryMovement[] @relation("InventoryMovementCreatedBy")
-  resolvedInventoryMovementApprovals InventoryMovement[] @relation("InventoryMovementApprovalResolvedBy")
-  createdEquipmentCatalogItems EquipmentCatalogItem[] @relation("EquipmentCatalogItemCreatedBy")
-  createdEquipmentUnits        EquipmentUnit[] @relation("EquipmentUnitCreatedBy")
-  createdEquipmentMovements    EquipmentMovement[] @relation("EquipmentMovementCreatedBy")
-  accountabilityAccount        AccountabilityAccount? @relation("UserAccountabilityAccount")
-  issuedAccountabilityFundings AccountabilityFunding[] @relation("AccountabilityFundingIssuedBy")
-  recordedAccountabilityFundings AccountabilityFunding[] @relation("AccountabilityFundingRecordedBy")
-  createdAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseCreatedBy")
-  approvedAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseApprovedBy")
-  rejectedAccountabilityExpenses AccountabilityExpense[] @relation("AccountabilityExpenseRejectedBy")
-  requestedAccountabilityClosures AccountabilityClosure[] @relation("AccountabilityClosureRequestedBy")
-  approvedAccountabilityClosures AccountabilityClosure[] @relation("AccountabilityClosureApprovedBy")
-  rejectedAccountabilityClosures AccountabilityClosure[] @relation("AccountabilityClosureRejectedBy")
-  objectAssignments           ObjectAssignment[]
-  oneTimeOrderAssignments     OneTimeOrderAssignment[]
-  oneTimeOrderCalendarProfile OneTimeOrderCalendarManager?
-  createdComments             ObjectComment[] @relation("ObjectCommentCreatedBy")
-  createdOneTimeOrderComments OneTimeOrderComment[] @relation("OneTimeOrderCommentCreatedBy")
-  createdArrivalPhotos        ObjectArrivalPhoto[] @relation("ObjectArrivalPhotoCreatedBy")
-  updatedDailyReports         ObjectDailyReport[] @relation("ObjectDailyReportUpdatedBy")
-  updatedOneTimeOrderDailyReports OneTimeOrderDailyReport[] @relation("OneTimeOrderDailyReportUpdatedBy")
-  createdOneTimeOrderPhotos   OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoCreatedBy")
-  deletedOneTimeOrderPhotos   OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoDeletedBy")
-  restoredOneTimeOrderPhotos  OneTimeOrderPhoto[] @relation("OneTimeOrderPhotoRestoredBy")
-  oneTimeManagerAvailabilityEntries OneTimeManagerAvailability[] @relation("OneTimeManagerAvailabilityUser")
-  requestedOneTimeManagerAvailabilityEntries OneTimeManagerAvailability[] @relation("OneTimeManagerAvailabilityRequestedBy")
-  resolvedOneTimeManagerAvailabilityEntries OneTimeManagerAvailability[] @relation("OneTimeManagerAvailabilityResolvedBy")
-  cancelledOneTimeManagerAvailabilityEntries OneTimeManagerAvailability[] @relation("OneTimeManagerAvailabilityCancelledBy")
-  createdTasks                Task[] @relation("TaskCreatedBy")
-  taskAssignments             TaskAssignee[]
-  submittedTaskResults        Task[] @relation("TaskSubmittedBy")
-  completedTasks              Task[] @relation("TaskCompletedBy")
-  cancelledTasks              Task[] @relation("TaskCancelledBy")
-  removedTaskAssignments      TaskAssignee[] @relation("TaskAssigneeRemovedBy")
-  cancelledTaskCompletions    TaskAssigneeCompletion[] @relation("TaskAssigneeCompletionCancelledBy")
-  taskVisibilityMemberships   TaskVisibilityUser[] @relation("TaskVisibilityUser")
-  addedTaskVisibilityUsers    TaskVisibilityUser[] @relation("TaskVisibilityAddedBy")
-  taskHistoryEvents           TaskHistoryEvent[] @relation("TaskHistoryActor")
-  createdAttendanceFacts      ObjectAttendanceFact[] @relation("ObjectAttendanceFactCreatedBy")
-  createdTimesheetMonths      TimesheetMonth[] @relation("TimesheetMonthCreatedBy")
-  createdTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryCreatedBy")
-  updatedTimesheetEntries     TimesheetDayEntry[] @relation("TimesheetEntryUpdatedBy")
-  requestedTimesheetManualExceptions TimesheetManualException[] @relation("TimesheetManualExceptionRequestedBy")
-  resolvedTimesheetManualExceptions  TimesheetManualException[] @relation("TimesheetManualExceptionResolvedBy")
-  objectAuditLogs             ObjectAuditLog[] @relation("ObjectAuditLogActor")
-  authSessions                AuthSession[]
-  uploadedFiles               File[]          @relation("FileUploadedBy")
-  fileAttachments             FileAttachment[] @relation("FileAttachmentCreatedBy")
-  createdEmployeeAvailabilityWindows EmployeeAvailabilityWindow[] @relation("EmployeeAvailabilityCreatedBy")
-  createdEmployeeSubstitutions EmployeeSubstitution[] @relation("EmployeeSubstitutionCreatedBy")
-  createdEmployeeAssignmentHistory EmployeeObjectAssignmentHistory[] @relation("EmployeeAssignmentHistoryCreatedBy")
-  closedEmployeeAssignmentHistory  EmployeeObjectAssignmentHistory[] @relation("EmployeeAssignmentHistoryClosedBy")
-  createdCandidates                 Candidate[] @relation("CandidateCreatedBy")
-  candidateManagerAssignments       CandidateManagerAssignment[] @relation("CandidateAssignmentManager")
-  assignedCandidateManagers         CandidateManagerAssignment[] @relation("CandidateAssignmentAssignedBy")
-  endedCandidateAssignments         CandidateManagerAssignment[] @relation("CandidateAssignmentEndedBy")
-  candidateResponses                CandidateResponse[] @relation("CandidateResponseAuthor")
-  notifications                     Notification[] @relation("NotificationRecipient")
+  roles                                      UserRole[]
+  permissions                                UserPermission[]
+  visibilityGroups                           UserVisibilityGroup[]
+  approvalCapabilities                       UserApprovalCapability[]
+  createdApprovalRequests                    ApprovalRequest[]                 @relation("ApprovalRequestCreatedBy")
+  resolvedApprovalRequests                   ApprovalRequest[]                 @relation("ApprovalRequestResolvedBy")
+  cancelledApprovalRequests                  ApprovalRequest[]                 @relation("ApprovalRequestCancelledBy")
+  createdChatRooms                           ChatRoom[]                        @relation("ChatRoomCreatedBy")
+  deletedChatRooms                           ChatRoom[]                        @relation("ChatRoomDeletedBy")
+  chatRoomParticipants                       ChatRoomParticipant[]
+  authoredChatMessages                       ChatMessage[]                     @relation("ChatMessageAuthor")
+  deletedChatMessages                        ChatMessage[]                     @relation("ChatMessageDeletedBy")
+  chatMessageReactions                       ChatMessageReaction[]
+  editedChatMessageHistory                   ChatMessageEditHistory[]          @relation("ChatMessageEditHistoryEditedBy")
+  auditEvents                                AuditEvent[]                      @relation("AuditActor")
+  createdObjects                             Object[]                          @relation("ObjectCreatedBy")
+  createdCounterparties                      Counterparty[]                    @relation("CounterpartyCreatedBy")
+  createdOneTimeOrders                       OneTimeOrder[]                    @relation("OneTimeOrderCreatedBy")
+  reviewedOneTimeOrders                      OneTimeOrder[]                    @relation("OneTimeOrderReviewUpdatedBy")
+  completedOneTimeOrders                     OneTimeOrder[]                    @relation("OneTimeOrderCompletedBy")
+  oneTimeOrderCompletions                    OneTimeOrderCompletion[]          @relation("OneTimeOrderCompletionCompletedBy")
+  receivedOneTimeOrderCompletionPayments     OneTimeOrderCompletionPayment[]   @relation("OneTimeOrderCompletionPaymentRecipient")
+  recordedOneTimeOrderCompletionPayments     OneTimeOrderCompletionPayment[]   @relation("OneTimeOrderCompletionPaymentRecordedBy")
+  createdOneTimeOrderSpecificationItems      OneTimeOrderSpecificationItem[]   @relation("OneTimeOrderSpecificationCreatedBy")
+  completedOneTimeOrderSpecificationItems    OneTimeOrderSpecificationItem[]   @relation("OneTimeOrderSpecificationCompletedBy")
+  deletedOneTimeOrderSpecificationItems      OneTimeOrderSpecificationItem[]   @relation("OneTimeOrderSpecificationDeletedBy")
+  createdInventoryItems                      InventoryItem[]                   @relation("InventoryItemCreatedBy")
+  deletedInventoryItems                      InventoryItem[]                   @relation("InventoryItemDeletedBy")
+  createdInventoryMovements                  InventoryMovement[]               @relation("InventoryMovementCreatedBy")
+  createdRubberMats                           RubberMat[]                        @relation("RubberMatCreatedBy")
+  rubberMatEvents                             RubberMatEvent[]                   @relation("RubberMatEventActor")
+  resolvedInventoryMovementApprovals         InventoryMovement[]               @relation("InventoryMovementApprovalResolvedBy")
+  createdEquipmentCatalogItems               EquipmentCatalogItem[]            @relation("EquipmentCatalogItemCreatedBy")
+  createdEquipmentUnits                      EquipmentUnit[]                   @relation("EquipmentUnitCreatedBy")
+  createdEquipmentMovements                  EquipmentMovement[]               @relation("EquipmentMovementCreatedBy")
+  accountabilityAccount                      AccountabilityAccount?            @relation("UserAccountabilityAccount")
+  issuedAccountabilityFundings               AccountabilityFunding[]           @relation("AccountabilityFundingIssuedBy")
+  recordedAccountabilityFundings             AccountabilityFunding[]           @relation("AccountabilityFundingRecordedBy")
+  createdAccountabilityExpenses              AccountabilityExpense[]           @relation("AccountabilityExpenseCreatedBy")
+  approvedAccountabilityExpenses             AccountabilityExpense[]           @relation("AccountabilityExpenseApprovedBy")
+  rejectedAccountabilityExpenses             AccountabilityExpense[]           @relation("AccountabilityExpenseRejectedBy")
+  requestedAccountabilityClosures            AccountabilityClosure[]           @relation("AccountabilityClosureRequestedBy")
+  approvedAccountabilityClosures             AccountabilityClosure[]           @relation("AccountabilityClosureApprovedBy")
+  rejectedAccountabilityClosures             AccountabilityClosure[]           @relation("AccountabilityClosureRejectedBy")
+  objectAssignments                          ObjectAssignment[]
+  oneTimeOrderAssignments                    OneTimeOrderAssignment[]
+  oneTimeOrderCalendarProfile                OneTimeOrderCalendarManager?
+  createdComments                            ObjectComment[]                   @relation("ObjectCommentCreatedBy")
+  createdOneTimeOrderComments                OneTimeOrderComment[]             @relation("OneTimeOrderCommentCreatedBy")
+  createdArrivalPhotos                       ObjectArrivalPhoto[]              @relation("ObjectArrivalPhotoCreatedBy")
+  updatedDailyReports                        ObjectDailyReport[]               @relation("ObjectDailyReportUpdatedBy")
+  updatedOneTimeOrderDailyReports            OneTimeOrderDailyReport[]         @relation("OneTimeOrderDailyReportUpdatedBy")
+  createdOneTimeOrderPhotos                  OneTimeOrderPhoto[]               @relation("OneTimeOrderPhotoCreatedBy")
+  deletedOneTimeOrderPhotos                  OneTimeOrderPhoto[]               @relation("OneTimeOrderPhotoDeletedBy")
+  restoredOneTimeOrderPhotos                 OneTimeOrderPhoto[]               @relation("OneTimeOrderPhotoRestoredBy")
+  oneTimeManagerAvailabilityEntries          OneTimeManagerAvailability[]      @relation("OneTimeManagerAvailabilityUser")
+  requestedOneTimeManagerAvailabilityEntries OneTimeManagerAvailability[]      @relation("OneTimeManagerAvailabilityRequestedBy")
+  resolvedOneTimeManagerAvailabilityEntries  OneTimeManagerAvailability[]      @relation("OneTimeManagerAvailabilityResolvedBy")
+  cancelledOneTimeManagerAvailabilityEntries OneTimeManagerAvailability[]      @relation("OneTimeManagerAvailabilityCancelledBy")
+  createdTasks                               Task[]                            @relation("TaskCreatedBy")
+  taskAssignments                            TaskAssignee[]
+  submittedTaskResults                       Task[]                            @relation("TaskSubmittedBy")
+  completedTasks                             Task[]                            @relation("TaskCompletedBy")
+  cancelledTasks                             Task[]                            @relation("TaskCancelledBy")
+  removedTaskAssignments                     TaskAssignee[]                    @relation("TaskAssigneeRemovedBy")
+  cancelledTaskCompletions                   TaskAssigneeCompletion[]          @relation("TaskAssigneeCompletionCancelledBy")
+  taskVisibilityMemberships                  TaskVisibilityUser[]              @relation("TaskVisibilityUser")
+  addedTaskVisibilityUsers                   TaskVisibilityUser[]              @relation("TaskVisibilityAddedBy")
+  taskHistoryEvents                          TaskHistoryEvent[]                @relation("TaskHistoryActor")
+  createdAttendanceFacts                     ObjectAttendanceFact[]            @relation("ObjectAttendanceFactCreatedBy")
+  createdTimesheetMonths                     TimesheetMonth[]                  @relation("TimesheetMonthCreatedBy")
+  createdTimesheetEntries                    TimesheetDayEntry[]               @relation("TimesheetEntryCreatedBy")
+  updatedTimesheetEntries                    TimesheetDayEntry[]               @relation("TimesheetEntryUpdatedBy")
+  requestedTimesheetManualExceptions         TimesheetManualException[]        @relation("TimesheetManualExceptionRequestedBy")
+  resolvedTimesheetManualExceptions          TimesheetManualException[]        @relation("TimesheetManualExceptionResolvedBy")
+  objectAuditLogs                            ObjectAuditLog[]                  @relation("ObjectAuditLogActor")
+  authSessions                               AuthSession[]
+  uploadedFiles                              File[]                            @relation("FileUploadedBy")
+  fileAttachments                            FileAttachment[]                  @relation("FileAttachmentCreatedBy")
+  createdEmployeeAvailabilityWindows         EmployeeAvailabilityWindow[]      @relation("EmployeeAvailabilityCreatedBy")
+  createdEmployeeSubstitutions               EmployeeSubstitution[]            @relation("EmployeeSubstitutionCreatedBy")
+  userSubstitutionsAsPrincipal                UserSubstitution[]                @relation("UserSubstitutionPrincipal")
+  userSubstitutionsAsReplacement              UserSubstitution[]                @relation("UserSubstitutionReplacement")
+  createdUserSubstitutions                    UserSubstitution[]                @relation("UserSubstitutionCreatedBy")
+  revokedUserSubstitutions                     UserSubstitution[]                @relation("UserSubstitutionRevokedBy")
+  createdEmployeeAssignmentHistory           EmployeeObjectAssignmentHistory[] @relation("EmployeeAssignmentHistoryCreatedBy")
+  closedEmployeeAssignmentHistory            EmployeeObjectAssignmentHistory[] @relation("EmployeeAssignmentHistoryClosedBy")
+  createdCandidates                          Candidate[]                       @relation("CandidateCreatedBy")
+  candidateManagerAssignments                CandidateManagerAssignment[]      @relation("CandidateAssignmentManager")
+  assignedCandidateManagers                  CandidateManagerAssignment[]      @relation("CandidateAssignmentAssignedBy")
+  endedCandidateAssignments                  CandidateManagerAssignment[]      @relation("CandidateAssignmentEndedBy")
+  candidateResponses                         CandidateResponse[]               @relation("CandidateResponseAuthor")
+  notifications                              Notification[]                    @relation("NotificationRecipient")
 
   @@map("users")
 }
@@ -239,18 +245,18 @@ model UserApprovalCapability {
 }
 
 model ApprovalRequest {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   approvalType      String
   sourceEntityType  String
   sourceEntityId    String
-  status            String   @default("pending")
+  status            String    @default("pending")
   createdByUserId   String
   resolvedByUserId  String?
   cancelledByUserId String?
   decisionComment   String?
   payloadSnapshot   Json
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
   resolvedAt        DateTime?
   cancelledAt       DateTime?
 
@@ -268,20 +274,20 @@ model ApprovalRequest {
 }
 
 model ChatRoom {
-  id                 String   @id @default(uuid())
-  code               String?  @unique
+  id                 String    @id @default(uuid())
+  code               String?   @unique
   title              String
   roomType           String
   visibilityType     String
-  directKey          String?  @unique
+  directKey          String?   @unique
   createdByUserId    String?
   deletedByUserId    String?
   deletedAt          DateTime?
   deleteReason       String?
   lastMessageAt      DateTime?
   lastMessagePreview String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   createdBy    User?                 @relation("ChatRoomCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   deletedBy    User?                 @relation("ChatRoomDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
@@ -298,16 +304,16 @@ model ChatRoom {
 }
 
 model ChatRoomParticipant {
-  id             String   @id @default(uuid())
-  chatRoomId     String
-  userId         String
-  roleInRoom     String   @default("member")
-  joinedAt       DateTime @default(now())
-  lastReadAt     DateTime?
-  hiddenAt       DateTime?
-  leftAt         DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id         String    @id @default(uuid())
+  chatRoomId String
+  userId     String
+  roleInRoom String    @default("member")
+  joinedAt   DateTime  @default(now())
+  lastReadAt DateTime?
+  hiddenAt   DateTime?
+  leftAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -322,29 +328,29 @@ model ChatRoomParticipant {
 }
 
 model ChatMessage {
-  id            String   @id @default(uuid())
-  chatRoomId    String
-  authorUserId  String?
-  messageType   String
-  text          String?
-  metadata      Json?
-  editedAt      DateTime?
-  deletedAt     DateTime?
-  deletedByUserId String?
-  deletedByKind String?
-  deleteReason  String?
-  replyToMessageId String?
+  id                     String    @id @default(uuid())
+  chatRoomId             String
+  authorUserId           String?
+  messageType            String
+  text                   String?
+  metadata               Json?
+  editedAt               DateTime?
+  deletedAt              DateTime?
+  deletedByUserId        String?
+  deletedByKind          String?
+  deleteReason           String?
+  replyToMessageId       String?
   forwardedFromMessageId String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  chatRoom ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  author   User?    @relation("ChatMessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
-  deletedBy User?   @relation("ChatMessageDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
-  replyTo   ChatMessage?  @relation("ChatMessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
-  replies   ChatMessage[] @relation("ChatMessageReplies")
-  forwardedFrom ChatMessage?  @relation("ChatMessageForwards", fields: [forwardedFromMessageId], references: [id], onDelete: SetNull)
-  forwards      ChatMessage[] @relation("ChatMessageForwards")
+  chatRoom      ChatRoom                 @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  author        User?                    @relation("ChatMessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  deletedBy     User?                    @relation("ChatMessageDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  replyTo       ChatMessage?             @relation("ChatMessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies       ChatMessage[]            @relation("ChatMessageReplies")
+  forwardedFrom ChatMessage?             @relation("ChatMessageForwards", fields: [forwardedFromMessageId], references: [id], onDelete: SetNull)
+  forwards      ChatMessage[]            @relation("ChatMessageForwards")
   reactions     ChatMessageReaction[]
   editHistory   ChatMessageEditHistory[]
 
@@ -400,6 +406,7 @@ model Counterparty {
   notes           String?
   status          String   @default("active")
   createdByUserId String
+  masterObject    Object?  @relation("CounterpartyMasterObject")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -415,42 +422,56 @@ model Counterparty {
 }
 
 model Object {
-  id                  String   @id @default(uuid())
-  name                String
-  internalName        String?
-  address             String
-  status              String
-  seasonMode          String?
-  paymentType        String   @default("daily")
-  dailyRate           Int      @default(0)
-  monthlySalary       Int      @default(0)
-  notes               String?
-  counterpartyId      String?
-  createdByUserId     String
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  deletedAt           DateTime?
+  id                      String    @id @default(uuid())
+  name                    String
+  internalName            String?
+  address                 String
+  status                  String
+  seasonMode              String?
+  summerWindowCleaning    Boolean   @default(false)
+  engineeringRequired    Boolean   @default(false)
+  winterTractorMode       String    @default("none")
+  instructionSteps        String[]  @default([])
+  paymentType             String    @default("daily")
+  dailyRate               Int       @default(0)
+  monthlySalary           Int       @default(0)
+  summerPaymentType       String    @default("daily")
+  summerDailyRate         Int       @default(0)
+  summerMonthlySalary     Int       @default(0)
+  winterPaymentType       String    @default("daily")
+  winterDailyRate         Int       @default(0)
+  winterMonthlySalary     Int       @default(0)
+  notes                   String?
+  counterpartyId          String?
+  masterForCounterpartyId String?   @unique
+  createdByUserId         String
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  deletedAt               DateTime?
 
-  attendanceFacts      ObjectAttendanceFact[]
-  createdBy            User                     @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  counterparty         Counterparty?             @relation(fields: [counterpartyId], references: [id], onDelete: SetNull)
-  assignments          ObjectAssignment[]
-  arrivalPhotos        ObjectArrivalPhoto[]
-  dailyReports         ObjectDailyReport[]
-  comments             ObjectComment[]
-  tasks                Task[]
-  employeeAssignments  ObjectEmployeeAssignment[]
+  attendanceFacts           ObjectAttendanceFact[]
+  createdBy                 User                              @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  counterparty              Counterparty?                     @relation(fields: [counterpartyId], references: [id], onDelete: SetNull)
+  masterForCounterparty     Counterparty?                     @relation("CounterpartyMasterObject", fields: [masterForCounterpartyId], references: [id], onDelete: Restrict)
+  assignments               ObjectAssignment[]
+  arrivalPhotos             ObjectArrivalPhoto[]
+  dailyReports              ObjectDailyReport[]
+  comments                  ObjectComment[]
+  tasks                     Task[]
+  employeeAssignments       ObjectEmployeeAssignment[]
   employeeAssignmentHistory EmployeeObjectAssignmentHistory[]
-  employeeSubstitutions EmployeeSubstitution[]
-  linkedOneTimeOrders   OneTimeOrder[]
-  inventoryMovements    InventoryMovement[]
-  currentEquipmentUnits   EquipmentUnit[]
-  equipmentMovementsFrom  EquipmentMovement[] @relation("EquipmentMovementFromObject")
-  equipmentMovementsTo    EquipmentMovement[] @relation("EquipmentMovementToObject")
-  timesheetMonths         TimesheetMonth[]
+  employeeSubstitutions     EmployeeSubstitution[]
+  linkedOneTimeOrders       OneTimeOrder[]
+  inventoryMovements        InventoryMovement[]
+  currentEquipmentUnits     EquipmentUnit[]
+  equipmentMovementsFrom    EquipmentMovement[]               @relation("EquipmentMovementFromObject")
+  equipmentMovementsTo      EquipmentMovement[]               @relation("EquipmentMovementToObject")
+  timesheetMonths           TimesheetMonth[]
   timesheetManualExceptions TimesheetManualException[]
-  auditLogs               ObjectAuditLog[]
-  candidates               Candidate[]
+  auditLogs                 ObjectAuditLog[]
+  candidates                Candidate[]
+  rubberMats                RubberMat[]
+  userSubstitutionScopes    UserSubstitutionObject[]
 
   @@index([status])
   @@index([paymentType])
@@ -471,22 +492,22 @@ model ObjectAssignment {
   object Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([objectId, userId, assignmentRoleCode])
   /// A PostgreSQL partial unique index guarantees one active `responsible`
   /// assignment per object; see migration 20260714100000_object_one_responsible.
   @@index([objectId])
   @@index([userId])
   @@index([assignmentRoleCode])
-  @@unique([objectId, userId, assignmentRoleCode])
   @@map("object_assignments")
 }
 
 model Employee {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   fullName           String
   phone              String?
   position           String?
   birthDate          DateTime? @db.Date
-  employeeType       String   @default("regular")
+  employeeType       String    @default("regular")
   workScheduleCode   String?
   workScheduleCustom String?
   workTimeText       String?
@@ -495,19 +516,19 @@ model Employee {
   baseDailyRate      Int?
   notes              String?
   employmentStatus   String
-  version            Int      @default(1)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
 
-  attendanceFacts    ObjectAttendanceFact[]
-  objectAssignments  ObjectEmployeeAssignment[]
-  objectAssignmentHistory EmployeeObjectAssignmentHistory[]
-  availabilityWindows EmployeeAvailabilityWindow[]
-  substitutionsAsPrimary EmployeeSubstitution[] @relation("EmployeeSubstitutionPrimary")
-  substitutionsAsReplacement EmployeeSubstitution[] @relation("EmployeeSubstitutionReplacement")
-  timesheetRows      TimesheetEmployeeRow[]
-  timesheetManualExceptions TimesheetManualException[]
+  attendanceFacts            ObjectAttendanceFact[]
+  objectAssignments          ObjectEmployeeAssignment[]
+  objectAssignmentHistory    EmployeeObjectAssignmentHistory[]
+  availabilityWindows        EmployeeAvailabilityWindow[]
+  substitutionsAsPrimary     EmployeeSubstitution[]            @relation("EmployeeSubstitutionPrimary")
+  substitutionsAsReplacement EmployeeSubstitution[]            @relation("EmployeeSubstitutionReplacement")
+  timesheetRows              TimesheetEmployeeRow[]
+  timesheetManualExceptions  TimesheetManualException[]
 
   @@index([fullName])
   @@index([phone])
@@ -521,15 +542,15 @@ model Employee {
 }
 
 model EmployeeObjectAssignmentHistory {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   employeeId      String
   objectId        String
   startedAt       DateTime
   endedAt         DateTime?
   createdByUserId String
   closedByUserId  String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   object    Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
@@ -543,16 +564,16 @@ model EmployeeObjectAssignmentHistory {
 }
 
 model EmployeeAvailabilityWindow {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   employeeId         String
   startDate          DateTime
   endDate            DateTime?
-  availabilityMode   String   @default("full_day")
+  availabilityMode   String    @default("full_day")
   availabilityStatus String
   comment            String?
   createdByUserId    String
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   createdBy User     @relation("EmployeeAvailabilityCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -563,7 +584,7 @@ model EmployeeAvailabilityWindow {
 }
 
 model EmployeeSubstitution {
-  id                   String   @id @default(uuid())
+  id                   String    @id @default(uuid())
   employeeId           String
   substituteEmployeeId String
   objectId             String?
@@ -573,13 +594,13 @@ model EmployeeSubstitution {
   reason               String
   comment              String?
   createdByUserId      String
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   employee           Employee @relation("EmployeeSubstitutionPrimary", fields: [employeeId], references: [id], onDelete: Restrict)
   substituteEmployee Employee @relation("EmployeeSubstitutionReplacement", fields: [substituteEmployeeId], references: [id], onDelete: Restrict)
-  object             Object?   @relation(fields: [objectId], references: [id], onDelete: SetNull)
-  createdBy          User      @relation("EmployeeSubstitutionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  object             Object?  @relation(fields: [objectId], references: [id], onDelete: SetNull)
+  createdBy          User     @relation("EmployeeSubstitutionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@index([employeeId, startDate])
   @@index([substituteEmployeeId, startDate])
@@ -588,18 +609,59 @@ model EmployeeSubstitution {
   @@map("employee_substitutions")
 }
 
+/// Delegation between authenticated Users. This records scope and lifecycle
+/// only; it does not change roles or grant permissions by itself.
+model UserSubstitution {
+  id                   String    @id @default(uuid())
+  principalUserId      String
+  replacementUserId    String
+  createdByUserId      String
+  startsAt             DateTime
+  endsAt               DateTime
+  reason               String
+  revokedAt            DateTime?
+  revokedByUserId      String?
+  revocationReason     String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  principal   User    @relation("UserSubstitutionPrincipal", fields: [principalUserId], references: [id], onDelete: Restrict)
+  replacement User    @relation("UserSubstitutionReplacement", fields: [replacementUserId], references: [id], onDelete: Restrict)
+  createdBy   User    @relation("UserSubstitutionCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  revokedBy   User?   @relation("UserSubstitutionRevokedBy", fields: [revokedByUserId], references: [id], onDelete: Restrict)
+  objects     UserSubstitutionObject[]
+
+  @@index([principalUserId, startsAt, endsAt])
+  @@index([replacementUserId, startsAt, endsAt])
+  @@index([revokedAt])
+  @@map("user_substitutions")
+}
+
+model UserSubstitutionObject {
+  id             String @id @default(uuid())
+  substitutionId String
+  objectId       String
+
+  substitution UserSubstitution @relation(fields: [substitutionId], references: [id], onDelete: Cascade)
+  object       Object           @relation(fields: [objectId], references: [id], onDelete: Restrict)
+
+  @@unique([substitutionId, objectId])
+  @@index([objectId])
+  @@map("user_substitution_objects")
+}
+
 model Candidate {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   fullName        String
   phone           String?
   comment         String?
-  candidateType   String   @default("regular")
-  status          String   @default("new")
+  candidateType   String    @default("regular")
+  status          String    @default("new")
   objectId        String?
   createdByUserId String
-  version         Int      @default(1)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
   createdBy   User                         @relation("CandidateCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -618,21 +680,21 @@ model Candidate {
 }
 
 model CandidateManagerAssignment {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   candidateId      String
   managerUserId    String
   assignedByUserId String
-  assignedAt       DateTime @default(now())
+  assignedAt       DateTime  @default(now())
   responseDueAt    DateTime
   firstRespondedAt DateTime?
   reminderSentAt   DateTime?
   endedAt          DateTime?
   endedByUserId    String?
 
-  candidate  Candidate @relation(fields: [candidateId], references: [id], onDelete: Restrict)
-  manager    User      @relation("CandidateAssignmentManager", fields: [managerUserId], references: [id], onDelete: Restrict)
-  assignedBy User      @relation("CandidateAssignmentAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
-  endedBy    User?     @relation("CandidateAssignmentEndedBy", fields: [endedByUserId], references: [id], onDelete: SetNull)
+  candidate  Candidate           @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  manager    User                @relation("CandidateAssignmentManager", fields: [managerUserId], references: [id], onDelete: Restrict)
+  assignedBy User                @relation("CandidateAssignmentAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
+  endedBy    User?               @relation("CandidateAssignmentEndedBy", fields: [endedByUserId], references: [id], onDelete: SetNull)
   responses  CandidateResponse[]
 
   @@index([candidateId, assignedAt])
@@ -662,7 +724,7 @@ model CandidateResponse {
 }
 
 model Notification {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   recipientUserId String
   type            String
   title           String
@@ -672,14 +734,30 @@ model Notification {
   targetUrl       String?
   dedupeKey       String?
   readAt          DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
-  recipient User @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  recipient      User                @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  realtimeOutbox NotificationOutbox?
 
   @@unique([recipientUserId, dedupeKey])
   @@index([recipientUserId, readAt, createdAt])
   @@index([entityType, entityId])
   @@map("notifications")
+}
+
+model NotificationOutbox {
+  id              String    @id @default(uuid())
+  notificationId  String
+  recipientUserId String
+  createdAt       DateTime  @default(now())
+  claimedAt       DateTime?
+  publishedAt     DateTime?
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId])
+  @@index([publishedAt, claimedAt, createdAt])
+  @@map("notification_outbox")
 }
 
 model ObjectAuditLog {
@@ -701,28 +779,28 @@ model ObjectAuditLog {
 }
 
 model ObjectEmployeeAssignment {
-  id          String   @id @default(uuid())
-  objectId    String
-  employeeId  String
-  isActive    Boolean  @default(true)
-  startDate   DateTime?
-  endDate     DateTime?
-  ratePolicyType String @default("daily_rate")
-  ratePolicyBaseAmount Int?
-  ratePolicyScheduleCode String?
-  ratePolicyRoundingMode String?
-  ratePolicyRoundingStep Int?
-  ratePolicyStandardShiftHours Float?
-  ratePolicyWorkingDaysInMonth Int?
+  id                            String    @id @default(uuid())
+  objectId                      String
+  employeeId                    String
+  isActive                      Boolean   @default(true)
+  startDate                     DateTime?
+  endDate                       DateTime?
+  ratePolicyType                String    @default("daily_rate")
+  ratePolicyBaseAmount          Int?
+  ratePolicyScheduleCode        String?
+  ratePolicyRoundingMode        String?
+  ratePolicyRoundingStep        Int?
+  ratePolicyStandardShiftHours  Float?
+  ratePolicyWorkingDaysInMonth  Int?
   ratePolicyExcludedHolidayDays Int?
-  ratePolicyNotes String?
-  ratePolicyUpdatedByUserId String?
-  ratePolicyUpdatedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  ratePolicyNotes               String?
+  ratePolicyUpdatedByUserId     String?
+  ratePolicyUpdatedAt           DateTime?
+  createdAt                     DateTime  @default(now())
+  updatedAt                     DateTime  @updatedAt
 
-  object      Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  object   Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
 
   @@unique([objectId, employeeId])
   @@index([objectId])
@@ -783,48 +861,48 @@ model ObjectComment {
 }
 
 model OneTimeOrder {
-  id                String   @id @default(uuid())
-  title             String
-  executionAddress  String
-  linkedObjectId    String?
-  status            String
-  description       String?
-  executionDate     DateTime?
-  executionStartDate DateTime? @db.Date
-  executionEndDate   DateTime? @db.Date
-  contactName       String
-  contactPhone      String?
-  agreedSum         Int?
-  plannedPaymentMethod String?
-  financialNotes    String?
-  expenseNotes      String?
-  reviewText        String?
-  reviewRating      Float?
-  reviewUpdatedAt   DateTime?
+  id                    String    @id @default(uuid())
+  title                 String
+  executionAddress      String
+  linkedObjectId        String?
+  status                String
+  description           String?
+  executionDate         DateTime?
+  executionStartDate    DateTime? @db.Date
+  executionEndDate      DateTime? @db.Date
+  contactName           String
+  contactPhone          String?
+  agreedSum             Int?
+  plannedPaymentMethod  String?
+  financialNotes        String?
+  expenseNotes          String?
+  reviewText            String?
+  reviewRating          Float?
+  reviewUpdatedAt       DateTime?
   reviewUpdatedByUserId String?
-  workCycle         Int      @default(1)
-  completedAt       DateTime?
-  completedByUserId String?
-  createdByUserId   String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  workCycle             Int       @default(1)
+  completedAt           DateTime?
+  completedByUserId     String?
+  createdByUserId       String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  linkedObject      Object?                @relation(fields: [linkedObjectId], references: [id], onDelete: SetNull)
-  createdBy         User                   @relation("OneTimeOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  reviewUpdatedBy   User?                  @relation("OneTimeOrderReviewUpdatedBy", fields: [reviewUpdatedByUserId], references: [id], onDelete: SetNull)
-  completedBy       User?                  @relation("OneTimeOrderCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
-  assignments       OneTimeOrderAssignment[]
-  comments          OneTimeOrderComment[]
-  dailyReports      OneTimeOrderDailyReport[]
-  photos            OneTimeOrderPhoto[]
-  inventoryMovements InventoryMovement[]
-  currentEquipmentUnits EquipmentUnit[]
-  equipmentMovementsFrom EquipmentMovement[] @relation("EquipmentMovementFromOneTimeOrder")
-  equipmentMovementsTo   EquipmentMovement[] @relation("EquipmentMovementToOneTimeOrder")
-  tasks             Task[]
-  specificationItems OneTimeOrderSpecificationItem[]
-  completions       OneTimeOrderCompletion[]
-  completionPayments OneTimeOrderCompletionPayment[]
+  linkedObject           Object?                         @relation(fields: [linkedObjectId], references: [id], onDelete: SetNull)
+  createdBy              User                            @relation("OneTimeOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  reviewUpdatedBy        User?                           @relation("OneTimeOrderReviewUpdatedBy", fields: [reviewUpdatedByUserId], references: [id], onDelete: SetNull)
+  completedBy            User?                           @relation("OneTimeOrderCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  assignments            OneTimeOrderAssignment[]
+  comments               OneTimeOrderComment[]
+  dailyReports           OneTimeOrderDailyReport[]
+  photos                 OneTimeOrderPhoto[]
+  inventoryMovements     InventoryMovement[]
+  currentEquipmentUnits  EquipmentUnit[]
+  equipmentMovementsFrom EquipmentMovement[]             @relation("EquipmentMovementFromOneTimeOrder")
+  equipmentMovementsTo   EquipmentMovement[]             @relation("EquipmentMovementToOneTimeOrder")
+  tasks                  Task[]
+  specificationItems     OneTimeOrderSpecificationItem[]
+  completions            OneTimeOrderCompletion[]
+  completionPayments     OneTimeOrderCompletionPayment[]
   accountabilityFundings AccountabilityFunding[]
   accountabilityExpenses AccountabilityExpense[]
 
@@ -839,22 +917,22 @@ model OneTimeOrder {
 }
 
 model OneTimeOrderCompletion {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   oneTimeOrderId     String
   workCycle          Int
   completedAt        DateTime?
   completedByUserId  String?
   completionComment  String?
-  completionSource   String   @default("native")
+  completionSource   String    @default("native")
   status             String
   clientRequestId    String?
   payloadFingerprint String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
-  completedBy  User? @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
-  payments     OneTimeOrderCompletionPayment[]
+  oneTimeOrder           OneTimeOrder                    @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
+  completedBy            User?                           @relation("OneTimeOrderCompletionCompletedBy", fields: [completedByUserId], references: [id], onDelete: Restrict)
+  payments               OneTimeOrderCompletionPayment[]
   accountabilityFundings AccountabilityFunding[]
   accountabilityExpenses AccountabilityExpense[]
 
@@ -866,39 +944,39 @@ model OneTimeOrderCompletion {
 }
 
 model OneTimeOrderCompletionPayment {
-  id                    String   @id @default(uuid())
-  completionId          String
-  oneTimeOrderId        String
-  recipientUserId       String?
-  amount                Decimal  @db.Decimal(14, 2)
-  paymentMethod         String?
-  paymentDestination    String?
-  zeroReason            String?
-  comment               String?
-  differenceReason      String?
-  receivedAt            DateTime
-  recordedByUserId      String
-  status                String
-  reversalOfPaymentId   String?  @unique
-  reversedByPaymentId   String?  @unique
-  correctedFromPaymentId String? @unique
-  correctedByPaymentId  String?  @unique
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                     String   @id @default(uuid())
+  completionId           String
+  oneTimeOrderId         String
+  recipientUserId        String?
+  amount                 Decimal  @db.Decimal(14, 2)
+  paymentMethod          String?
+  paymentDestination     String?
+  zeroReason             String?
+  comment                String?
+  differenceReason       String?
+  receivedAt             DateTime
+  recordedByUserId       String
+  status                 String
+  reversalOfPaymentId    String?  @unique
+  reversedByPaymentId    String?  @unique
+  correctedFromPaymentId String?  @unique
+  correctedByPaymentId   String?  @unique
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  completion       OneTimeOrderCompletion @relation(fields: [completionId], references: [id], onDelete: Restrict)
-  oneTimeOrder     OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
-  recipient        User? @relation("OneTimeOrderCompletionPaymentRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
-  recordedBy       User @relation("OneTimeOrderCompletionPaymentRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
-  reversalOfPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentReversalSource", fields: [reversalOfPaymentId], references: [id], onDelete: Restrict)
-  reversalPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversalSource")
-  reversedByPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentReversedBy", fields: [reversedByPaymentId], references: [id], onDelete: Restrict)
-  reversedPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversedBy")
-  correctedFromPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentCorrectionSource", fields: [correctedFromPaymentId], references: [id], onDelete: Restrict)
-  correctedPayments OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentCorrectionSource")
-  correctedByPayment OneTimeOrderCompletionPayment? @relation("OneTimeOrderPaymentCorrectedBy", fields: [correctedByPaymentId], references: [id], onDelete: Restrict)
+  completion              OneTimeOrderCompletion          @relation(fields: [completionId], references: [id], onDelete: Restrict)
+  oneTimeOrder            OneTimeOrder                    @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
+  recipient               User?                           @relation("OneTimeOrderCompletionPaymentRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+  recordedBy              User                            @relation("OneTimeOrderCompletionPaymentRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  reversalOfPayment       OneTimeOrderCompletionPayment?  @relation("OneTimeOrderPaymentReversalSource", fields: [reversalOfPaymentId], references: [id], onDelete: Restrict)
+  reversalPayments        OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversalSource")
+  reversedByPayment       OneTimeOrderCompletionPayment?  @relation("OneTimeOrderPaymentReversedBy", fields: [reversedByPaymentId], references: [id], onDelete: Restrict)
+  reversedPayments        OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentReversedBy")
+  correctedFromPayment    OneTimeOrderCompletionPayment?  @relation("OneTimeOrderPaymentCorrectionSource", fields: [correctedFromPaymentId], references: [id], onDelete: Restrict)
+  correctedPayments       OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentCorrectionSource")
+  correctedByPayment      OneTimeOrderCompletionPayment?  @relation("OneTimeOrderPaymentCorrectedBy", fields: [correctedByPaymentId], references: [id], onDelete: Restrict)
   sourcePaymentsCorrected OneTimeOrderCompletionPayment[] @relation("OneTimeOrderPaymentCorrectedBy")
-  accountabilityFunding AccountabilityFunding?
+  accountabilityFunding   AccountabilityFunding?
 
   @@index([completionId])
   @@index([oneTimeOrderId, receivedAt])
@@ -909,25 +987,25 @@ model OneTimeOrderCompletionPayment {
 }
 
 model OneTimeOrderSpecificationItem {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   oneTimeOrderId     String
   title              String
   description        String?
   sortOrder          Int
-  requiresAttachment Boolean  @default(false)
-  isCompleted        Boolean  @default(false)
+  requiresAttachment Boolean   @default(false)
+  isCompleted        Boolean   @default(false)
   completedAt        DateTime?
   completedByUserId  String?
   createdByUserId    String
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   deletedAt          DateTime?
   deletedByUserId    String?
 
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
-  completedBy  User? @relation("OneTimeOrderSpecificationCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
-  createdBy    User  @relation("OneTimeOrderSpecificationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  deletedBy    User? @relation("OneTimeOrderSpecificationDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  completedBy  User?        @relation("OneTimeOrderSpecificationCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("OneTimeOrderSpecificationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  deletedBy    User?        @relation("OneTimeOrderSpecificationDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
 
   @@index([oneTimeOrderId, sortOrder])
   @@index([completedByUserId])
@@ -948,10 +1026,10 @@ model OneTimeOrderAssignment {
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([oneTimeOrderId, userId, assignmentRoleCode])
   @@index([oneTimeOrderId])
   @@index([userId])
   @@index([assignmentRoleCode])
-  @@unique([oneTimeOrderId, userId, assignmentRoleCode])
   @@map("one_time_order_assignments")
 }
 
@@ -970,11 +1048,11 @@ model OneTimeOrderCalendarManager {
 }
 
 model OneTimeManagerAvailability {
-  id                String   @id @default(uuid())
+  id                String    @id @default(uuid())
   userId            String
   entryType         String
-  startDate         DateTime @db.Date
-  endDate           DateTime @db.Date
+  startDate         DateTime  @db.Date
+  endDate           DateTime  @db.Date
   status            String
   requestComment    String?
   resolutionComment String?
@@ -983,8 +1061,8 @@ model OneTimeManagerAvailability {
   resolvedAt        DateTime?
   cancelledAt       DateTime?
   cancelledByUserId String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   user        User  @relation("OneTimeManagerAvailabilityUser", fields: [userId], references: [id], onDelete: Cascade)
   requestedBy User  @relation("OneTimeManagerAvailabilityRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
@@ -1000,13 +1078,13 @@ model OneTimeManagerAvailability {
 }
 
 model OneTimeOrderComment {
-  id                String   @id @default(uuid())
-  oneTimeOrderId    String
-  content           String
-  commentType       String   @default("manual")
-  createdByUserId   String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id              String   @id @default(uuid())
+  oneTimeOrderId  String
+  content         String
+  commentType     String   @default("manual")
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
   createdBy    User         @relation("OneTimeOrderCommentCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -1016,13 +1094,13 @@ model OneTimeOrderComment {
 }
 
 model OneTimeOrderDailyReport {
-  id                String   @id @default(uuid())
-  oneTimeOrderId    String
-  reportDate        DateTime
-  content           String
-  updatedByUserId   String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id              String   @id @default(uuid())
+  oneTimeOrderId  String
+  reportDate      DateTime
+  content         String
+  updatedByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
   updatedBy    User         @relation("OneTimeOrderDailyReportUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
@@ -1033,18 +1111,18 @@ model OneTimeOrderDailyReport {
 }
 
 model OneTimeOrderPhoto {
-  id                 String   @id @default(uuid())
-  oneTimeOrderId     String
-  photoCategory      String
-  comment            String?
-  createdByUserId    String
-  deletedAt          DateTime?
-  deletedByUserId    String?
-  deleteReason       String?
-  restoredAt         DateTime?
-  restoredByUserId   String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id               String    @id @default(uuid())
+  oneTimeOrderId   String
+  photoCategory    String
+  comment          String?
+  createdByUserId  String
+  deletedAt        DateTime?
+  deletedByUserId  String?
+  deleteReason     String?
+  restoredAt       DateTime?
+  restoredByUserId String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
   createdBy    User         @relation("OneTimeOrderPhotoCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -1060,18 +1138,19 @@ model OneTimeOrderPhoto {
 }
 
 model Task {
-  id                    String   @id @default(uuid())
+  id                    String    @id @default(uuid())
   title                 String
   description           String?
   priority              String
   status                String
   objectId              String?
   oneTimeOrderId        String?
+  scopeType             String    @default("personal")
   createdByUserId       String
   dueAt                 DateTime?
-  dueTimeSpecified      Boolean  @default(false)
-  requiresConfirmation  Boolean  @default(true)
-  completionRequirement String   @default("comment_or_file")
+  dueTimeSpecified      Boolean   @default(false)
+  requiresConfirmation  Boolean   @default(true)
+  completionRequirement String    @default("comment_or_file")
   autoCloseAt           DateTime?
   completedAt           DateTime?
   completedByUserId     String?
@@ -1079,13 +1158,14 @@ model Task {
   cancelledAt           DateTime?
   cancelledByUserId     String?
   cancellationReason    String?
-  workCycle             Int      @default(1)
-  visibilityMode        String   @default("scope")
+  workCycle             Int       @default(1)
+  visibilityType        String    @default("private")
+  visibilityMode        String    @default("scope")
   resultText            String?
   submittedByUserId     String?
   submittedAt           DateTime?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   object          Object?              @relation(fields: [objectId], references: [id], onDelete: Cascade)
   oneTimeOrder    OneTimeOrder?        @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
@@ -1099,6 +1179,8 @@ model Task {
 
   @@index([objectId])
   @@index([oneTimeOrderId])
+  @@index([scopeType])
+  @@index([visibilityType])
   @@index([status])
   @@index([createdByUserId])
   @@index([dueAt])
@@ -1107,16 +1189,16 @@ model Task {
 }
 
 model TaskAssignee {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   taskId          String
   userId          String
-  isActive        Boolean  @default(true)
+  isActive        Boolean   @default(true)
   removedAt       DateTime?
   removedByUserId String?
-  isCompleted     Boolean  @default(false)
+  isCompleted     Boolean   @default(false)
   completedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   task        Task                     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1131,19 +1213,19 @@ model TaskAssignee {
 }
 
 model TaskAssigneeCompletion {
-  id                 String   @id @default(uuid())
+  id                 String    @id @default(uuid())
   taskAssigneeId     String
   workCycle          Int
   attemptNumber      Int
   completionText     String?
   status             String
-  source             String   @default("user")
-  submittedAt        DateTime @default(now())
+  source             String    @default("user")
+  submittedAt        DateTime  @default(now())
   cancelledAt        DateTime?
   cancelledByUserId  String?
   cancellationReason String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   taskAssignee TaskAssignee @relation(fields: [taskAssigneeId], references: [id], onDelete: Cascade)
   cancelledBy  User?        @relation("TaskAssigneeCompletionCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
@@ -1189,23 +1271,23 @@ model TaskHistoryEvent {
 }
 
 model InventoryItem {
-  id              String   @id @default(uuid())
-  name            String
-  category        String
-  unit            String
-  isActive        Boolean  @default(true)
-  notes           String?
-  currentUnitPrice Decimal? @db.Decimal(12, 2)
-  version         Int      @default(1)
-  createdByUserId String
-  deletedByUserId String?
-  deletedAt       DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String    @id @default(uuid())
+  name             String
+  category         String
+  unit             String
+  isActive         Boolean   @default(true)
+  notes            String?
+  currentUnitPrice Decimal?  @db.Decimal(12, 2)
+  version          Int       @default(1)
+  createdByUserId  String
+  deletedByUserId  String?
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  createdBy       User                @relation("InventoryItemCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  deletedBy       User?               @relation("InventoryItemDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
-  movements       InventoryMovement[]
+  createdBy User                @relation("InventoryItemCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  deletedBy User?               @relation("InventoryItemDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  movements InventoryMovement[]
 
   @@index([createdByUserId])
   @@index([deletedByUserId])
@@ -1216,31 +1298,31 @@ model InventoryItem {
 }
 
 model InventoryMovement {
-  id                   String   @id @default(uuid())
-  inventoryItemId      String
-  movementType         String
-  status               String   @default("applied")
-  quantity             Decimal  @db.Decimal(12, 3)
-  unitPriceSnapshot    Decimal  @db.Decimal(12, 2)
-  totalAmountSnapshot  Decimal  @db.Decimal(14, 2)
-  adjustmentDirection  String?
-  comment              String?
-  evidenceRequired     Boolean  @default(false)
-  requiresApprovalBridge Boolean @default(false)
-  approvalBridgeType   String?
-  approvalBridgeResolvedAt DateTime?
+  id                             String    @id @default(uuid())
+  inventoryItemId                String
+  movementType                   String
+  status                         String    @default("applied")
+  quantity                       Decimal   @db.Decimal(12, 3)
+  unitPriceSnapshot              Decimal   @db.Decimal(12, 2)
+  totalAmountSnapshot            Decimal   @db.Decimal(14, 2)
+  adjustmentDirection            String?
+  comment                        String?
+  evidenceRequired               Boolean   @default(false)
+  requiresApprovalBridge         Boolean   @default(false)
+  approvalBridgeType             String?
+  approvalBridgeResolvedAt       DateTime?
   approvalBridgeResolvedByUserId String?
-  createdByUserId      String
-  relatedObjectId      String?
-  relatedOneTimeOrderId String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdByUserId                String
+  relatedObjectId                String?
+  relatedOneTimeOrderId          String?
+  createdAt                      DateTime  @default(now())
+  updatedAt                      DateTime  @updatedAt
 
-  inventoryItem        InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
-  createdBy            User          @relation("InventoryMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  approvalBridgeResolvedBy User?     @relation("InventoryMovementApprovalResolvedBy", fields: [approvalBridgeResolvedByUserId], references: [id], onDelete: SetNull)
-  relatedObject        Object?       @relation(fields: [relatedObjectId], references: [id], onDelete: SetNull)
-  relatedOneTimeOrder  OneTimeOrder? @relation(fields: [relatedOneTimeOrderId], references: [id], onDelete: SetNull)
+  inventoryItem            InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  createdBy                User          @relation("InventoryMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvalBridgeResolvedBy User?         @relation("InventoryMovementApprovalResolvedBy", fields: [approvalBridgeResolvedByUserId], references: [id], onDelete: SetNull)
+  relatedObject            Object?       @relation(fields: [relatedObjectId], references: [id], onDelete: SetNull)
+  relatedOneTimeOrder      OneTimeOrder? @relation(fields: [relatedOneTimeOrderId], references: [id], onDelete: SetNull)
 
   @@index([inventoryItemId])
   @@index([movementType])
@@ -1251,6 +1333,53 @@ model InventoryMovement {
   @@index([relatedOneTimeOrderId])
   @@index([createdAt])
   @@map("inventory_movements")
+}
+
+model RubberMat {
+  id              String   @id @default(uuid())
+  inventoryCode   String?  @unique
+  objectId        String?
+  zone            String?
+  lengthCm        Decimal  @db.Decimal(8, 2)
+  widthCm         Decimal  @db.Decimal(8, 2)
+  thicknessMm     Decimal? @db.Decimal(8, 2)
+  condition       String   @default("good")
+  installedAt     DateTime? @db.Date
+  notes           String?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  object    Object?         @relation(fields: [objectId], references: [id], onDelete: Restrict)
+  createdBy User            @relation("RubberMatCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  events    RubberMatEvent[]
+
+  @@index([objectId, condition])
+  @@index([createdAt])
+  @@map("rubber_mats")
+}
+
+model RubberMatEvent {
+  id              String   @id @default(uuid())
+  rubberMatId     String
+  action          String
+  fromObjectId    String?
+  toObjectId      String?
+  fromCondition   String?
+  toCondition     String?
+  fromZone        String?
+  toZone          String?
+  note            String
+  actorUserId     String
+  occurredAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  rubberMat RubberMat @relation(fields: [rubberMatId], references: [id], onDelete: Restrict)
+  actor     User      @relation("RubberMatEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([rubberMatId, occurredAt])
+  @@index([actorUserId])
+  @@map("rubber_mat_events")
 }
 
 model EquipmentCatalogItem {
@@ -1276,16 +1405,16 @@ model EquipmentCatalogItem {
 
 model EquipmentUnit {
   id                    String   @id @default(uuid())
-  catalogItemId          String
-  inventoryNumber        String   @unique
-  serialNumber           String?
-  status                 String   @default("in_storage")
-  currentObjectId        String?
-  currentOneTimeOrderId  String?
-  notes                  String?
-  createdByUserId        String
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  catalogItemId         String
+  inventoryNumber       String   @unique
+  serialNumber          String?
+  status                String   @default("in_storage")
+  currentObjectId       String?
+  currentOneTimeOrderId String?
+  notes                 String?
+  createdByUserId       String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   catalogItem         EquipmentCatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
   currentObject       Object?              @relation(fields: [currentObjectId], references: [id], onDelete: SetNull)
@@ -1302,26 +1431,26 @@ model EquipmentUnit {
 }
 
 model EquipmentMovement {
-  id                     String   @id @default(uuid())
-  equipmentUnitId         String
-  movementType            String
-  status                  String   @default("applied")
-  fromObjectId            String?
-  toObjectId              String?
-  fromOneTimeOrderId      String?
-  toOneTimeOrderId        String?
-  fromStatus              String?
-  toStatus                String
-  comment                 String?
-  createdByUserId         String
-  createdAt               DateTime @default(now())
+  id                 String   @id @default(uuid())
+  equipmentUnitId    String
+  movementType       String
+  status             String   @default("applied")
+  fromObjectId       String?
+  toObjectId         String?
+  fromOneTimeOrderId String?
+  toOneTimeOrderId   String?
+  fromStatus         String?
+  toStatus           String
+  comment            String?
+  createdByUserId    String
+  createdAt          DateTime @default(now())
 
-  equipmentUnit        EquipmentUnit @relation(fields: [equipmentUnitId], references: [id], onDelete: Restrict)
-  fromObject           Object?       @relation("EquipmentMovementFromObject", fields: [fromObjectId], references: [id], onDelete: SetNull)
-  toObject             Object?       @relation("EquipmentMovementToObject", fields: [toObjectId], references: [id], onDelete: SetNull)
-  fromOneTimeOrder     OneTimeOrder? @relation("EquipmentMovementFromOneTimeOrder", fields: [fromOneTimeOrderId], references: [id], onDelete: SetNull)
-  toOneTimeOrder       OneTimeOrder? @relation("EquipmentMovementToOneTimeOrder", fields: [toOneTimeOrderId], references: [id], onDelete: SetNull)
-  createdBy            User         @relation("EquipmentMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  equipmentUnit    EquipmentUnit @relation(fields: [equipmentUnitId], references: [id], onDelete: Restrict)
+  fromObject       Object?       @relation("EquipmentMovementFromObject", fields: [fromObjectId], references: [id], onDelete: SetNull)
+  toObject         Object?       @relation("EquipmentMovementToObject", fields: [toObjectId], references: [id], onDelete: SetNull)
+  fromOneTimeOrder OneTimeOrder? @relation("EquipmentMovementFromOneTimeOrder", fields: [fromOneTimeOrderId], references: [id], onDelete: SetNull)
+  toOneTimeOrder   OneTimeOrder? @relation("EquipmentMovementToOneTimeOrder", fields: [toOneTimeOrderId], references: [id], onDelete: SetNull)
+  createdBy        User          @relation("EquipmentMovementCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@index([equipmentUnitId])
   @@index([movementType])
@@ -1337,46 +1466,47 @@ model EquipmentMovement {
 
 model AccountabilityAccount {
   id        String   @id @default(uuid())
-  userId     String   @unique
-  status     String   @default("active")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  userId    String   @unique
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user      User                    @relation("UserAccountabilityAccount", fields: [userId], references: [id], onDelete: Restrict)
-  fundings  AccountabilityFunding[]
-  expenses  AccountabilityExpense[]
-  closures  AccountabilityClosure[]
+  user     User                    @relation("UserAccountabilityAccount", fields: [userId], references: [id], onDelete: Restrict)
+  fundings AccountabilityFunding[]
+  expenses AccountabilityExpense[]
+  closures AccountabilityClosure[]
 
   @@index([status])
   @@map("accountability_accounts")
 }
 
 model AccountabilityFunding {
-  id                      String   @id @default(uuid())
-  accountabilityAccountId String
-  amount                  Decimal  @db.Decimal(14, 2)
-  comment                 String?
-  issuedByUserId          String
-  issuedAt                DateTime @default(now())
-  fundingType             String   @default("manual_issue")
-  entryDirection          String   @default("credit")
-  oneTimeOrderPaymentId   String?  @unique
-  oneTimeOrderId          String?
+  id                       String   @id @default(uuid())
+  accountabilityAccountId  String
+  amount                   Decimal  @db.Decimal(14, 2)
+  comment                  String?
+  source                   String?
+  issuedByUserId           String
+  issuedAt                 DateTime @default(now())
+  fundingType              String   @default("manual_issue")
+  entryDirection           String   @default("credit")
+  oneTimeOrderPaymentId    String?  @unique
+  oneTimeOrderId           String?
   oneTimeOrderCompletionId String?
-  recordedByUserId        String?
-  reversalOfFundingId     String?  @unique
-  reversedByFundingId     String?  @unique
+  recordedByUserId         String?
+  reversalOfFundingId      String?  @unique
+  reversedByFundingId      String?  @unique
 
-  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
-  issuedBy             User                 @relation("AccountabilityFundingIssuedBy", fields: [issuedByUserId], references: [id], onDelete: Restrict)
-  recordedBy           User?                @relation("AccountabilityFundingRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
-  oneTimeOrderPayment  OneTimeOrderCompletionPayment? @relation(fields: [oneTimeOrderPaymentId], references: [id], onDelete: Restrict)
-  oneTimeOrder         OneTimeOrder? @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
-  oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: Restrict)
-  reversalOfFunding    AccountabilityFunding? @relation("AccountabilityFundingReversalSource", fields: [reversalOfFundingId], references: [id], onDelete: Restrict)
-  reversalFundings     AccountabilityFunding[] @relation("AccountabilityFundingReversalSource")
-  reversedByFunding    AccountabilityFunding? @relation("AccountabilityFundingReversedBy", fields: [reversedByFundingId], references: [id], onDelete: Restrict)
-  reversedFundings     AccountabilityFunding[] @relation("AccountabilityFundingReversedBy")
+  accountabilityAccount  AccountabilityAccount          @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
+  issuedBy               User                           @relation("AccountabilityFundingIssuedBy", fields: [issuedByUserId], references: [id], onDelete: Restrict)
+  recordedBy             User?                          @relation("AccountabilityFundingRecordedBy", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  oneTimeOrderPayment    OneTimeOrderCompletionPayment? @relation(fields: [oneTimeOrderPaymentId], references: [id], onDelete: Restrict)
+  oneTimeOrder           OneTimeOrder?                  @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
+  oneTimeOrderCompletion OneTimeOrderCompletion?        @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: Restrict)
+  reversalOfFunding      AccountabilityFunding?         @relation("AccountabilityFundingReversalSource", fields: [reversalOfFundingId], references: [id], onDelete: Restrict)
+  reversalFundings       AccountabilityFunding[]        @relation("AccountabilityFundingReversalSource")
+  reversedByFunding      AccountabilityFunding?         @relation("AccountabilityFundingReversedBy", fields: [reversedByFundingId], references: [id], onDelete: Restrict)
+  reversedFundings       AccountabilityFunding[]        @relation("AccountabilityFundingReversedBy")
 
   @@index([accountabilityAccountId, issuedAt])
   @@index([issuedByUserId])
@@ -1389,32 +1519,32 @@ model AccountabilityFunding {
 }
 
 model AccountabilityExpense {
-  id                      String   @id @default(uuid())
-  accountabilityAccountId String
-  oneTimeOrderId          String?
+  id                       String    @id @default(uuid())
+  accountabilityAccountId  String
+  oneTimeOrderId           String?
   oneTimeOrderCompletionId String?
-  expenseCategory         String?
-  expenseDate             DateTime? @db.Date
-  amount                  Decimal  @db.Decimal(14, 2)
-  description             String
-  status                  String   @default("draft")
-  createdByUserId         String
-  submittedAt             DateTime?
-  approvedByUserId        String?
-  approvedAt              DateTime?
-  rejectedByUserId        String?
-  rejectedAt              DateTime?
-  rejectionComment        String?
-  reconciledAt            DateTime?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  expenseCategory          String?
+  expenseDate              DateTime? @db.Date
+  amount                   Decimal   @db.Decimal(14, 2)
+  description              String
+  status                   String    @default("draft")
+  createdByUserId          String
+  submittedAt              DateTime?
+  approvedByUserId         String?
+  approvedAt               DateTime?
+  rejectedByUserId         String?
+  rejectedAt               DateTime?
+  rejectionComment         String?
+  reconciledAt             DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
 
-  accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
-  oneTimeOrder          OneTimeOrder?          @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
+  accountabilityAccount  AccountabilityAccount   @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
+  oneTimeOrder           OneTimeOrder?           @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
   oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: Restrict)
-  createdBy             User                 @relation("AccountabilityExpenseCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  approvedBy            User?                @relation("AccountabilityExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
-  rejectedBy            User?                @relation("AccountabilityExpenseRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
+  createdBy              User                    @relation("AccountabilityExpenseCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedBy             User?                   @relation("AccountabilityExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  rejectedBy             User?                   @relation("AccountabilityExpenseRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
 
   @@index([accountabilityAccountId, createdAt])
   @@index([accountabilityAccountId, status])
@@ -1429,23 +1559,23 @@ model AccountabilityExpense {
 }
 
 model AccountabilityClosure {
-  id                      String   @id @default(uuid())
+  id                      String    @id @default(uuid())
   accountabilityAccountId String
   requestedByUserId       String
-  requestedAt             DateTime @default(now())
-  status                  String   @default("requested")
+  requestedAt             DateTime  @default(now())
+  status                  String    @default("requested")
   approvedByUserId        String?
   approvedAt              DateTime?
   rejectedByUserId        String?
   rejectedAt              DateTime?
   comment                 String?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   accountabilityAccount AccountabilityAccount @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
-  requestedBy          User                 @relation("AccountabilityClosureRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
-  approvedBy           User?                @relation("AccountabilityClosureApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
-  rejectedBy           User?                @relation("AccountabilityClosureRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
+  requestedBy           User                  @relation("AccountabilityClosureRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  approvedBy            User?                 @relation("AccountabilityClosureApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  rejectedBy            User?                 @relation("AccountabilityClosureRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
 
   @@index([accountabilityAccountId, requestedAt])
   @@index([status])
@@ -1465,9 +1595,9 @@ model TimesheetMonth {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  object          Object               @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  createdBy       User?                @relation("TimesheetMonthCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  rows            TimesheetEmployeeRow[]
+  object    Object                 @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  createdBy User?                  @relation("TimesheetMonthCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  rows      TimesheetEmployeeRow[]
 
   @@unique([objectId, year, month])
   @@index([objectId])
@@ -1483,9 +1613,9 @@ model TimesheetEmployeeRow {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  timesheetMonth       TimesheetMonth     @relation(fields: [timesheetMonthId], references: [id], onDelete: Cascade)
-  employee             Employee           @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  entries              TimesheetDayEntry[]
+  timesheetMonth TimesheetMonth      @relation(fields: [timesheetMonthId], references: [id], onDelete: Cascade)
+  employee       Employee            @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  entries        TimesheetDayEntry[]
 
   @@unique([timesheetMonthId, employeeId])
   @@index([timesheetMonthId])
@@ -1494,26 +1624,26 @@ model TimesheetEmployeeRow {
 }
 
 model TimesheetDayEntry {
-  id                 String   @id @default(uuid())
-  rowId              String
-  dayOfMonth         Int
-  dayValue           Int      @default(0)
-  autoValue          Int      @default(0)
-  manualValue        Int?
-  difference         Int      @default(0)
-  comment            String?
-  isChangedManually  Boolean  @default(false)
-  workedHours        Float?
-  ratePolicySnapshot Json?
+  id                     String   @id @default(uuid())
+  rowId                  String
+  dayOfMonth             Int
+  dayValue               Int      @default(0)
+  autoValue              Int      @default(0)
+  manualValue            Int?
+  difference             Int      @default(0)
+  comment                String?
+  isChangedManually      Boolean  @default(false)
+  workedHours            Float?
+  ratePolicySnapshot     Json?
   calculationExplanation String?
-  createdByUserId    String?
-  updatedByUserId    String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdByUserId        String?
+  updatedByUserId        String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  row                TimesheetEmployeeRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
-  createdBy          User?                @relation("TimesheetEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedBy          User?                @relation("TimesheetEntryUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  row       TimesheetEmployeeRow @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  createdBy User?                @relation("TimesheetEntryCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy User?                @relation("TimesheetEntryUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@unique([rowId, dayOfMonth])
   @@index([rowId])
@@ -1522,7 +1652,7 @@ model TimesheetDayEntry {
 }
 
 model TimesheetManualException {
-  id                      String   @id @default(uuid())
+  id                      String    @id @default(uuid())
   objectId                String
   employeeId              String
   year                    Int
@@ -1531,12 +1661,12 @@ model TimesheetManualException {
   requestedDayValue       Int
   currentDayValueSnapshot Int
   comment                 String
-  status                  String   @default("pending")
+  status                  String    @default("pending")
   requestedByUserId       String
   resolvedByUserId        String?
   resolvedAt              DateTime?
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   object      Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
@@ -1552,19 +1682,19 @@ model TimesheetManualException {
 }
 
 model File {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
   bucket           String
-  objectKey        String   @unique
+  objectKey        String    @unique
   originalName     String
   mimeType         String
   sizeBytes        Int
   uploadedByUserId String?
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
   deletedAt        DateTime?
 
-  uploadedBy       User?             @relation("FileUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
-  attachments      FileAttachment[]
-  derivatives      FileDerivative[]
+  uploadedBy  User?            @relation("FileUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  attachments FileAttachment[]
+  derivatives FileDerivative[]
 
   @@index([uploadedByUserId])
   @@map("files")
@@ -1605,8 +1735,8 @@ model FileAttachment {
   uploadedByUserId String?
   createdAt        DateTime @default(now())
 
-  file             File   @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  uploadedBy       User?  @relation("FileAttachmentCreatedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  file       File  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  uploadedBy User? @relation("FileAttachmentCreatedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
 
   @@index([fileId])
   @@index([entityType, entityId])
@@ -1634,21 +1764,21 @@ model AuditEvent {
 }
 
 model ObjectAttendanceFact {
-  id              String   @id @default(uuid())
-  objectId        String
-  employeeId      String
-  operationDate   DateTime
-  dailyRateSnapshot Int
-  workedHours     Float?
-  ratePolicySnapshot Json?
+  id                     String   @id @default(uuid())
+  objectId               String
+  employeeId             String
+  operationDate          DateTime
+  dailyRateSnapshot      Int
+  workedHours            Float?
+  ratePolicySnapshot     Json?
   calculationExplanation String?
-  createdByUserId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdByUserId        String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  object          Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
-  createdBy       User?    @relation("ObjectAttendanceFactCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  object    Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  createdBy User?    @relation("ObjectAttendanceFactCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@unique([objectId, employeeId, operationDate])
   @@index([objectId, operationDate])
@@ -1657,20 +1787,20 @@ model ObjectAttendanceFact {
 }
 
 model AuthSession {
-  id                  String       @id @default(uuid())
+  id                  String    @id @default(uuid())
   userId              String
-  tokenHash           String       @unique
+  tokenHash           String    @unique
   expiresAt           DateTime
   revokedAt           DateTime?
   replacedBySessionId String?
   userAgent           String?
   ipAddress           String?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replacedBySession   AuthSession? @relation("AuthSessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
-  rotatedSessions     AuthSession[] @relation("AuthSessionRotation")
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBySession AuthSession?  @relation("AuthSessionRotation", fields: [replacedBySessionId], references: [id], onDelete: SetNull)
+  rotatedSessions   AuthSession[] @relation("AuthSessionRotation")
 
   @@index([userId])
   @@index([expiresAt])

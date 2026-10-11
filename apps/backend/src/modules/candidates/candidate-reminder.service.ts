@@ -66,14 +66,18 @@ export class CandidateReminderService implements OnModuleInit, OnModuleDestroy {
       });
       if (!assignment || assignment.endedAt || assignment.firstRespondedAt || assignment.reminderSentAt || assignment.responseDueAt > now || assignment.candidate.deletedAt || ['accepted', 'rejected'].includes(assignment.candidate.status)) return 0;
 
-      await this.notificationsService.create({
-        recipientUserId: assignment.managerUserId,
+      const hrUserIds = await this.notificationsService.listActiveUserIdsByRoles(
+        ['hr'],
+        tx,
+      );
+      await this.notificationsService.createForRecipients({
+        recipientUserIds: [assignment.managerUserId, ...hrUserIds],
         type: 'candidate.response_overdue',
         title: `Просрочена обратная связь по кандидату ${assignment.candidate.fullName}`,
         body: 'Пожалуйста, добавьте обратную связь по кандидату.',
         entityType: 'candidate',
         entityId: assignment.candidateId,
-        targetUrl: `/candidates/${assignment.candidateId}`,
+        targetUrl: `/candidates/${encodeURIComponent(assignment.candidateId)}`,
         dedupeKey: `candidate:${assignment.candidateId}:assignment:${assignment.id}:overdue`,
       }, tx);
       await tx.candidateManagerAssignment.update({

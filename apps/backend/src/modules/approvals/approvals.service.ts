@@ -127,6 +127,32 @@ export class ApprovalsService {
     const limit = query.limit ?? 20;
     const shouldPaginate = query.page !== undefined || query.limit !== undefined;
 
+    if (query.search) {
+      // Apply visibility and structured filters in the database first. Search
+      // then runs over the complete authorized queue before pagination, never
+      // over only the current page.
+      const requests = (await this.prisma.approvalRequest.findMany({
+        where,
+        include: this.approvalInclude(),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      })) as ApprovalRequestRecord[];
+      const normalizedSearch = query.search.toLocaleLowerCase('ru');
+      const matching = requests
+        .map((request) => this.mapRequest(request, currentUser))
+        .filter((request) => this.matchesSearch(request, normalizedSearch));
+
+      if (!shouldPaginate) return matching;
+
+      const start = (page - 1) * limit;
+      return {
+        items: matching.slice(start, start + limit),
+        page,
+        limit,
+        total: matching.length,
+        totalPages: matching.length === 0 ? 0 : Math.ceil(matching.length / limit),
+      };
+    }
+
     if (!shouldPaginate) {
       const requests = (await this.prisma.approvalRequest.findMany({
         where,
@@ -340,6 +366,53 @@ export class ApprovalsService {
     }
 
     return Object.keys(createdAt).length > 0 ? { createdAt } : {};
+  }
+
+  private matchesSearch(
+    request: ApprovalRequestResponseDto,
+    normalizedSearch: string,
+  ): boolean {
+    const statusLabels: Record<string, string> = {
+      pending: 'ожидает решения',
+      approved: 'подтверждено',
+      rejected: 'отклонено',
+      cancelled: 'отменено',
+    };
+    const searchableValues = [
+      request.summary.title,
+      request.summary.subtitle,
+      request.approvalType,
+      request.sourceEntityType,
+      request.status,
+      statusLabels[request.status],
+      request.decisionComment,
+      request.createdBy.fullName,
+      request.createdBy.login,
+      this.collectSearchablePayloadText(request.payloadSnapshot),
+    ];
+
+    return searchableValues.some((value) =>
+      value?.toLocaleLowerCase('ru').includes(normalizedSearch),
+    );
+  }
+
+  private collectSearchablePayloadText(value: unknown, key = ''): string {
+    if (/id$/i.test(key) || /uuid/i.test(key)) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    if (Array.isArray(value)) {
+      return value.map((item) => this.collectSearchablePayloadText(item)).join(' ');
+    }
+    if (value !== null && typeof value === 'object') {
+      return Object.entries(value as Record<string, unknown>)
+        .map(([nestedKey, nestedValue]) =>
+          this.collectSearchablePayloadText(nestedValue, nestedKey),
+        )
+        .join(' ');
+    }
+    return '';
   }
 
   private approvalInclude() {

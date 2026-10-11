@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { delegatedTaskScopes } from '../../user-substitutions/object-delegation.context';
 
 export const TASK_LEADERSHIP_ROLE_CODES = [
   'founder',
@@ -28,6 +29,14 @@ export function buildTaskAccessWhere(params: {
 
   return {
     OR: [
+      ...delegatedTaskScopes(params.currentUserId).map((grant): Prisma.TaskWhereInput => ({
+        objectId: grant.objectId, oneTimeOrderId: null,
+        ...(grant.taskWideAccess ? {} : { OR: [
+          { visibilityType: 'target_participants' }, { createdByUserId: grant.principalUserId },
+          { assignees: { some: { userId: grant.principalUserId, isActive: true } } },
+          { visibilityUsers: { some: { userId: grant.principalUserId } } },
+        ] }),
+      })),
       { createdByUserId: params.currentUserId },
       {
         assignees: {
@@ -45,7 +54,10 @@ export function buildTaskAccessWhere(params: {
         },
       },
       {
-        visibilityMode: 'scope',
+        visibilityType: 'all_users',
+      },
+      {
+        visibilityType: 'target_participants',
         object: {
           assignments: {
             some: {

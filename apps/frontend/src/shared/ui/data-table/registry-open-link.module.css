@@ -1,0 +1,21 @@
+.link {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 7px;
+  color: #a79a90;
+  font-size: 24px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.link:hover {
+  background: #f4ede7;
+  color: #5f4c3f;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: 2px;
+}

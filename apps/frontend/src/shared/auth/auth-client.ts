@@ -39,6 +39,7 @@ export interface AuthUser {
     canDeleteEmployeeAssignmentAsError?: boolean;
     canAccessAccountability?: boolean;
     canViewOwnAccountability?: boolean;
+    canRecordExternalReceipt?: boolean;
     canIssueAccountabilityFunds?: boolean;
     canReviewAccountability?: boolean;
     canApproveAccountabilityClosure?: boolean;

@@ -2,6 +2,9 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 
+import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
+import { SearchField } from '@/shared/ui/search-field/search-field';
+
 import styles from './registry-toolbar.module.css';
 
 export interface RegistryFilterOption {
@@ -37,15 +40,6 @@ interface RegistryToolbarProps {
   actions?: React.ReactNode;
 }
 
-function SearchIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16 16 4 4" />
-    </svg>
-  );
-}
-
 export function RegistryPlusIcon(): React.JSX.Element {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -73,8 +67,15 @@ export function RegistryToolbar({
   actions,
 }: RegistryToolbarProps): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const popoverAnchorRef = useRef<HTMLDivElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const [openFilterId, setOpenFilterId] = useState<string | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const menuOpen = Boolean(openFilterId) || addMenuOpen;
+  const popoverPlacement = usePopoverPlacement(menuOpen, popoverAnchorRef, popoverRef, 420);
+  const popoverStyle = {
+    '--registry-menu-max-height': `${popoverPlacement.availableHeight}px`,
+  } as React.CSSProperties;
 
   useEffect(() => {
     if (!openFilterId && !addMenuOpen) return;
@@ -102,27 +103,14 @@ export function RegistryToolbar({
 
   return (
     <div className={styles.toolbar} data-search={showSearch ? 'true' : 'false'} ref={rootRef}>
-      {showSearch ? <div className={styles.searchBox} data-active={searchValue ? 'true' : 'false'}>
-        <SearchIcon />
-        <input
-          type="search"
+      {showSearch ? (
+        <SearchField
           value={searchValue}
-          onChange={(event) => onSearchChange(event.target.value)}
+          onChange={onSearchChange}
           placeholder={searchPlaceholder}
-          aria-label={searchLabel}
+          label={searchLabel}
         />
-        {searchValue ? (
-          <button
-            type="button"
-            className={styles.searchClear}
-            onClick={() => onSearchChange('')}
-            aria-label="Очистить поиск"
-            title="Очистить поиск"
-          >
-            ×
-          </button>
-        ) : null}
-      </div> : null}
+      ) : null}
 
       <div className={styles.filters} aria-label="Фильтры списка">
         {activeFilters.map((filter) => {
@@ -130,7 +118,11 @@ export function RegistryToolbar({
           const isOpen = openFilterId === filter.id;
 
           return (
-            <div className={styles.filterControl} key={filter.id}>
+            <div
+              className={styles.filterControl}
+              key={filter.id}
+              ref={isOpen ? popoverAnchorRef : undefined}
+            >
               {filter.customControl ? (
                 <div className={styles.customFilterControl}>{filter.customControl}</div>
               ) : <button
@@ -164,7 +156,14 @@ export function RegistryToolbar({
                 ×
               </button>
               {isOpen ? (
-                <div className={styles.filterDropdown} role="listbox" aria-label={filter.label}>
+                <div
+                  className={styles.filterDropdown}
+                  role="listbox"
+                  aria-label={filter.label}
+                  data-placement={popoverPlacement.placement}
+                  ref={popoverRef}
+                  style={popoverStyle}
+                >
                   <div className={styles.dropdownLabel}>{filter.label}</div>
                   {filter.options.map((option) => {
                     const selected = option.value === filter.value;
@@ -192,7 +191,7 @@ export function RegistryToolbar({
           );
         })}
 
-        <div className={styles.addFilterRoot}>
+        <div className={styles.addFilterRoot} ref={addMenuOpen ? popoverAnchorRef : undefined}>
           <button
             type="button"
             className={styles.addFilterButton}
@@ -209,7 +208,13 @@ export function RegistryToolbar({
           </button>
 
           {addMenuOpen && availableFilters.length > 0 ? (
-            <div className={styles.addFilterMenu} role="menu">
+            <div
+              className={styles.addFilterMenu}
+              role="menu"
+              data-placement={popoverPlacement.placement}
+              ref={popoverRef}
+              style={popoverStyle}
+            >
               {availableFilters.map((filter) => (
                 <div className={styles.addFilterSection} key={filter.id}>
                   <div className={styles.dropdownLabel}>{filter.label}</div>

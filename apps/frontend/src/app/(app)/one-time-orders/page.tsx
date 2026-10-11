@@ -18,6 +18,8 @@ import { getOneTimeOrderStatusLabel, ONE_TIME_ORDER_STATUS_OPTIONS } from '@/sha
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 import styles from './one-time-order-registry.module.css';
 
@@ -186,18 +188,20 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   ].filter(Boolean) as AvailableRegistryFilter[];
 
   return <div className="page-stack workspace-page one-time-order-registry">
-    <PageTitle title={reviewOnly ? 'Отзывы по разовым заказам' : 'Разовые заказы'} />
     <RegistryToolbar searchValue={searchInput} searchLabel="Поиск по разовым заказам" searchPlaceholder={reviewOnly ? 'Заказ, менеджер или текст отзыва' : 'Заказ, адрес, контакт, объект, менеджер, отзыв'} onSearchChange={setSearchInput} activeFilters={registryFilters} availableFilters={reviewOnly ? availableRegistryFilters.filter((filter) => filter.id === 'status' || filter.id === 'manager' || filter.id === 'period') : availableRegistryFilters} actions={!reviewOnly ? <>{canViewCalendar ? <Link className={styles.secondaryButton} href="/one-time-orders/calendar"><CalendarIcon />Календарь</Link> : null}{canCreate ? <Link className={styles.createButton} href="/one-time-orders/new"><PlusIcon />Создать заказ</Link> : null}</> : null} />
-    <div className={styles.resultCount}>{reviewOnly ? 'Отзывы' : 'Разовые заказы'} · Доступно: {total}</div>
     {isLoading ? <div className="page-card workspace-surface workspace-empty">Загрузка...</div> : error ? <div className="page-card workspace-surface inline-notice inline-notice--warning">{error}</div> : reviewOnly ? <ReviewTable reviews={reviews} /> : <OneTimeOrderListTable items={result.items} sortBy={sortBy} sortDirection={sortDirection} onSort={(field) => replaceQuery({ sortBy: field, sortDirection: field === sortBy ? (sortDirection === 'asc' ? 'desc' : 'asc') : field === 'title' ? 'asc' : 'desc', page: null })} />}
-    {!isLoading && totalPages > 1 ? <div className="page-card workspace-surface object-registry-pagination"><button type="button" disabled={currentPage <= 1} onClick={() => replaceQuery({ page: String(currentPage - 1) })}>Назад</button><span>Страница {currentPage} из {totalPages}</span><button type="button" disabled={currentPage >= totalPages} onClick={() => replaceQuery({ page: String(currentPage + 1) })}>Далее</button></div> : null}
+    {!isLoading && !error ? <TablePagination page={currentPage} totalPages={totalPages} label={reviewOnly ? 'Страницы отзывов' : 'Страницы разовых заказов'}
+      summary={total > 0 ? `Показано ${(currentPage - 1) * PAGE_LIMIT + 1}–${Math.min(currentPage * PAGE_LIMIT, total)} из ${total}` : 'Записей не найдено'}
+      onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })} /> : null}
   </div>;
 }
 
 function ReviewTable({ reviews }: { reviews: OneTimeOrderReviewListResponse }): React.JSX.Element {
-  return <div className="page-card workspace-surface data-table-shell table-scroll"><table className="data-table"><thead><tr><th>Заказ</th><th>Период</th><th>Статус</th><th>Менеджеры</th><th>Отзыв</th></tr></thead><tbody>
-    {reviews.items.length === 0 ? <tr><td colSpan={5} className="page-muted">Отзывы не найдены.</td></tr> : reviews.items.map((item) => <tr key={item.id}><td><strong>{item.title}</strong></td><td>{formatDate(item.executionStartDate)} – {formatDate(item.executionEndDate)}</td><td>{getOneTimeOrderStatusLabel(item.status)}</td><td>{item.managers.map((manager) => manager.fullName || manager.login).join(', ') || 'Не назначены'}</td><td className={styles.reviewText} title={item.reviewText ?? undefined}>{item.reviewText ?? '—'}</td></tr>)}
-  </tbody></table></div>;
+  return <DataTable label="Таблица отзывов по разовым заказам" className="data-table" frameClassName="page-card workspace-surface data-table-shell table-scroll">
+    <thead><tr><th scope="col">Заказ</th><th scope="col">Период</th><th scope="col">Статус</th><th scope="col">Менеджеры</th><th scope="col">Отзыв</th></tr></thead><tbody>
+      {reviews.items.length === 0 ? <tr><td colSpan={5} className="page-muted">Отзывы не найдены.</td></tr> : reviews.items.map((item) => <tr key={item.id}><td><strong>{item.title}</strong></td><td>{formatDate(item.executionStartDate)} – {formatDate(item.executionEndDate)}</td><td>{getOneTimeOrderStatusLabel(item.status)}</td><td>{item.managers.map((manager) => manager.fullName || manager.login).join(', ') || 'Не назначены'}</td><td className={styles.reviewText} title={item.reviewText ?? undefined}>{item.reviewText ?? '—'}</td></tr>)}
+    </tbody>
+  </DataTable>;
 }
 
 function PlusIcon(): React.JSX.Element { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>; }

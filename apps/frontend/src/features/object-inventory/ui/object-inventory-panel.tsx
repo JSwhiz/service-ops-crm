@@ -28,6 +28,8 @@ export function ObjectInventoryPanel({
   availableItems,
   canIssueInventoryToObject,
   onIssue,
+  onAttachEvidence,
+  onRefresh,
 }: {
   movements: InventoryMovement[];
   availableItems: InventoryItem[];
@@ -36,17 +38,27 @@ export function ObjectInventoryPanel({
     inventoryItemId: string;
     quantity: number;
     comment?: string;
-    evidenceFiles: File[];
-  }) => Promise<void>;
+  }) => Promise<string>;
+  onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
+  onRefresh: () => Promise<void>;
 }): React.JSX.Element {
-  const [inventoryItemId, setInventoryItemId] = useState(availableItems[0]?.id ?? '');
-  const [quantity, setQuantity] = useState('1');
+  const [issueLines, setIssueLines] = useState<Array<{ key: string; inventoryItemId: string; quantity: string; movementId?: string }>>([
+    { key: 'initial', inventoryItemId: availableItems[0]?.id ?? '', quantity: '1' },
+  ]);
   const [comment, setComment] = useState('');
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const selectedItem = availableItems.find((item) => item.id === inventoryItemId) ?? null;
+  const addLine = (): void => {
+    const selectedIds = new Set(issueLines.map((line) => line.inventoryItemId));
+    const nextItem = availableItems.find((item) => !selectedIds.has(item.id));
+    setIssueLines((current) => [...current, {
+      key: `${Date.now()}-${current.length}`,
+      inventoryItemId: nextItem?.id ?? '',
+      quantity: '1',
+    }]);
+  };
 
   return (
     <div className={`page-card ${styles.workPanel}`}>
@@ -62,66 +74,101 @@ export function ObjectInventoryPanel({
             event.preventDefault();
             setIsSaving(true);
             setError(null);
+            void (async () => {
+              let completed = 0;
+              try {
+                for (const line of issueLines) {
+                  let movementId = line.movementId;
+                  if (!movementId) {
+                    movementId = await onIssue({
+                      inventoryItemId: line.inventoryItemId,
+                      quantity: Number(line.quantity),
+                      ...(comment.trim() ? { comment: comment.trim() } : {}),
+                    });
+                    setIssueLines((current) => current.map((entry) =>
+                      entry.key === line.key ? { ...entry, movementId } : entry,
+                    ));
+                  }
 
-            void onIssue({
-              inventoryItemId,
-              quantity: Number(quantity),
-              ...(comment.trim() ? { comment: comment.trim() } : {}),
-              evidenceFiles,
-            })
-              .then(() => {
-                setQuantity('1');
+                  await onRefresh();
+
+                  if (evidenceFiles.length > 0) {
+                    await onAttachEvidence(movementId, evidenceFiles);
+                  }
+                  setIssueLines((current) => current.filter((entry) => entry.key !== line.key));
+                  completed += 1;
+                }
                 setComment('');
                 setEvidenceFiles([]);
-              })
-              .catch((submitError) => {
-                setError(getErrorMessage(submitError, 'Не удалось списать расходник на объект.'));
-              })
-              .finally(() => {
+                setIssueLines((current) => current.length > 0 ? current : [
+                  { key: `${Date.now()}-next`, inventoryItemId: availableItems[0]?.id ?? '', quantity: '1' },
+                ]);
+                await onRefresh();
+              } catch (submitError) {
+                setError(completed > 0
+                  ? `Успешно списано позиций: ${completed}. Остальные оставлены в форме. ${getErrorMessage(submitError, 'Не удалось завершить списание.')}`
+                  : getErrorMessage(submitError, 'Не удалось списать расходники на объект.'));
+              } finally {
                 setIsSaving(false);
-              });
+              }
+            })();
           }}
         >
-          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <div className={styles.field}>
-              <SearchableSelect
-                label="Расходник"
-                value={inventoryItemId}
-                options={availableItems.map((item) => ({
-                  value: item.id,
-                  label: `${item.name} • ${formatInventoryQuantity(item.currentStock, item.unit)}`,
-                  searchText: item.name,
-                }))}
-                placeholder="Выберите расходник"
-                searchPlaceholder="Название расходника"
-                searchable
-                clearable={false}
-                viewportAware
-                onChange={setInventoryItemId}
-              />
-            </div>
-
-            <label>
-              <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Количество</div>
-              <input
-                type="number"
-                min="0.001"
-                step="0.001"
-                value={quantity}
-                onChange={(event) => setQuantity(event.target.value)}
-                required
-              />
-            </label>
-
-            <div className={styles.field}>
-              <span className={styles.fieldLabel}>Цена</span>
-              <div className={styles.readonlyValue}>
-                {selectedItem?.currentUnitPrice === null || selectedItem?.currentUnitPrice === undefined
-                  ? 'Цена не указана'
-                  : `${selectedItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedItem.unit}`}
-              </div>
-            </div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {issueLines.map((line, index) => {
+              const selectedItem = availableItems.find((item) => item.id === line.inventoryItemId) ?? null;
+              const options = availableItems.filter((item) =>
+                item.id === line.inventoryItemId || !issueLines.some((other) => other.key !== line.key && other.inventoryItemId === item.id),
+              );
+              return (
+                <div key={line.key} className="record-card" style={{ display: 'grid', gap: 10 }}>
+                  <div className={styles.panelHeader}>
+                    <strong>Позиция {index + 1}{line.movementId ? ' · уже списана, ожидает фото' : ''}</strong>
+                    {!line.movementId && issueLines.length > 1 ? (
+                      <button type="button" className={styles.buttonLike} onClick={() => setIssueLines((current) => current.filter((entry) => entry.key !== line.key))} disabled={isSaving}>Убрать</button>
+                    ) : null}
+                  </div>
+                  {!line.movementId ? (
+                    <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                      <div className={styles.field}>
+                        <SearchableSelect
+                          label="Расходник"
+                          value={line.inventoryItemId}
+                          options={options.map((item) => ({
+                            value: item.id,
+                            label: `${item.name} • ${formatInventoryQuantity(item.currentStock, item.unit)}`,
+                            searchText: item.name,
+                          }))}
+                          placeholder="Выберите расходник"
+                          searchPlaceholder="Название расходника"
+                          searchable
+                          clearable={false}
+                          viewportAware
+                          disabled={isSaving}
+                          onChange={(inventoryItemId) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, inventoryItemId } : entry))}
+                        />
+                      </div>
+                      <label>
+                        <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Количество</div>
+                        <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, quantity: event.target.value } : entry))} required disabled={isSaving} />
+                      </label>
+                      <div className={styles.field}>
+                        <span className={styles.fieldLabel}>Цена</span>
+                        <div className={styles.readonlyValue}>{selectedItem?.currentUnitPrice == null ? 'Цена не указана' : `${selectedItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedItem.unit}`}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={styles.emptyState}>Списание создано. Фото можно повторно приложить кнопкой ниже, не создавая новое движение.</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
+
+          {availableItems.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? (
+            <button type="button" className={styles.buttonLike} onClick={addLine} disabled={isSaving}>+ Добавить позицию</button>
+          ) : null}
+          <div className={styles.emptyState}>Каждая позиция попадёт в журнал отдельным движением с собственным остатком и историей.</div>
 
           <label>
             <div className={styles.fieldLabel} style={{ marginBottom: 6 }}>Комментарий</div>
@@ -158,8 +205,8 @@ export function ObjectInventoryPanel({
           {error ? <div className={styles.error}>{error}</div> : null}
 
           <div className={styles.formActions}>
-            <button className={styles.primaryAction} type="submit" disabled={isSaving || !inventoryItemId}>
-              {isSaving ? 'Списываем…' : 'Списать на объект'}
+            <button className={styles.primaryAction} type="submit" disabled={isSaving || issueLines.some((line) => !line.inventoryItemId || (!line.movementId && Number(line.quantity) < 0.001))}>
+              {isSaving ? 'Списываем…' : issueLines.some((line) => line.movementId) ? 'Продолжить списание' : `Списать позиций: ${issueLines.length}`}
             </button>
           </div>
         </form>

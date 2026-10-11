@@ -99,7 +99,12 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
     await prisma.$disconnect();
   });
 
-  const [founderCookie, managerCookie, otherManagerCookie] = await Promise.all([
+  const [
+    founderCookie,
+    managerCookie,
+    otherManagerCookie,
+    ordinaryManagerCookie,
+  ] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
@@ -114,6 +119,11 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
       baseUrl,
       login: 'berendyakov',
       password: 'berendyakov123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'manager1',
+      password: 'manager123',
     }),
   ]);
   const exportCalendar = async (cookie: string, query: string) => {
@@ -199,4 +209,10 @@ test('one-time order calendar export is valid, filtered and access-safe', async 
   );
   assert.match(statusFiltered.raw, new RegExp(`${marker}-hidden`));
   assert.doesNotMatch(statusFiltered.raw, new RegExp(`${marker}-visible`));
+
+  const peerCalendarExport = await exportCalendar(
+    ordinaryManagerCookie,
+    `month=2042-07&managerUserId=${managerTwo.id}`,
+  );
+  assert.equal(peerCalendarExport.response.status, 403);
 });

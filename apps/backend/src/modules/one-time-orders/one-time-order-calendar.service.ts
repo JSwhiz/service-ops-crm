@@ -50,6 +50,12 @@ export class OneTimeOrderCalendarService {
     search?: string,
   ): Promise<Array<{ id: string; login: string; fullName: string }>> {
     await this.assertCanViewCalendar(currentUser);
+    if (
+      !this.hasElevatedCalendarAccess(currentUser) &&
+      !(await this.isVisibleCalendarManager(currentUser.id))
+    ) {
+      return [];
+    }
     const users = await listOneTimeOrderCalendarRoster(this.prisma, { search });
     return users.map(({ id, login, fullName }) => ({ id, login, fullName }));
   }
@@ -209,7 +215,7 @@ export class OneTimeOrderCalendarService {
         ? {}
         : { status: { not: 'cancelled' } };
 
-    const effectiveManagerUserId = this.resolveCalendarManagerUserId(
+    const effectiveManagerUserId = await this.resolveCalendarManagerUserId(
       currentUser,
       query.managerUserId,
     );
@@ -445,7 +451,7 @@ export class OneTimeOrderCalendarService {
       : query.includeCancelled
         ? {}
         : { status: { not: 'cancelled' } };
-    const effectiveManagerUserId = this.resolveCalendarManagerUserId(
+    const effectiveManagerUserId = await this.resolveCalendarManagerUserId(
       currentUser,
       query.managerUserId,
     );
@@ -630,17 +636,47 @@ export class OneTimeOrderCalendarService {
     }
   }
 
-  private resolveCalendarManagerUserId(
+  private async resolveCalendarManagerUserId(
     currentUser: CurrentAuthUser,
     requestedManagerUserId?: string,
-  ): string | undefined {
+  ): Promise<string | undefined> {
     if (requestedManagerUserId) {
+      if (
+        requestedManagerUserId !== currentUser.id &&
+        !this.hasElevatedCalendarAccess(currentUser)
+      ) {
+        const canBrowseOtherManagers = await this.isVisibleCalendarManager(
+          currentUser.id,
+        );
+        const targetIsVisibleManager = await this.isVisibleCalendarManager(
+          requestedManagerUserId,
+        );
+
+        if (!canBrowseOtherManagers || !targetIsVisibleManager) {
+          throw new ForbiddenException(
+            'Viewing another one-time order manager calendar denied',
+          );
+        }
+      }
       return requestedManagerUserId;
     }
 
     return this.hasElevatedCalendarAccess(currentUser)
       ? undefined
       : currentUser.id;
+  }
+
+  private async isVisibleCalendarManager(userId: string): Promise<boolean> {
+    return Boolean(
+      await this.prisma.oneTimeOrderCalendarManager.findFirst({
+        where: {
+          userId,
+          isVisible: true,
+          user: { isActive: true, deletedAt: null },
+        },
+        select: { id: true },
+      }),
+    );
   }
 
   private hasElevatedCalendarAccess(currentUser: CurrentAuthUser): boolean {

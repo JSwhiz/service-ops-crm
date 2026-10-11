@@ -64,6 +64,35 @@ interface CurrentAuthUser {
 export class TimesheetsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** The attendance caller holds the object lock; fact and monetary day commit together. */
+  async syncAttendanceDay(tx: Prisma.TransactionClient, params: { objectId: string; timesheetMonthId: string; year: number; month: number; dayOfMonth: number; actorUserId: string; previousFactEmployeeIds: string[] }): Promise<void> {
+    const rows = await tx.timesheetEmployeeRow.findMany({ where: { timesheetMonthId: params.timesheetMonthId }, include: { entries: true } });
+    const facts = await tx.objectAttendanceFact.findMany({ where: { objectId: params.objectId, operationDate: this.getMonthRange(params.year, params.month) } });
+    for (const row of rows) {
+      const employeeFacts = facts.filter((fact) => fact.employeeId === row.employeeId);
+      const todayFact = employeeFacts.find((fact) => new Date(fact.operationDate).getDate() === params.dayOfMonth);
+      const stored = row.entries.find((entry) => entry.dayOfMonth === params.dayOfMonth);
+      if (params.previousFactEmployeeIds.includes(row.employeeId) && stored && todayFact && stored.workedHours === todayFact.workedHours && JSON.stringify(stored.ratePolicySnapshot) === JSON.stringify(todayFact.ratePolicySnapshot)) continue;
+      const policy = parseRatePolicySnapshot(todayFact?.ratePolicySnapshot);
+      const calculated = todayFact && policy ? calculateTimesheetAutoValues({ year: params.year, month: params.month, daysInMonth: this.getDaysInMonth(params.year, params.month), policy, facts: this.groupAttendanceFactsByEmployee(employeeFacts).get(row.employeeId) ?? [] }).get(params.dayOfMonth) : undefined;
+      let autoValue = todayFact ? calculated?.autoValue ?? todayFact.dailyRateSnapshot : 0;
+      if (todayFact && policy?.ratePolicyType === 'monthly_fixed') {
+        const allocated = row.entries.filter((entry) => entry.dayOfMonth !== params.dayOfMonth && parseRatePolicySnapshot(entry.ratePolicySnapshot)?.ratePolicyType === 'monthly_fixed').reduce((sum, entry) => sum + entry.autoValue, 0);
+        autoValue = Math.min(autoValue, Math.max(0, policy.baseAmount - allocated));
+      }
+      if (!todayFact && !stored) continue;
+      const finalValue = stored?.isChangedManually ? stored.manualValue ?? stored.dayValue : autoValue;
+      const data = {
+        autoValue, dayValue: finalValue, difference: finalValue - autoValue,
+        workedHours: todayFact?.workedHours ?? null,
+        ratePolicySnapshot: todayFact?.ratePolicySnapshot ? todayFact.ratePolicySnapshot as Prisma.InputJsonValue : stored?.ratePolicySnapshot ? stored.ratePolicySnapshot as Prisma.InputJsonValue : Prisma.JsonNull,
+        calculationExplanation: todayFact ? calculated?.calculationExplanation ?? todayFact.calculationExplanation : 'Факт выхода снят; ручная корректировка сохранена, если была',
+        updatedByUserId: params.actorUserId,
+      };
+      await tx.timesheetDayEntry.upsert({ where: { rowId_dayOfMonth: { rowId: row.id, dayOfMonth: params.dayOfMonth } }, update: data, create: { rowId: row.id, dayOfMonth: params.dayOfMonth, ...data, createdByUserId: params.actorUserId } });
+    }
+  }
+
   async getTimesheet(
     currentUser: CurrentAuthUser,
     query: GetTimesheetQueryDto,
@@ -840,27 +869,49 @@ export class TimesheetsService {
     query: GetTimesheetOverviewQueryDto,
   ): Promise<{ fileName: string; buffer: Buffer }> {
     const overview = await this.getOverview(currentUser, query);
+    const currentManagers = overview.rows.length > 0
+      ? await this.prisma.objectAssignment.findMany({
+          where: {
+            objectId: { in: [...new Set(overview.rows.map((row) => row.objectId))] },
+            assignmentRoleCode: 'manager',
+            isActive: true,
+          },
+          select: {
+            objectId: true,
+            user: { select: { fullName: true } },
+          },
+          orderBy: { user: { fullName: 'asc' } },
+        })
+      : [];
+    const currentManagerNamesByObject = new Map<string, string[]>();
+    for (const assignment of currentManagers) {
+      const names = currentManagerNamesByObject.get(assignment.objectId) ?? [];
+      names.push(assignment.user.fullName);
+      currentManagerNamesByObject.set(assignment.objectId, names);
+    }
     const days = Array.from(
       { length: overview.daysInMonth },
       (_unused, index) => index + 1,
     );
     const firstDataRow = 4;
     const lastDataRow = firstDataRow + overview.rows.length - 1;
-    const lastDayColumnIndex = days.length + 2;
+    const firstDayColumnIndex = 4;
+    const lastDayColumnIndex = firstDayColumnIndex + days.length - 1;
     const advanceColumnIndex = lastDayColumnIndex + 1;
     const salaryColumnIndex = lastDayColumnIndex + 2;
     const totalColumnIndex = lastDayColumnIndex + 3;
     const advanceColumnName = this.toExcelColumnName(advanceColumnIndex);
     const salaryColumnName = this.toExcelColumnName(salaryColumnIndex);
     const totalColumnName = this.toExcelColumnName(totalColumnIndex);
-    const day15ColumnName = this.toExcelColumnName(17);
-    const day16ColumnName = this.toExcelColumnName(18);
+    const day15ColumnName = this.toExcelColumnName(firstDayColumnIndex + 14);
+    const day16ColumnName = this.toExcelColumnName(firstDayColumnIndex + 15);
 
     const rows: XlsxCell[][] = [
       [`Период: ${String(overview.month).padStart(2, '0')}.${overview.year}`],
       [],
       [
         { value: 'Объект', styleId: 1 },
+        { value: 'Менеджер на момент выгрузки', styleId: 1 },
         { value: 'Сотрудник', styleId: 1 },
         ...days.map((day) => ({ value: day, styleId: 1 })),
         { value: 'Аванс', styleId: 1 },
@@ -871,6 +922,7 @@ export class TimesheetsService {
         const excelRow = firstDataRow + index;
         return [
           row.objectName,
+          currentManagerNamesByObject.get(row.objectId)?.join(', ') ?? '—',
           row.employeeName,
           ...row.entries.map((entry) => ({
             value: entry.finalValue,
@@ -893,10 +945,11 @@ export class TimesheetsService {
       [
         { value: 'ИТОГО', styleId: 1 },
         '',
+        '',
         ...days.map((_day, index) => ({
           formula:
             overview.rows.length > 0
-              ? `SUM(${this.toExcelColumnName(index + 3)}${firstDataRow}:${this.toExcelColumnName(index + 3)}${lastDataRow})`
+              ? `SUM(${this.toExcelColumnName(firstDayColumnIndex + index)}${firstDataRow}:${this.toExcelColumnName(firstDayColumnIndex + index)}${lastDataRow})`
               : undefined,
           value: overview.rows.reduce(
             (sum, row) => sum + (row.entries[index]?.finalValue ?? 0),
@@ -933,8 +986,8 @@ export class TimesheetsService {
         {
           name: 'Табель',
           rows,
-          columnWidths: [28, 30, ...days.map(() => 10), 16, 16, 18],
-          freeze: { rows: 3, columns: 2 },
+          columnWidths: [28, 34, 30, ...days.map(() => 10), 16, 16, 18],
+          freeze: { rows: 3, columns: 3 },
           pageSetup: {
             orientation: 'landscape',
             fitToWidth: 1,
@@ -1927,8 +1980,10 @@ export class TimesheetsService {
 
         if (hasAutoValue) {
           operations.push(
-            this.prisma.timesheetDayEntry.create({
-              data: {
+            this.prisma.timesheetDayEntry.upsert({
+              where: { rowId_dayOfMonth: { rowId: row.id, dayOfMonth } },
+              update: {},
+              create: {
                 rowId: row.id,
                 dayOfMonth,
                 dayValue: autoValue,

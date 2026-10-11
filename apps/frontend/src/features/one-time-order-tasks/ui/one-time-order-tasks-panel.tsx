@@ -32,6 +32,7 @@ export function OneTimeOrderTasksPanel({
       | 'not_important_not_urgent';
     assigneeUserIds: string[];
     linkToObject: boolean;
+    dueDate: string;
   }) => Promise<void>;
 }): React.JSX.Element {
   const [title, setTitle] = useState('');
@@ -43,6 +44,7 @@ export function OneTimeOrderTasksPanel({
     | 'not_important_not_urgent'
   >('important_not_urgent');
   const [assigneeUserIds, setAssigneeUserIds] = useState<string[]>([]);
+  const [dueDate, setDueDate] = useState('');
   const [linkToObject, setLinkToObject] = useState(Boolean(linkedObject));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -60,7 +62,9 @@ export function OneTimeOrderTasksPanel({
         <div className="section-header" style={{ marginBottom: 12 }}>
           <div>
             <div className="section-title">Связанные задачи</div>
-            <div className="section-subtitle">Task flow остается в общем tasks-модуле.</div>
+            <div className="section-subtitle">
+              Task flow остается в общем tasks-модуле.
+            </div>
           </div>
         </div>
         <TaskListTable items={items} embedded />
@@ -72,9 +76,10 @@ export function OneTimeOrderTasksPanel({
           onSubmit={async (event) => {
             event.preventDefault();
 
-            const targetLabel = linkedObject && linkToObject
-              ? `заказом и объектом «${linkedObject.name}»`
-              : 'заказом';
+            const targetLabel =
+              linkedObject && linkToObject
+                ? `заказом и объектом «${linkedObject.name}»`
+                : 'заказом';
             if (!window.confirm(`Создать задачу со связью с ${targetLabel}?`)) {
               return;
             }
@@ -88,11 +93,13 @@ export function OneTimeOrderTasksPanel({
                 priority,
                 assigneeUserIds,
                 linkToObject,
+                dueDate,
               });
               setTitle('');
               setDescription('');
               setPriority('important_not_urgent');
               setAssigneeUserIds([]);
+              setDueDate('');
             } finally {
               setIsSubmitting(false);
             }
@@ -114,14 +121,12 @@ export function OneTimeOrderTasksPanel({
               gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             }}
           >
-            <div
-              className="page-muted"
-              style={{ gridColumn: '1 / -1' }}
-            >
+            <div className="page-muted" style={{ gridColumn: '1 / -1' }}>
               Связи: текущий разовый заказ
               {linkedObject && linkToObject
                 ? ` + объект «${linkedObject.name}»`
-                : ''}.
+                : ''}
+              .
             </div>
             {linkedObject ? (
               <label
@@ -171,6 +176,17 @@ export function OneTimeOrderTasksPanel({
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label>
+              <div style={{ marginBottom: 6 }}>Срок *</div>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+                style={{ width: '100%', padding: 10 }}
+                required
+              />
             </label>
 
             <label style={{ gridColumn: '1 / -1' }}>
@@ -233,7 +249,9 @@ export function OneTimeOrderTasksPanel({
           <div style={{ marginTop: 16 }}>
             <button
               type="submit"
-              disabled={isSubmitting || !title.trim() || assigneeUserIds.length === 0}
+              disabled={
+                isSubmitting || !title.trim() || assigneeUserIds.length === 0
+              }
             >
               {isSubmitting ? 'Создаем...' : 'Создать задачу'}
             </button>

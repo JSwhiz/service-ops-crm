@@ -3,6 +3,9 @@ import { ObjectEmployeeOptionDto } from './object-employee-option.dto';
 export class ObjectAttendanceEmployeeFactResponseDto {
   employeeId!: string;
   workedHours!: number | null;
+  ratePolicyType!: string | null;
+  rateAmount!: number;
+  rateReason!: string | null;
 }
 
 export class ObjectAttendanceSubmittedByResponseDto {

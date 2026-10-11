@@ -69,7 +69,9 @@ test('one-time order task linkage keeps task visibility authoritative', async (t
       where: { oneTimeOrderId: order.id },
     });
     await prisma.oneTimeOrder.delete({ where: { id: order.id } });
-    await prisma.objectAssignment.deleteMany({ where: { objectId: object.id } });
+    await prisma.objectAssignment.deleteMany({
+      where: { objectId: object.id },
+    });
     await prisma.object.delete({ where: { id: object.id } });
     await app.close();
     await prisma.$disconnect();
@@ -102,6 +104,7 @@ test('one-time order task linkage keeps task visibility authoritative', async (t
         assigneeUserIds: [manager.id],
         requiresConfirmation: true,
         completionRequirement: 'comment_or_file',
+        dueDate: '2030-01-15',
         ...payload,
       }),
     });
@@ -219,7 +222,9 @@ test('one-time order task linkage keeps task visibility authoritative', async (t
 
   const projectionUrl = `${baseUrl}/api/v1/objects/${object.id}/linked-one-time-orders`;
   const readTaskCount = async (cookie: string) => {
-    const response = await fetch(projectionUrl, { headers: { Cookie: cookie } });
+    const response = await fetch(projectionUrl, {
+      headers: { Cookie: cookie },
+    });
     assert.equal(response.status, 200);
     const orders = (await response.json()) as Array<{
       id: string;

@@ -39,12 +39,17 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   ]);
 
   const createdMessageIds: string[] = [];
+  const createdNotificationIds: string[] = [];
   const createdRoomIds: string[] = [];
   const createdFileIds: string[] = [];
   const cleanupCallbacks: Array<() => Promise<void>> = [];
 
   const managerRole = await prisma.role.findUniqueOrThrow({
     where: { code: 'manager' },
+    select: { id: true },
+  });
+  const globalChatCloserPermission = await prisma.permission.findUniqueOrThrow({
+    where: { code: 'chat.room.close_global' },
     select: { id: true },
   });
   const existingCloser = await prisma.user.findUnique({
@@ -98,7 +103,38 @@ test('chats support production messaging, access, unread and lifecycle flows', a
     },
   });
 
+  const existingCloserPermission = await prisma.userPermission.findUnique({
+    where: {
+      userId_permissionId: {
+        userId: closerUser.id,
+        permissionId: globalChatCloserPermission.id,
+      },
+    },
+  });
+  await prisma.userPermission.upsert({
+    where: {
+      userId_permissionId: {
+        userId: closerUser.id,
+        permissionId: globalChatCloserPermission.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: closerUser.id,
+      permissionId: globalChatCloserPermission.id,
+    },
+  });
+
   cleanupCallbacks.push(async () => {
+    if (!existingCloserPermission) {
+      await prisma.userPermission.deleteMany({
+        where: {
+          userId: closerUser.id,
+          permissionId: globalChatCloserPermission.id,
+        },
+      });
+    }
+
     if (existingCloser) {
       if (!existingCloserRole) {
         await prisma.userRole.deleteMany({
@@ -169,6 +205,12 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   });
 
   t.after(async () => {
+    if (createdNotificationIds.length > 0) {
+      await prisma.notification.deleteMany({
+        where: { id: { in: createdNotificationIds } },
+      });
+    }
+
     if (createdMessageIds.length > 0) {
       const fileIds = (
         await prisma.fileAttachment.findMany({
@@ -545,6 +587,19 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   const directRevealMessage =
     (await directRevealMessageResponse.json()) as { id: string };
   createdMessageIds.push(directRevealMessage.id);
+
+  const directMessageNotifications = await prisma.notification.findMany({
+    where: {
+      type: 'chat.message_received',
+      dedupeKey: `chat-message:${directRevealMessage.id}`,
+    },
+    select: { id: true, recipientUserId: true },
+  });
+  createdNotificationIds.push(...directMessageNotifications.map(({ id }) => id));
+  assert.deepEqual(
+    directMessageNotifications.map(({ recipientUserId }) => recipientUserId),
+    [managerOne.id],
+  );
 
   const managerOneRoomsAfterRevealResponse = await fetch(
     `${baseUrl}/api/v1/chats/rooms`,
@@ -936,6 +991,21 @@ test('chats support production messaging, access, unread and lifecycle flows', a
     id: string;
   };
   createdMessageIds.push(oldCustomMessage.id);
+
+  const oldCustomMessageNotifications = await prisma.notification.findMany({
+    where: {
+      type: 'chat.message_received',
+      dedupeKey: `chat-message:${oldCustomMessage.id}`,
+    },
+    select: { id: true, recipientUserId: true },
+  });
+  createdNotificationIds.push(...oldCustomMessageNotifications.map(({ id }) => id));
+  assert.deepEqual(
+    oldCustomMessageNotifications
+      .map(({ recipientUserId }) => recipientUserId)
+      .sort(),
+    [closerUser.id, managerOne.id].sort(),
+  );
 
   await delay(5);
 
@@ -1523,9 +1593,23 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   assert.equal(editedMessage.text, 'Edited custom message');
   assert.ok(editedMessage.editedAt);
 
+  const lateEditCreatedAt = new Date(Date.now() - 31 * 60 * 1000);
+  const lateEditMessage = await prisma.chatMessage.findUniqueOrThrow({
+    where: { id: newCustomMessage.id },
+    select: { chatRoomId: true },
+  });
+  await prisma.chatRoomParticipant.update({
+    where: {
+      chatRoomId_userId: {
+        chatRoomId: lateEditMessage.chatRoomId,
+        userId: founderUser.id,
+      },
+    },
+    data: { joinedAt: new Date(lateEditCreatedAt.getTime() - 60_000) },
+  });
   await prisma.chatMessage.update({
     where: { id: newCustomMessage.id },
-    data: { createdAt: new Date(Date.now() - 31 * 60 * 1000) },
+    data: { createdAt: lateEditCreatedAt },
   });
 
   const lateEditResponse = await fetch(
@@ -1539,24 +1623,27 @@ test('chats support production messaging, access, unread and lifecycle flows', a
       body: JSON.stringify({ text: 'Too late' }),
     },
   );
-  assert.equal(lateEditResponse.status, 200);
-  const lateEditedMessage = (await lateEditResponse.json()) as {
+  assert.equal(lateEditResponse.status, 403);
+
+  const lateMessageViewResponse = await fetch(
+    `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}`,
+    { headers: { Cookie: founderCookie } },
+  );
+  assert.equal(lateMessageViewResponse.status, 200);
+  const lateMessageView = (await lateMessageViewResponse.json()) as {
     text: string;
-    editedAt: string | null;
+    capabilities: { canEdit: boolean };
   };
-  assert.equal(lateEditedMessage.text, 'Too late');
-  assert.ok(lateEditedMessage.editedAt);
+  assert.equal(lateMessageView.text, 'Edited custom message');
+  assert.equal(lateMessageView.capabilities.canEdit, false);
 
   const editHistory = await prisma.chatMessageEditHistory.findMany({
     where: { chatMessageId: newCustomMessage.id },
     orderBy: { createdAt: 'asc' },
   });
-  assert.equal(editHistory.length, 2);
+  assert.equal(editHistory.length, 1);
   assert.equal(editHistory[0]?.oldText, 'Message after manager2 join');
   assert.equal(editHistory[0]?.newText, 'Edited custom message');
-  assert.equal(editHistory[1]?.oldText, 'Edited custom message');
-  assert.equal(editHistory[1]?.newText, 'Too late');
-  assert.equal(editHistory[1]?.editedByUserId, founderUser.id);
 
   const ordinaryMemberDeleteResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/delete`,

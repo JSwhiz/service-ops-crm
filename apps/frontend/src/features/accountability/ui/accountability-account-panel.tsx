@@ -38,6 +38,7 @@ export function AccountabilityAccountPanel({
   onApproveExpense,
   onRejectExpense,
   onRequestClosure,
+  onReverseExternalReceipt,
 }: {
   title: string;
   view: AccountabilityAccountView;
@@ -53,6 +54,7 @@ export function AccountabilityAccountPanel({
   onApproveExpense: (expenseId: string) => Promise<void>;
   onRejectExpense: (expenseId: string, comment: string) => Promise<void>;
   onRequestClosure: () => Promise<void>;
+  onReverseExternalReceipt: (fundingId: string, reason: string) => Promise<void>;
 }): React.JSX.Element {
   const [editingExpense, setEditingExpense] =
     useState<AccountabilityExpenseItem | null>(null);
@@ -60,6 +62,8 @@ export function AccountabilityAccountPanel({
     null,
   );
   const [expenseRejectComment, setExpenseRejectComment] = useState('');
+  const [reversingFundingId, setReversingFundingId] = useState<string | null>(null);
+  const [fundingReversalReason, setFundingReversalReason] = useState('');
   const [orderFilter, setOrderFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -318,6 +322,34 @@ export function AccountabilityAccountPanel({
                 </div>
                 {funding.comment ? (
                   <div style={{ marginTop: 8 }}>{funding.comment}</div>
+                ) : null}
+                {funding.source ? (
+                  <div className="page-muted" style={{ marginTop: 6 }}>
+                    Источник: {funding.source}
+                  </div>
+                ) : null}
+                {funding.attachments.length > 0 ? (
+                  <div style={{ marginTop: 10 }}>
+                    <AttachmentPreviewList files={funding.attachments} emptyText="Вложения отсутствуют." />
+                  </div>
+                ) : null}
+                {funding.reversedByFundingId ? (
+                  <div className="page-muted" style={{ marginTop: 8 }}>Поступление сторнировано.</div>
+                ) : null}
+                {view.capabilities.canReverseExternalReceipts && funding.fundingType === 'external_receipt' && !funding.reversedByFundingId ? (
+                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                    {reversingFundingId === funding.id ? (
+                      <>
+                        <textarea rows={2} value={fundingReversalReason} onChange={(event) => setFundingReversalReason(event.target.value)} maxLength={500} placeholder="Причина сторнирования (обязательно)" />
+                        <div className="action-row">
+                          <button type="button" disabled={!fundingReversalReason.trim()} onClick={() => void onReverseExternalReceipt(funding.id, fundingReversalReason.trim()).then(() => { setReversingFundingId(null); setFundingReversalReason(''); }).catch(() => undefined)}>Провести сторно</button>
+                          <button type="button" className="button-secondary" onClick={() => { setReversingFundingId(null); setFundingReversalReason(''); }}>Отмена</button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="action-row"><button type="button" className="button-secondary" onClick={() => setReversingFundingId(funding.id)}>Сторнировать поступление</button></div>
+                    )}
+                  </div>
                 ) : null}
               </div>
             ))}

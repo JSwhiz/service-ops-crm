@@ -58,6 +58,21 @@
   min-width: 0;
 }
 
+.field > label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  color: #493f39;
+  font-size: 13px;
+}
+
+.field > label > input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: #68564a;
+}
+
 .fieldLabel {
   margin: 0;
   color: #685d55;

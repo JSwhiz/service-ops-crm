@@ -16,6 +16,7 @@ import type { ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectListTable } from '@/features/object-list/ui/object-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
 import { RegistryPlusIcon, RegistryToolbar, type ActiveRegistryFilter, type AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './objects-registry.module.css';
 
@@ -294,18 +295,13 @@ export default function ObjectsPage(): React.JSX.Element {
       ) : (
         <>
           <ObjectListTable items={result.items} signals={signals} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} />
-          <div className={styles.pagination}>
-            <span className={styles.resultCount}>
-              {result.total > 0 ? `Показано ${firstVisible}–${lastVisible} из ${result.total}` : 'Ничего не найдено'}
-            </span>
-            {result.totalPages > 1 ? (
-              <div className={styles.paginationActions}>
-                <button type="button" disabled={result.page <= 1} onClick={() => replaceQuery({ page: String(Math.max(1, result.page - 1)) })}>Назад</button>
-                <span className={styles.pageNumber}>Страница {result.page} из {result.totalPages}</span>
-                <button type="button" disabled={result.page >= result.totalPages} onClick={() => replaceQuery({ page: String(Math.min(result.totalPages, result.page + 1)) })}>Далее</button>
-              </div>
-            ) : null}
-          </div>
+          <TablePagination
+            page={result.page}
+            totalPages={result.totalPages}
+            onPageChange={(page) => replaceQuery({ page: String(page) })}
+            summary={result.total > 0 ? `Показано ${firstVisible}–${lastVisible} из ${result.total}` : 'Ничего не найдено'}
+            label="Страницы объектов"
+          />
         </>
       )}
     </div>

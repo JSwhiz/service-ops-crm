@@ -209,8 +209,9 @@ export function OneTimeOrderForm({
   };
 
   return (
-    <form className="page-card" onSubmit={handleSubmit}>
+    <form className="page-card one-time-order-form" onSubmit={handleSubmit}>
       <div
+        className="one-time-order-form__fields"
         style={{
           display: 'grid',
           gap: 12,
@@ -263,15 +264,15 @@ export function OneTimeOrderForm({
           </label>
         ) : null}
 
-        <fieldset style={{ gridColumn: '1 / -1' }}>
+        <fieldset className="one-time-order-date-mode" style={{ gridColumn: '1 / -1' }}>
           <legend>Дата выполнения</legend>
-          <div className="action-row">
+          <div className="one-time-order-date-mode__options">
             {[
               { value: 'none', label: 'Без даты' },
               { value: 'single', label: 'Один день' },
               { value: 'range', label: 'Несколько дней' },
             ].map((option) => (
-              <label key={option.value}>
+              <label className="one-time-order-date-mode__option" key={option.value}>
                 <input
                   type="radio"
                   name="one-time-order-date-mode"

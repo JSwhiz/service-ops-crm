@@ -12,6 +12,7 @@ export interface AccountabilityGlobalCapabilities {
   canIssueAccountabilityFunds: boolean;
   canReviewAccountability: boolean;
   canApproveAccountabilityClosure: boolean;
+  canRecordExternalReceipt: boolean;
 }
 
 export function buildAccountabilityGlobalCapabilities(params: {
@@ -19,19 +20,22 @@ export function buildAccountabilityGlobalCapabilities(params: {
   permissionCodes?: string[];
   hasActiveOneTimeManagerAssignment?: boolean;
   hasHistoricalOneTimeOrderReceipt?: boolean;
+  isActiveUser?: boolean;
 }): AccountabilityGlobalCapabilities {
   const canViewOwn = canViewOwnAccountability(params);
   const canIssue = canIssueAccountabilityFunds(params);
   const canReview = canReviewAccountability(params);
   const canApproveClosure = canApproveAccountabilityClosure(params);
+  const canRecordExternalReceipt = params.isActiveUser === true;
 
   return {
     canAccessAccountability:
-      canViewOwn || canIssue || canReview || canApproveClosure,
+      canViewOwn || canIssue || canReview || canApproveClosure || canRecordExternalReceipt,
     canViewOwnAccountability: canViewOwn,
     canIssueAccountabilityFunds: canIssue,
     canReviewAccountability: canReview,
     canApproveAccountabilityClosure: canApproveClosure,
+    canRecordExternalReceipt,
   };
 }
 

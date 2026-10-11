@@ -1,5 +1,7 @@
 # UI Inventory
 
+> **Исторический срез до реализации этапа 0 (09.10.2026).** Описанные ниже долги и статусы MIGRATE/REDESIGN отражают исходное состояние и не являются актуальным статусом внедрения. Результат этапа, внедрённые общие компоненты и пределы проверки зафиксированы в [STAGE_0_IMPLEMENTATION.md](STAGE_0_IMPLEMENTATION.md).
+
 ## Executive technical summary
 
 Аудит выполнен по `apps/frontend/src` без изменения application code, CSS или backend.

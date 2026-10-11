@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
 import {
   canBeObjectManager,
   canCreateObject,
@@ -109,7 +110,7 @@ export class UsersAccessService {
           assignment.assignmentRoleCode === 'responsible',
       );
 
-      if (!canManageObjectResponsibles(roleCodes) && !isResponsible) {
+      if (!canManageObjectResponsibles(roleCodes) && !isResponsible && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
         throw new ForbiddenException('Manager candidate access denied');
       }
     } else if (!canCreateObject(this.getRoleCodes(currentUser))) {
@@ -133,7 +134,7 @@ export class UsersAccessService {
       await this.getObjectWithAssignments(objectId);
     }
 
-    if (!canManageObjectResponsibles(this.getRoleCodes(currentUser))) {
+    if (!canManageObjectResponsibles(this.getRoleCodes(currentUser)) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
       throw new ForbiddenException('Responsible candidate access denied');
     }
 

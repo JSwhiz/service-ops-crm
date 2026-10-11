@@ -37,6 +37,7 @@ export interface ApprovalRequestItem {
 }
 
 export interface ListApprovalRequestsParams {
+  search?: string;
   status?: string;
   approvalType?: string;
   sourceEntityType?: string;

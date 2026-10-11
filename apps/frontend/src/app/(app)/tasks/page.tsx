@@ -12,11 +12,11 @@ import { listSystemUsers } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import type { TaskFilterValue } from '@/features/task-filters/ui/task-filters';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 const EMPTY_RESULT: TaskListResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 1 };
 
@@ -143,10 +143,6 @@ function TasksRegistry(): React.JSX.Element {
 
   return (
     <div className="page-stack workspace-page task-registry">
-      <PageTitle title="Задачи" />
-      <div className="page-card workspace-surface task-page-heading registry-header">
-        <div><div className="section-title">Реестр задач</div><div className="page-muted">{result.total} доступных задач</div></div>
-      </div>
       <RegistryToolbar
         searchValue={filters.q}
         searchLabel="Поиск по задачам"
@@ -154,18 +150,14 @@ function TasksRegistry(): React.JSX.Element {
         onSearchChange={(value) => updateQuery({ q: value })}
         activeFilters={activeFilters}
         availableFilters={availableFilters}
-        actions={<Link className="task-primary-link" href="/tasks/new">Создать задачу</Link>}
+        actions={<Link className="button-link button-link--primary" href="/tasks/new">Создать задачу</Link>}
       />
       {isLoading ? <div className="page-card">Загрузка…</div> : error ? (
         <div className="page-card task-error" role="alert">{error}</div>
       ) : <TaskListTable items={result.items} />}
-      {!isLoading && result.totalPages > 1 ? (
-        <div className="page-card workspace-surface task-pagination" aria-label="Пагинация задач">
-          <button type="button" disabled={result.page <= 1} onClick={() => updateQuery({ page: result.page - 1 })}>Назад</button>
-          <span>Страница {result.page} из {result.totalPages}</span>
-          <button type="button" disabled={result.page >= result.totalPages} onClick={() => updateQuery({ page: result.page + 1 })}>Далее</button>
-        </div>
-      ) : null}
+      {!isLoading && !error ? <TablePagination page={result.page} totalPages={result.totalPages} label="Страницы задач"
+        summary={result.total > 0 ? `Показано ${(result.page - 1) * result.limit + 1}–${Math.min(result.page * result.limit, result.total)} из ${result.total}` : 'Задачи не найдены'}
+        onPageChange={(page) => updateQuery({ page })} /> : null}
     </div>
   );
 }

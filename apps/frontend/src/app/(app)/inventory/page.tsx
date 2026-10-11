@@ -7,8 +7,8 @@ import { listInventoryItems } from '@/entities/inventory/api/inventory-client';
 import type { InventoryItem } from '@/entities/inventory/model/inventory.types';
 import { InventoryItemListTable } from '@/features/inventory-item-list/ui/inventory-item-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -118,38 +118,11 @@ export default function InventoryPage(): React.JSX.Element {
 
   return (
     <>
-      <PageTitle title="Расходники" />
-
       {!canAccessInventory ? (
         <div className="page-card">У вас нет доступа к inventory-модулю.</div>
       ) : (
         <div className="page-stack workspace-page inventory-workspace">
-          <div className="page-card workspace-surface registry-header" style={{ display: 'grid', gap: 14 }}>
-            <div className="section-header">
-              <div><div className="section-title">Каталог</div><div className="page-muted">Найдено позиций: {total}</div></div>
-              <div className="action-row">
-                {canManageInventoryCatalog ? (
-                  <Link href="/inventory/new">
-                    <button type="button">Новая позиция</button>
-                  </Link>
-                ) : null}
-                {canViewInventoryReports ? (
-                  <>
-                    <Link href="/inventory/movements">
-                      <button type="button" className="button-secondary">
-                        Движения
-                      </button>
-                    </Link>
-                    <Link href="/inventory/reports">
-                      <button type="button" className="button-secondary">
-                        Отчеты
-                      </button>
-                    </Link>
-                  </>
-                ) : null}
-              </div>
-            </div>
-            <RegistryToolbar
+          <RegistryToolbar
               searchValue={search}
               searchLabel="Поиск по расходникам"
               searchPlaceholder="Название, категория или единица"
@@ -166,8 +139,14 @@ export default function InventoryPage(): React.JSX.Element {
                 sortBy === 'name' ? { id: 'sort', label: 'Сортировка', options: sortOptions.filter((option) => option.value !== 'name'), onAdd: (value: string) => { setSortBy(value as typeof sortBy); setPage(1); } } : null,
                 sortDirection === 'asc' ? { id: 'direction', label: 'Порядок', options: [{ value: 'desc', label: 'По убыванию' }], onAdd: (value: string) => { setSortDirection(value as 'asc' | 'desc'); setPage(1); } } : null,
               ].filter((filter): filter is NonNullable<typeof filter> => filter !== null)}
-            />
-          </div>
+            actions={<>
+              {canViewInventoryReports ? <>
+                <Link className="button-link" href="/inventory/movements">Движения</Link>
+                <Link className="button-link" href="/inventory/reports">Отчеты</Link>
+              </> : null}
+              {canManageInventoryCatalog ? <Link className="button-link button-link--primary" href="/inventory/new">Новая позиция</Link> : null}
+            </>}
+          />
 
           {isLoading ? (
             <div className="page-card">Загрузка...</div>
@@ -179,29 +158,9 @@ export default function InventoryPage(): React.JSX.Element {
             <InventoryItemListTable items={items} />
           )}
 
-          {totalPages > 1 ? (
-            <div className="page-card pagination-row">
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={page <= 1 || isLoading}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Назад
-              </button>
-              <span className="page-muted">
-                Страница {page} из {totalPages}
-              </span>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={page >= totalPages || isLoading}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Далее
-              </button>
-            </div>
-          ) : null}
+          <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы расходников"
+            summary={total > 0 ? `Показано ${(page - 1) * 25 + 1}–${Math.min(page * 25, total)} из ${total}` : 'Расходники не найдены'}
+            onPageChange={(nextPage) => setPage(nextPage)} />
         </div>
       )}
     </>

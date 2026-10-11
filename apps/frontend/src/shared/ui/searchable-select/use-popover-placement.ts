@@ -38,10 +38,14 @@ export function usePopoverPlacement(
       let boundaryBottom = window.innerHeight - VIEWPORT_GAP;
       for (let ancestor = anchor.parentElement; ancestor && ancestor !== document.body; ancestor = ancestor.parentElement) {
         const overflowY = window.getComputedStyle(ancestor).overflowY;
-        if (!/(auto|scroll|hidden|clip)/.test(overflowY)) continue;
-        const ancestorRect = ancestor.getBoundingClientRect();
-        boundaryTop = Math.max(boundaryTop, ancestorRect.top + VIEWPORT_GAP);
-        boundaryBottom = Math.min(boundaryBottom, ancestorRect.bottom - VIEWPORT_GAP);
+        if (/(auto|scroll|hidden|clip)/.test(overflowY)) {
+          const ancestorRect = ancestor.getBoundingClientRect();
+          boundaryTop = Math.max(boundaryTop, ancestorRect.top + VIEWPORT_GAP);
+          boundaryBottom = Math.min(boundaryBottom, ancestorRect.bottom - VIEWPORT_GAP);
+        }
+        // A modal dialog lives in the browser top layer: DOM ancestors outside
+        // it cannot clip it and must not affect the popover's visible bounds.
+        if (ancestor instanceof HTMLDialogElement && ancestor.open) break;
       }
       const spaceBelow = Math.max(
         0,
@@ -57,7 +61,7 @@ export function usePopoverPlacement(
           : 'top';
       const availableSpace = placement === 'bottom' ? spaceBelow : spaceAbove;
       const availableHeight = Math.max(
-        96,
+        1,
         Math.min(preferredMaxHeight, availableSpace),
       );
 

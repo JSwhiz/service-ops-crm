@@ -5,6 +5,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import {
   addOneTimeWorkforceEmployee,
+  downloadOneTimeWorkforceExcel,
+  getOneTimeAttendanceCoverage,
   getOneTimeTimesheet,
   getTodayOneTimeAttendance,
   listOneTimeWorkforce,
@@ -13,6 +15,7 @@ import {
   submitTodayOneTimeAttendance,
   updateOneTimeWorkforceEmployeePayment,
   type OneTimeAttendance,
+  type OneTimeAttendanceCoverage,
   type OneTimeTimesheet,
   type OneTimeWorkforceEmployee,
 } from '@/entities/one-time-order/api/one-time-order-workforce-client';
@@ -61,11 +64,16 @@ export default function OneTimeOrderWorkforcePage({
   const [order, setOrder] = useState<OneTimeOrderItem | null>(null);
   const [workforce, setWorkforce] = useState<OneTimeWorkforceEmployee[]>([]);
   const [attendance, setAttendance] = useState<OneTimeAttendance | null>(null);
+  const [coverage, setCoverage] = useState<OneTimeAttendanceCoverage | null>(null);
   const [timesheet, setTimesheet] = useState<OneTimeTimesheet | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [employeeToAdd, setEmployeeToAdd] = useState('');
   const [paymentDrafts, setPaymentDrafts] = useState<Record<string, string>>({});
   const [month, setMonth] = useState(moscowMonth());
+  const [attendanceDate, setAttendanceDate] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [exportEmployeeId, setExportEmployeeId] = useState('');
+  const [exporting, setExporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,12 +105,15 @@ export default function OneTimeOrderWorkforcePage({
         listOneTimeWorkforce(id),
         getTodayOneTimeAttendance(id),
         getOneTimeTimesheet(id, month),
-      ]).then(([orderValue, workforceValue, attendanceValue, timesheetValue]) => {
+        getOneTimeAttendanceCoverage(id),
+      ]).then(([orderValue, workforceValue, attendanceValue, timesheetValue, coverageValue]) => {
         if (cancelled) return;
         setOrder(orderValue);
         setWorkforce(workforceValue);
         setAttendance(attendanceValue);
+        setAttendanceDate(attendanceValue.operationDate.slice(0, 10));
         setTimesheet(timesheetValue);
+        setCoverage(coverageValue);
         setSelected(new Set(attendanceValue.employees.filter((item) => item.present).map((item) => item.employeeId)));
       });
     }).catch((loadError) => {
@@ -124,14 +135,17 @@ export default function OneTimeOrderWorkforcePage({
 
   const reloadWorkforce = async (): Promise<void> => {
     if (!orderId) return;
-    const [workforceValue, attendanceValue, timesheetValue] = await Promise.all([
+    const [workforceValue, attendanceValue, timesheetValue, coverageValue] = await Promise.all([
       listOneTimeWorkforce(orderId),
-      getTodayOneTimeAttendance(orderId),
+      getTodayOneTimeAttendance(orderId, attendanceDate || undefined),
       getOneTimeTimesheet(orderId, month),
+      getOneTimeAttendanceCoverage(orderId),
     ]);
     setWorkforce(workforceValue);
     setAttendance(attendanceValue);
+    setAttendanceDate(attendanceValue.operationDate.slice(0, 10));
     setTimesheet(timesheetValue);
+    setCoverage(coverageValue);
     setSelected(new Set(attendanceValue.employees.filter((item) => item.present).map((item) => item.employeeId)));
   };
 
@@ -269,10 +283,25 @@ export default function OneTimeOrderWorkforcePage({
 
         <section className={styles.card}>
           <header className={styles.head}>
-            <div><h2>Присутствие сегодня</h2><p>{attendance ? shortDate(attendance.operationDate) : 'Сегодня'} · отметка сохраняет историческую выплату за день.</p></div>
+            <div><h2>Присутствие и корректировки</h2><p>{attendance ? shortDate(attendance.operationDate) : 'Выберите дату'} · дневная ставка фиксируется на дату выхода.</p></div>
             <span>{attendance?.workCycle ? `Цикл ${attendance.workCycle}` : ''}</span>
           </header>
           <div className={styles.body}>
+            <label className={styles.dateField}>
+              <span>Дата выхода</span>
+              <input className={styles.input} type="date" value={attendanceDate} max={new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(new Date())} onChange={(event) => {
+                const nextDate = event.target.value;
+                setAttendanceDate(nextDate);
+                setCorrectionReason('');
+                if (!nextDate || !orderId) return;
+                setSaving(true); setError(null);
+                void getTodayOneTimeAttendance(orderId, nextDate).then((value) => {
+                  setAttendance(value);
+                  setSelected(new Set(value.employees.filter((item) => item.present).map((item) => item.employeeId)));
+                }).catch((loadError) => setError(errorText(loadError))).finally(() => setSaving(false));
+              }} />
+            </label>
+            {attendance?.submittedAt ? <div className={styles.status}>Последняя отметка: {attendance.submittedBy?.fullName ?? 'пользователь'} · {new Date(attendance.submittedAt).toLocaleString('ru-RU')}</div> : null}
             {(attendance?.employees ?? []).length === 0 ? <div className={styles.empty}>Сначала добавьте сотрудников в состав заказа.</div> : (attendance?.employees ?? []).map((employee) => (
               <label className={styles.attendanceRow} key={employee.employeeId}>
                 <input className={styles.checkbox} type="checkbox" checked={selected.has(employee.employeeId)} onChange={(event) => {
@@ -284,13 +313,21 @@ export default function OneTimeOrderWorkforcePage({
                 <span className={styles.value}>{employee.finalValue === null ? money(employee.baseDailyRate) : money(employee.finalValue)}</span>
               </label>
             ))}
+            {attendance?.submittedAt ? (
+              <label className={styles.dateField}>
+                <span>Причина изменения сохранённой отметки</span>
+                <textarea className={styles.input} rows={2} maxLength={500} value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder="Укажите, почему корректируете отметку" />
+              </label>
+            ) : null}
             <div style={{ marginTop: 14 }}>
-              <button className={styles.button} type="button" disabled={saving || (attendance?.employees.length ?? 0) === 0} onClick={async () => {
+              <button className={styles.button} type="button" disabled={saving || (attendance?.employees.length ?? 0) === 0 || (Boolean(attendance?.submittedAt) && !correctionReason.trim())} onClick={async () => {
                 setSaving(true); setError(null);
                 try {
-                  const saved = await submitTodayOneTimeAttendance(orderId, Array.from(selected));
+                  const saved = await submitTodayOneTimeAttendance(orderId, Array.from(selected), attendanceDate || undefined, correctionReason.trim() || undefined);
                   setAttendance(saved);
+                  setCorrectionReason('');
                   setTimesheet(await getOneTimeTimesheet(orderId, month));
+                  setCoverage(await getOneTimeAttendanceCoverage(orderId));
                 } catch (saveError) { setError(errorText(saveError)); } finally { setSaving(false); }
               }}>Сохранить отметку</button>
             </div>
@@ -300,14 +337,59 @@ export default function OneTimeOrderWorkforcePage({
 
       <section className={styles.card}>
         <header className={styles.head}>
+          <div><h2>Контроль отметок по периоду заказа</h2><p>Показываем только отсутствие сохранённой отметки в явно заданном окне выполнения — это не означает, что сотрудник должен был выходить в каждый календарный день.</p></div>
+          <strong>{coverage?.missingDates.length ?? 0} без отметки</strong>
+        </header>
+        <div className={styles.body}>
+          {!coverage?.startDate || !coverage.endDate ? (
+            <div className={styles.empty}>У заказа не задан период выполнения. Чтобы выявлять даты без отметок, укажите дату или период в карточке заказа.</div>
+          ) : coverage.missingDates.length === 0 ? (
+            <div className={styles.empty}>В периоде {shortDate(coverage.startDate)} — {shortDate(coverage.endDate)} отметки сохранены на все даты.</div>
+          ) : (
+            <div className={styles.missingDates}>{coverage.missingDates.map((date) => <span key={date}>{shortDate(date)}</span>)}</div>
+          )}
+          {coverage?.history.length ? (
+            <div className={styles.correctionHistory}>
+              <h3>История отметок и исправлений</h3>
+              {coverage.history.map((entry, index) => (
+                <article key={`${entry.at}-${index}`}>
+                  <strong>{shortDate(entry.operationDate)} · {entry.action.endsWith('corrected') ? 'Исправление' : 'Первичная отметка'}</strong>
+                  <span>{entry.actor} · {new Date(entry.at).toLocaleString('ru-RU')}</span>
+                  {entry.reason ? <span>Причина: {entry.reason}</span> : null}
+                  {entry.previousPresentEmployees.length ? <span>Было: {entry.previousPresentEmployees.join(', ')}</span> : null}
+                  <span>Стало: {entry.presentEmployees.length ? entry.presentEmployees.join(', ') : 'никто не отмечен'}</span>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className={styles.card}>
+        <header className={styles.head}>
           <div><h2>Табель разового заказа</h2><p>Исторические значения фиксируются по дням и не зависят от последующего изменения состава.</p></div>
-          <MonthPeriodPicker
-            year={Number(month.slice(0, 4))}
-            month={Number(month.slice(5, 7))}
-            onChange={(year, nextMonth) =>
-              setMonth(`${year}-${String(nextMonth).padStart(2, '0')}`)
-            }
-          />
+          <div className={styles.exportControls}>
+            <MonthPeriodPicker
+              year={Number(month.slice(0, 4))}
+              month={Number(month.slice(5, 7))}
+              onChange={(year, nextMonth) => setMonth(`${year}-${String(nextMonth).padStart(2, '0')}`)}
+            />
+            <select className={styles.input} value={exportEmployeeId} onChange={(event) => setExportEmployeeId(event.target.value)} aria-label="Сотрудник для выгрузки">
+              <option value="">Все сотрудники</option>
+              {workforce.map((employee) => <option key={employee.employeeId} value={employee.employeeId}>{employee.fullName}</option>)}
+            </select>
+            <button className={styles.buttonSecondary} type="button" disabled={exporting} onClick={() => {
+              setExporting(true); setError(null);
+              void downloadOneTimeWorkforceExcel({ orderId, month, employeeId: exportEmployeeId || undefined }).then((blob) => {
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement('a');
+                anchor.href = url;
+                anchor.download = `разовый-заказ-выходы-${month}.xlsx`;
+                anchor.click();
+                window.setTimeout(() => URL.revokeObjectURL(url), 0);
+              }).catch((exportError) => setError(errorText(exportError))).finally(() => setExporting(false));
+            }}>{exporting ? 'Готовим Excel…' : 'Скачать Excel'}</button>
+          </div>
         </header>
         <div className={styles.body}>
           {(timesheet?.rows ?? []).length === 0 ? <div className={styles.empty}>За выбранный месяц сохранённых выходов пока нет.</div> : (

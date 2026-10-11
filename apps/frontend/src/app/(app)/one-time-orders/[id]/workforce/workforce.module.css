@@ -1,8 +1,9 @@
 .root {
+  width: 100%;
   display: grid;
   gap: 16px;
-  max-width: 1500px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 
 .toolbar {
@@ -56,6 +57,25 @@
 }
 
 .body { padding: 14px 18px 18px; }
+
+.exportControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dateField {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: #776e67;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dateField .input { width: 100%; font: inherit; color: #302c29; }
 
 .searchRow {
   margin-bottom: 12px;
@@ -171,6 +191,12 @@
 .absent { color: #a39b94; }
 
 .empty { padding: 18px 0; color: #8a8179; font-size: 13px; }
+.missingDates { display: flex; flex-wrap: wrap; gap: 8px; }
+.missingDates span { border: 1px solid #e8d3c9; border-radius: 999px; padding: 5px 10px; background: #fff8f5; color: #8b5546; font-size: 12px; }
+.correctionHistory { display: grid; gap: 8px; margin-top: 18px; }
+.correctionHistory h3 { margin: 0; font-size: 14px; color: #4b4038; }
+.correctionHistory article { display: grid; gap: 4px; border: 1px solid #eee8e2; border-radius: 8px; padding: 10px 12px; color: #776e67; font-size: 12px; }
+.correctionHistory article strong { color: #332f2c; font-size: 13px; }
 .error { border: 1px solid #e4c9c3; border-radius: 8px; padding: 12px 14px; background: #fff8f6; color: #8b4b42; }
 
 @media (max-width: 980px) {
@@ -178,6 +204,8 @@
 }
 
 @media (max-width: 720px) {
+  .exportControls { justify-content: stretch; }
+  .exportControls > * { max-width: 100%; }
   .row {
     grid-template-columns: 1fr;
     align-items: stretch;

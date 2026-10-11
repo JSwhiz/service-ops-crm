@@ -64,6 +64,27 @@ export async function issueAccountabilityFunding(
   );
 }
 
+export async function recordExternalAccountabilityReceipt(payload: {
+  amount: number;
+  source: string;
+  comment: string;
+}): Promise<AccountabilityFundingEntry> {
+  return fetcher<AccountabilityFundingEntry>('/accountability/me/fundings/external', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function reverseExternalAccountabilityReceipt(
+  fundingId: string,
+  reason: string,
+): Promise<AccountabilityFundingEntry> {
+  return fetcher<AccountabilityFundingEntry>(`/accountability/fundings/${fundingId}/reverse`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
 export async function createAccountabilityExpense(
   payload: SaveAccountabilityExpensePayload,
 ): Promise<AccountabilityExpenseItem> {

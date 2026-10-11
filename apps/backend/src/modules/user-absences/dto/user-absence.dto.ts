@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 
 export const USER_ABSENCE_TYPES = ['vacation', 'sick_leave', 'day_off'] as const;
 export type UserAbsenceType = (typeof USER_ABSENCE_TYPES)[number];
@@ -6,10 +6,12 @@ export type UserAbsenceType = (typeof USER_ABSENCE_TYPES)[number];
 export class ListUserAbsencesQueryDto {
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
   from?: string;
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
   to?: string;
 
   @IsOptional()
@@ -29,9 +31,11 @@ export class CreateUserAbsenceDto {
   absenceType!: UserAbsenceType;
 
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
   startDate!: string;
 
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
   endDate!: string;
 
   @IsOptional()
@@ -47,10 +51,12 @@ export class UpdateUserAbsenceDto {
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
   startDate?: string;
 
   @IsOptional()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
   endDate?: string;
 
   @IsOptional()
@@ -75,6 +81,8 @@ export interface UserAbsenceResponseDto {
 export interface UserAbsenceCapabilitiesDto {
   canViewAll: boolean;
   canManage: boolean;
+  canManageAll: boolean;
+  canViewPrivateReasons: boolean;
 }
 
 export interface UserAbsenceListResponseDto {

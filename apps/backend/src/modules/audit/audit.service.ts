@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { usedObjectDelegations } from '../user-substitutions/object-delegation.context';
 
 type AuditDatabaseClient = Pick<Prisma.TransactionClient, 'auditEvent'>;
 
@@ -18,6 +19,10 @@ export class AuditService {
     newValues?: Prisma.InputJsonValue | null;
     metadata?: Prisma.InputJsonValue | null;
   }, database: AuditDatabaseClient = this.prisma): Promise<void> {
+    const delegations = usedObjectDelegations();
+    if (delegations.length) {
+      params = { ...params, metadata: { ...(params.metadata && typeof params.metadata === 'object' && !Array.isArray(params.metadata) ? params.metadata : {}), delegations } };
+    }
     await database.auditEvent.create({
       data: {
         entityType: params.entityType,
@@ -74,6 +79,10 @@ export class AuditService {
     actionCode: string;
     payload?: Prisma.InputJsonValue | null;
   }): Promise<void> {
+    const delegations = usedObjectDelegations();
+    if (delegations.length) {
+      params = { ...params, payload: { ...(params.payload && typeof params.payload === 'object' && !Array.isArray(params.payload) ? params.payload : {}), delegations } };
+    }
     await this.writeAuditEvent({
       entityType: 'object',
       entityId: params.objectId,

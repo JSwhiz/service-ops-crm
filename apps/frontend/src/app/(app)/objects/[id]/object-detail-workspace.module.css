@@ -86,6 +86,7 @@
 .workspace:has(:global(#inventory):target) .navigation a[href="#inventory"],
 .workspace:has(:global(#equipment):target) .navigation a[href="#equipment"],
 .workspace:has(:global(#files):target) .navigation a[href="#files"],
+.workspace:has(:global(#rubber-mats):target) .navigation a[href="#rubber-mats"],
 .workspace:has(:global(#history):target) .navigation a[href="#history"] {
   border-color: transparent;
   background: var(--ui-accent-subtle);
@@ -629,6 +630,42 @@
   background: var(--ui-surface-subtle);
 }
 
+.workspace :global(.object-summary__note ol) {
+  margin: 2px 0 6px;
+  padding-left: 22px;
+  color: #352e29;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.workspace :global(.object-summary__season-profile) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.workspace :global(.object-summary__season-profile > div) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.workspace :global(.object-summary__season-profile span) {
+  color: #8b7f77;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workspace :global(.object-summary__season-profile strong) {
+  color: #352e29;
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
 .workspace :global(.object-summary__primary-action) {
   border-color: var(--ui-border-strong);
   background: var(--ui-surface);
@@ -794,6 +831,11 @@
   .workspace :global(.object-summary__facts) {
     column-gap: 14px;
     row-gap: 2px;
+  }
+
+  .workspace :global(.object-summary__season-profile) {
+    grid-template-columns: 1fr;
+    gap: 9px;
   }
 
   .workspace :global(.object-summary__facts .detail-field) {

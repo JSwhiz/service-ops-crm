@@ -3,6 +3,7 @@ import { fetcher } from '@/shared/api/fetcher';
 import type {
   CounterpartyCard,
   CounterpartyHistoryItem,
+  CounterpartyInventoryMovementList,
   CounterpartyListResponse,
   CounterpartyReference,
 } from '../model/counterparty.types';
@@ -41,6 +42,21 @@ export function listCounterpartyHistory(
   id: string,
 ): Promise<CounterpartyHistoryItem[]> {
   return fetcher(`/counterparties/${id}/history`);
+}
+
+export function listCounterpartyInventoryMovements(
+  id: string,
+  params: { page?: number; limit?: number } = {},
+): Promise<CounterpartyInventoryMovementList> {
+  return fetcher(`/counterparties/${id}/inventory-movements${queryString(params)}`);
+}
+
+export function setCounterpartyMasterObject(id: string, objectId: string): Promise<CounterpartyCard> {
+  return fetcher(`/counterparties/${id}/master-object/${objectId}`, { method: 'POST' });
+}
+
+export function clearCounterpartyMasterObject(id: string): Promise<CounterpartyCard> {
+  return fetcher(`/counterparties/${id}/master-object`, { method: 'DELETE' });
 }
 
 export function createCounterparty(payload: {

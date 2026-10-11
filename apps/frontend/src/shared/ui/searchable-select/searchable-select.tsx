@@ -50,7 +50,7 @@ export function SearchableSelect({
   asyncSearch,
   selectedOption = null,
   searchable = true,
-  viewportAware = false,
+  viewportAware = true,
   required = false,
   hideLabel = false,
   minimumSearchLength = 0,

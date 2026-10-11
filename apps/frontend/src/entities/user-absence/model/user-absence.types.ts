@@ -15,7 +15,12 @@ export interface UserAbsenceItem {
 
 export interface UserAbsenceListResponse {
   items: UserAbsenceItem[];
-  capabilities: { canViewAll: boolean; canManage: boolean };
+  capabilities: {
+    canViewAll: boolean;
+    canManage: boolean;
+    canManageAll: boolean;
+    canViewPrivateReasons: boolean;
+  };
 }
 
 export interface UserAbsenceUserOption {

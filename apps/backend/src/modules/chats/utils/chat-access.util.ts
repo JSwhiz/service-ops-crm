@@ -20,11 +20,7 @@ export const CHAT_ADMIN_ROLE_CODES = [
   'deputy_director',
 ] as const;
 
-export const CHAT_GLOBAL_CLOSE_LOGINS = [
-  'gerasimov',
-  'lebedev',
-  'stepanova',
-] as const;
+export const CHAT_GLOBAL_CLOSE_PERMISSION_CODE = 'chat.room.close_global';
 
 function hasAnyRole(roleCodes: string[], allowed: readonly string[]): boolean {
   return roleCodes.some((roleCode) => allowed.includes(roleCode as never));
@@ -54,8 +50,8 @@ export function canCreateGroupChat(roleCodes: string[]): boolean {
   return canManageChats(roleCodes);
 }
 
-export function canCloseChatGlobally(login: string): boolean {
-  return CHAT_GLOBAL_CLOSE_LOGINS.includes(login as never);
+export function canCloseChatGlobally(permissionCodes: string[]): boolean {
+  return permissionCodes.includes(CHAT_GLOBAL_CLOSE_PERMISSION_CODE);
 }
 
 export function canAccessDefaultChatByRole(

@@ -8,9 +8,13 @@ import { listCandidateManagers, listCandidates } from '@/entities/candidate/api/
 import { CANDIDATE_SLA_OPTIONS, CANDIDATE_STATUS_OPTIONS, CANDIDATE_TYPE_OPTIONS, candidateSlaLabel, candidateStatusLabel, candidateTypeLabel } from '@/entities/candidate/lib/candidate-presentation';
 import type { CandidateArchiveState, CandidateListResponse, CandidateSlaState, CandidateStatus, CandidateType } from '@/entities/candidate/model/candidate.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { formatRegistryDate } from '@/shared/lib/registry-presentation';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 const EMPTY: CandidateListResponse = { items: [], page: 1, limit: 25, total: 0, totalPages: 0 };
 
@@ -83,11 +87,9 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
 
   if (!canAccess) return <div className="page-card">У вас нет доступа к кандидатам.</div>;
   return <div className="candidate-registry page-stack workspace-page">
-    <section className="page-card workspace-surface section-header registry-header"><div><div className="section-title">{fixedType === 'reserve' ? 'Кандидаты резерва' : 'Реестр кандидатов'}</div><div className="page-muted">Найдено: {result.total}</div></div>{canManage && !fixedType ? <Link className="button-link" href="/candidates/new">Добавить кандидата</Link> : null}</section>
-    <RegistryToolbar searchValue={search} searchLabel="Поиск по кандидатам" searchPlaceholder="ФИО или телефон" onSearchChange={setSearch} activeFilters={activeRegistryFilters} availableFilters={availableRegistryFilters} />
-    {loading ? <div className="page-card">Загрузка...</div> : error ? <div className="page-card inline-notice inline-notice--warning">{error}</div> : result.items.length === 0 ? <div className="page-card">Кандидаты не найдены.</div> : <>
-      <div className="page-card workspace-surface data-table-shell candidate-table-wrap">
-        <table className="data-table candidate-table">
+    <RegistryToolbar searchValue={search} searchLabel="Поиск по кандидатам" searchPlaceholder="ФИО или телефон" onSearchChange={setSearch} activeFilters={activeRegistryFilters} availableFilters={availableRegistryFilters} actions={canManage && !fixedType ? <Link className="button-link button-link--primary" href="/candidates/new">Добавить кандидата</Link> : null} />
+    {loading ? <div className="page-card workspace-surface workspace-empty">Загрузка...</div> : error ? <div className="page-card inline-notice inline-notice--warning">{error}</div> : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">Кандидаты не найдены.</div> : <>
+      <DataTable label="Таблица кандидатов" className="data-table candidate-table" frameClassName="page-card workspace-surface data-table-shell candidate-table-wrap">
           <thead>
             <tr>
               <th>Кандидат</th>
@@ -97,6 +99,7 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
               <th>Последняя обратная связь</th>
               <th>SLA</th>
               <th>Изменён</th>
+              <th aria-label="Открыть" />
             </tr>
           </thead>
           <tbody>
@@ -154,12 +157,12 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
                     )}
                   </span>
                 </td>
-                <td>{new Date(item.updatedAt).toLocaleString('ru-RU')}</td>
+                <td title={new Date(item.updatedAt).toLocaleString('ru-RU')}>{formatRegistryDate(item.updatedAt)}</td>
+                <td className="registry-open-cell"><RegistryOpenLink href={`/candidates/${item.id}`} label={`Открыть кандидата ${item.fullName}`} /></td>
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+      </DataTable>
       <div className="candidate-mobile-list">
         {result.items.map((item) => (
           <Link
@@ -196,6 +199,8 @@ export function CandidateRegistry({ fixedType }: { fixedType?: CandidateType }):
         ))}
       </div>
     </>}
-    {result.totalPages > 1 ? <div className="page-card workspace-surface pagination-row"><button type="button" disabled={page <= 1} onClick={() => replaceQuery({ page: String(page - 1) })}>Назад</button><span>Страница {page} из {result.totalPages}</span><button type="button" disabled={page >= result.totalPages} onClick={() => replaceQuery({ page: String(page + 1) })}>Далее</button></div> : null}
+    {!loading && !error ? <TablePagination page={page} totalPages={result.totalPages} label="Страницы кандидатов"
+      summary={result.total > 0 ? `Показано ${(page - 1) * result.limit + 1}–${Math.min(page * result.limit, result.total)} из ${result.total}` : 'Кандидаты не найдены'}
+      onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })} /> : null}
   </div>;
 }

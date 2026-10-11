@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Matches,
   Min,
 } from 'class-validator';
@@ -28,6 +29,23 @@ export class SubmitOneTimeOrderAttendanceDto {
   @ArrayUnique()
   @IsString({ each: true })
   employeeIds!: string[];
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  operationDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  correctionReason?: string;
+}
+
+export class OneTimeOrderAttendanceQueryDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  date?: string;
 }
 
 export class OneTimeOrderTimesheetQueryDto {
@@ -41,4 +59,8 @@ export class OneTimeOrderTimesheetQueryDto {
   @IsInt()
   @Min(1)
   workCycle?: number;
+
+  @IsOptional()
+  @IsString()
+  employeeId?: string;
 }

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
@@ -10,6 +11,7 @@ import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
 import { FilesService } from '../files/files.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
@@ -50,6 +52,8 @@ import {
   hasOperationalChatRole,
   isChatLeadership,
 } from './utils/chat-access.util';
+
+const CHAT_MESSAGE_EDIT_WINDOW_MS = 30 * 60 * 1000;
 
 interface UploadedFilePayload {
   originalname: string;
@@ -138,11 +142,14 @@ type ChatRoomsView = 'active' | 'archived';
 
 @Injectable()
 export class ChatsService implements OnModuleInit {
+  private readonly logger = new Logger(ChatsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly filesService: FilesService,
     private readonly auditService: AuditService,
     private readonly realtimeService: ChatRealtimeService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -733,7 +740,7 @@ export class ChatsService implements OnModuleInit {
       throw new BadRequestException('Only group chats can be closed globally');
     }
 
-    if (!canCloseChatGlobally(currentUser.login)) {
+    if (!canCloseChatGlobally(currentUser.permissionCodes ?? [])) {
       throw new ForbiddenException('Global chat close denied');
     }
 
@@ -1138,6 +1145,34 @@ export class ChatsService implements OnModuleInit {
     const mapped = await this.mapMessage(currentUser, message);
     await this.publishMessageEvent(room.id, 'chat.message_created', message.id);
 
+    try {
+      const recipients = await this.prisma.chatRoomParticipant.findMany({
+        where: {
+          chatRoomId: room.id,
+          userId: { not: currentUser.id },
+          joinedAt: { lte: message.createdAt },
+          leftAt: null,
+          hiddenAt: null,
+          user: { isActive: true, deletedAt: null },
+        },
+        select: { userId: true },
+      });
+      await this.notificationsService.createForRecipients({
+        recipientUserIds: recipients.map(({ userId }) => userId),
+        type: 'chat.message_received',
+        title: 'Новое сообщение в чате',
+        body: 'Откройте чат, чтобы прочитать сообщение.',
+        entityType: 'chat_room',
+        entityId: room.id,
+        targetUrl: `/chats?roomId=${encodeURIComponent(room.id)}`,
+        dedupeKey: `chat-message:${message.id}`,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not create chat message notifications: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
+
     return mapped;
   }
 
@@ -1173,6 +1208,10 @@ export class ChatsService implements OnModuleInit {
 
     if (message.messageType !== 'user' || message.authorUserId !== currentUser.id) {
       throw new ForbiddenException('Only message author can edit this message');
+    }
+
+    if (Date.now() - message.createdAt.getTime() > CHAT_MESSAGE_EDIT_WINDOW_MS) {
+      throw new ForbiddenException('Message edit window has expired');
     }
 
     const newText = dto.text.trim();
@@ -1931,7 +1970,7 @@ export class ChatsService implements OnModuleInit {
         canCloseGlobally:
           room.roomType === 'group' &&
           !room.deletedAt &&
-          canCloseChatGlobally(currentUser.login),
+          canCloseChatGlobally(currentUser.permissionCodes ?? []),
       },
     };
   }
@@ -2176,7 +2215,9 @@ export class ChatsService implements OnModuleInit {
         canEdit:
           !isDeleted &&
           message.messageType === 'user' &&
-          message.authorUserId === currentUser.id,
+          message.authorUserId === currentUser.id &&
+          Date.now() - message.createdAt.getTime() <=
+            CHAT_MESSAGE_EDIT_WINDOW_MS,
         canDelete:
           !isDeleted &&
           message.messageType === 'user' &&

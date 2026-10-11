@@ -19,13 +19,17 @@ import {
 } from './dto/counterparty-mutations.dto';
 import {
   ListCounterpartiesQueryDto,
+  ListCounterpartyMovementsQueryDto,
   ListCounterpartyReferencesQueryDto,
 } from './dto/list-counterparties-query.dto';
 import { CounterpartiesService } from './counterparties.service';
 
 interface CurrentAuthUser {
   id: string;
-  roleCode?: string;
+  login: string;
+  fullName: string;
+  roleCode: string;
+  isActive: boolean;
   roleCodes?: string[];
   permissionCodes?: string[];
 }
@@ -59,6 +63,15 @@ export class CounterpartiesController {
   @Get(':id/history')
   history(@CurrentUser() user: CurrentAuthUser, @Param('id') id: string) {
     return this.service.history(user, id);
+  }
+
+  @Get(':id/inventory-movements')
+  inventoryMovements(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Query() query: ListCounterpartyMovementsQueryDto,
+  ) {
+    return this.service.inventoryMovements(user, id, query);
   }
 
   @Post()
@@ -104,5 +117,19 @@ export class CounterpartiesController {
     @Param('objectId') objectId: string,
   ) {
     return this.service.unlinkObject(user, id, objectId);
+  }
+
+  @Post(':id/master-object/:objectId')
+  setMasterObject(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('objectId') objectId: string,
+  ) {
+    return this.service.setMasterObject(user, id, objectId);
+  }
+
+  @Delete(':id/master-object')
+  clearMasterObject(@CurrentUser() user: CurrentAuthUser, @Param('id') id: string) {
+    return this.service.clearMasterObject(user, id);
   }
 }

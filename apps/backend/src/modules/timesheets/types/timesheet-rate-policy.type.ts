@@ -7,6 +7,8 @@ export const TIMESHEET_RATE_POLICY_TYPES = [
   'per_attendance',
   'partial_shift',
   'agreed_substitution_rate',
+  'complex_shift',
+  'side_job',
 ] as const;
 
 export type TimesheetRatePolicyType =

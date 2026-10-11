@@ -10,6 +10,8 @@ import {
   issueAccountabilityFunding,
   listAccountabilityAccounts,
   listAccountabilityUsers,
+  recordExternalAccountabilityReceipt,
+  reverseExternalAccountabilityReceipt,
   rejectAccountabilityExpense,
   requestAccountabilityClosure,
   submitAccountabilityExpense,
@@ -47,6 +49,9 @@ export default function AccountabilityPage(): React.JSX.Element {
     user?.capabilities?.canAccessAccountability ?? false;
   const canViewOwnAccountability =
     user?.capabilities?.canViewOwnAccountability ?? false;
+  const canRecordExternalReceipt =
+    user?.capabilities?.canRecordExternalReceipt ?? false;
+  const canOpenOwnLedger = canViewOwnAccountability || canRecordExternalReceipt;
   const canReviewAccountability =
     user?.capabilities?.canReviewAccountability ?? false;
   const canIssueAccountabilityFunds =
@@ -71,6 +76,15 @@ export default function AccountabilityPage(): React.JSX.Element {
   const [fundingComment, setFundingComment] = useState('');
   const [isIssuingFunding, setIsIssuingFunding] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [externalAmount, setExternalAmount] = useState('');
+  const [externalSource, setExternalSource] = useState('');
+  const [externalComment, setExternalComment] = useState('');
+  const [externalFiles, setExternalFiles] = useState<File[]>([]);
+  const [isRecordingExternal, setIsRecordingExternal] = useState(false);
+  const [pendingReceiptAttachments, setPendingReceiptAttachments] = useState<{
+    id: string;
+    files: File[];
+  } | null>(null);
 
   const selectedUser = useMemo(
     () => userOptions.find((item) => item.id === selectedUserId) ?? null,
@@ -78,7 +92,7 @@ export default function AccountabilityPage(): React.JSX.Element {
   );
 
   const reloadOwnView = async (): Promise<void> => {
-    if (!canViewOwnAccountability) {
+    if (!canOpenOwnLedger) {
       setOwnView(null);
       setOwnError(null);
       setOwnLoading(false);
@@ -185,7 +199,7 @@ export default function AccountabilityPage(): React.JSX.Element {
 
   useEffect(() => {
     void reloadOwnView();
-  }, [canViewOwnAccountability]);
+  }, [canOpenOwnLedger]);
 
   useEffect(() => {
     void reloadReviewDirectory();
@@ -222,13 +236,82 @@ export default function AccountabilityPage(): React.JSX.Element {
           </div>
         ) : null}
 
-        {canViewOwnAccountability && ownLoading ? (
+        {canOpenOwnLedger && ownLoading ? (
           <div className="page-card">Загрузка вашего подотчета...</div>
-        ) : canViewOwnAccountability && ownError ? (
+        ) : canOpenOwnLedger && ownError ? (
           <div className="page-card" style={{ color: '#b91c1c' }}>
             {ownError}
           </div>
-        ) : canViewOwnAccountability && ownView ? (
+        ) : canOpenOwnLedger && ownView ? (
+          <>
+          {canRecordExternalReceipt ? (
+            <section className="page-card workspace-surface" style={{ display: 'grid', gap: 16 }}>
+              <div className="section-header">
+                <div>
+                  <div className="section-title">Свободное поступление</div>
+                  <div className="section-subtitle">
+                    Зафиксируйте деньги, полученные вне разовых заказов. Поступление сразу войдёт в остаток и будет доступно для сверки.
+                  </div>
+                </div>
+              </div>
+              <div className="field-grid">
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span>Сумма</span>
+                  <input type="number" min="0.01" step="0.01" value={externalAmount} onChange={(event) => setExternalAmount(event.target.value)} placeholder="0,00" />
+                </label>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span>Откуда поступили деньги</span>
+                  <input value={externalSource} onChange={(event) => setExternalSource(event.target.value)} maxLength={200} placeholder="Например, возврат или деньги от клиента" />
+                </label>
+                <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1' }}>
+                  <span>Комментарий <span aria-hidden="true">*</span></span>
+                  <textarea rows={3} value={externalComment} onChange={(event) => setExternalComment(event.target.value)} maxLength={500} placeholder="Укажите основание поступления" />
+                </label>
+                <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1' }}>
+                  <span>Подтверждающий файл <span className="page-muted">(необязательно)</span></span>
+                  <input className="accountability-file-input" type="file" multiple onChange={(event) => setExternalFiles(Array.from(event.target.files ?? []))} />
+                </label>
+              </div>
+              {pendingReceiptAttachments ? (
+                <div className="page-card page-card--subtle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span>Поступление уже записано. Не удалось прикрепить файлы.</span>
+                  <button type="button" disabled={isRecordingExternal} onClick={() => void (async () => {
+                    if (!pendingReceiptAttachments) return;
+                    setIsRecordingExternal(true);
+                    try {
+                      await Promise.all(pendingReceiptAttachments.files.map((file) => uploadFileToEntity({ entityType: 'accountability_funding', entityId: pendingReceiptAttachments.id, file })));
+                      setPendingReceiptAttachments(null);
+                      await reloadOwnView();
+                    } catch {
+                      setActionError('Поступление уже учтено, но файл не прикреплён. Повторите прикрепление.');
+                    } finally { setIsRecordingExternal(false); }
+                  })()}>Повторить прикрепление</button>
+                </div>
+              ) : null}
+              <div className="action-row" style={{ justifyContent: 'flex-end' }}>
+                <button type="button" disabled={isRecordingExternal || pendingReceiptAttachments !== null || !Number.isFinite(Number(externalAmount)) || Number(externalAmount) <= 0 || !externalSource.trim() || !externalComment.trim() || ownView.account.status === 'closing_requested'} onClick={() => void (async () => {
+                  setActionError(null);
+                  setIsRecordingExternal(true);
+                  try {
+                    const receipt = await recordExternalAccountabilityReceipt({ amount: Number(externalAmount), source: externalSource.trim(), comment: externalComment.trim() });
+                    const files = externalFiles;
+                    setExternalAmount(''); setExternalSource(''); setExternalComment(''); setExternalFiles([]);
+                    if (files.length > 0) {
+                      try {
+                        await Promise.all(files.map((file) => uploadFileToEntity({ entityType: 'accountability_funding', entityId: receipt.id, file })));
+                      } catch {
+                        setPendingReceiptAttachments({ id: receipt.id, files });
+                        setActionError('Поступление уже записано и включено в остаток, но файл не прикреплён. Повторите прикрепление ниже.');
+                      }
+                    }
+                    await reloadOwnView();
+                  } catch (error) {
+                    setActionError(getErrorMessage(error, 'Не удалось записать поступление.'));
+                  } finally { setIsRecordingExternal(false); }
+                })()}>{isRecordingExternal ? 'Сохраняем...' : 'Зафиксировать поступление'}</button>
+              </div>
+            </section>
+          ) : null}
           <AccountabilityAccountPanel
             title="Мой подотчет"
             view={ownView}
@@ -319,7 +402,18 @@ export default function AccountabilityPage(): React.JSX.Element {
                 );
               }
             }}
+            onReverseExternalReceipt={async (fundingId, reason) => {
+              setActionError(null);
+              try {
+                await reverseExternalAccountabilityReceipt(fundingId, reason);
+                await reloadAfterAccountChange(ownView.account.user.id);
+              } catch (error) {
+                setActionError(getErrorMessage(error, 'Не удалось сторнировать внешнее поступление.'));
+                throw error;
+              }
+            }}
           />
+          </>
         ) : null}
 
         {canReviewAccountability ? (
@@ -465,9 +559,9 @@ export default function AccountabilityPage(): React.JSX.Element {
                         gap: 8,
                         textAlign: 'left',
                         borderColor:
-                          item.user.id === selectedUserId ? '#93c5fd' : undefined,
+                          item.user.id === selectedUserId ? 'var(--ui-accent-subtle-hover)' : undefined,
                         background:
-                          item.user.id === selectedUserId ? '#eff6ff' : undefined,
+                          item.user.id === selectedUserId ? 'var(--ui-accent-subtle)' : undefined,
                       }}
                       onClick={() => {
                         setSelectedUserId(item.user.id);
@@ -558,10 +652,20 @@ export default function AccountabilityPage(): React.JSX.Element {
                   );
                 }
               }}
-              onRequestClosure={async () => {
+            onRequestClosure={async () => {
                 throw new Error('Closure request is not available in review mode');
-              }}
-            />
+            }}
+            onReverseExternalReceipt={async (fundingId, reason) => {
+              setActionError(null);
+              try {
+                await reverseExternalAccountabilityReceipt(fundingId, reason);
+                await reloadAfterAccountChange(reviewView.account.user.id);
+              } catch (error) {
+                setActionError(getErrorMessage(error, 'Не удалось сторнировать внешнее поступление.'));
+                throw error;
+              }
+            }}
+          />
           ) : null
         ) : null}
       </div>

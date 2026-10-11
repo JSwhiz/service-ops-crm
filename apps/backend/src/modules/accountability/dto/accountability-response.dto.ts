@@ -11,14 +11,18 @@ export class AccountabilityFundingResponseDto {
   id!: string;
   amount!: number;
   comment!: string | null;
+  source!: string | null;
   issuedAt!: string;
   fundingType!: string;
   entryDirection!: string;
   oneTimeOrderPaymentId!: string | null;
   oneTimeOrderId!: string | null;
   oneTimeOrderCompletionId!: string | null;
+  reversalOfFundingId!: string | null;
+  reversedByFundingId!: string | null;
   issuedBy!: AccountabilityUserSummaryDto;
   recordedBy!: AccountabilityUserSummaryDto | null;
+  attachments!: SafeFileResponseDto[];
 }
 
 export class AccountabilityExpenseResponseDto {
@@ -94,6 +98,8 @@ export class AccountabilityAccountViewDto {
     canIssueFunding: boolean;
     canReviewExpenses: boolean;
     canApproveAccountabilityClosure: boolean;
+    canRecordExternalReceipt: boolean;
+    canReverseExternalReceipts: boolean;
   };
   fundings!: AccountabilityFundingResponseDto[];
   expenses!: AccountabilityExpenseResponseDto[];

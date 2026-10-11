@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
-import { listEquipmentUnits } from '@/entities/equipment/api/equipment-client';
+import { createEquipmentMovement, listEquipmentUnits } from '@/entities/equipment/api/equipment-client';
 import type { EquipmentUnit } from '@/entities/equipment/model/equipment.types';
+import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import { EquipmentListTable } from '@/features/equipment-list/ui/equipment-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -78,8 +78,6 @@ export default function EquipmentPage(): React.JSX.Element {
 
   return (
     <>
-      <PageTitle title="Оборудование" />
-
       {!canAccessEquipment ? (
         <div className="page-card">У вас нет доступа к equipment-модулю.</div>
       ) : (
@@ -94,7 +92,7 @@ export default function EquipmentPage(): React.JSX.Element {
               onChange: setStatus, onRemove: () => setStatus(''),
             }] : []}
             availableFilters={status ? [] : [{ id: 'status', label: 'Статус', options: statusOptions, onAdd: setStatus }]}
-            actions={canManageEquipmentCatalog ? <Link className="button-link" href="/equipment/new">Добавить оборудование</Link> : null}
+            actions={canManageEquipmentCatalog ? <Link className="button-link button-link--primary" href="/equipment/new">Добавить оборудование</Link> : null}
           />
 
           {isLoading ? (
@@ -104,7 +102,22 @@ export default function EquipmentPage(): React.JSX.Element {
               {error}
             </div>
           ) : (
-            <EquipmentListTable items={items} />
+            <EquipmentListTable
+              items={items}
+              onWriteoffUnit={(unitId, comment) => createEquipmentMovement(unitId, { movementType: 'writeoff', comment })}
+              onAttachEvidence={async (movementId, files) => {
+                for (const file of files) {
+                  await uploadFileToEntity({ entityType: 'equipment_movement', entityId: movementId, file });
+                }
+              }}
+              onRefresh={async () => {
+                const updated = await listEquipmentUnits({
+                  ...(search.trim() ? { search: search.trim() } : {}),
+                  ...(status ? { status } : {}),
+                });
+                setItems(updated);
+              }}
+            />
           )}
         </div>
       )}

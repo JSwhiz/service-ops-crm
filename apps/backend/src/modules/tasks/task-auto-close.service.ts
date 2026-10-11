@@ -7,6 +7,7 @@ import {
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const AUTO_CLOSE_INTERVAL_MS = 30_000;
 const AUTO_CLOSE_BATCH_SIZE = 100;
@@ -17,7 +18,10 @@ export class TaskAutoCloseService implements OnModuleInit, OnModuleDestroy {
   private timer: ReturnType<typeof setInterval> | null = null;
   private activePass: Promise<number> | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     await this.runScheduledPass();
@@ -74,8 +78,12 @@ export class TaskAutoCloseService implements OnModuleInit, OnModuleDestroy {
   private async runScheduledPass(): Promise<void> {
     try {
       const completedCount = await this.processDueTasks();
+      const overdueTaskCount = await this.processOverdueTasks();
       if (completedCount > 0) {
         this.logger.log(`Auto-completed ${completedCount} task(s)`);
+      }
+      if (overdueTaskCount > 0) {
+        this.logger.log(`Created overdue notifications for ${overdueTaskCount} task(s)`);
       }
     } catch (error) {
       this.logger.error(
@@ -83,6 +91,50 @@ export class TaskAutoCloseService implements OnModuleInit, OnModuleDestroy {
         error instanceof Error ? error.stack : String(error),
       );
     }
+  }
+
+  async processOverdueTasks(now = new Date()): Promise<number> {
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        status: 'in_progress',
+        dueAt: { lte: now },
+        assignees: { some: { isActive: true } },
+      },
+      select: {
+        id: true,
+        title: true,
+        dueAt: true,
+        createdByUserId: true,
+        assignees: {
+          where: {
+            isActive: true,
+            user: { isActive: true, deletedAt: null },
+          },
+          select: { userId: true },
+        },
+      },
+      orderBy: [{ dueAt: 'asc' }, { id: 'asc' }],
+      take: AUTO_CLOSE_BATCH_SIZE,
+    });
+
+    for (const task of tasks) {
+      if (!task.dueAt) continue;
+      await this.notificationsService.createForRecipients({
+        recipientUserIds: [
+          ...task.assignees.map(({ userId }) => userId),
+          task.createdByUserId,
+        ],
+        type: 'task.overdue',
+        title: 'Срок задачи истёк',
+        body: task.title,
+        entityType: 'task',
+        entityId: task.id,
+        targetUrl: `/tasks?taskId=${encodeURIComponent(task.id)}`,
+        dedupeKey: `task:${task.id}:overdue:${task.dueAt.toISOString()}`,
+      });
+    }
+
+    return tasks.length;
   }
 
   private async completeCandidate(taskId: string, now: Date): Promise<number> {

@@ -18,6 +18,7 @@ import {
 } from '../objects/utils/object-access.util';
 import { canViewOneTimeOrderByScope } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { delegatedObjectIds, hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
 
 import { CreateEquipmentCatalogItemDto } from './dto/create-equipment-catalog-item.dto';
 import { CreateEquipmentMovementDto } from './dto/create-equipment-movement.dto';
@@ -303,8 +304,10 @@ export class EquipmentService {
     currentUser: CurrentAuthUser,
     unitId: string,
   ): Promise<EquipmentUnitResponseDto> {
-    this.assertEquipmentVisible(currentUser);
     const unit = await this.loadUnit(unitId);
+    if (!this.canReadUnit(currentUser, unit)) {
+      throw new ForbiddenException('Equipment unit access denied');
+    }
     return this.mapUnit(unit, currentUser, this.getGlobalCapabilities(currentUser));
   }
 
@@ -453,7 +456,19 @@ export class EquipmentService {
     }
 
     const movements = (await this.prisma.equipmentMovement.findMany({
-      where: { equipmentUnitId: unit.id },
+      where: {
+        equipmentUnitId: unit.id,
+        ...(!canAccessEquipment(this.getRoleCodes(currentUser)) ? {
+          OR: [
+            { fromObjectId: { in: delegatedObjectIds(currentUser.id) } },
+            { toObjectId: { in: delegatedObjectIds(currentUser.id) } },
+            ...(unit.currentObject && canViewObjectByScope({ currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), object: unit.currentObject, ownScopeOnly: true })
+              ? [{ fromObjectId: unit.currentObject.id }, { toObjectId: unit.currentObject.id }] : []),
+            ...(unit.currentOneTimeOrder && canViewOneTimeOrderByScope({ currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), permissionCodes: currentUser.permissionCodes, order: unit.currentOneTimeOrder })
+              ? [{ fromOneTimeOrderId: unit.currentOneTimeOrder.id }, { toOneTimeOrderId: unit.currentOneTimeOrder.id }] : []),
+          ],
+        } : {}),
+      },
       include: this.movementInclude(),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     })) as EquipmentMovementRecord[];
@@ -484,8 +499,6 @@ export class EquipmentService {
     const roleCodes = this.getRoleCodes(currentUser);
     const movementType = payload.movementType as EquipmentMovementType;
 
-    this.assertMovementCreatable(roleCodes, movementType);
-
     const created = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
         SELECT "id"
@@ -502,6 +515,14 @@ export class EquipmentService {
       if (!unit) {
         throw new NotFoundException('Equipment unit not found');
       }
+
+      const sourceObjectId = unit.currentObject?.id;
+      const delegated = sourceObjectId && !unit.currentOneTimeOrder &&
+        ['issue_to_object', 'return_to_storage', 'send_to_repair', 'mark_broken', 'mark_lost'].includes(movementType) &&
+        !payload.toOneTimeOrderId &&
+        hasDelegatedObjectAction(currentUser.id, sourceObjectId, 'equipment_move') &&
+        (movementType !== 'issue_to_object' || hasDelegatedObjectAction(currentUser.id, payload.toObjectId, 'equipment_move'));
+      if (!delegated) this.assertMovementCreatable(roleCodes, movementType);
 
       const normalized = await this.normalizeMovement(unit, payload);
       const requiresWriteoffApproval = movementType === 'writeoff';
@@ -1145,6 +1166,7 @@ export class EquipmentService {
     currentUser: CurrentAuthUser,
     capabilities: EquipmentGlobalCapabilities,
   ): EquipmentUnitResponseDto {
+    const delegatedMove = !unit.currentOneTimeOrder && hasDelegatedObjectAction(currentUser.id, unit.currentObject?.id, 'equipment_move', false);
     return {
       id: unit.id,
       inventoryNumber: unit.inventoryNumber,
@@ -1195,17 +1217,17 @@ export class EquipmentService {
         ],
       },
       capabilities: {
-        canCreateMovement: capabilities.canAccessEquipment,
+        canCreateMovement: capabilities.canAccessEquipment || delegatedMove,
         canDelete: capabilities.canDeleteEquipmentUnit,
-        canAssignToObject: capabilities.canAssignEquipmentToObject,
+        canAssignToObject: capabilities.canAssignEquipmentToObject || delegatedMove,
         canAssignToOneTimeOrder: capabilities.canAssignEquipmentToOneTimeOrder,
-        canReturn: capabilities.canReturnEquipment,
-        canMove: capabilities.canMoveEquipment,
-        canMarkBroken: capabilities.canMarkEquipmentBroken,
-        canSendToRepair: capabilities.canSendEquipmentToRepair,
+        canReturn: capabilities.canReturnEquipment || delegatedMove,
+        canMove: capabilities.canMoveEquipment || delegatedMove,
+        canMarkBroken: capabilities.canMarkEquipmentBroken || delegatedMove,
+        canSendToRepair: capabilities.canSendEquipmentToRepair || delegatedMove,
         canReturnFromRepair: capabilities.canReturnEquipmentFromRepair,
         canWriteoff: capabilities.canWriteoffEquipment,
-        canViewHistory: capabilities.canViewEquipmentHistory,
+        canViewHistory: capabilities.canViewEquipmentHistory || this.canReadUnit(currentUser, unit),
       },
     };
   }

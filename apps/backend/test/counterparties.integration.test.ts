@@ -28,6 +28,10 @@ test('counterparty registry, object links, ACL isolation and archive semantics',
   const marker = `counterparty-${Date.now()}`;
 
   t.after(async () => {
+    await prisma.object.updateMany({
+      where: { name: { contains: marker } },
+      data: { masterForCounterpartyId: null },
+    });
     await prisma.object.deleteMany({
       where: { name: { contains: marker } },
     });
@@ -234,6 +238,39 @@ test('counterparty registry, object links, ACL isolation and archive semantics',
   });
   assert.equal(movedObject.counterpartyId, second.id);
 
+  await prisma.objectAssignment.create({
+    data: {
+      objectId: secondVisibleObject.id,
+      userId: manager.id,
+      assignmentRoleCode: 'manager',
+      isActive: true,
+    },
+  });
+
+  const setMaster = await api(
+    baseUrl,
+    founderCookie,
+    `/counterparties/${second.id}/master-object/${secondVisibleObject.id}`,
+    { method: 'POST' },
+  );
+  assert.equal(setMaster.status, 201);
+  const secondCard = (await setMaster.json()) as any;
+  assert.equal(secondCard.masterObject.id, secondVisibleObject.id);
+
+  const managerCounterparty = await api(baseUrl, managerCookie, `/counterparties/${second.id}`);
+  assert.equal(managerCounterparty.status, 200);
+  const managerCounterpartyCard = (await managerCounterparty.json()) as any;
+  assert.equal(managerCounterpartyCard.masterObject?.id, secondVisibleObject.id);
+
+  const managerMovements = await api(
+    baseUrl,
+    managerCookie,
+    `/counterparties/${second.id}/inventory-movements`,
+  );
+  assert.equal(managerMovements.status, 200);
+  const scopedMovements = (await managerMovements.json()) as { items: Array<{ relatedObject: { id: string } | null }> };
+  assert.ok(scopedMovements.items.every((movement) => movement.relatedObject?.id === secondVisibleObject.id));
+
   const oldCounterpartyHistory = (await (
     await api(baseUrl, founderCookie, `/counterparties/${first.id}/history`)
   ).json()) as Array<{ action: string }>;
@@ -242,6 +279,22 @@ test('counterparty registry, object links, ACL isolation and archive semantics',
       (event) => event.action === 'counterparty.object_unlinked_by_relink',
     ),
   );
+
+  const unlinkMasterObject = await api(
+    baseUrl,
+    founderCookie,
+    `/counterparties/${second.id}/objects/${secondVisibleObject.id}`,
+    { method: 'DELETE' },
+  );
+  assert.equal(unlinkMasterObject.status, 200);
+  assert.equal((await unlinkMasterObject.json() as any).masterObject, null);
+  assert.ok(await prisma.auditEvent.findFirst({
+    where: {
+      entityType: 'counterparty',
+      entityId: second.id,
+      action: 'counterparty.master_object_cleared',
+    },
+  }));
 
   const unlink = await api(
     baseUrl,

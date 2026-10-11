@@ -23,6 +23,7 @@ import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -56,6 +57,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
   const [dateTo, setDateTo] = useState('');
   const [periodFilterActive, setPeriodFilterActive] = useState(false);
   const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +100,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
         if (!cancelled) {
           setItems(loadedItems.items);
           setMovements(loadedMovements.items);
+          setTotal(loadedMovements.total);
           setTotalPages(loadedMovements.totalPages);
           setObjectOptions(loadedObjects);
           setOneTimeOrderOptions(loadedOrders);
@@ -183,17 +186,18 @@ export default function InventoryMovementsPage(): React.JSX.Element {
             canReturn={capabilities?.canReturnInventory ?? false}
             canWriteoff={capabilities?.canWriteoffInventory ?? false}
             canAdjust={capabilities?.canAdjustInventory ?? false}
-            onSubmit={async ({ payload, evidenceFiles }) => {
+            onSubmit={async ({ payload }) => {
               const created = await createInventoryMovement(payload);
-
-              for (const file of evidenceFiles) {
-                await uploadFileToEntity({
-                  entityType: 'inventory_movement',
-                  entityId: created.id,
-                  file,
-                });
-              }
-
+              return created;
+            }}
+            onAttachEvidence={async (movementId, files) => {
+              await Promise.all(files.map((file) => uploadFileToEntity({
+                entityType: 'inventory_movement',
+                entityId: movementId,
+                file,
+              })));
+            }}
+            onRefresh={async () => {
               const [updatedItems, updatedMovements] = await Promise.all([
                 listInventoryItems({ isActive: true, limit: 100 }),
                 listInventoryMovements({
@@ -228,29 +232,9 @@ export default function InventoryMovementsPage(): React.JSX.Element {
             <InventoryMovementList items={movements} />
           )}
 
-          {totalPages > 1 ? (
-            <div className="page-card pagination-row">
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={page <= 1 || isLoading}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Назад
-              </button>
-              <span className="page-muted">
-                Страница {page} из {totalPages}
-              </span>
-              <button
-                type="button"
-                className="button-secondary"
-                disabled={page >= totalPages || isLoading}
-                onClick={() => setPage((current) => current + 1)}
-              >
-                Далее
-              </button>
-            </div>
-          ) : null}
+          {!isLoading && !error ? <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы движений расходников"
+            summary={total > 0 ? `Показано ${(page - 1) * 25 + 1}–${Math.min(page * 25, total)} из ${total}` : 'Движения не найдены'}
+            onPageChange={setPage} /> : null}
         </div>
       )}
     </div>

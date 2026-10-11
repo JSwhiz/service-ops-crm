@@ -25,8 +25,8 @@
 
 .app-content {
   width: 100%;
-  max-width: var(--ui-content-max);
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   padding: 24px 28px 40px;
 }
 
@@ -567,6 +567,62 @@
   box-shadow: var(--ui-shadow-popover);
 }
 
+.app-header .notification-browser-permission {
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-header .notification-browser-permission:hover {
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+}
+
+.notification-toast-stack {
+  position: fixed;
+  z-index: 1000;
+  top: 76px;
+  right: 20px;
+  display: grid;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.notification-toast {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: var(--ui-shadow-popover);
+  font: inherit;
+  text-align: left;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.notification-toast span {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+}
+
+@media (max-width: 760px) {
+  .notification-toast-stack {
+    top: 68px;
+    right: 12px;
+  }
+}
+
 @media (max-width: 1100px) {
   .app-content {
     padding-inline: 20px;
@@ -617,7 +673,7 @@
   }
 
   .app-content {
-    padding: 18px 14px 32px;
+    padding: 12px 12px 24px;
   }
 
   .app-header .notification-bell__trigger {

@@ -1,9 +1,9 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
+  Matches,
   IsOptional,
   IsString,
-  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -11,6 +11,8 @@ import {
 
 const optionalTrim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() || undefined : value;
+
+const CANONICAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export class GetTimesheetOverviewQueryDto {
   @Type(() => Number)
@@ -26,11 +28,11 @@ export class GetTimesheetOverviewQueryDto {
   month!: number;
 
   @IsOptional()
-  @IsUUID('4')
+  @Matches(CANONICAL_UUID_PATTERN)
   objectId?: string;
 
   @IsOptional()
-  @IsUUID('4')
+  @Matches(CANONICAL_UUID_PATTERN)
   employeeId?: string;
 }
 
@@ -42,7 +44,7 @@ export class ListTimesheetOverviewObjectsQueryDto {
   q?: string;
 
   @IsOptional()
-  @IsUUID('4')
+  @Matches(CANONICAL_UUID_PATTERN)
   selectedId?: string;
 }
 
@@ -54,6 +56,6 @@ export class ListTimesheetOverviewEmployeesQueryDto extends GetTimesheetOverview
   q?: string;
 
   @IsOptional()
-  @IsUUID('4')
+  @Matches(CANONICAL_UUID_PATTERN)
   selectedId?: string;
 }

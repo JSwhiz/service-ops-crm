@@ -90,8 +90,8 @@ import {
   getOneTimeOrderConflictTypeLabel,
   getOneTimeOrderStatusLabel,
 } from '@/shared/lib/one-time-order-presentation';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
+import styles from './one-time-order-detail.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -149,6 +149,7 @@ export default function OneTimeOrderDetailPage({
   const [taskAssignees, setTaskAssignees] = useState<SystemUserOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState('overview');
 
   const canSelectLinkedObject = Boolean(item?.capabilities.canChangeLinkedObject);
 
@@ -295,8 +296,6 @@ export default function OneTimeOrderDetailPage({
 
   return (
     <div className="workspace-page order-detail-page">
-      <PageTitle title={item ? item.title : 'Разовый заказ'} />
-
       {isLoading ? (
         <div className="page-card workspace-empty">Загрузка...</div>
       ) : error ? (
@@ -307,6 +306,29 @@ export default function OneTimeOrderDetailPage({
         <div className="page-stack order-detail-workspace">
           <OneTimeOrderSummaryCard item={item} />
 
+          <nav className={styles.navigation} aria-label="Разделы разового заказа">
+            {[
+              ['overview', 'Обзор'],
+              ['execution', 'Выполнение'],
+              ['team', 'Команда'],
+              ['finance', 'Финансы'],
+              ['materials', 'Материалы'],
+              ['discussion', 'Обсуждение'],
+              ['history', 'История'],
+            ].map(([id, label]) => (
+              <button
+                key={id!}
+                type="button"
+                className={activeSection === id ? styles.active : undefined}
+                aria-current={activeSection === id ? 'page' : undefined}
+                onClick={() => setActiveSection(id!)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+
+          <div className={styles.content} hidden={activeSection !== 'team'}>
           <section className="page-card workspace-surface">
             <div className="section-header">
               <div>
@@ -353,7 +375,34 @@ export default function OneTimeOrderDetailPage({
               </div>
             )}
           </section>
+          <OneTimeOrderManagersPanel
+            item={item}
+            searchCandidates={(query) => listOneTimeOrderManagerCandidates(item.id, query)}
+            onAssign={async (userId) => {
+              let conflictFingerprint: string | undefined;
+              if (item.executionStartDate && item.executionEndDate) {
+                const result = await checkOneTimeOrderConflicts({
+                  executionStartDate: item.executionStartDate,
+                  executionEndDate: item.executionEndDate,
+                  managerUserIds: [userId], excludeOrderId: item.id,
+                });
+                if (result.hasConflicts) {
+                  const confirmed = confirmScheduleConflicts(result.conflicts);
+                  if (!confirmed) return;
+                  conflictFingerprint = result.conflictFingerprint;
+                }
+              }
+              const updated = await assignOneTimeOrderManager(item.id, userId, conflictFingerprint);
+              setItem(updated); await loadAll(item.id);
+            }}
+            onRemove={async (userId) => {
+              const updated = await removeOneTimeOrderManager(item.id, userId);
+              setItem(updated); await loadAll(item.id);
+            }}
+          />
+          </div>
 
+          <div className={styles.content} hidden={activeSection !== 'overview'}>
           {item.capabilities.canCopy ? (
             <div className="action-row">
               <Link
@@ -364,54 +413,6 @@ export default function OneTimeOrderDetailPage({
               </Link>
             </div>
           ) : null}
-
-          <OneTimeOrderCompletionPanel
-            item={item}
-            completions={completions}
-            onComplete={async (payload) => {
-              await completeOneTimeOrder(item.id, payload);
-              await loadAll(item.id);
-            }}
-            onReopen={async () => {
-              await reopenOneTimeOrder(item.id);
-              await loadAll(item.id);
-            }}
-            onCorrectPayment={async (paymentId, payload) => {
-              await correctOneTimeOrderPayment(item.id, paymentId, payload);
-              await loadAll(item.id);
-            }}
-          />
-
-          <OneTimeOrderReviewPanel
-            item={item}
-            onSave={async (payload) => {
-              const updated = await updateOneTimeOrderReview(item.id, payload);
-              setItem(updated);
-              await loadAll(item.id);
-            }}
-            onClear={async () => {
-              const updated = await clearOneTimeOrderReview(item.id);
-              setItem(updated);
-              await loadAll(item.id);
-            }}
-          />
-
-          <OneTimeOrderSpecificationPanel
-            orderId={item.id}
-            canManage={item.capabilities.canManageSpecification}
-          />
-
-          <div className="page-card">
-            <div className="section-header" style={{ paddingBottom: 0 }}>
-              <div>
-                <div className="section-title">Рабочий чат разовых заказов</div>
-                <div className="section-subtitle">
-                  Полный мессенджер живет отдельно от комментариев заказа.
-                </div>
-              </div>
-              <Link href="/chats?room=one_time_orders">Открыть чат</Link>
-            </div>
-          </div>
 
           {item.capabilities.canChangeStatus ? (
             <div className="page-card">
@@ -531,42 +532,21 @@ export default function OneTimeOrderDetailPage({
               }}
             />
           ) : null}
+          </div>
 
-          <OneTimeOrderManagersPanel
+          <div className={styles.content} hidden={activeSection !== 'finance'}>
+          <OneTimeOrderCompletionPanel
             item={item}
-            searchCandidates={(query) =>
-              listOneTimeOrderManagerCandidates(item.id, query)
-            }
-            onAssign={async (userId) => {
-              let conflictFingerprint: string | undefined;
-              if (item.executionStartDate && item.executionEndDate) {
-                const result = await checkOneTimeOrderConflicts({
-                  executionStartDate: item.executionStartDate,
-                  executionEndDate: item.executionEndDate,
-                  managerUserIds: [userId],
-                  excludeOrderId: item.id,
-                });
-                if (result.hasConflicts) {
-                  const confirmed = confirmScheduleConflicts(result.conflicts);
-                  if (!confirmed) return;
-                  conflictFingerprint = result.conflictFingerprint;
-                }
-              }
-              const updated = await assignOneTimeOrderManager(
-                item.id,
-                userId,
-                conflictFingerprint,
-              );
-              setItem(updated);
-              await loadAll(item.id);
-            }}
-            onRemove={async (userId) => {
-              const updated = await removeOneTimeOrderManager(item.id, userId);
-              setItem(updated);
-              await loadAll(item.id);
-            }}
+            completions={completions}
+            onComplete={async (payload) => { await completeOneTimeOrder(item.id, payload); await loadAll(item.id); }}
+            onReopen={async () => { await reopenOneTimeOrder(item.id); await loadAll(item.id); }}
+            onCorrectPayment={async (paymentId, payload) => { await correctOneTimeOrderPayment(item.id, paymentId, payload); await loadAll(item.id); }}
           />
-
+          <OneTimeOrderReviewPanel
+            item={item}
+            onSave={async (payload) => { const updated = await updateOneTimeOrderReview(item.id, payload); setItem(updated); await loadAll(item.id); }}
+            onClear={async () => { const updated = await clearOneTimeOrderReview(item.id); setItem(updated); await loadAll(item.id); }}
+          />
           {accountability ? (
             <OneTimeOrderAccountabilityPanel
               view={accountability}
@@ -601,7 +581,9 @@ export default function OneTimeOrderDetailPage({
               }}
             />
           ) : null}
+          </div>
 
+          <div className={styles.content} hidden={activeSection !== 'discussion'}>
           <OneTimeOrderCommentsPanel
             items={comments}
             canCreate={item.capabilities.canComment}
@@ -623,7 +605,16 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+          <div className="page-card">
+            <div className="section-header" style={{ paddingBottom: 0 }}>
+              <div><div className="section-title">Рабочий чат разовых заказов</div><div className="section-subtitle">Полный мессенджер живет отдельно от комментариев заказа.</div></div>
+              <Link href="/chats?room=one_time_orders">Открыть чат</Link>
+            </div>
+          </div>
+          </div>
 
+          <div className={styles.content} hidden={activeSection !== 'execution'}>
+          <OneTimeOrderSpecificationPanel orderId={item.id} canManage={item.capabilities.canManageSpecification} />
           <OneTimeOrderDailyReportPanel
             item={dailyReport}
             onSave={async (payload) => {
@@ -644,7 +635,18 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+          <OneTimeOrderTasksPanel
+            items={tasks} assigneeOptions={taskAssignees}
+            canCreateTask={item.capabilities.canCreateTask}
+            linkedObject={item.linkedObject}
+            onCreate={async ({ linkToObject, ...payload }) => {
+              await createTask({ ...payload, ...(item.linkedObject && linkToObject ? { objectId: item.linkedObject.id } : {}), oneTimeOrderId: item.id, visibilityType: 'target_participants', requiresConfirmation: true, completionRequirement: 'comment_or_file' });
+              await loadAll(item.id);
+            }}
+          />
+          </div>
 
+          <div className={styles.content} hidden={activeSection !== 'materials'}>
           <OneTimeOrderPhotosPanel
             items={photos}
             canCreate={item.capabilities.canUploadPhotos}
@@ -694,31 +696,11 @@ export default function OneTimeOrderDetailPage({
           {equipment ? (
             <EquipmentScopePanel title="Оборудование заказа" units={equipment.units} />
           ) : null}
+          </div>
 
-          <OneTimeOrderTasksPanel
-            items={tasks}
-            assigneeOptions={taskAssignees}
-            canCreateTask={item.capabilities.canCreateTask}
-            linkedObject={item.linkedObject}
-            onCreate={async ({ linkToObject, ...payload }) => {
-              await createTask({
-                ...payload,
-                ...(item.linkedObject && linkToObject
-                  ? { objectId: item.linkedObject.id }
-                  : {}),
-                oneTimeOrderId: item.id,
-                visibilityMode:
-                  item.linkedObject && linkToObject
-                    ? 'scope'
-                    : 'selected',
-                requiresConfirmation: true,
-                completionRequirement: 'comment_or_file',
-              });
-              await loadAll(item.id);
-            }}
-          />
-
-          <OneTimeOrderHistoryList items={history} />
+          <div className={styles.content} hidden={activeSection !== 'history'}>
+            <OneTimeOrderHistoryList items={history} />
+          </div>
         </div>
       ) : (
         <div className="page-card workspace-empty">Разовый заказ не найден.</div>

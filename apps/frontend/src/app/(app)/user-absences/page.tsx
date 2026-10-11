@@ -15,9 +15,11 @@ import type {
   UserAbsenceType,
   UserAbsenceUserOption,
 } from '@/entities/user-absence/model/user-absence.types';
+import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
-import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { Button, Field } from '@/shared/ui/foundation';
+import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
+import { ConfirmDialog } from '@/shared/ui/overlays';
 
 import styles from './user-absences.module.css';
 
@@ -30,101 +32,138 @@ const TYPE_LABELS: Record<UserAbsenceType, string> = {
 function moscowDate(offsetDays = 0): string {
   const shifted = new Date(Date.now() + offsetDays * 86_400_000);
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Moscow',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+    timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit',
   }).formatToParts(shifted);
   const get = (type: string): string => parts.find((item) => item.type === type)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(`${value}T00:00:00.000Z`));
+function monthBounds(value: string): { from: string; to: string; year: number; month: number; days: number } {
+  const [year, parsedMonth] = value.split('-').map(Number);
+  const safeYear = year || Number(moscowDate().slice(0, 4));
+  const safeMonth = parsedMonth !== undefined && parsedMonth >= 1 && parsedMonth <= 12
+    ? parsedMonth
+    : Number(moscowDate().slice(5, 7));
+  const days = new Date(Date.UTC(safeYear, safeMonth, 0)).getUTCDate();
+  const mm = String(safeMonth).padStart(2, '0');
+  return { from: `${safeYear}-${mm}-01`, to: `${safeYear}-${mm}-${String(days).padStart(2, '0')}`, year: safeYear, month: safeMonth, days };
 }
 
-function statusLabel(item: UserAbsenceItem, today: string): string {
-  if (item.startDate <= today && item.endDate >= today) return 'Отсутствует сегодня';
-  if (item.startDate > today) return 'Запланировано';
-  return 'Завершено';
+function formatMonth(year: number, month: number): string {
+  const value = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+    .format(new Date(Date.UTC(year, month - 1, 1)));
+  return value.charAt(0).toLocaleUpperCase('ru-RU') + value.slice(1);
+}
+
+function formatDay(value: string): string {
+  return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+    .format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function isoDay(year: number, month: number, day: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function eventForDay(items: UserAbsenceItem[], userId: string, day: string): UserAbsenceItem | undefined {
+  return items.find((item) => item.userId === userId && item.startDate <= day && item.endDate >= day);
+}
+
+function eventLabel(item: UserAbsenceItem): string {
+  return `${TYPE_LABELS[item.absenceType]} · ${formatDay(item.startDate)} — ${formatDay(item.endDate)}`;
 }
 
 export default function UserAbsencesPage(): React.JSX.Element {
+  const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const today = useMemo(() => moscowDate(), []);
-  const from = searchParams.get('from') ?? today;
-  const to = searchParams.get('to') ?? moscowDate(60);
-  const rawType = searchParams.get('absenceType');
-  const type: UserAbsenceType | '' = rawType === 'vacation' || rawType === 'sick_leave' || rawType === 'day_off' ? rawType : '';
+  const queryMonth = searchParams.get('month');
+  const monthKey = queryMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(queryMonth)
+    ? queryMonth
+    : (searchParams.get('from')?.slice(0, 7) ?? today.slice(0, 7));
+  const bounds = useMemo(() => monthBounds(monthKey), [monthKey]);
   const [items, setItems] = useState<UserAbsenceItem[]>([]);
   const [users, setUsers] = useState<UserAbsenceUserOption[]>([]);
   const [canManage, setCanManage] = useState(false);
+  const [canManageAll, setCanManageAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [periodFilterActive, setPeriodFilterActive] = useState(searchParams.has('from') || searchParams.has('to'));
   const [editing, setEditing] = useState<UserAbsenceItem | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<UserAbsenceItem | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedType, setSelectedType] = useState<UserAbsenceType | ''>('');
   const [form, setForm] = useState({
-    userId: '',
-    absenceType: 'vacation' as UserAbsenceType,
-    startDate: today,
-    endDate: today,
-    comment: '',
+    userId: user?.id ?? '', absenceType: 'vacation' as UserAbsenceType,
+    startDate: today, endDate: today, comment: '',
   });
 
-  const replaceFilter = (updates: Record<string, string | null>): void => {
-    const next = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(updates)) {
-      if (value) next.set(key, value);
-      else next.delete(key);
-    }
-    const serialized = next.toString();
-    router.replace(serialized ? `/user-absences?${serialized}` : '/user-absences', { scroll: false });
-  };
-
   useEffect(() => {
-    setPeriodFilterActive(searchParams.has('from') || searchParams.has('to'));
-  }, [searchParams]);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('month', monthKey);
+    next.delete('from');
+    next.delete('to');
+    const serialized = next.toString();
+    if (serialized !== searchParams.toString()) {
+      router.replace(`/user-absences?${serialized}`, { scroll: false });
+    }
+  }, [monthKey, router, searchParams]);
 
   const load = async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
       const response = await listUserAbsences({
-        from: from || undefined,
-        to: to || undefined,
-        absenceType: type || undefined,
+        from: bounds.from,
+        to: bounds.to,
+        userId: selectedUserId || undefined,
+        absenceType: selectedType || undefined,
       });
       setItems(response.items);
       setCanManage(response.capabilities.canManage);
-      if (response.capabilities.canManage && !users.length) {
-        const options = await listUserAbsenceUsers();
-        setUsers(options);
-      }
+      setCanManageAll(response.capabilities.canManageAll);
+      const options = await listUserAbsenceUsers();
+      setUsers(options);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Не удалось загрузить график отсутствий.');
+      setError(caught instanceof Error ? caught.message : 'Не удалось загрузить календарь.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    void load();
-  }, [from, to, type]);
+  useEffect(() => { void load(); }, [bounds.from, bounds.to, selectedUserId, selectedType]);
 
-  const openCreate = (): void => {
+  const visibleUsers = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase('ru-RU');
+    return users.filter((entry) => {
+      if (selectedUserId && entry.id !== selectedUserId) return false;
+      if (!canManageAll && entry.id !== user?.id) return false;
+      if (!query) return true;
+      return `${entry.fullName} ${entry.login}`.toLocaleLowerCase('ru-RU').includes(query);
+    });
+  }, [canManageAll, search, selectedUserId, user?.id, users]);
+
+  const visibleItems = useMemo(() => items.filter((item) =>
+    visibleUsers.some((entry) => entry.id === item.userId),
+  ), [items, visibleUsers]);
+  const todayCount = visibleItems.filter((item) => item.startDate <= today && item.endDate >= today).length;
+  const upcomingCount = visibleItems.filter((item) => item.startDate > today).length;
+
+  const changeMonth = (year: number, month: number): void => {
+    const query = new URLSearchParams(searchParams.toString());
+    query.set('month', `${year}-${String(month).padStart(2, '0')}`);
+    query.delete('from');
+    query.delete('to');
+    router.replace(`/user-absences?${query.toString()}`, { scroll: false });
+  };
+
+  const openCreate = (day = today): void => {
     setEditing(null);
     setForm({
-      userId: users[0]?.id ?? '',
-      absenceType: 'vacation',
-      startDate: today,
-      endDate: today,
-      comment: '',
+      userId: selectedUserId || user?.id || users[0]?.id || '',
+      absenceType: 'vacation', startDate: day, endDate: day, comment: '',
     });
     setEditorOpen(true);
   };
@@ -132,11 +171,8 @@ export default function UserAbsencesPage(): React.JSX.Element {
   const openEdit = (item: UserAbsenceItem): void => {
     setEditing(item);
     setForm({
-      userId: item.userId,
-      absenceType: item.absenceType,
-      startDate: item.startDate,
-      endDate: item.endDate,
-      comment: item.comment ?? '',
+      userId: item.userId, absenceType: item.absenceType,
+      startDate: item.startDate, endDate: item.endDate, comment: item.comment ?? '',
     });
     setEditorOpen(true);
   };
@@ -150,14 +186,12 @@ export default function UserAbsencesPage(): React.JSX.Element {
           absenceType: form.absenceType,
           startDate: form.startDate,
           endDate: form.endDate,
-          comment: form.comment || null,
+          ...(editing.userId === user?.id || canManageAll ? { comment: form.comment || null } : {}),
         });
       } else {
         await createUserAbsence({
-          userId: form.userId,
-          absenceType: form.absenceType,
-          startDate: form.startDate,
-          endDate: form.endDate,
+          userId: canManageAll ? form.userId : user?.id ?? form.userId,
+          absenceType: form.absenceType, startDate: form.startDate, endDate: form.endDate,
           comment: form.comment || null,
         });
       }
@@ -169,55 +203,131 @@ export default function UserAbsencesPage(): React.JSX.Element {
     }
   };
 
-  const todayCount = items.filter((item) => item.startDate <= today && item.endDate >= today).length;
-  const upcomingCount = items.filter((item) => item.startDate > today).length;
-  const typeOptions = Object.entries(TYPE_LABELS).map(([value, label]) => ({ value, label }));
-  const activeFilters: ActiveRegistryFilter[] = ([
-    periodFilterActive ? { id: 'period', label: 'Период', value: `${from} — ${to}`, options: [], onChange: () => undefined, onRemove: () => { setPeriodFilterActive(false); router.replace('/user-absences', { scroll: false }); }, customControl: <div className="registry-date-range"><input aria-label="Дата с" type="date" max={to || undefined} value={from} onChange={(event) => replaceFilter({ from: event.target.value || null })} /><span>—</span><input aria-label="Дата по" type="date" min={from || undefined} value={to} onChange={(event) => replaceFilter({ to: event.target.value || null })} /></div> } : null,
-    type ? { id: 'type', label: 'Тип', value: type, options: typeOptions, onChange: (value: string) => replaceFilter({ absenceType: value || null }), onRemove: () => replaceFilter({ absenceType: null }) } : null,
-  ].filter(Boolean) as ActiveRegistryFilter[]);
-  const availableFilters: AvailableRegistryFilter[] = ([
-    !periodFilterActive ? { id: 'period', label: 'Период', options: [{ value: 'period', label: 'Выбрать даты' }], onAdd: () => setPeriodFilterActive(true) } : null,
-    !type ? { id: 'type', label: 'Тип', options: typeOptions, onAdd: (value: string) => replaceFilter({ absenceType: value }) } : null,
-  ].filter(Boolean) as AvailableRegistryFilter[]);
+  const confirmDelete = async (): Promise<void> => {
+    if (!deleteTarget) return;
+    setDeletePending(true);
+    try {
+      await deleteUserAbsence(deleteTarget.id);
+      setDeleteTarget(null);
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Не удалось удалить запись.');
+    } finally {
+      setDeletePending(false);
+    }
+  };
+
+  const monthTitle = formatMonth(bounds.year, bounds.month);
 
   return (
     <div className={styles.root}>
-      <PageTitle title="Отсутствия команды" />
+      <PageTitle title="Календарь пользователей" />
+
+      <section className={styles.toolbar} aria-label="Управление календарём">
+        <div className={styles.periodControls}>
+          <MonthPeriodPicker
+            year={bounds.year}
+            month={bounds.month}
+            label="Выбор месяца календаря"
+            onChange={changeMonth}
+          />
+          <span className={styles.periodAnnouncement} aria-live="polite">{monthTitle}</span>
+        </div>
+        <div className={styles.filters}>
+          {canManageAll ? (
+            <Field label="Пользователь">
+              <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
+                <option value="">Все пользователи</option>
+                {users.map((entry) => <option key={entry.id} value={entry.id}>{entry.fullName || entry.login}</option>)}
+              </select>
+            </Field>
+          ) : null}
+          {canManageAll ? (
+            <Field label="Поиск пользователя">
+              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Имя или логин" />
+            </Field>
+          ) : null}
+          <Field label="Тип отсутствия">
+            <select value={selectedType} onChange={(event) => setSelectedType(event.target.value as UserAbsenceType | '')}>
+              <option value="">Все типы</option>
+              {Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </Field>
+          {canManage ? <Button variant="primary" onClick={() => openCreate()}>Добавить отсутствие</Button> : null}
+        </div>
+      </section>
 
       <div className={styles.summary}>
         <strong>{todayCount}</strong><span>отсутствуют сегодня</span>
-        <strong>{upcomingCount}</strong><span>запланированных отсутствий</span>
+        <strong>{upcomingCount}</strong><span>запланировано в месяце</span>
       </div>
 
-      <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeFilters} availableFilters={availableFilters} actions={canManage ? <button className={`${styles.button} ${styles.primary}`} type="button" onClick={openCreate}>Добавить отсутствие</button> : null} />
+      {error ? <div className="inline-notice inline-notice--warning" role="alert">{error}</div> : null}
 
       {editorOpen && canManage ? (
-        <div className={styles.editor}>
-          <label className={styles.field}><span>Пользователь</span><select value={form.userId} disabled={Boolean(editing)} onChange={(event) => setForm((value) => ({ ...value, userId: event.target.value }))}>{users.map((user) => <option key={user.id} value={user.id}>{user.fullName || user.login}</option>)}</select></label>
-          <label className={styles.field}><span>Тип</span><select value={form.absenceType} onChange={(event) => setForm((value) => ({ ...value, absenceType: event.target.value as UserAbsenceType }))}><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></select></label>
-          <label className={styles.field}><span>С</span><input type="date" value={form.startDate} onChange={(event) => setForm((value) => ({ ...value, startDate: event.target.value }))} /></label>
-          <label className={styles.field}><span>По</span><input type="date" min={form.startDate} value={form.endDate} onChange={(event) => setForm((value) => ({ ...value, endDate: event.target.value }))} /></label>
-          <label className={styles.field}><span>Комментарий</span><input value={form.comment} onChange={(event) => setForm((value) => ({ ...value, comment: event.target.value }))} placeholder="Необязательно" /></label>
-          <div className={styles.editorActions}><button className={`${styles.button} ${styles.primary}`} type="button" onClick={() => void save()}>Сохранить</button><button className={styles.button} type="button" onClick={() => setEditorOpen(false)}>Отмена</button></div>
-        </div>
+        <section className={styles.editor} aria-labelledby="absence-editor-title">
+          <div className={styles.editorHeading}><h2 id="absence-editor-title">{editing ? 'Изменить отсутствие' : 'Новое отсутствие'}</h2><span>* — обязательные поля</span></div>
+          <div className={styles.editorGrid}>
+            {canManageAll ? <Field label="Пользователь" required><select value={form.userId} disabled={Boolean(editing)} onChange={(event) => setForm((value) => ({ ...value, userId: event.target.value }))}>{users.map((entry) => <option key={entry.id} value={entry.id}>{entry.fullName || entry.login}</option>)}</select></Field> : null}
+            <Field label="Тип отсутствия" required><select value={form.absenceType} onChange={(event) => setForm((value) => ({ ...value, absenceType: event.target.value as UserAbsenceType }))}><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></select></Field>
+            <Field label="С" required><input type="date" value={form.startDate} onChange={(event) => setForm((value) => ({ ...value, startDate: event.target.value, endDate: value.endDate < event.target.value ? event.target.value : value.endDate }))} /></Field>
+            <Field label="По" required><input type="date" min={form.startDate} value={form.endDate} onChange={(event) => setForm((value) => ({ ...value, endDate: event.target.value }))} /></Field>
+            {editing && editing.userId !== user?.id && !canManageAll ? null : <Field label="Комментарий"><input value={form.comment} onChange={(event) => setForm((value) => ({ ...value, comment: event.target.value }))} placeholder="Необязательно" /></Field>}
+          </div>
+          <div className={styles.editorActions}><Button variant="primary" onClick={() => void save()}>Сохранить</Button><Button onClick={() => setEditorOpen(false)}>Отмена</Button></div>
+        </section>
       ) : null}
 
-      {error ? <div className="inline-notice inline-notice--warning">{error}</div> : null}
+      <section className={styles.calendarSurface} aria-label={`Календарь отсутствий: ${monthTitle}`} aria-busy={loading}>
+        {loading ? <div className={styles.empty}>Загрузка календаря…</div> : visibleUsers.length === 0 ? <div className={styles.empty}>Пользователи не найдены.</div> : (
+          <div className={styles.gridScroll} role="region" aria-label="Календарь по дням; прокручивайте по горизонтали">
+            <table className={styles.calendarGrid}>
+              <thead><tr><th scope="col" className={styles.personHeader}>Пользователь</th>{Array.from({ length: bounds.days }, (_, index) => {
+                const day = index + 1;
+                const date = isoDay(bounds.year, bounds.month, day);
+                const weekDay = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
+                return <th scope="col" key={date} className={`${styles.dayHeader} ${date === today ? styles.today : ''}`}><span>{weekDay}</span><strong>{day}</strong></th>;
+              })}</tr></thead>
+              <tbody>{visibleUsers.map((entry) => <tr key={entry.id}>
+                <th scope="row" className={styles.personCell}><strong>{entry.fullName || entry.login}</strong><small>{entry.login}</small></th>
+                {Array.from({ length: bounds.days }, (_, index) => {
+                  const day = index + 1;
+                  const date = isoDay(bounds.year, bounds.month, day);
+                  const item = eventForDay(visibleItems, entry.id, date);
+                  const canEdit = canManage && (canManageAll || entry.id === user?.id);
+                  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+                  return <td key={date} className={`${styles.dayCell} ${weekday === 0 || weekday === 6 ? styles.weekend : ''} ${date === today ? styles.today : ''}`}>
+                    {item ? <button type="button" className={`${styles.event} ${styles[item.absenceType]}`} title={`${eventLabel(item)}${item.comment ? `\n${item.comment}` : ''}`} aria-label={`${entry.fullName}, ${date}, ${eventLabel(item)}${item.comment ? `, ${item.comment}` : ''}${canEdit ? ', изменить' : ''}`} onClick={() => canEdit ? openEdit(item) : undefined} disabled={!canEdit}><span>{item.startDate === date ? TYPE_LABELS[item.absenceType] : ' '}</span></button>
+                      : canEdit ? <button type="button" className={styles.addDay} aria-label={`Добавить отсутствие: ${entry.fullName}, ${formatDay(date)}`} onClick={() => openCreate(date)}>+</button> : null}
+                  </td>;
+                })}
+              </tr>)}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
-      <div className={styles.list}>
-        {loading ? <div className={styles.empty}>Загрузка…</div> : items.length === 0 ? <div className={styles.empty}>В выбранном периоде отсутствий нет.</div> : items.map((item) => {
-          const currentStatus = statusLabel(item, today);
-          return <div className={styles.row} key={item.id}>
-            <span className={styles.person}><strong>{item.user.fullName}</strong><small>{item.user.login}</small></span>
-            <span className={styles.type}>{TYPE_LABELS[item.absenceType]}</span>
-            <span className={styles.period}>{formatDate(item.startDate)} — {formatDate(item.endDate)}</span>
-            <span className={`${styles.status} ${currentStatus === 'Отсутствует сегодня' ? styles.statusToday : ''}`}>{currentStatus}</span>
-            <span className={styles.comment}>{item.comment || 'Без комментария'}</span>
-            {canManage ? <span className={styles.actions}><button className={styles.iconButton} type="button" aria-label="Редактировать" onClick={() => openEdit(item)}>✎</button><button className={styles.iconButton} type="button" aria-label="Удалить" onClick={() => { if (window.confirm('Удалить эту запись об отсутствии?')) void deleteUserAbsence(item.id).then(load).catch((caught) => setError(caught instanceof Error ? caught.message : 'Не удалось удалить отсутствие.')); }}>×</button></span> : null}
-          </div>;
+      <section className={styles.agenda} aria-labelledby="absence-agenda-title">
+        <h2 id="absence-agenda-title">Записи за месяц</h2>
+        {visibleItems.length === 0 ? <p className={styles.agendaEmpty}>В этом месяце отсутствий нет.</p> : visibleItems.map((item) => {
+          const canEdit = canManage && (canManageAll || item.userId === user?.id);
+          return <article className={styles.agendaRow} key={item.id}>
+            <div><strong>{item.user.fullName}</strong><span>{TYPE_LABELS[item.absenceType]} · {formatDay(item.startDate)} — {formatDay(item.endDate)}</span>{item.comment ? <p>{item.comment}</p> : null}</div>
+            {canEdit ? <div className={styles.agendaActions}><Button size="sm" onClick={() => openEdit(item)}>Изменить</Button><Button size="sm" variant="ghost" onClick={() => setDeleteTarget(item)}>Удалить</Button></div> : null}
+          </article>;
         })}
-      </div>
+      </section>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => { if (!open && !deletePending) setDeleteTarget(null); }}
+        title="Удалить отсутствие?"
+        consequence={deleteTarget ? `${deleteTarget.user.fullName}: ${eventLabel(deleteTarget)}. Запись будет скрыта из календаря, но останется в истории.` : ''}
+        confirmLabel="Удалить запись"
+        tone="danger"
+        pending={deletePending}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

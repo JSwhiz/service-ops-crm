@@ -10,7 +10,10 @@ import type {
   TaskPriority,
 } from '@/entities/task/model/task.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
-import { getUserDisplayName, getUserSecondaryLabel } from '@/shared/lib/display-name';
+import {
+  getUserDisplayName,
+  getUserSecondaryLabel,
+} from '@/shared/lib/display-name';
 import {
   TASK_COMPLETION_OPTIONS,
   TASK_PRIORITY_OPTIONS,
@@ -23,7 +26,7 @@ export interface TaskFormInitialValue {
   objectId: string;
   oneTimeOrderId: string;
   assigneeUserIds: string[];
-  visibilityMode: 'scope' | 'selected';
+  visibilityType: 'all_users' | 'selected_users' | 'target_participants' | 'private';
   visibleUserIds: string[];
   requiresConfirmation: boolean;
   completionRequirement: TaskCompletionRequirement;
@@ -38,7 +41,7 @@ const EMPTY_VALUE: TaskFormInitialValue = {
   objectId: '',
   oneTimeOrderId: '',
   assigneeUserIds: [],
-  visibilityMode: 'selected',
+  visibilityType: 'private',
   visibleUserIds: [],
   requiresConfirmation: true,
   completionRequirement: 'comment_or_file',
@@ -105,10 +108,11 @@ export function TaskForm({
       ...form,
       [field]: value,
       visibleUserIds: [],
-      ...(field === 'objectId'
-        ? { visibilityMode: value ? 'scope' as const : 'selected' as const }
-        : {}),
     };
+    next.visibilityType =
+      next.objectId || next.oneTimeOrderId
+        ? 'target_participants'
+        : 'private';
     setForm(next);
     onTargetsChange(next.objectId, next.oneTimeOrderId);
   };
@@ -125,12 +129,18 @@ export function TaskForm({
     }));
   };
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const submit = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
     event.preventDefault();
     setError(null);
 
     if (!isEdit && form.assigneeUserIds.length === 0) {
       setError('Выберите минимум одного исполнителя.');
+      return;
+    }
+    if (!form.dueDate) {
+      setError('Укажите срок задачи.');
       return;
     }
 
@@ -143,13 +153,13 @@ export function TaskForm({
         ...(form.objectId ? { objectId: form.objectId } : {}),
         ...(form.oneTimeOrderId ? { oneTimeOrderId: form.oneTimeOrderId } : {}),
         assigneeUserIds: form.assigneeUserIds,
-        visibilityMode: form.visibilityMode,
-        ...(form.visibilityMode === 'selected'
+        visibilityType: form.visibilityType,
+        ...(form.visibilityType === 'selected_users'
           ? { visibleUserIds: form.visibleUserIds }
           : {}),
         requiresConfirmation: form.requiresConfirmation,
         completionRequirement: form.completionRequirement,
-        dueDate: form.dueDate || null,
+        dueDate: form.dueDate,
         dueTime: form.dueDate && form.dueTime ? form.dueTime : null,
       });
     } catch (caught) {
@@ -173,7 +183,9 @@ export function TaskForm({
             minLength={2}
             required
             autoFocus={!isEdit}
-            onChange={(event) => setForm({ ...form, title: event.target.value })}
+            onChange={(event) =>
+              setForm({ ...form, title: event.target.value })
+            }
           />
         </label>
 
@@ -186,7 +198,9 @@ export function TaskForm({
             }
           >
             {TASK_PRIORITY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </label>
@@ -198,12 +212,15 @@ export function TaskForm({
             onChange={(event) =>
               setForm({
                 ...form,
-                completionRequirement: event.target.value as TaskCompletionRequirement,
+                completionRequirement: event.target
+                  .value as TaskCompletionRequirement,
               })
             }
           >
             {TASK_COMPLETION_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </label>
@@ -213,16 +230,23 @@ export function TaskForm({
           <textarea
             rows={4}
             value={form.description}
-            onChange={(event) => setForm({ ...form, description: event.target.value })}
+            onChange={(event) =>
+              setForm({ ...form, description: event.target.value })
+            }
           />
         </label>
 
         <label className="task-field">
           <span>Объект (необязательно)</span>
-          <select value={form.objectId} onChange={(event) => setTarget('objectId', event.target.value)}>
+          <select
+            value={form.objectId}
+            onChange={(event) => setTarget('objectId', event.target.value)}
+          >
             <option value="">Без объекта</option>
             {objects.map((object) => (
-              <option key={object.id} value={object.id}>{object.name}</option>
+              <option key={object.id} value={object.id}>
+                {object.name}
+              </option>
             ))}
           </select>
         </label>
@@ -231,54 +255,59 @@ export function TaskForm({
           <span>Разовый заказ (необязательно)</span>
           <select
             value={form.oneTimeOrderId}
-            onChange={(event) => setTarget('oneTimeOrderId', event.target.value)}
+            onChange={(event) =>
+              setTarget('oneTimeOrderId', event.target.value)
+            }
           >
             <option value="">Без разового заказа</option>
             {orders.map((order) => (
-              <option key={order.id} value={order.id}>{order.title}</option>
+              <option key={order.id} value={order.id}>
+                {order.title}
+              </option>
             ))}
           </select>
         </label>
       </div>
 
       <fieldset className="task-form__section">
-        <legend>Срок</legend>
-        <label className="task-check">
+        <legend>Срок *</legend>
+        <div className="task-form__inline">
           <input
-            type="checkbox"
-            checked={Boolean(form.dueDate)}
+            type="date"
+            aria-label="Дата срока"
+            value={form.dueDate}
+            required
             onChange={(event) =>
-              setForm({ ...form, dueDate: event.target.checked ? form.dueDate || new Date().toISOString().slice(0, 10) : '', dueTime: '' })
+              setForm({ ...form, dueDate: event.target.value })
             }
           />
-          Установить срок
-        </label>
-        {form.dueDate ? (
-          <div className="task-form__inline">
+          <label className="task-check">
             <input
-              type="date"
-              aria-label="Дата срока"
-              value={form.dueDate}
-              onChange={(event) => setForm({ ...form, dueDate: event.target.value })}
+              type="checkbox"
+              checked={Boolean(form.dueTime)}
+              onChange={(event) =>
+                setForm({
+                  ...form,
+                  dueTime: event.target.checked ? '18:00' : '',
+                })
+              }
             />
-            <label className="task-check">
-              <input
-                type="checkbox"
-                checked={Boolean(form.dueTime)}
-                onChange={(event) => setForm({ ...form, dueTime: event.target.checked ? '18:00' : '' })}
-              />
-              Указать точное время
-            </label>
-            {form.dueTime ? (
-              <input
-                type="time"
-                aria-label="Точное время срока"
-                value={form.dueTime}
-                onChange={(event) => setForm({ ...form, dueTime: event.target.value })}
-              />
-            ) : null}
-          </div>
-        ) : <div className="page-muted">Без срока</div>}
+            Указать точное время
+          </label>
+          {form.dueTime ? (
+            <input
+              type="time"
+              aria-label="Точное время срока"
+              value={form.dueTime}
+              onChange={(event) =>
+                setForm({ ...form, dueTime: event.target.value })
+              }
+            />
+          ) : null}
+        </div>
+        <div className="page-muted">
+          Для каждой задачи нужно указать дату; точное время — по желанию.
+        </div>
       </fieldset>
 
       {!isEdit ? (
@@ -299,22 +328,51 @@ export function TaskForm({
           <input
             type="radio"
             name="visibility"
-            checked={form.visibilityMode === 'scope'}
-            onChange={() => setForm({ ...form, visibilityMode: 'scope', visibleUserIds: [] })}
+            checked={form.visibilityType === 'private'}
+            onChange={() =>
+              setForm({ ...form, visibilityType: 'private', visibleUserIds: [] })
+            }
           />
-          {form.objectId ? 'Все системные пользователи объекта' : 'Только участники задачи'}
+          Только участники задачи
         </label>
         <label className="task-radio">
           <input
             type="radio"
             name="visibility"
-            checked={form.visibilityMode === 'selected'}
-            onChange={() => setForm({ ...form, visibilityMode: 'selected' })}
+            checked={form.visibilityType === 'target_participants'}
+            disabled={!form.objectId && !form.oneTimeOrderId}
+            onChange={() => setForm({ ...form, visibilityType: 'target_participants', visibleUserIds: [] })}
           />
-          {form.objectId ? 'Только выбранные пользователи объекта' : 'Участники и выбранные пользователи'}
+          Участники объекта или разового заказа
         </label>
-        <div className="section-subtitle">Создатель, исполнители и руководство видят задачу всегда.</div>
-        {form.visibilityMode === 'selected' ? (
+        <label className="task-radio">
+          <input
+            type="radio"
+            name="visibility"
+            checked={form.visibilityType === 'selected_users'}
+            onChange={() => setForm({ ...form, visibilityType: 'selected_users' })}
+          />
+          Только выбранные пользователи
+        </label>
+        <label className="task-radio">
+          <input
+            type="radio"
+            name="visibility"
+            checked={form.visibilityType === 'all_users'}
+            onChange={() => setForm({ ...form, visibilityType: 'all_users', visibleUserIds: [] })}
+          />
+          Все активные пользователи системы
+        </label>
+        <div className="section-subtitle">
+          {form.visibilityType === 'all_users'
+            ? 'Задачу увидят все активные пользователи и руководство.'
+            : form.visibilityType === 'target_participants'
+              ? 'Задачу увидят создатель, исполнители, участники связанного объекта или заказа и руководство.'
+              : form.visibilityType === 'selected_users'
+                ? 'Задачу увидят создатель, исполнители, выбранные пользователи и руководство.'
+                : 'Задачу увидят создатель, исполнители и руководство.'}
+        </div>
+        {form.visibilityType === 'selected_users' ? (
           <UserChecklist
             title="Дополнительная видимость"
             search={visibilitySearch}
@@ -330,17 +388,31 @@ export function TaskForm({
         <input
           type="checkbox"
           checked={form.requiresConfirmation}
-          onChange={(event) => setForm({ ...form, requiresConfirmation: event.target.checked })}
+          onChange={(event) =>
+            setForm({ ...form, requiresConfirmation: event.target.checked })
+          }
         />
         Требуется подтверждение результата
       </label>
 
-      {error ? <div className="task-form__error" role="alert">{error}</div> : null}
+      {error ? (
+        <div className="task-form__error" role="alert">
+          {error}
+        </div>
+      ) : null}
       <div className="action-row">
         <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Сохраняем…' : isEdit ? 'Сохранить изменения' : 'Создать задачу'}
+          {isSubmitting
+            ? 'Сохраняем…'
+            : isEdit
+              ? 'Сохранить изменения'
+              : 'Создать задачу'}
         </button>
-        {onCancel ? <button type="button" onClick={onCancel}>Отмена</button> : null}
+        {onCancel ? (
+          <button type="button" onClick={onCancel}>
+            Отмена
+          </button>
+        ) : null}
       </div>
     </form>
   );
@@ -375,19 +447,25 @@ function UserChecklist({
         aria-label={`Поиск: ${title}`}
       />
       <div className="task-user-grid local-scroll local-scroll--sm">
-        {users.length === 0 ? <div className="page-muted">Пользователи не найдены.</div> : users.map((user) => (
-          <label key={user.id} className="task-user-option">
-            <input
-              type="checkbox"
-              checked={selectedIds.includes(user.id)}
-              onChange={() => onToggle(user.id)}
-            />
-            <span>
-              {getUserDisplayName(user)}
-              {getUserSecondaryLabel(user) ? <small>{getUserSecondaryLabel(user)}</small> : null}
-            </span>
-          </label>
-        ))}
+        {users.length === 0 ? (
+          <div className="page-muted">Пользователи не найдены.</div>
+        ) : (
+          users.map((user) => (
+            <label key={user.id} className="task-user-option">
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(user.id)}
+                onChange={() => onToggle(user.id)}
+              />
+              <span>
+                {getUserDisplayName(user)}
+                {getUserSecondaryLabel(user) ? (
+                  <small>{getUserSecondaryLabel(user)}</small>
+                ) : null}
+              </span>
+            </label>
+          ))
+        )}
       </div>
     </fieldset>
   );

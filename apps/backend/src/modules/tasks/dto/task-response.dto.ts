@@ -13,6 +13,7 @@ export class TaskResponseDto {
   objectName!: string | null;
   oneTimeOrderId!: string | null;
   oneTimeOrderTitle!: string | null;
+  scopeType!: 'general' | 'personal' | 'object' | 'one_time_order';
   object!: { id: string; name: string } | null;
   oneTimeOrder!: { id: string; title: string } | null;
   requiresConfirmation!: boolean;
@@ -60,7 +61,9 @@ export class TaskResponseDto {
     completed: number;
     total: number;
   };
-  visibilityMode!: string;
+  visibilityType!: 'all_users' | 'selected_users' | 'target_participants' | 'private';
+  /** @deprecated Use visibilityType. Retained for older clients during rollout. */
+  visibilityMode!: 'scope' | 'selected';
   visibleUsers!: Array<{
     id: string;
     login: string;

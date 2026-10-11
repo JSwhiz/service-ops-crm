@@ -34,6 +34,7 @@ import { SaveAccountabilityExpenseDto } from './dto/save-accountability-expense.
 import {
   canApproveAccountabilityClosure,
   canApproveAccountabilityExpense,
+  canCorrectAccountabilityReceipt,
   canIssueAccountabilityFunds,
   canReviewAccountability,
   canViewOwnAccountability,
@@ -54,6 +55,7 @@ interface CurrentAuthUser {
 }
 
 const EXPENSE_ATTACHMENTS_ENTITY_TYPE = 'accountability_expense';
+const FUNDING_ATTACHMENTS_ENTITY_TYPE = 'accountability_funding';
 
 @Injectable()
 export class AccountabilityService {
@@ -65,7 +67,7 @@ export class AccountabilityService {
   async getMyAccount(
     currentUser: CurrentAuthUser,
   ): Promise<AccountabilityAccountViewDto> {
-    await this.assertCanViewOwnAccountability(currentUser);
+    await this.assertCanViewOwnAccountabilityLedger(currentUser);
 
     return this.buildAccountView({
       currentUser,
@@ -175,7 +177,7 @@ export class AccountabilityService {
         permissionCodes: this.getPermissionCodes(currentUser),
       })
     ) {
-      await this.assertCanViewOwnAccountability(currentUser);
+      await this.assertCanViewOwnAccountabilityLedger(currentUser);
     } else if (!isOwnAccount) {
       this.assertCanReview(currentUser);
     }
@@ -504,6 +506,146 @@ export class AccountabilityService {
     });
 
     return this.mapFunding(funding);
+  }
+
+  async recordExternalReceipt(
+    currentUser: CurrentAuthUser,
+    payload: CreateAccountabilityFundingDto,
+  ): Promise<AccountabilityFundingResponseDto> {
+    if (!currentUser.isActive) {
+      throw new ForbiddenException('Active system user required');
+    }
+    const source = payload.source?.trim();
+    const comment = payload.comment?.trim();
+    if (!source) throw new BadRequestException('Receipt source is required');
+    if (!comment) throw new BadRequestException('Receipt comment is required');
+
+    const amount = new Prisma.Decimal(payload.amount);
+    const user = await this.prisma.user.findFirst({
+      where: { id: currentUser.id, isActive: true, deletedAt: null },
+      select: { id: true },
+    });
+    if (!user) throw new ForbiddenException('Active system user required');
+
+    const funding = await this.prisma.$transaction(async (tx) => {
+      await this.lockAccountabilityUser(tx, currentUser.id);
+      let account = await tx.accountabilityAccount.findUnique({
+        where: { userId: currentUser.id },
+      });
+      if (account) {
+        await this.lockAccountabilityAccount(tx, account.id);
+        account = await tx.accountabilityAccount.findUniqueOrThrow({
+          where: { id: account.id },
+        });
+      }
+      if (account?.status === 'closing_requested') {
+        throw new ConflictException('Accountability account is locked during closing request');
+      }
+      if (!account) {
+        account = await tx.accountabilityAccount.create({
+          data: { userId: currentUser.id, status: 'active' },
+        });
+      } else if (account.status === 'closed') {
+        account = await tx.accountabilityAccount.update({
+          where: { id: account.id },
+          data: { status: 'active' },
+        });
+      }
+
+      const created = await tx.accountabilityFunding.create({
+        data: {
+          accountabilityAccountId: account.id,
+          amount,
+          source,
+          comment,
+          issuedByUserId: currentUser.id,
+          recordedByUserId: currentUser.id,
+          fundingType: 'external_receipt',
+          entryDirection: 'credit',
+        },
+        include: this.accountabilityFundingInclude(),
+      });
+      await this.auditService.writeAuditEvent({
+        entityType: 'accountability_funding',
+        entityId: created.id,
+        actorUserId: currentUser.id,
+        action: 'accountability_funding_external_receipt_recorded',
+        newValues: {
+          accountabilityAccountId: account.id,
+          amount: amount.toNumber(),
+          source,
+          comment,
+        },
+      }, tx);
+      return created;
+    });
+    return this.mapFunding(funding);
+  }
+
+  async reverseExternalReceipt(
+    currentUser: CurrentAuthUser,
+    fundingId: string,
+    reason: string,
+  ): Promise<AccountabilityFundingResponseDto> {
+    if (!canCorrectAccountabilityReceipt({ permissionCodes: this.getPermissionCodes(currentUser) })) {
+      throw new ForbiddenException('External receipt correction access denied');
+    }
+    const normalizedReason = reason.trim();
+    if (!normalizedReason) throw new BadRequestException('Correction reason is required');
+
+    const reversal = await this.prisma.$transaction(async (tx) => {
+      const sourceSnapshot = await tx.accountabilityFunding.findUnique({
+        where: { id: fundingId },
+        select: { id: true, accountabilityAccountId: true },
+      });
+      if (!sourceSnapshot) throw new NotFoundException('Funding not found');
+      await this.lockAccountabilityAccount(tx, sourceSnapshot.accountabilityAccountId);
+      await tx.$queryRaw`SELECT "id" FROM "accountability_fundings" WHERE "id" = ${fundingId} FOR UPDATE`;
+      const source = await tx.accountabilityFunding.findUniqueOrThrow({
+        where: { id: fundingId },
+        include: { accountabilityAccount: true },
+      });
+      if (source.fundingType !== 'external_receipt' || source.entryDirection !== 'credit') {
+        throw new BadRequestException('Only an external receipt can be corrected here');
+      }
+      if (source.reversedByFundingId) throw new ConflictException('External receipt is already reversed');
+      if (source.accountabilityAccount.status === 'closing_requested') {
+        throw new ConflictException('Accountability account is locked during closing request');
+      }
+
+      const created = await tx.accountabilityFunding.create({
+        data: {
+          accountabilityAccountId: source.accountabilityAccountId,
+          amount: source.amount,
+          comment: normalizedReason,
+          issuedByUserId: currentUser.id,
+          recordedByUserId: currentUser.id,
+          fundingType: 'external_receipt_reversal',
+          entryDirection: 'debit',
+          reversalOfFundingId: source.id,
+        },
+        include: this.accountabilityFundingInclude(),
+      });
+      const linked = await tx.accountabilityFunding.updateMany({
+        where: { id: source.id, reversedByFundingId: null },
+        data: { reversedByFundingId: created.id },
+      });
+      if (linked.count !== 1) throw new ConflictException('External receipt state changed');
+      await this.auditService.writeAuditEvent({
+        entityType: 'accountability_funding',
+        entityId: created.id,
+        actorUserId: currentUser.id,
+        action: 'accountability_funding_external_receipt_reversed',
+        newValues: {
+          amount: created.amount.toNumber(),
+          entryDirection: 'debit',
+          reversalOfFundingId: source.id,
+          reason: normalizedReason,
+        },
+      }, tx);
+      return created;
+    });
+    return this.mapFunding(reversal);
   }
 
   async createExpense(
@@ -1471,6 +1613,10 @@ export class AccountabilityService {
     );
 
     const isOwnView = params.currentUser.id === params.subjectUserId;
+    const canUseOwnExpenseFlows = isOwnView && await this.canCurrentUserViewOwnAccountability(params.currentUser);
+    const fundingAttachmentsById = await this.loadFundingAttachments(
+      account?.fundings.map((funding) => funding.id) ?? [],
+    );
 
     return {
       account: {
@@ -1483,11 +1629,11 @@ export class AccountabilityService {
       summary,
       capabilities: {
         canCreateExpense:
-          isOwnView &&
+          canUseOwnExpenseFlows &&
           account?.status === 'active' &&
           account.userId === params.currentUser.id,
         canRequestClosure:
-          isOwnView &&
+          canUseOwnExpenseFlows &&
           account?.status === 'active' &&
           summary.draftExpensesCount === 0 &&
           summary.submittedExpensesCount === 0,
@@ -1503,8 +1649,16 @@ export class AccountabilityService {
           roleCodes: this.getRoleCodes(params.currentUser),
           permissionCodes: this.getPermissionCodes(params.currentUser),
         }),
+        canRecordExternalReceipt:
+          isOwnView && params.currentUser.isActive && account?.status !== 'closing_requested',
+        canReverseExternalReceipts: canCorrectAccountabilityReceipt({
+          permissionCodes: this.getPermissionCodes(params.currentUser),
+        }),
       },
-      fundings: (account?.fundings ?? []).map((funding) => this.mapFunding(funding)),
+      fundings: (account?.fundings ?? []).map((funding) => this.mapFunding(
+        funding,
+        fundingAttachmentsById.get(funding.id) ?? [],
+      )),
       expenses: (account?.expenses ?? []).map((expense) =>
         this.mapExpense({
           expense,
@@ -1576,6 +1730,23 @@ export class AccountabilityService {
               },
             },
           },
+        },
+      },
+    } as const;
+  }
+
+  private accountabilityFundingInclude() {
+    return {
+      issuedBy: {
+        select: {
+          id: true, login: true, fullName: true,
+          roles: { select: { role: { select: { code: true } } } },
+        },
+      },
+      recordedBy: {
+        select: {
+          id: true, login: true, fullName: true,
+          roles: { select: { role: { select: { code: true } } } },
         },
       },
     } as const;
@@ -1759,16 +1930,46 @@ export class AccountabilityService {
     return byEntityId;
   }
 
+  private async loadFundingAttachments(
+    fundingIds: string[],
+  ): Promise<Map<string, SafeFileResponseDto[]>> {
+    const byEntityId = new Map<string, SafeFileResponseDto[]>();
+    if (fundingIds.length === 0) return byEntityId;
+    const attachments = await this.prisma.fileAttachment.findMany({
+      where: {
+        entityType: FUNDING_ATTACHMENTS_ENTITY_TYPE,
+        entityId: { in: fundingIds },
+        file: { deletedAt: null },
+      },
+      select: {
+        entityId: true,
+        file: {
+          select: { id: true, originalName: true, mimeType: true, sizeBytes: true, createdAt: true },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const attachment of attachments) {
+      const current = byEntityId.get(attachment.entityId) ?? [];
+      current.push(mapSafeFileResponse(attachment.file));
+      byEntityId.set(attachment.entityId, current);
+    }
+    return byEntityId;
+  }
+
   private mapFunding(funding: {
     id: string;
     amount: Prisma.Decimal;
     comment: string | null;
+    source: string | null;
     issuedAt: Date;
     fundingType: string;
     entryDirection: string;
     oneTimeOrderPaymentId: string | null;
     oneTimeOrderId: string | null;
     oneTimeOrderCompletionId: string | null;
+    reversalOfFundingId: string | null;
+    reversedByFundingId: string | null;
     issuedBy: {
       id: string;
       login: string;
@@ -1789,21 +1990,25 @@ export class AccountabilityService {
         };
       }>;
     } | null;
-  }): AccountabilityFundingResponseDto {
+  }, attachments: SafeFileResponseDto[] = []): AccountabilityFundingResponseDto {
     return {
       id: funding.id,
       amount: funding.amount.toNumber(),
       comment: funding.comment,
+      source: funding.source,
       issuedAt: funding.issuedAt.toISOString(),
       fundingType: funding.fundingType,
       entryDirection: funding.entryDirection,
       oneTimeOrderPaymentId: funding.oneTimeOrderPaymentId,
       oneTimeOrderId: funding.oneTimeOrderId,
       oneTimeOrderCompletionId: funding.oneTimeOrderCompletionId,
+      reversalOfFundingId: funding.reversalOfFundingId,
+      reversedByFundingId: funding.reversedByFundingId,
       issuedBy: this.mapUserSummary(funding.issuedBy),
       recordedBy: funding.recordedBy
         ? this.mapUserSummary(funding.recordedBy)
         : null,
+      attachments,
     };
   }
 
@@ -2217,6 +2422,19 @@ export class AccountabilityService {
     if (!(await this.canCurrentUserViewOwnAccountability(currentUser))) {
       throw new ForbiddenException('Access to own accountability is denied');
     }
+  }
+
+  private async assertCanViewOwnAccountabilityLedger(
+    currentUser: CurrentAuthUser,
+  ): Promise<void> {
+    if (!currentUser.isActive) {
+      throw new ForbiddenException('Active system user required');
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { id: currentUser.id, isActive: true, deletedAt: null },
+      select: { id: true },
+    });
+    if (!user) throw new ForbiddenException('Active system user required');
   }
 
   private async canCurrentUserViewOwnAccountability(

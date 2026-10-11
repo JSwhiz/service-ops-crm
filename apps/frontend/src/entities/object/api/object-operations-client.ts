@@ -30,6 +30,9 @@ export interface ObjectAttendanceToday {
   employeeFacts: Array<{
     employeeId: string;
     workedHours: number | null;
+    ratePolicyType: string | null;
+    rateAmount: number;
+    rateReason: string | null;
   }>;
   employees: ObjectEmployeeOption[];
   submittedAt: string | null;
@@ -46,6 +49,10 @@ export interface UpsertObjectAttendancePayload {
   employeeFacts?: Array<{
     employeeId: string;
     workedHours?: number;
+    ratePolicyType?: 'complex_shift' | 'side_job';
+    rateAmount?: number;
+    rateReason?: string;
+    clearRateOverride?: true;
   }>;
 }
 

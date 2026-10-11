@@ -876,6 +876,48 @@
   background: transparent;
 }
 
+.masterBadge {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid #d8e3d7;
+  border-radius: 999px;
+  background: #f0f5ef;
+  color: #58705c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.movementList {
+  display: grid;
+}
+
+.movementRow {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.1fr) minmax(120px, 0.55fr) minmax(180px, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 13px 2px;
+  border-bottom: 1px solid var(--cp-border);
+}
+
+.movementRow:last-child {
+  border-bottom: 0;
+}
+
+.movementQuantity {
+  font-size: 14px;
+  font-weight: 740;
+  font-variant-numeric: tabular-nums;
+}
+
+.movementQuantity[data-direction='out'] {
+  color: #8f584b;
+}
+
+.movementQuantity[data-direction='in'] {
+  color: #58705c;
+}
+
 .recordCard:last-child {
   border-bottom: 0;
 }
@@ -1613,6 +1655,15 @@
 
   .recordCard {
     align-items: flex-start;
+  }
+
+  .movementRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .movementRow > :last-child {
+    grid-column: 1 / -1;
   }
 
   .pagination {

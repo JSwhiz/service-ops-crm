@@ -162,15 +162,13 @@ function OverlayFrame({
   );
 }
 
-export interface DialogProps
-  extends Omit<OverlayFrameProps, 'kind'> {}
+export type DialogProps = Omit<OverlayFrameProps, 'kind'>;
 
 export function Dialog(props: DialogProps): React.JSX.Element {
   return <OverlayFrame {...props} kind="dialog" />;
 }
 
-export interface DrawerProps
-  extends Omit<OverlayFrameProps, 'kind'> {}
+export type DrawerProps = Omit<OverlayFrameProps, 'kind'>;
 
 export function Drawer(props: DrawerProps): React.JSX.Element {
   return <OverlayFrame {...props} kind="drawer" />;

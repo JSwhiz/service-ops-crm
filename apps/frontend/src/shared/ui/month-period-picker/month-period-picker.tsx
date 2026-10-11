@@ -39,6 +39,7 @@ interface MonthPeriodPickerProps {
   month: number;
   minYear?: number;
   maxYear?: number;
+  label?: string;
   onChange: (year: number, month: number) => void;
 }
 
@@ -63,6 +64,7 @@ export function MonthPeriodPicker({
   month,
   minYear = 2024,
   maxYear = 2100,
+  label = 'Выбор месяца',
   onChange,
 }: MonthPeriodPickerProps): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -145,7 +147,7 @@ export function MonthPeriodPicker({
       </div>
 
       {isOpen ? (
-        <div className={styles.popover} role="dialog" aria-label="Выбор периода табеля">
+        <div className={styles.popover} role="dialog" aria-label={label}>
           <div className={styles.yearHeader}>
             <button
               type="button"

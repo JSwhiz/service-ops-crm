@@ -20,8 +20,9 @@ export class ApiError extends Error {
     message: string,
     readonly statusCode: number,
     readonly code: string | null,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = 'ApiError';
   }
 }
@@ -76,40 +77,55 @@ function extractMessageFromParsedBody(parsed: ParsedErrorBody): string | null {
   return null;
 }
 
+function isTechnicalMessage(message: string): boolean {
+  return /\b(?:prisma|queryfailederror|syntaxerror|typeerror|referenceerror|internal server error|bad request exception|failed to fetch|stack trace)\b|https?:\/\/|\bat\s+\S+\([^)]*:\d+:\d+\)/i.test(
+    message,
+  );
+}
+
 function buildApiError(
-  method: string,
-  url: string,
   status: number,
   rawBody: string,
 ): ApiError {
-  if (!rawBody.trim()) {
-    return new ApiError(
-      `${method} ${url} failed with status ${status}`,
-      status,
-      null,
-    );
-  }
+  if (rawBody.trim()) {
+    try {
+      const parsed = JSON.parse(rawBody) as ParsedErrorBody;
+      const extractedMessage = extractMessageFromParsedBody(parsed);
 
-  try {
-    const parsed = JSON.parse(rawBody) as ParsedErrorBody;
-    const extractedMessage = extractMessageFromParsedBody(parsed);
-
-    if (extractedMessage) {
-      return new ApiError(
-        `${method} ${url} failed with status ${status}: ${extractedMessage}`,
-        status,
-        extractCodeFromParsedBody(parsed),
-      );
+      if (
+        extractedMessage &&
+        status < 500 &&
+        !isTechnicalMessage(extractedMessage)
+      ) {
+        return new ApiError(
+          extractedMessage,
+          status,
+          extractCodeFromParsedBody(parsed),
+        );
+      }
+    } catch {
+      // Raw response bodies can contain framework diagnostics; never display them.
     }
-  } catch {
-    // ignore JSON parse failure
   }
 
-  return new ApiError(
-    `${method} ${url} failed with status ${status}: ${rawBody}`,
-    status,
-    null,
-  );
+  const fallbackMessage =
+    status === 401
+      ? 'Сеанс завершён. Войдите в систему и повторите действие.'
+      : status === 403
+        ? 'Недостаточно прав для этого действия.'
+        : status === 404
+          ? 'Запись не найдена или недоступна.'
+          : status === 409
+            ? 'Данные изменились. Обновите страницу и повторите действие.'
+            : status === 422
+              ? 'Проверьте введённые данные и повторите попытку.'
+              : status === 429
+                ? 'Слишком много запросов. Подождите и попробуйте снова.'
+                : status >= 500
+                  ? 'Не удалось выполнить действие. Попробуйте позже.'
+                  : 'Не удалось выполнить действие. Проверьте данные и попробуйте снова.';
+
+  return new ApiError(fallbackMessage, status, null);
 }
 
 async function executeRequest(
@@ -182,7 +198,7 @@ export async function fetcher<T>(
 
     if (!response.ok) {
       const rawBody = await response.text();
-      throw buildApiError(resolvedMethod, url, response.status, rawBody);
+      throw buildApiError(response.status, rawBody);
     }
 
     const rawBody = await response.text();
@@ -197,13 +213,16 @@ export async function fetcher<T>(
       throw error;
     }
 
-    if (error instanceof Error) {
-      throw new Error(`${resolvedMethod} ${url} failed: ${error.message}`, {
-        cause: error,
-      });
+    if (error instanceof TypeError) {
+      throw new ApiError(
+        'Не удалось связаться с сервером. Проверьте подключение и повторите попытку.',
+        0,
+        'NETWORK_ERROR',
+        { cause: error },
+      );
     }
 
-    throw new Error(`${resolvedMethod} ${url} failed`, {
+    throw new Error('Не удалось выполнить запрос. Попробуйте ещё раз.', {
       cause: error,
     });
   }

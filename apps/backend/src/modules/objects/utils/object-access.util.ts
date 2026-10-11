@@ -1,3 +1,5 @@
+import { hasDelegatedObjectAction } from '../../user-substitutions/object-delegation.context';
+
 export const LEADERSHIP_OBJECT_ROLE_CODES = [
   'founder',
   'deputy_founder',
@@ -77,7 +79,9 @@ export function hasHrObjectView(permissionCodes: string[] = []): boolean {
 export function canViewObjectByScope(params: {
   currentUserId: string;
   roleCodes: string[];
+  ownScopeOnly?: boolean;
   object: {
+    id?: string;
     createdByUserId: string;
     assignments: Array<{
       userId: string;
@@ -97,13 +101,14 @@ export function canViewObjectByScope(params: {
     (assignment) =>
       assignment.userId === params.currentUserId &&
       assignment.isActive !== false,
-  );
+  ) || (!params.ownScopeOnly && hasDelegatedObjectAction(params.currentUserId, params.object.id, 'view'));
 }
 
 export function canViewObjectBasicProfile(params: {
   currentUserId: string;
   roleCodes: string[];
   permissionCodes?: string[];
+  ownScopeOnly?: boolean;
   object: {
     createdByUserId: string;
     assignments: Array<{
@@ -117,6 +122,7 @@ export function canViewObjectBasicProfile(params: {
     canViewObjectByScope({
       currentUserId: params.currentUserId,
       roleCodes: params.roleCodes,
+      ownScopeOnly: params.ownScopeOnly,
       object: params.object,
     })
   );

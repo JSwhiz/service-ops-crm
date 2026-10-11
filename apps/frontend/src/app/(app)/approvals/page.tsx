@@ -22,6 +22,9 @@ import {
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
 import { getInventoryMovementTypeLabel } from '@/shared/lib/inventory-presentation';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+import { SearchField } from '@/shared/ui/search-field/search-field';
+import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
 import {
   Alert,
   Badge,
@@ -97,6 +100,8 @@ function DateFilterPicker({
   onChange: (value: string) => void;
 }): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const selected = value ? new Date(`${value}T12:00:00`) : new Date();
   const [view, setView] = useState(() => ({ year: selected.getFullYear(), month: selected.getMonth() }));
@@ -109,6 +114,7 @@ function DateFilterPicker({
   });
   const today = new Date();
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const placement = usePopoverPlacement(open, triggerRef, popoverRef, 360);
 
   useEffect(() => {
     if (!open) return;
@@ -135,6 +141,7 @@ function DateFilterPicker({
     <div className={styles.datePickerRoot} ref={rootRef}>
       <span className={styles.dateRangeLabel}>{label}</span>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.datePickerTrigger}
         aria-label={`${label}: ${value ? formatDateOnly(value) : 'выбрать дату'}`}
@@ -148,7 +155,14 @@ function DateFilterPicker({
         {value ? formatDateOnly(value) : 'Выбрать дату'}
       </button>
       {open ? (
-        <div className={styles.datePickerPopover} role="dialog" aria-label={`Выбор даты: ${label}`}>
+        <div
+          ref={popoverRef}
+          className={styles.datePickerPopover}
+          role="dialog"
+          aria-label={`Выбор даты: ${label}`}
+          data-placement={placement.placement}
+          style={{ '--approval-popover-max-height': `${placement.availableHeight}px` } as React.CSSProperties}
+        >
           <div className={styles.datePickerHeader}>
             <button type="button" aria-label="Предыдущий месяц" onClick={() => shiftMonth(-1)}>
               <span aria-hidden="true">‹</span>
@@ -211,6 +225,9 @@ function ApprovalFilterSelect({
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const placement = usePopoverPlacement(open, triggerRef, popoverRef, 360);
   const selectedLabel = options.find((option) => option.value === value)?.label ?? value;
 
   useEffect(() => {
@@ -232,6 +249,7 @@ function ApprovalFilterSelect({
   return (
     <div className={styles.filterControl} ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.filterTrigger}
         aria-haspopup="listbox"
@@ -254,7 +272,14 @@ function ApprovalFilterSelect({
         ×
       </button>
       {open ? (
-        <div className={styles.filterDropdown} role="listbox" aria-label={label}>
+        <div
+          ref={popoverRef}
+          className={styles.filterDropdown}
+          role="listbox"
+          aria-label={label}
+          data-placement={placement.placement}
+          style={{ '--approval-popover-max-height': `${placement.availableHeight}px` } as React.CSSProperties}
+        >
           <div className={styles.filterDropdownLabel}>{label}</div>
           {options.map((option) => (
             <button
@@ -300,6 +325,9 @@ function AddApprovalFilterMenu({
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const placement = usePopoverPlacement(open, triggerRef, popoverRef, 420);
   const statusOptions = APPROVAL_STATUS_OPTIONS.filter((option) => option.value);
   const typeOptions = APPROVAL_TYPE_OPTIONS.filter((option) => option.value);
   const available = !statusActive || !typeActive || !periodActive || !sourceActive;
@@ -323,6 +351,7 @@ function AddApprovalFilterMenu({
   return (
     <div className={styles.addFilterRoot} ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.addFilterButton}
         aria-haspopup="menu"
@@ -335,7 +364,14 @@ function AddApprovalFilterMenu({
         <span>Добавить фильтр</span>
       </button>
       {open ? (
-        <div className={styles.addFilterMenu} role="menu" aria-label="Доступные фильтры">
+        <div
+          ref={popoverRef}
+          className={styles.addFilterMenu}
+          role="menu"
+          aria-label="Доступные фильтры"
+          data-placement={placement.placement}
+          style={{ '--approval-popover-max-height': `${placement.availableHeight}px` } as React.CSSProperties}
+        >
           {!statusActive ? (
             <div className={styles.addFilterSection}>
               <div className={styles.filterDropdownLabel}>Статус</div>
@@ -623,6 +659,7 @@ export default function ApprovalsPage(): React.JSX.Element {
   const approvalType = searchParams.get('approvalType') ?? '';
   const sourceEntityType = searchParams.get('sourceEntityType') ?? '';
   const sourceEntityId = searchParams.get('sourceEntityId') ?? '';
+  const search = searchParams.get('search') ?? '';
   const dateFrom = searchParams.get('dateFrom') ?? '';
   const dateTo = searchParams.get('dateTo') ?? '';
   const periodActive = searchParams.get('period') === '1' || Boolean(dateFrom || dateTo);
@@ -640,6 +677,7 @@ export default function ApprovalsPage(): React.JSX.Element {
   const [actingId, setActingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectComment, setRejectComment] = useState('');
+  const [searchDraft, setSearchDraft] = useState(search);
   const [rejectError, setRejectError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -653,7 +691,7 @@ export default function ApprovalsPage(): React.JSX.Element {
   const hasScope = Boolean(sourceEntityId);
   const sourceFilterActive = Boolean(sourceEntityType) && !hasScope;
   const hasEditableFilters = Boolean(
-    status || approvalType || periodActive || sourceFilterActive,
+    status || approvalType || periodActive || sourceFilterActive || search,
   );
   const selectedActing = Boolean(
     selectedItem && actingId === selectedItem.id,
@@ -693,6 +731,7 @@ export default function ApprovalsPage(): React.JSX.Element {
     updateQuery({
       status: '',
       approvalType: '',
+      search: '',
       dateFrom: '',
       dateTo: '',
       period: '',
@@ -709,6 +748,7 @@ export default function ApprovalsPage(): React.JSX.Element {
 
     try {
       const response = await listApprovalRequestsPage({
+        search: search || undefined,
         status: status || undefined,
         approvalType: approvalType || undefined,
         sourceEntityType: sourceEntityType || undefined,
@@ -751,6 +791,7 @@ export default function ApprovalsPage(): React.JSX.Element {
   useEffect(() => {
     void loadRequests();
   }, [
+    search,
     status,
     approvalType,
     sourceEntityType,
@@ -759,6 +800,29 @@ export default function ApprovalsPage(): React.JSX.Element {
     dateTo,
     page,
   ]);
+
+  useEffect(() => {
+    setSearchDraft(search);
+  }, [search]);
+
+  useEffect(() => {
+    const normalizedDraft = searchDraft.trim();
+    if (normalizedDraft === search) return;
+
+    const currentQuery = searchParams.toString();
+    const timeout = window.setTimeout(() => {
+      const nextParams = new URLSearchParams(currentQuery);
+      if (normalizedDraft) nextParams.set('search', normalizedDraft);
+      else nextParams.delete('search');
+      nextParams.delete('page');
+      setSelectedId(null);
+      setDetailError(null);
+      const query = nextParams.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchDraft, search, searchParams, pathname, router]);
 
   useEffect(() => {
     if (isLoading || page <= Math.max(1, totalPages)) return;
@@ -840,6 +904,18 @@ export default function ApprovalsPage(): React.JSX.Element {
     <div className={styles.page}>
       <div className={styles.filters} role="region" aria-label="Фильтры согласований">
         <div className={styles.filterToolbar}>
+          <SearchField
+            value={searchDraft}
+            onChange={(value) => {
+              setSearchDraft(value);
+              setSelectedId(null);
+              setDetailError(null);
+            }}
+            label="Поиск в согласованиях"
+            placeholder="По названию, объекту, сотруднику или автору"
+            busy={isLoading}
+            className={styles.approvalsSearch}
+          />
           <div className={styles.activeFilters}>
             {status ? (
               <ApprovalFilterSelect
@@ -1030,32 +1106,9 @@ export default function ApprovalsPage(): React.JSX.Element {
               );
             })}
           </div>
-          <div className={styles.pagination} aria-label="Страницы очереди решений">
-            <span className={styles.resultCount}>
-              {total > 0 ? `Показано ${firstVisible}–${lastVisible} из ${total}` : 'Запросов нет'}
-            </span>
-            {totalPages > 1 ? (
-              <div className={styles.paginationActions}>
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => updateQuery({ page: String(currentPage - 1) })}
-                >
-                  Назад
-                </button>
-                <span className={styles.pageNumber}>
-                  Страница {currentPage} из {totalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => updateQuery({ page: String(currentPage + 1) })}
-                >
-                  Далее
-                </button>
-              </div>
-            ) : null}
-          </div>
+          <TablePagination page={currentPage} totalPages={totalPages} pending={isLoading} label="Страницы согласований"
+            summary={total > 0 ? `Показано ${firstVisible}–${lastVisible} из ${total}` : 'Запросов нет'}
+            onPageChange={(page) => updateQuery({ page: String(page) })} />
         </Surface>
       ) : null}
 

@@ -9,6 +9,8 @@ import type {
   CounterpartyListResponse,
 } from '@/entities/counterparty/model/counterparty.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './counterparties.module.css';
 
@@ -283,9 +285,11 @@ export default function CounterpartiesPage(): React.JSX.Element {
           {q || status !== 'all' ? 'По заданным условиям контрагенты не найдены.' : 'Контрагентов пока нет.'}
         </div>
       ) : (
-        <div className={`page-card workspace-surface data-table-shell ${styles.surface} ${styles.tableShell}`}>
-          <div className={styles.tableScroll}>
-          <table className={`object-registry-table ${styles.table}`}>
+        <DataTable
+          label="Таблица контрагентов"
+          className={`object-registry-table ${styles.table}`}
+          frameClassName={`page-card workspace-surface data-table-shell ${styles.surface} ${styles.tableShell} ${styles.tableScroll}`}
+        >
             <thead>
               <tr>
                 <th>Контрагент</th>
@@ -337,40 +341,17 @@ export default function CounterpartiesPage(): React.JSX.Element {
                 </tr>
               ))}
             </tbody>
-          </table>
-          </div>
-        </div>
+        </DataTable>
       )}
 
       {!loading && !error ? (
-        <div className={styles.pagination}>
-          <span>
-            {result.total > 0
-              ? `Показано ${(page - 1) * result.limit + 1}–${Math.min(page * result.limit, result.total)} из ${result.total}`
-              : 'Ничего не найдено'}
-          </span>
-          {result.totalPages > 1 ? (
-            <div className={styles.paginationControls}>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                disabled={page <= 1}
-                onClick={() => replaceQuery({ page: String(page - 1) })}
-              >
-                Назад
-              </button>
-              <span>Страница {page} из {result.totalPages}</span>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                disabled={page >= result.totalPages}
-                onClick={() => replaceQuery({ page: String(page + 1) })}
-              >
-                Далее
-              </button>
-            </div>
-          ) : null}
-        </div>
+        <TablePagination
+          page={page}
+          totalPages={result.totalPages}
+          onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
+          summary={result.total > 0 ? `Показано ${(page - 1) * result.limit + 1}–${Math.min(page * result.limit, result.total)} из ${result.total}` : 'Ничего не найдено'}
+          label="Страницы контрагентов"
+        />
       ) : null}
     </div>
   );

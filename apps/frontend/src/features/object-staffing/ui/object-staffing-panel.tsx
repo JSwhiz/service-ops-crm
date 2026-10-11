@@ -36,6 +36,8 @@ const RATE_POLICY_OPTIONS = [
   ['shift_2_2_by_actual_shifts', '2/2 по сменам'],
   ['partial_shift', 'Частичная смена'],
   ['agreed_substitution_rate', 'Подмена по договоренности'],
+  ['complex_shift', 'Сложный выход'],
+  ['side_job', 'Подработка'],
 ] as const;
 
 const SCHEDULE_OPTIONS = ['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'];
@@ -472,7 +474,7 @@ export function ObjectStaffingPanel({
                 </label>
               ) : null}
 
-              {rateForm.ratePolicyType === 'agreed_substitution_rate' ? (
+              {['agreed_substitution_rate', 'complex_shift', 'side_job'].includes(rateForm.ratePolicyType) ? (
                 <label className={styles.fullWidth}>
                   <span>Основание договорной ставки</span>
                   <textarea

@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { AuditModule } from '../audit/audit.module';
 import { FilesModule } from '../files/files.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { UsersAccessModule } from '../users-access/users-access.module';
@@ -19,6 +20,7 @@ import { ChatsService } from './chats.service';
     UsersAccessModule,
     FilesModule,
     AuditModule,
+    NotificationsModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({

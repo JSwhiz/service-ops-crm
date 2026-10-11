@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { ChatsModule } from '../chats/chats.module';
 import { EquipmentModule } from '../equipment/equipment.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TasksModule } from '../tasks/tasks.module';
 
@@ -19,7 +20,7 @@ import { OneTimeOrdersService } from './one-time-orders.service';
 import { OneTimeManagerAvailabilityService } from './one-time-manager-availability.service';
 
 @Module({
-  imports: [PrismaModule, AuditModule, TasksModule, EquipmentModule, ChatsModule],
+  imports: [PrismaModule, AuditModule, TasksModule, EquipmentModule, ChatsModule, NotificationsModule],
   controllers: [
     OneTimeOrderAttentionController,
     OneTimeOrderWorkforceController,

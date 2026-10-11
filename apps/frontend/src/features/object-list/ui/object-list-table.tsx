@@ -10,6 +10,7 @@ import type {
 import type { ObjectAssignedUser, ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectPreviewDrawer } from '@/features/object-registry/ui/object-preview-drawer';
 import { getUserDisplayName } from '@/shared/lib/display-name';
+import { DataTable } from '@/shared/ui/data-table/data-table';
 
 import styles from './object-list-table.module.css';
 
@@ -140,18 +141,21 @@ export function ObjectListTable({
 
   return (
     <>
-      <div className={`page-card workspace-surface data-table-shell object-table-scroll ${styles.desktopTable}`}>
-        <table className={`object-registry-table ${styles.table}`}>
+      <DataTable
+        label="Таблица объектов"
+        className={`object-registry-table ${styles.table}`}
+        frameClassName={`page-card workspace-surface data-table-shell object-table-scroll ${styles.desktopTable}`}
+      >
           <thead>
             <tr>
-              <th aria-sort={getAriaSort('name', sortBy, sortDirection)}>{renderSortButton('name', 'Объект')}</th>
-              <th aria-sort={getAriaSort('status', sortBy, sortDirection)}>{renderSortButton('status', 'Статус')}</th>
-              <th>Ответственный</th>
-              <th>Команда</th>
-              <th>Сегодня</th>
-              <th>Менеджеры</th>
-              <th aria-sort={getAriaSort('updatedAt', sortBy, sortDirection)}>{renderSortButton('updatedAt', 'Обновлён')}</th>
-              <th aria-label="Открыть полную карточку" />
+              <th scope="col" aria-sort={getAriaSort('name', sortBy, sortDirection)}>{renderSortButton('name', 'Объект')}</th>
+              <th scope="col" aria-sort={getAriaSort('status', sortBy, sortDirection)}>{renderSortButton('status', 'Статус')}</th>
+              <th scope="col">Ответственный</th>
+              <th scope="col">Команда</th>
+              <th scope="col">Сегодня</th>
+              <th scope="col">Менеджеры</th>
+              <th scope="col" aria-sort={getAriaSort('updatedAt', sortBy, sortDirection)}>{renderSortButton('updatedAt', 'Обновлён')}</th>
+              <th scope="col" aria-label="Открыть полную карточку" />
             </tr>
           </thead>
 
@@ -224,8 +228,7 @@ export function ObjectListTable({
               );
             })}
           </tbody>
-        </table>
-      </div>
+      </DataTable>
 
       <div className={styles.mobileList} role="list" aria-label="Список объектов">
         {items.map((item) => {

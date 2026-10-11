@@ -36,6 +36,8 @@ export function InventoryMovementForm({
   canAdjust,
   defaultInventoryItemId,
   onSubmit,
+  onAttachEvidence,
+  onRefresh,
 }: {
   items: InventoryItem[];
   objectOptions: InventoryObjectReference[];
@@ -51,7 +53,9 @@ export function InventoryMovementForm({
   onSubmit: (params: {
     payload: CreateInventoryMovementPayload;
     evidenceFiles: File[];
-  }) => Promise<InventoryMovement | void>;
+  }) => Promise<InventoryMovement>;
+  onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
+  onRefresh: () => Promise<void>;
 }): React.JSX.Element {
   const movementOptions = useMemo(
     () =>
@@ -102,6 +106,9 @@ export function InventoryMovementForm({
     movementType === 'writeoff',
   );
   const [pendingEvidence, setPendingEvidence] = useState<File[]>([]);
+  const [issueLines, setIssueLines] = useState<Array<{ key: string; inventoryItemId: string; quantity: string; movementId?: string }>>([
+    { key: 'initial', inventoryItemId: defaultInventoryItemId ?? items[0]?.id ?? '', quantity: '1' },
+  ]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -119,6 +126,18 @@ export function InventoryMovementForm({
     movementType === 'issue_to_one_time_order' ||
     movementType === 'writeoff' ||
     (movementType === 'adjustment' && adjustmentDirection === 'decrease');
+  const supportsMultipleItems = ['issue_to_object', 'issue_to_one_time_order', 'writeoff'].includes(movementType);
+
+  const addIssueLine = (): void => {
+    const selected = new Set(issueLines.map((line) => line.inventoryItemId));
+    const next = items.find((item) => !selected.has(item.id));
+    if (!next) return;
+    setIssueLines((current) => [...current, {
+      key: `${Date.now()}-${current.length}`,
+      inventoryItemId: next.id,
+      quantity: '1',
+    }]);
+  };
 
   return (
     <form
@@ -128,51 +147,56 @@ export function InventoryMovementForm({
         event.preventDefault();
         setIsSaving(true);
         setError(null);
+        void (async () => {
+          let completed = 0;
+          try {
+            const basePayload = {
+              movementType: movementType as CreateInventoryMovementPayload['movementType'],
+              ...(movementType === 'receipt' ? { unitPrice: Number(unitPrice) } : {}),
+              ...(movementType === 'adjustment' ? { adjustmentDirection } : {}),
+              ...(comment.trim() ? { comment: comment.trim() } : {}),
+              evidenceRequired: isEvidenceMandatory || evidenceRequired,
+              ...(movementType === 'issue_to_object' || (movementType !== 'adjustment' && movementType !== 'receipt' && relationScope === 'object' && relatedObjectId) ? { relatedObjectId } : {}),
+              ...(movementType === 'issue_to_one_time_order' || (movementType !== 'adjustment' && movementType !== 'receipt' && relationScope === 'one_time_order' && relatedOneTimeOrderId) ? { relatedOneTimeOrderId } : {}),
+            };
 
-        const payload: CreateInventoryMovementPayload = {
-          inventoryItemId,
-          movementType: movementType as CreateInventoryMovementPayload['movementType'],
-          quantity: Number(quantity),
-          ...(movementType === 'receipt' ? { unitPrice: Number(unitPrice) } : {}),
-          ...(movementType === 'adjustment'
-            ? { adjustmentDirection }
-            : {}),
-          ...(comment.trim() ? { comment: comment.trim() } : {}),
-          evidenceRequired: isEvidenceMandatory || evidenceRequired,
-          ...(movementType === 'issue_to_object' ||
-          (movementType !== 'adjustment' &&
-            movementType !== 'receipt' &&
-            relationScope === 'object' &&
-            relatedObjectId)
-            ? { relatedObjectId }
-            : {}),
-          ...(movementType === 'issue_to_one_time_order' ||
-          (movementType !== 'adjustment' &&
-            movementType !== 'receipt' &&
-            relationScope === 'one_time_order' &&
-            relatedOneTimeOrderId)
-            ? { relatedOneTimeOrderId }
-            : {}),
-        };
+            if (supportsMultipleItems) {
+              for (const line of issueLines) {
+                let movementId = line.movementId;
+                if (!movementId) {
+                  const created = await onSubmit({
+                    payload: { ...basePayload, inventoryItemId: line.inventoryItemId, quantity: Number(line.quantity) },
+                    evidenceFiles: [],
+                  });
+                  movementId = created.id;
+                  setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, movementId } : entry));
+                }
+                if (pendingEvidence.length) await onAttachEvidence(movementId, pendingEvidence);
+                setIssueLines((current) => current.filter((entry) => entry.key !== line.key));
+                completed += 1;
+              }
+              setIssueLines([{ key: `${Date.now()}-next`, inventoryItemId: items[0]?.id ?? '', quantity: '1' }]);
+            } else {
+              const created = await onSubmit({
+                payload: { ...basePayload, inventoryItemId, quantity: Number(quantity) },
+                evidenceFiles: [],
+              });
+              if (pendingEvidence.length) await onAttachEvidence(created.id, pendingEvidence);
+              setQuantity('1');
+              setUnitPrice('');
+            }
 
-        void onSubmit({
-          payload,
-          evidenceFiles: pendingEvidence,
-        })
-          .then(() => {
-            setQuantity('1');
-            setUnitPrice('');
             setComment('');
             setPendingEvidence([]);
-          })
-          .catch((submitError) => {
-            setError(
-              getErrorMessage(submitError, 'Не удалось создать движение.'),
-            );
-          })
-          .finally(() => {
+            await onRefresh();
+          } catch (submitError) {
+            setError(completed > 0
+              ? `Создано движений: ${completed}. Оставшиеся позиции не потеряны в форме. ${getErrorMessage(submitError, 'Не удалось завершить операцию.')}`
+              : getErrorMessage(submitError, 'Не удалось создать движение.'));
+          } finally {
             setIsSaving(false);
-          });
+          }
+        })();
       }}
     >
       <div style={{ fontWeight: 600 }}>Новое движение</div>
@@ -184,7 +208,38 @@ export function InventoryMovementForm({
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         }}
       >
-        <label>
+        {supportsMultipleItems ? (
+          <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 10 }}>
+            {issueLines.map((line, index) => {
+              const selectedLineItem = items.find((item) => item.id === line.inventoryItemId);
+              return (
+                <div key={line.key} className="record-card" style={{ display: 'grid', gap: 10 }}>
+                  <div className="section-header">
+                    <strong>Позиция {index + 1}{line.movementId ? ' · движение создано, ожидает подтверждения' : ''}</strong>
+                    {!line.movementId && issueLines.length > 1 ? <button type="button" className="button-quiet" disabled={isSaving} onClick={() => setIssueLines((current) => current.filter((entry) => entry.key !== line.key))}>Убрать</button> : null}
+                  </div>
+                  {line.movementId ? <div className="page-muted">Операция уже записана. Повторная отправка не создаст дубликат.</div> : (
+                    <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                      <label>
+                        <div style={{ marginBottom: 6 }}>Номенклатура</div>
+                        <select value={line.inventoryItemId} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, inventoryItemId: event.target.value } : entry))} style={{ width: '100%', padding: 10 }} required disabled={isSaving}>
+                          {items.filter((item) => item.id === line.inventoryItemId || !issueLines.some((other) => other.key !== line.key && other.inventoryItemId === item.id)).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.category}</option>)}
+                        </select>
+                      </label>
+                      <label>
+                        <div style={{ marginBottom: 6 }}>Количество</div>
+                        <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, quantity: event.target.value } : entry))} style={{ width: '100%', padding: 10 }} required disabled={isSaving || Boolean(line.movementId)} />
+                      </label>
+                      <div><div className="page-muted">Цена</div><div>{selectedLineItem?.currentUnitPrice == null ? 'Не указана' : `${selectedLineItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedLineItem.unit}`}</div></div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {items.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? <button type="button" className="button-quiet" onClick={addIssueLine} disabled={isSaving}>+ Добавить позицию</button> : null}
+            <div className="page-muted">Каждая позиция будет проведена отдельным движением с собственной проверкой остатка и историей.</div>
+          </div>
+        ) : <label>
           <div style={{ marginBottom: 6 }}>Номенклатура</div>
           <select
             value={inventoryItemId}
@@ -198,7 +253,7 @@ export function InventoryMovementForm({
               </option>
             ))}
           </select>
-        </label>
+        </label>}
 
         <label>
           <div style={{ marginBottom: 6 }}>Тип движения</div>
@@ -231,7 +286,7 @@ export function InventoryMovementForm({
           </select>
         </label>
 
-        <label>
+        {!supportsMultipleItems ? <label>
           <div style={{ marginBottom: 6 }}>Количество</div>
           <input
             type="number"
@@ -242,7 +297,7 @@ export function InventoryMovementForm({
             style={{ width: '100%', padding: 10 }}
             required
           />
-        </label>
+        </label> : null}
 
         {movementType === 'receipt' ? (
           <label>
@@ -409,8 +464,8 @@ export function InventoryMovementForm({
       {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
 
       <div>
-        <button type="submit" disabled={isSaving || !canCreateMovement}>
-          {isSaving ? 'Сохраняем...' : 'Создать движение'}
+        <button type="submit" disabled={isSaving || !canCreateMovement || (supportsMultipleItems && issueLines.some((line) => !line.inventoryItemId || (!line.movementId && Number(line.quantity) < 0.001)))}>
+          {isSaving ? 'Сохраняем...' : supportsMultipleItems ? `Создать движений: ${issueLines.length}` : 'Создать движение'}
         </button>
       </div>
     </form>

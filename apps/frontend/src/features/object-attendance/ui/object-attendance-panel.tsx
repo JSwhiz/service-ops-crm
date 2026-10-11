@@ -12,7 +12,11 @@ interface ObjectAttendancePanelProps {
   initialEmployeeFacts: Array<{
     employeeId: string;
     workedHours: number | null;
+    ratePolicyType: string | null;
+    rateAmount: number;
+    rateReason: string | null;
   }>;
+  canEditRates: boolean;
   operationDate: string;
   onSave: (payload: {
     operationDate: string;
@@ -20,6 +24,10 @@ interface ObjectAttendancePanelProps {
     employeeFacts?: Array<{
       employeeId: string;
       workedHours?: number;
+      ratePolicyType?: 'complex_shift' | 'side_job';
+      rateAmount?: number;
+      rateReason?: string;
+      clearRateOverride?: true;
     }>;
   }) => Promise<void>;
 }
@@ -28,11 +36,13 @@ export function ObjectAttendancePanel({
   employees,
   initialEmployeeIds,
   initialEmployeeFacts,
+  canEditRates,
   operationDate,
   onSave,
 }: ObjectAttendancePanelProps): React.JSX.Element {
   const [selectedIds, setSelectedIds] = useState<string[]>(initialEmployeeIds);
   const [workedHoursById, setWorkedHoursById] = useState<Record<string, string>>({});
+  const [specialRateById, setSpecialRateById] = useState<Record<string, { type: '' | 'complex_shift' | 'side_job'; amount: string; reason: string }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const safeEmployees = useMemo(() => employees ?? [], [employees]);
@@ -41,12 +51,12 @@ export function ObjectAttendancePanel({
     [safeEmployees],
   );
   const initialFactsById = useMemo(
-    () => new Map(initialEmployeeFacts.map((fact) => [fact.employeeId, fact.workedHours])),
+    () => new Map(initialEmployeeFacts.map((fact) => [fact.employeeId, fact])),
     [initialEmployeeFacts],
   );
   const initialFactsSignature = useMemo(
     () => initialEmployeeFacts
-      .map((fact) => `${fact.employeeId}:${fact.workedHours ?? ''}`)
+      .map((fact) => `${fact.employeeId}:${fact.workedHours ?? ''}:${fact.ratePolicyType ?? ''}:${fact.rateAmount}:${fact.rateReason ?? ''}`)
       .sort()
       .join('|'),
     [initialEmployeeFacts],
@@ -68,13 +78,24 @@ export function ObjectAttendancePanel({
       }
 
       for (const employeeId of initialEmployeeIds) {
-        const savedWorkedHours = initialFactsById.get(employeeId);
+        const savedFact = initialFactsById.get(employeeId);
         next[employeeId] =
-          savedWorkedHours !== undefined && savedWorkedHours !== null
-            ? String(savedWorkedHours)
+          savedFact?.workedHours !== undefined && savedFact?.workedHours !== null
+            ? String(savedFact.workedHours)
             : next[employeeId] ?? getDefaultWorkedHours(employeeId);
       }
 
+      return next;
+    });
+    setSpecialRateById((current) => {
+      const next = { ...current };
+      const selectedIdSet = new Set(initialEmployeeIds);
+      for (const employeeId of Object.keys(next)) if (!selectedIdSet.has(employeeId)) delete next[employeeId];
+      for (const employeeId of initialEmployeeIds) {
+        const fact = initialFactsById.get(employeeId);
+        const savedType = fact?.ratePolicyType === 'complex_shift' || fact?.ratePolicyType === 'side_job' ? fact.ratePolicyType : '';
+        next[employeeId] = { type: savedType, amount: savedType ? String(fact?.rateAmount ?? '') : '', reason: savedType ? fact?.rateReason ?? '' : '' };
+      }
       return next;
     });
   }, [
@@ -106,10 +127,15 @@ export function ObjectAttendancePanel({
       await onSave({
         operationDate,
         employeeIds: selectedIds,
-        employeeFacts: selectedIds.map((employeeId) => ({
-          employeeId,
-          workedHours: Number(workedHoursById[employeeId] || getDefaultWorkedHours(employeeId)) || 8,
-        })),
+        employeeFacts: selectedIds.map((employeeId) => {
+          const specialRate = specialRateById[employeeId];
+          return {
+            employeeId,
+            workedHours: Number(workedHoursById[employeeId] || getDefaultWorkedHours(employeeId)) || 8,
+            ...(specialRate?.type ? { ratePolicyType: specialRate.type, rateAmount: Number(specialRate.amount), rateReason: specialRate.reason.trim() } : {}),
+            ...(!specialRate?.type && (initialFactsById.get(employeeId)?.ratePolicyType === 'complex_shift' || initialFactsById.get(employeeId)?.ratePolicyType === 'side_job') ? { clearRateOverride: true as const } : {}),
+          };
+        }),
       });
     } catch (caughtError) {
       setError(
@@ -176,20 +202,41 @@ export function ObjectAttendancePanel({
                   <div style={{ color: '#80655c', fontSize: 12 }}>{getAvailabilityLabel(employee.availability)}</div>
                 ) : null}
                 {selectedIds.includes(employee.id) ? (
-                  <label className="attendance-hours-control">
-                    <span>Часы</span>
-                    <input
-                      type="number"
-                      min="0"
-                      max="24"
-                      step="0.5"
-                      value={workedHoursById[employee.id] ?? getDefaultWorkedHours(employee.id)}
-                      onChange={(event) => setWorkedHoursById((current) => ({
-                        ...current,
-                        [employee.id]: event.target.value,
-                      }))}
-                    />
-                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: canEditRates ? 'repeat(auto-fit, minmax(180px, 1fr))' : 'minmax(160px, 1fr)', alignItems: 'end', gap: 8 }}>
+                    <label className="attendance-hours-control">
+                      <span>Часы</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="24"
+                        step="0.5"
+                        value={workedHoursById[employee.id] ?? getDefaultWorkedHours(employee.id)}
+                        onChange={(event) => setWorkedHoursById((current) => ({ ...current, [employee.id]: event.target.value }))}
+                      />
+                    </label>
+                    {canEditRates ? (
+                      <label className="attendance-hours-control">
+                        <span>Особая ставка на этот выход</span>
+                        <select value={specialRateById[employee.id]?.type ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { type: event.target.value as '' | 'complex_shift' | 'side_job', amount: current[employee.id]?.amount ?? '', reason: current[employee.id]?.reason ?? '' } }))}>
+                          <option value="">Обычная ставка объекта</option>
+                          <option value="complex_shift">Сложный выход</option>
+                          <option value="side_job">Подработка</option>
+                        </select>
+                      </label>
+                    ) : null}
+                    {canEditRates && specialRateById[employee.id]?.type ? (
+                      <>
+                        <label className="attendance-hours-control">
+                          <span>Сумма за выход, ₽</span>
+                        <input type="number" min="0" step="1" value={specialRateById[employee.id]?.amount ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), amount: event.target.value } }))} required />
+                        </label>
+                        <label className="attendance-hours-control" style={{ gridColumn: '1 / -1' }}>
+                          <span>Основание</span>
+                          <input type="text" maxLength={1000} value={specialRateById[employee.id]?.reason ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), reason: event.target.value } }))} required />
+                        </label>
+                      </>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
             ))}

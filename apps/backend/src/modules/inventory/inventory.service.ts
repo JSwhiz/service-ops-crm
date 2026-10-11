@@ -21,6 +21,7 @@ import {
   hasWideObjectAccess,
 } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
 import {
   buildOneTimeOrderAccessWhere,
   canViewOneTimeOrderByScope,
@@ -164,6 +165,116 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
   ) {}
+
+  async listCounterpartyMovementsScoped(
+    currentUser: CurrentAuthUser,
+    counterpartyId: string,
+    page = 1,
+    limit = 50,
+  ): Promise<InventoryMovementListResponseDto> {
+    const linkedObjects = await this.prisma.object.findMany({
+      where: { counterpartyId, deletedAt: null },
+      select: {
+        id: true,
+        createdByUserId: true,
+        assignments: {
+          where: { isActive: true },
+          select: { userId: true, isActive: true },
+        },
+      },
+    });
+    const roleCodes = this.getRoleCodes(currentUser);
+    const visibleObjectIds = linkedObjects
+      .filter((object) =>
+        canViewObjectByScope({
+          currentUserId: currentUser.id,
+          roleCodes,
+          object,
+        }),
+      )
+      .map((object) => object.id);
+
+    if (visibleObjectIds.length === 0) {
+      return { items: [], total: 0, page, limit, totalPages: 0 };
+    }
+
+    const where: Prisma.InventoryMovementWhereInput = {
+      relatedObjectId: { in: visibleObjectIds },
+    };
+    const [total, movements] = await this.prisma.$transaction([
+      this.prisma.inventoryMovement.count({ where }),
+      this.prisma.inventoryMovement.findMany({
+        where,
+        include: {
+          inventoryItem: {
+            select: {
+              id: true,
+              name: true,
+              category: true,
+              unit: true,
+              isActive: true,
+              currentUnitPrice: true,
+            },
+          },
+          createdBy: { select: { id: true, login: true, fullName: true } },
+          approvalBridgeResolvedBy: {
+            select: { id: true, login: true, fullName: true },
+          },
+          relatedObject: {
+            select: {
+              id: true,
+              name: true,
+              createdByUserId: true,
+              assignments: {
+                where: { isActive: true },
+                select: { userId: true, isActive: true },
+              },
+            },
+          },
+          relatedOneTimeOrder: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              createdByUserId: true,
+              assignments: {
+                where: { isActive: true },
+                select: {
+                  userId: true,
+                  assignmentRoleCode: true,
+                  isActive: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    const movementIds = movements.map((movement) => movement.id);
+    const [attachmentsByEntityId, approvalRequestsByEntityId] =
+      await Promise.all([
+        this.loadMovementAttachments(movementIds),
+        this.loadPendingApprovalRequestsByMovementIds(movementIds),
+      ]);
+
+    return {
+      items: (movements as InventoryMovementRecord[]).map((movement) =>
+        this.mapMovement(
+          movement,
+          attachmentsByEntityId.get(movement.id) ?? [],
+          approvalRequestsByEntityId.get(movement.id) ?? null,
+          currentUser,
+        ),
+      ),
+      total,
+      page,
+      limit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    };
+  }
 
   async listItems(
     currentUser: CurrentAuthUser,
@@ -1759,6 +1870,7 @@ export class InventoryService {
   private canIssueToSpecificObject(
     currentUser: CurrentAuthUser,
     object: {
+      id?: string;
       createdByUserId: string;
       assignments: Array<{
         userId: string;
@@ -1772,7 +1884,8 @@ export class InventoryService {
       canIssueInventoryToObject(roleCodes) ||
       hasWideObjectAccess(roleCodes) ||
       object.createdByUserId === currentUser.id ||
-      object.assignments.some((assignment) => assignment.userId === currentUser.id)
+      object.assignments.some((assignment) => assignment.userId === currentUser.id) ||
+      hasDelegatedObjectAction(currentUser.id, object.id, 'inventory_issue')
     );
   }
 

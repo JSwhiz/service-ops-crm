@@ -81,7 +81,12 @@ export default function EquipmentDetailPage({
             setObjects(response);
           }
         }),
-        listOneTimeOrders({
+      );
+    } else if (!cancelled) {
+      setObjects([]);
+    }
+    if (loadedUnit.capabilities.canAssignToOneTimeOrder) {
+      requests.push(listOneTimeOrders({
           limit: 100,
           sortBy: 'title',
           sortDirection: 'asc',
@@ -89,10 +94,8 @@ export default function EquipmentDetailPage({
           if (!cancelled) {
             setOrders(response.items);
           }
-        }),
-      );
+        }));
     } else if (!cancelled) {
-      setObjects([]);
       setOrders([]);
     }
 

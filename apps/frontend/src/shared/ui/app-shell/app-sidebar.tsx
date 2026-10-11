@@ -19,9 +19,12 @@ type IconName =
   | 'orders'
   | 'accountability'
   | 'inventory'
+  | 'mats'
   | 'equipment'
   | 'tasks'
   | 'timesheet'
+  | 'calendar'
+  | 'substitutions'
   | 'candidates'
   | 'employees'
   | 'settings';
@@ -50,12 +53,18 @@ function Icon({ name }: { name: IconName }): React.JSX.Element {
       return <svg viewBox="0 0 24 24" {...common}><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/><path d="M7 6V4h10v2"/></svg>;
     case 'inventory':
       return <svg viewBox="0 0 24 24" {...common}><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="m4 7v10l8 4 8-4V7M12 11v10"/></svg>;
+    case 'mats':
+      return <svg viewBox="0 0 24 24" {...common}><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h4"/><path d="M6 4v16M18 4v16"/></svg>;
     case 'equipment':
       return <svg viewBox="0 0 24 24" {...common}><path d="M14.5 6.5a4 4 0 0 0-5.3 5.3L4 17l3 3 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.6 2.6-3-3 2.6-2.6Z"/></svg>;
     case 'tasks':
       return <svg viewBox="0 0 24 24" {...common}><path d="M9 5h11M9 12h11M9 19h11"/><path d="m3.5 5 1 1 2-2M3.5 12l1 1 2-2M3.5 19l1 1 2-2"/></svg>;
     case 'timesheet':
       return <svg viewBox="0 0 24 24" {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M8 14h2M14 14h2M8 18h2M14 18h2"/></svg>;
+    case 'calendar':
+      return <svg viewBox="0 0 24 24" {...common}><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>;
+    case 'substitutions':
+      return <svg viewBox="0 0 24 24" {...common}><path d="M4 8h15m-4-4 4 4-4 4M20 16H5m4-4-4 4 4 4"/></svg>;
     case 'candidates':
       return <svg viewBox="0 0 24 24" {...common}><circle cx="9" cy="8" r="3"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 8v6M14 11h6"/></svg>;
     case 'employees':
@@ -120,9 +129,12 @@ export function AppSidebar({ expanded, onToggle }: AppSidebarProps): React.JSX.E
           ) : null}
           {canAccessAccountability ? <NavLink href="/accountability" label="Подотчет" icon={<Icon name="accountability" />} /> : null}
           {canAccessInventory ? <NavLink href="/inventory" label="Расходники" icon={<Icon name="inventory" />} /> : null}
+          <NavLink href="/rubber-mats" label="Ковры" icon={<Icon name="mats" />} />
           {canAccessEquipment ? <NavLink href="/equipment" label="Оборудование" icon={<Icon name="equipment" />} /> : null}
           <NavLink href="/tasks" label="Задачи" icon={<Icon name="tasks" />} />
           <NavLink href="/timesheet" label="Табель" icon={<Icon name="timesheet" />} />
+          <NavLink href="/user-absences" label="Календарь" icon={<Icon name="calendar" />} />
+          <NavLink href="/user-substitutions" label="Замещения" icon={<Icon name="substitutions" />} />
           {canAccessCandidates ? <NavLink href="/candidates" label="Кандидаты" icon={<Icon name="candidates" />} /> : null}
           {canAccessEmployeesHr ? <NavLink href="/employees" label="Сотрудники" icon={<Icon name="employees" />} /> : null}
         </div>

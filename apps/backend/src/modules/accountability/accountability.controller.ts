@@ -25,6 +25,7 @@ import { CreateAccountabilityFundingDto } from './dto/create-accountability-fund
 import { RejectAccountabilityClosureDto } from './dto/reject-accountability-closure.dto';
 import { RejectAccountabilityExpenseDto } from './dto/reject-accountability-expense.dto';
 import { SaveAccountabilityExpenseDto } from './dto/save-accountability-expense.dto';
+import { ReverseExternalReceiptDto } from './dto/reverse-external-receipt.dto';
 import { AccountabilityService } from './accountability.service';
 
 interface CurrentAuthUser {
@@ -89,6 +90,23 @@ export class AccountabilityController {
     @Body() payload: CreateAccountabilityFundingDto,
   ): Promise<AccountabilityFundingResponseDto> {
     return this.accountabilityService.issueFunding(user, userId, payload);
+  }
+
+  @Post('me/fundings/external')
+  recordExternalFunding(
+    @CurrentUser() user: CurrentAuthUser,
+    @Body() payload: CreateAccountabilityFundingDto,
+  ): Promise<AccountabilityFundingResponseDto> {
+    return this.accountabilityService.recordExternalReceipt(user, payload);
+  }
+
+  @Post('fundings/:fundingId/reverse')
+  reverseExternalFunding(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('fundingId') fundingId: string,
+    @Body() payload: ReverseExternalReceiptDto,
+  ): Promise<AccountabilityFundingResponseDto> {
+    return this.accountabilityService.reverseExternalReceipt(user, fundingId, payload.reason);
   }
 
   @Post('me/expenses')

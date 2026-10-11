@@ -27,9 +27,12 @@ import type {
   EmployeeWorkScheduleCode,
 } from '@/entities/employee/model/employee.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { formatRegistryDate } from '@/shared/lib/registry-presentation';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -276,16 +279,10 @@ export default function EmployeesPage(): React.JSX.Element {
   ].filter(Boolean) as AvailableRegistryFilter[]);
 
   return (
-    <><PageTitle title="Сотрудники" />
-      {!canAccessEmployeesHr ? (
+    <>{!canAccessEmployeesHr ? (
         <div className="page-card inline-notice inline-notice--warning">У вас нет доступа к HR-контуру сотрудников.</div>
       ) : (
         <div className="page-stack workspace-page employee-registry">
-          <section className="page-card workspace-surface section-header registry-header"><div><div className="section-title">Реестр сотрудников</div>
-            <div className="section-subtitle">Контакты, графики и текущие назначения в одном списке.</div></div>
-            {result.capabilities.canCreate ? <Link className="button-link" href="/employees/new">Добавить сотрудника</Link> : null}
-          </section>
-
           <nav className="employee-tabs" aria-label="Разделы реестра">
             {([['all', 'Все сотрудники'], ['regular', 'Постоянные'], ['one_time', 'Разовые'], ['archived', 'Архив']] as const)
               .map(([value, label]) => <button key={value} type="button" className={tab === value ? 'is-active' : undefined}
@@ -300,24 +297,26 @@ export default function EmployeesPage(): React.JSX.Element {
             onSearchChange={setSearchInput}
             activeFilters={activeRegistryFilters}
             availableFilters={availableRegistryFilters}
+            actions={result.capabilities.canCreate ? <Link className="button-link button-link--primary" href="/employees/new">Добавить сотрудника</Link> : null}
           />
 
           {isLoading ? <div className="page-card employee-loading" aria-live="polite">Загружаем сотрудников...</div>
             : error ? <div className="page-card inline-notice inline-notice--warning"><div>{error}</div>
               <button type="button" className="button-secondary" onClick={() => setReloadKey((current) => current + 1)}>Повторить</button></div>
-            : result.items.length === 0 ? <div className="page-card">{querySearch || activeFilterCount
+            : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">{querySearch || activeFilterCount
               ? 'По выбранным фильтрам сотрудников нет.' : 'Сотрудники не найдены.'}</div>
-            : <><div className="page-card workspace-surface data-table-shell employee-table-wrap"><table className="employee-registry-table"><thead><tr>
+            : <><DataTable label="Таблица сотрудников" className="employee-registry-table" frameClassName="page-card workspace-surface data-table-shell employee-table-wrap"><thead><tr>
               <th>ФИО</th><th>Телефон</th><th>Должность</th><th>Тип</th><th>Статус</th><th>Дата рождения</th>
-              <th>График</th><th>Время работы</th><th>Ставка за день</th><th>Текущие объекты</th><th>Изменён</th>
+              <th>График</th><th>Время работы</th><th>Ставка за день</th><th>Текущие объекты</th><th>Изменён</th><th aria-label="Открыть" />
             </tr></thead><tbody>{result.items.map((item) => <tr key={item.id} tabIndex={0}
               onClick={() => router.push(`/employees/${item.id}`)} onKeyDown={(event) => { if (event.key === 'Enter') router.push(`/employees/${item.id}`); }}>
-              <td><Link href={`/employees/${item.id}`}>{item.fullName}</Link></td><td>{item.phone ?? '—'}</td><td>{item.position ?? '—'}</td>
+              <td title={item.fullName}><Link href={`/employees/${item.id}`}>{item.fullName}</Link></td><td title={item.phone ?? undefined}>{item.phone ?? '—'}</td><td title={item.position ?? undefined}>{item.position ?? '—'}</td>
               <td><span className="employee-type-badge">{getEmployeeTypeLabel(item.employeeType)}</span></td><td>{getEmployeeStatusLabel(item.employmentStatus)}</td>
               <td>{formatEmployeeDate(item.birthDate)}</td><td title={item.workScheduleCustom ?? undefined}>{getEmployeeScheduleLabel(item.workScheduleCode, item.workScheduleCustom)}</td>
-              <td>{item.workTimeText ?? '—'}</td><td>{formatEmployeeRate(item.baseDailyRate)}</td><td><div className="employee-object-chips">
+              <td title={item.workTimeText ?? undefined}>{item.workTimeText ?? '—'}</td><td>{formatEmployeeRate(item.baseDailyRate)}</td><td title={item.currentObjects.map((object) => object.name).join(', ') || undefined}><div className="employee-object-chips">
                 {item.currentObjects.length ? item.currentObjects.map((object) => <span key={object.id}>{object.name}</span>) : '—'}</div></td>
-              <td>{new Date(item.updatedAt).toLocaleDateString('ru-RU')}</td></tr>)}</tbody></table></div>
+              <td title={new Date(item.updatedAt).toLocaleString('ru-RU')}>{formatRegistryDate(item.updatedAt)}</td>
+              <td className="registry-open-cell"><RegistryOpenLink href={`/employees/${item.id}`} label={`Открыть сотрудника ${item.fullName}`} /></td></tr>)}</tbody></DataTable>
               <div className="employee-mobile-list">{result.items.map((item) => <Link key={item.id} href={`/employees/${item.id}`} className="page-card employee-mobile-card">
                 <div className="section-header"><div><strong>{item.fullName}</strong><div className="page-muted">{item.position ?? 'Должность не указана'}</div></div>
                   <span className="employee-type-badge">{getEmployeeTypeLabel(item.employeeType)}</span></div>
@@ -326,13 +325,12 @@ export default function EmployeesPage(): React.JSX.Element {
                 <div className="employee-object-chips">{item.currentObjects.length ? item.currentObjects.map((object) => <span key={object.id}>{object.name}</span>) : <span>Без объекта</span>}</div>
               </Link>)}</div></>}
 
-          {result.total > 0 ? <div className="page-card workspace-surface pagination-row"><span className="page-muted">{firstItem}–{lastItem} из {result.total}</span>
-            <SearchableSelect label="На странице" value={String(limit)} clearable={false}
+          <TablePagination page={result.page} totalPages={result.totalPages} pending={isLoading} label="Страницы сотрудников"
+            summary={result.total > 0 ? `Показано ${firstItem}–${lastItem} из ${result.total}` : 'Сотрудники не найдены'}
+            onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
+            beforeNavigation={<SearchableSelect label="На странице" value={String(limit)} clearable={false}
               options={[25, 50, 100].map((value) => ({ value: String(value), label: String(value) }))}
-              onChange={(value) => replaceQuery({ limit: value === String(DEFAULT_LIMIT) ? null : value, page: null })} />
-            <button type="button" className="button-secondary" disabled={result.page <= 1 || isLoading} onClick={() => replaceQuery({ page: String(result.page - 1) })}>Назад</button>
-            <button type="button" className="button-secondary" disabled={result.page >= result.totalPages || isLoading} onClick={() => replaceQuery({ page: String(result.page + 1) })}>Вперёд</button>
-          </div> : null}
+              onChange={(value) => replaceQuery({ limit: value === String(DEFAULT_LIMIT) ? null : value, page: null })} />} />
         </div>
       )}</>
   );

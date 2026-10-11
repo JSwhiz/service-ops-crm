@@ -43,6 +43,7 @@ import { HealthModule } from './modules/health/health.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { ObjectOperationsModule } from './modules/object-operations/object-operations.module';
 import { ObjectsModule } from './modules/objects/objects.module';
+import { RubberMatsModule } from './modules/rubber-mats/rubber-mats.module';
 import { OneTimeOrdersModule } from './modules/one-time-orders/one-time-orders.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
@@ -53,6 +54,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { TimesheetsModule } from './modules/timesheets/timesheets.module';
 import { UserAbsencesModule } from './modules/user-absences/user-absences.module';
 import { UsersAccessModule } from './modules/users-access/users-access.module';
+import { UserSubstitutionsModule } from './modules/user-substitutions/user-substitutions.module';
 
 const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
 
@@ -69,6 +71,7 @@ const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
     RedisModule,
     StorageModule,
     UsersAccessModule,
+    UserSubstitutionsModule,
     UserAbsencesModule,
     AccountabilityModule,
     ApprovalsModule,
@@ -83,6 +86,7 @@ const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
     InventoryModule,
     FilesModule,
     ObjectsModule,
+    RubberMatsModule,
     OneTimeOrdersModule,
     NotificationsModule,
     ObjectOperationsModule,

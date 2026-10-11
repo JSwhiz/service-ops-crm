@@ -26,12 +26,14 @@ import {
   canViewObjectByScope,
 } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { TimesheetsService } from '../timesheets/timesheets.service';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import {
   buildObjectDefaultRatePolicy,
   calculateMonthlySalaryDailyRate,
   getRatePolicyLabel,
   normalizeRatePolicy,
+  parseRatePolicySnapshot,
 } from '../timesheets/utils/timesheet-rate-policy.util';
 
 import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
@@ -147,6 +149,7 @@ export class ObjectOperationsService {
     private readonly employeesService: EmployeesService,
     private readonly inventoryService: InventoryService,
     private readonly equipmentService: EquipmentService,
+    private readonly timesheetsService: TimesheetsService,
   ) {}
 
   async getTodayArrivalPhoto(
@@ -921,7 +924,7 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
     objectId: string,
   ): Promise<ObjectAttendanceResponseDto> {
-    await this.assertObjectVisible(currentUser, objectId);
+    await this.assertObjectVisible(currentUser, objectId, true);
 
     const operationDate = startOfToday();
     const [facts, employees] = await Promise.all([
@@ -933,6 +936,8 @@ export class ObjectOperationsService {
         select: {
           employeeId: true,
           workedHours: true,
+          dailyRateSnapshot: true,
+          ratePolicySnapshot: true,
         },
       }),
       this.listAttendanceEmployees(objectId, operationDate),
@@ -944,6 +949,9 @@ export class ObjectOperationsService {
       employeeFacts: facts.map((item) => ({
         employeeId: item.employeeId,
         workedHours: item.workedHours,
+        ratePolicyType: parseRatePolicySnapshot(item.ratePolicySnapshot)?.ratePolicyType ?? null,
+        rateAmount: parseRatePolicySnapshot(item.ratePolicySnapshot)?.baseAmount ?? item.dailyRateSnapshot,
+        rateReason: parseRatePolicySnapshot(item.ratePolicySnapshot)?.notes ?? null,
       })),
       employees,
     };
@@ -954,7 +962,26 @@ export class ObjectOperationsService {
     objectId: string,
     payload: UpsertObjectAttendanceDto,
   ): Promise<{ success: true }> {
-    await this.assertObjectWritable(currentUser, objectId);
+    await this.assertObjectVisible(currentUser, objectId, true);
+
+    const inputFacts = payload.employeeFacts ?? [];
+    if (new Set(inputFacts.map((fact) => fact.employeeId)).size !== inputFacts.length || inputFacts.some((fact) => !payload.employeeIds.includes(fact.employeeId))) {
+      throw new BadRequestException('Факты должны быть уникальными и относиться только к отмеченным сотрудникам');
+    }
+    for (const fact of inputFacts) {
+      const specialRate = fact.ratePolicyType !== undefined || fact.rateAmount !== undefined || fact.rateReason !== undefined || fact.clearRateOverride === true;
+      if (!specialRate) continue;
+      await this.assertRatePolicyWritable(currentUser);
+      if (fact.clearRateOverride) {
+        if (fact.ratePolicyType !== undefined || fact.rateAmount !== undefined || fact.rateReason !== undefined) {
+          throw new BadRequestException('Сброс особой ставки нельзя совмещать с новой ставкой');
+        }
+        continue;
+      }
+      if (!fact.ratePolicyType || fact.rateAmount === undefined || !fact.rateReason?.trim()) {
+        throw new BadRequestException('Для особого выхода укажите вид работы, ставку и основание');
+      }
+    }
 
     const object = await this.prisma.object.findFirst({
       where: {
@@ -1106,20 +1133,33 @@ export class ObjectOperationsService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+      const previousFacts = await tx.objectAttendanceFact.findMany({ where: { objectId, operationDate: normalizedDate } });
       await tx.objectAttendanceFact.deleteMany({
         where: {
           objectId,
           operationDate: normalizedDate,
+          employeeId: { notIn: payload.employeeIds },
         },
       });
 
       if (payload.employeeIds.length > 0) {
-        await tx.objectAttendanceFact.createMany({
-          data: payload.employeeIds.map((employeeId) => {
+        const nextFacts = payload.employeeIds.map((employeeId) => {
             const assignment = object.employeeAssignments.find(
               (item) => item.employeeId === employeeId,
             );
-            const ratePolicy = assignment?.ratePolicyUpdatedAt
+            const previous = previousFacts.find((fact) => fact.employeeId === employeeId);
+            const inputFact = inputFacts.find((fact) => fact.employeeId === employeeId);
+            const savedPolicy = parseRatePolicySnapshot(previous?.ratePolicySnapshot);
+            const ratePolicy = inputFact?.ratePolicyType
+              ? normalizeRatePolicy({ ratePolicyType: inputFact.ratePolicyType, ratePolicyBaseAmount: inputFact.rateAmount, ratePolicyNotes: inputFact.rateReason }, inputFact.rateAmount ?? 0)
+              : inputFact?.clearRateOverride
+                ? assignment?.ratePolicyUpdatedAt
+                  ? normalizeRatePolicy(assignment, this.getObjectMonthlySalaryDailyFallback({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, operationDate: normalizedDate, scheduleCode: assignment.ratePolicyScheduleCode }))
+                  : buildObjectDefaultRatePolicy({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: assignment?.ratePolicyScheduleCode ?? null })
+                : savedPolicy ?? (previous
+              ? normalizeRatePolicy({ ratePolicyType: 'per_attendance', ratePolicyBaseAmount: previous.dailyRateSnapshot }, previous.dailyRateSnapshot)
+              : assignment?.ratePolicyUpdatedAt
               ? normalizeRatePolicy(
                   assignment,
                   this.getObjectMonthlySalaryDailyFallback({
@@ -1135,8 +1175,8 @@ export class ObjectOperationsService {
                   monthlySalary: object.monthlySalary,
                   dailyRate: object.dailyRate,
                   scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
-                });
-            const workedHours = workedHoursByEmployeeId.get(employeeId) ?? null;
+                }));
+            const workedHours = workedHoursByEmployeeId.has(employeeId) ? workedHoursByEmployeeId.get(employeeId) ?? null : previous?.workedHours ?? null;
             const dailyRateSnapshot =
               ratePolicy.ratePolicyType === 'monthly_fixed'
                 ? calculateMonthlySalaryDailyRate({
@@ -1164,10 +1204,13 @@ export class ObjectOperationsService {
                 ratePolicy.ratePolicyType === 'partial_shift'
                   ? `${ratePolicy.baseAmount} * ${workedHours ?? ratePolicy.standardShiftHours} / ${ratePolicy.standardShiftHours}`
                   : null,
-              createdByUserId: currentUser.id,
+              createdByUserId: previous?.createdByUserId ?? currentUser.id,
             };
-          }),
-        });
+          });
+        for (const fact of nextFacts) {
+          const { createdByUserId, ...values } = fact;
+          await tx.objectAttendanceFact.upsert({ where: { objectId_employeeId_operationDate: { objectId, employeeId: fact.employeeId, operationDate: normalizedDate } }, update: values, create: { ...values, createdByUserId } });
+        }
       }
 
       const monthContainer = await tx.timesheetMonth.upsert({
@@ -1206,6 +1249,10 @@ export class ObjectOperationsService {
           },
         });
       }
+      await this.timesheetsService.syncAttendanceDay(tx, { objectId, timesheetMonthId: monthContainer.id, year: targetYear, month: targetMonth, dayOfMonth: normalizedDate.getDate(), actorUserId: currentUser.id, previousFactEmployeeIds: previousFacts.map((fact) => fact.employeeId) });
+      const nextFacts = await tx.objectAttendanceFact.findMany({ where: { objectId, operationDate: normalizedDate } });
+      const snapshot = (facts: typeof nextFacts) => facts.map((fact) => ({ employeeId: fact.employeeId, dailyRateSnapshot: fact.dailyRateSnapshot, workedHours: fact.workedHours, ratePolicySnapshot: fact.ratePolicySnapshot }));
+      await tx.auditEvent.create({ data: { entityType: 'object_attendance', entityId: objectId, actorUserId: currentUser.id, action: 'object.attendance.updated', oldValues: snapshot(previousFacts) as Prisma.InputJsonValue, newValues: snapshot(nextFacts) as Prisma.InputJsonValue, metadata: { operationDate: payload.operationDate, comment: payload.comment?.trim() || null } } });
     });
 
     return { success: true };
@@ -1617,6 +1664,7 @@ export class ObjectOperationsService {
   private async assertObjectVisible(
     currentUser: CurrentAuthUser,
     objectId: string,
+    ownScopeOnly = false,
   ): Promise<void> {
     const object = await this.prisma.object.findFirst({
       where: {
@@ -1646,6 +1694,7 @@ export class ObjectOperationsService {
       !canViewObjectByScope({
         currentUserId: currentUser.id,
         roleCodes: this.getRoleCodes(currentUser),
+        ownScopeOnly,
         object,
       })
     ) {
@@ -1674,6 +1723,7 @@ export class ObjectOperationsService {
         currentUserId: currentUser.id,
         roleCodes: this.getRoleCodes(currentUser),
         permissionCodes: currentUser.permissionCodes,
+        ownScopeOnly: true,
         object,
       })
     ) {

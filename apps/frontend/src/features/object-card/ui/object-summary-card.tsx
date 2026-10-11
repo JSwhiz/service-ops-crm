@@ -90,18 +90,68 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           <div className="detail-value">
             {getSeasonLabel(item.seasonMode)}
             <span className="identity-secondary">
-              {item.paymentType === 'monthly'
-                ? `${item.monthlySalary.toLocaleString('ru-RU')} ₽ / месяц`
-                : `${item.dailyRate.toLocaleString('ru-RU')} ₽ / выход`}
+              {(() => {
+                // Be tolerant of an API process that has not yet been restarted
+                // after seasonal-rate deployment. Older responses omit the new
+                // fields; the object card must still render using legacy rates.
+                const paymentType = item.seasonMode === 'summer'
+                  ? item.summerPaymentType ?? item.paymentType
+                  : item.seasonMode === 'winter'
+                    ? item.winterPaymentType ?? item.paymentType
+                    : item.paymentType;
+                const amount = item.seasonMode === 'summer'
+                  ? paymentType === 'monthly'
+                    ? item.summerMonthlySalary ?? item.monthlySalary ?? 0
+                    : item.summerDailyRate ?? item.dailyRate ?? 0
+                  : item.seasonMode === 'winter'
+                    ? paymentType === 'monthly'
+                      ? item.winterMonthlySalary ?? item.monthlySalary ?? 0
+                      : item.winterDailyRate ?? item.dailyRate ?? 0
+                    : paymentType === 'monthly' ? item.monthlySalary ?? 0 : item.dailyRate ?? 0;
+                return paymentType === 'monthly'
+                  ? `${amount.toLocaleString('ru-RU')} ₽ / месяц`
+                  : `${amount.toLocaleString('ru-RU')} ₽ / выход`;
+              })()}
             </span>
           </div>
         </div>
       </div>
 
-      {item.notes ? (
+      <div className="object-summary__season-profile">
+        <div>
+          <span>Лето</span>
+          <strong>{[
+            item.summerWindowCleaning ? 'Мыть окна' : null,
+          ].filter(Boolean).join(' · ') || 'Мытьё окон не предусмотрено'}</strong>
+        </div>
+        <div>
+          <span>Зима</span>
+          <strong>{item.winterTractorMode === 'with_removal'
+            ? 'Трактор с вывозом'
+            : item.winterTractorMode === 'without_removal'
+              ? 'Трактор без вывоза'
+              : 'Трактор не нужен'}</strong>
+        </div>
+      </div>
+
+      {item.engineeringRequired ? (
+        <div className="object-summary__season-profile">
+          <div>
+            <span>Дополнительные работы</span>
+            <strong>Инженерка</strong>
+          </div>
+        </div>
+      ) : null}
+
+      {item.notes || item.instructionSteps.length > 0 ? (
         <div className="object-summary__note">
-          <div className="detail-label">Что важно знать об объекте</div>
-          <div className="detail-value">{item.notes}</div>
+          {item.instructionSteps.length > 0 ? (
+            <>
+              <div className="detail-label">Постоянные инструкции</div>
+              <ol>{item.instructionSteps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}</ol>
+            </>
+          ) : null}
+          {item.notes ? <><div className="detail-label">Что важно знать об объекте</div><div className="detail-value">{item.notes}</div></> : null}
         </div>
       ) : null}
     </div>

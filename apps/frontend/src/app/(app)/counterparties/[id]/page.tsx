@@ -5,18 +5,23 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import {
   getCounterparty,
+  clearCounterpartyMasterObject,
   linkCounterpartyObject,
+  listCounterpartyInventoryMovements,
   listCounterpartyHistory,
   setCounterpartyArchived,
+  setCounterpartyMasterObject,
   unlinkCounterpartyObject,
   updateCounterparty,
 } from '@/entities/counterparty/api/counterparty-client';
 import type { CounterpartyCard, CounterpartyHistoryItem } from '@/entities/counterparty/model/counterparty.types';
+import type { CounterpartyInventoryMovement } from '@/entities/counterparty/model/counterparty.types';
 import { listObjectsPage } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 import { ConfirmDialog } from '@/shared/ui/overlays';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -44,8 +49,29 @@ function historyActionLabel(action: string): string {
     case 'counterparty.object_linked': return 'Объект привязан';
     case 'counterparty.object_unlinked': return 'Объект отвязан';
     case 'counterparty.object_unlinked_by_relink': return 'Объект перенесён к другому контрагенту';
+    case 'counterparty.master_object_changed': return 'Назначен мастер-объект';
+    case 'counterparty.master_object_cleared': return 'Мастер-объект снят';
     default: return action;
   }
+}
+
+function movementTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    receipt: 'Поступление', return: 'Возврат', issue_to_object: 'Списание на объект',
+    issue_to_one_time_order: 'Списание на разовый заказ', writeoff: 'Списание', adjustment: 'Корректировка',
+  };
+  return labels[type] ?? type;
+}
+
+function movementStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    applied: 'Проведено', pending_approval: 'На проверке', rejected: 'Отклонено', cancelled: 'Отменено',
+  };
+  return labels[status] ?? status;
+}
+
+function formatMovementDate(value: string): string {
+  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
 }
 
 export default function CounterpartyPage({
@@ -57,6 +83,11 @@ export default function CounterpartyPage({
   const [history, setHistory] = useState<CounterpartyHistoryItem[]>([]);
   const [historyLoadedForId, setHistoryLoadedForId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [inventoryMovements, setInventoryMovements] = useState<CounterpartyInventoryMovement[]>([]);
+  const [inventoryMovementsTotal, setInventoryMovementsTotal] = useState(0);
+  const [inventoryMovementsLoading, setInventoryMovementsLoading] = useState(false);
+  const [inventoryMovementsPage, setInventoryMovementsPage] = useState(1);
+  const [inventoryMovementsTotalPages, setInventoryMovementsTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -133,6 +164,24 @@ export default function CounterpartyPage({
       active = false;
     };
   }, [activeTab, historyLoadedForId, item]);
+
+  useEffect(() => {
+    if (activeTab !== 'overview' || !item) return;
+    let active = true;
+    setInventoryMovementsLoading(true);
+    void listCounterpartyInventoryMovements(item.id, { page: inventoryMovementsPage, limit: 10 })
+      .then((result) => {
+        if (!active) return;
+        setInventoryMovements(result.items);
+        setInventoryMovementsTotal(result.total);
+        setInventoryMovementsTotalPages(result.totalPages);
+      })
+      .catch((caughtError) => {
+        if (active) setError(caughtError instanceof Error ? caughtError.message : 'Не удалось загрузить движения расходников.');
+      })
+      .finally(() => { if (active) setInventoryMovementsLoading(false); });
+    return () => { active = false; };
+  }, [activeTab, inventoryMovementsPage, item?.id]);
 
   const mutate = async (
     operation: () => Promise<CounterpartyCard>,
@@ -418,6 +467,16 @@ export default function CounterpartyPage({
                       .join(' · ')}
                   </div>
                 </div>
+                {item.masterObject?.id === object.id ? (
+                  <span className={styles.masterBadge}>Мастер-объект</span>
+                ) : null}
+                {item.capabilities.canLinkObjects && item.status === 'active' ? (
+                  item.masterObject?.id === object.id ? (
+                    <button type="button" className={styles.quietButton} disabled={saving} onClick={() => void mutate(() => clearCounterpartyMasterObject(item.id))}>Снять мастер-объект</button>
+                  ) : (
+                    <button type="button" className={styles.quietButton} disabled={saving} onClick={() => void mutate(() => setCounterpartyMasterObject(item.id, object.id))}>Назначить мастером</button>
+                  )
+                ) : null}
                 {item.capabilities.canLinkObjects ? (
                   <button
                     type="button"
@@ -435,6 +494,42 @@ export default function CounterpartyPage({
               </div>
             ))}
           </div>
+        )}
+      </section>
+
+      <section className={`page-card workspace-surface ${styles.surface} ${styles.section} ${styles.detailSurface}`}>
+        <div className={styles.sectionHeader}>
+          <div>
+            <h2 className={styles.sectionTitle}>Движения расходников по объектам</h2>
+            <div className={styles.muted}>Показываются движения только по объектам, доступным вам. У каждой записи указан фактический объект.</div>
+          </div>
+        </div>
+        {inventoryMovementsLoading ? <div className={styles.emptyState}>Загружаем движения…</div> : inventoryMovements.length === 0 ? (
+          <div className={styles.emptyState}>Движений расходников по доступным объектам пока нет.</div>
+        ) : (
+          <>
+            <div className={styles.movementList}>
+              {inventoryMovements.map((movement) => (
+                <article key={movement.id} className={styles.movementRow}>
+                  <div className={styles.recordMain}>
+                    <strong>{movement.inventoryItem.name}</strong>
+                    <span className={styles.muted}>{movementTypeLabel(movement.movementType)} · {movementStatusLabel(movement.status)}</span>
+                  </div>
+                  <div className={styles.movementQuantity} data-direction={movement.signedQuantity < 0 ? 'out' : 'in'}>
+                    {movement.signedQuantity > 0 ? '+' : ''}{movement.signedQuantity} {movement.inventoryItem.unit}
+                  </div>
+                  <div className={styles.recordMain}>
+                    {movement.relatedObject?.canOpenObjectCard ? <Link className={styles.recordLink} href={`/objects/${movement.relatedObject.id}`}>{movement.relatedObject.name}</Link> : <strong>{movement.relatedObject?.name ?? 'Объект не указан'}</strong>}
+                    <span className={styles.muted}>{movement.createdBy.fullName} · {formatMovementDate(movement.createdAt)}</span>
+                    {movement.comment ? <span className={styles.muted}>{movement.comment}</span> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <TablePagination page={inventoryMovementsPage} totalPages={inventoryMovementsTotalPages} pending={inventoryMovementsLoading} label="Страницы движений контрагента"
+              summary={inventoryMovementsTotal > 0 ? `Показано ${(inventoryMovementsPage - 1) * 10 + 1}–${Math.min(inventoryMovementsPage * 10, inventoryMovementsTotal)} из ${inventoryMovementsTotal}` : 'Движения не найдены'}
+              onPageChange={setInventoryMovementsPage} />
+          </>
         )}
       </section>
       </> : (

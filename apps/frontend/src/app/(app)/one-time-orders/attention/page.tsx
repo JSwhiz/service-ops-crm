@@ -9,7 +9,9 @@ import {
   type OneTimeOrderAttentionResponse,
 } from '@/entities/one-time-order/api/one-time-order-attention-client';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import { DataTable } from '@/shared/ui/data-table/data-table';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 const EMPTY: OneTimeOrderAttentionResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 0 };
 
@@ -69,9 +71,8 @@ export default function OneTimeOrderAttentionPage(): React.JSX.Element {
         <span className="page-muted">Выборка строится на backend до пагинации и учитывает права текущего пользователя.</span>
       </div>
       {loading ? <div className="page-card workspace-surface workspace-empty">Загрузка…</div> : error ? <div className="page-card workspace-surface inline-notice inline-notice--warning">{error}</div> : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">Горящих разовых заказов нет.</div> : (
-        <div className="page-card workspace-surface data-table-shell table-scroll">
-          <table className="data-table">
-            <thead><tr><th>Приоритет</th><th>Заказ</th><th>Дата</th><th>Статус</th><th>Объект / адрес</th><th>Менеджеры</th><th /></tr></thead>
+        <DataTable label="Таблица горящих разовых заказов" className="data-table" frameClassName="page-card workspace-surface data-table-shell table-scroll">
+            <thead><tr><th scope="col">Приоритет</th><th scope="col">Заказ</th><th scope="col">Дата</th><th scope="col">Статус</th><th scope="col">Объект / адрес</th><th scope="col">Менеджеры</th><th scope="col" aria-label="Действие" /></tr></thead>
             <tbody>{result.items.map((item) => <tr key={item.id}>
               <td><span className="status-pill">{urgency(item.executionStartDate)}</span></td>
               <td><strong>{item.title}</strong></td>
@@ -81,14 +82,11 @@ export default function OneTimeOrderAttentionPage(): React.JSX.Element {
               <td>{item.managers.map((manager) => manager.fullName || manager.login).join(', ') || '—'}</td>
               <td><Link href={`/one-time-orders/${item.id}`}>Открыть</Link></td>
             </tr>)}</tbody>
-          </table>
-        </div>
+        </DataTable>
       )}
-      {!loading && result.totalPages > 1 ? <div className="page-card workspace-surface object-registry-pagination">
-        <button type="button" disabled={page <= 1} onClick={() => router.replace(`/one-time-orders/attention?page=${page - 1}`)}>Назад</button>
-        <span>Страница {result.page} из {result.totalPages}</span>
-        <button type="button" disabled={page >= result.totalPages} onClick={() => router.replace(`/one-time-orders/attention?page=${page + 1}`)}>Далее</button>
-      </div> : null}
+      {!loading ? <TablePagination page={result.page} totalPages={result.totalPages} label="Страницы заказов, требующих внимания"
+        summary={result.total > 0 ? `Показано ${(result.page - 1) * result.limit + 1}–${Math.min(result.page * result.limit, result.total)} из ${result.total}` : 'Заказов не найдено'}
+        onPageChange={(nextPage) => router.replace(`/one-time-orders/attention?page=${nextPage}`)} /> : null}
     </div>
   );
 }

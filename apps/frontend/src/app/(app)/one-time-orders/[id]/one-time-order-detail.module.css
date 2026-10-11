@@ -1,0 +1,35 @@
+.navigation {
+  position: sticky;
+  top: 64px;
+  z-index: 15;
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 5px 0 8px;
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-canvas);
+  scrollbar-width: none;
+}
+
+.navigation::-webkit-scrollbar { display: none; }
+.content[hidden] { display: none; }
+
+.navigation button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 8px 13px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #685d55;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.navigation button:hover { border-color: transparent; background: #f3efec; color: #302923; }
+.navigation button:focus-visible { outline: 2px solid #8b7566; outline-offset: 1px; }
+.navigation button.active { border-color: transparent; background: #f2eae5; color: #302923; }

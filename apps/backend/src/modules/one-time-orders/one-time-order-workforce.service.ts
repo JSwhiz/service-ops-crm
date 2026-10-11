@@ -8,6 +8,8 @@ import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { createSimpleXlsxWorkbook } from '../timesheets/utils/simple-xlsx.util';
+import type { XlsxCell } from '../timesheets/utils/simple-xlsx.util';
 
 import {
   AddOneTimeOrderEmployeeDto,
@@ -30,6 +32,9 @@ interface OrderScope {
   title: string;
   workCycle: number;
   createdByUserId: string;
+  executionDate: Date | null;
+  executionStartDate: Date | null;
+  executionEndDate: Date | null;
   assignments: Array<{
     userId: string;
     assignmentRoleCode: string;
@@ -62,6 +67,30 @@ export interface OneTimeOrderAttendanceResponse {
   >;
 }
 
+export interface OneTimeOrderAttendanceCoverageResponse {
+  workCycle: number;
+  startDate: string | null;
+  endDate: string | null;
+  missingDates: string[];
+  history: Array<{
+    operationDate: string;
+    action: string;
+    at: string;
+    actor: string;
+    reason: string | null;
+    presentEmployees: string[];
+    previousPresentEmployees: string[];
+  }>;
+  days: Array<{
+    operationDate: string;
+    hasAttendance: boolean;
+    submittedAt: string | null;
+    submittedBy: { id: string; fullName: string } | null;
+    presentEmployeeCount: number;
+    employeeCount: number;
+  }>;
+}
+
 export interface OneTimeOrderTimesheetResponse {
   oneTimeOrderId: string;
   workCycle: number;
@@ -80,6 +109,12 @@ export interface OneTimeOrderTimesheetResponse {
     }>;
     total: number;
   }>;
+}
+
+export interface OneTimeOrderTimesheetExportQuery {
+  month?: string;
+  workCycle?: number;
+  employeeId?: string;
 }
 
 @Injectable()
@@ -278,18 +313,145 @@ export class OneTimeOrderWorkforceService {
     currentUser: CurrentAuthUser,
     orderId: string,
   ): Promise<OneTimeOrderAttendanceResponse> {
+    return this.getAttendance(currentUser, orderId);
+  }
+
+  async getAttendance(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    requestedDate?: string,
+  ): Promise<OneTimeOrderAttendanceResponse> {
     const order = await this.assertOrderVisible(currentUser, orderId);
-    const operationDate = this.getMoscowBusinessDate();
+    const operationDate = requestedDate ?? this.getMoscowBusinessDate();
+    this.assertValidOperationDate(operationDate);
     return this.loadAttendance(order, operationDate);
+  }
+
+  async getAttendanceCoverage(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+  ): Promise<OneTimeOrderAttendanceCoverageResponse> {
+    const order = await this.assertOrderVisible(currentUser, orderId);
+    const start = order.executionStartDate ?? order.executionDate;
+    const end = order.executionEndDate ?? start;
+    if (!start || !end) {
+      return { workCycle: order.workCycle, startDate: null, endDate: null, missingDates: [], days: [], history: [] };
+    }
+    const startDate = start.toISOString().slice(0, 10);
+    const endDate = end.toISOString().slice(0, 10);
+    if (endDate < startDate) throw new BadRequestException('Order execution end date precedes start date');
+    const startMs = Date.parse(`${startDate}T00:00:00.000Z`);
+    const endMs = Date.parse(`${endDate}T00:00:00.000Z`);
+    const dayCount = Math.floor((endMs - startMs) / 86_400_000) + 1;
+    if (dayCount > 366) throw new BadRequestException('Attendance coverage range cannot exceed one year');
+
+    const [submissions, entries, auditEvents] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ operationDate: Date; submittedAt: Date; submittedByUserId: string; fullName: string }>>`
+        SELECT submission."operationDate", submission."submittedAt", submission."submittedByUserId", users."fullName"
+        FROM "one_time_order_attendance_submissions" submission
+        JOIN "users" users ON users."id" = submission."submittedByUserId"
+        WHERE submission."oneTimeOrderId" = ${order.id}
+          AND submission."workCycle" = ${order.workCycle}
+          AND submission."operationDate" >= ${startDate}::DATE
+          AND submission."operationDate" <= ${endDate}::DATE
+      `,
+      this.prisma.$queryRaw<Array<{ operationDate: Date; employeeCount: bigint; presentEmployeeCount: bigint }>>`
+        SELECT entry."operationDate", COUNT(*) AS "employeeCount",
+          COUNT(*) FILTER (WHERE entry."attendancePresent" = true) AS "presentEmployeeCount"
+        FROM "one_time_order_timesheet_day_entries" entry
+        WHERE entry."oneTimeOrderId" = ${order.id}
+          AND entry."workCycle" = ${order.workCycle}
+          AND entry."operationDate" >= ${startDate}::DATE
+          AND entry."operationDate" <= ${endDate}::DATE
+        GROUP BY entry."operationDate"
+      `,
+      this.prisma.$queryRaw<Array<{
+        action: string;
+        createdAt: Date;
+        fullName: string;
+        oldValues: Prisma.JsonValue | null;
+        newValues: Prisma.JsonValue | null;
+      }>>`
+        SELECT event."action", event."createdAt", users."fullName",
+          event."oldValues", event."newValues"
+        FROM "audit_events" event
+        LEFT JOIN "users" users ON users."id" = event."actorUserId"
+        WHERE event."entityType" = 'one_time_order'
+          AND event."entityId" = ${order.id}
+          AND event."action" IN ('one_time_order.attendance.submitted', 'one_time_order.attendance.corrected')
+          AND COALESCE(event."newValues"->>'workCycle', event."oldValues"->>'workCycle') = ${String(order.workCycle)}
+          AND COALESCE(event."newValues"->>'operationDate', event."oldValues"->>'operationDate') >= ${startDate}
+          AND COALESCE(event."newValues"->>'operationDate', event."oldValues"->>'operationDate') <= ${endDate}
+        ORDER BY event."createdAt" DESC
+      `,
+    ]);
+    const submissionByDate = new Map(submissions.map((item) => [item.operationDate.toISOString().slice(0, 10), item]));
+    const entriesByDate = new Map(entries.map((item) => [item.operationDate.toISOString().slice(0, 10), item]));
+    const parseAuditObject = (value: Prisma.JsonValue | null): Record<string, Prisma.JsonValue> =>
+      value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, Prisma.JsonValue> : {};
+    const auditObjects = auditEvents.map((event) => ({
+      event,
+      oldValues: parseAuditObject(event.oldValues),
+      newValues: parseAuditObject(event.newValues),
+    }));
+    const employeeIds = [...new Set(auditObjects.flatMap(({ oldValues, newValues }) => [
+      ...(Array.isArray(oldValues.presentEmployeeIds) ? oldValues.presentEmployeeIds : []),
+      ...(Array.isArray(newValues.presentEmployeeIds) ? newValues.presentEmployeeIds : []),
+    ]).filter((value): value is string => typeof value === 'string'))];
+    const employeeNames = new Map((await this.prisma.employee.findMany({
+      where: { id: { in: employeeIds } }, select: { id: true, fullName: true },
+    })).map((employee) => [employee.id, employee.fullName]));
+    const history = auditObjects.map(({ event, oldValues, newValues }) => {
+      const idList = (value: Prisma.JsonValue | undefined): string[] =>
+        Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+      const names = (ids: string[]): string[] => ids.map((id) => employeeNames.get(id) ?? 'Сотрудник');
+      const dateValue = newValues.operationDate ?? oldValues.operationDate;
+      return {
+        operationDate: typeof dateValue === 'string' ? dateValue : '',
+        action: event.action,
+        at: event.createdAt.toISOString(),
+        actor: event.fullName ?? 'Пользователь удалён',
+        reason: typeof newValues.reason === 'string' ? newValues.reason : null,
+        presentEmployees: names(idList(newValues.presentEmployeeIds)),
+        previousPresentEmployees: names(idList(oldValues.presentEmployeeIds)),
+      };
+    });
+    const days = Array.from({ length: dayCount }, (_unused, index) => {
+      const operationDate = new Date(startMs + index * 86_400_000).toISOString().slice(0, 10);
+      const submission = submissionByDate.get(operationDate);
+      const facts = entriesByDate.get(operationDate);
+      return {
+        operationDate,
+        hasAttendance: Boolean(submission),
+        submittedAt: submission?.submittedAt.toISOString() ?? null,
+        submittedBy: submission ? { id: submission.submittedByUserId, fullName: submission.fullName } : null,
+        presentEmployeeCount: Number(facts?.presentEmployeeCount ?? 0n),
+        employeeCount: Number(facts?.employeeCount ?? 0n),
+      };
+    });
+    return {
+      workCycle: order.workCycle,
+      startDate,
+      endDate,
+      missingDates: days.filter((day) => !day.hasAttendance).map((day) => day.operationDate),
+      days,
+      history,
+    };
   }
 
   async submitTodayAttendance(
     currentUser: CurrentAuthUser,
     orderId: string,
     employeeIds: string[],
+    requestedDate?: string,
+    correctionReason?: string,
   ): Promise<OneTimeOrderAttendanceResponse> {
     const order = await this.assertOrderWritable(currentUser, orderId);
-    const operationDate = this.getMoscowBusinessDate();
+    const operationDate = requestedDate ?? this.getMoscowBusinessDate();
+    this.assertValidOperationDate(operationDate);
+    if (operationDate > this.getMoscowBusinessDate()) {
+      throw new BadRequestException('Attendance cannot be recorded for a future date');
+    }
     const activeEmployees = await this.prisma.$queryRaw<
       Array<{ employeeId: string; baseDailyRate: number | null }>
     >`
@@ -298,7 +460,8 @@ export class OneTimeOrderWorkforceService {
       JOIN "employees" employee ON employee."id" = assignment."employeeId"
       WHERE assignment."oneTimeOrderId" = ${order.id}
         AND assignment."workCycle" = ${order.workCycle}
-        AND assignment."isActive" = true
+        AND assignment."assignedAt"::DATE <= ${operationDate}::DATE
+        AND (assignment."isActive" = true OR assignment."removedAt"::DATE >= ${operationDate}::DATE)
         AND employee."deletedAt" IS NULL
     `;
     const activeIds = new Set(activeEmployees.map((item) => item.employeeId));
@@ -312,6 +475,34 @@ export class OneTimeOrderWorkforceService {
     const presentIds = new Set(employeeIds);
 
     await this.prisma.$transaction(async (tx) => {
+      const existingSubmission = await tx.$queryRaw<Array<{
+        submittedAt: Date;
+        submittedByUserId: string;
+      }>>`
+        SELECT "submittedAt", "submittedByUserId"
+        FROM "one_time_order_attendance_submissions"
+        WHERE "oneTimeOrderId" = ${order.id}
+          AND "workCycle" = ${order.workCycle}
+          AND "operationDate" = ${operationDate}::DATE
+        FOR UPDATE
+      `;
+      const oldEntries = await tx.$queryRaw<Array<{
+        employeeId: string;
+        attendancePresent: boolean;
+      }>>`
+        SELECT "employeeId", "attendancePresent"
+        FROM "one_time_order_timesheet_day_entries"
+        WHERE "oneTimeOrderId" = ${order.id}
+          AND "workCycle" = ${order.workCycle}
+          AND "operationDate" = ${operationDate}::DATE
+      `;
+      const oldPresentIds = oldEntries.filter((entry) => entry.attendancePresent).map((entry) => entry.employeeId).sort();
+      const nextPresentIds = [...presentIds].sort();
+      const changed = Boolean(existingSubmission[0]) && JSON.stringify(oldPresentIds) !== JSON.stringify(nextPresentIds);
+      const normalizedReason = correctionReason?.trim();
+      if (changed && !normalizedReason) {
+        throw new BadRequestException('A reason is required to change a saved attendance record');
+      }
       for (const employee of activeEmployees) {
         const present = presentIds.has(employee.employeeId);
         const rate = new Prisma.Decimal(employee.baseDailyRate ?? 0);
@@ -330,12 +521,17 @@ export class OneTimeOrderWorkforceService {
           ON CONFLICT ("oneTimeOrderId", "workCycle", "employeeId", "operationDate")
           DO UPDATE SET
             "attendancePresent" = EXCLUDED."attendancePresent",
-            "rateSnapshot" = EXCLUDED."rateSnapshot",
-            "automaticValue" = EXCLUDED."automaticValue",
+            "automaticValue" = CASE
+              WHEN "one_time_order_timesheet_day_entries"."attendancePresent" IS DISTINCT FROM EXCLUDED."attendancePresent"
+                THEN CASE WHEN EXCLUDED."attendancePresent" THEN "one_time_order_timesheet_day_entries"."rateSnapshot" ELSE 0 END
+              ELSE "one_time_order_timesheet_day_entries"."automaticValue"
+            END,
             "finalValue" = CASE
               WHEN "one_time_order_timesheet_day_entries"."manualOverride" = true
                 THEN "one_time_order_timesheet_day_entries"."finalValue"
-              ELSE EXCLUDED."finalValue"
+              WHEN "one_time_order_timesheet_day_entries"."attendancePresent" IS DISTINCT FROM EXCLUDED."attendancePresent"
+                THEN CASE WHEN EXCLUDED."attendancePresent" THEN "one_time_order_timesheet_day_entries"."rateSnapshot" ELSE 0 END
+              ELSE "one_time_order_timesheet_day_entries"."finalValue"
             END,
             "updatedByUserId" = EXCLUDED."updatedByUserId",
             "updatedAt" = CURRENT_TIMESTAMP
@@ -354,18 +550,41 @@ export class OneTimeOrderWorkforceService {
           "submittedAt" = CURRENT_TIMESTAMP,
           "submittedByUserId" = EXCLUDED."submittedByUserId"
       `;
-    });
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
-      entityId: order.id,
-      actorUserId: currentUser.id,
-      action: 'one_time_order.attendance.submitted',
-      newValues: {
-        workCycle: order.workCycle,
-        operationDate,
-        presentEmployeeIds: employeeIds,
-      },
+      if (changed) {
+        await this.auditService.writeAuditEvent({
+          entityType: 'one_time_order',
+          entityId: order.id,
+          actorUserId: currentUser.id,
+          action: 'one_time_order.attendance.corrected',
+          oldValues: {
+            workCycle: order.workCycle,
+            operationDate,
+            presentEmployeeIds: oldPresentIds,
+            submittedAt: existingSubmission[0]?.submittedAt.toISOString() ?? null,
+            submittedByUserId: existingSubmission[0]?.submittedByUserId ?? null,
+          },
+          newValues: {
+            workCycle: order.workCycle,
+            operationDate,
+            presentEmployeeIds: nextPresentIds,
+            reason: normalizedReason,
+          },
+        }, tx);
+      } else if (!existingSubmission[0]) {
+        await this.auditService.writeAuditEvent({
+          entityType: 'one_time_order',
+          entityId: order.id,
+          actorUserId: currentUser.id,
+          action: 'one_time_order.attendance.submitted',
+          newValues: {
+            workCycle: order.workCycle,
+            operationDate,
+            presentEmployeeIds: nextPresentIds,
+            corrected: false,
+          },
+        }, tx);
+      }
     });
     return this.loadAttendance(order, operationDate);
   }
@@ -456,6 +675,52 @@ export class OneTimeOrderWorkforceService {
     };
   }
 
+  async exportTimesheet(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    query: OneTimeOrderTimesheetExportQuery,
+  ): Promise<Buffer> {
+    const timesheet = await this.getTimesheet(currentUser, orderId, query.month, query.workCycle);
+    const rows: XlsxCell[][] = [
+      [{ value: `Разовый заказ ${orderId}`, styleId: 1 }],
+      [{ value: `Цикл ${timesheet.workCycle} · ${timesheet.month}` }],
+      [],
+      [
+        { value: 'Сотрудник', styleId: 1 },
+        { value: 'Дата', styleId: 1 },
+        { value: 'Отметка', styleId: 1 },
+        { value: 'Ставка на дату', styleId: 1 },
+        { value: 'Автоматически', styleId: 1 },
+        { value: 'Итог', styleId: 1 },
+        { value: 'Изменено вручную', styleId: 1 },
+        { value: 'Причина изменения', styleId: 1 },
+      ],
+    ];
+    for (const person of timesheet.rows) {
+      if (query.employeeId && person.employeeId !== query.employeeId) continue;
+      for (const day of person.days) {
+        rows.push([
+          person.fullName,
+          day.operationDate,
+          day.present ? 'Вышел' : 'Не вышел',
+          day.rateSnapshot,
+          day.automaticValue,
+          day.finalValue,
+          day.manualOverride ? 'Да' : 'Нет',
+          day.manualReason,
+        ]);
+      }
+    }
+    if (rows.length === 4) rows.push(['За выбранный период отметок нет.']);
+    return createSimpleXlsxWorkbook([{
+      name: 'Выходы',
+      rows,
+      columnWidths: [30, 14, 14, 18, 18, 18, 20, 42],
+      freeze: { rows: 4, columns: 1 },
+      pageSetup: { orientation: 'landscape', fitToWidth: 1 },
+    }]);
+  }
+
   private async loadAttendance(
     order: OrderScope,
     operationDate: string,
@@ -496,7 +761,8 @@ export class OneTimeOrderWorkforceService {
        AND entry."operationDate" = ${operationDate}::DATE
       WHERE assignment."oneTimeOrderId" = ${order.id}
         AND assignment."workCycle" = ${order.workCycle}
-        AND assignment."isActive" = true
+        AND assignment."assignedAt"::DATE <= ${operationDate}::DATE
+        AND (assignment."isActive" = true OR assignment."removedAt"::DATE >= ${operationDate}::DATE)
         AND employee."deletedAt" IS NULL
       ORDER BY employee."fullName" ASC
     `;
@@ -590,6 +856,9 @@ export class OneTimeOrderWorkforceService {
         title: true,
         workCycle: true,
         createdByUserId: true,
+        executionDate: true,
+        executionStartDate: true,
+        executionEndDate: true,
         assignments: {
           where: { isActive: true },
           select: {
@@ -613,5 +882,12 @@ export class OneTimeOrderWorkforceService {
     }).formatToParts(new Date());
     const values = new Map(parts.map((part) => [part.type, part.value]));
     return `${values.get('year')}-${values.get('month')}-${values.get('day')}`;
+  }
+
+  private assertValidOperationDate(value: string): void {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
+      throw new BadRequestException('Attendance date must be a valid YYYY-MM-DD date');
+    }
   }
 }

@@ -7,6 +7,7 @@ import type { OneTimeOrderSortField } from '@/entities/one-time-order/api/one-ti
 import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import { DataTable } from '@/shared/ui/data-table/data-table';
 import { OneTimeOrderPreviewDrawer } from './one-time-order-preview-drawer';
 
 export function OneTimeOrderListTable({
@@ -41,22 +42,30 @@ export function OneTimeOrderListTable({
     </button>
   );
 
+  const ariaSort = (field: OneTimeOrderSortField): 'ascending' | 'descending' | 'none' => {
+    if (sortBy !== field) return 'none';
+    return sortDirection === 'asc' ? 'ascending' : 'descending';
+  };
+
   return (
     <>
-      <div className="page-card workspace-surface data-table-shell one-time-order-table-scroll">
-        <table className="one-time-order-registry-table">
+      <DataTable
+        label="Таблица разовых заказов"
+        className="one-time-order-registry-table"
+        frameClassName="page-card workspace-surface data-table-shell one-time-order-table-scroll"
+      >
         <thead>
           <tr>
-            <th>{sortButton('title', 'Заказ')}</th>
-            <th>{sortButton('executionStartDate', 'Даты')}</th>
-            <th>Адрес</th>
-            <th>{sortButton('status', 'Статус')}</th>
-            <th>Менеджеры</th>
-            <th>Объект</th>
-            <th>ТЗ</th>
-            <th>Задачи</th>
-            <th>Отзыв</th>
-            <th aria-label="Быстрый просмотр" />
+            <th scope="col" aria-sort={ariaSort('title')}>{sortButton('title', 'Заказ')}</th>
+            <th scope="col" aria-sort={ariaSort('executionStartDate')}>{sortButton('executionStartDate', 'Даты')}</th>
+            <th scope="col">Адрес</th>
+            <th scope="col" aria-sort={ariaSort('status')}>{sortButton('status', 'Статус')}</th>
+            <th scope="col">Менеджеры</th>
+            <th scope="col">Объект</th>
+            <th scope="col">ТЗ</th>
+            <th scope="col">Задачи</th>
+            <th scope="col">Отзыв</th>
+            <th scope="col" aria-label="Быстрый просмотр" />
           </tr>
         </thead>
         <tbody>
@@ -165,8 +174,7 @@ export function OneTimeOrderListTable({
             );
           })}
         </tbody>
-      </table>
-      </div>
+      </DataTable>
       <OneTimeOrderPreviewDrawer item={previewItem} onClose={closePreview} />
     </>
   );

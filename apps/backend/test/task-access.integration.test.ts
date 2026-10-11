@@ -70,34 +70,39 @@ test('task visibility is access-safe for leadership, assignments and explicit us
     },
   });
 
-  const [founderCookie, managerOneCookie, managerTwoCookie, hrCookie, deputyCookie] =
-    await Promise.all([
-      loginAndGetCookieHeader({
-        baseUrl,
-        login: 'founder',
-        password: 'founder123',
-      }),
-      loginAndGetCookieHeader({
-        baseUrl,
-        login: 'manager1',
-        password: 'manager123',
-      }),
-      loginAndGetCookieHeader({
-        baseUrl,
-        login: 'manager2',
-        password: 'manager123',
-      }),
-      loginAndGetCookieHeader({
-        baseUrl,
-        login: 'hr1',
-        password: 'hr123',
-      }),
-      loginAndGetCookieHeader({
-        baseUrl,
-        login: 'deputy1',
-        password: 'deputy123',
-      }),
-    ]);
+  const [
+    founderCookie,
+    managerOneCookie,
+    managerTwoCookie,
+    hrCookie,
+    deputyCookie,
+  ] = await Promise.all([
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'founder',
+      password: 'founder123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'manager1',
+      password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'manager2',
+      password: 'manager123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'hr1',
+      password: 'hr123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'deputy1',
+      password: 'deputy123',
+    }),
+  ]);
   const cookies = {
     founder: founderCookie,
     manager1: managerOneCookie,
@@ -114,20 +119,22 @@ test('task visibility is access-safe for leadership, assignments and explicit us
     await prisma.$disconnect();
   });
 
-  const createTask = async (
-    cookie: string,
-    body: Record<string, unknown>,
-  ) => {
+  const createTask = async (cookie: string, body: Record<string, unknown>) => {
     const response = await fetch(`${baseUrl}/api/v1/tasks`, {
       method: 'POST',
       headers: {
         Cookie: cookie,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ dueDate: '2030-01-15', ...body }),
     });
 
-    const payload = (await response.json()) as { id?: string; status?: string };
+    const payload = (await response.json()) as {
+      id?: string;
+      status?: string;
+      scopeType?: string;
+      visibilityType?: string;
+    };
     if (payload.id) {
       createdTaskIds.push(payload.id);
     }
@@ -176,7 +183,12 @@ test('task visibility is access-safe for leadership, assignments and explicit us
 
   assert.equal(personalTask.response.status, 201);
   assert.equal(personalTask.payload.status, 'in_progress');
-  assert.equal((await getTask(cookies.hr1, personalTask.payload.id!)).status, 200);
+  assert.equal(personalTask.payload.scopeType, 'personal');
+  assert.equal(personalTask.payload.visibilityType, 'selected_users');
+  assert.equal(
+    (await getTask(cookies.hr1, personalTask.payload.id!)).status,
+    200,
+  );
   assert.equal(
     (await getTask(cookies.manager1, personalTask.payload.id!)).status,
     200,
@@ -203,8 +215,16 @@ test('task visibility is access-safe for leadership, assignments and explicit us
   });
 
   assert.equal(scopeTask.response.status, 201);
-  assert.equal((await getTask(cookies.manager1, scopeTask.payload.id!)).status, 200);
-  assert.equal((await getTask(cookies.manager2, scopeTask.payload.id!)).status, 200);
+  assert.equal(scopeTask.payload.scopeType, 'object');
+  assert.equal(scopeTask.payload.visibilityType, 'target_participants');
+  assert.equal(
+    (await getTask(cookies.manager1, scopeTask.payload.id!)).status,
+    200,
+  );
+  assert.equal(
+    (await getTask(cookies.manager2, scopeTask.payload.id!)).status,
+    200,
+  );
 
   const selectedTask = await createTask(cookies.founder, {
     title: `Selected task ${marker}`,
@@ -225,6 +245,48 @@ test('task visibility is access-safe for leadership, assignments and explicit us
     404,
   );
 
+  const privateTask = await createTask(cookies.hr1, {
+    title: `Private task ${marker}`,
+    priority: 'important_not_urgent',
+    assigneeUserIds: [managerOne.id],
+    visibilityType: 'private',
+  });
+  assert.equal(privateTask.response.status, 201);
+  assert.equal(
+    (await getTask(cookies.manager2, privateTask.payload.id!)).status,
+    404,
+  );
+
+  const generalTask = await createTask(cookies.hr1, {
+    title: `General task ${marker}`,
+    priority: 'important_not_urgent',
+    assigneeUserIds: [managerOne.id],
+    visibilityType: 'all_users',
+  });
+  assert.equal(generalTask.response.status, 201);
+  assert.equal(generalTask.payload.scopeType, 'general');
+  assert.equal(generalTask.payload.visibilityType, 'all_users');
+  assert.equal(
+    (await getTask(cookies.manager2, generalTask.payload.id!)).status,
+    200,
+  );
+
+  const emptySelectedTask = await createTask(cookies.hr1, {
+    title: `Invalid selected visibility ${marker}`,
+    priority: 'important_not_urgent',
+    assigneeUserIds: [managerOne.id],
+    visibilityType: 'selected_users',
+  });
+  assert.equal(emptySelectedTask.response.status, 400);
+
+  const unlinkedTargetTask = await createTask(cookies.hr1, {
+    title: `Invalid target visibility ${marker}`,
+    priority: 'important_not_urgent',
+    assigneeUserIds: [managerOne.id],
+    visibilityType: 'target_participants',
+  });
+  assert.equal(unlinkedTargetTask.response.status, 400);
+
   const hiddenTask = await createTask(cookies.founder, {
     title: `Hidden marker ${marker}`,
     priority: 'important_not_urgent',
@@ -233,7 +295,10 @@ test('task visibility is access-safe for leadership, assignments and explicit us
   });
 
   assert.equal(hiddenTask.response.status, 201);
-  assert.equal((await getTask(cookies.manager2, hiddenTask.payload.id!)).status, 404);
+  assert.equal(
+    (await getTask(cookies.manager2, hiddenTask.payload.id!)).status,
+    404,
+  );
   assert.equal(
     (
       await fetch(
@@ -302,6 +367,9 @@ test('task visibility is access-safe for leadership, assignments and explicit us
     isActive: boolean;
   }>;
   assert.ok(candidates.some((candidate) => candidate.id === deputyDirector.id));
-  assert.equal(candidates.some((candidate) => candidate.id === inactiveUser.id), false);
+  assert.equal(
+    candidates.some((candidate) => candidate.id === inactiveUser.id),
+    false,
+  );
   assert.ok(candidates.every((candidate) => candidate.isActive));
 });

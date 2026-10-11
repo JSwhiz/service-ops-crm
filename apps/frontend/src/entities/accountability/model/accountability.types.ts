@@ -11,12 +11,16 @@ export interface AccountabilityFundingEntry {
   id: string;
   amount: number;
   comment: string | null;
+  source: string | null;
+  attachments: AttachedFile[];
   issuedAt: string;
   fundingType: string;
   entryDirection: string;
   oneTimeOrderPaymentId: string | null;
   oneTimeOrderId: string | null;
   oneTimeOrderCompletionId: string | null;
+  reversalOfFundingId: string | null;
+  reversedByFundingId: string | null;
   issuedBy: AccountabilityUserSummary;
   recordedBy: AccountabilityUserSummary | null;
 }
@@ -94,6 +98,8 @@ export interface AccountabilityAccountView {
     canIssueFunding: boolean;
     canReviewExpenses: boolean;
     canApproveAccountabilityClosure: boolean;
+    canReverseExternalReceipts: boolean;
+    canRecordExternalReceipt: boolean;
   };
   fundings: AccountabilityFundingEntry[];
   expenses: AccountabilityExpenseItem[];

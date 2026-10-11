@@ -206,7 +206,13 @@ test('one-time order calendar expands ranges and protects pending availability',
     await prisma.$disconnect();
   });
 
-  const [founderCookie, managerCookie, managerTwoCookie, hrCookie] = await Promise.all([
+  const [
+    founderCookie,
+    managerCookie,
+    managerTwoCookie,
+    hrCookie,
+    ordinaryManagerCookie,
+  ] = await Promise.all([
     loginAndGetCookieHeader({
       baseUrl,
       login: 'founder',
@@ -226,6 +232,11 @@ test('one-time order calendar expands ranges and protects pending availability',
       baseUrl,
       login: 'hr1',
       password: 'hr123',
+    }),
+    loginAndGetCookieHeader({
+      baseUrl,
+      login: 'manager1',
+      password: 'manager123',
     }),
   ]);
   const getCalendar = async (cookie: string, query = 'month=2032-07') => {
@@ -405,4 +416,17 @@ test('one-time order calendar expands ranges and protects pending availability',
     { headers: { Cookie: founderCookie } },
   );
   assert.equal(invalidMonth.status, 400);
+
+  const ordinaryManagerPeerCalendar = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/calendar?month=2032-07&managerUserId=${managerTwo.id}`,
+    { headers: { Cookie: ordinaryManagerCookie } },
+  );
+  assert.equal(ordinaryManagerPeerCalendar.status, 403);
+
+  const ordinaryManagerRoster = await fetch(
+    `${baseUrl}/api/v1/one-time-orders/calendar/managers`,
+    { headers: { Cookie: ordinaryManagerCookie } },
+  );
+  assert.equal(ordinaryManagerRoster.status, 200);
+  assert.deepEqual(await ordinaryManagerRoster.json(), []);
 });

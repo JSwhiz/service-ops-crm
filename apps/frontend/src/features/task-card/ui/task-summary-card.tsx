@@ -50,7 +50,12 @@ export function TaskSummaryCard({
         </div>
         <Field
           label="Видимость"
-          value={item.visibilityMode === 'scope' ? 'По рабочему контуру' : `Выбранные пользователи: ${item.visibleUsers.length}`}
+          value={{
+            all_users: 'Все активные пользователи',
+            selected_users: `Выбранные пользователи: ${item.visibleUsers.length}`,
+            target_participants: 'Участники связанного объекта или заказа',
+            private: 'Только участники задачи',
+          }[item.visibilityType]}
         />
       </div>
 

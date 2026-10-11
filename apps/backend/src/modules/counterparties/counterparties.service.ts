@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,6 +8,7 @@ import {
 import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { canViewObjectBasicProfile } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -21,6 +23,7 @@ import {
 } from './dto/counterparty-mutations.dto';
 import {
   ListCounterpartiesQueryDto,
+  ListCounterpartyMovementsQueryDto,
   ListCounterpartyReferencesQueryDto,
 } from './dto/list-counterparties-query.dto';
 import {
@@ -31,6 +34,9 @@ import {
 
 interface CurrentAuthUser {
   id: string;
+  login: string;
+  fullName: string;
+  isActive: boolean;
   roleCode?: string;
   roleCodes?: string[];
   permissionCodes?: string[];
@@ -48,6 +54,7 @@ export class CounterpartiesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   async list(
@@ -159,6 +166,9 @@ export class CounterpartiesService {
           include: objectInclude,
           orderBy: [{ name: 'asc' }, { id: 'asc' }],
         },
+        masterObject: {
+          include: objectInclude,
+        },
         _count: { select: { objects: true } },
       },
     });
@@ -188,6 +198,9 @@ export class CounterpartiesService {
       updatedAt: counterparty.updatedAt.toISOString(),
       createdAt: counterparty.createdAt.toISOString(),
       createdBy: counterparty.createdBy,
+      masterObject: counterparty.masterObject && visibleObjects.some((object) => object.id === counterparty.masterObject?.id)
+        ? this.mapObjectSummary(counterparty.masterObject)
+        : null,
       objects: visibleObjects.map((object) => ({
         id: object.id,
         name: object.name,
@@ -325,8 +338,21 @@ export class CounterpartiesService {
     await this.prisma.$transaction(async (tx) => {
       await tx.object.update({
         where: { id: objectId },
-        data: { counterpartyId: id },
+        data: {
+          counterpartyId: id,
+          ...(object.masterForCounterpartyId ? { masterForCounterpartyId: null } : {}),
+        },
       });
+      if (object.masterForCounterpartyId) {
+        await this.auditService.writeAuditEvent({
+          entityType: 'counterparty',
+          entityId: object.masterForCounterpartyId,
+          actorUserId: currentUser.id,
+          action: 'counterparty.master_object_cleared',
+          oldValues: { objectId },
+          newValues: { reason: 'object_relinked' },
+        }, tx);
+      }
       await this.auditService.writeAuditEvent(
         {
           entityType: 'counterparty',
@@ -382,8 +408,21 @@ export class CounterpartiesService {
     await this.prisma.$transaction(async (tx) => {
       await tx.object.update({
         where: { id: objectId },
-        data: { counterpartyId: null },
+        data: {
+          counterpartyId: null,
+          ...(object.masterForCounterpartyId ? { masterForCounterpartyId: null } : {}),
+        },
       });
+      if (object.masterForCounterpartyId) {
+        await this.auditService.writeAuditEvent({
+          entityType: 'counterparty',
+          entityId: id,
+          actorUserId: currentUser.id,
+          action: 'counterparty.master_object_cleared',
+          oldValues: { objectId },
+          newValues: { reason: 'object_unlinked' },
+        }, tx);
+      }
       await this.auditService.writeAuditEvent(
         {
           entityType: 'counterparty',
@@ -430,6 +469,85 @@ export class CounterpartiesService {
     }));
   }
 
+  async setMasterObject(currentUser: CurrentAuthUser, id: string, objectId: string) {
+    this.assertLink(currentUser);
+    const counterparty = await this.prisma.counterparty.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+    if (!counterparty) throw new NotFoundException('Counterparty not found');
+    if (counterparty.status !== 'active') {
+      throw new BadRequestException('Archived counterparty cannot change its master object');
+    }
+    const object = await this.loadLinkableObject(currentUser, objectId);
+    if (object.counterpartyId !== id) {
+      throw new BadRequestException('Master object must already be linked to this counterparty');
+    }
+    if (object.masterForCounterpartyId === id) return this.getById(currentUser, id);
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "counterparties" WHERE "id" = ${id} FOR UPDATE`;
+        const previous = await tx.object.findFirst({
+          where: { masterForCounterpartyId: id },
+          select: { id: true },
+        });
+        if (previous) {
+          await tx.object.update({ where: { id: previous.id }, data: { masterForCounterpartyId: null } });
+        }
+        await tx.object.update({ where: { id: objectId }, data: { masterForCounterpartyId: id } });
+        await this.auditService.writeAuditEvent({
+          entityType: 'counterparty',
+          entityId: id,
+          actorUserId: currentUser.id,
+          action: 'counterparty.master_object_changed',
+          oldValues: { objectId: previous?.id ?? null },
+          newValues: { objectId },
+        }, tx);
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('This object is already designated as another counterparty master');
+      }
+      throw error;
+    }
+    return this.getById(currentUser, id);
+  }
+
+  async clearMasterObject(currentUser: CurrentAuthUser, id: string) {
+    this.assertLink(currentUser);
+    await this.assertExists(id);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "counterparties" WHERE "id" = ${id} FOR UPDATE`;
+      const master = await tx.object.findFirst({
+        where: { masterForCounterpartyId: id },
+        select: { id: true },
+      });
+      if (!master) return;
+      await tx.object.update({ where: { id: master.id }, data: { masterForCounterpartyId: null } });
+      await this.auditService.writeAuditEvent({
+        entityType: 'counterparty',
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: 'counterparty.master_object_cleared',
+        oldValues: { objectId: master.id },
+        newValues: null,
+      }, tx);
+    });
+    return this.getById(currentUser, id);
+  }
+
+  async inventoryMovements(currentUser: CurrentAuthUser, id: string, query: ListCounterpartyMovementsQueryDto) {
+    this.assertView(currentUser);
+    await this.assertExists(id);
+    return this.inventoryService.listCounterpartyMovementsScoped(
+      currentUser as CurrentAuthUser & { roleCode: string },
+      id,
+      query.page,
+      query.limit,
+    );
+  }
+
   private async loadLinkableObject(
     currentUser: CurrentAuthUser,
     objectId: string,
@@ -439,6 +557,7 @@ export class CounterpartiesService {
       select: {
         id: true,
         counterpartyId: true,
+        masterForCounterpartyId: true,
         createdByUserId: true,
         assignments: {
           where: { isActive: true },
@@ -464,6 +583,10 @@ export class CounterpartiesService {
     if (!(await this.prisma.counterparty.findUnique({ where: { id }, select: { id: true } }))) {
       throw new NotFoundException('Counterparty not found');
     }
+  }
+
+  private mapObjectSummary(object: { id: string; name: string; internalName: string | null; address: string; status: string }) {
+    return { id: object.id, name: object.name, internalName: object.internalName, address: object.address, status: object.status };
   }
 
   private snapshot(counterparty: {

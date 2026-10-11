@@ -5,6 +5,8 @@ import React from 'react';
 
 import type { InventoryItem } from '@/entities/inventory/model/inventory.types';
 import { formatInventoryQuantity } from '@/shared/lib/inventory-presentation';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
 
 export function InventoryItemListTable({
   items,
@@ -12,29 +14,28 @@ export function InventoryItemListTable({
   items: InventoryItem[];
 }): React.JSX.Element {
   if (items.length === 0) {
-    return <div className="page-card">Номенклатура пока не заведена.</div>;
+    return <div className="page-card workspace-surface workspace-empty">Номенклатура пока не заведена.</div>;
   }
 
   return (
-    <div className="page-card" style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <DataTable label="Таблица номенклатуры" className="data-table" frameClassName="page-card workspace-surface data-table-shell">
         <thead>
           <tr>
-            <th align="left">Номенклатура</th>
-            <th align="left">Категория</th>
-            <th align="left">Ед.</th>
-            <th align="left">Остаток</th>
-            <th align="left">Макс. цена поставки</th>
-            <th align="left">Оценка</th>
-            <th align="left">Статус</th>
-            <th align="left">Движений</th>
-            <th align="right">Действия</th>
+            <th scope="col">Номенклатура</th>
+            <th scope="col">Категория</th>
+            <th scope="col">Ед.</th>
+            <th scope="col">Остаток</th>
+            <th scope="col">Макс. цена поставки</th>
+            <th scope="col">Оценка</th>
+            <th scope="col">Статус</th>
+            <th scope="col">Движений</th>
+            <th scope="col" aria-label="Открыть карточку номенклатуры" />
           </tr>
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-              <td style={{ padding: '12px 0' }}>
+            <tr key={item.id}>
+              <td>
                 <Link href={`/inventory/${item.id}`}>{item.name}</Link>
               </td>
               <td>{item.category}</td>
@@ -48,17 +49,10 @@ export function InventoryItemListTable({
               <td>{item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽</td>
               <td>{item.isActive ? 'Активна' : 'Удалена'}</td>
               <td>{item.summary.movementsCount}</td>
-              <td align="right">
-                {item.capabilities.canEditCatalog ? (
-                  <Link href={`/inventory/${item.id}#edit`}>Редактировать</Link>
-                ) : (
-                  <Link href={`/inventory/${item.id}`}>Открыть</Link>
-                )}
-              </td>
+              <td className="registry-open-cell"><RegistryOpenLink href={`/inventory/${item.id}`} label={`Открыть ${item.name}`} /></td>
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+    </DataTable>
   );
 }

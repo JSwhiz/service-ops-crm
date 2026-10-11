@@ -318,10 +318,20 @@ export default function NewObjectPage(): React.JSX.Element {
     address: '',
     status: 'active',
     seasonMode: '',
+    summerWindowCleaning: false,
+    engineeringRequired: false,
+    winterTractorMode: 'none' as 'none' | 'with_removal' | 'without_removal',
     paymentType: 'monthly' as 'monthly' | 'daily',
     monthlySalary: '0',
     dailyRate: '0',
+    summerPaymentType: 'monthly' as 'monthly' | 'daily',
+    summerMonthlySalary: '0',
+    summerDailyRate: '0',
+    winterPaymentType: 'monthly' as 'monthly' | 'daily',
+    winterMonthlySalary: '0',
+    winterDailyRate: '0',
     notes: '',
+    instructionStepsText: '',
   });
 
   const [responsibleCandidates, setResponsibleCandidates] = useState<SystemUserOption[]>([]);
@@ -403,9 +413,19 @@ export default function NewObjectPage(): React.JSX.Element {
         address: form.address.trim(),
         status: form.status,
         seasonMode: form.seasonMode || null,
+        summerWindowCleaning: form.summerWindowCleaning,
+        engineeringRequired: form.engineeringRequired,
+        winterTractorMode: form.winterTractorMode,
+        instructionSteps: form.instructionStepsText.split('\n').map((step) => step.trim()).filter(Boolean),
         paymentType: form.paymentType,
         monthlySalary: Number(form.monthlySalary) || 0,
         dailyRate: Number(form.dailyRate) || 0,
+        summerPaymentType: form.summerPaymentType,
+        summerMonthlySalary: Number(form.summerMonthlySalary) || 0,
+        summerDailyRate: Number(form.summerDailyRate) || 0,
+        winterPaymentType: form.winterPaymentType,
+        winterMonthlySalary: Number(form.winterMonthlySalary) || 0,
+        winterDailyRate: Number(form.winterDailyRate) || 0,
         notes: form.notes.trim() || undefined,
         counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
         managerUserIds,
@@ -520,54 +540,22 @@ export default function NewObjectPage(): React.JSX.Element {
               disabled={isSubmitting}
             />
 
-            <CompactSelect
-              label="Тип оплаты"
-              value={form.paymentType}
-              options={PAYMENT_OPTIONS}
-              onChange={(value) =>
-                setForm((prev) => ({
-                  ...prev,
-                  paymentType: value as 'monthly' | 'daily',
-                }))
-              }
-              disabled={isSubmitting}
-            />
-
-            {form.paymentType === 'monthly' ? (
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>ЗП за месяц</span>
+            {(['summer', 'winter'] as const).map((season) => {
+              const label = season === 'summer' ? 'Летняя ставка' : 'Зимняя ставка';
+              const type = season === 'summer' ? form.summerPaymentType : form.winterPaymentType;
+              const typeKey = season === 'summer' ? 'summerPaymentType' : 'winterPaymentType';
+              const amountKey = season === 'summer'
+                ? type === 'monthly' ? 'summerMonthlySalary' : 'summerDailyRate'
+                : type === 'monthly' ? 'winterMonthlySalary' : 'winterDailyRate';
+              return <div className={styles.field} key={season}>
+                <span className={styles.fieldLabel}>{label}</span>
+                <CompactSelect label={`Тип расчёта (${label.toLocaleLowerCase('ru-RU')})`} value={type} options={PAYMENT_OPTIONS} onChange={(value) => setForm((previous) => ({ ...previous, [typeKey]: value as 'monthly' | 'daily' }))} disabled={isSubmitting} />
                 <div className={styles.moneyField}>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.monthlySalary}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, monthlySalary: event.target.value }))
-                    }
-                    disabled={isSubmitting}
-                  />
-                  <span>₽</span>
+                  <input aria-label={`${type === 'monthly' ? 'Зарплата за месяц' : 'Ставка за выход'} — ${label.toLocaleLowerCase('ru-RU')}`} type="number" min="0" step="1" value={form[amountKey]} onChange={(event) => setForm((previous) => ({ ...previous, [amountKey]: event.target.value }))} disabled={isSubmitting} />
+                  <span>{type === 'monthly' ? '₽ / месяц' : '₽ / выход'}</span>
                 </div>
-              </label>
-            ) : (
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Дневная ставка</span>
-                <div className={styles.moneyField}>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={form.dailyRate}
-                    onChange={(event) =>
-                      setForm((prev) => ({ ...prev, dailyRate: event.target.value }))
-                    }
-                    disabled={isSubmitting}
-                  />
-                  <span>₽</span>
-                </div>
-              </label>
-            )}
+              </div>;
+            })}
           </div>
         </section>
 
@@ -609,9 +597,60 @@ export default function NewObjectPage(): React.JSX.Element {
 
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
-            <h2>Что важно знать об объекте</h2>
+            <h2>Сезонные профили</h2>
           </div>
 
+          <div className={styles.fieldGrid}>
+            <label className={styles.checkboxField}>
+              <input type="checkbox" checked={form.summerWindowCleaning} onChange={(event) => setForm((prev) => ({ ...prev, summerWindowCleaning: event.target.checked }))} disabled={isSubmitting} />
+              <span>Лето: мыть окна</span>
+            </label>
+            <div className={`${styles.field} ${styles.fullWidth}`}>
+              <CompactSelect
+                label="Зима: трактор"
+                value={form.winterTractorMode}
+                options={[
+                  { value: 'none', label: 'Не нужен' },
+                  { value: 'with_removal', label: 'С вывозом' },
+                  { value: 'without_removal', label: 'Без вывоза' },
+                ]}
+                onChange={(value) => setForm((prev) => ({ ...prev, winterTractorMode: value as typeof prev.winterTractorMode }))}
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Дополнительные работы</h2>
+          </div>
+          <label className={styles.checkboxField}>
+            <input type="checkbox" checked={form.engineeringRequired} onChange={(event) => setForm((prev) => ({ ...prev, engineeringRequired: event.target.checked }))} disabled={isSubmitting} />
+            <span>Инженерка</span>
+          </label>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Инструкции для объекта</h2>
+          </div>
+
+          <textarea
+            className={styles.notesField}
+            aria-label="Постоянные инструкции для объекта"
+            value={form.instructionStepsText}
+            onChange={(event) => setForm((prev) => ({ ...prev, instructionStepsText: event.target.value }))}
+            placeholder="Один постоянный шаг на строку, например: Проверить входную группу"
+            disabled={isSubmitting}
+          />
+          <p className={styles.helperText}>Это постоянные инструкции, а не отметки выполнения смены. Отчёт по каждому выходу добавим отдельно.</p>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2>Что важно знать об объекте</h2>
+          </div>
           <textarea
             className={styles.notesField}
             aria-label="Что важно знать об объекте"

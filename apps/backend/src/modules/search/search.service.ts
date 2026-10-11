@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { delegatedObjectIds } from '../user-substitutions/object-delegation.context';
 
 import { canViewCandidates } from '../candidates/utils/candidate-access.util';
 import { canViewCounterparties } from '../counterparties/utils/counterparty-access.util';
@@ -594,6 +595,7 @@ export class SearchService {
         ? {}
         : {
             OR: [
+              { id: { in: delegatedObjectIds(currentUser.id) } },
               { createdByUserId: currentUser.id },
               {
                 assignments: {

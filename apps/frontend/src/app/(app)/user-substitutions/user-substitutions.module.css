@@ -1,0 +1,18 @@
+.page, .records, .form { display: grid; min-width: 0; gap: var(--ui-space-4); }
+.card { display: grid; gap: var(--ui-space-3); padding: var(--ui-space-5); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-lg); background: var(--ui-surface); }
+.cardHeader, .cardFooter, .actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ui-space-3); }
+.cardHeader h2 { margin: 0; font-size: var(--ui-text-lg); color: var(--ui-text); overflow-wrap: anywhere; }
+.muted { margin: 0; color: var(--ui-text-secondary); font-size: var(--ui-text-sm); line-height: var(--ui-leading-normal); }
+.reason { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.objectLinks, .selected { display: flex; flex-wrap: wrap; gap: var(--ui-space-2); }
+.objectLinks a { color: var(--ui-accent); text-decoration: underline; overflow-wrap: anywhere; }
+.selected button { max-width: 100%; height: auto; min-height: var(--ui-control-sm); white-space: normal; text-align: start; }
+.scope { display: grid; min-width: 0; gap: var(--ui-space-3); margin: 0; padding: var(--ui-space-3); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); }
+.scope legend { color: var(--ui-text); font-size: var(--ui-text-sm); font-weight: 600; }
+.objectList { display: grid; max-height: 200px; overflow-y: auto; gap: var(--ui-space-2); overscroll-behavior: contain; }
+.objectList label, .check { display: flex; align-items: flex-start; gap: var(--ui-space-2); color: var(--ui-text); overflow-wrap: anywhere; }
+.form input[type='checkbox'] { width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--ui-accent); }
+.form input:not([type='checkbox']), .form textarea { width: 100%; min-width: 0; border: 1px solid var(--ui-border-strong); border-radius: var(--ui-radius-md); background: var(--ui-surface); color: var(--ui-text); padding: var(--ui-space-3); }
+.form input:not([type='checkbox']):focus-visible, .form textarea:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; box-shadow: none; }
+.dates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: var(--ui-space-3); }
+@media (max-width: 600px) { .card { padding: var(--ui-space-4); } .cardFooter { align-items: flex-start; } }
