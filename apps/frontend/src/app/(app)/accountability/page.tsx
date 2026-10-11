@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import {
   approveAccountabilityExpense,
@@ -31,6 +32,8 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -44,6 +47,8 @@ function formatMoney(value: number): string {
 }
 
 export default function AccountabilityPage(): React.JSX.Element {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const canAccessAccountability =
     user?.capabilities?.canAccessAccountability ?? false;
@@ -56,6 +61,41 @@ export default function AccountabilityPage(): React.JSX.Element {
     user?.capabilities?.canReviewAccountability ?? false;
   const canIssueAccountabilityFunds =
     user?.capabilities?.canIssueAccountabilityFunds ?? false;
+  const workspaceSections = useMemo(
+    () => [
+      ...(canOpenOwnLedger ? [{ value: 'mine', label: 'Мой подотчёт' }] : []),
+      ...(canReviewAccountability
+        ? [{ value: 'accounts', label: 'Счета сотрудников' }]
+        : []),
+    ],
+    [canOpenOwnLedger, canReviewAccountability],
+  );
+  const requestedWorkspaceSection = searchParams.get('section') ?? '';
+  const activeWorkspaceSection = workspaceSections.some(
+    (item) => item.value === requestedWorkspaceSection,
+  )
+    ? requestedWorkspaceSection
+    : workspaceSections[0]?.value ?? '';
+  const accountSectionValues = ['overview', 'movements', 'expenses', 'reconciliation'] as const;
+  const requestedAccountSection = searchParams.get('accountSection') ?? 'overview';
+  const activeAccountSection = accountSectionValues.includes(
+    requestedAccountSection as (typeof accountSectionValues)[number],
+  )
+    ? (requestedAccountSection as (typeof accountSectionValues)[number])
+    : 'overview';
+  const updateQuery = (key: string, value: string): void => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set(key, value);
+    router.push(`?${next.toString()}`, { scroll: false });
+  };
+  const changeWorkspaceSection = (section: string): void => {
+    updateQuery('section', section);
+  };
+  const changeAccountSection = (
+    section: 'overview' | 'movements' | 'expenses' | 'reconciliation',
+  ): void => {
+    updateQuery('accountSection', section);
+  };
 
   const [ownView, setOwnView] = useState<AccountabilityAccountView | null>(null);
   const [ownLoading, setOwnLoading] = useState(true);
@@ -216,6 +256,75 @@ export default function AccountabilityPage(): React.JSX.Element {
     void reloadReviewView(selectedUserId);
   }, [canReviewAccountability, selectedUserId]);
 
+  const externalReceiptForm = canRecordExternalReceipt && ownView ? (
+    <section className="page-card workspace-surface" style={{ display: 'grid', gap: 16 }}>
+      <div className="section-header">
+        <div>
+          <div className="section-title">Сообщить о поступлении</div>
+          <div className="section-subtitle">
+            Деньги, полученные вне разовых заказов, сразу войдут в ваш остаток. Укажите источник и обязательный комментарий.
+          </div>
+        </div>
+      </div>
+      <div className="field-grid">
+        <label>
+          <span>Сумма</span>
+          <input type="number" min="0.01" step="0.01" value={externalAmount} onChange={(event) => setExternalAmount(event.target.value)} placeholder="0,00" />
+        </label>
+        <label>
+          <span>Источник поступления</span>
+          <input value={externalSource} onChange={(event) => setExternalSource(event.target.value)} maxLength={200} placeholder="Например, возврат или деньги от клиента" />
+        </label>
+        <label className="accountability-full-field">
+          <span>Комментарий <span aria-hidden="true">*</span></span>
+          <textarea rows={3} value={externalComment} onChange={(event) => setExternalComment(event.target.value)} maxLength={500} placeholder="Укажите основание поступления" />
+        </label>
+        <label className="accountability-full-field">
+          <span>Подтверждающий файл <span className="page-muted">(необязательно)</span></span>
+          <input className="accountability-file-input" type="file" multiple onChange={(event) => setExternalFiles(Array.from(event.target.files ?? []))} />
+        </label>
+      </div>
+      {pendingReceiptAttachments ? (
+        <div className="page-card page-card--subtle accountability-receipt-retry">
+          <span>Поступление уже учтено, но файл не прикреплён.</span>
+          <button type="button" disabled={isRecordingExternal} onClick={() => void (async () => {
+            if (!pendingReceiptAttachments) return;
+            setIsRecordingExternal(true);
+            try {
+              await Promise.all(pendingReceiptAttachments.files.map((file) => uploadFileToEntity({ entityType: 'accountability_funding', entityId: pendingReceiptAttachments.id, file })));
+              setPendingReceiptAttachments(null);
+              await reloadOwnView();
+            } catch {
+              setActionError('Поступление уже учтено, но файл не прикреплён. Повторите прикрепление.');
+            } finally { setIsRecordingExternal(false); }
+          })()}>Повторить прикрепление</button>
+        </div>
+      ) : null}
+      <div className="action-row accountability-receipt-actions">
+        <button type="button" disabled={isRecordingExternal || pendingReceiptAttachments !== null || !Number.isFinite(Number(externalAmount)) || Number(externalAmount) <= 0 || !externalSource.trim() || !externalComment.trim() || ownView.account.status === 'closing_requested'} onClick={() => void (async () => {
+          setActionError(null);
+          setIsRecordingExternal(true);
+          try {
+            const receipt = await recordExternalAccountabilityReceipt({ amount: Number(externalAmount), source: externalSource.trim(), comment: externalComment.trim() });
+            const files = externalFiles;
+            setExternalAmount(''); setExternalSource(''); setExternalComment(''); setExternalFiles([]);
+            if (files.length > 0) {
+              try {
+                await Promise.all(files.map((file) => uploadFileToEntity({ entityType: 'accountability_funding', entityId: receipt.id, file })));
+              } catch {
+                setPendingReceiptAttachments({ id: receipt.id, files });
+                setActionError('Поступление уже записано и включено в остаток, но файл не прикреплён. Повторите прикрепление выше.');
+              }
+            }
+            await reloadOwnView();
+          } catch (error) {
+            setActionError(getErrorMessage(error, 'Не удалось записать поступление.'));
+          } finally { setIsRecordingExternal(false); }
+        })()}>{isRecordingExternal ? 'Сохраняем...' : 'Зафиксировать поступление'}</button>
+      </div>
+    </section>
+  ) : null;
+
   if (!canAccessAccountability) {
     return (
       <>
@@ -236,86 +345,40 @@ export default function AccountabilityPage(): React.JSX.Element {
           </div>
         ) : null}
 
-        {canOpenOwnLedger && ownLoading ? (
+        {workspaceSections.length > 1 ? (
+          <WorkspaceTabs
+            items={workspaceSections}
+            value={activeWorkspaceSection}
+            onChange={changeWorkspaceSection}
+            label="Рабочие разделы подотчёта"
+          />
+        ) : null}
+
+        {canOpenOwnLedger ? (
+        <section
+          className="page-stack accountability-workspace-panel"
+          role={workspaceSections.length > 1 ? 'tabpanel' : 'region'}
+          id="workspace-panel-mine"
+          aria-labelledby={workspaceSections.length > 1 ? 'workspace-tab-mine' : undefined}
+          aria-label={workspaceSections.length > 1 ? undefined : 'Мой подотчёт'}
+          hidden={activeWorkspaceSection !== 'mine'}
+        >
+        {ownLoading ? (
           <div className="page-card">Загрузка вашего подотчета...</div>
-        ) : canOpenOwnLedger && ownError ? (
+        ) : ownError ? (
           <div className="page-card" style={{ color: '#b91c1c' }}>
             {ownError}
           </div>
-        ) : canOpenOwnLedger && ownView ? (
+        ) : ownView ? (
           <>
-          {canRecordExternalReceipt ? (
-            <section className="page-card workspace-surface" style={{ display: 'grid', gap: 16 }}>
-              <div className="section-header">
-                <div>
-                  <div className="section-title">Свободное поступление</div>
-                  <div className="section-subtitle">
-                    Зафиксируйте деньги, полученные вне разовых заказов. Поступление сразу войдёт в остаток и будет доступно для сверки.
-                  </div>
-                </div>
-              </div>
-              <div className="field-grid">
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span>Сумма</span>
-                  <input type="number" min="0.01" step="0.01" value={externalAmount} onChange={(event) => setExternalAmount(event.target.value)} placeholder="0,00" />
-                </label>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span>Откуда поступили деньги</span>
-                  <input value={externalSource} onChange={(event) => setExternalSource(event.target.value)} maxLength={200} placeholder="Например, возврат или деньги от клиента" />
-                </label>
-                <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1' }}>
-                  <span>Комментарий <span aria-hidden="true">*</span></span>
-                  <textarea rows={3} value={externalComment} onChange={(event) => setExternalComment(event.target.value)} maxLength={500} placeholder="Укажите основание поступления" />
-                </label>
-                <label style={{ display: 'grid', gap: 6, gridColumn: '1 / -1' }}>
-                  <span>Подтверждающий файл <span className="page-muted">(необязательно)</span></span>
-                  <input className="accountability-file-input" type="file" multiple onChange={(event) => setExternalFiles(Array.from(event.target.files ?? []))} />
-                </label>
-              </div>
-              {pendingReceiptAttachments ? (
-                <div className="page-card page-card--subtle" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <span>Поступление уже записано. Не удалось прикрепить файлы.</span>
-                  <button type="button" disabled={isRecordingExternal} onClick={() => void (async () => {
-                    if (!pendingReceiptAttachments) return;
-                    setIsRecordingExternal(true);
-                    try {
-                      await Promise.all(pendingReceiptAttachments.files.map((file) => uploadFileToEntity({ entityType: 'accountability_funding', entityId: pendingReceiptAttachments.id, file })));
-                      setPendingReceiptAttachments(null);
-                      await reloadOwnView();
-                    } catch {
-                      setActionError('Поступление уже учтено, но файл не прикреплён. Повторите прикрепление.');
-                    } finally { setIsRecordingExternal(false); }
-                  })()}>Повторить прикрепление</button>
-                </div>
-              ) : null}
-              <div className="action-row" style={{ justifyContent: 'flex-end' }}>
-                <button type="button" disabled={isRecordingExternal || pendingReceiptAttachments !== null || !Number.isFinite(Number(externalAmount)) || Number(externalAmount) <= 0 || !externalSource.trim() || !externalComment.trim() || ownView.account.status === 'closing_requested'} onClick={() => void (async () => {
-                  setActionError(null);
-                  setIsRecordingExternal(true);
-                  try {
-                    const receipt = await recordExternalAccountabilityReceipt({ amount: Number(externalAmount), source: externalSource.trim(), comment: externalComment.trim() });
-                    const files = externalFiles;
-                    setExternalAmount(''); setExternalSource(''); setExternalComment(''); setExternalFiles([]);
-                    if (files.length > 0) {
-                      try {
-                        await Promise.all(files.map((file) => uploadFileToEntity({ entityType: 'accountability_funding', entityId: receipt.id, file })));
-                      } catch {
-                        setPendingReceiptAttachments({ id: receipt.id, files });
-                        setActionError('Поступление уже записано и включено в остаток, но файл не прикреплён. Повторите прикрепление ниже.');
-                      }
-                    }
-                    await reloadOwnView();
-                  } catch (error) {
-                    setActionError(getErrorMessage(error, 'Не удалось записать поступление.'));
-                  } finally { setIsRecordingExternal(false); }
-                })()}>{isRecordingExternal ? 'Сохраняем...' : 'Зафиксировать поступление'}</button>
-              </div>
-            </section>
-          ) : null}
           <AccountabilityAccountPanel
             title="Мой подотчет"
             view={ownView}
             isOwnView
+            section={activeAccountSection}
+            onSectionChange={changeAccountSection}
+            idPrefix="own-account"
+            movementContent={externalReceiptForm}
             onSaveExpense={async (payload) => {
               setActionError(null);
 
@@ -415,8 +478,17 @@ export default function AccountabilityPage(): React.JSX.Element {
           />
           </>
         ) : null}
-
+        </section>
+        ) : null}
         {canReviewAccountability ? (
+        <section
+          className="page-stack accountability-workspace-panel"
+          role={workspaceSections.length > 1 ? 'tabpanel' : 'region'}
+          id="workspace-panel-accounts"
+          aria-labelledby={workspaceSections.length > 1 ? 'workspace-tab-accounts' : undefined}
+          aria-label={workspaceSections.length > 1 ? undefined : 'Счета сотрудников'}
+          hidden={activeWorkspaceSection !== 'accounts'}
+        >
           <div className="page-card workspace-surface accountability-review" style={{ display: 'grid', gap: 18 }}>
             <div className="section-header">
               <div>
@@ -428,21 +500,25 @@ export default function AccountabilityPage(): React.JSX.Element {
             </div>
 
             <div className="field-grid">
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span>Пользователь</span>
-                <select
+              <div style={{ display: 'grid', gap: 6 }}>
+                <span className="detail-label">Пользователь</span>
+                <SearchableSelect
+                  label="Пользователь"
                   value={selectedUserId}
-                  onChange={(event) => setSelectedUserId(event.target.value)}
-                >
-                  {userOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {[getUserDisplayName(option), getUserSecondaryLabel(option)]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  options={userOptions.map((option) => ({
+                    value: option.id,
+                    label: getUserDisplayName(option),
+                    description: getUserSecondaryLabel(option) || undefined,
+                    searchText: `${option.login} ${option.roleCodes.join(' ')}`,
+                  }))}
+                  onChange={setSelectedUserId}
+                  placeholder="Выберите сотрудника"
+                  searchPlaceholder="Найти сотрудника"
+                  emptyText="Сотрудник не найден"
+                  clearable={false}
+                  hideLabel
+                />
+              </div>
 
               {canIssueAccountabilityFunds ? (
                 <>
@@ -538,17 +614,17 @@ export default function AccountabilityPage(): React.JSX.Element {
               </div>
             ) : null}
 
-            <div className="page-card page-card--subtle" style={{ display: 'grid', gap: 12 }}>
-              <div className="section-title" style={{ fontSize: 16 }}>
-                Активные подотчетные контуры
-              </div>
+            <details className="page-card page-card--subtle accountability-account-directory">
+              <summary className="section-title">
+                Все подотчётные счета <span className="page-muted">({accountItems.length})</span>
+              </summary>
 
               {accountItems.length === 0 ? (
                 <div className="page-muted">
                   Пока нет пользователей с открытым или ранее использованным подотчетом.
                 </div>
               ) : (
-                <div className="record-list local-scroll local-scroll--sm">
+                <div className="record-list">
                   {accountItems.map((item) => (
                     <button
                       key={item.accountId}
@@ -602,10 +678,8 @@ export default function AccountabilityPage(): React.JSX.Element {
                   ))}
                 </div>
               )}
-            </div>
+            </details>
           </div>
-        ) : null}
-
         {canReviewAccountability ? (
           reviewLoading ? (
             <div className="page-card">Загрузка review-экрана...</div>
@@ -622,6 +696,9 @@ export default function AccountabilityPage(): React.JSX.Element {
               }
               view={reviewView}
               isOwnView={false}
+              section={activeAccountSection}
+              onSectionChange={changeAccountSection}
+              idPrefix="review-account"
               onSaveExpense={async () => {
                 throw new Error('Saving expense is not available in review mode');
               }}
@@ -652,21 +729,23 @@ export default function AccountabilityPage(): React.JSX.Element {
                   );
                 }
               }}
-            onRequestClosure={async () => {
+              onRequestClosure={async () => {
                 throw new Error('Closure request is not available in review mode');
-            }}
-            onReverseExternalReceipt={async (fundingId, reason) => {
-              setActionError(null);
-              try {
-                await reverseExternalAccountabilityReceipt(fundingId, reason);
-                await reloadAfterAccountChange(reviewView.account.user.id);
-              } catch (error) {
-                setActionError(getErrorMessage(error, 'Не удалось сторнировать внешнее поступление.'));
-                throw error;
-              }
-            }}
-          />
+              }}
+              onReverseExternalReceipt={async (fundingId, reason) => {
+                setActionError(null);
+                try {
+                  await reverseExternalAccountabilityReceipt(fundingId, reason);
+                  await reloadAfterAccountChange(reviewView.account.user.id);
+                } catch (error) {
+                  setActionError(getErrorMessage(error, 'Не удалось сторнировать внешнее поступление.'));
+                  throw error;
+                }
+              }}
+            />
           ) : null
+        ) : null}
+        </section>
         ) : null}
       </div>
     </>

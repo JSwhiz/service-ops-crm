@@ -19,6 +19,7 @@ import { getUserDisplayName, getUserSecondaryLabel } from '@/shared/lib/display-
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 
 import { AccountabilityExpenseForm } from './accountability-expense-form';
 
@@ -33,6 +34,10 @@ export function AccountabilityAccountPanel({
   title,
   view,
   isOwnView,
+  section,
+  onSectionChange,
+  movementContent,
+  idPrefix,
   onSaveExpense,
   onSubmitExpense,
   onApproveExpense,
@@ -43,6 +48,10 @@ export function AccountabilityAccountPanel({
   title: string;
   view: AccountabilityAccountView;
   isOwnView: boolean;
+  section: 'overview' | 'movements' | 'expenses' | 'reconciliation';
+  onSectionChange: (section: 'overview' | 'movements' | 'expenses' | 'reconciliation') => void;
+  movementContent?: React.ReactNode;
+  idPrefix: string;
   onSaveExpense: (payload: {
     expenseId?: string;
     amount: number;
@@ -159,35 +168,34 @@ export function AccountabilityAccountPanel({
     [view.expenses],
   );
 
-  const summaryCards = useMemo(
+  const overviewCards = useMemo(
     () => [
       { label: 'Текущий остаток', value: formatMoney(view.summary.currentBalance) },
       { label: 'Прогнозный остаток', value: formatMoney(view.summary.forecastBalance) },
       { label: 'На подтверждении', value: formatMoney(submittedAmount) },
-      { label: 'Пополнено всего', value: formatMoney(view.summary.totalFunding) },
-      {
-        label: 'Всего расходов',
-        value: formatMoney(view.summary.totalRecordedExpenses),
-      },
-      {
-        label: 'Подтверждено',
-        value: formatMoney(view.summary.totalApprovedExpenses),
-      },
-      {
-        label: 'Отклонено',
-        value: formatMoney(view.summary.totalRejectedExpenses),
-      },
-      {
-        label: 'Сверено',
-        value: formatMoney(view.summary.totalReconciledExpenses),
-      },
     ],
     [submittedAmount, view.summary],
   );
+  const accountSections = useMemo(
+    () => [
+      { value: 'overview', label: 'Обзор' },
+      { value: 'movements', label: 'Движения' },
+      ...(!isOwnView || view.capabilities.canCreateExpense || view.expenses.length > 0
+        ? [{ value: 'expenses', label: 'Расходы' }]
+        : []),
+      ...(!isOwnView || view.capabilities.canRequestClosure || view.closures.length > 0
+        ? [{ value: 'reconciliation', label: 'Сверка и закрытие' }]
+        : []),
+    ],
+    [isOwnView, view.capabilities.canCreateExpense, view.capabilities.canRequestClosure, view.closures.length, view.expenses.length],
+  );
+  const activeSection = accountSections.some((item) => item.value === section)
+    ? section
+    : 'overview';
 
   return (
     <div className="page-stack accountability-account-panel">
-      <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
+      <div className="page-card hero-card accountability-account-overview" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
             <div className="hero-title">{title}</div>
@@ -217,66 +225,66 @@ export function AccountabilityAccountPanel({
             Активный подотчетный контур для пользователя еще не открыт.
           </div>
         )}
-
-        <div className="stat-grid">
-          {summaryCards.map((card) => (
-            <div key={card.label} className="stat-card">
-              <div className="detail-label">{card.label}</div>
-              <div className="stat-card__value">{card.value}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="detail-grid">
-          <div className="detail-field">
-            <div className="detail-label">Черновики расходов</div>
-            <div className="detail-value">{view.summary.draftExpensesCount}</div>
-          </div>
-          <div className="detail-field">
-            <div className="detail-label">Расходы на проверке</div>
-            <div className="detail-value">
-              {view.summary.submittedExpensesCount}
-            </div>
-          </div>
-          <div className="detail-field">
-            <div className="detail-label">Последняя сверка</div>
-            <div className="detail-value">
-              {latestClosure
-                ? getAccountabilityClosureStatusLabel(latestClosure.status)
-                : 'Сверки еще не было'}
-            </div>
-          </div>
-        </div>
-
-        {isOwnView && view.capabilities.canRequestClosure ? (
-          <div className="action-row">
-            <button
-              type="button"
-              onClick={() => {
-                void onRequestClosure();
-              }}
-            >
-              Отправить на сверку
-            </button>
-          </div>
-        ) : null}
       </div>
 
-      {isOwnView ? (
-        <AccountabilityExpenseForm
-          initialExpense={editingExpense}
-          canCreate={view.capabilities.canCreateExpense || Boolean(editingExpense)}
-          onSave={async (payload) => {
-            await onSaveExpense(payload);
-            setEditingExpense(null);
-          }}
-          onCancelEdit={() => {
-            setEditingExpense(null);
-          }}
-        />
-      ) : null}
+      <WorkspaceTabs
+        items={accountSections}
+        value={activeSection}
+        onChange={(value) => onSectionChange(value as typeof section)}
+        label="Разделы подотчёта"
+        idPrefix={idPrefix}
+      />
 
-      {view.fundings.length > 0 || view.expenses.length > 0 ? (
+      <section
+        className="accountability-section-panel"
+        role="tabpanel"
+        id={`${idPrefix}-panel-overview`}
+        aria-labelledby={`${idPrefix}-tab-overview`}
+        hidden={activeSection !== 'overview'}
+      >
+        <div className="page-card" style={{ display: 'grid', gap: 16 }}>
+          <div className="stat-grid">
+            {overviewCards.map((card) => (
+              <div key={card.label} className="stat-card">
+                <div className="detail-label">{card.label}</div>
+                <div className="stat-card__value">{card.value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="accountability-overview-meta">
+            <span>Черновики расходов: <strong>{view.summary.draftExpensesCount}</strong></span>
+            <span>На проверке: <strong>{view.summary.submittedExpensesCount}</strong></span>
+            <span>Последняя сверка: <strong>{latestClosure
+              ? getAccountabilityClosureStatusLabel(latestClosure.status)
+              : 'не проводилась'}</strong></span>
+          </div>
+          <details className="accountability-secondary-totals">
+            <summary>Дополнительные финансовые итоги</summary>
+            <div className="detail-grid">
+              <div className="detail-field"><div className="detail-label">Поступило всего</div><div className="detail-value">{formatMoney(view.summary.totalFunding)}</div></div>
+              <div className="detail-field"><div className="detail-label">Всего учтено в расходах</div><div className="detail-value">{formatMoney(view.summary.totalRecordedExpenses)}</div></div>
+              <div className="detail-field"><div className="detail-label">Подтверждено</div><div className="detail-value">{formatMoney(view.summary.totalApprovedExpenses)}</div></div>
+              <div className="detail-field"><div className="detail-label">Отклонено</div><div className="detail-value">{formatMoney(view.summary.totalRejectedExpenses)}</div></div>
+              <div className="detail-field"><div className="detail-label">Сверено</div><div className="detail-value">{formatMoney(view.summary.totalReconciledExpenses)}</div></div>
+            </div>
+          </details>
+          {isOwnView && view.capabilities.canRequestClosure ? (
+            <div className="action-row">
+              <button type="button" onClick={() => void onRequestClosure()}>Отправить на сверку</button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section
+        className="accountability-section-panel page-stack"
+        role="tabpanel"
+        id={`${idPrefix}-panel-movements`}
+        aria-labelledby={`${idPrefix}-tab-movements`}
+        hidden={activeSection !== 'movements'}
+      >
+        {movementContent}
+      {activeSection === 'movements' && (view.fundings.length > 0 || view.expenses.length > 0) ? (
         <section className="page-card page-card--subtle accountability-ledger-filters">
           <div className="section-title">Фильтры финансовой истории</div>
           <div className="section-subtitle">Отбор применяется к поступлениям и расходам ниже.</div>
@@ -284,12 +292,13 @@ export function AccountabilityAccountPanel({
         </section>
       ) : null}
 
+      {activeSection === 'movements' ? (
       <div className="page-card" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
-            <div className="section-title">Пополнения подотчёта</div>
+            <div className="section-title">Движения средств</div>
             <div className="section-subtitle">
-              Здесь отражаются ручные выдачи и только те выплаты по разовым заказам, которые направлены в личный подотчёт.
+              Поступления, выдачи и сторно. Платёж по разовому заказу появляется здесь, если он зачислен именно в этот подотчёт.
             </div>
           </div>
         </div>
@@ -297,7 +306,7 @@ export function AccountabilityAccountPanel({
         {filteredFundings.length === 0 ? (
           <div className="page-muted">По выбранным фильтрам поступлений нет.</div>
         ) : (
-          <div className="record-list local-scroll local-scroll--sm">
+          <div className="record-list">
             {filteredFundings.map((funding) => (
               <div key={funding.id} className="record-card">
                 <div className="section-header" style={{ paddingBottom: 0 }}>
@@ -356,7 +365,39 @@ export function AccountabilityAccountPanel({
           </div>
         )}
       </div>
+      ) : null}
+      </section>
 
+      <section
+        className="accountability-section-panel page-stack"
+        role="tabpanel"
+        id={`${idPrefix}-panel-expenses`}
+        aria-labelledby={`${idPrefix}-tab-expenses`}
+        hidden={activeSection !== 'expenses'}
+      >
+      {isOwnView ? (
+        <AccountabilityExpenseForm
+          initialExpense={editingExpense}
+          canCreate={view.capabilities.canCreateExpense || Boolean(editingExpense)}
+          onSave={async (payload) => {
+            await onSaveExpense(payload);
+            setEditingExpense(null);
+          }}
+          onCancelEdit={() => {
+            setEditingExpense(null);
+          }}
+        />
+      ) : null}
+
+      {(view.fundings.length > 0 || view.expenses.length > 0) ? (
+        <section className="page-card page-card--subtle accountability-ledger-filters">
+          <div className="section-title">Фильтры финансовой истории</div>
+          <div className="section-subtitle">Отбор применяется к поступлениям и расходам ниже.</div>
+          <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeLedgerFilters} availableFilters={availableLedgerFilters} />
+        </section>
+      ) : null}
+
+      {activeSection === 'expenses' ? (
       <div className="page-card" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
@@ -370,7 +411,7 @@ export function AccountabilityAccountPanel({
         {filteredExpenses.length === 0 ? (
           <div className="page-muted">По выбранным фильтрам расходов нет.</div>
         ) : (
-          <div className="record-list local-scroll local-scroll--lg">
+          <div className="record-list">
             {filteredExpenses.map((expense) => (
               <div key={expense.id} className="record-card" style={{ display: 'grid', gap: 10 }}>
                 <div className="section-header" style={{ paddingBottom: 0 }}>
@@ -396,6 +437,22 @@ export function AccountabilityAccountPanel({
                 </div>
 
                 <div style={{ whiteSpace: 'pre-wrap' }}>{expense.description}</div>
+
+                {expense.expenseCategory === 'employee_payout' ? (
+                  <div className="accountability-payout-context">
+                    <strong>Выплата за разовый заказ</strong>
+                    <span>Сотрудник: {expense.employeeFullName || 'не указан'}</span>
+                    <span>Цикл: {expense.oneTimeOrderWorkCycle ?? 'не указан'}</span>
+                    {expense.oneTimeOrderId ? (
+                      <Link href={`/one-time-orders/${expense.oneTimeOrderId}`}>
+                        Открыть заказ
+                      </Link>
+                    ) : null}
+                    <span className="page-muted">
+                      Статус выплаты: {getAccountabilityExpenseStatusLabel(expense.status)}
+                    </span>
+                  </div>
+                ) : null}
 
                 {expense.rejectionComment ? (
                   <div className="record-card" style={{ background: '#fef2f2' }}>
@@ -496,7 +553,17 @@ export function AccountabilityAccountPanel({
           </div>
         )}
       </div>
+      ) : null}
+      </section>
 
+      <section
+        className="accountability-section-panel"
+        role="tabpanel"
+        id={`${idPrefix}-panel-reconciliation`}
+        aria-labelledby={`${idPrefix}-tab-reconciliation`}
+        hidden={activeSection !== 'reconciliation'}
+      >
+      {activeSection === 'reconciliation' ? (
       <div className="page-card" style={{ display: 'grid', gap: 16 }}>
         <div className="section-header">
           <div>
@@ -510,13 +577,15 @@ export function AccountabilityAccountPanel({
         {view.closures.length === 0 ? (
           <div className="page-muted">Попыток сверки пока не было.</div>
         ) : (
-          <div className="record-list local-scroll local-scroll--sm">
+          <div className="record-list">
             {view.closures.map((closure) => (
               <ClosureCard key={closure.id} closure={closure} />
             ))}
           </div>
         )}
       </div>
+      ) : null}
+      </section>
     </div>
   );
 }

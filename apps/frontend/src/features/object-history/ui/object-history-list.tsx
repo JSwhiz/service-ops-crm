@@ -19,6 +19,9 @@ const FIELD_LABELS: Record<string, string> = {
   address: 'Адрес',
   status: 'Статус',
   seasonMode: 'Сезон',
+  summerWindowWashing: 'Мытьё окон летом',
+  summerEngineering: 'Инженерные работы',
+  winterTractorMode: 'Работа трактора зимой',
   monthlySalary: 'ЗП за месяц',
   dailyRate: 'Старая дневная ставка',
   counterpartyId: 'Контрагент',
@@ -26,6 +29,12 @@ const FIELD_LABELS: Record<string, string> = {
   managerUserIds: 'Менеджеры',
   notes: 'Что важно знать об объекте',
   paymentType: 'Тип оплаты',
+  operationDate: 'Дата выхода',
+  employeeCount: 'Количество сотрудников',
+  attendanceStatus: 'Отметка о выходе',
+  present: 'Отметка о выходе',
+  reason: 'Причина',
+  comment: 'Комментарий',
 };
 
 function getActionLabel(actionCode: string): string {
@@ -48,8 +57,12 @@ function getActionLabel(actionCode: string): string {
       return 'Снят менеджер';
     case 'object.counterparty_changed':
       return 'Изменён контрагент';
+    case 'attendance.submitted':
+      return 'Отметка о выходе сохранена';
+    case 'attendance.corrected':
+      return 'Отметка о выходе исправлена';
     default:
-      return actionCode;
+      return 'Изменение объекта';
   }
 }
 
@@ -88,6 +101,8 @@ function getReadableChanges(
   if (changes && typeof changes === 'object' && !Array.isArray(changes)) {
     return Object.entries(changes as Record<string, unknown>).flatMap(
       ([field, rawChange]) => {
+        const label = FIELD_LABELS[field];
+        if (!label) return [];
         if (!rawChange || typeof rawChange !== 'object' || Array.isArray(rawChange)) {
           return [];
         }
@@ -95,13 +110,11 @@ function getReadableChanges(
           oldValue?: unknown;
           newValue?: unknown;
         };
-        return [
-          {
-            label: FIELD_LABELS[field] ?? field,
-            before: formatValue(field, change.oldValue),
-            after: formatValue(field, change.newValue),
-          },
-        ];
+        return [{
+          label,
+          before: formatValue(field, change.oldValue),
+          after: formatValue(field, change.newValue),
+        }];
       },
     );
   }
@@ -126,9 +139,9 @@ function getReadableChanges(
   }
 
   return Object.entries(payload)
-    .filter(([field]) => !['approvalRequestId', 'responsibleUserId'].includes(field))
+    .filter(([field]) => Boolean(FIELD_LABELS[field]))
     .map(([field, value]) => ({
-      label: FIELD_LABELS[field] ?? field,
+      label: FIELD_LABELS[field]!,
       after: formatValue(field, value),
     }));
 }
@@ -168,6 +181,8 @@ export function ObjectHistoryList({
               </div>
 
               {changes.length > 0 ? (
+                <details className={styles.auditTechnical}>
+                  <summary>Подробности</summary>
                 <div className={styles.auditChanges}>
                   {changes.map((change, index) => (
                     <div className={styles.auditChangeRow} key={`${change.label}-${index}`}>
@@ -184,14 +199,6 @@ export function ObjectHistoryList({
                     </div>
                   ))}
                 </div>
-              ) : null}
-
-              {item.payload ? (
-                <details className={styles.auditTechnical}>
-                  <summary>Технические данные</summary>
-                  <pre className={styles.payload}>
-                    {JSON.stringify(item.payload, null, 2)}
-                  </pre>
                 </details>
               ) : null}
             </article>

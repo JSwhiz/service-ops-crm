@@ -10,6 +10,7 @@ import {
 } from '@/shared/lib/display-name';
 import { TASK_PRIORITY_OPTIONS } from '@/shared/lib/task-presentation';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 export function OneTimeOrderTasksPanel({
   items,
@@ -47,6 +48,7 @@ export function OneTimeOrderTasksPanel({
   const [dueDate, setDueDate] = useState('');
   const [linkToObject, setLinkToObject] = useState(Boolean(linkedObject));
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const toggleAssignee = (userId: string): void => {
     setAssigneeUserIds((current) =>
@@ -63,7 +65,7 @@ export function OneTimeOrderTasksPanel({
           <div>
             <div className="section-title">Связанные задачи</div>
             <div className="section-subtitle">
-              Task flow остается в общем tasks-модуле.
+              Задачи заказа также доступны в общем реестре задач.
             </div>
           </div>
         </div>
@@ -71,18 +73,18 @@ export function OneTimeOrderTasksPanel({
       </div>
 
       {canCreateTask ? (
+        <div className="action-row">
+          <button type="button" className="button-secondary" onClick={() => setIsCreating((value) => !value)}>
+            {isCreating ? 'Скрыть форму' : 'Добавить задачу'}
+          </button>
+        </div>
+      ) : null}
+
+      {canCreateTask && isCreating ? (
         <form
           className="page-card"
           onSubmit={async (event) => {
             event.preventDefault();
-
-            const targetLabel =
-              linkedObject && linkToObject
-                ? `заказом и объектом «${linkedObject.name}»`
-                : 'заказом';
-            if (!window.confirm(`Создать задачу со связью с ${targetLabel}?`)) {
-              return;
-            }
 
             setIsSubmitting(true);
 
@@ -100,6 +102,7 @@ export function OneTimeOrderTasksPanel({
               setPriority('important_not_urgent');
               setAssigneeUserIds([]);
               setDueDate('');
+              setIsCreating(false);
             } finally {
               setIsSubmitting(false);
             }
@@ -107,9 +110,9 @@ export function OneTimeOrderTasksPanel({
         >
           <div className="section-header" style={{ marginBottom: 12 }}>
             <div>
-              <div className="section-title">Завести задачу по заказу</div>
+              <div className="section-title">Новая задача</div>
               <div className="section-subtitle">
-                Быстрый scoped create без выхода из карточки заказа.
+                Задача будет связана с этим заказом и, при выборе, с объектом.
               </div>
             </div>
           </div>
@@ -155,28 +158,22 @@ export function OneTimeOrderTasksPanel({
               />
             </label>
 
-            <label>
-              <div style={{ marginBottom: 6 }}>Приоритет</div>
-              <select
+            <SearchableSelect
+                label="Приоритет"
                 value={priority}
-                onChange={(event) =>
+                options={TASK_PRIORITY_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+                searchable={false}
+                clearable={false}
+                onChange={(value) =>
                   setPriority(
-                    event.target.value as
+                    value as
                       | 'urgent_important'
                       | 'urgent_not_important'
                       | 'important_not_urgent'
                       | 'not_important_not_urgent',
                   )
                 }
-                style={{ width: '100%', padding: 10 }}
-              >
-                {TASK_PRIORITY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            />
 
             <label>
               <div style={{ marginBottom: 6 }}>Срок *</div>

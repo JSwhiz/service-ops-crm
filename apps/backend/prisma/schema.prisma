@@ -529,6 +529,7 @@ model Employee {
   substitutionsAsReplacement EmployeeSubstitution[]            @relation("EmployeeSubstitutionReplacement")
   timesheetRows              TimesheetEmployeeRow[]
   timesheetManualExceptions  TimesheetManualException[]
+  accountabilityExpenses     AccountabilityExpense[]
 
   @@index([fullName])
   @@index([phone])
@@ -1523,6 +1524,8 @@ model AccountabilityExpense {
   accountabilityAccountId  String
   oneTimeOrderId           String?
   oneTimeOrderCompletionId String?
+  oneTimeOrderWorkCycle    Int?
+  employeeId               String?
   expenseCategory          String?
   expenseDate              DateTime? @db.Date
   amount                   Decimal   @db.Decimal(14, 2)
@@ -1542,6 +1545,7 @@ model AccountabilityExpense {
   accountabilityAccount  AccountabilityAccount   @relation(fields: [accountabilityAccountId], references: [id], onDelete: Restrict)
   oneTimeOrder           OneTimeOrder?           @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
   oneTimeOrderCompletion OneTimeOrderCompletion? @relation(fields: [oneTimeOrderCompletionId], references: [id], onDelete: Restrict)
+  employee               Employee?               @relation(fields: [employeeId], references: [id], onDelete: Restrict)
   createdBy              User                    @relation("AccountabilityExpenseCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   approvedBy             User?                   @relation("AccountabilityExpenseApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
   rejectedBy             User?                   @relation("AccountabilityExpenseRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: Restrict)
@@ -1550,6 +1554,8 @@ model AccountabilityExpense {
   @@index([accountabilityAccountId, status])
   @@index([oneTimeOrderId, createdAt])
   @@index([oneTimeOrderCompletionId])
+  @@index([oneTimeOrderId, oneTimeOrderWorkCycle, employeeId])
+  @@index([employeeId, expenseDate])
   @@index([expenseCategory])
   @@index([expenseDate])
   @@index([createdByUserId])

@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  IsInt,
   Matches,
   Min,
 } from 'class-validator';
@@ -27,6 +28,15 @@ export class SaveAccountabilityExpenseDto {
   @IsOptional()
   @IsUUID()
   oneTimeOrderCompletionId?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  oneTimeOrderWorkCycle?: number;
+
+  @IsOptional()
+  @IsUUID()
+  employeeId?: string | null;
 
   @IsOptional()
   @IsIn(ACCOUNTABILITY_EXPENSE_CATEGORIES)

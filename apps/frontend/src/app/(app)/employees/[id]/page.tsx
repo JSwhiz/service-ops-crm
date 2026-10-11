@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import {
   addEmployeeAvailability,
@@ -39,6 +39,7 @@ import { ApiError } from '@/shared/api/fetcher';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 
 function getAvailabilityStatusLabel(status: string): string {
   switch (status) {
@@ -135,8 +136,10 @@ export default function EmployeeDetailPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const canAccessEmployeesHr = user?.capabilities?.canAccessEmployeesHr ?? false;
+  const requestedSection = searchParams.get('section') ?? 'overview';
 
   const [employeeId, setEmployeeId] = useState('');
   const [item, setItem] = useState<EmployeeDetail | null>(null);
@@ -273,6 +276,32 @@ export default function EmployeeDetailPage({
     return employeeCandidates.filter((candidate) => candidate.id !== employeeId);
   }, [employeeCandidates, employeeId]);
 
+  const employeeSections = useMemo(
+    () => [
+      { value: 'overview', label: 'Карточка' },
+      ...(item?.capabilities.canEdit
+        ? [{ value: 'edit', label: 'Редактирование' }]
+        : []),
+      { value: 'assignments', label: 'Объекты' },
+      ...(item && (item.capabilities.canManageAvailability || item.capabilities.canManageSubstitutions || item.availabilityWindows.length > 0 || item.substitutions.length > 0)
+        ? [{ value: 'schedule', label: 'Доступность и подмены' }]
+        : []),
+      ...(item && (item.objectAssignmentHistory.length > 0 || item.capabilities.canDeletePermanently)
+        ? [{ value: 'history', label: 'История' }]
+        : []),
+    ],
+    [item],
+  );
+  const activeSection = employeeSections.some((section) => section.value === requestedSection)
+    ? requestedSection
+    : 'overview';
+
+  const changeSection = (section: string): void => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('section', section);
+    router.push(`?${next.toString()}`, { scroll: false });
+  };
+
   const renderObjectReference = (params: {
     objectId: string;
     objectName: string;
@@ -314,7 +343,7 @@ export default function EmployeeDetailPage({
       ) : !item ? (
         <div className="page-card">Сотрудник не найден.</div>
       ) : (
-        <div className="page-stack employee-detail-workspace">
+        <div className="page-stack employee-detail-workspace" data-active-section={activeSection}>
           {actionError ? (
             <div className="page-card" style={{ color: '#b91c1c' }}>
               {actionError}
@@ -351,10 +380,23 @@ export default function EmployeeDetailPage({
             </div>
           ) : null}
 
+          <WorkspaceTabs
+            items={employeeSections}
+            value={activeSection}
+            onChange={changeSection}
+            label="Разделы карточки сотрудника"
+          />
+
+          <section
+            className="employee-detail-panel"
+            role="tabpanel"
+            id="workspace-panel-overview"
+            aria-labelledby="workspace-tab-overview"
+            hidden={activeSection !== 'overview'}
+          >
           <div className="page-card employee-detail-summary">
             <div className="section-header">
               <div>
-                <div style={{ fontSize: 24, fontWeight: 700 }}>{item.fullName}</div>
                 <div className="action-row" style={{ marginTop: 8 }}>
                   <span
                     className={`employee-state-badge ${
@@ -480,8 +522,10 @@ export default function EmployeeDetailPage({
             </div>
             <div className="employee-record-meta">Создана {new Date(item.createdAt).toLocaleString('ru-RU')} · изменена {new Date(item.updatedAt).toLocaleString('ru-RU')}</div>
           </div>
+          </section>
 
           {item.capabilities.canEdit ? (
+            <section className="employee-detail-panel" role="tabpanel" id="workspace-panel-edit" aria-labelledby="workspace-tab-edit" hidden={activeSection !== 'edit'}>
             <form
               className="page-card employee-edit-form"
               onSubmit={async (event) => {
@@ -557,8 +601,10 @@ export default function EmployeeDetailPage({
                 </button>
               </div>
             </form>
+            </section>
           ) : null}
 
+          <section className="employee-detail-panel" role="tabpanel" id="workspace-panel-assignments" aria-labelledby="workspace-tab-assignments" hidden={activeSection !== 'assignments'}>
           <div className="page-card employee-assignment-section">
             <div className="section-header"><div><div className="section-title">Текущие объекты</div>
               <div className="section-subtitle">Ставка объекта показана отдельно от базовой ставки сотрудника.</div></div></div>
@@ -668,7 +714,9 @@ export default function EmployeeDetailPage({
               </div>
             ) : null}
           </div>
+          </section>
 
+          <section className="employee-detail-panel" role="tabpanel" id="workspace-panel-history" aria-labelledby="workspace-tab-history" hidden={activeSection !== 'history'}>
           <div className="page-card employee-assignment-section">
             <div className="section-header">
               <div>
@@ -713,6 +761,27 @@ export default function EmployeeDetailPage({
             )}
           </div>
 
+          {item.capabilities.canDeletePermanently ? (
+            <section className="page-card employee-danger-zone">
+              <div>
+                <div className="section-title">Опасная зона</div>
+                <div className="section-subtitle">Только для карточек, созданных ошибочно. Сотрудника с рабочей историей удалить нельзя.</div>
+              </div>
+              {item.lifecycleEligibility.permanentDelete.blockers.length > 0 ? (
+                <div className="inline-notice inline-notice--warning">
+                  Полное удаление недоступно: {item.lifecycleEligibility.permanentDelete.blockers
+                    .map((blocker) => `${getDependencyLabel(blocker.code)} (${blocker.count})`).join(', ')}.
+                </div>
+              ) : null}
+              <button type="button" className="button-danger" disabled={!item.lifecycleEligibility.permanentDelete.eligible}
+                onClick={() => { setPermanentDeleteReason(''); setPermanentDeleteOpen(true); }}>
+                Удалить сотрудника полностью
+              </button>
+            </section>
+          ) : null}
+          </section>
+
+          <section className="employee-detail-panel" role="tabpanel" id="workspace-panel-schedule" aria-labelledby="workspace-tab-schedule" hidden={activeSection !== 'schedule'}>
           <div className="page-card" style={{ display: 'grid', gap: 12 }}>
             <div className="section-header">
               <div>
@@ -1014,24 +1083,7 @@ export default function EmployeeDetailPage({
             ) : null}
           </div>
 
-          {item.capabilities.canDeletePermanently ? (
-            <section className="page-card employee-danger-zone">
-              <div>
-                <div className="section-title">Опасная зона</div>
-                <div className="section-subtitle">Только для карточек, созданных ошибочно. Сотрудника с рабочей историей удалить нельзя.</div>
-              </div>
-              {item.lifecycleEligibility.permanentDelete.blockers.length > 0 ? (
-                <div className="inline-notice inline-notice--warning">
-                  Полное удаление недоступно: {item.lifecycleEligibility.permanentDelete.blockers
-                    .map((blocker) => `${getDependencyLabel(blocker.code)} (${blocker.count})`).join(', ')}.
-                </div>
-              ) : null}
-              <button type="button" className="button-danger" disabled={!item.lifecycleEligibility.permanentDelete.eligible}
-                onClick={() => { setPermanentDeleteReason(''); setPermanentDeleteOpen(true); }}>
-                Удалить сотрудника полностью
-              </button>
-            </section>
-          ) : null}
+          </section>
 
           {assignmentDeleteTarget ? (
             <div className="employee-modal" role="dialog" aria-modal="true" aria-labelledby="assignment-delete-title">

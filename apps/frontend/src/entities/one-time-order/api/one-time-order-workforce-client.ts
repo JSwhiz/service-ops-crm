@@ -73,6 +73,8 @@ export interface OneTimeTimesheet {
       manualReason: string | null;
     }>;
     total: number;
+    paidTotal: number | null;
+    pendingPayoutTotal: number | null;
   }>;
 }
 

@@ -20,6 +20,7 @@ export function OneTimeOrderReviewPanel({
 }): React.JSX.Element {
   const [text, setText] = useState(item.reviewText ?? '');
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -31,6 +32,7 @@ export function OneTimeOrderReviewPanel({
 
   useEffect(() => {
     if (window.location.hash !== '#review') return;
+    setIsEditing(true);
     window.requestAnimationFrame(() => {
       sectionRef.current?.scrollIntoView({ block: 'start' });
       if (item.capabilities.canEditReview) {
@@ -58,7 +60,7 @@ export function OneTimeOrderReviewPanel({
         </div>
       </div>
 
-      {item.capabilities.canEditReview ? (
+      {item.capabilities.canEditReview && isEditing ? (
         <form
           className="page-stack"
           onSubmit={async (event) => {
@@ -77,6 +79,7 @@ export function OneTimeOrderReviewPanel({
                 // Preserve legacy rating data; rating controls are intentionally hidden.
                 reviewRating: item.reviewRating,
               });
+              setIsEditing(false);
             } catch {
               setError('Не удалось сохранить отзыв.');
             } finally {
@@ -99,6 +102,14 @@ export function OneTimeOrderReviewPanel({
             <button type="submit" disabled={isSaving || !text.trim()}>
               {isSaving ? 'Сохраняем...' : 'Сохранить отзыв'}
             </button>
+            <button
+              type="button"
+              className="button-secondary"
+              disabled={isSaving}
+              onClick={() => { setText(item.reviewText ?? ''); setError(null); setIsEditing(false); }}
+            >
+              Отмена
+            </button>
             {hasReview ? (
               <button
                 type="button"
@@ -112,7 +123,14 @@ export function OneTimeOrderReviewPanel({
           </div>
         </form>
       ) : (
-        <div>{item.reviewText ?? 'Отзыв пока не заполнен.'}</div>
+        <div className="action-row" style={{ justifyContent: 'space-between' }}>
+          <div>{item.reviewText ?? 'Отзыв пока не заполнен.'}</div>
+          {item.capabilities.canEditReview ? (
+            <button type="button" className="button-secondary" onClick={() => setIsEditing(true)}>
+              {hasReview ? 'Изменить отзыв' : 'Добавить отзыв'}
+            </button>
+          ) : null}
+        </div>
       )}
     </section>
     <ConfirmDialog
@@ -127,7 +145,7 @@ export function OneTimeOrderReviewPanel({
         setIsSaving(true);
         setError(null);
         void onClear()
-          .then(() => setClearConfirmOpen(false))
+          .then(() => { setClearConfirmOpen(false); setIsEditing(false); })
           .catch(() => setError('Не удалось очистить отзыв.'))
           .finally(() => setIsSaving(false));
       }}

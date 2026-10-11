@@ -11,6 +11,8 @@ import {
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { ReasonDialog } from '@/shared/ui/overlays';
 
 export function OneTimeOrderPhotosPanel({
   items,
@@ -34,11 +36,14 @@ export function OneTimeOrderPhotosPanel({
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [busyPhotoId, setBusyPhotoId] = useState<string | null>(null);
+  const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const activeItems = items.filter((item) => !item.deletedAt);
   const deletedItems = items.filter((item) => !!item.deletedAt);
 
   return (
+    <>
     <div className="page-card" style={{ display: 'grid', gap: 16 }}>
       <div className="section-header">
         <div>
@@ -78,20 +83,14 @@ export function OneTimeOrderPhotosPanel({
           }}
           style={{ display: 'grid', gap: 12 }}
         >
-          <label>
-            <div style={{ marginBottom: 6 }}>Категория фото</div>
-            <select
+          <SearchableSelect
+              label="Категория фото"
               value={category}
-              onChange={(event) => setCategory(event.target.value)}
-              style={{ width: '100%', padding: 10 }}
-            >
-              {MEDIA_CATEGORY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              options={MEDIA_CATEGORY_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+              searchable={false}
+              clearable={false}
+              onChange={setCategory}
+          />
 
           <label>
             <div style={{ marginBottom: 6 }}>Комментарий</div>
@@ -173,30 +172,7 @@ export function OneTimeOrderPhotosPanel({
                   <button
                     type="button"
                     disabled={busyPhotoId === item.id}
-                    onClick={async () => {
-                      if (!window.confirm('Удалить фото из карточки заказа?')) {
-                        return;
-                      }
-
-                      const reason = window.prompt(
-                        'Причина удаления (необязательно)',
-                        '',
-                      );
-
-                      if (reason === null) {
-                        return;
-                      }
-
-                      setError(null);
-                      setBusyPhotoId(item.id);
-                      try {
-                        await onDelete(item.id, reason.trim() || undefined);
-                      } catch {
-                        setError('Не удалось удалить фото заказа.');
-                      } finally {
-                        setBusyPhotoId(null);
-                      }
-                    }}
+                    onClick={() => { setPhotoToDelete(item.id); setDeleteReason(''); }}
                   >
                     {busyPhotoId === item.id ? 'Удаляем...' : 'Удалить'}
                   </button>
@@ -263,5 +239,28 @@ export function OneTimeOrderPhotosPanel({
         </details>
       ) : null}
     </div>
+    <ReasonDialog
+      open={photoToDelete !== null}
+      onOpenChange={(open) => { if (!open) setPhotoToDelete(null); }}
+      title="Удалить фото из заказа?"
+      description="Фото будет перемещено в удалённые материалы. Его можно будет восстановить из этой карточки."
+      reason={deleteReason}
+      onReasonChange={setDeleteReason}
+      reasonRequired={false}
+      reasonLabel="Причина удаления (необязательно)"
+      confirmLabel="Удалить фото"
+      pending={busyPhotoId === photoToDelete}
+      onConfirm={(reason) => {
+        if (!photoToDelete) return;
+        const targetId = photoToDelete;
+        setError(null);
+        setBusyPhotoId(targetId);
+        void onDelete(targetId, reason.trim() || undefined)
+          .then(() => setPhotoToDelete(null))
+          .catch(() => setError('Не удалось удалить фото заказа.'))
+          .finally(() => setBusyPhotoId(null));
+      }}
+    />
+    </>
   );
 }

@@ -18,6 +18,7 @@ export const ACCOUNTABILITY_EXPENSE_CATEGORIES = [
   'transport',
   'services',
   'other',
+  'employee_payout',
 ] as const;
 
 export const ACCOUNTABILITY_CLOSURE_STATUSES = [

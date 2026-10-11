@@ -350,6 +350,10 @@ export class AccountabilityService {
             order.completionPayments.length > 0 ||
             order.accountabilityFundings.length > 0) &&
           ownAccount?.status === 'active',
+        canCreateEmployeePayout:
+          canViewOwn &&
+          order.assignments.length > 0 &&
+          ownAccount?.status === 'active',
         canReviewExpenses: canReview,
       },
       accounts: accounts.map((account) => ({
@@ -667,6 +671,8 @@ export class AccountabilityService {
       oneTimeOrderCompletionId: payload.oneTimeOrderCompletionId ?? null,
       expenseCategory: payload.expenseCategory ?? null,
       expenseDate: payload.expenseDate ?? null,
+      oneTimeOrderWorkCycle: payload.oneTimeOrderWorkCycle ?? null,
+      employeeId: payload.employeeId ?? null,
     });
 
     const createdExpense = await this.prisma.$transaction(async (tx) => {
@@ -682,6 +688,8 @@ export class AccountabilityService {
           accountabilityAccountId: account.id,
           oneTimeOrderId: orderExpense.oneTimeOrderId,
           oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
+          oneTimeOrderWorkCycle: orderExpense.oneTimeOrderWorkCycle,
+          employeeId: orderExpense.employeeId,
           expenseCategory: orderExpense.expenseCategory,
           expenseDate: orderExpense.expenseDate,
           amount: new Prisma.Decimal(payload.amount),
@@ -704,6 +712,8 @@ export class AccountabilityService {
             status: 'draft',
             oneTimeOrderId: orderExpense.oneTimeOrderId,
             oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
+            oneTimeOrderWorkCycle: orderExpense.oneTimeOrderWorkCycle,
+            employeeId: orderExpense.employeeId,
             expenseCategory: orderExpense.expenseCategory,
             expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
           },
@@ -782,6 +792,14 @@ export class AccountabilityService {
         payload.expenseDate ??
         this.formatDateOnly(existingExpense.expenseDate) ??
         null,
+      oneTimeOrderWorkCycle:
+        (payload.expenseCategory ?? existingExpense.expenseCategory) === 'employee_payout'
+          ? payload.oneTimeOrderWorkCycle ?? existingExpense.oneTimeOrderWorkCycle ?? null
+          : null,
+      employeeId:
+        (payload.expenseCategory ?? existingExpense.expenseCategory) === 'employee_payout'
+          ? payload.employeeId ?? existingExpense.employeeId ?? null
+          : null,
     });
 
     const updatedExpense = await this.prisma.$transaction(async (tx) => {
@@ -825,6 +843,8 @@ export class AccountabilityService {
           description,
           oneTimeOrderId: orderExpense.oneTimeOrderId,
           oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
+          oneTimeOrderWorkCycle: orderExpense.oneTimeOrderWorkCycle,
+          employeeId: orderExpense.employeeId,
           expenseCategory: orderExpense.expenseCategory,
           expenseDate: orderExpense.expenseDate,
         },
@@ -844,6 +864,8 @@ export class AccountabilityService {
             description,
             oneTimeOrderId: orderExpense.oneTimeOrderId,
             oneTimeOrderCompletionId: orderExpense.oneTimeOrderCompletionId,
+            oneTimeOrderWorkCycle: orderExpense.oneTimeOrderWorkCycle,
+            employeeId: orderExpense.employeeId,
             expenseCategory: orderExpense.expenseCategory,
             expenseDate: orderExpense.expenseDate?.toISOString() ?? null,
           },
@@ -1684,6 +1706,7 @@ export class AccountabilityService {
           status: true,
         },
       },
+      employee: { select: { id: true, fullName: true } },
       createdBy: {
         select: {
           id: true,
@@ -2017,6 +2040,9 @@ export class AccountabilityService {
       id: string;
       oneTimeOrderId: string | null;
       oneTimeOrderCompletionId: string | null;
+      oneTimeOrderWorkCycle: number | null;
+      employeeId: string | null;
+      employee: { id: string; fullName: string } | null;
       expenseCategory: string | null;
       expenseDate: Date | null;
       amount: Prisma.Decimal;
@@ -2070,6 +2096,9 @@ export class AccountabilityService {
       id: params.expense.id,
       oneTimeOrderId: params.expense.oneTimeOrderId,
       oneTimeOrderCompletionId: params.expense.oneTimeOrderCompletionId,
+      oneTimeOrderWorkCycle: params.expense.oneTimeOrderWorkCycle,
+      employeeId: params.expense.employeeId,
+      employeeFullName: params.expense.employee?.fullName ?? null,
       expenseCategory: params.expense.expenseCategory,
       expenseDate: this.formatDateOnly(params.expense.expenseDate),
       amount: params.expense.amount.toNumber(),
@@ -2291,11 +2320,15 @@ export class AccountabilityService {
     oneTimeOrderCompletionId: string | null;
     expenseCategory: string | null;
     expenseDate: string | null;
+    oneTimeOrderWorkCycle: number | null;
+    employeeId: string | null;
   }): Promise<{
     oneTimeOrderId: string | null;
     oneTimeOrderCompletionId: string | null;
     expenseCategory: string | null;
     expenseDate: Date | null;
+    oneTimeOrderWorkCycle: number | null;
+    employeeId: string | null;
   }> {
     if (
       params.expenseCategory &&
@@ -2309,6 +2342,52 @@ export class AccountabilityService {
     const expenseDate = params.expenseDate
       ? this.parseDateOnly(params.expenseDate)
       : null;
+
+    if (params.expenseCategory === 'employee_payout') {
+      if (
+        !params.oneTimeOrderId ||
+        !params.oneTimeOrderWorkCycle ||
+        !params.employeeId ||
+        !expenseDate
+      ) {
+        throw new BadRequestException(
+          'Employee payout requires an order, cycle, employee and expense date',
+        );
+      }
+
+      const managerAssignment = await this.prisma.oneTimeOrderAssignment.findFirst({
+        where: {
+          oneTimeOrderId: params.oneTimeOrderId,
+          userId: params.currentUser.id,
+          assignmentRoleCode: 'one_time_manager',
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (!managerAssignment) {
+        throw new ForbiddenException(
+          'Only an assigned order manager can record an employee payout from their own accountability account',
+        );
+      }
+
+      const assignment = await this.prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "one_time_order_employee_assignments"
+        WHERE "oneTimeOrderId" = ${params.oneTimeOrderId}
+          AND "workCycle" = ${params.oneTimeOrderWorkCycle}
+          AND "employeeId" = ${params.employeeId}
+        LIMIT 1
+      `;
+      if (assignment.length === 0) {
+        throw new BadRequestException(
+          'Employee must be assigned to this order and work cycle',
+        );
+      }
+    } else if (params.employeeId || params.oneTimeOrderWorkCycle) {
+      throw new BadRequestException(
+        'Employee and work cycle can only be linked to an employee payout',
+      );
+    }
 
     if (params.oneTimeOrderCompletionId && !params.oneTimeOrderId) {
       throw new BadRequestException(
@@ -2348,6 +2427,8 @@ export class AccountabilityService {
       oneTimeOrderCompletionId: params.oneTimeOrderCompletionId,
       expenseCategory: params.expenseCategory,
       expenseDate,
+      oneTimeOrderWorkCycle: params.oneTimeOrderWorkCycle,
+      employeeId: params.employeeId,
     };
   }
 

@@ -312,12 +312,12 @@ export function OneTimeOrderCompletionPanel({
   };
 
   return (
-    <section className="page-card order-completion-panel">
+    <section id="order-completion" className="page-card order-completion-panel">
       <div className="section-header">
         <div>
-          <div className="section-title">Завершение и фактические оплаты</div>
+          <div className="section-title">Фактические поступления</div>
           <div className="section-subtitle">
-            Каждый цикл и каждое поступление сохраняются в финансовой истории.
+            Записывайте полученные деньги по текущему циклу. Согласованная сумма — ориентир, не факт оплаты.
           </div>
         </div>
         <span className="status-pill">Цикл {item.workCycle}</span>
@@ -326,7 +326,6 @@ export function OneTimeOrderCompletionPanel({
       <div className="order-completion-summary">
         <Summary label="Согласованная сумма" value={item.agreedSum === null ? 'Не указана' : formatMoney(item.agreedSum)} />
         <Summary label="Получено в предыдущих циклах" value={formatMoney(previousActual)} />
-        <Summary label="Текущий цикл" value={`Цикл ${item.workCycle}`} />
       </div>
 
       {!fullPreviousTotalVisible ? (
@@ -514,26 +513,20 @@ function PaymentFields({
 
       {draft.mode === 'no_payment' ? (
         <div className="field-grid">
-          <label>
-            <span>Причина</span>
-            <select
+          <SearchableSelect
+              label="Причина"
               value={draft.zeroReason}
-              onChange={(event) =>
+              options={ZERO_REASONS.map((reason) => ({ value: reason, label: getOneTimeOrderPaymentZeroReasonLabel(reason) }))}
+              placeholder="Выберите причину"
+              searchable={false}
+              clearable={false}
+              onChange={(value) =>
                 onChange((current) => ({
                   ...current,
-                  zeroReason: event.target
-                    .value as OneTimeOrderPaymentZeroReason,
+                  zeroReason: value as OneTimeOrderPaymentZeroReason | '',
                 }))
               }
-            >
-              <option value="">Выберите причину</option>
-              {ZERO_REASONS.map((reason) => (
-                <option key={reason} value={reason}>
-                  {getOneTimeOrderPaymentZeroReasonLabel(reason)}
-                </option>
-              ))}
-            </select>
-          </label>
+          />
 
           <label className="order-completion-wide-field">
             <span>Комментарий</span>
@@ -554,8 +547,7 @@ function PaymentFields({
           </label>
 
           <div className="order-payment-note">
-            Поступление денег не создаётся: способ, получатель и личный подотчёт
-            отсутствуют.
+            Заказ закрывается без записи о получении денег; личный подотчёт не пополняется.
           </div>
         </div>
       ) : (
@@ -577,50 +569,45 @@ function PaymentFields({
             />
           </label>
 
-          <label>
-            <span>Способ</span>
-            <select
+          <SearchableSelect
+              label="Способ"
               value={draft.paymentMethod}
-              onChange={(event) =>
+              options={PAYMENT_METHODS.map((method) => ({ value: method, label: getOneTimeOrderPaymentMethodLabel(method) }))}
+              placeholder="Выберите способ"
+              searchable={false}
+              clearable={false}
+              onChange={(value) =>
                 onChange((current) =>
                   normalizeMethodChange(
                     current,
-                    event.target.value as OneTimeOrderPaymentMethod,
+                    value as OneTimeOrderPaymentMethod,
                   ),
                 )
               }
-            >
-              <option value="">Выберите способ</option>
-              {PAYMENT_METHODS.map((method) => (
-                <option key={method} value={method}>
-                  {getOneTimeOrderPaymentMethodLabel(method)}
-                </option>
-              ))}
-            </select>
-          </label>
+          />
 
           {draft.paymentMethod === 'other' ? (
-            <label>
-              <span>Назначение денег</span>
-              <select
+            <SearchableSelect
+                label="Назначение денег"
                 value={draft.paymentDestination}
-                onChange={(event) =>
+                options={[
+                  { value: 'manager_accountability', label: 'Личный подотчёт' },
+                  { value: 'organization', label: 'Организация' },
+                ]}
+                placeholder="Выберите назначение"
+                searchable={false}
+                clearable={false}
+                onChange={(value) =>
                   onChange((current) => ({
                     ...current,
-                    paymentDestination: event.target
-                      .value as OneTimeOrderPaymentDestination,
+                    paymentDestination: value as OneTimeOrderPaymentDestination | '',
                     recipientUserId:
-                      event.target.value === 'organization'
+                      value === 'organization'
                         ? ''
                         : current.recipientUserId,
                   }))
                 }
-              >
-                <option value="">Выберите назначение</option>
-                <option value="manager_accountability">Личный подотчёт</option>
-                <option value="organization">Организация</option>
-              </select>
-            </label>
+            />
           ) : null}
 
           {draft.paymentDestination === 'manager_accountability' ? (
@@ -681,8 +668,12 @@ function PaymentFields({
 
           {draft.paymentDestination === 'organization' ? (
             <div className="order-payment-note">
-              Поступление сохранится в истории заказа, но не создаст личный
-              подотчёт.
+              Деньги сохранятся в истории заказа. Личный подотчёт менеджера не изменится.
+            </div>
+          ) : null}
+          {draft.paymentDestination === 'manager_accountability' ? (
+            <div className="order-payment-note">
+              Поступление будет учтено в подотчёте выбранного получателя.
             </div>
           ) : null}
         </div>
@@ -708,7 +699,7 @@ function CompletionHistory({
       <div>
         <div className="section-title">История циклов</div>
         <div className="section-subtitle">
-          Исходные поступления, сторнирования и исправленные записи не удаляются.
+          Исправления сохраняются отдельными записями — история оплат остаётся доступна.
         </div>
       </div>
       {completions.length === 0 ? (
@@ -914,7 +905,7 @@ function PaymentCorrectionForm({
           rows={2}
           value={reason}
           onChange={(event) => setReason(event.target.value)}
-          placeholder="Обязательное основание для сторнирования"
+          placeholder="Почему нужно изменить эту запись об оплате"
         />
       </label>
       {error ? <div className="form-error">{error}</div> : null}
@@ -963,7 +954,7 @@ function PaymentCorrectionForm({
             })();
           }}
         >
-          {isSaving ? 'Сохраняем...' : 'Сторнировать и записать исправление'}
+          {isSaving ? 'Сохраняем...' : 'Сохранить исправление'}
         </button>
         <button type="button" className="button-quiet" onClick={onCancel}>
           Отмена

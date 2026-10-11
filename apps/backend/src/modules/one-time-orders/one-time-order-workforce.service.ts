@@ -10,6 +10,7 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createSimpleXlsxWorkbook } from '../timesheets/utils/simple-xlsx.util';
 import type { XlsxCell } from '../timesheets/utils/simple-xlsx.util';
+import { canReviewAccountability } from '../accountability/utils/accountability-access.util';
 
 import {
   AddOneTimeOrderEmployeeDto,
@@ -108,6 +109,8 @@ export interface OneTimeOrderTimesheetResponse {
       manualReason: string | null;
     }>;
     total: number;
+    paidTotal: number | null;
+    pendingPayoutTotal: number | null;
   }>;
 }
 
@@ -642,6 +645,42 @@ export class OneTimeOrderWorkforceService {
       ORDER BY employee."fullName" ASC, entry."operationDate" ASC
     `;
 
+    const canViewPayouts = canReviewAccountability({
+      roleCodes: currentUser.roleCodes ?? [currentUser.roleCode],
+      permissionCodes: currentUser.permissionCodes,
+    }) || order.assignments.some(
+      (assignment) => assignment.userId === currentUser.id &&
+        assignment.assignmentRoleCode === 'one_time_manager',
+    );
+    const payoutRows = canViewPayouts
+      ? await this.prisma.$queryRaw<Array<{
+          employeeId: string;
+          fullName: string;
+          paidTotal: Prisma.Decimal;
+          pendingPayoutTotal: Prisma.Decimal;
+        }>>`
+          SELECT
+            expense."employeeId",
+            employee."fullName",
+            COALESCE(SUM(expense."amount") FILTER (WHERE expense."status" IN ('approved', 'reconciled')), 0) AS "paidTotal",
+            COALESCE(SUM(expense."amount") FILTER (WHERE expense."status" IN ('draft', 'submitted')), 0) AS "pendingPayoutTotal"
+          FROM "accountability_expenses" expense
+          JOIN "accountability_accounts" account
+            ON account."id" = expense."accountabilityAccountId"
+          JOIN "employees" employee ON employee."id" = expense."employeeId"
+          WHERE expense."oneTimeOrderId" = ${order.id}
+            AND expense."oneTimeOrderWorkCycle" = ${workCycle}
+            AND expense."expenseCategory" = 'employee_payout'
+            AND expense."expenseDate" >= ${start}::DATE
+            AND expense."expenseDate" < ${nextMonth}::DATE
+            AND (${canReviewAccountability({
+              roleCodes: currentUser.roleCodes ?? [currentUser.roleCode],
+              permissionCodes: currentUser.permissionCodes,
+            })} OR account."userId" = ${currentUser.id})
+          GROUP BY expense."employeeId", employee."fullName"
+        `
+      : [];
+
     const rows = new Map<string, OneTimeOrderTimesheetResponse['rows'][number]>();
     for (const entry of entries) {
       let row = rows.get(entry.employeeId);
@@ -651,6 +690,8 @@ export class OneTimeOrderWorkforceService {
           fullName: entry.fullName,
           days: [],
           total: 0,
+          paidTotal: canViewPayouts ? 0 : null,
+          pendingPayoutTotal: canViewPayouts ? 0 : null,
         };
         rows.set(entry.employeeId, row);
       }
@@ -665,6 +706,23 @@ export class OneTimeOrderWorkforceService {
         manualReason: entry.manualReason,
       });
       row.total += finalValue;
+    }
+
+    for (const payout of payoutRows) {
+      let row = rows.get(payout.employeeId);
+      if (!row) {
+        row = {
+          employeeId: payout.employeeId,
+          fullName: payout.fullName,
+          days: [],
+          total: 0,
+          paidTotal: 0,
+          pendingPayoutTotal: 0,
+        };
+        rows.set(payout.employeeId, row);
+      }
+      row.paidTotal = Number(payout.paidTotal);
+      row.pendingPayoutTotal = Number(payout.pendingPayoutTotal);
     }
 
     return {
@@ -717,6 +775,31 @@ export class OneTimeOrderWorkforceService {
       rows,
       columnWidths: [30, 14, 14, 18, 18, 18, 20, 42],
       freeze: { rows: 4, columns: 1 },
+      pageSetup: { orientation: 'landscape', fitToWidth: 1 },
+    }, {
+      name: 'Выплаты',
+      rows: [
+        [{ value: `Разовый заказ ${orderId} · цикл ${timesheet.workCycle} · ${timesheet.month}`, styleId: 1 }],
+        [],
+        [
+          { value: 'Сотрудник', styleId: 1 },
+          { value: 'Начислено по табелю', styleId: 1 },
+          { value: 'Фактически выплачено', styleId: 1 },
+          { value: 'Черновики и на проверке', styleId: 1 },
+          { value: 'Остаток к выплате', styleId: 1 },
+        ],
+        ...timesheet.rows
+          .filter((person) => !query.employeeId || person.employeeId === query.employeeId)
+          .map((person) => [
+            person.fullName,
+            person.total,
+            person.paidTotal,
+            person.pendingPayoutTotal,
+            person.paidTotal === null ? null : person.total - person.paidTotal,
+          ]),
+      ],
+      columnWidths: [30, 22, 22, 20, 20],
+      freeze: { rows: 3, columns: 1 },
       pageSetup: { orientation: 'landscape', fitToWidth: 1 },
     }]);
   }

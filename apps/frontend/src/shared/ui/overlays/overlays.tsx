@@ -183,6 +183,7 @@ export interface ReasonDialogProps {
   onReasonChange: (reason: string) => void;
   onConfirm: (reason: string) => void;
   reasonLabel?: string;
+  reasonRequired?: boolean;
   confirmLabel?: string;
   pending?: boolean;
   error?: React.ReactNode;
@@ -198,12 +199,13 @@ export function ReasonDialog({
   onReasonChange,
   onConfirm,
   reasonLabel = 'Причина',
+  reasonRequired = true,
   confirmLabel = 'Подтвердить',
   pending = false,
   error,
   returnFocusRef,
 }: ReasonDialogProps): React.JSX.Element {
-  const canConfirm = Boolean(reason.trim());
+  const canConfirm = !reasonRequired || Boolean(reason.trim());
 
   return (
     <Dialog
@@ -241,7 +243,7 @@ export function ReasonDialog({
           </Alert>
         ) : null}
 
-        <Field label={reasonLabel} required>
+        <Field label={reasonLabel} required={reasonRequired}>
           <textarea
             data-dialog-initial-focus
             className={styles.textarea}
@@ -313,7 +315,7 @@ export function ConfirmDialog({
       }
     >
       <div className={styles.formStack}>
-        <p className={styles.consequence}>{consequence}</p>
+        <div className={styles.consequence}>{consequence}</div>
         {error ? (
           <Alert tone="danger" role="alert" title="Не удалось выполнить действие">
             {error}

@@ -44,6 +44,8 @@ export function getAccountabilityExpenseCategoryLabel(
       return 'Услуги';
     case 'other':
       return 'Другое';
+    case 'employee_payout':
+      return 'Выплата сотруднику';
     case null:
       return 'Без категории';
     default:

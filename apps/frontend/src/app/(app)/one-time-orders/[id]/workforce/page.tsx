@@ -21,9 +21,11 @@ import {
 } from '@/entities/one-time-order/api/one-time-order-workforce-client';
 import { getOneTimeOrderById } from '@/entities/one-time-order/api/one-time-order-client';
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
+import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import { Button } from '@/shared/ui/foundation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
-import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from './workforce.module.css';
 
@@ -157,28 +159,61 @@ export default function OneTimeOrderWorkforcePage({
     return Array.from(dates).sort();
   }, [timesheet]);
 
+  const activeWorkforce = useMemo(
+    () => workforce.filter((employee) => employee.isActive),
+    [workforce],
+  );
+  const exportEmployeeOptions = useMemo<SearchableSelectOption[]>(
+    () => [
+      { value: '', label: 'Все сотрудники' },
+      ...workforce.map((employee) => ({
+        value: employee.employeeId,
+        label: employee.fullName,
+        description: employee.position ?? undefined,
+      })),
+    ],
+    [workforce],
+  );
+
   if (loading) {
     return <div className="workspace-page"><PageTitle title="Сотрудники разового заказа" /><div className="page-card">Загрузка...</div></div>;
   }
 
   return (
     <div className={`workspace-page ${styles.root}`}>
-      <PageTitle title={order ? `Команда · ${order.title}` : 'Команда разового заказа'} />
+      <PageTitle title="Команда заказа" />
       <div className={styles.toolbar}>
-        <Link className={styles.back} href={orderId ? `/one-time-orders/${orderId}` : '/one-time-orders'}>← Вернуться к заказу</Link>
-        {attendance ? <span className={styles.status}><i />{attendance.submittedAt ? `Отметка сохранена · ${attendance.submittedBy?.fullName ?? 'пользователь'}` : 'Отметка сегодня ещё не отправлена'}</span> : null}
+        <div className={styles.orderContext}>
+          <Link className={styles.back} href={orderId ? `/one-time-orders/${orderId}` : '/one-time-orders'}>← К карточке заказа</Link>
+          {order ? <><strong>{order.title}</strong><span className="status-pill" data-status={order.status}>{getOneTimeOrderStatusLabel(order.status)}</span></> : null}
+        </div>
+        {attendance ? (
+          <span className={styles.status} data-saved={attendance.submittedAt ? 'true' : 'false'}>
+            <i />
+            {attendance.submittedAt
+              ? `Отметка за ${shortDate(attendance.operationDate)} сохранена`
+              : `Нет отметки за ${shortDate(attendance.operationDate)}`}
+          </span>
+        ) : null}
       </div>
 
       {error ? <div className={styles.error}>{error}</div> : null}
 
+      <nav className={styles.sectionNav} aria-label="Разделы команды заказа">
+        <a href="#roster">Состав</a>
+        <a href="#attendance">Выходы</a>
+        <a href="#coverage">Контроль отметок</a>
+        <a href="#timesheet">Табель</a>
+      </nav>
+
       <div className={styles.grid}>
-        <section className={styles.card}>
+        <section className={styles.card} id="roster">
           <header className={styles.head}>
-            <div><h2>Состав на текущий цикл</h2><p>Сотрудники разового заказа хранятся отдельно от состава обычного объекта.</p></div>
-            <strong>{workforce.filter((item) => item.isActive).length}</strong>
+            <div><h2>Состав команды</h2><p>Цикл {order?.workCycle ?? '—'}</p></div>
+            <span className={styles.count}>{activeWorkforce.length}</span>
           </header>
           <div className={styles.body}>
-            <div className={styles.searchRow}>
+            <div className={styles.addRow}>
               <SearchableSelect
                 label="Добавить сотрудника"
                 value={employeeToAdd}
@@ -201,49 +236,49 @@ export default function OneTimeOrderWorkforcePage({
                 onChange={setEmployeeToAdd}
                 disabled={saving}
               />
+              <Button variant="primary" disabled={!employeeToAdd || saving} pending={saving} pendingLabel="Добавляем…" onClick={async () => {
+                setSaving(true); setError(null);
+                try {
+                  await addOneTimeWorkforceEmployee(orderId, employeeToAdd);
+                  setEmployeeToAdd('');
+                  await reloadWorkforce();
+                } catch (saveError) { setError(errorText(saveError)); } finally { setSaving(false); }
+              }}>Добавить в состав</Button>
             </div>
-            <button className={styles.button} type="button" disabled={!employeeToAdd || saving} onClick={async () => {
-              setSaving(true); setError(null);
-              try {
-                await addOneTimeWorkforceEmployee(orderId, employeeToAdd);
-                setEmployeeToAdd('');
-                await reloadWorkforce();
-              } catch (saveError) { setError(errorText(saveError)); } finally { setSaving(false); }
-            }}>Добавить в состав</button>
 
             <div className={styles.list}>
-              {workforce.filter((item) => item.isActive).length === 0 ? <div className={styles.empty}>Состав ещё не сформирован.</div> : workforce.filter((item) => item.isActive).map((employee) => (
+              {activeWorkforce.length === 0 ? <div className={styles.empty}>Состав ещё не сформирован.</div> : activeWorkforce.map((employee) => (
                 <div className={styles.row} key={employee.employeeId}>
                   <div className={styles.copy}>
                     <strong>{employee.fullName}</strong>
-                    <span>
-                      {employee.position ?? 'Должность не указана'} · базовая дневная ставка {money(employee.baseDailyRate)}
-                    </span>
-                    <span>
-                      Оплата за заказ: {money(employee.orderPayment)}
-                    </span>
+                    <span>{employee.position ?? 'Должность не указана'}</span>
+                    <div className={styles.rateFacts}>
+                      <span><small>Ставка за выход</small><strong>{money(employee.baseDailyRate)}</strong></span>
+                      <span><small>Сумма по заказу</small><strong>{money(employee.orderPayment)}</strong></span>
+                    </div>
                   </div>
                   <div className={styles.employeeActions}>
-                    <input
-                      className={styles.paymentInput}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={paymentDrafts[employee.employeeId] ?? ''}
-                      placeholder="Оплата за заказ"
-                      aria-label={`Оплата за заказ для ${employee.fullName}`}
-                      onChange={(event) =>
-                        setPaymentDrafts((current) => ({
-                          ...current,
-                          [employee.employeeId]: event.target.value,
-                        }))
-                      }
-                    />
-                    <button
-                      className={styles.buttonSecondary}
-                      type="button"
-                      disabled={saving}
-                      onClick={async () => {
+                    <label className={styles.paymentField}>
+                      <span>Сумма по заказу</span>
+                      <input
+                        className={styles.paymentInput}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={paymentDrafts[employee.employeeId] ?? ''}
+                        placeholder="Не задана"
+                        aria-label={`Сумма по заказу для ${employee.fullName}`}
+                        onChange={(event) =>
+                          setPaymentDrafts((current) => ({
+                            ...current,
+                            [employee.employeeId]: event.target.value,
+                          }))
+                        }
+                      />
+                      <small>Отдельно от ставки за выход и табеля</small>
+                    </label>
+                    <div className={styles.employeeButtons}>
+                      <Button disabled={saving} onClick={async () => {
                         const raw = (paymentDrafts[employee.employeeId] ?? '').trim();
                         const amount = raw === '' ? null : Number(raw);
                         if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
@@ -265,15 +300,14 @@ export default function OneTimeOrderWorkforcePage({
                           setSaving(false);
                         }
                       }}
-                    >
-                      Сохранить оплату
-                    </button>
-                    <button className={styles.buttonSecondary} type="button" disabled={saving} onClick={async () => {
+                      >Сохранить сумму</Button>
+                      <Button variant="ghost" disabled={saving} onClick={async () => {
                       setSaving(true); setError(null);
                       try { await removeOneTimeWorkforceEmployee(orderId, employee.employeeId); await reloadWorkforce(); }
                       catch (saveError) { setError(errorText(saveError)); }
                       finally { setSaving(false); }
-                    }}>Убрать</button>
+                      }}>Убрать из состава</Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -281,10 +315,10 @@ export default function OneTimeOrderWorkforcePage({
           </div>
         </section>
 
-        <section className={styles.card}>
+        <section className={styles.card} id="attendance">
           <header className={styles.head}>
-            <div><h2>Присутствие и корректировки</h2><p>{attendance ? shortDate(attendance.operationDate) : 'Выберите дату'} · дневная ставка фиксируется на дату выхода.</p></div>
-            <span>{attendance?.workCycle ? `Цикл ${attendance.workCycle}` : ''}</span>
+            <div><h2>Отметить выход</h2><p>{attendance ? shortDate(attendance.operationDate) : 'Выберите дату'}{attendance?.workCycle ? ` · цикл ${attendance.workCycle}` : ''}</p></div>
+            {attendance?.submittedAt ? <span className={styles.savedMark}>Сохранено</span> : null}
           </header>
           <div className={styles.body}>
             <label className={styles.dateField}>
@@ -301,7 +335,7 @@ export default function OneTimeOrderWorkforcePage({
                 }).catch((loadError) => setError(errorText(loadError))).finally(() => setSaving(false));
               }} />
             </label>
-            {attendance?.submittedAt ? <div className={styles.status}>Последняя отметка: {attendance.submittedBy?.fullName ?? 'пользователь'} · {new Date(attendance.submittedAt).toLocaleString('ru-RU')}</div> : null}
+            {attendance?.submittedAt ? <div className={styles.savedBy}>Отметил: {attendance.submittedBy?.fullName ?? 'пользователь'} · {new Date(attendance.submittedAt).toLocaleString('ru-RU')}</div> : null}
             {(attendance?.employees ?? []).length === 0 ? <div className={styles.empty}>Сначала добавьте сотрудников в состав заказа.</div> : (attendance?.employees ?? []).map((employee) => (
               <label className={styles.attendanceRow} key={employee.employeeId}>
                 <input className={styles.checkbox} type="checkbox" checked={selected.has(employee.employeeId)} onChange={(event) => {
@@ -319,8 +353,8 @@ export default function OneTimeOrderWorkforcePage({
                 <textarea className={styles.input} rows={2} maxLength={500} value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} placeholder="Укажите, почему корректируете отметку" />
               </label>
             ) : null}
-            <div style={{ marginTop: 14 }}>
-              <button className={styles.button} type="button" disabled={saving || (attendance?.employees.length ?? 0) === 0 || (Boolean(attendance?.submittedAt) && !correctionReason.trim())} onClick={async () => {
+            <div className={styles.formActions}>
+              <Button variant="primary" disabled={saving || (attendance?.employees.length ?? 0) === 0 || (Boolean(attendance?.submittedAt) && !correctionReason.trim())} pending={saving} pendingLabel="Сохраняем…" onClick={async () => {
                 setSaving(true); setError(null);
                 try {
                   const saved = await submitTodayOneTimeAttendance(orderId, Array.from(selected), attendanceDate || undefined, correctionReason.trim() || undefined);
@@ -329,56 +363,68 @@ export default function OneTimeOrderWorkforcePage({
                   setTimesheet(await getOneTimeTimesheet(orderId, month));
                   setCoverage(await getOneTimeAttendanceCoverage(orderId));
                 } catch (saveError) { setError(errorText(saveError)); } finally { setSaving(false); }
-              }}>Сохранить отметку</button>
+              }}>Сохранить отметку</Button>
             </div>
           </div>
         </section>
       </div>
 
-      <section className={styles.card}>
+      <section className={styles.card} id="coverage">
         <header className={styles.head}>
-          <div><h2>Контроль отметок по периоду заказа</h2><p>Показываем только отсутствие сохранённой отметки в явно заданном окне выполнения — это не означает, что сотрудник должен был выходить в каждый календарный день.</p></div>
-          <strong>{coverage?.missingDates.length ?? 0} без отметки</strong>
+          <div><h2>Контроль отметок</h2></div>
+          <span className={styles.count}>{coverage?.missingDates.length ?? 0} без отметки</span>
         </header>
         <div className={styles.body}>
           {!coverage?.startDate || !coverage.endDate ? (
-            <div className={styles.empty}>У заказа не задан период выполнения. Чтобы выявлять даты без отметок, укажите дату или период в карточке заказа.</div>
+            <div className={styles.empty}>Укажите период выполнения в карточке заказа, чтобы видеть даты без отметок.</div>
           ) : coverage.missingDates.length === 0 ? (
             <div className={styles.empty}>В периоде {shortDate(coverage.startDate)} — {shortDate(coverage.endDate)} отметки сохранены на все даты.</div>
           ) : (
             <div className={styles.missingDates}>{coverage.missingDates.map((date) => <span key={date}>{shortDate(date)}</span>)}</div>
           )}
+          <details className={styles.details}>
+            <summary>Как считаются даты без отметки</summary>
+            <p>Сравниваются только даты внутри периода выполнения заказа. Это не означает, что сотрудник должен был выходить каждый календарный день.</p>
+          </details>
           {coverage?.history.length ? (
-            <div className={styles.correctionHistory}>
-              <h3>История отметок и исправлений</h3>
-              {coverage.history.map((entry, index) => (
-                <article key={`${entry.at}-${index}`}>
-                  <strong>{shortDate(entry.operationDate)} · {entry.action.endsWith('corrected') ? 'Исправление' : 'Первичная отметка'}</strong>
-                  <span>{entry.actor} · {new Date(entry.at).toLocaleString('ru-RU')}</span>
-                  {entry.reason ? <span>Причина: {entry.reason}</span> : null}
-                  {entry.previousPresentEmployees.length ? <span>Было: {entry.previousPresentEmployees.join(', ')}</span> : null}
-                  <span>Стало: {entry.presentEmployees.length ? entry.presentEmployees.join(', ') : 'никто не отмечен'}</span>
-                </article>
-              ))}
-            </div>
+            <details className={styles.correctionHistory}>
+              <summary>История отметок и исправлений · {coverage.history.length}</summary>
+              <div className={styles.historyList}>
+                {coverage.history.map((entry, index) => (
+                  <article key={`${entry.at}-${index}`}>
+                    <strong>{shortDate(entry.operationDate)} · {entry.action.endsWith('corrected') ? 'Исправление' : 'Первичная отметка'}</strong>
+                    <span>{entry.actor} · {new Date(entry.at).toLocaleString('ru-RU')}</span>
+                    {entry.reason ? <span>Причина: {entry.reason}</span> : null}
+                    {entry.previousPresentEmployees.length ? <span>Было: {entry.previousPresentEmployees.join(', ')}</span> : null}
+                    <span>Стало: {entry.presentEmployees.length ? entry.presentEmployees.join(', ') : 'никто не отмечен'}</span>
+                  </article>
+                ))}
+              </div>
+            </details>
           ) : null}
         </div>
       </section>
 
-      <section className={styles.card}>
+      <section className={styles.card} id="timesheet">
         <header className={styles.head}>
-          <div><h2>Табель разового заказа</h2><p>Исторические значения фиксируются по дням и не зависят от последующего изменения состава.</p></div>
+          <div><h2>Табель выходов</h2><p>Сохранённые выходы и суммы по дням</p></div>
           <div className={styles.exportControls}>
             <MonthPeriodPicker
               year={Number(month.slice(0, 4))}
               month={Number(month.slice(5, 7))}
               onChange={(year, nextMonth) => setMonth(`${year}-${String(nextMonth).padStart(2, '0')}`)}
             />
-            <select className={styles.input} value={exportEmployeeId} onChange={(event) => setExportEmployeeId(event.target.value)} aria-label="Сотрудник для выгрузки">
-              <option value="">Все сотрудники</option>
-              {workforce.map((employee) => <option key={employee.employeeId} value={employee.employeeId}>{employee.fullName}</option>)}
-            </select>
-            <button className={styles.buttonSecondary} type="button" disabled={exporting} onClick={() => {
+            <SearchableSelect
+              label="Сотрудник"
+              value={exportEmployeeId}
+              options={exportEmployeeOptions}
+              placeholder="Все сотрудники"
+              searchPlaceholder="Найти сотрудника"
+              emptyText="Сотрудник не найден"
+              clearable={false}
+              onChange={setExportEmployeeId}
+            />
+            <Button disabled={exporting} pending={exporting} pendingLabel="Готовим Excel…" onClick={() => {
               setExporting(true); setError(null);
               void downloadOneTimeWorkforceExcel({ orderId, month, employeeId: exportEmployeeId || undefined }).then((blob) => {
                 const url = URL.createObjectURL(blob);
@@ -388,21 +434,21 @@ export default function OneTimeOrderWorkforcePage({
                 anchor.click();
                 window.setTimeout(() => URL.revokeObjectURL(url), 0);
               }).catch((exportError) => setError(errorText(exportError))).finally(() => setExporting(false));
-            }}>{exporting ? 'Готовим Excel…' : 'Скачать Excel'}</button>
+            }}>Скачать Excel</Button>
           </div>
         </header>
         <div className={styles.body}>
           {(timesheet?.rows ?? []).length === 0 ? <div className={styles.empty}>За выбранный месяц сохранённых выходов пока нет.</div> : (
             <div className={styles.timesheetWrap}>
               <table className={styles.table}>
-                <thead><tr><th>Сотрудник</th>{dayColumns.map((date) => <th key={date}>{date.slice(8, 10)}</th>)}<th>Итого</th></tr></thead>
+                <thead><tr><th>Сотрудник</th>{dayColumns.map((date) => <th key={date}>{date.slice(8, 10)}</th>)}<th>Начислено</th><th>Выплачено</th><th>Не подтверждено</th><th>Остаток</th></tr></thead>
                 <tbody>
                   {timesheet?.rows.map((row) => {
                     const byDate = new Map(row.days.map((day) => [day.operationDate.slice(0, 10), day]));
                     return <tr key={row.employeeId}><td>{row.fullName}</td>{dayColumns.map((date) => {
                       const day = byDate.get(date);
                       return <td className={day?.present ? styles.present : styles.absent} key={date}>{day ? money(day.finalValue) : '—'}</td>;
-                    })}<td className={styles.total}>{money(row.total)}</td></tr>;
+                    })}<td className={styles.total}>{money(row.total)}</td><td>{money(row.paidTotal)}</td><td>{money(row.pendingPayoutTotal)}</td><td>{row.paidTotal === null ? '—' : money(row.total - row.paidTotal)}</td></tr>;
                   })}
                 </tbody>
               </table>

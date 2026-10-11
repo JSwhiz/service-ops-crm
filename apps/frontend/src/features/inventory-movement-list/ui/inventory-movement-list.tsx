@@ -132,21 +132,21 @@ export function InventoryMovementList({
               <div>{getUserDisplayName(item.createdBy)}</div>
             </div>
             <div>
-              <div className="page-muted">Статус evidence</div>
+              <div className="page-muted">Фото и подтверждение</div>
               <div>
                 {item.projection.hasEvidence
-                  ? 'Подтверждение приложено'
+                  ? 'Фото или файл приложены'
                   : item.projection.approvalBridgeResolvedAt
-                    ? `Подтверждено без фото${
+                    ? `Отсутствие фото согласовано${
                         item.projection.approvalBridgeResolvedBy
-                          ? `: ${getUserDisplayName(
+                          ? ` · ${getUserDisplayName(
                               item.projection.approvalBridgeResolvedBy,
                             )}`
                           : ''
                       }`
                   : item.projection.requiresApprovalBridge
-                    ? 'Нужно подтверждение исключения'
-                    : 'Без вложений'}
+                    ? 'Ожидает согласования отсутствия фото'
+                    : 'Фото и файлы не приложены'}
               </div>
             </div>
           </div>
@@ -159,10 +159,7 @@ export function InventoryMovementList({
           ) : null}
 
           {item.projection.isSensitive ? (
-            <div className="page-muted">
-              Чувствительное действие: требует повышенного внимания в audit и
-              approval bridge.
-            </div>
+            <div className="page-muted">Операция требует дополнительного контроля.</div>
           ) : null}
 
           {item.approvalRequest ? (
