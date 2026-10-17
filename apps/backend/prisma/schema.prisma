@@ -435,12 +435,18 @@ model Object {
   paymentType             String    @default("daily")
   dailyRate               Int       @default(0)
   monthlySalary           Int       @default(0)
+  paymentScheduleCode     String?
+  paymentScheduleWeekdays String[]  @default([])
   summerPaymentType       String    @default("daily")
   summerDailyRate         Int       @default(0)
   summerMonthlySalary     Int       @default(0)
+  summerScheduleCode      String?
+  summerScheduleWeekdays  String[]  @default([])
   winterPaymentType       String    @default("daily")
   winterDailyRate         Int       @default(0)
   winterMonthlySalary     Int       @default(0)
+  winterScheduleCode      String?
+  winterScheduleWeekdays  String[]  @default([])
   notes                   String?
   counterpartyId          String?
   masterForCounterpartyId String?   @unique
@@ -459,6 +465,7 @@ model Object {
   comments                  ObjectComment[]
   tasks                     Task[]
   employeeAssignments       ObjectEmployeeAssignment[]
+  compensationRates         ObjectCompensationRate[]
   employeeAssignmentHistory EmployeeObjectAssignmentHistory[]
   employeeSubstitutions     EmployeeSubstitution[]
   linkedOneTimeOrders       OneTimeOrder[]
@@ -787,8 +794,10 @@ model ObjectEmployeeAssignment {
   startDate                     DateTime?
   endDate                       DateTime?
   ratePolicyType                String    @default("daily_rate")
+  rateOptionId                  String?
   ratePolicyBaseAmount          Int?
   ratePolicyScheduleCode        String?
+  ratePolicyWeekdays            String[]  @default([])
   ratePolicyRoundingMode        String?
   ratePolicyRoundingStep        Int?
   ratePolicyStandardShiftHours  Float?
@@ -802,11 +811,40 @@ model ObjectEmployeeAssignment {
 
   object   Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
   employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  rateOption ObjectCompensationRate? @relation(fields: [rateOptionId], references: [id], onDelete: SetNull)
 
   @@unique([objectId, employeeId])
   @@index([objectId])
   @@index([employeeId])
   @@map("object_employee_assignments")
+}
+
+model ObjectCompensationRate {
+  id                String   @id @default(uuid())
+  objectId          String
+  name              String
+  category          String   @default("standard")
+  ratePolicyType    String
+  baseAmount        Int
+  scheduleCode      String?
+  scheduleWeekdays  String[] @default([])
+  standardShiftHours Float  @default(8)
+  notes             String?
+  isActive          Boolean  @default(true)
+  effectiveFrom     DateTime @default(now())
+  effectiveTo       DateTime?
+  createdByUserId   String
+  updatedByUserId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  object      Object                     @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  assignments ObjectEmployeeAssignment[]
+
+  @@unique([objectId, name])
+  @@index([objectId, category, isActive])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("object_compensation_rates")
 }
 
 model ObjectArrivalPhoto {

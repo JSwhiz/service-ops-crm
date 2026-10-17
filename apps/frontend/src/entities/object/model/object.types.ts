@@ -16,8 +16,10 @@ export interface ObjectEmployeeOption {
   isAssignedToObject: boolean;
   ratePolicy: {
     ratePolicyType: string;
+    rateOptionId?: string | null;
     baseAmount: number;
     scheduleCode: string | null;
+    scheduleWeekdays: string[];
     roundingMode: string;
     roundingStep: number | null;
     standardShiftHours: number;
@@ -58,15 +60,21 @@ export interface ServiceObject {
   engineeringRequired: boolean;
   winterTractorMode: 'none' | 'with_removal' | 'without_removal';
   instructionSteps: string[];
-  paymentType: 'monthly' | 'daily';
-  dailyRate: number;
-  monthlySalary: number;
-  summerPaymentType: 'monthly' | 'daily';
-  summerDailyRate: number;
-  summerMonthlySalary: number;
-  winterPaymentType: 'monthly' | 'daily';
-  winterDailyRate: number;
-  winterMonthlySalary: number;
+  paymentType: 'monthly' | 'daily' | null;
+  dailyRate: number | null;
+  monthlySalary: number | null;
+  paymentScheduleCode: string | null;
+  paymentScheduleWeekdays: string[];
+  summerPaymentType: 'monthly' | 'daily' | null;
+  summerDailyRate: number | null;
+  summerMonthlySalary: number | null;
+  summerScheduleCode: string | null;
+  summerScheduleWeekdays: string[];
+  winterPaymentType: 'monthly' | 'daily' | null;
+  winterDailyRate: number | null;
+  winterMonthlySalary: number | null;
+  winterScheduleCode: string | null;
+  winterScheduleWeekdays: string[];
   notes: string | null;
   counterparty: {
     id: string;
@@ -96,6 +104,8 @@ export interface ServiceObject {
   capabilities: {
     canEdit: boolean;
     canEditDailyRate: boolean;
+    canViewCompensationRates?: boolean;
+    canManageCompensationRates?: boolean;
     canEditMonthlySalary: boolean;
     canChangeStatus: boolean;
     canManageResponsibles: boolean;
@@ -106,6 +116,7 @@ export interface ServiceObject {
     canManageEmployees: boolean;
     canViewEmployees?: boolean;
     canOperateAttendance?: boolean;
+    canAddExtraShift?: boolean;
   };
 }
 

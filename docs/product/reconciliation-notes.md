@@ -76,7 +76,9 @@
 
 - `deputy_director` получает широкий operational просмотр objects и one-time-orders;
 - `deputy_director` получает широкий task access для создания и назначения задач вне собственного object-manager scope;
-- это не расширяет HR, accountability cash issuance, manual timesheet correction, object daily rate edit и leadership-only visibility.
+- это не расширяет HR, accountability cash issuance, manual timesheet correction и leadership-only visibility;
+- последующее решение заказчика отдельно разрешило `deputy_director` управлять стандартными и сезонными ставками объектов, именными вариантами оплаты и назначениями тарифов сотрудникам; это не дает object-core/budget edit и не позволяет переписывать исторические attendance/timesheet-суммы;
+- назначенный менеджер может записать только дополнительный выход на своем объекте с вручную заданной суммой и обязательным основанием; операция аудируется и уведомляет руководящие роли.
 
 ### Approvals
 

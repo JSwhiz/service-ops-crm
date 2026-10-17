@@ -7,6 +7,8 @@ import type { UpdateObjectPayload } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listObjectResponsibleCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
+import { ObjectCompensationProfiles } from '@/features/object-compensation/ui/object-compensation-profiles';
+import type { ObjectCompensationProfilesValue } from '@/features/object-compensation/ui/object-compensation-profiles';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import {
   SearchableSelect,
@@ -16,14 +18,16 @@ import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-sel
 
 interface ObjectEditFormProps {
   item: ServiceObject;
-  canEditMonthlySalary: boolean;
+  canEditObject: boolean;
+  canManageCompensationRates: boolean;
   canLinkCounterparty: boolean;
   onSubmit: (payload: UpdateObjectPayload) => Promise<void>;
 }
 
 export function ObjectEditForm({
   item,
-  canEditMonthlySalary,
+  canEditObject,
+  canManageCompensationRates,
   canLinkCounterparty,
   onSubmit,
 }: ObjectEditFormProps): React.JSX.Element {
@@ -38,14 +42,20 @@ export function ObjectEditForm({
     winterTractorMode: item.winterTractorMode,
     instructionStepsText: item.instructionSteps.join('\n'),
     paymentType: item.paymentType ?? 'monthly',
-    monthlySalary: String(item.monthlySalary),
-    dailyRate: String(item.dailyRate),
-    summerPaymentType: item.summerPaymentType ?? item.paymentType,
-    summerMonthlySalary: String(item.summerMonthlySalary ?? item.monthlySalary),
-    summerDailyRate: String(item.summerDailyRate ?? item.dailyRate),
-    winterPaymentType: item.winterPaymentType ?? item.paymentType,
-    winterMonthlySalary: String(item.winterMonthlySalary ?? item.monthlySalary),
-    winterDailyRate: String(item.winterDailyRate ?? item.dailyRate),
+    monthlySalary: String(item.monthlySalary ?? 0),
+    dailyRate: String(item.dailyRate ?? 0),
+    paymentScheduleCode: item.paymentScheduleCode ?? '5/2',
+    paymentScheduleWeekdays: item.paymentScheduleWeekdays ?? [],
+    summerPaymentType: item.summerPaymentType ?? item.paymentType ?? 'monthly',
+    summerMonthlySalary: String(item.summerMonthlySalary ?? item.monthlySalary ?? 0),
+    summerDailyRate: String(item.summerDailyRate ?? item.dailyRate ?? 0),
+    summerScheduleCode: item.summerScheduleCode ?? '5/2',
+    summerScheduleWeekdays: item.summerScheduleWeekdays ?? [],
+    winterPaymentType: item.winterPaymentType ?? item.paymentType ?? 'monthly',
+    winterMonthlySalary: String(item.winterMonthlySalary ?? item.monthlySalary ?? 0),
+    winterDailyRate: String(item.winterDailyRate ?? item.dailyRate ?? 0),
+    winterScheduleCode: item.winterScheduleCode ?? '5/2',
+    winterScheduleWeekdays: item.winterScheduleWeekdays ?? [],
     notes: item.notes ?? '',
     counterpartyId: item.counterparty?.id ?? '',
   });
@@ -68,14 +78,20 @@ export function ObjectEditForm({
       winterTractorMode: item.winterTractorMode,
       instructionStepsText: item.instructionSteps.join('\n'),
       paymentType: item.paymentType ?? 'monthly',
-      monthlySalary: String(item.monthlySalary),
-      dailyRate: String(item.dailyRate),
-      summerPaymentType: item.summerPaymentType ?? item.paymentType,
-      summerMonthlySalary: String(item.summerMonthlySalary ?? item.monthlySalary),
-      summerDailyRate: String(item.summerDailyRate ?? item.dailyRate),
-      winterPaymentType: item.winterPaymentType ?? item.paymentType,
-      winterMonthlySalary: String(item.winterMonthlySalary ?? item.monthlySalary),
-      winterDailyRate: String(item.winterDailyRate ?? item.dailyRate),
+      monthlySalary: String(item.monthlySalary ?? 0),
+      dailyRate: String(item.dailyRate ?? 0),
+      paymentScheduleCode: item.paymentScheduleCode ?? '5/2',
+      paymentScheduleWeekdays: item.paymentScheduleWeekdays ?? [],
+      summerPaymentType: item.summerPaymentType ?? item.paymentType ?? 'monthly',
+      summerMonthlySalary: String(item.summerMonthlySalary ?? item.monthlySalary ?? 0),
+      summerDailyRate: String(item.summerDailyRate ?? item.dailyRate ?? 0),
+      summerScheduleCode: item.summerScheduleCode ?? '5/2',
+      summerScheduleWeekdays: item.summerScheduleWeekdays ?? [],
+      winterPaymentType: item.winterPaymentType ?? item.paymentType ?? 'monthly',
+      winterMonthlySalary: String(item.winterMonthlySalary ?? item.monthlySalary ?? 0),
+      winterDailyRate: String(item.winterDailyRate ?? item.dailyRate ?? 0),
+      winterScheduleCode: item.winterScheduleCode ?? '5/2',
+      winterScheduleWeekdays: item.winterScheduleWeekdays ?? [],
       notes: item.notes ?? '',
       counterpartyId: item.counterparty?.id ?? '',
     });
@@ -83,6 +99,13 @@ export function ObjectEditForm({
 
   useEffect(() => {
     let cancelled = false;
+
+    if (!canEditObject) {
+      setResponsibleCandidates([]);
+      setCandidatesError(null);
+      setIsCandidatesLoading(false);
+      return () => { cancelled = true; };
+    }
 
     const loadCandidates = async (): Promise<void> => {
       setIsCandidatesLoading(true);
@@ -105,21 +128,39 @@ export function ObjectEditForm({
 
     void loadCandidates();
     return () => { cancelled = true; };
-  }, [item.id]);
+  }, [item.id, canEditObject]);
+
+  const compensationProfiles: ObjectCompensationProfilesValue = {
+    paymentType: form.paymentType,
+    dailyRate: form.dailyRate,
+    monthlySalary: form.monthlySalary,
+    paymentScheduleCode: form.paymentScheduleCode,
+    paymentScheduleWeekdays: form.paymentScheduleWeekdays,
+    summerPaymentType: form.summerPaymentType as 'monthly' | 'daily',
+    summerDailyRate: form.summerDailyRate,
+    summerMonthlySalary: form.summerMonthlySalary,
+    summerScheduleCode: form.summerScheduleCode,
+    summerScheduleWeekdays: form.summerScheduleWeekdays,
+    winterPaymentType: form.winterPaymentType as 'monthly' | 'daily',
+    winterDailyRate: form.winterDailyRate,
+    winterMonthlySalary: form.winterMonthlySalary,
+    winterScheduleCode: form.winterScheduleCode,
+    winterScheduleWeekdays: form.winterScheduleWeekdays,
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setError(null);
     setSuccess(null);
 
-    if (!form.responsibleUserId) {
+    if (canEditObject && !form.responsibleUserId) {
       setError('Выберите ответственного за объект.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const payload: UpdateObjectPayload = {
+      const payload: UpdateObjectPayload = canEditObject ? {
         name: form.name.trim(),
         internalName: form.internalName.trim(),
         address: form.address.trim(),
@@ -133,22 +174,28 @@ export function ObjectEditForm({
         ...(canLinkCounterparty
           ? { counterpartyId: form.counterpartyId || null }
           : {}),
-      };
+      } : {};
 
-      if (canEditMonthlySalary) {
+      if (canManageCompensationRates) {
         payload.paymentType = form.paymentType as 'monthly' | 'daily';
         payload.monthlySalary = Number(form.monthlySalary) || 0;
         payload.dailyRate = Number(form.dailyRate) || 0;
+        payload.paymentScheduleCode = form.paymentScheduleCode || null;
+        payload.paymentScheduleWeekdays = form.paymentScheduleWeekdays;
         payload.summerPaymentType = form.summerPaymentType;
         payload.summerMonthlySalary = Number(form.summerMonthlySalary) || 0;
         payload.summerDailyRate = Number(form.summerDailyRate) || 0;
+        payload.summerScheduleCode = form.summerScheduleCode || null;
+        payload.summerScheduleWeekdays = form.summerScheduleWeekdays;
         payload.winterPaymentType = form.winterPaymentType;
         payload.winterMonthlySalary = Number(form.winterMonthlySalary) || 0;
         payload.winterDailyRate = Number(form.winterDailyRate) || 0;
+        payload.winterScheduleCode = form.winterScheduleCode || null;
+        payload.winterScheduleWeekdays = form.winterScheduleWeekdays;
       }
 
       await onSubmit(payload);
-      setSuccess('Изменения по объекту сохранены.');
+      setSuccess(canEditObject ? 'Изменения по объекту сохранены.' : 'Условия оплаты сохранены.');
     } catch (caughtError) {
       setError(
         caughtError instanceof Error && caughtError.message
@@ -166,14 +213,14 @@ export function ObjectEditForm({
         <h2 className={styles.title}>Данные объекта</h2>
       </div>
 
-      <section className={styles.formGrid} aria-label="Сезонные профили">
+      <section className={styles.formGrid} aria-label="Сезонные параметры">
         <div className={styles.field}>
           <span className={styles.fieldLabel}>Летний профиль</span>
-          <label><input type="checkbox" checked={form.summerWindowCleaning} onChange={(event) => setForm((prev) => ({ ...prev, summerWindowCleaning: event.target.checked }))} disabled={isSubmitting} /> Мыть окна</label>
+          <label><input type="checkbox" checked={form.summerWindowCleaning} onChange={(event) => setForm((prev) => ({ ...prev, summerWindowCleaning: event.target.checked }))} disabled={!canEditObject || isSubmitting} /> Мыть окна</label>
         </div>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Зимний профиль: трактор</span>
-          <select value={form.winterTractorMode} onChange={(event) => setForm((prev) => ({ ...prev, winterTractorMode: event.target.value as typeof prev.winterTractorMode }))} disabled={isSubmitting}>
+          <select value={form.winterTractorMode} onChange={(event) => setForm((prev) => ({ ...prev, winterTractorMode: event.target.value as typeof prev.winterTractorMode }))} disabled={!canEditObject || isSubmitting}>
             <option value="none">Не нужен</option>
             <option value="with_removal">С вывозом</option>
             <option value="without_removal">Без вывоза</option>
@@ -184,14 +231,25 @@ export function ObjectEditForm({
       <section className={styles.formGrid} aria-label="Дополнительные работы">
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Дополнительные работы</span>
-          <span><input type="checkbox" checked={form.engineeringRequired} onChange={(event) => setForm((prev) => ({ ...prev, engineeringRequired: event.target.checked }))} disabled={isSubmitting} /> Инженерка</span>
+          <span><input type="checkbox" checked={form.engineeringRequired} onChange={(event) => setForm((prev) => ({ ...prev, engineeringRequired: event.target.checked }))} disabled={!canEditObject || isSubmitting} /> Инженерка</span>
         </label>
+      </section>
+
+      <section aria-label="Условия оплаты">
+        <ObjectCompensationProfiles
+          value={compensationProfiles}
+          disabled={!canManageCompensationRates || isSubmitting}
+          onChange={(nextValue) => setForm((previous) => ({ ...previous, ...nextValue }))}
+        />
+        {!canManageCompensationRates ? (
+          <p className={styles.inlineHelp}>У вашей роли нет права изменять условия оплаты объекта.</p>
+        ) : null}
       </section>
 
       <section className={styles.formGrid} aria-label="Инструкции для объекта">
         <label className={`${styles.field} ${styles.fullWidth}`}>
           <span className={styles.fieldLabel}>Постоянные инструкции — один шаг на строку</span>
-          <textarea value={form.instructionStepsText} onChange={(event) => setForm((prev) => ({ ...prev, instructionStepsText: event.target.value }))} disabled={isSubmitting} rows={4} />
+          <textarea value={form.instructionStepsText} onChange={(event) => setForm((prev) => ({ ...prev, instructionStepsText: event.target.value }))} disabled={!canEditObject || isSubmitting} rows={4} />
         </label>
       </section>
 
@@ -201,7 +259,8 @@ export function ObjectEditForm({
           <input
             value={form.name}
             onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-            required
+            required={canEditObject}
+            disabled={!canEditObject || isSubmitting}
           />
         </label>
 
@@ -210,7 +269,8 @@ export function ObjectEditForm({
           <input
             value={form.internalName}
             onChange={(event) => setForm((prev) => ({ ...prev, internalName: event.target.value }))}
-            required
+            required={canEditObject}
+            disabled={!canEditObject || isSubmitting}
           />
         </label>
 
@@ -219,11 +279,12 @@ export function ObjectEditForm({
           <input
             value={form.address}
             onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
-            required
+            required={canEditObject}
+            disabled={!canEditObject || isSubmitting}
           />
         </label>
 
-        {canLinkCounterparty ? (
+        {canEditObject && canLinkCounterparty ? (
           <div className={`${styles.field} ${styles.fullWidth}`}>
             <SearchableSelect
               label="Контрагент"
@@ -260,12 +321,12 @@ export function ObjectEditForm({
               onChange={(counterpartyId) =>
                 setForm((prev) => ({ ...prev, counterpartyId }))
               }
-              disabled={isSubmitting}
+              disabled={!canEditObject || isSubmitting}
             />
           </div>
         ) : null}
 
-        <div className={`${styles.field} ${styles.fullWidth}`}>
+        {canEditObject ? <div className={`${styles.field} ${styles.fullWidth}`}>
           {isCandidatesLoading ? (
             <div className={styles.notice}>Загрузка ответственных...</div>
           ) : candidatesError ? (
@@ -280,7 +341,7 @@ export function ObjectEditForm({
               required
             />
           )}
-        </div>
+        </div> : null}
 
         <div className={styles.field}>
           <SearchableSelect
@@ -294,32 +355,17 @@ export function ObjectEditForm({
             searchable={false}
             clearable={false}
             viewportAware
-            disabled={isSubmitting}
+            disabled={!canEditObject || isSubmitting}
             onChange={(seasonMode) => setForm((prev) => ({ ...prev, seasonMode }))}
           />
         </div>
-
-        <fieldset className={`${styles.field} ${styles.fullWidth}`} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16, border: '1px solid var(--ui-border)', borderRadius: 10, padding: 16 }}>
-          <legend className={styles.fieldLabel}>Оплата по сезонам</legend>
-          {(['summer', 'winter'] as const).map((season) => {
-            const seasonLabel = season === 'summer' ? 'Летняя ставка' : 'Зимняя ставка';
-            const typeKey = season === 'summer' ? 'summerPaymentType' : 'winterPaymentType';
-            const type = season === 'summer' ? form.summerPaymentType : form.winterPaymentType;
-            const amountKey = season === 'summer' ? type === 'monthly' ? 'summerMonthlySalary' : 'summerDailyRate' : type === 'monthly' ? 'winterMonthlySalary' : 'winterDailyRate';
-            return <div className={styles.field} key={season}>
-              <span className={styles.fieldLabel}>{seasonLabel}</span>
-              <SearchableSelect label={`Тип расчёта — ${seasonLabel.toLocaleLowerCase('ru-RU')}`} value={type} options={[{ value: 'monthly', label: 'Фиксированная сумма за месяц' }, { value: 'daily', label: 'Ставка за выход' }]} searchable={false} clearable={false} viewportAware disabled={!canEditMonthlySalary || isSubmitting} onChange={(value) => setForm((previous) => ({ ...previous, [typeKey]: value as 'monthly' | 'daily' }))} />
-              <label className={styles.field}><span className={styles.fieldLabel}>{type === 'monthly' ? 'Сумма за месяц, ₽' : 'За один выход, ₽'}</span><input type="number" min="0" step="1" value={form[amountKey]} onChange={(event) => setForm((previous) => ({ ...previous, [amountKey]: event.target.value }))} disabled={!canEditMonthlySalary || isSubmitting} /></label>
-            </div>;
-          })}
-          {!canEditMonthlySalary ? <span className={styles.inlineHelp}>Изменение условий оплаты доступно только учредителю и директору.</span> : null}
-        </fieldset>
 
         <label className={`${styles.field} ${styles.fullWidth}`}>
           <span className={styles.fieldLabel}>Комментарий</span>
           <textarea
             value={form.notes}
             onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
+            disabled={!canEditObject || isSubmitting}
           />
         </label>
       </div>
@@ -328,8 +374,8 @@ export function ObjectEditForm({
       {success ? <div className={styles.success}>{success}</div> : null}
 
       <div className={styles.actions}>
-        <button type="submit" disabled={isSubmitting || isCandidatesLoading || !form.responsibleUserId}>
-          {isSubmitting ? 'Сохраняем...' : 'Сохранить изменения'}
+        <button type="submit" disabled={isSubmitting || (canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (!canEditObject && !canManageCompensationRates)}>
+          {isSubmitting ? 'Сохраняем...' : canEditObject ? 'Сохранить изменения' : 'Сохранить тарифы'}
         </button>
       </div>
     </form>

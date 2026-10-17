@@ -8,6 +8,7 @@ export interface RatePolicyRecord {
   ratePolicyType?: string | null;
   ratePolicyBaseAmount?: number | null;
   ratePolicyScheduleCode?: string | null;
+  ratePolicyWeekdays?: string[] | null;
   ratePolicyRoundingMode?: string | null;
   ratePolicyRoundingStep?: number | null;
   ratePolicyStandardShiftHours?: number | null;
@@ -70,6 +71,7 @@ export function buildObjectDefaultRatePolicy(params: {
   monthlySalary: number;
   dailyRate: number;
   scheduleCode?: string | null;
+  scheduleWeekdays?: string[];
 }): TimesheetRatePolicySnapshot {
   if (params.paymentType === 'monthly') {
     return normalizeRatePolicy(
@@ -77,6 +79,7 @@ export function buildObjectDefaultRatePolicy(params: {
         ratePolicyType: 'monthly_fixed',
         ratePolicyBaseAmount: params.monthlySalary,
         ratePolicyScheduleCode: params.scheduleCode ?? null,
+        ratePolicyWeekdays: params.scheduleWeekdays ?? [],
       },
       params.monthlySalary,
     );
@@ -87,6 +90,7 @@ export function buildObjectDefaultRatePolicy(params: {
       ratePolicyType: 'daily_rate',
       ratePolicyBaseAmount: params.dailyRate,
       ratePolicyScheduleCode: params.scheduleCode ?? null,
+      ratePolicyWeekdays: params.scheduleWeekdays ?? [],
     },
     params.dailyRate,
   );
@@ -107,6 +111,7 @@ export function normalizeRatePolicy(
     ratePolicyType,
     baseAmount: normalizeMoney(record?.ratePolicyBaseAmount, fallbackAmount),
     scheduleCode: normalizeScheduleCode(record?.ratePolicyScheduleCode),
+    scheduleWeekdays: normalizeScheduleWeekdays(record?.ratePolicyWeekdays),
     roundingMode:
       record?.ratePolicyRoundingMode === 'nearest_step'
         ? 'nearest_step'
@@ -149,6 +154,7 @@ export function parseRatePolicySnapshot(
       typeof record.scheduleCode === 'string'
         ? normalizeScheduleCode(record.scheduleCode)
         : null,
+    scheduleWeekdays: normalizeScheduleWeekdays(record.scheduleWeekdays),
     roundingMode:
       record.roundingMode === 'nearest_step' ? 'nearest_step' : 'none',
     roundingStep:
@@ -385,9 +391,19 @@ export function getPlannedWorkingDays(
   year: number,
   month: number,
   scheduleCode: string | null = null,
+  scheduleWeekdays: string[] = [],
 ): number[] {
   const daysInMonth = new Date(year, month, 0).getDate();
   const normalizedSchedule = normalizeScheduleCode(scheduleCode);
+  const normalizedWeekdays = normalizeScheduleWeekdays(scheduleWeekdays);
+  if (normalizedWeekdays.length > 0) {
+    const weekdayIndexes = new Set(normalizedWeekdays.map((day) => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].indexOf(day)));
+    return Array.from({ length: daysInMonth }, (_, index) => index + 1).filter((dayOfMonth) => {
+      const weekday = new Date(year, month - 1, dayOfMonth).getDay();
+      const mondayBasedIndex = weekday === 0 ? 6 : weekday - 1;
+      return weekdayIndexes.has(mondayBasedIndex);
+    });
+  }
   const workDaysPerWeek = Number(normalizedSchedule?.split('/')[0] ?? 5);
 
   if (workDaysPerWeek >= 7) {
@@ -408,11 +424,13 @@ export function calculateMonthlySalaryDailyRate(params: {
   year: number;
   month: number;
   scheduleCode?: string | null;
+  scheduleWeekdays?: string[];
 }): { dailyRate: number; workingDays: number } {
   const workingDays = getPlannedWorkingDays(
     params.year,
     params.month,
     params.scheduleCode ?? null,
+    params.scheduleWeekdays ?? [],
   ).length;
   const monthlySalary = Math.max(0, Math.round(params.monthlySalary));
 
@@ -429,7 +447,7 @@ function buildSchedulePaidDays(
   _daysInMonth: number,
   policy: TimesheetRatePolicySnapshot,
 ): number[] {
-  return getPlannedWorkingDays(year, month, policy.scheduleCode);
+  return getPlannedWorkingDays(year, month, policy.scheduleCode, policy.scheduleWeekdays ?? []);
 }
 
 function buildShift22Days(daysInMonth: number): number[] {
@@ -459,6 +477,12 @@ function normalizeScheduleCode(value: string | null | undefined) {
   )
     ? (value as TimesheetRatePolicySnapshot['scheduleCode'])
     : null;
+}
+
+function normalizeScheduleWeekdays(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const valid = new Set(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+  return [...new Set(value.filter((day): day is string => typeof day === 'string' && valid.has(day)))];
 }
 
 function normalizeMoney(value: number | null | undefined, fallback: number): number {

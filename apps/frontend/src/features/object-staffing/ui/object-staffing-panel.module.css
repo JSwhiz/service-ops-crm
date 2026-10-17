@@ -161,6 +161,117 @@
   margin-bottom: 12px;
 }
 
+.rateCatalogHeader p {
+  margin: 0;
+}
+
+.rateCatalogHeader h3 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: 14px;
+}
+
+.scheduleEditor {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.scheduleEditor small {
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.weekdayPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.weekdayPicker label {
+  position: relative;
+  cursor: pointer;
+}
+
+.weekdayPicker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.weekdayPicker span {
+  display: grid;
+  min-width: 34px;
+  min-height: 32px;
+  place-items: center;
+  padding: 0 7px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.weekdayPicker input:checked + span {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-subtle);
+  color: var(--ui-accent);
+}
+
+.weekdayPicker input:focus-visible + span {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+.rateCatalogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.rateCatalogHeader > div {
+  display: grid;
+  gap: 3px;
+}
+
+.rateCatalog {
+  display: grid;
+  border-top: 1px solid var(--ui-border);
+}
+
+.rateOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.rateOption > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rateOption span,
+.rateOption small {
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+}
+
+.rateOptionActions {
+  display: flex;
+  gap: 7px;
+}
+
 @media (max-width: 760px) {
   .employeeCard {
     align-items: stretch;
@@ -189,6 +300,16 @@
   .ratePolicyGrid,
   .directoryGrid {
     grid-template-columns: 1fr;
+  }
+
+  .rateCatalogHeader,
+  .rateOption {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rateOptionActions > button {
+    flex: 1;
   }
 
   .fullWidth {

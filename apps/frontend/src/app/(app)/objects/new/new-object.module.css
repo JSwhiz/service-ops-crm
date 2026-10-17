@@ -62,7 +62,7 @@
 
 .conditionsGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   align-items: start;
 }
@@ -252,33 +252,6 @@
   background: #f4efeb;
   box-shadow: none;
   transform: none;
-}
-
-.moneyField {
-  position: relative;
-  min-width: 0;
-}
-
-.moneyField input {
-  appearance: textfield;
-  padding-right: 34px !important;
-  font-variant-numeric: tabular-nums;
-}
-
-.moneyField input::-webkit-outer-spin-button,
-.moneyField input::-webkit-inner-spin-button {
-  margin: 0;
-  appearance: none;
-}
-
-.moneyField > span {
-  position: absolute;
-  top: 50%;
-  right: 11px;
-  color: #8b7f77;
-  font-size: 13px;
-  transform: translateY(-50%);
-  pointer-events: none;
 }
 
 .managerPopover {

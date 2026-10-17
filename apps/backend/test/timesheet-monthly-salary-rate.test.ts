@@ -34,6 +34,24 @@ test('planned workdays respect the configured weekly schedule', () => {
   assert.equal(getPlannedWorkingDays(2026, 2, '7/0').length, 28);
 });
 
+test('custom weekdays count the actual dates in the selected month', () => {
+  assert.deepEqual(
+    getPlannedWorkingDays(2026, 2, '5/2', ['mon']),
+    [2, 9, 16, 23],
+  );
+  assert.equal(getPlannedWorkingDays(2026, 2, '5/2', ['mon', 'wed']).length, 8);
+  assert.equal(
+    calculateMonthlySalaryDailyRate({
+      monthlySalary: 80_000,
+      year: 2026,
+      month: 2,
+      scheduleCode: '5/2',
+      scheduleWeekdays: ['mon', 'wed'],
+    }).dailyRate,
+    10_000,
+  );
+});
+
 test('zero monthly salary never produces an invalid day rate', () => {
   assert.deepEqual(
     calculateMonthlySalaryDailyRate({

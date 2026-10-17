@@ -444,6 +444,7 @@ export default function ObjectDetailPage({
                     initialEmployeeIds={attendanceEmployeeIds}
                     initialEmployeeFacts={attendanceEmployeeFacts}
                     canEditRates={item.capabilities.canEditDailyRate}
+                    canAddExtraShift={item.capabilities.canAddExtraShift ?? false}
                     operationDate={todayAsBusinessDate()}
                     onSave={async (payload) => {
                       await upsertObjectAttendance(objectId, payload);
@@ -470,6 +471,7 @@ export default function ObjectDetailPage({
               <ObjectPanelError title="Состав сотрудников объекта" message={assignedEmployeesError} />
             ) : (
               <ObjectStaffingPanel
+                object={item}
                 assignedEmployees={assignedEmployees}
                 directoryEmployees={directoryEmployees}
                 search={employeeSearch}
@@ -489,7 +491,8 @@ export default function ObjectDetailPage({
                   await Promise.all(reloads);
                 }}
                 canManageAssignments={item.capabilities.canManageEmployees}
-                canManageRatePolicy={item.capabilities.canEditDailyRate}
+                canViewRateOptions={item.capabilities.canManageCompensationRates || item.capabilities.canViewOperationalSections}
+                canManageRatePolicy={item.capabilities.canManageCompensationRates ?? item.capabilities.canEditDailyRate}
                 onUpdateRatePolicy={async (employeeId, payload) => {
                   await updateObjectEmployeeRatePolicy(objectId, employeeId, payload);
                   await Promise.all([loadAssignedEmployees(objectId), loadAttendance(objectId)]);

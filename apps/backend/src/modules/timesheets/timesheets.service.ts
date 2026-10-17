@@ -110,6 +110,8 @@ export class TimesheetsService {
         paymentType: true,
         dailyRate: true,
         monthlySalary: true,
+        paymentScheduleCode: true,
+        paymentScheduleWeekdays: true,
       },
     });
 
@@ -208,6 +210,8 @@ export class TimesheetsService {
           paymentType: object.paymentType as 'monthly' | 'daily',
           monthlySalary: object.monthlySalary,
           dailyRate: object.dailyRate,
+          scheduleCode: object.paymentScheduleCode,
+          scheduleWeekdays: object.paymentScheduleWeekdays,
         });
       const autoValues = calculateTimesheetAutoValues({
         year: query.year,
@@ -511,7 +515,7 @@ export class TimesheetsService {
     const objectWhere = this.buildTimesheetObjectWhere(currentUser, query.objectId);
     const objects = await this.prisma.object.findMany({
       where: objectWhere,
-      select: { id: true, name: true, paymentType: true, dailyRate: true, monthlySalary: true },
+      select: { id: true, name: true, paymentType: true, dailyRate: true, monthlySalary: true, paymentScheduleCode: true, paymentScheduleWeekdays: true },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
     const objectIds = objects.map((object) => object.id);
@@ -1467,6 +1471,8 @@ export class TimesheetsService {
         paymentType: true,
         dailyRate: true,
         monthlySalary: true,
+        paymentScheduleCode: true,
+        paymentScheduleWeekdays: true,
       },
     });
     const currentRatePolicy = await this.loadRatePolicyForEmployee({
@@ -1899,6 +1905,8 @@ export class TimesheetsService {
         paymentType: true,
         dailyRate: true,
         monthlySalary: true,
+        paymentScheduleCode: true,
+        paymentScheduleWeekdays: true,
       },
     });
     const rows = await this.prisma.timesheetEmployeeRow.findMany({
@@ -2061,6 +2069,11 @@ export class TimesheetsService {
       return new Map();
     }
 
+    const objectSchedule = await client.object.findUnique({
+      where: { id: params.objectId },
+      select: { paymentScheduleCode: true, paymentScheduleWeekdays: true },
+    });
+
     const assignments = await client.objectEmployeeAssignment.findMany({
       where: {
         objectId: params.objectId,
@@ -2079,13 +2092,18 @@ export class TimesheetsService {
 
     return new Map(
       assignments.map((assignment) => {
+        const assignedWeekdays = assignment.ratePolicyUpdatedAt
+          ? assignment.ratePolicyWeekdays
+          : objectSchedule?.paymentScheduleWeekdays ?? [];
+        const effectiveScheduleCode = assignment.ratePolicyScheduleCode ?? objectSchedule?.paymentScheduleCode;
         const fallback = this.getObjectPayrollFallback({
           paymentType: params.objectPaymentType,
           monthlySalary: params.objectMonthlySalary,
           dailyRate: params.objectDailyRate,
           year: params.year,
           month: params.month,
-          scheduleCode: assignment.ratePolicyScheduleCode,
+          scheduleCode: effectiveScheduleCode,
+          scheduleWeekdays: assignedWeekdays,
         }).dailyRate;
         const policy = assignment.ratePolicyUpdatedAt
           ? normalizeRatePolicy(assignment as RatePolicyRecord, fallback)
@@ -2093,7 +2111,8 @@ export class TimesheetsService {
               paymentType: params.objectPaymentType,
               monthlySalary: params.objectMonthlySalary,
               dailyRate: params.objectDailyRate,
-              scheduleCode: assignment.ratePolicyScheduleCode,
+              scheduleCode: effectiveScheduleCode,
+              scheduleWeekdays: assignedWeekdays,
             });
 
         return [assignment.employeeId, policy];
@@ -2122,14 +2141,19 @@ export class TimesheetsService {
       client: params.client,
     });
 
-    return (
-      policies.get(params.employeeId) ??
-      buildObjectDefaultRatePolicy({
-        paymentType: params.objectPaymentType,
-        monthlySalary: params.objectMonthlySalary,
-        dailyRate: params.objectDailyRate,
-      })
-    );
+    const assignedPolicy = policies.get(params.employeeId);
+    if (assignedPolicy) return assignedPolicy;
+    const schedule = await params.client.object.findUnique({
+      where: { id: params.objectId },
+      select: { paymentScheduleCode: true, paymentScheduleWeekdays: true },
+    });
+    return buildObjectDefaultRatePolicy({
+      paymentType: params.objectPaymentType,
+      monthlySalary: params.objectMonthlySalary,
+      dailyRate: params.objectDailyRate,
+      scheduleCode: schedule?.paymentScheduleCode,
+      scheduleWeekdays: schedule?.paymentScheduleWeekdays ?? [],
+    });
   }
 
   private normalizeStoredPolicySnapshot(
@@ -2258,12 +2282,14 @@ export class TimesheetsService {
     year: number;
     month: number;
     scheduleCode?: string | null;
+    scheduleWeekdays?: string[];
   }): { dailyRate: number; workingDays: number } {
     const calculated = calculateMonthlySalaryDailyRate({
       monthlySalary: params.monthlySalary,
       year: params.year,
       month: params.month,
       scheduleCode: params.scheduleCode ?? null,
+      scheduleWeekdays: params.scheduleWeekdays ?? [],
     });
 
     return {

@@ -10,6 +10,8 @@ import {
   type SystemUserOption,
 } from '@/entities/user/api/user-client';
 import { useAuth } from '@/shared/auth/use-auth';
+import { ObjectCompensationProfiles } from '@/features/object-compensation/ui/object-compensation-profiles';
+import type { ObjectCompensationProfilesValue } from '@/features/object-compensation/ui/object-compensation-profiles';
 import {
   getUserDisplayName,
   getUserSecondaryLabel,
@@ -303,11 +305,6 @@ const SEASON_OPTIONS: CompactSelectOption[] = [
   { value: 'winter', label: 'Зимний' },
 ];
 
-const PAYMENT_OPTIONS: CompactSelectOption[] = [
-  { value: 'monthly', label: 'Фиксированная ЗП за месяц' },
-  { value: 'daily', label: 'Дневная ставка за выход' },
-];
-
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
   const { user } = useAuth();
@@ -324,12 +321,18 @@ export default function NewObjectPage(): React.JSX.Element {
     paymentType: 'monthly' as 'monthly' | 'daily',
     monthlySalary: '0',
     dailyRate: '0',
+    paymentScheduleCode: '5/2',
+    paymentScheduleWeekdays: [] as string[],
     summerPaymentType: 'monthly' as 'monthly' | 'daily',
     summerMonthlySalary: '0',
     summerDailyRate: '0',
+    summerScheduleCode: '5/2',
+    summerScheduleWeekdays: [] as string[],
     winterPaymentType: 'monthly' as 'monthly' | 'daily',
     winterMonthlySalary: '0',
     winterDailyRate: '0',
+    winterScheduleCode: '5/2',
+    winterScheduleWeekdays: [] as string[],
     notes: '',
     instructionStepsText: '',
   });
@@ -347,6 +350,24 @@ export default function NewObjectPage(): React.JSX.Element {
   const allowCreateObject = user?.capabilities?.canCreateObject ?? false;
   const allowLinkCounterparty =
     user?.capabilities?.canLinkCounterpartyObjects ?? false;
+
+  const compensationProfiles: ObjectCompensationProfilesValue = {
+    paymentType: form.paymentType,
+    dailyRate: form.dailyRate,
+    monthlySalary: form.monthlySalary,
+    paymentScheduleCode: form.paymentScheduleCode,
+    paymentScheduleWeekdays: form.paymentScheduleWeekdays,
+    summerPaymentType: form.summerPaymentType,
+    summerDailyRate: form.summerDailyRate,
+    summerMonthlySalary: form.summerMonthlySalary,
+    summerScheduleCode: form.summerScheduleCode,
+    summerScheduleWeekdays: form.summerScheduleWeekdays,
+    winterPaymentType: form.winterPaymentType,
+    winterDailyRate: form.winterDailyRate,
+    winterMonthlySalary: form.winterMonthlySalary,
+    winterScheduleCode: form.winterScheduleCode,
+    winterScheduleWeekdays: form.winterScheduleWeekdays,
+  };
 
   useEffect(() => {
     const loadUsers = async (): Promise<void> => {
@@ -420,12 +441,18 @@ export default function NewObjectPage(): React.JSX.Element {
         paymentType: form.paymentType,
         monthlySalary: Number(form.monthlySalary) || 0,
         dailyRate: Number(form.dailyRate) || 0,
+        paymentScheduleCode: form.paymentScheduleCode,
+        paymentScheduleWeekdays: form.paymentScheduleWeekdays,
         summerPaymentType: form.summerPaymentType,
         summerMonthlySalary: Number(form.summerMonthlySalary) || 0,
         summerDailyRate: Number(form.summerDailyRate) || 0,
+        summerScheduleCode: form.summerScheduleCode,
+        summerScheduleWeekdays: form.summerScheduleWeekdays,
         winterPaymentType: form.winterPaymentType,
         winterMonthlySalary: Number(form.winterMonthlySalary) || 0,
         winterDailyRate: Number(form.winterDailyRate) || 0,
+        winterScheduleCode: form.winterScheduleCode,
+        winterScheduleWeekdays: form.winterScheduleWeekdays,
         notes: form.notes.trim() || undefined,
         counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
         managerUserIds,
@@ -540,22 +567,13 @@ export default function NewObjectPage(): React.JSX.Element {
               disabled={isSubmitting}
             />
 
-            {(['summer', 'winter'] as const).map((season) => {
-              const label = season === 'summer' ? 'Летняя ставка' : 'Зимняя ставка';
-              const type = season === 'summer' ? form.summerPaymentType : form.winterPaymentType;
-              const typeKey = season === 'summer' ? 'summerPaymentType' : 'winterPaymentType';
-              const amountKey = season === 'summer'
-                ? type === 'monthly' ? 'summerMonthlySalary' : 'summerDailyRate'
-                : type === 'monthly' ? 'winterMonthlySalary' : 'winterDailyRate';
-              return <div className={styles.field} key={season}>
-                <span className={styles.fieldLabel}>{label}</span>
-                <CompactSelect label={`Тип расчёта (${label.toLocaleLowerCase('ru-RU')})`} value={type} options={PAYMENT_OPTIONS} onChange={(value) => setForm((previous) => ({ ...previous, [typeKey]: value as 'monthly' | 'daily' }))} disabled={isSubmitting} />
-                <div className={styles.moneyField}>
-                  <input aria-label={`${type === 'monthly' ? 'Зарплата за месяц' : 'Ставка за выход'} — ${label.toLocaleLowerCase('ru-RU')}`} type="number" min="0" step="1" value={form[amountKey]} onChange={(event) => setForm((previous) => ({ ...previous, [amountKey]: event.target.value }))} disabled={isSubmitting} />
-                  <span>{type === 'monthly' ? '₽ / месяц' : '₽ / выход'}</span>
-                </div>
-              </div>;
-            })}
+            <div className={`${styles.fullWidth}`}>
+              <ObjectCompensationProfiles
+                value={compensationProfiles}
+                disabled={isSubmitting}
+                onChange={(nextValue) => setForm((previous) => ({ ...previous, ...nextValue }))}
+              />
+            </div>
           </div>
         </section>
 

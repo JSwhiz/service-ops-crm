@@ -36,6 +36,7 @@ export interface TimesheetRatePolicySnapshot {
   ratePolicyType: TimesheetRatePolicyType;
   baseAmount: number;
   scheduleCode: TimesheetRateScheduleCode | null;
+  scheduleWeekdays?: string[];
   roundingMode: TimesheetRateRoundingMode;
   roundingStep: number | null;
   standardShiftHours: number;
