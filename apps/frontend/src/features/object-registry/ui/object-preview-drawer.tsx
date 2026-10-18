@@ -282,7 +282,7 @@ export function ObjectPreviewDrawer({
 
         <footer className={styles.footer}>
           <Link className={styles.primaryAction} href={`/objects/${item.id}`}>Открыть объект</Link>
-          {item.capabilities.canEdit ? <Link className={styles.actionButton} href={`/objects/${item.id}/edit`}>Редактировать</Link> : null}
+          {item.capabilities.canEdit || item.capabilities.canManageCompensationRates ? <Link className={styles.actionButton} href={`/objects/${item.id}/edit`}>Редактировать</Link> : null}
         </footer>
       </aside>
     </div>

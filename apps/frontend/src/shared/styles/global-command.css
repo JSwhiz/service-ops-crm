@@ -224,7 +224,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #d7cec7;
+  border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface);
   box-shadow: 0 20px 60px rgba(48, 43, 39, 0.2), 0 3px 12px rgba(48, 43, 39, 0.08);

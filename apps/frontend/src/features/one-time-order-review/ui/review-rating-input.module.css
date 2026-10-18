@@ -17,28 +17,28 @@
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
-  color: #ddd4cc !important;
+  color: var(--ui-border) !important;
   cursor: pointer;
   line-height: 1 !important;
   transition: none !important;
 }
 .halfStar[data-side='left'] { margin-right: -1px; }
-.halfStar[data-filled='true'] { color: #b27a43 !important; }
+.halfStar[data-filled='true'] { color: var(--ui-warning) !important; }
 .halfStar:hover:not(:disabled) { color: #8e5d34 !important; }
-.halfStar:focus-visible { z-index: 1; outline: 2px solid #8e7665; outline-offset: -2px; }
+.halfStar:focus-visible { z-index: 1; outline: 2px solid var(--ui-text-secondary); outline-offset: -2px; }
 .halfStar:disabled { cursor: not-allowed; }
 .halfGlyph { position: absolute; top: 1px; left: 0; display: block; width: 28px; color: currentColor; font-size: 23px; line-height: 1.15; pointer-events: none; }
 .halfStar[data-side='right'] .halfGlyph { left: -14px; }
 .glyph {
-  background: linear-gradient(90deg, #b27a43 var(--fill), #ddd4cc var(--fill));
+  background: linear-gradient(90deg, var(--ui-warning) var(--fill), var(--ui-border) var(--fill));
   background-clip: text;
   color: transparent;
   font-size: 23px;
   line-height: 1;
   -webkit-background-clip: text;
 }
-.value { color: #796d65; font-size: 12px; font-weight: 650; }
-.clear { padding: 3px 0; border: 0; background: transparent; color: #796d65; cursor: pointer; font: inherit; font-size: 12px; }
-.clear:hover:not(:disabled) { color: #514740; text-decoration: underline; }
-.clear:focus-visible { outline: 2px solid #8e7665; outline-offset: 2px; border-radius: 3px; }
+.value { color: var(--ui-text-tertiary); font-size: 12px; font-weight: 650; }
+.clear { padding: 3px 0; border: 0; background: transparent; color: var(--ui-text-tertiary); cursor: pointer; font: inherit; font-size: 12px; }
+.clear:hover:not(:disabled) { color: var(--ui-text-secondary); text-decoration: underline; }
+.clear:focus-visible { outline: 2px solid var(--ui-text-secondary); outline-offset: 2px; border-radius: 3px; }
 .clear:disabled { cursor: not-allowed; opacity: .55; }

@@ -26,10 +26,14 @@ import { LinkedOneTimeOrderProjectionDto } from './dto/linked-one-time-order-pro
 import { ObjectArrivalPhotoResponseDto } from './dto/object-arrival-photo-response.dto';
 import { ObjectAttendanceResponseDto } from './dto/object-attendance-response.dto';
 import { ObjectCommentResponseDto } from './dto/object-comment-response.dto';
+import { CreateObjectCompensationRateDto } from './dto/create-object-compensation-rate.dto';
+import { ObjectCompensationRateResponseDto } from './dto/object-compensation-rate-response.dto';
 import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response.dto';
 import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { UpdateObjectEmployeeRatePolicyDto } from './dto/update-object-employee-rate-policy.dto';
+import { UpdateObjectCompensationRateDto } from './dto/update-object-compensation-rate.dto';
+import { UpdateObjectCompensationDefaultsDto } from './dto/update-object-compensation-defaults.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 import { ObjectAttendanceSubmissionService } from './object-attendance-submission.service';
@@ -217,6 +221,42 @@ export class ObjectOperationsController {
       employeeId,
       payload,
     );
+  }
+
+  @Get('compensation-rates')
+  listCompensationRates(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+  ): Promise<ObjectCompensationRateResponseDto[]> {
+    return this.objectOperationsService.listCompensationRates(user, objectId);
+  }
+
+  @Put('compensation')
+  updateCompensationDefaults(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Body() payload: UpdateObjectCompensationDefaultsDto,
+  ): Promise<{ success: true }> {
+    return this.objectOperationsService.updateCompensationDefaults(user, objectId, payload);
+  }
+
+  @Post('compensation-rates')
+  createCompensationRate(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Body() payload: CreateObjectCompensationRateDto,
+  ): Promise<ObjectCompensationRateResponseDto> {
+    return this.objectOperationsService.createCompensationRate(user, objectId, payload);
+  }
+
+  @Put('compensation-rates/:rateId')
+  updateCompensationRate(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Param('rateId') rateId: string,
+    @Body() payload: UpdateObjectCompensationRateDto,
+  ): Promise<ObjectCompensationRateResponseDto> {
+    return this.objectOperationsService.updateCompensationRate(user, objectId, rateId, payload);
   }
 
   @Get('attendance/today')

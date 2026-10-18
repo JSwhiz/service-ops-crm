@@ -22,7 +22,7 @@
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: var(--ui-text-muted, #685d55);
+  color: var(--ui-text-secondary);
   font: inherit;
   font-size: 14px;
   font-weight: 650;
@@ -30,8 +30,9 @@
 }
 
 .root button:hover,
-.root button.active { background: var(--ui-surface-subtle, #f2eae5); color: var(--ui-text, #302923); }
-.root button:focus-visible { outline: 2px solid var(--ui-focus, #8b7566); outline-offset: 1px; }
+.root button:hover,
+.root button.active { background: var(--ui-accent-subtle); color: var(--ui-text); }
+.root button:focus-visible { outline: 2px solid var(--ui-focus-border); outline-offset: 1px; }
 
 @media (max-width: 640px) {
   .root { top: 56px; }

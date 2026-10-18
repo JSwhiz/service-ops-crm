@@ -79,13 +79,19 @@
 
 ---
 
-## 5. Budget / daily rate / finance
+## 5. Budget / compensation / finance
 
-| Action                 | founder | deputy_founder                    | director | corporate_director                | deputy_director      |
-| ---------------------- | ------- | --------------------------------- | -------- | --------------------------------- | -------------------- |
-| View financial block   | yes     | optional by visibility/capability | yes      | optional by visibility/capability | view only if granted |
-| Edit object budget     | yes     | no by default                     | yes      | no by default                     | no                   |
-| Edit object daily rate | yes     | no                                | yes      | no                                | no                   |
+| Action | founder | deputy_founder | director | corporate_director | deputy_director | responsible | manager |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| View financial block | yes | optional by visibility/capability | yes | optional by visibility/capability | view only if granted | scoped | scoped |
+| Edit object budget | yes | no by default | yes | no by default | no | no | no |
+| Manage default, summer and winter object compensation profiles | yes | yes | yes | yes | yes | no | no |
+| Create/edit named employee rate options, including substitution rates | yes | yes | yes | yes | yes | no | no |
+| Assign employee rate option or individual compensation | yes | yes | yes | yes | yes | no | no |
+| Record a manually priced extra shift for an employee on the assigned object | yes | yes | yes | yes | yes | no | yes, assigned object only; amount and reason required; management notified |
+| Edit/clear a historical attendance rate override | founder | no by default | director | no by default | no | no | no |
+
+`deputy_director` receives this explicit narrow rate-management grant but remains outside the leadership circle. It does not grant object-core edit, budget edit, approval authority, or manual historical timesheet correction. Managers can view rates but cannot manage or reassign them; their only exception is recording a new object-scoped extra shift with amount and reason. It is stored through the existing attendance/timesheet snapshot flow and audited; prior facts are not rewritten.
 
 Дополнительные финансовые действия могут выдаваться capability-моделью.
 

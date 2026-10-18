@@ -6,7 +6,7 @@
 }
 
 .label {
-  color: #756b63;
+  color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 650;
   line-height: 1.2;
@@ -17,9 +17,9 @@
   grid-template-columns: 38px minmax(0, 1fr) 38px;
   min-height: 42px;
   overflow: hidden;
-  border: 1px solid #ded9d3;
+  border: 1px solid var(--ui-border);
   border-radius: 9px;
-  background: #fffdfa;
+  background: var(--ui-surface);
 }
 
 .arrowButton,
@@ -32,7 +32,7 @@
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  color: #342e29;
+  color: var(--ui-text);
   font: inherit;
   transform: none;
   transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
@@ -44,9 +44,9 @@
 .monthButton:hover:not(:disabled),
 .todayButton:hover:not(:disabled) {
   border-color: transparent;
-  background: #f7f2ee;
+  background: var(--ui-surface-hover);
   box-shadow: none;
-  color: #342e29;
+  color: var(--ui-text);
   transform: none;
 }
 
@@ -66,7 +66,7 @@
 .todayButton:focus-visible {
   position: relative;
   z-index: 1;
-  outline: 2px solid rgba(111, 87, 71, 0.24);
+  outline: 2px solid rgba(15, 49, 201, 0.24);
   outline-offset: -2px;
 }
 
@@ -81,11 +81,11 @@
 }
 
 .arrowButton:first-child {
-  border-right: 1px solid #eee9e4;
+  border-right: 1px solid var(--ui-border);
 }
 
 .arrowButton:last-child {
-  border-left: 1px solid #eee9e4;
+  border-left: 1px solid var(--ui-border);
 }
 
 .arrowButton svg,
@@ -101,7 +101,7 @@
 .todayButton:disabled {
   cursor: default;
   background: transparent;
-  color: #c1b9b2;
+  color: var(--ui-text-disabled);
   box-shadow: none;
 }
 
@@ -125,7 +125,7 @@
 }
 
 .periodButton svg {
-  color: #8d8177;
+  color: var(--ui-text-tertiary);
 }
 
 .popover {
@@ -135,10 +135,10 @@
   z-index: 90;
   width: 300px;
   overflow: hidden;
-  border: 1px solid #ded9d3;
+  border: 1px solid var(--ui-border);
   border-radius: 10px;
-  background: #fffdfa;
-  box-shadow: 0 14px 34px rgba(55, 45, 38, 0.14);
+  background: var(--ui-surface);
+  box-shadow: 0 14px 34px rgba(40, 49, 71, 0.14);
 }
 
 .yearHeader {
@@ -146,13 +146,13 @@
   grid-template-columns: 36px 1fr 36px;
   align-items: center;
   min-height: 48px;
-  border-bottom: 1px solid #eee9e4;
+  border-bottom: 1px solid var(--ui-border);
   padding: 5px 7px;
 }
 
 .yearHeader strong {
   text-align: center;
-  color: #342e29;
+  color: var(--ui-text);
   font-size: 14px;
   font-weight: 720;
 }
@@ -181,30 +181,30 @@
   border: 1px solid transparent;
   border-radius: 7px;
   cursor: pointer;
-  color: #61574f;
+  color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 650;
 }
 
 .monthButton[data-current='true'] {
-  border-color: #ddd4cc;
-  background: #faf6f2;
-  color: #5f4b3e;
+  border-color: var(--ui-border);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text);
 }
 
 .monthButton[data-selected='true'],
 .monthButton[data-selected='true']:hover {
-  border-color: #6f5747;
-  background: #6f5747;
-  color: #fffdfb;
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
 }
 
 .footer {
   display: flex;
   justify-content: center;
-  border-top: 1px solid #eee9e4;
+  border-top: 1px solid var(--ui-border);
   padding: 8px 10px;
-  background: #fcfaf8;
+  background: var(--ui-surface-subtle);
 }
 
 .todayButton {
@@ -212,7 +212,7 @@
   padding: 0 10px;
   border-radius: 7px;
   cursor: pointer;
-  color: #6f5747;
+  color: var(--ui-accent);
   font-size: 12px;
   font-weight: 680;
 }

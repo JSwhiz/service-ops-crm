@@ -405,12 +405,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d9cec6;
+  border: 1px solid var(--ui-border);
   border-radius: 7px;
   padding: 8px 12px;
-  background: #fffdfb;
+  background: var(--ui-surface);
   box-shadow: none;
-  color: #4c413a;
+  color: var(--ui-text);
   font: inherit;
   font-size: 13px;
   font-weight: 650;
@@ -422,10 +422,10 @@
 }
 
 .page :global(.button-link:hover) {
-  border-color: #cdbfb5;
-  background: #faf7f4;
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface-subtle);
   box-shadow: none;
-  color: #332d29;
+  color: var(--ui-text);
   transform: none;
 }
 
@@ -448,18 +448,18 @@
 .page .createButton:hover {
   border-color: var(--ui-accent-hover);
   background: var(--ui-accent-hover);
-  color: #ffffff;
+  color: var(--ui-text-inverse);
 }
 
 .page :global(.button-link:focus-visible) {
-  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 2px;
-  border-color: #bba99d;
+  border-color: var(--ui-border-strong);
   box-shadow: none;
 }
 
 .page .createButton:focus-visible {
-  border-color: #65564d;
+  border-color: var(--ui-text-secondary);
 }
 
 .pagination button {
@@ -486,7 +486,7 @@
 }
 
 .pagination button:focus-visible {
-  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 2px;
 }
 
@@ -507,7 +507,7 @@
 
 .resultCount,
 .pageNumber {
-  color: #7d736c;
+  color: var(--ui-text-tertiary);
   font-size: 12.5px;
   line-height: 1.35;
 }

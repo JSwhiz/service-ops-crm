@@ -59,13 +59,76 @@ export interface UpsertObjectAttendancePayload {
 export interface UpdateObjectEmployeeRatePolicyPayload {
   ratePolicyType: string;
   baseAmount: number;
-  scheduleCode?: string;
+  scheduleCode?: string | null;
+  scheduleWeekdays?: string[];
+  scheduleCycleStartDate?: string | null;
+  rateOptionId?: string;
   roundingMode?: string;
   roundingStep?: number;
   standardShiftHours?: number;
   workingDaysInMonth?: number;
   excludedHolidayDays?: number;
   notes?: string;
+}
+
+export interface ObjectCompensationRate {
+  id: string;
+  objectId: string;
+  name: string;
+  category: 'standard' | 'substitution';
+  ratePolicyType: 'daily_rate' | 'monthly_fixed';
+  baseAmount: number;
+  scheduleCode: string | null;
+  scheduleWeekdays: string[];
+  scheduleCycleStartDate: string | null;
+  standardShiftHours: number;
+  notes: string | null;
+  isActive: boolean;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  updatedAt: string;
+}
+
+export type SaveObjectCompensationRatePayload = Pick<
+  ObjectCompensationRate,
+  'name' | 'category' | 'ratePolicyType' | 'baseAmount'
+> & Partial<Pick<ObjectCompensationRate, 'scheduleCode' | 'scheduleWeekdays' | 'scheduleCycleStartDate' | 'standardShiftHours' | 'notes' | 'isActive'>>;
+
+export interface UpdateObjectCompensationDefaultsPayload {
+  paymentType?: 'daily' | 'monthly';
+  dailyRate?: number;
+  monthlySalary?: number;
+  paymentScheduleCode?: string | null;
+  paymentScheduleWeekdays?: string[];
+  paymentScheduleCycleStartDate?: string | null;
+  summerPaymentType?: 'daily' | 'monthly';
+  summerDailyRate?: number;
+  summerMonthlySalary?: number;
+  summerScheduleCode?: string | null;
+  summerScheduleWeekdays?: string[];
+  summerScheduleCycleStartDate?: string | null;
+  winterPaymentType?: 'daily' | 'monthly';
+  winterDailyRate?: number;
+  winterMonthlySalary?: number;
+  winterScheduleCode?: string | null;
+  winterScheduleWeekdays?: string[];
+  winterScheduleCycleStartDate?: string | null;
+}
+
+export async function listObjectCompensationRates(objectId: string): Promise<ObjectCompensationRate[]> {
+  return fetcher<ObjectCompensationRate[]>(`/objects/${objectId}/compensation-rates`, { method: 'GET' });
+}
+
+export async function createObjectCompensationRate(objectId: string, payload: SaveObjectCompensationRatePayload): Promise<ObjectCompensationRate> {
+  return fetcher<ObjectCompensationRate>(`/objects/${objectId}/compensation-rates`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateObjectCompensationRate(objectId: string, rateId: string, payload: Partial<SaveObjectCompensationRatePayload>): Promise<ObjectCompensationRate> {
+  return fetcher<ObjectCompensationRate>(`/objects/${objectId}/compensation-rates/${rateId}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function updateObjectCompensationDefaults(objectId: string, payload: UpdateObjectCompensationDefaultsPayload): Promise<{ success: true }> {
+  return fetcher<{ success: true }>(`/objects/${objectId}/compensation`, { method: 'PUT', body: JSON.stringify(payload) });
 }
 
 export async function getTodayArrivalPhoto(

@@ -84,7 +84,7 @@
 
 .app-shell .app-sidebar__link--active,
 .app-shell .app-sidebar__link--active:hover {
-  border-color: #ded6cf;
+  border-color: var(--ui-border);
   background: var(--ui-accent-subtle);
   color: var(--ui-accent);
 }
@@ -176,8 +176,8 @@
   padding: 6px 9px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--ui-radius-sm);
-  background: #302b27;
-  color: #ffffff;
+  background: var(--ui-text);
+  color: var(--ui-text-inverse);
   box-shadow: var(--ui-shadow-popover);
   font-family: var(--ui-font-sans);
   font-size: var(--ui-text-xs);

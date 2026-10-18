@@ -17,7 +17,7 @@
   border: 2px solid var(--ui-surface);
   border-radius: var(--ui-radius-pill);
   background: var(--ui-danger);
-  color: #fff;
+  color: var(--ui-text-inverse);
   font-size: 9px;
   font-weight: 750;
   line-height: 1;

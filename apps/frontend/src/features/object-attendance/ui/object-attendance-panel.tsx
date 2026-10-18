@@ -17,6 +17,7 @@ interface ObjectAttendancePanelProps {
     rateReason: string | null;
   }>;
   canEditRates: boolean;
+  canAddExtraShift?: boolean;
   operationDate: string;
   onSave: (payload: {
     operationDate: string;
@@ -37,6 +38,7 @@ export function ObjectAttendancePanel({
   initialEmployeeIds,
   initialEmployeeFacts,
   canEditRates,
+  canAddExtraShift = false,
   operationDate,
   onSave,
 }: ObjectAttendancePanelProps): React.JSX.Element {
@@ -132,8 +134,8 @@ export function ObjectAttendancePanel({
           return {
             employeeId,
             workedHours: Number(workedHoursById[employeeId] || getDefaultWorkedHours(employeeId)) || 8,
-            ...(specialRate?.type ? { ratePolicyType: specialRate.type, rateAmount: Number(specialRate.amount), rateReason: specialRate.reason.trim() } : {}),
-            ...(!specialRate?.type && (initialFactsById.get(employeeId)?.ratePolicyType === 'complex_shift' || initialFactsById.get(employeeId)?.ratePolicyType === 'side_job') ? { clearRateOverride: true as const } : {}),
+            ...(specialRate?.type && (canEditRates || specialRate.type === 'side_job') ? { ratePolicyType: specialRate.type, rateAmount: Number(specialRate.amount), rateReason: specialRate.reason.trim() } : {}),
+            ...(canEditRates && !specialRate?.type && (initialFactsById.get(employeeId)?.ratePolicyType === 'complex_shift' || initialFactsById.get(employeeId)?.ratePolicyType === 'side_job') ? { clearRateOverride: true as const } : {}),
           };
         }),
       });
@@ -214,17 +216,17 @@ export function ObjectAttendancePanel({
                         onChange={(event) => setWorkedHoursById((current) => ({ ...current, [employee.id]: event.target.value }))}
                       />
                     </label>
-                    {canEditRates ? (
+                    {canEditRates || canAddExtraShift ? (
                       <label className="attendance-hours-control">
-                        <span>Особая ставка на этот выход</span>
+                        <span>{canEditRates ? 'Особая ставка на этот выход' : 'Дополнительный выход'}</span>
                         <select value={specialRateById[employee.id]?.type ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { type: event.target.value as '' | 'complex_shift' | 'side_job', amount: current[employee.id]?.amount ?? '', reason: current[employee.id]?.reason ?? '' } }))}>
                           <option value="">Обычная ставка объекта</option>
-                          <option value="complex_shift">Сложный выход</option>
-                          <option value="side_job">Подработка</option>
+                          {canEditRates ? <option value="complex_shift">Сложный выход</option> : null}
+                          {canAddExtraShift ? <option value="side_job">Дополнительный выход</option> : null}
                         </select>
                       </label>
                     ) : null}
-                    {canEditRates && specialRateById[employee.id]?.type ? (
+                    {(canEditRates || canAddExtraShift) && specialRateById[employee.id]?.type && (canEditRates || specialRateById[employee.id]?.type === 'side_job') ? (
                       <>
                         <label className="attendance-hours-control">
                           <span>Сумма за выход, ₽</span>

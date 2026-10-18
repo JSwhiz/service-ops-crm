@@ -63,7 +63,7 @@
 .secondaryButton svg, .createButton svg { width: 15px; height: 15px; }
 .secondaryButton:hover { border-color: var(--ui-border-hover); background: var(--ui-surface-hover); color: var(--ui-text); }
 .createButton { border-color: var(--ui-accent); background: var(--ui-accent); color: var(--ui-accent-contrast); }
-.createButton:hover { border-color: var(--ui-accent-hover); background: var(--ui-accent-hover); color: #fff; }
+.createButton:hover { border-color: var(--ui-accent-hover); background: var(--ui-accent-hover); color: var(--ui-text-inverse); }
 .resultCount { color: var(--ui-text-tertiary); font-size: 12.5px; line-height: 1.35; }
 .reviewText { max-width: 280px; overflow: hidden; color: var(--ui-text-secondary); font-size: var(--ui-text-sm); line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
 

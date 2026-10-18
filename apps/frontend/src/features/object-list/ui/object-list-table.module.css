@@ -12,12 +12,12 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f8f5f2;
-  box-shadow: inset 0 -1px 0 #e7ded7;
+  background: var(--ui-surface-muted);
+  box-shadow: inset 0 -1px 0 var(--ui-border);
 }
 
 .table.table thead th {
-  color: #746a63;
+  color: var(--ui-text-secondary);
   font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.015em;
@@ -35,7 +35,7 @@
   width: 9px;
   height: 13px;
   flex: 0 0 9px;
-  color: #9e948d;
+  color: var(--ui-text-disabled);
   opacity: 0;
   transition: color 120ms ease, opacity 120ms ease;
 }
@@ -61,7 +61,7 @@
 
 .sortButton:hover .sortIndicator,
 .sortButton[data-active='true'] .sortIndicator {
-  color: #6e625b;
+  color: var(--ui-accent);
   opacity: 0.8;
 }
 
@@ -86,7 +86,7 @@
 .table.table tbody td {
   padding-top: 13px;
   padding-bottom: 13px;
-  border-bottom-color: #ebe5df;
+  border-bottom-color: var(--ui-border);
   vertical-align: middle;
 }
 
@@ -109,10 +109,10 @@
 
 .row:hover td,
 .row:focus-visible td {
-  background: #fbf8f5;
+  background: var(--ui-surface-subtle);
   box-shadow:
-    inset 0 1px 0 #eee6df,
-    inset 0 -1px 0 #eee6df;
+    inset 0 1px 0 var(--ui-surface-muted),
+    inset 0 -1px 0 var(--ui-surface-muted);
 }
 
 .row:focus-visible td,
@@ -131,7 +131,7 @@
 .objectCell strong {
   display: block;
   overflow: hidden;
-  color: #332d29;
+  color: var(--ui-text);
   font-size: 15px;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -145,7 +145,7 @@
   align-items: center;
   gap: 5px;
   overflow: hidden;
-  color: #81736a;
+  color: var(--ui-text-tertiary);
   font-size: 13px;
   line-height: 1.4;
   white-space: nowrap;
@@ -155,20 +155,20 @@
   flex: 0 0 auto;
   max-width: 38%;
   overflow: hidden;
-  color: #71665f;
+  color: var(--ui-text-secondary);
   font-weight: 600;
   text-overflow: ellipsis;
 }
 
 .metaSeparator {
   flex: 0 0 auto;
-  color: #b1a69e;
+  color: var(--ui-border-strong);
 }
 
 .addressText {
   min-width: 0;
   overflow: hidden;
-  color: #8a7e76;
+  color: var(--ui-text-tertiary);
   text-overflow: ellipsis;
 }
 
@@ -179,10 +179,10 @@
   gap: 7px;
   max-width: 100%;
   padding: 4px 8px;
-  border: 1px solid #ded8d2;
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
-  background: #f7f4f1;
-  color: #68615b;
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-tertiary);
   font-size: 13px;
   font-weight: 650;
   line-height: 1.2;
@@ -196,54 +196,54 @@
   height: 6px;
   flex: 0 0 auto;
   border-radius: 2px;
-  background: #8e857d;
+  background: var(--ui-text-tertiary);
 }
 
 .status[data-status='active'] {
-  border-color: #d4ddd2;
-  background: #f1f4ef;
-  color: #4f6354;
+  border-color: var(--ui-success-border);
+  background: var(--ui-success-subtle);
+  color: var(--ui-success);
 }
 
 .status[data-status='active'] .statusDot {
-  background: #738576;
+  background: var(--ui-success);
 }
 
 .status[data-status='frozen'] {
-  border-color: #e2d6c4;
-  background: #f8f3eb;
-  color: #775f40;
+  border-color: var(--ui-warning-border);
+  background: var(--ui-surface-muted);
+  color: var(--ui-warning);
 }
 
 .status[data-status='frozen'] .statusDot {
-  background: #a1835a;
+  background: var(--ui-warning);
 }
 
 .status[data-status='archived'] {
-  border-color: #ddd8d2;
-  background: #f3f1ee;
-  color: #68615b;
+  border-color: var(--ui-border);
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-tertiary);
 }
 
 .status[data-status='archived'] .statusDot {
-  background: #8b827a;
+  background: var(--ui-text-tertiary);
 }
 
 .attention {
-  color: #8d5143;
+  color: var(--ui-danger);
   font-size: 14px;
   font-weight: 650;
 }
 
 .secondary {
-  color: #786d66;
+  color: var(--ui-text-tertiary);
   font-size: 13.5px;
 }
 
 .personText {
   display: block;
   overflow: hidden;
-  color: #4b423c;
+  color: var(--ui-text);
   font-size: 14px;
   line-height: 1.4;
   text-overflow: ellipsis;
@@ -256,7 +256,7 @@
 
 .teamCell strong {
   display: inline;
-  color: #3e3732;
+  color: var(--ui-text);
   font-size: 14.5px;
   line-height: 1.2;
 }
@@ -286,19 +286,19 @@
 }
 
 .todaySignal[data-state='ok'] {
-  color: #647168;
+  color: var(--ui-success);
 }
 
 .todaySignal[data-state='ok'] .signalDot {
-  background: #78917d;
+  background: var(--ui-success);
 }
 
 .todaySignal[data-state='attention'] {
-  color: #85594d;
+  color: var(--ui-warning);
 }
 
 .todaySignal[data-state='attention'] .signalDot {
-  background: #aa7465;
+  background: var(--ui-warning);
 }
 
 .managerSummary {
@@ -312,7 +312,7 @@
 .managerNames {
   min-width: 0;
   overflow: hidden;
-  color: #4b423c;
+  color: var(--ui-text);
   font-size: 14px;
   line-height: 1.4;
   text-overflow: ellipsis;
@@ -322,17 +322,17 @@
 .morePeople {
   flex: 0 0 auto;
   padding: 2px 5px;
-  border: 1px solid #ded5cf;
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
-  background: #f7f3f0;
-  color: #70645c;
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
 }
 
 .updatedCell {
-  color: #5f5751;
+  color: var(--ui-text-secondary);
   font-size: 13.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -449,7 +449,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: #78685e;
+  color: var(--ui-text-secondary);
   font-size: 20px;
   font-weight: 500;
   line-height: 1;
@@ -461,14 +461,14 @@
 .row:hover .openLink,
 .openLink:hover,
 .openLink:focus-visible {
-  background: #f2ece7;
-  color: #4e423a;
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-secondary);
   opacity: 1;
   text-decoration: none;
 }
 
 .openLink:focus-visible {
-  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 1px;
 }
 

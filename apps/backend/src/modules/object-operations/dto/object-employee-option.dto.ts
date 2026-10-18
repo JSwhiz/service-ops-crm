@@ -9,8 +9,11 @@ export class ObjectEmployeeOptionDto {
   isAssignedToObject!: boolean;
   ratePolicy!: {
     ratePolicyType: string;
+    rateOptionId?: string | null;
     baseAmount: number;
     scheduleCode: string | null;
+    scheduleWeekdays: string[];
+    scheduleCycleStartDate: string | null;
     roundingMode: string;
     roundingStep: number | null;
     standardShiftHours: number;

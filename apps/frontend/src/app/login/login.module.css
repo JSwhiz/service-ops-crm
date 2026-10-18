@@ -12,9 +12,9 @@
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(380px, 1.08fr);
   overflow: hidden;
-  border: 1px solid #ddd5ce;
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
-  background: #fffdfb;
+  background: var(--ui-surface);
 }
 
 .brandPane {
@@ -24,8 +24,8 @@
   flex-direction: column;
   min-width: 0;
   padding: 34px;
-  border-right: 1px solid #ddd5ce;
-  background: #ebe5df;
+  border-right: 1px solid var(--ui-border);
+  background: var(--ui-border);
 }
 
 .brandPane::before {
@@ -59,8 +59,8 @@
   display: inline-grid;
   place-items: center;
   border-radius: 8px;
-  background: #5d4b41;
-  color: #fffaf6;
+  background: var(--ui-text);
+  color: var(--ui-surface-subtle);
   font-size: 13px;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -85,7 +85,7 @@
 
 .brandCopy h1 {
   margin: 0;
-  color: #352d28;
+  color: var(--ui-text);
   font-size: clamp(30px, 3.5vw, 44px);
   font-weight: 730;
   letter-spacing: -0.045em;
@@ -104,7 +104,7 @@
   display: grid;
   place-items: center;
   padding: 48px clamp(28px, 5vw, 68px);
-  background: #fffdfb;
+  background: var(--ui-surface);
 }
 
 @media (max-width: 760px) {
@@ -122,7 +122,7 @@
     gap: 30px;
     padding: 22px;
     border-right: 0;
-    border-bottom: 1px solid #ddd5ce;
+    border-bottom: 1px solid var(--ui-border);
   }
 
   .brandCopy {

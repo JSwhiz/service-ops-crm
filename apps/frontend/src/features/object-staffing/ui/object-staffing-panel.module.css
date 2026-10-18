@@ -9,13 +9,13 @@
   display: flex;
   align-items: baseline;
   gap: 7px;
-  color: #4c413a;
+  color: var(--ui-text);
   font-size: 13px;
   font-weight: 700;
 }
 
 .sectionHeading span {
-  color: #92867d;
+  color: var(--ui-text-tertiary);
   font-size: 11.5px;
   font-weight: 650;
 }
@@ -94,7 +94,7 @@
 }
 
 .availabilityText {
-  color: #80655c;
+  color: var(--ui-text-secondary);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -114,7 +114,7 @@
   place-items: center;
   overflow-y: auto;
   padding: 24px;
-  background: rgba(51, 45, 41, 0.34);
+  background: rgb(24 32 43 / 34%);
   backdrop-filter: blur(2px);
 }
 
@@ -125,10 +125,10 @@
   gap: 16px;
   overflow-y: auto;
   padding: 18px;
-  border: 1px solid #dfd5ce;
-  border-radius: 10px;
-  background: #fffdfb;
-  box-shadow: 0 18px 48px rgba(63, 48, 39, 0.14);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-popover);
 }
 
 .modalWide {
@@ -148,7 +148,7 @@
 }
 
 .ratePolicyGrid label > span {
-  color: #685d55;
+  color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 650;
 }
@@ -159,6 +159,216 @@
 
 .feedbackError {
   margin-bottom: 12px;
+}
+
+.rateCatalogHeader p {
+  margin: 0;
+}
+
+.rateCatalogHeader h3 {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: 14px;
+}
+
+.scheduleEditor {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.scheduleModeField {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.scheduleModeField > legend {
+  padding: 0;
+  margin-bottom: 1px;
+}
+
+.scheduleModeChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.scheduleModeChoice {
+  position: relative;
+  cursor: pointer;
+}
+
+.scheduleModeChoice input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.scheduleModeChoice span {
+  display: grid;
+  min-height: 36px;
+  place-items: center;
+  padding: 5px 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.scheduleModeChoice input:checked + span {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-subtle);
+  color: var(--ui-accent);
+}
+
+.scheduleModeChoice input:focus-visible + span {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+.scheduleModeChoice input:disabled + span {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.weekdayMode {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.scheduleError {
+  color: var(--ui-danger) !important;
+}
+
+.scheduleEditor small {
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.scheduleEditor input[type="date"] {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.scheduleEditor input[type="date"]:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+.weekdayPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.weekdayPicker label {
+  position: relative;
+  cursor: pointer;
+}
+
+.weekdayPicker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.weekdayPicker span {
+  display: grid;
+  min-width: 34px;
+  min-height: 32px;
+  place-items: center;
+  padding: 0 7px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.weekdayPicker input:checked + span {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-subtle);
+  color: var(--ui-accent);
+}
+
+.weekdayPicker input:disabled + span {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.weekdayPicker input:focus-visible + span {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+.rateCatalogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.rateCatalogHeader > div {
+  display: grid;
+  gap: 3px;
+}
+
+.rateCatalog {
+  display: grid;
+  border-top: 1px solid var(--ui-border);
+}
+
+.rateOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.rateOption > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rateOption span,
+.rateOption small {
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+}
+
+.rateOptionActions {
+  display: flex;
+  gap: 7px;
 }
 
 @media (max-width: 760px) {
@@ -189,6 +399,16 @@
   .ratePolicyGrid,
   .directoryGrid {
     grid-template-columns: 1fr;
+  }
+
+  .rateCatalogHeader,
+  .rateOption {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rateOptionActions > button {
+    flex: 1;
   }
 
   .fullWidth {

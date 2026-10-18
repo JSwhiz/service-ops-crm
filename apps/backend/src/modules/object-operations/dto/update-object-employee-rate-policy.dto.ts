@@ -1,9 +1,13 @@
 import {
+  ArrayUnique,
+  IsArray,
+  IsDateString,
   IsIn,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
 } from 'class-validator';
@@ -24,7 +28,21 @@ export class UpdateObjectEmployeeRatePolicyDto {
 
   @IsOptional()
   @IsIn(TIMESHEET_RATE_SCHEDULE_CODES)
-  scheduleCode?: string;
+  scheduleCode?: string | null;
+
+  @IsOptional()
+  @IsDateString()
+  scheduleCycleStartDate?: string | null;
+
+  @IsOptional()
+  @IsUUID('4')
+  rateOptionId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], { each: true })
+  scheduleWeekdays?: string[];
 
   @IsOptional()
   @IsIn(TIMESHEET_RATE_ROUNDING_MODES)

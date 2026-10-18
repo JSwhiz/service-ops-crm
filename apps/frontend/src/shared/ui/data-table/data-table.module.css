@@ -2,9 +2,9 @@
   min-width: 0;
   max-width: 100%;
   overflow: auto;
-  border: 1px solid #e9e3de;
-  border-radius: 11px;
-  background: #fff;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
   scrollbar-gutter: stable;
 }
 
@@ -16,7 +16,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  color: #4b423c;
+  color: var(--ui-text-secondary);
   font-family: var(--ui-font-sans);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
@@ -26,7 +26,7 @@
 .table th,
 .table td {
   padding: 13px 14px;
-  border-bottom: 1px solid #ebe5df;
+  border-bottom: 1px solid var(--ui-border);
   text-align: left;
   vertical-align: middle;
 }
@@ -35,9 +35,9 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f8f5f2;
-  box-shadow: inset 0 -1px 0 #e7ded7;
-  color: #746a63;
+  background: var(--ui-surface-muted);
+  box-shadow: inset 0 -1px 0 var(--ui-border);
+  color: var(--ui-text-tertiary);
   font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.015em;
@@ -50,7 +50,7 @@
 }
 
 .table tbody tr:hover > td {
-  background: #fbf8f5;
+  background: var(--ui-surface-hover);
 }
 
 .table tbody tr:last-child > td {

@@ -27,6 +27,19 @@ export const OBJECT_EDIT_ROLES = LEADERSHIP_OBJECT_ROLE_CODES;
 
 export const OBJECT_DAILY_RATE_EDIT_ROLES = [
   'founder',
+  'deputy_founder',
+  'director',
+  'corporate_director',
+  // Deputy director receives only rate-management rights here; this does not
+  // add the role to the leadership circle or grant object-core edit access.
+  'deputy_director',
+] as const;
+
+// A narrower, legacy permission for entering an exceptional rate on an
+// attendance fact. Managing the reusable compensation catalog must not grant
+// authority to rewrite monetary facts.
+export const OBJECT_ATTENDANCE_RATE_OVERRIDE_ROLES = [
+  'founder',
   'director',
 ] as const;
 
@@ -58,6 +71,22 @@ export function canEditObject(roleCodes: string[]): boolean {
 
 export function canEditObjectDailyRate(roleCodes: string[]): boolean {
   return hasAnyRole(roleCodes, OBJECT_DAILY_RATE_EDIT_ROLES);
+}
+
+export function canViewObjectCompensationRates(params: {
+  currentUserId: string;
+  roleCodes: string[];
+  object: {
+    id?: string;
+    createdByUserId: string;
+    assignments: Array<{ userId: string; isActive?: boolean }>;
+  };
+}): boolean {
+  return canEditObjectDailyRate(params.roleCodes) || canViewObjectByScope(params);
+}
+
+export function canOverrideObjectAttendanceRate(roleCodes: string[]): boolean {
+  return hasAnyRole(roleCodes, OBJECT_ATTENDANCE_RATE_OVERRIDE_ROLES);
 }
 
 export function canOverrideFrozenObject(roleCodes: string[]): boolean {

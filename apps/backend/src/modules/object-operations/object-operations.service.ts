@@ -16,14 +16,18 @@ import { CreateObjectInventoryIssueDto } from '../inventory/dto/create-object-in
 import { InventoryMovementResponseDto } from '../inventory/dto/inventory-movement-response.dto';
 import { ObjectInventoryResponseDto } from '../inventory/dto/object-inventory-response.dto';
 import { InventoryService } from '../inventory/inventory.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   buildOneTimeOrderAccessWhere,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import {
   canEditObjectDailyRate,
+  canOverrideObjectAttendanceRate,
   canViewObjectBasicProfile,
   canViewObjectByScope,
+  canViewObjectCompensationRates,
+  LEADERSHIP_OBJECT_ROLE_CODES,
 } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { TimesheetsService } from '../timesheets/timesheets.service';
@@ -34,9 +38,12 @@ import {
   getRatePolicyLabel,
   normalizeRatePolicy,
   parseRatePolicySnapshot,
+  pinRatePolicyProductionCalendar,
 } from '../timesheets/utils/timesheet-rate-policy.util';
+import { getScheduleConfigurationError } from '../timesheets/utils/russian-production-calendar.util';
 
 import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
+import { CreateObjectCompensationRateDto } from './dto/create-object-compensation-rate.dto';
 import { CreateArrivalPhotoDto } from './dto/create-arrival-photo.dto';
 import { CreateObjectCommentDto } from './dto/create-object-comment.dto';
 import { ListEmployeeDirectoryQueryDto } from './dto/list-employee-directory-query.dto';
@@ -44,11 +51,14 @@ import { ListObjectFeedQueryDto } from './dto/list-object-feed-query.dto';
 import { ObjectArrivalPhotoResponseDto } from './dto/object-arrival-photo-response.dto';
 import { ObjectAttendanceResponseDto } from './dto/object-attendance-response.dto';
 import { ObjectCommentResponseDto } from './dto/object-comment-response.dto';
+import { ObjectCompensationRateResponseDto } from './dto/object-compensation-rate-response.dto';
 import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response.dto';
 import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { LinkedOneTimeOrderProjectionDto } from './dto/linked-one-time-order-projection.dto';
 import { UpdateObjectEmployeeRatePolicyDto } from './dto/update-object-employee-rate-policy.dto';
+import { UpdateObjectCompensationRateDto } from './dto/update-object-compensation-rate.dto';
+import { UpdateObjectCompensationDefaultsDto } from './dto/update-object-compensation-defaults.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 
@@ -150,6 +160,7 @@ export class ObjectOperationsService {
     private readonly inventoryService: InventoryService,
     private readonly equipmentService: EquipmentService,
     private readonly timesheetsService: TimesheetsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async getTodayArrivalPhoto(
@@ -424,6 +435,7 @@ export class ObjectOperationsService {
     objectId: string,
   ): Promise<ObjectEmployeeOptionDto[]> {
     await this.assertHrObjectProfileVisible(currentUser, objectId);
+    const canViewRates = await this.canViewCompensationRatesOnObject(currentUser, objectId);
 
     const dayRange = this.getBusinessDayRange(startOfToday());
     const [object, items] = await Promise.all([
@@ -435,6 +447,9 @@ export class ObjectOperationsService {
           paymentType: true,
           dailyRate: true,
           monthlySalary: true,
+          paymentScheduleCode: true,
+          paymentScheduleWeekdays: true,
+          paymentScheduleCycleStartDate: true,
         },
       }),
       this.prisma.objectEmployeeAssignment.findMany({
@@ -487,8 +502,8 @@ export class ObjectOperationsService {
       }),
     ]);
 
-    return items.map((item) =>
-      this.mapObjectEmployeeOption({
+    return items.map((item) => {
+      const mapped = this.mapObjectEmployeeOption({
         employeeId: item.employee.id,
         fullName: item.employee.fullName,
         position: item.employee.position,
@@ -501,18 +516,24 @@ export class ObjectOperationsService {
         objectPaymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
         objectMonthlySalary: object?.monthlySalary ?? 0,
         objectDailyRate: object?.dailyRate ?? 0,
+        objectScheduleCode: object?.paymentScheduleCode ?? null,
+        objectScheduleWeekdays: object?.paymentScheduleWeekdays ?? [],
+        objectScheduleCycleStartDate: object?.paymentScheduleCycleStartDate ?? null,
         ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
           paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
           monthlySalary: object?.monthlySalary ?? 0,
           dailyRate: object?.dailyRate ?? 0,
           operationDate: startOfToday(),
-          scheduleCode: item.ratePolicyScheduleCode,
+          scheduleCode: item.ratePolicyUpdatedAt ? item.ratePolicyScheduleCode : object?.paymentScheduleCode,
+          scheduleWeekdays: item.ratePolicyUpdatedAt ? item.ratePolicyWeekdays : object?.paymentScheduleWeekdays,
+          scheduleCycleStartDate: item.ratePolicyUpdatedAt ? item.ratePolicyScheduleCycleStartDate : object?.paymentScheduleCycleStartDate,
         }),
         availabilityWindows: item.employee.availabilityWindows,
         substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
         substitutionsAsReplacement: item.employee.substitutionsAsReplacement,
-      }),
-    );
+      });
+      return canViewRates ? mapped : { ...mapped, baseDailyRate: null, ratePolicy: null };
+    });
   }
 
   async listLinkedOneTimeOrders(
@@ -688,6 +709,7 @@ export class ObjectOperationsService {
     query: ListEmployeeDirectoryQueryDto,
   ): Promise<ObjectEmployeeOptionDto[]> {
     await this.assertEmployeeAssignmentWritable(currentUser, objectId);
+    const canViewRates = await this.canViewCompensationRatesOnObject(currentUser, objectId);
 
     const dayRange = this.getBusinessDayRange(startOfToday());
     const items = await this.prisma.employee.findMany({
@@ -739,8 +761,8 @@ export class ObjectOperationsService {
       take: 20,
     });
 
-    return items.map((item) =>
-      this.mapObjectEmployeeOption({
+    return items.map((item) => {
+      const mapped = this.mapObjectEmployeeOption({
         employeeId: item.id,
         fullName: item.fullName,
         position: item.position,
@@ -752,8 +774,9 @@ export class ObjectOperationsService {
         availabilityWindows: item.availabilityWindows,
         substitutionsAsPrimary: item.substitutionsAsPrimary,
         substitutionsAsReplacement: item.substitutionsAsReplacement,
-      }),
-    );
+      });
+      return canViewRates ? mapped : { ...mapped, baseDailyRate: null, ratePolicy: null };
+    });
   }
 
   async addEmployeeToObject(
@@ -793,6 +816,34 @@ export class ObjectOperationsService {
     payload: UpdateObjectEmployeeRatePolicyDto,
   ): Promise<ObjectEmployeeOptionDto> {
     await this.assertRatePolicyWritable(currentUser);
+    await this.assertObjectVisible(currentUser, objectId);
+
+    if (payload.rateOptionId) {
+      const rateOption = await this.prisma.objectCompensationRate.findFirst({
+        where: { id: payload.rateOptionId, objectId, isActive: true },
+      });
+      if (!rateOption) {
+        throw new BadRequestException('Выбранный вариант оплаты неактивен или относится к другому объекту');
+      }
+      if (
+        rateOption.ratePolicyType !== payload.ratePolicyType ||
+        rateOption.baseAmount !== payload.baseAmount ||
+        rateOption.scheduleCode !== (payload.scheduleCode ?? null) ||
+        rateOption.standardShiftHours !== (payload.standardShiftHours ?? 8) ||
+        [...rateOption.scheduleWeekdays].sort().join(',') !==
+          [...(payload.scheduleWeekdays ?? [])].sort().join(',')
+        || (rateOption.scheduleCycleStartDate?.toISOString().slice(0, 10) ?? null) !== (payload.scheduleCycleStartDate ?? null)
+      ) {
+        throw new BadRequestException('График и сумма должны совпадать с выбранным вариантом оплаты');
+      }
+    }
+
+    const scheduleError = getScheduleConfigurationError({
+      scheduleCode: payload.scheduleCode,
+      scheduleWeekdays: payload.scheduleWeekdays,
+      scheduleCycleStartDate: payload.scheduleCycleStartDate,
+    });
+    if (scheduleError) throw new BadRequestException(scheduleError);
 
     const assignment = await this.prisma.objectEmployeeAssignment.findFirst({
       where: {
@@ -854,8 +905,11 @@ export class ObjectOperationsService {
       },
       data: {
         ratePolicyType: payload.ratePolicyType,
+        rateOptionId: payload.rateOptionId ?? null,
         ratePolicyBaseAmount: payload.baseAmount,
         ratePolicyScheduleCode: payload.scheduleCode ?? null,
+        ratePolicyScheduleCycleStartDate: payload.scheduleCycleStartDate ? new Date(`${payload.scheduleCycleStartDate}T00:00:00.000Z`) : null,
+        ratePolicyWeekdays: payload.scheduleWeekdays ?? [],
         ratePolicyRoundingMode: payload.roundingMode ?? 'none',
         ratePolicyRoundingStep: payload.roundingStep ?? null,
         ratePolicyStandardShiftHours: payload.standardShiftHours ?? null,
@@ -920,6 +974,232 @@ export class ObjectOperationsService {
     });
   }
 
+  async listCompensationRates(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<ObjectCompensationRateResponseDto[]> {
+    await this.assertObjectVisible(currentUser, objectId);
+    const items = await this.prisma.objectCompensationRate.findMany({
+      where: { objectId },
+      orderBy: [{ isActive: 'desc' }, { category: 'asc' }, { name: 'asc' }],
+    });
+    return items.map((item) => this.mapCompensationRate(item));
+  }
+
+  async updateCompensationDefaults(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    payload: UpdateObjectCompensationDefaultsDto,
+  ): Promise<{ success: true }> {
+    await this.assertRatePolicyWritable(currentUser);
+    await this.assertObjectVisible(currentUser, objectId);
+    const existing = await this.prisma.object.findFirst({
+      where: { id: objectId, deletedAt: null },
+      select: {
+        seasonMode: true,
+        paymentType: true, dailyRate: true, monthlySalary: true,
+        paymentScheduleCode: true, paymentScheduleWeekdays: true,
+        paymentScheduleCycleStartDate: true,
+        summerPaymentType: true, summerDailyRate: true, summerMonthlySalary: true,
+        summerScheduleCode: true, summerScheduleWeekdays: true, summerScheduleCycleStartDate: true,
+        winterPaymentType: true, winterDailyRate: true, winterMonthlySalary: true,
+        winterScheduleCode: true, winterScheduleWeekdays: true, winterScheduleCycleStartDate: true,
+      },
+    });
+    if (!existing) throw new NotFoundException('Object not found');
+    const profiles = [
+      {
+        label: 'Базовый график',
+        code: payload.paymentScheduleCode !== undefined ? payload.paymentScheduleCode : existing.paymentScheduleCode,
+        weekdays: payload.paymentScheduleWeekdays ?? existing.paymentScheduleWeekdays,
+        cycleStartDate: payload.paymentScheduleCycleStartDate !== undefined
+          ? payload.paymentScheduleCycleStartDate
+          : existing.paymentScheduleCycleStartDate,
+      },
+      {
+        label: 'Летний график',
+        code: payload.summerScheduleCode !== undefined ? payload.summerScheduleCode : existing.summerScheduleCode,
+        weekdays: payload.summerScheduleWeekdays ?? existing.summerScheduleWeekdays,
+        cycleStartDate: payload.summerScheduleCycleStartDate !== undefined
+          ? payload.summerScheduleCycleStartDate
+          : existing.summerScheduleCycleStartDate,
+      },
+      {
+        label: 'Зимний график',
+        code: payload.winterScheduleCode !== undefined ? payload.winterScheduleCode : existing.winterScheduleCode,
+        weekdays: payload.winterScheduleWeekdays ?? existing.winterScheduleWeekdays,
+        cycleStartDate: payload.winterScheduleCycleStartDate !== undefined
+          ? payload.winterScheduleCycleStartDate
+          : existing.winterScheduleCycleStartDate,
+      },
+    ];
+    for (const profile of profiles) {
+      const error = getScheduleConfigurationError({
+        scheduleCode: profile.code,
+        scheduleWeekdays: profile.weekdays,
+        scheduleCycleStartDate: profile.cycleStartDate,
+      });
+      if (error) throw new BadRequestException(`${profile.label}: ${error}`);
+    }
+    const updateData: Prisma.ObjectUpdateInput = { ...payload };
+    for (const field of ['paymentScheduleCycleStartDate', 'summerScheduleCycleStartDate', 'winterScheduleCycleStartDate'] as const) {
+      if (payload[field] !== undefined) {
+        updateData[field] = payload[field] ? new Date(`${payload[field]}T00:00:00.000Z`) : null;
+      }
+    }
+    const summerProfileChanged = payload.summerPaymentType !== undefined ||
+      payload.summerDailyRate !== undefined || payload.summerMonthlySalary !== undefined ||
+      payload.summerScheduleCode !== undefined || payload.summerScheduleWeekdays !== undefined || payload.summerScheduleCycleStartDate !== undefined;
+    const winterProfileChanged = payload.winterPaymentType !== undefined ||
+      payload.winterDailyRate !== undefined || payload.winterMonthlySalary !== undefined ||
+      payload.winterScheduleCode !== undefined || payload.winterScheduleWeekdays !== undefined || payload.winterScheduleCycleStartDate !== undefined;
+    if (existing.seasonMode === 'summer' && summerProfileChanged) {
+      updateData.paymentType = payload.summerPaymentType ?? existing.summerPaymentType;
+      updateData.dailyRate = payload.summerDailyRate ?? existing.summerDailyRate;
+      updateData.monthlySalary = payload.summerMonthlySalary ?? existing.summerMonthlySalary;
+      updateData.paymentScheduleCode = payload.summerScheduleCode !== undefined ? payload.summerScheduleCode : existing.summerScheduleCode;
+      updateData.paymentScheduleWeekdays = payload.summerScheduleWeekdays ?? existing.summerScheduleWeekdays;
+      updateData.paymentScheduleCycleStartDate = payload.summerScheduleCycleStartDate !== undefined
+        ? (payload.summerScheduleCycleStartDate ? new Date(`${payload.summerScheduleCycleStartDate}T00:00:00.000Z`) : null)
+        : existing.summerScheduleCycleStartDate;
+    } else if (existing.seasonMode === 'winter' && winterProfileChanged) {
+      updateData.paymentType = payload.winterPaymentType ?? existing.winterPaymentType;
+      updateData.dailyRate = payload.winterDailyRate ?? existing.winterDailyRate;
+      updateData.monthlySalary = payload.winterMonthlySalary ?? existing.winterMonthlySalary;
+      updateData.paymentScheduleCode = payload.winterScheduleCode !== undefined ? payload.winterScheduleCode : existing.winterScheduleCode;
+      updateData.paymentScheduleWeekdays = payload.winterScheduleWeekdays ?? existing.winterScheduleWeekdays;
+      updateData.paymentScheduleCycleStartDate = payload.winterScheduleCycleStartDate !== undefined
+        ? (payload.winterScheduleCycleStartDate ? new Date(`${payload.winterScheduleCycleStartDate}T00:00:00.000Z`) : null)
+        : existing.winterScheduleCycleStartDate;
+    }
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.object.update({
+        where: { id: objectId },
+        data: updateData,
+      });
+      await tx.auditEvent.create({
+        data: {
+          entityType: 'object',
+          entityId: objectId,
+          actorUserId: currentUser.id,
+          action: 'object.compensation_defaults.updated',
+          oldValues: existing as unknown as Prisma.InputJsonObject,
+          newValues: {
+            paymentType: updated.paymentType,
+            dailyRate: updated.dailyRate,
+            monthlySalary: updated.monthlySalary,
+            paymentScheduleCode: updated.paymentScheduleCode,
+            paymentScheduleWeekdays: updated.paymentScheduleWeekdays,
+            summerPaymentType: updated.summerPaymentType,
+            summerDailyRate: updated.summerDailyRate,
+            summerMonthlySalary: updated.summerMonthlySalary,
+            summerScheduleCode: updated.summerScheduleCode,
+            summerScheduleWeekdays: updated.summerScheduleWeekdays,
+            winterPaymentType: updated.winterPaymentType,
+            winterDailyRate: updated.winterDailyRate,
+            winterMonthlySalary: updated.winterMonthlySalary,
+            winterScheduleCode: updated.winterScheduleCode,
+            winterScheduleWeekdays: updated.winterScheduleWeekdays,
+          },
+        },
+      });
+    });
+    return { success: true };
+  }
+
+  async createCompensationRate(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    payload: CreateObjectCompensationRateDto,
+  ): Promise<ObjectCompensationRateResponseDto> {
+    await this.assertRatePolicyWritable(currentUser);
+    await this.assertObjectVisible(currentUser, objectId);
+    const scheduleError = getScheduleConfigurationError({
+      scheduleCode: payload.scheduleCode,
+      scheduleWeekdays: payload.scheduleWeekdays,
+      scheduleCycleStartDate: payload.scheduleCycleStartDate,
+    });
+    if (scheduleError) throw new BadRequestException(scheduleError);
+    const item = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.objectCompensationRate.create({
+        data: {
+          objectId,
+          name: payload.name.trim(),
+          category: payload.category,
+          ratePolicyType: payload.ratePolicyType,
+          baseAmount: payload.baseAmount,
+          scheduleCode: payload.scheduleCode ?? null,
+          scheduleCycleStartDate: payload.scheduleCycleStartDate ? new Date(`${payload.scheduleCycleStartDate}T00:00:00.000Z`) : null,
+          scheduleWeekdays: payload.scheduleWeekdays ?? [],
+          standardShiftHours: payload.standardShiftHours ?? 8,
+          notes: payload.notes?.trim() || null,
+          createdByUserId: currentUser.id,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          entityType: 'object_compensation_rate',
+          entityId: created.id,
+          actorUserId: currentUser.id,
+          action: 'object.compensation_rate.created',
+          newValues: { objectId, name: created.name, category: created.category, ratePolicyType: created.ratePolicyType, baseAmount: created.baseAmount },
+        },
+      });
+      return created;
+    });
+    return this.mapCompensationRate(item);
+  }
+
+  async updateCompensationRate(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    rateId: string,
+    payload: UpdateObjectCompensationRateDto,
+  ): Promise<ObjectCompensationRateResponseDto> {
+    await this.assertRatePolicyWritable(currentUser);
+    await this.assertObjectVisible(currentUser, objectId);
+    const existing = await this.prisma.objectCompensationRate.findFirst({ where: { id: rateId, objectId } });
+    if (!existing) throw new NotFoundException('Вариант оплаты не найден');
+    const scheduleError = getScheduleConfigurationError({
+      scheduleCode: payload.scheduleCode ?? existing.scheduleCode,
+      scheduleWeekdays: payload.scheduleWeekdays ?? existing.scheduleWeekdays,
+      scheduleCycleStartDate: payload.scheduleCycleStartDate !== undefined
+        ? payload.scheduleCycleStartDate
+        : existing.scheduleCycleStartDate,
+    });
+    if (scheduleError) throw new BadRequestException(scheduleError);
+    const item = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.objectCompensationRate.update({
+        where: { id: rateId },
+        data: {
+          ...(payload.name !== undefined ? { name: payload.name.trim() } : {}),
+          ...(payload.category !== undefined ? { category: payload.category } : {}),
+          ...(payload.ratePolicyType !== undefined ? { ratePolicyType: payload.ratePolicyType } : {}),
+          ...(payload.baseAmount !== undefined ? { baseAmount: payload.baseAmount } : {}),
+          ...(payload.scheduleCode !== undefined ? { scheduleCode: payload.scheduleCode || null } : {}),
+          ...(payload.scheduleCycleStartDate !== undefined ? { scheduleCycleStartDate: payload.scheduleCycleStartDate ? new Date(`${payload.scheduleCycleStartDate}T00:00:00.000Z`) : null } : {}),
+          ...(payload.scheduleWeekdays !== undefined ? { scheduleWeekdays: payload.scheduleWeekdays } : {}),
+          ...(payload.standardShiftHours !== undefined ? { standardShiftHours: payload.standardShiftHours } : {}),
+          ...(payload.notes !== undefined ? { notes: payload.notes.trim() || null } : {}),
+          ...(payload.isActive !== undefined ? { isActive: payload.isActive } : {}),
+          updatedByUserId: currentUser.id,
+        },
+      });
+      await tx.auditEvent.create({
+        data: {
+          entityType: 'object_compensation_rate',
+          entityId: updated.id,
+          actorUserId: currentUser.id,
+          action: 'object.compensation_rate.updated',
+          oldValues: { name: existing.name, category: existing.category, ratePolicyType: existing.ratePolicyType, baseAmount: existing.baseAmount, isActive: existing.isActive },
+          newValues: { name: updated.name, category: updated.category, ratePolicyType: updated.ratePolicyType, baseAmount: updated.baseAmount, isActive: updated.isActive },
+        },
+      });
+      return updated;
+    });
+    return this.mapCompensationRate(item);
+  }
+
   async getTodayAttendance(
     currentUser: CurrentAuthUser,
     objectId: string,
@@ -971,8 +1251,8 @@ export class ObjectOperationsService {
     for (const fact of inputFacts) {
       const specialRate = fact.ratePolicyType !== undefined || fact.rateAmount !== undefined || fact.rateReason !== undefined || fact.clearRateOverride === true;
       if (!specialRate) continue;
-      await this.assertRatePolicyWritable(currentUser);
       if (fact.clearRateOverride) {
+        await this.assertAttendanceRateOverrideWritable(currentUser);
         if (fact.ratePolicyType !== undefined || fact.rateAmount !== undefined || fact.rateReason !== undefined) {
           throw new BadRequestException('Сброс особой ставки нельзя совмещать с новой ставкой');
         }
@@ -1000,6 +1280,22 @@ export class ObjectOperationsService {
       throw new NotFoundException('Object not found');
     }
 
+    const sideJobFacts = inputFacts.filter((fact) => fact.ratePolicyType === 'side_job');
+    if (sideJobFacts.length > 0) {
+      const assignedManager = await this.prisma.objectAssignment.findFirst({
+        where: { objectId, userId: currentUser.id, assignmentRoleCode: 'manager', isActive: true },
+        select: { id: true },
+      });
+      if (!assignedManager && !canOverrideObjectAttendanceRate(this.getRoleCodes(currentUser))) {
+        throw new ForbiddenException('Дополнительный выход может назначить только менеджер этого объекта');
+      }
+    }
+    for (const fact of inputFacts) {
+      if (fact.ratePolicyType === 'complex_shift' || fact.clearRateOverride) {
+        await this.assertAttendanceRateOverrideWritable(currentUser);
+      }
+    }
+
     const normalizedDate = this.parseBusinessDate(payload.operationDate);
     const workedHoursByEmployeeId = new Map(
       (payload.employeeFacts ?? []).map((item) => [
@@ -1020,6 +1316,7 @@ export class ObjectOperationsService {
           },
           select: {
             employeeId: true,
+            ratePolicySnapshot: true,
           },
         }),
         this.prisma.employeeSubstitution.findMany({
@@ -1068,6 +1365,11 @@ export class ObjectOperationsService {
     const existingFactEmployeeIds = new Set(
       existingFacts.map((item) => item.employeeId),
     );
+    const previousFactByEmployeeId = new Map(existingFacts.map((item) => [item.employeeId, item]));
+    const sideJobNotificationFacts = sideJobFacts.filter((fact) => {
+      const previous = parseRatePolicySnapshot(previousFactByEmployeeId.get(fact.employeeId)?.ratePolicySnapshot);
+      return previous?.ratePolicyType !== 'side_job' || previous.baseAmount !== fact.rateAmount || previous.notes !== fact.rateReason?.trim();
+    });
     const unavailableEmployeeIds = new Set(
       unavailableEmployees
         .filter(
@@ -1151,12 +1453,12 @@ export class ObjectOperationsService {
             const previous = previousFacts.find((fact) => fact.employeeId === employeeId);
             const inputFact = inputFacts.find((fact) => fact.employeeId === employeeId);
             const savedPolicy = parseRatePolicySnapshot(previous?.ratePolicySnapshot);
-            const ratePolicy = inputFact?.ratePolicyType
+            const ratePolicy = pinRatePolicyProductionCalendar(inputFact?.ratePolicyType
               ? normalizeRatePolicy({ ratePolicyType: inputFact.ratePolicyType, ratePolicyBaseAmount: inputFact.rateAmount, ratePolicyNotes: inputFact.rateReason }, inputFact.rateAmount ?? 0)
               : inputFact?.clearRateOverride
                 ? assignment?.ratePolicyUpdatedAt
-                  ? normalizeRatePolicy(assignment, this.getObjectMonthlySalaryDailyFallback({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, operationDate: normalizedDate, scheduleCode: assignment.ratePolicyScheduleCode }))
-                  : buildObjectDefaultRatePolicy({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: assignment?.ratePolicyScheduleCode ?? null })
+                  ? normalizeRatePolicy(assignment, this.getObjectMonthlySalaryDailyFallback({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, operationDate: normalizedDate, scheduleCode: assignment.ratePolicyScheduleCode ?? object.paymentScheduleCode, scheduleWeekdays: assignment.ratePolicyWeekdays, scheduleCycleStartDate: assignment.ratePolicyScheduleCycleStartDate ?? object.paymentScheduleCycleStartDate }))
+                  : buildObjectDefaultRatePolicy({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: assignment?.ratePolicyScheduleCode ?? object.paymentScheduleCode, scheduleWeekdays: assignment?.ratePolicyWeekdays ?? object.paymentScheduleWeekdays, scheduleCycleStartDate: assignment?.ratePolicyScheduleCycleStartDate ?? object.paymentScheduleCycleStartDate })
                 : savedPolicy ?? (previous
               ? normalizeRatePolicy({ ratePolicyType: 'per_attendance', ratePolicyBaseAmount: previous.dailyRateSnapshot }, previous.dailyRateSnapshot)
               : assignment?.ratePolicyUpdatedAt
@@ -1167,15 +1469,23 @@ export class ObjectOperationsService {
                     monthlySalary: object.monthlySalary,
                     dailyRate: object.dailyRate,
                     operationDate: normalizedDate,
-                    scheduleCode: assignment.ratePolicyScheduleCode,
+                    scheduleCode: assignment.ratePolicyScheduleCode ?? object.paymentScheduleCode,
+                    scheduleWeekdays: assignment.ratePolicyWeekdays,
+                    scheduleCycleStartDate: assignment.ratePolicyScheduleCycleStartDate ?? object.paymentScheduleCycleStartDate,
                   }),
                 )
               : buildObjectDefaultRatePolicy({
                   paymentType: object.paymentType as 'monthly' | 'daily',
                   monthlySalary: object.monthlySalary,
                   dailyRate: object.dailyRate,
-                  scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
-                }));
+                  scheduleCode: assignment?.ratePolicyScheduleCode ?? object.paymentScheduleCode,
+                scheduleWeekdays: assignment?.ratePolicyUpdatedAt
+                    ? assignment.ratePolicyWeekdays
+                    : object.paymentScheduleWeekdays,
+                  scheduleCycleStartDate: assignment?.ratePolicyUpdatedAt
+                    ? assignment.ratePolicyScheduleCycleStartDate
+                    : object.paymentScheduleCycleStartDate,
+                })), targetYear);
             const workedHours = workedHoursByEmployeeId.has(employeeId) ? workedHoursByEmployeeId.get(employeeId) ?? null : previous?.workedHours ?? null;
             const dailyRateSnapshot =
               ratePolicy.ratePolicyType === 'monthly_fixed'
@@ -1184,6 +1494,9 @@ export class ObjectOperationsService {
                     year: targetYear,
                     month: targetMonth,
                     scheduleCode: ratePolicy.scheduleCode,
+                    scheduleWeekdays: ratePolicy.scheduleWeekdays,
+                    scheduleCycleStartDate: ratePolicy.scheduleCycleStartDate,
+                    productionCalendarVersion: ratePolicy.productionCalendarVersion,
                   }).dailyRate
                 : ratePolicy.ratePolicyType === 'partial_shift'
                   ? Math.round(
@@ -1253,6 +1566,25 @@ export class ObjectOperationsService {
       const nextFacts = await tx.objectAttendanceFact.findMany({ where: { objectId, operationDate: normalizedDate } });
       const snapshot = (facts: typeof nextFacts) => facts.map((fact) => ({ employeeId: fact.employeeId, dailyRateSnapshot: fact.dailyRateSnapshot, workedHours: fact.workedHours, ratePolicySnapshot: fact.ratePolicySnapshot }));
       await tx.auditEvent.create({ data: { entityType: 'object_attendance', entityId: objectId, actorUserId: currentUser.id, action: 'object.attendance.updated', oldValues: snapshot(previousFacts) as Prisma.InputJsonValue, newValues: snapshot(nextFacts) as Prisma.InputJsonValue, metadata: { operationDate: payload.operationDate, comment: payload.comment?.trim() || null } } });
+
+      if (sideJobNotificationFacts.length > 0) {
+        const recipients = await this.notificationsService.listActiveUserIdsByRoles(
+          [...LEADERSHIP_OBJECT_ROLE_CODES, 'deputy_director'],
+          tx,
+        );
+        const employeeNames = sideJobNotificationFacts
+          .map((fact) => timesheetEmployees.get(fact.employeeId))
+          .filter((name): name is string => Boolean(name));
+        await this.notificationsService.createForRecipients({
+          recipientUserIds: recipients.filter((id) => id !== currentUser.id),
+          type: 'object.extra_shift.created',
+          title: 'На объекте назначен дополнительный выход',
+          body: `${employeeNames.join(', ') || 'Сотрудник'} · ${payload.operationDate}`,
+          entityType: 'object',
+          entityId: objectId,
+          targetUrl: `/objects/${encodeURIComponent(objectId)}#today`,
+        }, tx);
+      }
     });
 
     return { success: true };
@@ -1266,7 +1598,7 @@ export class ObjectOperationsService {
     const [object, assignedEmployees, activeSubstitutions] = await Promise.all([
       this.prisma.object.findUnique({
         where: { id: objectId },
-        select: { paymentType: true, dailyRate: true, monthlySalary: true },
+        select: { paymentType: true, dailyRate: true, monthlySalary: true, paymentScheduleCode: true, paymentScheduleWeekdays: true, paymentScheduleCycleStartDate: true },
       }),
       this.prisma.objectEmployeeAssignment.findMany({
         where: {
@@ -1369,12 +1701,19 @@ export class ObjectOperationsService {
         objectPaymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
         objectMonthlySalary: object?.monthlySalary ?? 0,
         objectDailyRate: object?.dailyRate ?? 0,
+        objectScheduleCode: object?.paymentScheduleCode ?? null,
+        objectScheduleCycleStartDate: object?.paymentScheduleCycleStartDate ?? null,
+        objectScheduleWeekdays: object?.paymentScheduleWeekdays ?? [],
         ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
           paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
           monthlySalary: object?.monthlySalary ?? 0,
           dailyRate: object?.dailyRate ?? 0,
           operationDate,
-          scheduleCode: item.ratePolicyScheduleCode,
+          scheduleCode: item.ratePolicyScheduleCode ?? object?.paymentScheduleCode,
+          scheduleCycleStartDate: item.ratePolicyUpdatedAt
+            ? item.ratePolicyScheduleCycleStartDate
+            : object?.paymentScheduleCycleStartDate,
+          scheduleWeekdays: item.ratePolicyUpdatedAt ? item.ratePolicyWeekdays : (object?.paymentScheduleWeekdays ?? []),
         }),
         availabilityWindows: item.employee.availabilityWindows,
         substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
@@ -1397,11 +1736,17 @@ export class ObjectOperationsService {
           objectPaymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
           objectMonthlySalary: object?.monthlySalary ?? 0,
           objectDailyRate: object?.dailyRate ?? 0,
+          objectScheduleCode: object?.paymentScheduleCode ?? null,
+          objectScheduleCycleStartDate: object?.paymentScheduleCycleStartDate ?? null,
+          objectScheduleWeekdays: object?.paymentScheduleWeekdays ?? [],
           ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
             paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
             monthlySalary: object?.monthlySalary ?? 0,
             dailyRate: object?.dailyRate ?? 0,
             operationDate,
+            scheduleCode: object?.paymentScheduleCode,
+            scheduleCycleStartDate: object?.paymentScheduleCycleStartDate,
+            scheduleWeekdays: object?.paymentScheduleWeekdays,
           }),
           availabilityWindows: item.substituteEmployee.availabilityWindows,
           substitutionsAsPrimary: item.substituteEmployee.substitutionsAsPrimary,
@@ -1421,17 +1766,22 @@ export class ObjectOperationsService {
     dailyRate: number;
     operationDate: Date;
     scheduleCode?: string | null;
+    scheduleWeekdays?: string[];
+    scheduleCycleStartDate?: Date | string | null;
   }): number {
+    if (params.paymentType === 'daily') {
+      return Math.max(0, Math.round(params.dailyRate));
+    }
     const calculation = calculateMonthlySalaryDailyRate({
       monthlySalary: params.monthlySalary,
       year: params.operationDate.getFullYear(),
       month: params.operationDate.getMonth() + 1,
       scheduleCode: params.scheduleCode ?? null,
+      scheduleWeekdays: params.scheduleWeekdays ?? [],
+      scheduleCycleStartDate: params.scheduleCycleStartDate ?? null,
     });
 
-    return params.paymentType === 'monthly'
-      ? calculation.dailyRate
-      : Math.max(0, Math.round(params.dailyRate));
+    return calculation.dailyRate;
   }
 
   private buildActiveObjectSubstitutionWhere(
@@ -1540,14 +1890,17 @@ export class ObjectOperationsService {
     isAssignedToObject: boolean;
     ratePolicy?: {
       ratePolicyType: string | null;
+      rateOptionId?: string | null;
       ratePolicyBaseAmount: number | null;
       ratePolicyScheduleCode: string | null;
+      ratePolicyScheduleCycleStartDate: Date | null;
       ratePolicyRoundingMode: string | null;
       ratePolicyRoundingStep: number | null;
       ratePolicyStandardShiftHours: number | null;
       ratePolicyWorkingDaysInMonth: number | null;
       ratePolicyExcludedHolidayDays: number | null;
       ratePolicyNotes: string | null;
+      ratePolicyWeekdays?: string[];
       ratePolicyUpdatedAt: Date | null;
       employee?: {
         baseDailyRate: number | null;
@@ -1556,6 +1909,9 @@ export class ObjectOperationsService {
     objectPaymentType?: 'monthly' | 'daily';
     objectMonthlySalary?: number;
     objectDailyRate?: number;
+    objectScheduleCode?: string | null;
+    objectScheduleCycleStartDate?: Date | null;
+    objectScheduleWeekdays?: string[];
     ratePolicyFallbackAmount?: number;
     availabilityWindows: Array<{
       id: string;
@@ -1629,7 +1985,17 @@ export class ObjectOperationsService {
             paymentType: params.objectPaymentType,
             monthlySalary: params.objectMonthlySalary ?? 0,
             dailyRate: params.objectDailyRate ?? 0,
-            scheduleCode: params.ratePolicy?.ratePolicyScheduleCode ?? null,
+            scheduleCode: params.ratePolicy?.ratePolicyUpdatedAt
+              ? params.ratePolicy.ratePolicyScheduleCode
+              : params.ratePolicy?.ratePolicyScheduleCode ?? params.objectScheduleCode ?? null,
+            scheduleCycleStartDate: params.ratePolicy?.ratePolicyUpdatedAt
+              ? params.ratePolicy.ratePolicyScheduleCycleStartDate
+              : params.ratePolicy?.ratePolicyScheduleCycleStartDate ?? params.objectScheduleCycleStartDate ?? null,
+            scheduleWeekdays: params.ratePolicy?.ratePolicyUpdatedAt
+              ? params.ratePolicy.ratePolicyWeekdays ?? []
+              : params.ratePolicy?.ratePolicyWeekdays?.length
+                ? params.ratePolicy.ratePolicyWeekdays
+                : params.objectScheduleWeekdays ?? [],
           })
         : null;
 
@@ -1645,6 +2011,9 @@ export class ObjectOperationsService {
       ratePolicy: ratePolicy
         ? {
             ...ratePolicy,
+            scheduleWeekdays: ratePolicy.scheduleWeekdays ?? [],
+            scheduleCycleStartDate: ratePolicy.scheduleCycleStartDate ?? null,
+            rateOptionId: params.ratePolicy?.rateOptionId ?? null,
             label: getRatePolicyLabel(ratePolicy),
             updatedAt: params.ratePolicy?.ratePolicyUpdatedAt?.toISOString() ?? null,
           }
@@ -1702,6 +2071,29 @@ export class ObjectOperationsService {
     }
   }
 
+  private async canViewCompensationRatesOnObject(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+  ): Promise<boolean> {
+    const object = await this.prisma.object.findFirst({
+      where: { id: objectId, deletedAt: null },
+      select: {
+        id: true,
+        createdByUserId: true,
+        assignments: {
+          where: { isActive: true },
+          select: { userId: true, isActive: true },
+        },
+      },
+    });
+    if (!object) throw new NotFoundException('Object not found');
+    return canViewObjectCompensationRates({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      object,
+    });
+  }
+
   private async assertHrObjectProfileVisible(
     currentUser: CurrentAuthUser,
     objectId: string,
@@ -1752,7 +2144,51 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
   ): Promise<void> {
     if (!canEditObjectDailyRate(this.getRoleCodes(currentUser))) {
-      throw new ForbiddenException('Timesheet rate policy edit denied');
+      throw new ForbiddenException('Управление вариантами оплаты объекта недоступно');
+    }
+  }
+
+  private mapCompensationRate(item: {
+    id: string;
+    objectId: string;
+    name: string;
+    category: string;
+    ratePolicyType: string;
+    baseAmount: number;
+    scheduleCode: string | null;
+    scheduleCycleStartDate: Date | null;
+    scheduleWeekdays: string[];
+    standardShiftHours: number;
+    notes: string | null;
+    isActive: boolean;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+    updatedAt: Date;
+  }): ObjectCompensationRateResponseDto {
+    return {
+      id: item.id,
+      objectId: item.objectId,
+      name: item.name,
+      category: item.category as 'standard' | 'substitution',
+      ratePolicyType: item.ratePolicyType as 'daily_rate' | 'monthly_fixed',
+      baseAmount: item.baseAmount,
+      scheduleCode: item.scheduleCode,
+      scheduleWeekdays: item.scheduleWeekdays,
+      scheduleCycleStartDate: item.scheduleCycleStartDate?.toISOString().slice(0, 10) ?? null,
+      standardShiftHours: item.standardShiftHours,
+      notes: item.notes,
+      isActive: item.isActive,
+      effectiveFrom: item.effectiveFrom.toISOString(),
+      effectiveTo: item.effectiveTo?.toISOString() ?? null,
+      updatedAt: item.updatedAt.toISOString(),
+    };
+  }
+
+  private async assertAttendanceRateOverrideWritable(
+    currentUser: CurrentAuthUser,
+  ): Promise<void> {
+    if (!canOverrideObjectAttendanceRate(this.getRoleCodes(currentUser))) {
+      throw new ForbiddenException('Attendance rate override denied');
     }
   }
 

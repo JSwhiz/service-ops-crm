@@ -12,27 +12,27 @@
 
 .name {
   display: block;
-  color: #342e29;
+  color: var(--ui-text);
   font-weight: 700;
   text-decoration: none;
 }
 
 .name:hover,
 .table td > a:not(.name):hover {
-  color: #6f5747;
+  color: var(--ui-accent);
   text-decoration: underline;
 }
 
 .secondary {
   display: block;
   margin-top: 3px;
-  color: #83786f;
+  color: var(--ui-text-tertiary);
   font-size: 12px;
   font-weight: 500;
 }
 
 .muted {
-  color: #83786f;
+  color: var(--ui-text-tertiary);
 }
 
 .arrowCell {
@@ -63,7 +63,7 @@
 .mobileCard {
   display: grid;
   gap: 9px;
-  color: #342e29;
+  color: var(--ui-text);
   text-decoration: none;
 }
 
@@ -84,7 +84,7 @@
 }
 
 .mobileMeta {
-  color: #83786f;
+  color: var(--ui-text-tertiary);
   font-size: 13px;
   overflow-wrap: anywhere;
 }

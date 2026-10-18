@@ -32,7 +32,7 @@ function getSeasonLabel(seasonMode: string | null): string {
 }
 
 export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.Element {
-  const allowEdit = item.capabilities.canEdit;
+  const allowEdit = item.capabilities.canEdit || item.capabilities.canManageCompensationRates === true;
 
   return (
     <div className="page-card workspace-surface hero-card object-summary">
@@ -90,7 +90,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           <div className="detail-value">
             {getSeasonLabel(item.seasonMode)}
             <span className="identity-secondary">
-              {(() => {
+              {item.capabilities.canViewCompensationRates === false ? 'Условия оплаты скрыты' : (() => {
                 // Be tolerant of an API process that has not yet been restarted
                 // after seasonal-rate deployment. Older responses omit the new
                 // fields; the object card must still render using legacy rates.

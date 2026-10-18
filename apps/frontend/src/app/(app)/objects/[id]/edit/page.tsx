@@ -93,10 +93,10 @@ export default function EditObjectPage({
   }
 
   const allowEditObject = item.capabilities.canEdit;
-  const allowEditMonthlySalary = item.capabilities.canEditMonthlySalary;
+  const canManageCompensationRates = item.capabilities.canManageCompensationRates ?? item.capabilities.canEditMonthlySalary;
   const allowChangeStatus = item.capabilities.canChangeStatus;
 
-  if (!allowEditObject) {
+  if (!allowEditObject && !canManageCompensationRates) {
     return (
       <div className={`workspace-page ${styles.page}`}>
         <PageTitle title="Редактирование объекта" />
@@ -116,7 +116,8 @@ export default function EditObjectPage({
 
       <ObjectEditForm
         item={item}
-        canEditMonthlySalary={allowEditMonthlySalary}
+        canEditObject={allowEditObject}
+        canManageCompensationRates={canManageCompensationRates}
         canLinkCounterparty={
           user?.capabilities?.canLinkCounterpartyObjects ?? false
         }
@@ -126,14 +127,14 @@ export default function EditObjectPage({
         }}
       />
 
-      <ObjectStatusPanel
+      {allowEditObject ? <ObjectStatusPanel
         currentStatus={item.status}
         canChangeStatus={allowChangeStatus}
         approvalsHref={`/approvals?sourceEntityType=object&sourceEntityId=${item.id}`}
         onChangeStatus={async (status) => {
           await changeObjectStatus(item.id, { status });
         }}
-      />
+      /> : null}
 
       <div className={styles.backRow}>
         <button type="button" onClick={() => router.push(`/objects/${objectId}`)}>Вернуться в карточку</button>

@@ -2,6 +2,7 @@ import {
   canEditObject,
   canEditObjectDailyRate,
   canManageObjectResponsibles,
+  canOverrideObjectAttendanceRate,
   canOverrideFrozenObject,
   hasHrObjectView,
   hasWideObjectAccess,
@@ -25,6 +26,8 @@ export function buildObjectCapabilities(params: {
 }): {
   canEdit: boolean;
   canEditDailyRate: boolean;
+  canViewCompensationRates: boolean;
+  canManageCompensationRates: boolean;
   canChangeStatus: boolean;
   canManageResponsibles: boolean;
   canManageManagers: boolean;
@@ -34,6 +37,7 @@ export function buildObjectCapabilities(params: {
   canManageEmployees: boolean;
   canViewEmployees: boolean;
   canOperateAttendance: boolean;
+  canAddExtraShift: boolean;
 } {
   const canManageResponsibles = canManageObjectResponsibles(params.roleCodes) || hasDelegatedObjectAction(params.currentUserId, params.objectId, 'assign', false);
   const canEdit =
@@ -47,10 +51,15 @@ export function buildObjectCapabilities(params: {
       (assignment) => assignment.userId === params.currentUserId,
     );
   const hasOperationalScope = hasOwnOperationalScope || hasDelegatedObjectAction(params.currentUserId, params.objectId, 'view', false);
+  const isAssignedObjectManager = params.assignments.some(
+    (assignment) => assignment.userId === params.currentUserId && assignment.roleCode === 'manager',
+  );
 
   return {
     canEdit,
-    canEditDailyRate: canEdit && canEditObjectDailyRate(params.roleCodes),
+    canEditDailyRate: canEdit && canOverrideObjectAttendanceRate(params.roleCodes),
+    canViewCompensationRates: canEditObjectDailyRate(params.roleCodes) || hasOperationalScope,
+    canManageCompensationRates: canEditObjectDailyRate(params.roleCodes),
     canChangeStatus: canManageResponsibles,
     canManageResponsibles,
     canManageManagers: canManageResponsibles,
@@ -62,5 +71,6 @@ export function buildObjectCapabilities(params: {
     canManageEmployees: canManageEmployeeAssignments(params.permissionCodes),
     canViewEmployees: hasOwnOperationalScope || hasHrObjectView(params.permissionCodes),
     canOperateAttendance: hasOwnOperationalScope,
+    canAddExtraShift: isAssignedObjectManager,
   };
 }
