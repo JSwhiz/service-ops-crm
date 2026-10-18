@@ -21,6 +21,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { delegatedObjectIds, hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
+import { getScheduleConfigurationError } from '../timesheets/utils/russian-production-calendar.util';
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
@@ -83,16 +84,19 @@ interface ObjectView {
   monthlySalary: number;
   paymentScheduleCode: string | null;
   paymentScheduleWeekdays: string[];
+  paymentScheduleCycleStartDate: Date | string | null;
   summerPaymentType: 'monthly' | 'daily';
   summerDailyRate: number;
   summerMonthlySalary: number;
   summerScheduleCode: string | null;
   summerScheduleWeekdays: string[];
+  summerScheduleCycleStartDate: Date | string | null;
   winterPaymentType: 'monthly' | 'daily';
   winterDailyRate: number;
   winterMonthlySalary: number;
   winterScheduleCode: string | null;
   winterScheduleWeekdays: string[];
+  winterScheduleCycleStartDate: Date | string | null;
   notes: string | null;
   counterpartyId: string | null;
   masterForCounterpartyId?: string | null;
@@ -132,15 +136,29 @@ type ObjectUpdateChangeSet = Record<
 interface ObjectScheduleProfile {
   paymentScheduleCode: string | null;
   paymentScheduleWeekdays: string[];
+  paymentScheduleCycleStartDate: Date | string | null;
+}
+
+function parseDateOnly(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  return new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
+}
+
+function formatDateOnly(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString().slice(0, 10) : value.slice(0, 10);
 }
 
 const OBJECT_COMPENSATION_UPDATE_FIELDS = new Set([
   'paymentType', 'dailyRate', 'monthlySalary',
   'paymentScheduleCode', 'paymentScheduleWeekdays',
+  'paymentScheduleCycleStartDate',
   'summerPaymentType', 'summerDailyRate', 'summerMonthlySalary',
   'summerScheduleCode', 'summerScheduleWeekdays',
+  'summerScheduleCycleStartDate',
   'winterPaymentType', 'winterDailyRate', 'winterMonthlySalary',
   'winterScheduleCode', 'winterScheduleWeekdays',
+  'winterScheduleCycleStartDate',
 ]);
 
 function resolveActiveScheduleProfile(
@@ -160,7 +178,8 @@ function resolveActiveScheduleProfile(
   if (
     seasonMode !== null &&
     selectedProfile.paymentScheduleCode === null &&
-    selectedProfile.paymentScheduleWeekdays.length === 0
+    selectedProfile.paymentScheduleWeekdays.length === 0 &&
+    selectedProfile.paymentScheduleCycleStartDate === null
   ) {
     return defaultProfile;
   }
@@ -421,15 +440,30 @@ export class ObjectsService {
     const defaultScheduleProfile = {
       paymentScheduleCode: payload.paymentScheduleCode ?? null,
       paymentScheduleWeekdays: payload.paymentScheduleWeekdays ?? [],
+      paymentScheduleCycleStartDate: parseDateOnly(payload.paymentScheduleCycleStartDate),
     };
     const summerScheduleProfile = {
-      paymentScheduleCode: payload.summerScheduleCode ?? defaultScheduleProfile.paymentScheduleCode,
+      paymentScheduleCode: payload.summerScheduleCode !== undefined ? payload.summerScheduleCode : defaultScheduleProfile.paymentScheduleCode,
       paymentScheduleWeekdays: payload.summerScheduleWeekdays ?? defaultScheduleProfile.paymentScheduleWeekdays,
+      paymentScheduleCycleStartDate: payload.summerScheduleCycleStartDate !== undefined ? parseDateOnly(payload.summerScheduleCycleStartDate) : defaultScheduleProfile.paymentScheduleCycleStartDate,
     };
     const winterScheduleProfile = {
-      paymentScheduleCode: payload.winterScheduleCode ?? defaultScheduleProfile.paymentScheduleCode,
+      paymentScheduleCode: payload.winterScheduleCode !== undefined ? payload.winterScheduleCode : defaultScheduleProfile.paymentScheduleCode,
       paymentScheduleWeekdays: payload.winterScheduleWeekdays ?? defaultScheduleProfile.paymentScheduleWeekdays,
+      paymentScheduleCycleStartDate: payload.winterScheduleCycleStartDate !== undefined ? parseDateOnly(payload.winterScheduleCycleStartDate) : defaultScheduleProfile.paymentScheduleCycleStartDate,
     };
+    for (const [label, profile] of [
+      ['Базовый график', defaultScheduleProfile],
+      ['Летний график', summerScheduleProfile],
+      ['Зимний график', winterScheduleProfile],
+    ] as const) {
+      const error = getScheduleConfigurationError({
+        scheduleCode: profile.paymentScheduleCode,
+        scheduleWeekdays: profile.paymentScheduleWeekdays,
+        scheduleCycleStartDate: profile.paymentScheduleCycleStartDate,
+      });
+      if (error) throw new BadRequestException(`${label}: ${error}`);
+    }
     const activeScheduleProfile = resolveActiveScheduleProfile(
       payload.seasonMode ?? null,
       defaultScheduleProfile,
@@ -466,16 +500,19 @@ export class ObjectsService {
               : payload.monthlySalary ?? 0,
           paymentScheduleCode: activeScheduleProfile.paymentScheduleCode,
           paymentScheduleWeekdays: activeScheduleProfile.paymentScheduleWeekdays,
+          paymentScheduleCycleStartDate: activeScheduleProfile.paymentScheduleCycleStartDate,
           summerPaymentType: payload.summerPaymentType ?? payload.paymentType ?? 'daily',
           summerDailyRate: payload.summerDailyRate ?? payload.dailyRate ?? 0,
           summerMonthlySalary: payload.summerMonthlySalary ?? payload.monthlySalary ?? 0,
-          summerScheduleCode: payload.summerScheduleCode ?? payload.paymentScheduleCode ?? null,
+          summerScheduleCode: payload.summerScheduleCode !== undefined ? payload.summerScheduleCode : payload.paymentScheduleCode ?? null,
           summerScheduleWeekdays: payload.summerScheduleWeekdays ?? payload.paymentScheduleWeekdays ?? [],
+          summerScheduleCycleStartDate: payload.summerScheduleCycleStartDate !== undefined ? parseDateOnly(payload.summerScheduleCycleStartDate) : parseDateOnly(payload.paymentScheduleCycleStartDate),
           winterPaymentType: payload.winterPaymentType ?? payload.paymentType ?? 'daily',
           winterDailyRate: payload.winterDailyRate ?? payload.dailyRate ?? 0,
           winterMonthlySalary: payload.winterMonthlySalary ?? payload.monthlySalary ?? 0,
-          winterScheduleCode: payload.winterScheduleCode ?? payload.paymentScheduleCode ?? null,
+          winterScheduleCode: payload.winterScheduleCode !== undefined ? payload.winterScheduleCode : payload.paymentScheduleCode ?? null,
           winterScheduleWeekdays: payload.winterScheduleWeekdays ?? payload.paymentScheduleWeekdays ?? [],
+          winterScheduleCycleStartDate: payload.winterScheduleCycleStartDate !== undefined ? parseDateOnly(payload.winterScheduleCycleStartDate) : parseDateOnly(payload.paymentScheduleCycleStartDate),
           notes: payload.notes ?? null,
           counterpartyId: payload.counterpartyId ?? null,
           createdByUserId: currentUser.id,
@@ -642,28 +679,49 @@ export class ObjectsService {
         ? payload.paymentScheduleCode
         : existing.paymentScheduleCode,
       paymentScheduleWeekdays: payload.paymentScheduleWeekdays ?? existing.paymentScheduleWeekdays,
+      paymentScheduleCycleStartDate: payload.paymentScheduleCycleStartDate !== undefined
+        ? parseDateOnly(payload.paymentScheduleCycleStartDate)
+        : existing.paymentScheduleCycleStartDate,
     };
     const summerScheduleProfile = {
       paymentScheduleCode: payload.summerScheduleCode !== undefined
         ? payload.summerScheduleCode
         : existing.summerScheduleCode,
       paymentScheduleWeekdays: payload.summerScheduleWeekdays ?? existing.summerScheduleWeekdays,
+      paymentScheduleCycleStartDate: payload.summerScheduleCycleStartDate !== undefined
+        ? parseDateOnly(payload.summerScheduleCycleStartDate)
+        : existing.summerScheduleCycleStartDate,
     };
     const winterScheduleProfile = {
       paymentScheduleCode: payload.winterScheduleCode !== undefined
         ? payload.winterScheduleCode
         : existing.winterScheduleCode,
       paymentScheduleWeekdays: payload.winterScheduleWeekdays ?? existing.winterScheduleWeekdays,
+      paymentScheduleCycleStartDate: payload.winterScheduleCycleStartDate !== undefined
+        ? parseDateOnly(payload.winterScheduleCycleStartDate)
+        : existing.winterScheduleCycleStartDate,
     };
+    for (const [label, profile] of [
+      ['Базовый график', defaultScheduleProfile],
+      ['Летний график', summerScheduleProfile],
+      ['Зимний график', winterScheduleProfile],
+    ] as const) {
+      const error = getScheduleConfigurationError({
+        scheduleCode: profile.paymentScheduleCode,
+        scheduleWeekdays: profile.paymentScheduleWeekdays,
+        scheduleCycleStartDate: profile.paymentScheduleCycleStartDate,
+      });
+      if (error) throw new BadRequestException(`${label}: ${error}`);
+    }
     const activeScheduleProfile = resolveActiveScheduleProfile(
       nextSeasonMode,
       defaultScheduleProfile,
       summerScheduleProfile,
       winterScheduleProfile,
     );
-    const rateFieldsSubmitted = payload.paymentType !== undefined || typeof payload.dailyRate === 'number' || typeof payload.monthlySalary === 'number' || payload.paymentScheduleCode !== undefined || payload.paymentScheduleWeekdays !== undefined ||
-      payload.summerPaymentType !== undefined || payload.summerDailyRate !== undefined || payload.summerMonthlySalary !== undefined || payload.summerScheduleCode !== undefined || payload.summerScheduleWeekdays !== undefined ||
-      payload.winterPaymentType !== undefined || payload.winterDailyRate !== undefined || payload.winterMonthlySalary !== undefined || payload.winterScheduleCode !== undefined || payload.winterScheduleWeekdays !== undefined;
+    const rateFieldsSubmitted = payload.paymentType !== undefined || typeof payload.dailyRate === 'number' || typeof payload.monthlySalary === 'number' || payload.paymentScheduleCode !== undefined || payload.paymentScheduleWeekdays !== undefined || payload.paymentScheduleCycleStartDate !== undefined ||
+      payload.summerPaymentType !== undefined || payload.summerDailyRate !== undefined || payload.summerMonthlySalary !== undefined || payload.summerScheduleCode !== undefined || payload.summerScheduleWeekdays !== undefined || payload.summerScheduleCycleStartDate !== undefined ||
+      payload.winterPaymentType !== undefined || payload.winterDailyRate !== undefined || payload.winterMonthlySalary !== undefined || payload.winterScheduleCode !== undefined || payload.winterScheduleWeekdays !== undefined || payload.winterScheduleCycleStartDate !== undefined;
     const canWriteRates = canEditObjectDailyRate(roleCodes);
     const seasonModeChanged = payload.seasonMode !== undefined && payload.seasonMode !== existing.seasonMode;
     const shouldActivateRateProfile = canWriteRates && (rateFieldsSubmitted || seasonModeChanged);
@@ -869,11 +927,13 @@ export class ObjectsService {
           ...(shouldActivateRateProfile ? activeScheduleProfile : {}),
           ...(payload.summerScheduleCode !== undefined ? { summerScheduleCode: payload.summerScheduleCode } : {}),
           ...(payload.summerScheduleWeekdays !== undefined ? { summerScheduleWeekdays: payload.summerScheduleWeekdays } : {}),
+          ...(payload.summerScheduleCycleStartDate !== undefined ? { summerScheduleCycleStartDate: parseDateOnly(payload.summerScheduleCycleStartDate) } : {}),
           ...(payload.winterPaymentType !== undefined ? { winterPaymentType: payload.winterPaymentType } : {}),
           ...(payload.winterDailyRate !== undefined ? { winterDailyRate: payload.winterDailyRate } : {}),
           ...(payload.winterMonthlySalary !== undefined ? { winterMonthlySalary: payload.winterMonthlySalary } : {}),
           ...(payload.winterScheduleCode !== undefined ? { winterScheduleCode: payload.winterScheduleCode } : {}),
           ...(payload.winterScheduleWeekdays !== undefined ? { winterScheduleWeekdays: payload.winterScheduleWeekdays } : {}),
+          ...(payload.winterScheduleCycleStartDate !== undefined ? { winterScheduleCycleStartDate: parseDateOnly(payload.winterScheduleCycleStartDate) } : {}),
         },
       });
 
@@ -1518,11 +1578,11 @@ export class ObjectsService {
 
     const rateFields = new Set([
       'paymentType', 'dailyRate', 'monthlySalary',
-      'paymentScheduleCode', 'paymentScheduleWeekdays',
+      'paymentScheduleCode', 'paymentScheduleWeekdays', 'paymentScheduleCycleStartDate',
       'summerPaymentType', 'summerDailyRate', 'summerMonthlySalary',
-      'summerScheduleCode', 'summerScheduleWeekdays',
+      'summerScheduleCode', 'summerScheduleWeekdays', 'summerScheduleCycleStartDate',
       'winterPaymentType', 'winterDailyRate', 'winterMonthlySalary',
-      'winterScheduleCode', 'winterScheduleWeekdays',
+      'winterScheduleCode', 'winterScheduleWeekdays', 'winterScheduleCycleStartDate',
     ]);
     const sanitized = Object.fromEntries(
       Object.entries(payload).filter(([field]) => !rateFields.has(field)),
@@ -1808,16 +1868,19 @@ export class ObjectsService {
       monthlySalary: capabilities.canViewCompensationRates ? item.monthlySalary : null,
       paymentScheduleCode: capabilities.canViewCompensationRates ? item.paymentScheduleCode : null,
       paymentScheduleWeekdays: capabilities.canViewCompensationRates ? item.paymentScheduleWeekdays : [],
+      paymentScheduleCycleStartDate: capabilities.canViewCompensationRates ? formatDateOnly(item.paymentScheduleCycleStartDate) : null,
       summerPaymentType: capabilities.canViewCompensationRates ? item.summerPaymentType : null,
       summerDailyRate: capabilities.canViewCompensationRates ? item.summerDailyRate : null,
       summerMonthlySalary: capabilities.canViewCompensationRates ? item.summerMonthlySalary : null,
       summerScheduleCode: capabilities.canViewCompensationRates ? item.summerScheduleCode : null,
       summerScheduleWeekdays: capabilities.canViewCompensationRates ? item.summerScheduleWeekdays : [],
+      summerScheduleCycleStartDate: capabilities.canViewCompensationRates ? formatDateOnly(item.summerScheduleCycleStartDate) : null,
       winterPaymentType: capabilities.canViewCompensationRates ? item.winterPaymentType : null,
       winterDailyRate: capabilities.canViewCompensationRates ? item.winterDailyRate : null,
       winterMonthlySalary: capabilities.canViewCompensationRates ? item.winterMonthlySalary : null,
       winterScheduleCode: capabilities.canViewCompensationRates ? item.winterScheduleCode : null,
       winterScheduleWeekdays: capabilities.canViewCompensationRates ? item.winterScheduleWeekdays : [],
+      winterScheduleCycleStartDate: capabilities.canViewCompensationRates ? formatDateOnly(item.winterScheduleCycleStartDate) : null,
       notes: item.notes,
       counterparty: item.counterparty
         ? {

@@ -1,4 +1,4 @@
-import { ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UpdateObjectCompensationRateDto {
   @IsOptional() @IsString() @MaxLength(120)
@@ -14,7 +14,10 @@ export class UpdateObjectCompensationRateDto {
   baseAmount?: number;
 
   @IsOptional() @IsIn(['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'])
-  scheduleCode?: string;
+  scheduleCode?: string | null;
+
+  @IsOptional() @IsDateString()
+  scheduleCycleStartDate?: string | null;
 
   @IsOptional() @IsArray() @ArrayUnique() @IsIn(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], { each: true })
   scheduleWeekdays?: string[];

@@ -1,6 +1,7 @@
 import {
   ArrayUnique,
   IsArray,
+  IsDateString,
   IsIn,
   IsInt,
   IsNumber,
@@ -27,7 +28,11 @@ export class UpdateObjectEmployeeRatePolicyDto {
 
   @IsOptional()
   @IsIn(TIMESHEET_RATE_SCHEDULE_CODES)
-  scheduleCode?: string;
+  scheduleCode?: string | null;
+
+  @IsOptional()
+  @IsDateString()
+  scheduleCycleStartDate?: string | null;
 
   @IsOptional()
   @IsUUID('4')

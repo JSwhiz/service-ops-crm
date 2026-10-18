@@ -70,7 +70,7 @@ test('deputy director manages object rates while manager only records an extra s
       category: 'substitution',
       ratePolicyType: 'monthly_fixed',
       baseAmount: 72000,
-      scheduleCode: '5/2',
+      scheduleCode: null,
       scheduleWeekdays: ['mon', 'wed'],
     }),
   });
@@ -85,7 +85,7 @@ test('deputy director manages object rates while manager only records an extra s
       category: 'standard',
       ratePolicyType: 'daily_rate',
       baseAmount: 1800,
-      scheduleCode: '5/2',
+      scheduleCode: null,
       scheduleWeekdays: ['mon', 'wed'],
     }),
   });
@@ -94,7 +94,7 @@ test('deputy director manages object rates while manager only records an extra s
     id: string;
     ratePolicyType: string;
     baseAmount: number;
-    scheduleCode: string;
+    scheduleCode: string | null;
     scheduleWeekdays: string[];
   };
   assert.deepEqual(
@@ -107,10 +107,78 @@ test('deputy director manages object rates while manager only records an extra s
     {
       ratePolicyType: 'daily_rate',
       baseAmount: 1800,
-      scheduleCode: '5/2',
+      scheduleCode: null,
       scheduleWeekdays: ['mon', 'wed'],
     },
   );
+
+  const cycleWithoutAnchor = await fetch(`${route}/compensation-rates`, {
+    method: 'POST',
+    headers: { Cookie: deputyCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Цикл без даты',
+      category: 'standard',
+      ratePolicyType: 'daily_rate',
+      baseAmount: 1900,
+      scheduleCode: '2/5',
+      scheduleWeekdays: [],
+    }),
+  });
+  assert.equal(cycleWithoutAnchor.status, 400);
+
+  const mixedScheduleModes = await fetch(`${route}/compensation-rates`, {
+    method: 'POST',
+    headers: { Cookie: deputyCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Два режима графика',
+      category: 'standard',
+      ratePolicyType: 'daily_rate',
+      baseAmount: 1900,
+      scheduleCode: '5/2',
+      scheduleWeekdays: ['mon'],
+    }),
+  });
+  assert.equal(mixedScheduleModes.status, 400);
+
+  const cycleRateResponse = await fetch(`${route}/compensation-rates`, {
+    method: 'POST',
+    headers: { Cookie: deputyCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: 'Интеграционный цикл 2/5',
+      category: 'standard',
+      ratePolicyType: 'daily_rate',
+      baseAmount: 1900,
+      scheduleCode: '2/5',
+      scheduleCycleStartDate: '2026-10-12',
+      scheduleWeekdays: [],
+    }),
+  });
+  assert.equal(cycleRateResponse.status, 201, await cycleRateResponse.clone().text());
+  const cycleRate = await cycleRateResponse.json() as { id: string; scheduleCycleStartDate: string | null };
+  assert.equal(cycleRate.scheduleCycleStartDate, '2026-10-12');
+
+  const assignedCycleRate = await fetch(`${route}/employees/${SEEDED_EMPLOYEE_IDS.ivan}/rate-policy`, {
+    method: 'PUT',
+    headers: { Cookie: deputyCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ratePolicyType: 'daily_rate',
+      baseAmount: 1900,
+      rateOptionId: cycleRate.id,
+      scheduleCode: '2/5',
+      scheduleCycleStartDate: '2026-10-12',
+      scheduleWeekdays: [],
+    }),
+  });
+  assert.equal(assignedCycleRate.status, 200, await assignedCycleRate.clone().text());
+  const storedCycleRate = await prisma.objectEmployeeAssignment.findUniqueOrThrow({
+    where: { objectId_employeeId: { objectId, employeeId: SEEDED_EMPLOYEE_IDS.ivan } },
+    select: { ratePolicyScheduleCode: true, ratePolicyScheduleCycleStartDate: true, ratePolicyWeekdays: true },
+  });
+  assert.deepEqual(storedCycleRate, {
+    ratePolicyScheduleCode: '2/5',
+    ratePolicyScheduleCycleStartDate: new Date('2026-10-12T00:00:00.000Z'),
+    ratePolicyWeekdays: [],
+  });
 
   const managerCanViewRates = await fetch(`${route}/compensation-rates`, {
     headers: { Cookie: managerCookie },
@@ -131,11 +199,11 @@ test('deputy director manages object rates while manager only records an extra s
       ratePolicyType: 'monthly_fixed',
       baseAmount: 72000,
       rateOptionId: rate.id,
-      scheduleCode: '5/2',
+      scheduleCode: null,
       scheduleWeekdays: ['mon', 'wed'],
     }),
   });
-  assert.equal(assignedRate.status, 200);
+  assert.equal(assignedRate.status, 200, await assignedRate.clone().text());
 
   const assignedDailyRate = await fetch(`${route}/employees/${SEEDED_EMPLOYEE_IDS.ivan}/rate-policy`, {
     method: 'PUT',
@@ -144,7 +212,7 @@ test('deputy director manages object rates while manager only records an extra s
       ratePolicyType: 'daily_rate',
       baseAmount: 1800,
       rateOptionId: dailyRateOption.id,
-      scheduleCode: '5/2',
+      scheduleCode: null,
       scheduleWeekdays: ['mon', 'wed'],
     }),
   });
@@ -156,7 +224,7 @@ test('deputy director manages object rates while manager only records an extra s
   assert.deepEqual(storedAssignedDailyRate, {
     ratePolicyType: 'daily_rate',
     ratePolicyBaseAmount: 1800,
-    ratePolicyScheduleCode: '5/2',
+    ratePolicyScheduleCode: null,
     ratePolicyWeekdays: ['mon', 'wed'],
     rateOptionId: dailyRateOption.id,
   });
@@ -175,7 +243,7 @@ test('deputy director manages object rates while manager only records an extra s
       winterPaymentType: 'daily',
       winterDailyRate: 2200,
       winterMonthlySalary: 50000,
-      winterScheduleCode: '5/2',
+      winterScheduleCode: null,
       winterScheduleWeekdays: ['tue'],
     }),
   });
@@ -247,7 +315,7 @@ test('deputy director manages object rates while manager only records an extra s
       summerPaymentType: 'monthly',
       summerDailyRate: 4000,
       summerMonthlySalary: 80000,
-      summerScheduleCode: '5/2',
+      summerScheduleCode: null,
       summerScheduleWeekdays: ['mon', 'wed'],
     }),
   });
@@ -425,34 +493,36 @@ test('object create and update activate the selected seasonal schedule with lega
       status: 'active',
       responsibleUserId: founder.id,
       seasonMode: 'summer',
-      paymentScheduleCode: '5/2',
+      paymentScheduleCode: null,
       paymentScheduleWeekdays: ['fri'],
-      summerScheduleCode: '6/1',
+      summerScheduleCode: null,
       summerScheduleWeekdays: ['mon', 'wed'],
       winterScheduleCode: '4/3',
-      winterScheduleWeekdays: ['tue'],
+      winterScheduleCycleStartDate: '2026-10-12',
+      winterScheduleWeekdays: [],
     }),
   });
   assert.equal(createResponse.status, 201);
   const createdObject = (await createResponse.json()) as { id: string };
   createdObjectIds.push(createdObject.id);
 
-  const readActiveSchedule = async (): Promise<{ paymentScheduleCode: string | null; paymentScheduleWeekdays: string[] }> => {
+  const readActiveSchedule = async (): Promise<{ paymentScheduleCode: string | null; paymentScheduleWeekdays: string[]; paymentScheduleCycleStartDate: Date | null }> => {
     const object = await prisma.object.findUniqueOrThrow({
       where: { id: createdObject.id },
-      select: { paymentScheduleCode: true, paymentScheduleWeekdays: true },
+      select: { paymentScheduleCode: true, paymentScheduleWeekdays: true, paymentScheduleCycleStartDate: true },
     });
     return object;
   };
 
   assert.deepEqual(await readActiveSchedule(), {
-    paymentScheduleCode: '6/1',
+    paymentScheduleCode: null,
     paymentScheduleWeekdays: ['mon', 'wed'],
+    paymentScheduleCycleStartDate: null,
   });
 
   await prisma.object.update({
     where: { id: createdObject.id },
-    data: { paymentScheduleCode: '5/2', paymentScheduleWeekdays: ['fri'] },
+    data: { paymentScheduleCode: null, paymentScheduleWeekdays: ['fri'] },
   });
   const metadataUpdateResponse = await fetch(`${baseUrl}/api/v1/objects/${createdObject.id}`, {
     method: 'PATCH',
@@ -461,41 +531,45 @@ test('object create and update activate the selected seasonal schedule with lega
   });
   assert.equal(metadataUpdateResponse.status, 200);
   assert.deepEqual(await readActiveSchedule(), {
-    paymentScheduleCode: '5/2',
+    paymentScheduleCode: null,
     paymentScheduleWeekdays: ['fri'],
+    paymentScheduleCycleStartDate: null,
   });
 
   const updateSeason = async (
     seasonMode: 'summer' | 'winter' | null,
-    schedule?: { paymentScheduleCode: string; paymentScheduleWeekdays: string[] },
+    schedule?: { paymentScheduleCode: string | null; paymentScheduleWeekdays: string[]; paymentScheduleCycleStartDate?: string | null },
   ): Promise<void> => {
     const response = await fetch(`${baseUrl}/api/v1/objects/${createdObject.id}`, {
       method: 'PATCH',
       headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
       body: JSON.stringify({ seasonMode, ...schedule }),
     });
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 200, await response.clone().text());
   };
 
   await updateSeason('winter');
   assert.deepEqual(await readActiveSchedule(), {
     paymentScheduleCode: '4/3',
-    paymentScheduleWeekdays: ['tue'],
+    paymentScheduleWeekdays: [],
+    paymentScheduleCycleStartDate: new Date('2026-10-12T00:00:00.000Z'),
   });
 
-  await updateSeason(null, { paymentScheduleCode: '5/2', paymentScheduleWeekdays: ['fri'] });
+  await updateSeason(null, { paymentScheduleCode: null, paymentScheduleWeekdays: ['fri'], paymentScheduleCycleStartDate: null });
   assert.deepEqual(await readActiveSchedule(), {
-    paymentScheduleCode: '5/2',
+    paymentScheduleCode: null,
     paymentScheduleWeekdays: ['fri'],
+    paymentScheduleCycleStartDate: null,
   });
 
   await prisma.object.update({
     where: { id: createdObject.id },
     data: { summerScheduleCode: null, summerScheduleWeekdays: [] },
   });
-  await updateSeason('summer', { paymentScheduleCode: '5/2', paymentScheduleWeekdays: ['fri'] });
+  await updateSeason('summer', { paymentScheduleCode: null, paymentScheduleWeekdays: ['fri'], paymentScheduleCycleStartDate: null });
   assert.deepEqual(await readActiveSchedule(), {
-    paymentScheduleCode: '5/2',
+    paymentScheduleCode: null,
     paymentScheduleWeekdays: ['fri'],
+    paymentScheduleCycleStartDate: null,
   });
 });

@@ -112,6 +112,7 @@ export class TimesheetsService {
         monthlySalary: true,
         paymentScheduleCode: true,
         paymentScheduleWeekdays: true,
+        paymentScheduleCycleStartDate: true,
       },
     });
 
@@ -212,6 +213,7 @@ export class TimesheetsService {
           dailyRate: object.dailyRate,
           scheduleCode: object.paymentScheduleCode,
           scheduleWeekdays: object.paymentScheduleWeekdays,
+          scheduleCycleStartDate: object.paymentScheduleCycleStartDate,
         });
       const autoValues = calculateTimesheetAutoValues({
         year: query.year,
@@ -515,7 +517,7 @@ export class TimesheetsService {
     const objectWhere = this.buildTimesheetObjectWhere(currentUser, query.objectId);
     const objects = await this.prisma.object.findMany({
       where: objectWhere,
-      select: { id: true, name: true, paymentType: true, dailyRate: true, monthlySalary: true, paymentScheduleCode: true, paymentScheduleWeekdays: true },
+      select: { id: true, name: true, paymentType: true, dailyRate: true, monthlySalary: true, paymentScheduleCode: true, paymentScheduleWeekdays: true, paymentScheduleCycleStartDate: true },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
     const objectIds = objects.map((object) => object.id);
@@ -648,13 +650,24 @@ export class TimesheetsService {
       const factPolicy = pairFacts
         .map((fact) => parseRatePolicySnapshot(fact.ratePolicySnapshot))
         .find((policy) => policy !== null);
+      const effectiveScheduleCode = assignment?.ratePolicyUpdatedAt
+        ? assignment.ratePolicyScheduleCode
+        : object.paymentScheduleCode;
+      const effectiveScheduleWeekdays = assignment?.ratePolicyUpdatedAt
+        ? assignment.ratePolicyWeekdays
+        : object.paymentScheduleWeekdays;
+      const effectiveCycleStartDate = assignment?.ratePolicyUpdatedAt
+        ? assignment.ratePolicyScheduleCycleStartDate
+        : object.paymentScheduleCycleStartDate;
       const objectFallback = this.getObjectPayrollFallback({
         paymentType: object.paymentType as 'monthly' | 'daily',
         monthlySalary: object.monthlySalary,
         dailyRate: object.dailyRate,
         year: query.year,
         month: query.month,
-        scheduleCode: assignment?.ratePolicyScheduleCode ?? null,
+        scheduleCode: effectiveScheduleCode,
+        scheduleWeekdays: effectiveScheduleWeekdays,
+        scheduleCycleStartDate: effectiveCycleStartDate,
       });
       const currentAssignmentPolicy = assignment
         ? assignment.ratePolicyUpdatedAt
@@ -663,7 +676,9 @@ export class TimesheetsService {
               paymentType: object.paymentType as 'monthly' | 'daily',
               monthlySalary: object.monthlySalary,
               dailyRate: object.dailyRate,
-              scheduleCode: assignment.ratePolicyScheduleCode,
+              scheduleCode: effectiveScheduleCode,
+              scheduleWeekdays: effectiveScheduleWeekdays,
+              scheduleCycleStartDate: effectiveCycleStartDate,
             })
         : null;
       const policy =
@@ -674,6 +689,9 @@ export class TimesheetsService {
           paymentType: object.paymentType as 'monthly' | 'daily',
           monthlySalary: object.monthlySalary,
           dailyRate: object.dailyRate,
+          scheduleCode: object.paymentScheduleCode,
+          scheduleWeekdays: object.paymentScheduleWeekdays,
+          scheduleCycleStartDate: object.paymentScheduleCycleStartDate,
         });
       const calculated = calculateTimesheetAutoValues({
         year: query.year,
@@ -1473,6 +1491,7 @@ export class TimesheetsService {
         monthlySalary: true,
         paymentScheduleCode: true,
         paymentScheduleWeekdays: true,
+        paymentScheduleCycleStartDate: true,
       },
     });
     const currentRatePolicy = await this.loadRatePolicyForEmployee({
@@ -1907,6 +1926,7 @@ export class TimesheetsService {
         monthlySalary: true,
         paymentScheduleCode: true,
         paymentScheduleWeekdays: true,
+        paymentScheduleCycleStartDate: true,
       },
     });
     const rows = await this.prisma.timesheetEmployeeRow.findMany({
@@ -1967,6 +1987,9 @@ export class TimesheetsService {
           paymentType: object.paymentType as 'monthly' | 'daily',
           monthlySalary: object.monthlySalary,
           dailyRate: object.dailyRate,
+          scheduleCode: object.paymentScheduleCode,
+          scheduleWeekdays: object.paymentScheduleWeekdays,
+          scheduleCycleStartDate: object.paymentScheduleCycleStartDate,
         });
       const autoValues = calculateTimesheetAutoValues({
         year: params.year,
@@ -2071,7 +2094,7 @@ export class TimesheetsService {
 
     const objectSchedule = await client.object.findUnique({
       where: { id: params.objectId },
-      select: { paymentScheduleCode: true, paymentScheduleWeekdays: true },
+      select: { paymentScheduleCode: true, paymentScheduleWeekdays: true, paymentScheduleCycleStartDate: true },
     });
 
     const assignments = await client.objectEmployeeAssignment.findMany({
@@ -2104,6 +2127,9 @@ export class TimesheetsService {
           month: params.month,
           scheduleCode: effectiveScheduleCode,
           scheduleWeekdays: assignedWeekdays,
+          scheduleCycleStartDate: assignment.ratePolicyUpdatedAt
+            ? assignment.ratePolicyScheduleCycleStartDate
+            : objectSchedule?.paymentScheduleCycleStartDate,
         }).dailyRate;
         const policy = assignment.ratePolicyUpdatedAt
           ? normalizeRatePolicy(assignment as RatePolicyRecord, fallback)
@@ -2113,6 +2139,9 @@ export class TimesheetsService {
               dailyRate: params.objectDailyRate,
               scheduleCode: effectiveScheduleCode,
               scheduleWeekdays: assignedWeekdays,
+              scheduleCycleStartDate: assignment.ratePolicyUpdatedAt
+                ? assignment.ratePolicyScheduleCycleStartDate
+                : objectSchedule?.paymentScheduleCycleStartDate,
             });
 
         return [assignment.employeeId, policy];
@@ -2145,7 +2174,7 @@ export class TimesheetsService {
     if (assignedPolicy) return assignedPolicy;
     const schedule = await params.client.object.findUnique({
       where: { id: params.objectId },
-      select: { paymentScheduleCode: true, paymentScheduleWeekdays: true },
+      select: { paymentScheduleCode: true, paymentScheduleWeekdays: true, paymentScheduleCycleStartDate: true },
     });
     return buildObjectDefaultRatePolicy({
       paymentType: params.objectPaymentType,
@@ -2153,6 +2182,7 @@ export class TimesheetsService {
       dailyRate: params.objectDailyRate,
       scheduleCode: schedule?.paymentScheduleCode,
       scheduleWeekdays: schedule?.paymentScheduleWeekdays ?? [],
+      scheduleCycleStartDate: schedule?.paymentScheduleCycleStartDate,
     });
   }
 
@@ -2283,6 +2313,7 @@ export class TimesheetsService {
     month: number;
     scheduleCode?: string | null;
     scheduleWeekdays?: string[];
+    scheduleCycleStartDate?: Date | string | null;
   }): { dailyRate: number; workingDays: number } {
     const calculated = calculateMonthlySalaryDailyRate({
       monthlySalary: params.monthlySalary,
@@ -2290,6 +2321,7 @@ export class TimesheetsService {
       month: params.month,
       scheduleCode: params.scheduleCode ?? null,
       scheduleWeekdays: params.scheduleWeekdays ?? [],
+      scheduleCycleStartDate: params.scheduleCycleStartDate ?? null,
     });
 
     return {

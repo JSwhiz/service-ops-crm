@@ -59,8 +59,9 @@ export interface UpsertObjectAttendancePayload {
 export interface UpdateObjectEmployeeRatePolicyPayload {
   ratePolicyType: string;
   baseAmount: number;
-  scheduleCode?: string;
+  scheduleCode?: string | null;
   scheduleWeekdays?: string[];
+  scheduleCycleStartDate?: string | null;
   rateOptionId?: string;
   roundingMode?: string;
   roundingStep?: number;
@@ -79,6 +80,7 @@ export interface ObjectCompensationRate {
   baseAmount: number;
   scheduleCode: string | null;
   scheduleWeekdays: string[];
+  scheduleCycleStartDate: string | null;
   standardShiftHours: number;
   notes: string | null;
   isActive: boolean;
@@ -90,7 +92,7 @@ export interface ObjectCompensationRate {
 export type SaveObjectCompensationRatePayload = Pick<
   ObjectCompensationRate,
   'name' | 'category' | 'ratePolicyType' | 'baseAmount'
-> & Partial<Pick<ObjectCompensationRate, 'scheduleCode' | 'scheduleWeekdays' | 'standardShiftHours' | 'notes' | 'isActive'>>;
+> & Partial<Pick<ObjectCompensationRate, 'scheduleCode' | 'scheduleWeekdays' | 'scheduleCycleStartDate' | 'standardShiftHours' | 'notes' | 'isActive'>>;
 
 export interface UpdateObjectCompensationDefaultsPayload {
   paymentType?: 'daily' | 'monthly';
@@ -98,16 +100,19 @@ export interface UpdateObjectCompensationDefaultsPayload {
   monthlySalary?: number;
   paymentScheduleCode?: string | null;
   paymentScheduleWeekdays?: string[];
+  paymentScheduleCycleStartDate?: string | null;
   summerPaymentType?: 'daily' | 'monthly';
   summerDailyRate?: number;
   summerMonthlySalary?: number;
   summerScheduleCode?: string | null;
   summerScheduleWeekdays?: string[];
+  summerScheduleCycleStartDate?: string | null;
   winterPaymentType?: 'daily' | 'monthly';
   winterDailyRate?: number;
   winterMonthlySalary?: number;
   winterScheduleCode?: string | null;
   winterScheduleWeekdays?: string[];
+  winterScheduleCycleStartDate?: string | null;
 }
 
 export async function listObjectCompensationRates(objectId: string): Promise<ObjectCompensationRate[]> {

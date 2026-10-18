@@ -4,11 +4,11 @@
   min-height: var(--ui-control-md, 38px);
   margin: 0 0 7px;
   padding: 0 10px;
-  border: 1px solid var(--ui-border, #ddd3cc);
+  border: 1px solid var(--ui-border, var(--ui-border));
   border-radius: var(--ui-radius-sm, 8px);
   outline: 0;
-  background: var(--ui-surface-subtle, #faf8f6);
-  color: var(--ui-text, #3f3732);
+  background: var(--ui-surface-subtle, var(--ui-surface-subtle));
+  color: var(--ui-text, var(--ui-text));
   box-shadow: none;
   font: inherit;
   font-size: var(--ui-text-sm, 13px);
@@ -16,16 +16,16 @@
 }
 
 :global(.searchable-select__popover) .registrySearchInput:hover {
-  border-color: var(--ui-border-hover, #c8bdb5);
-  background: var(--ui-surface-hover, #f7f3f0);
+  border-color: var(--ui-border-hover);
+  background: var(--ui-surface-hover, var(--ui-surface-subtle));
 }
 
 :global(.searchable-select__popover) .registrySearchInput:focus,
 :global(.searchable-select__popover) .registrySearchInput:focus-visible {
-  border-color: var(--ui-focus-border, #8c6b58);
+  border-color: var(--ui-focus-border);
   outline: 0;
-  background: var(--ui-surface, #fffdfb);
-  box-shadow: var(--ui-focus-ring, 0 0 0 3px rgba(140, 107, 88, 0.16));
+  background: var(--ui-surface, var(--ui-surface));
+  box-shadow: var(--ui-focus-ring);
 }
 
 :global(.searchable-select__popover) .registrySearchInput::-webkit-search-cancel-button {

@@ -37,6 +37,10 @@ export interface TimesheetRatePolicySnapshot {
   baseAmount: number;
   scheduleCode: TimesheetRateScheduleCode | null;
   scheduleWeekdays?: string[];
+  /** Date-only (YYYY-MM-DD); first day of the repeating work block. */
+  scheduleCycleStartDate?: string | null;
+  /** Calendar used to calculate a 5/2 monthly rate; legacy snapshots retain old weekday semantics. */
+  productionCalendarVersion?: string | null;
   roundingMode: TimesheetRateRoundingMode;
   roundingStep: number | null;
   standardShiftHours: number;

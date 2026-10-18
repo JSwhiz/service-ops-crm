@@ -6,8 +6,8 @@
   align-items: center !important;
   justify-content: center !important;
   padding: 7px;
-  color: #65564d;
-  background: #f3efeb;
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-muted);
   border: 0;
   border-radius: 8px;
   cursor: pointer;
@@ -33,11 +33,11 @@
 
 .iconButton:hover {
   color: #3f332c;
-  background: #f2eeea;
+  background: var(--ui-surface-muted);
 }
 
 .iconButton:focus-visible {
-  outline: 2px solid #9b7b67;
+  outline: 2px solid var(--ui-focus-border);
   outline-offset: 2px;
 }
 
@@ -61,9 +61,9 @@
   min-width: 50px;
   height: 34px;
   padding: 0 8px;
-  color: #352d28;
-  background: #fff;
-  border: 1px solid #cbbdb2;
+  color: var(--ui-text);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border-strong);
   border-radius: 7px;
   font: inherit;
 }

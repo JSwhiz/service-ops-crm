@@ -13,6 +13,7 @@ export class ObjectEmployeeOptionDto {
     baseAmount: number;
     scheduleCode: string | null;
     scheduleWeekdays: string[];
+    scheduleCycleStartDate: string | null;
     roundingMode: string;
     roundingStep: number | null;
     standardShiftHours: number;

@@ -39,7 +39,7 @@
   padding: 7px 12px;
   border: 1px solid transparent;
   border-radius: 7px;
-  color: #685d55;
+  color: var(--ui-text-secondary);
   font-size: 13px;
   font-weight: 650;
   line-height: 1;
@@ -123,7 +123,7 @@
   margin-top: 0;
   padding: 14px;
   border-radius: 10px;
-  background: #faf8f6;
+  background: var(--ui-surface-subtle);
 }
 
 .twoColumn {
@@ -157,11 +157,11 @@
   padding: 14px;
   border: 0;
   border-radius: 10px;
-  background: #faf8f6;
+  background: var(--ui-surface-subtle);
 }
 
 .workspace .section > :global(.page-card).equipmentPanel:hover {
-  background: #faf8f6;
+  background: var(--ui-surface-subtle);
   box-shadow: none;
   transform: none;
 }
@@ -169,17 +169,17 @@
 .workspace .todayGrid > :global(.page-card) {
   padding: 14px;
   border-radius: 10px;
-  background: #faf8f6;
+  background: var(--ui-surface-subtle);
 }
 
 .workspace .todayGrid > :global(.page-card:hover) {
-  background: #faf8f6;
+  background: var(--ui-surface-subtle);
 }
 
 .workspace .section > :global(.page-card:has(textarea)) {
   padding: 14px;
   border-radius: 10px;
-  background: #faf8f6;
+  background: var(--ui-surface-subtle);
 }
 
 .workspace :global(.hero-card .object-summary__facts) {
@@ -279,9 +279,9 @@
 .workspace :global(input:focus-visible),
 .workspace :global(select:focus-visible),
 .workspace :global(textarea:focus-visible) {
-  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 2px;
-  border-color: #bba99d;
+  border-color: var(--ui-border-strong);
   box-shadow: none;
 }
 
@@ -325,7 +325,7 @@
   appearance: none;
   cursor: pointer;
   padding-right: 34px;
-  background-color: var(--ui-surface);
+  background-color: var(--ui-text-inverse);
   background-image:
     linear-gradient(45deg, transparent 50%, var(--ui-text-secondary) 50%),
     linear-gradient(135deg, var(--ui-text-secondary) 50%, transparent 50%);
@@ -338,7 +338,7 @@
 
 .workspace :global(input[type="checkbox"]),
 .workspace :global(input[type="radio"]) {
-  accent-color: #67564b;
+  accent-color: var(--ui-text-secondary);
 }
 
 .workspace :global(input::placeholder),
@@ -352,10 +352,10 @@
   align-items: center;
   justify-content: center;
   padding: 7px 10px;
-  border: 1px solid #d9cec6;
+  border: 1px solid var(--ui-border);
   border-radius: 7px;
-  background: #fffdfb;
-  color: #5d4d43;
+  background: var(--ui-surface);
+  color: var(--ui-text-secondary);
   font-size: 13px;
   font-weight: 650;
   line-height: 1.2;
@@ -364,15 +364,15 @@
 }
 
 .section > :global(.page-card) :global(.section-header) > a:hover {
-  border-color: #cdbfb5;
-  background: #faf7f4;
-  color: #332d29;
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text);
 }
 
 .section > :global(.page-card) :global(.section-header) > a:focus-visible {
-  outline: 2px solid rgba(122, 96, 79, 0.22);
+  outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 2px;
-  border-color: #bba99d;
+  border-color: var(--ui-border-strong);
 }
 
 .workspace :global(.page-card),
@@ -389,7 +389,7 @@
 }
 
 .workspace :global(.section-title) {
-  color: #3f3732;
+  color: var(--ui-text);
 }
 
 .workspace :global(.section-subtitle),
@@ -424,74 +424,74 @@
 }
 
 .workspace :global(a) {
-  color: #5d4d43;
+  color: var(--ui-text-secondary);
 }
 
 .workspace :global(a:hover) {
-  color: #332d29;
+  color: var(--ui-text);
 }
 
 .workspace :global(.task-table-scroll) {
-  border-color: #e5ddd6;
+  border-color: var(--ui-border);
   border-radius: 9px;
-  background: #fffdfb;
+  background: var(--ui-surface);
   box-shadow: none;
 }
 
 .workspace :global(.task-table) {
   width: 100%;
-  background: #fffdfb;
-  color: #3f3732;
+  background: var(--ui-surface);
+  color: var(--ui-text);
 }
 
 .workspace :global(.task-table thead th) {
-  border-bottom-color: #e5ddd6;
-  background: #faf7f4;
-  color: #685d55;
+  border-bottom-color: var(--ui-border);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-secondary);
 }
 
 .workspace :global(.task-table tbody td) {
   border-bottom-color: #eee7e2;
-  color: #3f3732;
+  color: var(--ui-text);
 }
 
 .workspace :global(.task-table tbody tr:hover) {
-  background: #faf7f4;
+  background: var(--ui-surface-subtle);
 }
 
 .workspace :global(.task-table__title) {
-  color: #3f3732;
+  color: var(--ui-text);
 }
 
 .workspace :global(.task-table__meta) {
-  color: #887a71;
+  color: var(--ui-text-tertiary);
 }
 
 .workspace :global(.task-overdue) {
-  color: #9a4f3e;
+  color: var(--ui-danger);
 }
 
 .workspace :global(.status-pill) {
-  border-color: #ddd3cc;
-  background: #f7f2ee;
+  border-color: var(--ui-border);
+  background: var(--ui-surface-hover);
   box-shadow: none;
-  color: #685d55;
+  color: var(--ui-text-secondary);
 }
 
 .workspace :global(.status-pill[data-status="completed"]),
 .workspace :global(.status-pill[data-status="active"]),
 .workspace :global(.status-pill[data-status="in_storage"]) {
-  border-color: #d7dfd3;
-  background: #f2f5f0;
-  color: #56664f;
+  border-color: var(--ui-success-border);
+  background: var(--ui-success-subtle);
+  color: var(--ui-success);
 }
 
 .workspace :global(.status-pill[data-status="cancelled"]),
 .workspace :global(.status-pill[data-status="lost"]),
 .workspace :global(.status-pill[data-status="written_off"]) {
-  border-color: #ead7d2;
-  background: #fbf4f2;
-  color: #9a4f3e;
+  border-color: var(--ui-danger-border);
+  background: var(--ui-danger-subtle);
+  color: var(--ui-danger);
 }
 
 .quickAction {
@@ -534,7 +534,7 @@
 }
 
 .workspace :global(.object-summary .hero-title) {
-  color: #302a26;
+  color: var(--ui-text);
   font-size: 24px;
   font-weight: 760;
   line-height: 1.2;
@@ -556,14 +556,14 @@
 }
 
 .workspace :global(.object-summary__internal-name span) {
-  color: #80746c;
+  color: var(--ui-text-tertiary);
   font-size: 12px;
   font-weight: 500;
 }
 
 .workspace :global(.object-summary__internal-name strong) {
   min-width: 0;
-  color: #51463f;
+  color: var(--ui-text);
   font-size: 13px;
   font-weight: 650;
   overflow-wrap: anywhere;
@@ -597,7 +597,7 @@
 
 .workspace :global(.object-summary .detail-label) {
   margin: 0 0 5px;
-  color: #80746c;
+  color: var(--ui-text-tertiary);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0;
@@ -605,7 +605,7 @@
 }
 
 .workspace :global(.object-summary .detail-value) {
-  color: #352e29;
+  color: var(--ui-text);
   font-size: 14px;
   font-weight: 650;
   line-height: 1.4;
@@ -633,7 +633,7 @@
 .workspace :global(.object-summary__note ol) {
   margin: 2px 0 6px;
   padding-left: 22px;
-  color: #352e29;
+  color: var(--ui-text);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.55;
@@ -654,13 +654,13 @@
 }
 
 .workspace :global(.object-summary__season-profile span) {
-  color: #8b7f77;
+  color: var(--ui-text-tertiary);
   font-size: 12px;
   font-weight: 600;
 }
 
 .workspace :global(.object-summary__season-profile strong) {
-  color: #352e29;
+  color: var(--ui-text);
   font-size: 13px;
   font-weight: 650;
   overflow-wrap: anywhere;
@@ -700,7 +700,7 @@
 .workspace :global(.object-status-control__header) {
   margin: 0;
   padding: 0 0 10px;
-  border-bottom: 1px solid #eee7e1;
+  border-bottom: 1px solid var(--ui-surface-muted);
 }
 
 .workspace :global(.searchable-select) {
@@ -710,7 +710,7 @@
 
 .workspace :global(.searchable-select .detail-label) {
   margin: 0;
-  color: #665b54;
+  color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 680;
   letter-spacing: 0;
@@ -732,9 +732,9 @@
 
 .workspace :global(.searchable-select__popover) {
   z-index: 90;
-  border-color: #d8cec7;
+  border-color: var(--ui-border-strong);
   border-radius: 8px;
-  background: #fffdfb;
+  background: var(--ui-surface);
   box-shadow: 0 12px 26px rgba(63, 48, 39, 0.11);
 }
 
@@ -745,7 +745,7 @@
 
 .workspace :global(.searchable-select__options) {
   scrollbar-width: thin;
-  scrollbar-color: #c8bbb1 transparent;
+  scrollbar-color: var(--ui-border-strong) transparent;
 }
 
 @keyframes sectionIn {

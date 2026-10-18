@@ -38,7 +38,9 @@ import {
   getRatePolicyLabel,
   normalizeRatePolicy,
   parseRatePolicySnapshot,
+  pinRatePolicyProductionCalendar,
 } from '../timesheets/utils/timesheet-rate-policy.util';
+import { getScheduleConfigurationError } from '../timesheets/utils/russian-production-calendar.util';
 
 import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
 import { CreateObjectCompensationRateDto } from './dto/create-object-compensation-rate.dto';
@@ -445,6 +447,9 @@ export class ObjectOperationsService {
           paymentType: true,
           dailyRate: true,
           monthlySalary: true,
+          paymentScheduleCode: true,
+          paymentScheduleWeekdays: true,
+          paymentScheduleCycleStartDate: true,
         },
       }),
       this.prisma.objectEmployeeAssignment.findMany({
@@ -511,12 +516,17 @@ export class ObjectOperationsService {
         objectPaymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
         objectMonthlySalary: object?.monthlySalary ?? 0,
         objectDailyRate: object?.dailyRate ?? 0,
+        objectScheduleCode: object?.paymentScheduleCode ?? null,
+        objectScheduleWeekdays: object?.paymentScheduleWeekdays ?? [],
+        objectScheduleCycleStartDate: object?.paymentScheduleCycleStartDate ?? null,
         ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
           paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
           monthlySalary: object?.monthlySalary ?? 0,
           dailyRate: object?.dailyRate ?? 0,
           operationDate: startOfToday(),
-          scheduleCode: item.ratePolicyScheduleCode,
+          scheduleCode: item.ratePolicyUpdatedAt ? item.ratePolicyScheduleCode : object?.paymentScheduleCode,
+          scheduleWeekdays: item.ratePolicyUpdatedAt ? item.ratePolicyWeekdays : object?.paymentScheduleWeekdays,
+          scheduleCycleStartDate: item.ratePolicyUpdatedAt ? item.ratePolicyScheduleCycleStartDate : object?.paymentScheduleCycleStartDate,
         }),
         availabilityWindows: item.employee.availabilityWindows,
         substitutionsAsPrimary: item.employee.substitutionsAsPrimary,
@@ -822,10 +832,18 @@ export class ObjectOperationsService {
         rateOption.standardShiftHours !== (payload.standardShiftHours ?? 8) ||
         [...rateOption.scheduleWeekdays].sort().join(',') !==
           [...(payload.scheduleWeekdays ?? [])].sort().join(',')
+        || (rateOption.scheduleCycleStartDate?.toISOString().slice(0, 10) ?? null) !== (payload.scheduleCycleStartDate ?? null)
       ) {
         throw new BadRequestException('График и сумма должны совпадать с выбранным вариантом оплаты');
       }
     }
+
+    const scheduleError = getScheduleConfigurationError({
+      scheduleCode: payload.scheduleCode,
+      scheduleWeekdays: payload.scheduleWeekdays,
+      scheduleCycleStartDate: payload.scheduleCycleStartDate,
+    });
+    if (scheduleError) throw new BadRequestException(scheduleError);
 
     const assignment = await this.prisma.objectEmployeeAssignment.findFirst({
       where: {
@@ -890,6 +908,7 @@ export class ObjectOperationsService {
         rateOptionId: payload.rateOptionId ?? null,
         ratePolicyBaseAmount: payload.baseAmount,
         ratePolicyScheduleCode: payload.scheduleCode ?? null,
+        ratePolicyScheduleCycleStartDate: payload.scheduleCycleStartDate ? new Date(`${payload.scheduleCycleStartDate}T00:00:00.000Z`) : null,
         ratePolicyWeekdays: payload.scheduleWeekdays ?? [],
         ratePolicyRoundingMode: payload.roundingMode ?? 'none',
         ratePolicyRoundingStep: payload.roundingStep ?? null,
@@ -980,32 +999,78 @@ export class ObjectOperationsService {
         seasonMode: true,
         paymentType: true, dailyRate: true, monthlySalary: true,
         paymentScheduleCode: true, paymentScheduleWeekdays: true,
+        paymentScheduleCycleStartDate: true,
         summerPaymentType: true, summerDailyRate: true, summerMonthlySalary: true,
-        summerScheduleCode: true, summerScheduleWeekdays: true,
+        summerScheduleCode: true, summerScheduleWeekdays: true, summerScheduleCycleStartDate: true,
         winterPaymentType: true, winterDailyRate: true, winterMonthlySalary: true,
-        winterScheduleCode: true, winterScheduleWeekdays: true,
+        winterScheduleCode: true, winterScheduleWeekdays: true, winterScheduleCycleStartDate: true,
       },
     });
     if (!existing) throw new NotFoundException('Object not found');
+    const profiles = [
+      {
+        label: 'Базовый график',
+        code: payload.paymentScheduleCode !== undefined ? payload.paymentScheduleCode : existing.paymentScheduleCode,
+        weekdays: payload.paymentScheduleWeekdays ?? existing.paymentScheduleWeekdays,
+        cycleStartDate: payload.paymentScheduleCycleStartDate !== undefined
+          ? payload.paymentScheduleCycleStartDate
+          : existing.paymentScheduleCycleStartDate,
+      },
+      {
+        label: 'Летний график',
+        code: payload.summerScheduleCode !== undefined ? payload.summerScheduleCode : existing.summerScheduleCode,
+        weekdays: payload.summerScheduleWeekdays ?? existing.summerScheduleWeekdays,
+        cycleStartDate: payload.summerScheduleCycleStartDate !== undefined
+          ? payload.summerScheduleCycleStartDate
+          : existing.summerScheduleCycleStartDate,
+      },
+      {
+        label: 'Зимний график',
+        code: payload.winterScheduleCode !== undefined ? payload.winterScheduleCode : existing.winterScheduleCode,
+        weekdays: payload.winterScheduleWeekdays ?? existing.winterScheduleWeekdays,
+        cycleStartDate: payload.winterScheduleCycleStartDate !== undefined
+          ? payload.winterScheduleCycleStartDate
+          : existing.winterScheduleCycleStartDate,
+      },
+    ];
+    for (const profile of profiles) {
+      const error = getScheduleConfigurationError({
+        scheduleCode: profile.code,
+        scheduleWeekdays: profile.weekdays,
+        scheduleCycleStartDate: profile.cycleStartDate,
+      });
+      if (error) throw new BadRequestException(`${profile.label}: ${error}`);
+    }
     const updateData: Prisma.ObjectUpdateInput = { ...payload };
+    for (const field of ['paymentScheduleCycleStartDate', 'summerScheduleCycleStartDate', 'winterScheduleCycleStartDate'] as const) {
+      if (payload[field] !== undefined) {
+        updateData[field] = payload[field] ? new Date(`${payload[field]}T00:00:00.000Z`) : null;
+      }
+    }
     const summerProfileChanged = payload.summerPaymentType !== undefined ||
       payload.summerDailyRate !== undefined || payload.summerMonthlySalary !== undefined ||
-      payload.summerScheduleCode !== undefined || payload.summerScheduleWeekdays !== undefined;
+      payload.summerScheduleCode !== undefined || payload.summerScheduleWeekdays !== undefined || payload.summerScheduleCycleStartDate !== undefined;
     const winterProfileChanged = payload.winterPaymentType !== undefined ||
       payload.winterDailyRate !== undefined || payload.winterMonthlySalary !== undefined ||
-      payload.winterScheduleCode !== undefined || payload.winterScheduleWeekdays !== undefined;
+      payload.winterScheduleCode !== undefined || payload.winterScheduleWeekdays !== undefined || payload.winterScheduleCycleStartDate !== undefined;
     if (existing.seasonMode === 'summer' && summerProfileChanged) {
       updateData.paymentType = payload.summerPaymentType ?? existing.summerPaymentType;
       updateData.dailyRate = payload.summerDailyRate ?? existing.summerDailyRate;
       updateData.monthlySalary = payload.summerMonthlySalary ?? existing.summerMonthlySalary;
-      updateData.paymentScheduleCode = payload.summerScheduleCode ?? existing.summerScheduleCode;
+      updateData.paymentScheduleCode = payload.summerScheduleCode !== undefined ? payload.summerScheduleCode : existing.summerScheduleCode;
       updateData.paymentScheduleWeekdays = payload.summerScheduleWeekdays ?? existing.summerScheduleWeekdays;
+      updateData.paymentScheduleCycleStartDate = payload.summerScheduleCycleStartDate !== undefined
+        ? (payload.summerScheduleCycleStartDate ? new Date(`${payload.summerScheduleCycleStartDate}T00:00:00.000Z`) : null)
+        : existing.summerScheduleCycleStartDate;
     } else if (existing.seasonMode === 'winter' && winterProfileChanged) {
       updateData.paymentType = payload.winterPaymentType ?? existing.winterPaymentType;
       updateData.dailyRate = payload.winterDailyRate ?? existing.winterDailyRate;
       updateData.monthlySalary = payload.winterMonthlySalary ?? existing.winterMonthlySalary;
-      updateData.paymentScheduleCode = payload.winterScheduleCode ?? existing.winterScheduleCode;
+      updateData.paymentScheduleCode = payload.winterScheduleCode !== undefined ? payload.winterScheduleCode : existing.winterScheduleCode;
       updateData.paymentScheduleWeekdays = payload.winterScheduleWeekdays ?? existing.winterScheduleWeekdays;
+      updateData.paymentScheduleCycleStartDate = payload.winterScheduleCycleStartDate !== undefined
+        ? (payload.winterScheduleCycleStartDate ? new Date(`${payload.winterScheduleCycleStartDate}T00:00:00.000Z`) : null)
+        : existing.winterScheduleCycleStartDate;
     }
     await this.prisma.$transaction(async (tx) => {
       const updated = await tx.object.update({
@@ -1049,6 +1114,12 @@ export class ObjectOperationsService {
   ): Promise<ObjectCompensationRateResponseDto> {
     await this.assertRatePolicyWritable(currentUser);
     await this.assertObjectVisible(currentUser, objectId);
+    const scheduleError = getScheduleConfigurationError({
+      scheduleCode: payload.scheduleCode,
+      scheduleWeekdays: payload.scheduleWeekdays,
+      scheduleCycleStartDate: payload.scheduleCycleStartDate,
+    });
+    if (scheduleError) throw new BadRequestException(scheduleError);
     const item = await this.prisma.$transaction(async (tx) => {
       const created = await tx.objectCompensationRate.create({
         data: {
@@ -1058,6 +1129,7 @@ export class ObjectOperationsService {
           ratePolicyType: payload.ratePolicyType,
           baseAmount: payload.baseAmount,
           scheduleCode: payload.scheduleCode ?? null,
+          scheduleCycleStartDate: payload.scheduleCycleStartDate ? new Date(`${payload.scheduleCycleStartDate}T00:00:00.000Z`) : null,
           scheduleWeekdays: payload.scheduleWeekdays ?? [],
           standardShiftHours: payload.standardShiftHours ?? 8,
           notes: payload.notes?.trim() || null,
@@ -1088,6 +1160,14 @@ export class ObjectOperationsService {
     await this.assertObjectVisible(currentUser, objectId);
     const existing = await this.prisma.objectCompensationRate.findFirst({ where: { id: rateId, objectId } });
     if (!existing) throw new NotFoundException('Вариант оплаты не найден');
+    const scheduleError = getScheduleConfigurationError({
+      scheduleCode: payload.scheduleCode ?? existing.scheduleCode,
+      scheduleWeekdays: payload.scheduleWeekdays ?? existing.scheduleWeekdays,
+      scheduleCycleStartDate: payload.scheduleCycleStartDate !== undefined
+        ? payload.scheduleCycleStartDate
+        : existing.scheduleCycleStartDate,
+    });
+    if (scheduleError) throw new BadRequestException(scheduleError);
     const item = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.objectCompensationRate.update({
         where: { id: rateId },
@@ -1097,6 +1177,7 @@ export class ObjectOperationsService {
           ...(payload.ratePolicyType !== undefined ? { ratePolicyType: payload.ratePolicyType } : {}),
           ...(payload.baseAmount !== undefined ? { baseAmount: payload.baseAmount } : {}),
           ...(payload.scheduleCode !== undefined ? { scheduleCode: payload.scheduleCode || null } : {}),
+          ...(payload.scheduleCycleStartDate !== undefined ? { scheduleCycleStartDate: payload.scheduleCycleStartDate ? new Date(`${payload.scheduleCycleStartDate}T00:00:00.000Z`) : null } : {}),
           ...(payload.scheduleWeekdays !== undefined ? { scheduleWeekdays: payload.scheduleWeekdays } : {}),
           ...(payload.standardShiftHours !== undefined ? { standardShiftHours: payload.standardShiftHours } : {}),
           ...(payload.notes !== undefined ? { notes: payload.notes.trim() || null } : {}),
@@ -1372,12 +1453,12 @@ export class ObjectOperationsService {
             const previous = previousFacts.find((fact) => fact.employeeId === employeeId);
             const inputFact = inputFacts.find((fact) => fact.employeeId === employeeId);
             const savedPolicy = parseRatePolicySnapshot(previous?.ratePolicySnapshot);
-            const ratePolicy = inputFact?.ratePolicyType
+            const ratePolicy = pinRatePolicyProductionCalendar(inputFact?.ratePolicyType
               ? normalizeRatePolicy({ ratePolicyType: inputFact.ratePolicyType, ratePolicyBaseAmount: inputFact.rateAmount, ratePolicyNotes: inputFact.rateReason }, inputFact.rateAmount ?? 0)
               : inputFact?.clearRateOverride
                 ? assignment?.ratePolicyUpdatedAt
-                  ? normalizeRatePolicy(assignment, this.getObjectMonthlySalaryDailyFallback({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, operationDate: normalizedDate, scheduleCode: assignment.ratePolicyScheduleCode ?? object.paymentScheduleCode, scheduleWeekdays: assignment.ratePolicyWeekdays }))
-                  : buildObjectDefaultRatePolicy({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: assignment?.ratePolicyScheduleCode ?? object.paymentScheduleCode, scheduleWeekdays: assignment?.ratePolicyWeekdays ?? object.paymentScheduleWeekdays })
+                  ? normalizeRatePolicy(assignment, this.getObjectMonthlySalaryDailyFallback({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, operationDate: normalizedDate, scheduleCode: assignment.ratePolicyScheduleCode ?? object.paymentScheduleCode, scheduleWeekdays: assignment.ratePolicyWeekdays, scheduleCycleStartDate: assignment.ratePolicyScheduleCycleStartDate ?? object.paymentScheduleCycleStartDate }))
+                  : buildObjectDefaultRatePolicy({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: assignment?.ratePolicyScheduleCode ?? object.paymentScheduleCode, scheduleWeekdays: assignment?.ratePolicyWeekdays ?? object.paymentScheduleWeekdays, scheduleCycleStartDate: assignment?.ratePolicyScheduleCycleStartDate ?? object.paymentScheduleCycleStartDate })
                 : savedPolicy ?? (previous
               ? normalizeRatePolicy({ ratePolicyType: 'per_attendance', ratePolicyBaseAmount: previous.dailyRateSnapshot }, previous.dailyRateSnapshot)
               : assignment?.ratePolicyUpdatedAt
@@ -1390,6 +1471,7 @@ export class ObjectOperationsService {
                     operationDate: normalizedDate,
                     scheduleCode: assignment.ratePolicyScheduleCode ?? object.paymentScheduleCode,
                     scheduleWeekdays: assignment.ratePolicyWeekdays,
+                    scheduleCycleStartDate: assignment.ratePolicyScheduleCycleStartDate ?? object.paymentScheduleCycleStartDate,
                   }),
                 )
               : buildObjectDefaultRatePolicy({
@@ -1397,10 +1479,13 @@ export class ObjectOperationsService {
                   monthlySalary: object.monthlySalary,
                   dailyRate: object.dailyRate,
                   scheduleCode: assignment?.ratePolicyScheduleCode ?? object.paymentScheduleCode,
-                  scheduleWeekdays: assignment?.ratePolicyUpdatedAt
+                scheduleWeekdays: assignment?.ratePolicyUpdatedAt
                     ? assignment.ratePolicyWeekdays
                     : object.paymentScheduleWeekdays,
-                }));
+                  scheduleCycleStartDate: assignment?.ratePolicyUpdatedAt
+                    ? assignment.ratePolicyScheduleCycleStartDate
+                    : object.paymentScheduleCycleStartDate,
+                })), targetYear);
             const workedHours = workedHoursByEmployeeId.has(employeeId) ? workedHoursByEmployeeId.get(employeeId) ?? null : previous?.workedHours ?? null;
             const dailyRateSnapshot =
               ratePolicy.ratePolicyType === 'monthly_fixed'
@@ -1410,6 +1495,8 @@ export class ObjectOperationsService {
                     month: targetMonth,
                     scheduleCode: ratePolicy.scheduleCode,
                     scheduleWeekdays: ratePolicy.scheduleWeekdays,
+                    scheduleCycleStartDate: ratePolicy.scheduleCycleStartDate,
+                    productionCalendarVersion: ratePolicy.productionCalendarVersion,
                   }).dailyRate
                 : ratePolicy.ratePolicyType === 'partial_shift'
                   ? Math.round(
@@ -1511,7 +1598,7 @@ export class ObjectOperationsService {
     const [object, assignedEmployees, activeSubstitutions] = await Promise.all([
       this.prisma.object.findUnique({
         where: { id: objectId },
-        select: { paymentType: true, dailyRate: true, monthlySalary: true, paymentScheduleCode: true, paymentScheduleWeekdays: true },
+        select: { paymentType: true, dailyRate: true, monthlySalary: true, paymentScheduleCode: true, paymentScheduleWeekdays: true, paymentScheduleCycleStartDate: true },
       }),
       this.prisma.objectEmployeeAssignment.findMany({
         where: {
@@ -1615,6 +1702,7 @@ export class ObjectOperationsService {
         objectMonthlySalary: object?.monthlySalary ?? 0,
         objectDailyRate: object?.dailyRate ?? 0,
         objectScheduleCode: object?.paymentScheduleCode ?? null,
+        objectScheduleCycleStartDate: object?.paymentScheduleCycleStartDate ?? null,
         objectScheduleWeekdays: object?.paymentScheduleWeekdays ?? [],
         ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
           paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
@@ -1622,6 +1710,9 @@ export class ObjectOperationsService {
           dailyRate: object?.dailyRate ?? 0,
           operationDate,
           scheduleCode: item.ratePolicyScheduleCode ?? object?.paymentScheduleCode,
+          scheduleCycleStartDate: item.ratePolicyUpdatedAt
+            ? item.ratePolicyScheduleCycleStartDate
+            : object?.paymentScheduleCycleStartDate,
           scheduleWeekdays: item.ratePolicyUpdatedAt ? item.ratePolicyWeekdays : (object?.paymentScheduleWeekdays ?? []),
         }),
         availabilityWindows: item.employee.availabilityWindows,
@@ -1646,6 +1737,7 @@ export class ObjectOperationsService {
           objectMonthlySalary: object?.monthlySalary ?? 0,
           objectDailyRate: object?.dailyRate ?? 0,
           objectScheduleCode: object?.paymentScheduleCode ?? null,
+          objectScheduleCycleStartDate: object?.paymentScheduleCycleStartDate ?? null,
           objectScheduleWeekdays: object?.paymentScheduleWeekdays ?? [],
           ratePolicyFallbackAmount: this.getObjectMonthlySalaryDailyFallback({
             paymentType: (object?.paymentType ?? 'monthly') as 'monthly' | 'daily',
@@ -1653,6 +1745,7 @@ export class ObjectOperationsService {
             dailyRate: object?.dailyRate ?? 0,
             operationDate,
             scheduleCode: object?.paymentScheduleCode,
+            scheduleCycleStartDate: object?.paymentScheduleCycleStartDate,
             scheduleWeekdays: object?.paymentScheduleWeekdays,
           }),
           availabilityWindows: item.substituteEmployee.availabilityWindows,
@@ -1674,18 +1767,21 @@ export class ObjectOperationsService {
     operationDate: Date;
     scheduleCode?: string | null;
     scheduleWeekdays?: string[];
+    scheduleCycleStartDate?: Date | string | null;
   }): number {
+    if (params.paymentType === 'daily') {
+      return Math.max(0, Math.round(params.dailyRate));
+    }
     const calculation = calculateMonthlySalaryDailyRate({
       monthlySalary: params.monthlySalary,
       year: params.operationDate.getFullYear(),
       month: params.operationDate.getMonth() + 1,
       scheduleCode: params.scheduleCode ?? null,
       scheduleWeekdays: params.scheduleWeekdays ?? [],
+      scheduleCycleStartDate: params.scheduleCycleStartDate ?? null,
     });
 
-    return params.paymentType === 'monthly'
-      ? calculation.dailyRate
-      : Math.max(0, Math.round(params.dailyRate));
+    return calculation.dailyRate;
   }
 
   private buildActiveObjectSubstitutionWhere(
@@ -1797,6 +1893,7 @@ export class ObjectOperationsService {
       rateOptionId?: string | null;
       ratePolicyBaseAmount: number | null;
       ratePolicyScheduleCode: string | null;
+      ratePolicyScheduleCycleStartDate: Date | null;
       ratePolicyRoundingMode: string | null;
       ratePolicyRoundingStep: number | null;
       ratePolicyStandardShiftHours: number | null;
@@ -1813,6 +1910,7 @@ export class ObjectOperationsService {
     objectMonthlySalary?: number;
     objectDailyRate?: number;
     objectScheduleCode?: string | null;
+    objectScheduleCycleStartDate?: Date | null;
     objectScheduleWeekdays?: string[];
     ratePolicyFallbackAmount?: number;
     availabilityWindows: Array<{
@@ -1887,7 +1985,12 @@ export class ObjectOperationsService {
             paymentType: params.objectPaymentType,
             monthlySalary: params.objectMonthlySalary ?? 0,
             dailyRate: params.objectDailyRate ?? 0,
-            scheduleCode: params.ratePolicy?.ratePolicyScheduleCode ?? params.objectScheduleCode ?? null,
+            scheduleCode: params.ratePolicy?.ratePolicyUpdatedAt
+              ? params.ratePolicy.ratePolicyScheduleCode
+              : params.ratePolicy?.ratePolicyScheduleCode ?? params.objectScheduleCode ?? null,
+            scheduleCycleStartDate: params.ratePolicy?.ratePolicyUpdatedAt
+              ? params.ratePolicy.ratePolicyScheduleCycleStartDate
+              : params.ratePolicy?.ratePolicyScheduleCycleStartDate ?? params.objectScheduleCycleStartDate ?? null,
             scheduleWeekdays: params.ratePolicy?.ratePolicyUpdatedAt
               ? params.ratePolicy.ratePolicyWeekdays ?? []
               : params.ratePolicy?.ratePolicyWeekdays?.length
@@ -1909,6 +2012,7 @@ export class ObjectOperationsService {
         ? {
             ...ratePolicy,
             scheduleWeekdays: ratePolicy.scheduleWeekdays ?? [],
+            scheduleCycleStartDate: ratePolicy.scheduleCycleStartDate ?? null,
             rateOptionId: params.ratePolicy?.rateOptionId ?? null,
             label: getRatePolicyLabel(ratePolicy),
             updatedAt: params.ratePolicy?.ratePolicyUpdatedAt?.toISOString() ?? null,
@@ -2052,6 +2156,7 @@ export class ObjectOperationsService {
     ratePolicyType: string;
     baseAmount: number;
     scheduleCode: string | null;
+    scheduleCycleStartDate: Date | null;
     scheduleWeekdays: string[];
     standardShiftHours: number;
     notes: string | null;
@@ -2069,6 +2174,7 @@ export class ObjectOperationsService {
       baseAmount: item.baseAmount,
       scheduleCode: item.scheduleCode,
       scheduleWeekdays: item.scheduleWeekdays,
+      scheduleCycleStartDate: item.scheduleCycleStartDate?.toISOString().slice(0, 10) ?? null,
       standardShiftHours: item.standardShiftHours,
       notes: item.notes,
       isActive: item.isActive,

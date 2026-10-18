@@ -75,7 +75,7 @@
   flex: 0 0 36px;
   display: grid;
   place-items: center;
-  border: 1px solid #d7cec7;
+  border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-md);
   background: var(--ui-accent-subtle);
   color: var(--ui-accent);
@@ -218,7 +218,7 @@
 
 .app-sidebar__link--active,
 .app-sidebar__link--active:hover {
-  border-color: #ded6cf;
+  border-color: var(--ui-border);
   background: var(--ui-accent-subtle);
   color: var(--ui-accent);
   font-weight: 650;
@@ -282,8 +282,8 @@
   max-width: 240px;
   padding: 6px 8px;
   border-radius: var(--ui-radius-sm);
-  background: #302b27;
-  color: #fff;
+  background: var(--ui-text);
+  color: var(--ui-text-inverse);
   box-shadow: var(--ui-shadow-popover);
   font-size: var(--ui-text-xs);
   font-weight: 550;
@@ -553,7 +553,7 @@
   padding: 0 5px;
   border-radius: var(--ui-radius-pill);
   background: var(--ui-danger);
-  color: #fff;
+  color: var(--ui-text-inverse);
   font-size: 10px;
   font-weight: 700;
 }

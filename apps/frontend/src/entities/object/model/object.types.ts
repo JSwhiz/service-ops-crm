@@ -20,6 +20,7 @@ export interface ObjectEmployeeOption {
     baseAmount: number;
     scheduleCode: string | null;
     scheduleWeekdays: string[];
+    scheduleCycleStartDate: string | null;
     roundingMode: string;
     roundingStep: number | null;
     standardShiftHours: number;
@@ -65,16 +66,19 @@ export interface ServiceObject {
   monthlySalary: number | null;
   paymentScheduleCode: string | null;
   paymentScheduleWeekdays: string[];
+  paymentScheduleCycleStartDate: string | null;
   summerPaymentType: 'monthly' | 'daily' | null;
   summerDailyRate: number | null;
   summerMonthlySalary: number | null;
   summerScheduleCode: string | null;
   summerScheduleWeekdays: string[];
+  summerScheduleCycleStartDate: string | null;
   winterPaymentType: 'monthly' | 'daily' | null;
   winterDailyRate: number | null;
   winterMonthlySalary: number | null;
   winterScheduleCode: string | null;
   winterScheduleWeekdays: string[];
+  winterScheduleCycleStartDate: string | null;
   notes: string | null;
   counterparty: {
     id: string;

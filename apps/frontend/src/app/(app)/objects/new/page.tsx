@@ -11,7 +11,10 @@ import {
 } from '@/entities/user/api/user-client';
 import { useAuth } from '@/shared/auth/use-auth';
 import { ObjectCompensationProfiles } from '@/features/object-compensation/ui/object-compensation-profiles';
-import type { ObjectCompensationProfilesValue } from '@/features/object-compensation/ui/object-compensation-profiles';
+import {
+  getInvalidObjectScheduleProfiles,
+  type ObjectCompensationProfilesValue,
+} from '@/features/object-compensation/ui/object-compensation-profiles';
 import {
   getUserDisplayName,
   getUserSecondaryLabel,
@@ -323,16 +326,19 @@ export default function NewObjectPage(): React.JSX.Element {
     dailyRate: '0',
     paymentScheduleCode: '5/2',
     paymentScheduleWeekdays: [] as string[],
+    paymentScheduleCycleStartDate: '',
     summerPaymentType: 'monthly' as 'monthly' | 'daily',
     summerMonthlySalary: '0',
     summerDailyRate: '0',
     summerScheduleCode: '5/2',
     summerScheduleWeekdays: [] as string[],
+    summerScheduleCycleStartDate: '',
     winterPaymentType: 'monthly' as 'monthly' | 'daily',
     winterMonthlySalary: '0',
     winterDailyRate: '0',
     winterScheduleCode: '5/2',
     winterScheduleWeekdays: [] as string[],
+    winterScheduleCycleStartDate: '',
     notes: '',
     instructionStepsText: '',
   });
@@ -357,17 +363,21 @@ export default function NewObjectPage(): React.JSX.Element {
     monthlySalary: form.monthlySalary,
     paymentScheduleCode: form.paymentScheduleCode,
     paymentScheduleWeekdays: form.paymentScheduleWeekdays,
+    paymentScheduleCycleStartDate: form.paymentScheduleCycleStartDate,
     summerPaymentType: form.summerPaymentType,
     summerDailyRate: form.summerDailyRate,
     summerMonthlySalary: form.summerMonthlySalary,
     summerScheduleCode: form.summerScheduleCode,
     summerScheduleWeekdays: form.summerScheduleWeekdays,
+    summerScheduleCycleStartDate: form.summerScheduleCycleStartDate,
     winterPaymentType: form.winterPaymentType,
     winterDailyRate: form.winterDailyRate,
     winterMonthlySalary: form.winterMonthlySalary,
     winterScheduleCode: form.winterScheduleCode,
     winterScheduleWeekdays: form.winterScheduleWeekdays,
+    winterScheduleCycleStartDate: form.winterScheduleCycleStartDate,
   };
+  const invalidScheduleProfiles = getInvalidObjectScheduleProfiles(compensationProfiles);
 
   useEffect(() => {
     const loadUsers = async (): Promise<void> => {
@@ -425,6 +435,11 @@ export default function NewObjectPage(): React.JSX.Element {
       return;
     }
 
+    if (invalidScheduleProfiles.length > 0) {
+      setError(`Проверьте график в профилях: ${invalidScheduleProfiles.join(', ')}.`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -441,18 +456,21 @@ export default function NewObjectPage(): React.JSX.Element {
         paymentType: form.paymentType,
         monthlySalary: Number(form.monthlySalary) || 0,
         dailyRate: Number(form.dailyRate) || 0,
-        paymentScheduleCode: form.paymentScheduleCode,
+        paymentScheduleCode: form.paymentScheduleWeekdays.length ? null : form.paymentScheduleCode || '5/2',
         paymentScheduleWeekdays: form.paymentScheduleWeekdays,
+        paymentScheduleCycleStartDate: form.paymentScheduleWeekdays.length || form.paymentScheduleCode === '5/2' ? null : form.paymentScheduleCycleStartDate,
         summerPaymentType: form.summerPaymentType,
         summerMonthlySalary: Number(form.summerMonthlySalary) || 0,
         summerDailyRate: Number(form.summerDailyRate) || 0,
-        summerScheduleCode: form.summerScheduleCode,
+        summerScheduleCode: form.summerScheduleWeekdays.length ? null : form.summerScheduleCode || '5/2',
         summerScheduleWeekdays: form.summerScheduleWeekdays,
+        summerScheduleCycleStartDate: form.summerScheduleWeekdays.length || form.summerScheduleCode === '5/2' ? null : form.summerScheduleCycleStartDate,
         winterPaymentType: form.winterPaymentType,
         winterMonthlySalary: Number(form.winterMonthlySalary) || 0,
         winterDailyRate: Number(form.winterDailyRate) || 0,
-        winterScheduleCode: form.winterScheduleCode,
+        winterScheduleCode: form.winterScheduleWeekdays.length ? null : form.winterScheduleCode || '5/2',
         winterScheduleWeekdays: form.winterScheduleWeekdays,
+        winterScheduleCycleStartDate: form.winterScheduleWeekdays.length || form.winterScheduleCode === '5/2' ? null : form.winterScheduleCycleStartDate,
         notes: form.notes.trim() || undefined,
         counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
         managerUserIds,
@@ -693,7 +711,7 @@ export default function NewObjectPage(): React.JSX.Element {
           <button
             type="submit"
             className={styles.primaryButton}
-            disabled={isSubmitting || isUsersLoading || !allowCreateObject || !responsibleUserId}
+            disabled={isSubmitting || isUsersLoading || !allowCreateObject || !responsibleUserId || invalidScheduleProfiles.length > 0}
           >
             {isSubmitting ? 'Создаём…' : 'Создать объект'}
           </button>

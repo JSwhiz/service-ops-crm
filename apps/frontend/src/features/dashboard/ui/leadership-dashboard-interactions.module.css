@@ -1,7 +1,7 @@
 .entityRow {
   width: 100%;
   appearance: none;
-  border-top: 1px solid #e8e0da;
+  border-top: 1px solid var(--ui-border);
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
@@ -30,8 +30,8 @@
   border-bottom: 0 !important;
   border-left: 0 !important;
   border-radius: 0 !important;
-  border-color: #e8e0da !important;
-  background: #faf7f4 !important;
+  border-color: var(--ui-border) !important;
+  background: var(--ui-surface-subtle) !important;
   box-shadow: none !important;
   color: inherit !important;
   transform: none !important;

@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class UpdateObjectDto {
   @IsOptional()
@@ -58,7 +58,9 @@ export class UpdateObjectDto {
   monthlySalary?: number;
 
   @IsOptional() @IsIn(['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'])
-  paymentScheduleCode?: string;
+  paymentScheduleCode?: string | null;
+  @Transform(({ value }) => (value === '' ? null : value)) @IsOptional() @IsDateString()
+  paymentScheduleCycleStartDate?: string | null;
   @IsOptional() @IsArray() @ArrayUnique() @IsIn(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], { each: true })
   paymentScheduleWeekdays?: string[];
 
@@ -69,7 +71,9 @@ export class UpdateObjectDto {
   @IsOptional() @IsInt() @Min(0)
   summerMonthlySalary?: number;
   @IsOptional() @IsIn(['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'])
-  summerScheduleCode?: string;
+  summerScheduleCode?: string | null;
+  @Transform(({ value }) => (value === '' ? null : value)) @IsOptional() @IsDateString()
+  summerScheduleCycleStartDate?: string | null;
   @IsOptional() @IsArray() @ArrayUnique() @IsIn(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], { each: true })
   summerScheduleWeekdays?: string[];
   @IsOptional() @IsIn(['monthly', 'daily'])
@@ -79,7 +83,9 @@ export class UpdateObjectDto {
   @IsOptional() @IsInt() @Min(0)
   winterMonthlySalary?: number;
   @IsOptional() @IsIn(['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'])
-  winterScheduleCode?: string;
+  winterScheduleCode?: string | null;
+  @Transform(({ value }) => (value === '' ? null : value)) @IsOptional() @IsDateString()
+  winterScheduleCycleStartDate?: string | null;
   @IsOptional() @IsArray() @ArrayUnique() @IsIn(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'], { each: true })
   winterScheduleWeekdays?: string[];
 

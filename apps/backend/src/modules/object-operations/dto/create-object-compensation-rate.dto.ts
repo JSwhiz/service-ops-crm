@@ -1,4 +1,4 @@
-import { IsArray, ArrayUnique, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsArray, ArrayUnique, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
@@ -16,7 +16,10 @@ export class CreateObjectCompensationRateDto {
   baseAmount!: number;
 
   @IsOptional() @IsIn(['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'])
-  scheduleCode?: string;
+  scheduleCode?: string | null;
+
+  @IsOptional() @IsDateString()
+  scheduleCycleStartDate?: string | null;
 
   @IsOptional() @IsArray() @ArrayUnique() @IsIn(WEEKDAYS, { each: true })
   scheduleWeekdays?: string[];

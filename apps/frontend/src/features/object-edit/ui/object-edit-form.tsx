@@ -8,7 +8,10 @@ import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listObjectResponsibleCandidates } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { ObjectCompensationProfiles } from '@/features/object-compensation/ui/object-compensation-profiles';
-import type { ObjectCompensationProfilesValue } from '@/features/object-compensation/ui/object-compensation-profiles';
+import {
+  getInvalidObjectScheduleProfiles,
+  type ObjectCompensationProfilesValue,
+} from '@/features/object-compensation/ui/object-compensation-profiles';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import {
   SearchableSelect,
@@ -46,16 +49,19 @@ export function ObjectEditForm({
     dailyRate: String(item.dailyRate ?? 0),
     paymentScheduleCode: item.paymentScheduleCode ?? '5/2',
     paymentScheduleWeekdays: item.paymentScheduleWeekdays ?? [],
+    paymentScheduleCycleStartDate: item.paymentScheduleCycleStartDate?.slice(0, 10) ?? '',
     summerPaymentType: item.summerPaymentType ?? item.paymentType ?? 'monthly',
     summerMonthlySalary: String(item.summerMonthlySalary ?? item.monthlySalary ?? 0),
     summerDailyRate: String(item.summerDailyRate ?? item.dailyRate ?? 0),
     summerScheduleCode: item.summerScheduleCode ?? '5/2',
     summerScheduleWeekdays: item.summerScheduleWeekdays ?? [],
+    summerScheduleCycleStartDate: item.summerScheduleCycleStartDate?.slice(0, 10) ?? '',
     winterPaymentType: item.winterPaymentType ?? item.paymentType ?? 'monthly',
     winterMonthlySalary: String(item.winterMonthlySalary ?? item.monthlySalary ?? 0),
     winterDailyRate: String(item.winterDailyRate ?? item.dailyRate ?? 0),
     winterScheduleCode: item.winterScheduleCode ?? '5/2',
     winterScheduleWeekdays: item.winterScheduleWeekdays ?? [],
+    winterScheduleCycleStartDate: item.winterScheduleCycleStartDate?.slice(0, 10) ?? '',
     notes: item.notes ?? '',
     counterpartyId: item.counterparty?.id ?? '',
   });
@@ -82,16 +88,19 @@ export function ObjectEditForm({
       dailyRate: String(item.dailyRate ?? 0),
       paymentScheduleCode: item.paymentScheduleCode ?? '5/2',
       paymentScheduleWeekdays: item.paymentScheduleWeekdays ?? [],
+      paymentScheduleCycleStartDate: item.paymentScheduleCycleStartDate?.slice(0, 10) ?? '',
       summerPaymentType: item.summerPaymentType ?? item.paymentType ?? 'monthly',
       summerMonthlySalary: String(item.summerMonthlySalary ?? item.monthlySalary ?? 0),
       summerDailyRate: String(item.summerDailyRate ?? item.dailyRate ?? 0),
       summerScheduleCode: item.summerScheduleCode ?? '5/2',
       summerScheduleWeekdays: item.summerScheduleWeekdays ?? [],
+      summerScheduleCycleStartDate: item.summerScheduleCycleStartDate?.slice(0, 10) ?? '',
       winterPaymentType: item.winterPaymentType ?? item.paymentType ?? 'monthly',
       winterMonthlySalary: String(item.winterMonthlySalary ?? item.monthlySalary ?? 0),
       winterDailyRate: String(item.winterDailyRate ?? item.dailyRate ?? 0),
       winterScheduleCode: item.winterScheduleCode ?? '5/2',
       winterScheduleWeekdays: item.winterScheduleWeekdays ?? [],
+      winterScheduleCycleStartDate: item.winterScheduleCycleStartDate?.slice(0, 10) ?? '',
       notes: item.notes ?? '',
       counterpartyId: item.counterparty?.id ?? '',
     });
@@ -136,17 +145,21 @@ export function ObjectEditForm({
     monthlySalary: form.monthlySalary,
     paymentScheduleCode: form.paymentScheduleCode,
     paymentScheduleWeekdays: form.paymentScheduleWeekdays,
+    paymentScheduleCycleStartDate: form.paymentScheduleCycleStartDate,
     summerPaymentType: form.summerPaymentType as 'monthly' | 'daily',
     summerDailyRate: form.summerDailyRate,
     summerMonthlySalary: form.summerMonthlySalary,
     summerScheduleCode: form.summerScheduleCode,
     summerScheduleWeekdays: form.summerScheduleWeekdays,
+    summerScheduleCycleStartDate: form.summerScheduleCycleStartDate,
     winterPaymentType: form.winterPaymentType as 'monthly' | 'daily',
     winterDailyRate: form.winterDailyRate,
     winterMonthlySalary: form.winterMonthlySalary,
     winterScheduleCode: form.winterScheduleCode,
     winterScheduleWeekdays: form.winterScheduleWeekdays,
+    winterScheduleCycleStartDate: form.winterScheduleCycleStartDate,
   };
+  const invalidScheduleProfiles = getInvalidObjectScheduleProfiles(compensationProfiles);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -155,6 +168,11 @@ export function ObjectEditForm({
 
     if (canEditObject && !form.responsibleUserId) {
       setError('Выберите ответственного за объект.');
+      return;
+    }
+
+    if (canManageCompensationRates && invalidScheduleProfiles.length > 0) {
+      setError(`Проверьте график в профилях: ${invalidScheduleProfiles.join(', ')}.`);
       return;
     }
 
@@ -180,18 +198,21 @@ export function ObjectEditForm({
         payload.paymentType = form.paymentType as 'monthly' | 'daily';
         payload.monthlySalary = Number(form.monthlySalary) || 0;
         payload.dailyRate = Number(form.dailyRate) || 0;
-        payload.paymentScheduleCode = form.paymentScheduleCode || null;
+        payload.paymentScheduleCode = form.paymentScheduleWeekdays.length ? null : form.paymentScheduleCode || '5/2';
         payload.paymentScheduleWeekdays = form.paymentScheduleWeekdays;
+        payload.paymentScheduleCycleStartDate = form.paymentScheduleWeekdays.length || form.paymentScheduleCode === '5/2' ? null : form.paymentScheduleCycleStartDate;
         payload.summerPaymentType = form.summerPaymentType;
         payload.summerMonthlySalary = Number(form.summerMonthlySalary) || 0;
         payload.summerDailyRate = Number(form.summerDailyRate) || 0;
-        payload.summerScheduleCode = form.summerScheduleCode || null;
+        payload.summerScheduleCode = form.summerScheduleWeekdays.length ? null : form.summerScheduleCode || '5/2';
         payload.summerScheduleWeekdays = form.summerScheduleWeekdays;
+        payload.summerScheduleCycleStartDate = form.summerScheduleWeekdays.length || form.summerScheduleCode === '5/2' ? null : form.summerScheduleCycleStartDate;
         payload.winterPaymentType = form.winterPaymentType;
         payload.winterMonthlySalary = Number(form.winterMonthlySalary) || 0;
         payload.winterDailyRate = Number(form.winterDailyRate) || 0;
-        payload.winterScheduleCode = form.winterScheduleCode || null;
+        payload.winterScheduleCode = form.winterScheduleWeekdays.length ? null : form.winterScheduleCode || '5/2';
         payload.winterScheduleWeekdays = form.winterScheduleWeekdays;
+        payload.winterScheduleCycleStartDate = form.winterScheduleWeekdays.length || form.winterScheduleCode === '5/2' ? null : form.winterScheduleCycleStartDate;
       }
 
       await onSubmit(payload);
@@ -374,7 +395,7 @@ export function ObjectEditForm({
       {success ? <div className={styles.success}>{success}</div> : null}
 
       <div className={styles.actions}>
-        <button type="submit" disabled={isSubmitting || (canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (!canEditObject && !canManageCompensationRates)}>
+        <button type="submit" disabled={isSubmitting || (canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canManageCompensationRates && invalidScheduleProfiles.length > 0) || (!canEditObject && !canManageCompensationRates)}>
           {isSubmitting ? 'Сохраняем...' : canEditObject ? 'Сохранить изменения' : 'Сохранить тарифы'}
         </button>
       </div>

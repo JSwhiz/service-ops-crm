@@ -3,12 +3,18 @@ import {
   TimesheetRatePolicySnapshot,
   TimesheetRatePolicyType,
 } from '../types/timesheet-rate-policy.type';
+import {
+  getRussianProductionCalendarVersion,
+  getRussianProductionWorkingDays,
+  isCycleScheduleCode,
+} from './russian-production-calendar.util';
 
 export interface RatePolicyRecord {
   ratePolicyType?: string | null;
   ratePolicyBaseAmount?: number | null;
   ratePolicyScheduleCode?: string | null;
   ratePolicyWeekdays?: string[] | null;
+  ratePolicyScheduleCycleStartDate?: Date | string | null;
   ratePolicyRoundingMode?: string | null;
   ratePolicyRoundingStep?: number | null;
   ratePolicyStandardShiftHours?: number | null;
@@ -72,6 +78,8 @@ export function buildObjectDefaultRatePolicy(params: {
   dailyRate: number;
   scheduleCode?: string | null;
   scheduleWeekdays?: string[];
+  scheduleCycleStartDate?: Date | string | null;
+  productionCalendarVersion?: string | null;
 }): TimesheetRatePolicySnapshot {
   if (params.paymentType === 'monthly') {
     return normalizeRatePolicy(
@@ -80,6 +88,7 @@ export function buildObjectDefaultRatePolicy(params: {
         ratePolicyBaseAmount: params.monthlySalary,
         ratePolicyScheduleCode: params.scheduleCode ?? null,
         ratePolicyWeekdays: params.scheduleWeekdays ?? [],
+        ratePolicyScheduleCycleStartDate: params.scheduleCycleStartDate ?? null,
       },
       params.monthlySalary,
     );
@@ -91,6 +100,7 @@ export function buildObjectDefaultRatePolicy(params: {
       ratePolicyBaseAmount: params.dailyRate,
       ratePolicyScheduleCode: params.scheduleCode ?? null,
       ratePolicyWeekdays: params.scheduleWeekdays ?? [],
+      ratePolicyScheduleCycleStartDate: params.scheduleCycleStartDate ?? null,
     },
     params.dailyRate,
   );
@@ -112,6 +122,8 @@ export function normalizeRatePolicy(
     baseAmount: normalizeMoney(record?.ratePolicyBaseAmount, fallbackAmount),
     scheduleCode: normalizeScheduleCode(record?.ratePolicyScheduleCode),
     scheduleWeekdays: normalizeScheduleWeekdays(record?.ratePolicyWeekdays),
+    scheduleCycleStartDate: normalizeDateOnly(record?.ratePolicyScheduleCycleStartDate),
+    productionCalendarVersion: null,
     roundingMode:
       record?.ratePolicyRoundingMode === 'nearest_step'
         ? 'nearest_step'
@@ -147,14 +159,25 @@ export function parseRatePolicySnapshot(
     return null;
   }
 
+  const scheduleCode = typeof record.scheduleCode === 'string'
+    ? normalizeScheduleCode(record.scheduleCode)
+    : null;
+  const scheduleWeekdays = normalizeScheduleWeekdays(record.scheduleWeekdays);
+  const scheduleCycleStartDate = normalizeDateOnly(record.scheduleCycleStartDate as string | Date | null | undefined);
+
   return {
     ratePolicyType: type,
     baseAmount,
-    scheduleCode:
-      typeof record.scheduleCode === 'string'
-        ? normalizeScheduleCode(record.scheduleCode)
+    scheduleCode,
+    scheduleWeekdays,
+    // Old snapshots were calculated using Monday-based weekdays and carry no
+    // version. Keep that exact behavior when recalculating historical facts.
+    scheduleCycleStartDate: scheduleCycleStartDate ?? (isCycleScheduleCode(scheduleCode) ? '2000-01-03' : null),
+    productionCalendarVersion: typeof record.productionCalendarVersion === 'string'
+      ? record.productionCalendarVersion
+      : scheduleCode === '5/2' && scheduleWeekdays.length === 0
+        ? 'legacy-weekdays'
         : null,
-    scheduleWeekdays: normalizeScheduleWeekdays(record.scheduleWeekdays),
     roundingMode:
       record.roundingMode === 'nearest_step' ? 'nearest_step' : 'none',
     roundingStep:
@@ -184,6 +207,8 @@ export function calculateTimesheetAutoValues(params: {
   policy: TimesheetRatePolicySnapshot;
   facts: AttendanceFactForCalculation[];
 }): Map<number, CalculatedTimesheetDay> {
+  const policy = pinRatePolicyProductionCalendar(params.policy, params.year);
+  params = { ...params, policy };
   const factsByDay = new Map(params.facts.map((fact) => [fact.dayOfMonth, fact]));
   const result = new Map<number, CalculatedTimesheetDay>();
 
@@ -333,6 +358,21 @@ export function calculateTimesheetAutoValues(params: {
   }
 }
 
+export function pinRatePolicyProductionCalendar(
+  policy: TimesheetRatePolicySnapshot,
+  year: number,
+): TimesheetRatePolicySnapshot {
+  if (
+    policy.scheduleCode !== '5/2' ||
+    (policy.scheduleWeekdays ?? []).length > 0 ||
+    policy.productionCalendarVersion != null
+  ) return policy;
+  return {
+    ...policy,
+    productionCalendarVersion: getRussianProductionCalendarVersion(year),
+  };
+}
+
 function distributePlannedMonthlyAmount(params: {
   year: number;
   month: number;
@@ -392,16 +432,37 @@ export function getPlannedWorkingDays(
   month: number,
   scheduleCode: string | null = null,
   scheduleWeekdays: string[] = [],
+  scheduleCycleStartDate: Date | string | null = null,
+  productionCalendarVersion: string | null = null,
 ): number[] {
-  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const normalizedSchedule = normalizeScheduleCode(scheduleCode);
   const normalizedWeekdays = normalizeScheduleWeekdays(scheduleWeekdays);
   if (normalizedWeekdays.length > 0) {
     const weekdayIndexes = new Set(normalizedWeekdays.map((day) => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].indexOf(day)));
     return Array.from({ length: daysInMonth }, (_, index) => index + 1).filter((dayOfMonth) => {
-      const weekday = new Date(year, month - 1, dayOfMonth).getDay();
+      const weekday = new Date(Date.UTC(year, month - 1, dayOfMonth)).getUTCDay();
       const mondayBasedIndex = weekday === 0 ? 6 : weekday - 1;
       return weekdayIndexes.has(mondayBasedIndex);
+    });
+  }
+  if (normalizedSchedule === '5/2' && productionCalendarVersion !== 'legacy-weekdays') {
+    return getRussianProductionWorkingDays(year, month);
+  }
+  if (isCycleScheduleCode(normalizedSchedule)) {
+    const anchor = normalizeDateOnly(scheduleCycleStartDate);
+    if (!anchor) {
+      throw new Error(`Для циклического графика ${normalizedSchedule} укажите дату начала цикла.`);
+    }
+    const workDaysPerCycle = Number(normalizedSchedule!.split('/')[0]);
+    const [anchorYear, anchorMonth, anchorDay] = anchor.split('-').map(Number);
+    const anchorUtc = Date.UTC(anchorYear, anchorMonth - 1, anchorDay);
+    return Array.from({ length: daysInMonth }, (_, index) => index + 1).filter((dayOfMonth) => {
+      const dateUtc = Date.UTC(year, month - 1, dayOfMonth);
+      const offset = Math.floor((dateUtc - anchorUtc) / 86_400_000);
+      if (offset < 0) return false;
+      const position = ((offset % 7) + 7) % 7;
+      return position < workDaysPerCycle;
     });
   }
   const workDaysPerWeek = Number(normalizedSchedule?.split('/')[0] ?? 5);
@@ -412,7 +473,7 @@ export function getPlannedWorkingDays(
 
   return Array.from({ length: daysInMonth }, (_, index) => index + 1).filter(
     (dayOfMonth) => {
-      const weekday = new Date(year, month - 1, dayOfMonth).getDay();
+      const weekday = new Date(Date.UTC(year, month - 1, dayOfMonth)).getUTCDay();
       const mondayBasedIndex = weekday === 0 ? 6 : weekday - 1;
       return mondayBasedIndex < workDaysPerWeek;
     },
@@ -425,12 +486,16 @@ export function calculateMonthlySalaryDailyRate(params: {
   month: number;
   scheduleCode?: string | null;
   scheduleWeekdays?: string[];
+  scheduleCycleStartDate?: Date | string | null;
+  productionCalendarVersion?: string | null;
 }): { dailyRate: number; workingDays: number } {
   const workingDays = getPlannedWorkingDays(
     params.year,
     params.month,
     params.scheduleCode ?? null,
     params.scheduleWeekdays ?? [],
+    params.scheduleCycleStartDate ?? null,
+    params.productionCalendarVersion ?? null,
   ).length;
   const monthlySalary = Math.max(0, Math.round(params.monthlySalary));
 
@@ -447,7 +512,26 @@ function buildSchedulePaidDays(
   _daysInMonth: number,
   policy: TimesheetRatePolicySnapshot,
 ): number[] {
-  return getPlannedWorkingDays(year, month, policy.scheduleCode, policy.scheduleWeekdays ?? []);
+  return getPlannedWorkingDays(
+    year,
+    month,
+    policy.scheduleCode,
+    policy.scheduleWeekdays ?? [],
+    policy.scheduleCycleStartDate,
+    policy.productionCalendarVersion,
+  );
+}
+
+function normalizeDateOnly(value: Date | string | null | undefined): string | null {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day) return value;
+  }
+  return null;
 }
 
 function buildShift22Days(daysInMonth: number): number[] {

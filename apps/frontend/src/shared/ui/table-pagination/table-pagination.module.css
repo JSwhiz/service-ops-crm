@@ -8,16 +8,16 @@
   justify-content: space-between;
   gap: 16px;
   padding: 4px 14px;
-  border: 1px solid #e9e3de;
+  border: 1px solid var(--ui-border);
   border-radius: 0 0 11px 11px;
-  background: #fff;
-  color: #7d736c;
+  background: var(--ui-surface);
+  color: var(--ui-text-tertiary);
   font-family: var(--ui-font-sans);
 }
 
 .summary {
   min-width: 0;
-  color: #81766f;
+  color: var(--ui-text-tertiary);
   font-size: 12px;
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
@@ -45,7 +45,7 @@
   border-radius: 7px;
   background: transparent;
   box-shadow: none;
-  color: #6f6259;
+  color: var(--ui-text-secondary);
   font: inherit;
   font-size: 12px;
   font-weight: 650;
@@ -56,8 +56,8 @@
 
 .navigation button:hover:not(:disabled) {
   border-color: transparent;
-  background: #f6f2ee;
-  color: #332d29;
+  background: var(--ui-surface-muted);
+  color: var(--ui-text);
   box-shadow: none;
   transform: none;
 }
@@ -68,13 +68,13 @@
 }
 
 .navigation button:disabled {
-  color: #aaa19a;
+  color: var(--ui-text-disabled);
   cursor: default;
   opacity: 1;
 }
 
 .pageNumber {
-  color: #81766f;
+  color: var(--ui-text-tertiary);
   font-size: 12px;
   line-height: 1.4;
   font-variant-numeric: tabular-nums;

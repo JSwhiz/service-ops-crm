@@ -55,16 +55,16 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #71966f;
+  background: var(--ui-success);
 }
 
-.dashboard-v2__health--attention i { background: #a26d4f; }
+.dashboard-v2__health--attention i { background: var(--ui-warning); }
 
 .dashboard-v2__notice {
   padding: 10px 12px;
-  border: 1px solid #dfd2c8;
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
-  background: #faf6f2;
+  background: var(--ui-surface-subtle);
   color: var(--ui-text-secondary);
   font-size: var(--ui-text-sm);
 }
@@ -160,13 +160,13 @@
   width: fit-content;
   padding: 4px 6px;
   border-radius: 5px;
-  background: #f2eeea;
-  color: #655d57;
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-tertiary);
   font-size: 10px;
   font-weight: 700;
 }
-.dashboard-v2__signal--overdue { background: #f7ece7; color: #8b5843; }
-.dashboard-v2__signal--approval { background: #f1ece8; color: var(--ui-accent); }
+.dashboard-v2__signal--overdue { background: var(--ui-danger-subtle); color: var(--ui-danger); }
+.dashboard-v2__signal--approval { background: var(--ui-surface-muted); color: var(--ui-accent); }
 .dashboard-v2__row-copy { min-width: 0; display: grid; gap: 3px; }
 .dashboard-v2__row-copy strong,
 .dashboard-v2__row-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

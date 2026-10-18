@@ -14,16 +14,19 @@ export class ObjectResponseDto {
   monthlySalary!: number | null;
   paymentScheduleCode!: string | null;
   paymentScheduleWeekdays!: string[];
+  paymentScheduleCycleStartDate!: string | null;
   summerPaymentType!: 'monthly' | 'daily' | null;
   summerDailyRate!: number | null;
   summerMonthlySalary!: number | null;
   summerScheduleCode!: string | null;
   summerScheduleWeekdays!: string[];
+  summerScheduleCycleStartDate!: string | null;
   winterPaymentType!: 'monthly' | 'daily' | null;
   winterDailyRate!: number | null;
   winterMonthlySalary!: number | null;
   winterScheduleCode!: string | null;
   winterScheduleWeekdays!: string[];
+  winterScheduleCycleStartDate!: string | null;
   notes!: string | null;
   counterparty!: {
     id: string;

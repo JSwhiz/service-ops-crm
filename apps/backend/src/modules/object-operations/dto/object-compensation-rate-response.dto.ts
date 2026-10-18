@@ -7,6 +7,7 @@ export class ObjectCompensationRateResponseDto {
   baseAmount!: number;
   scheduleCode!: string | null;
   scheduleWeekdays!: string[];
+  scheduleCycleStartDate!: string | null;
   standardShiftHours!: number;
   notes!: string | null;
   isActive!: boolean;

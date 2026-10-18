@@ -15,7 +15,7 @@
 }
 
 .title {
-  color: #3f3732;
+  color: var(--ui-text);
   font-size: 15px;
   font-weight: 720;
   letter-spacing: -0.01em;
@@ -29,7 +29,7 @@
   border: 0;
   border-radius: var(--ui-radius-sm);
   background: var(--ui-surface-muted);
-  color: #71645c;
+  color: var(--ui-text-tertiary);
   font-size: 11.5px;
   font-weight: 700;
 }
@@ -47,19 +47,19 @@
   align-items: center;
   justify-content: center;
   padding: 8px;
-  color: #65564d;
-  background: #f3efeb;
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-muted);
   border: 0;
   border-radius: 8px;
   cursor: pointer;
 }
 
 .replaceButton:hover:not(:disabled) {
-  background: #f2eeea;
+  background: var(--ui-surface-muted);
 }
 
 .replaceButton:focus-visible {
-  outline: 2px solid #9b7b67;
+  outline: 2px solid var(--ui-focus-border);
   outline-offset: 2px;
 }
 
@@ -127,8 +127,8 @@
   align-items: center;
   justify-content: center;
   padding: 8px;
-  color: #65564d;
-  background: #f3efeb;
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-muted);
   border: 0;
   border-radius: 9px;
   cursor: pointer;
@@ -145,7 +145,7 @@
   padding: 0 10px;
   border: 1px solid var(--ui-border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--ui-surface);
   color: var(--ui-text-primary);
   font: inherit;
 }
@@ -253,7 +253,7 @@
 
 .addControl :global(.detail-label) {
   margin: 0;
-  color: #665b54;
+  color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 680;
   letter-spacing: 0;

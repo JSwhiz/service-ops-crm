@@ -309,7 +309,7 @@
   line-height: 1.2;
 }
 
-.ui-badge--accent { border-color: #ddcec4; background: var(--ui-accent-subtle); color: var(--ui-accent); }
+.ui-badge--accent { border-color: var(--ui-border); background: var(--ui-accent-subtle); color: var(--ui-accent); }
 .ui-badge--danger { border-color: var(--ui-danger-border); background: var(--ui-danger-subtle); color: var(--ui-danger); }
 .ui-badge--warning { border-color: var(--ui-warning-border); background: var(--ui-warning-subtle); color: var(--ui-warning); }
 .ui-badge--success { border-color: var(--ui-success-border); background: var(--ui-success-subtle); color: var(--ui-success); }
@@ -396,7 +396,7 @@
   opacity: 0;
   padding: 6px 8px;
   border-radius: var(--ui-radius-sm);
-  background: #302b27;
+  background: var(--ui-text);
   color: var(--ui-text-inverse);
   box-shadow: var(--ui-shadow-popover);
   font-size: var(--ui-text-xs);
