@@ -34,11 +34,12 @@ test('HR object access is read-only except employee staffing', async (t) => {
   const list = (await listResponse.json()) as {
     items: Array<{
       id: string;
-      dailyRate: number;
+      dailyRate: number | null;
       employees: Array<{ baseDailyRate: number | null }>;
       capabilities: {
         canEdit: boolean;
         canViewBasicProfile: boolean;
+        canViewCompensationRates: boolean;
         canViewOperationalSections: boolean;
         canManageEmployees: boolean;
       };
@@ -46,10 +47,11 @@ test('HR object access is read-only except employee staffing', async (t) => {
   };
   const listedObject = list.items.find((item) => item.id === SEEDED_OBJECT_ID);
   assert.ok(listedObject);
-  assert.equal(typeof listedObject.dailyRate, 'number');
+  assert.equal(listedObject.dailyRate, null);
   assert.ok(Array.isArray(listedObject.employees));
   assert.equal(listedObject.capabilities.canEdit, false);
   assert.equal(listedObject.capabilities.canViewBasicProfile, true);
+  assert.equal(listedObject.capabilities.canViewCompensationRates, false);
   assert.equal(listedObject.capabilities.canViewOperationalSections, false);
   assert.equal(listedObject.capabilities.canManageEmployees, true);
 
@@ -127,7 +129,7 @@ test('HR object access is read-only except employee staffing', async (t) => {
   }>;
   assert.equal(directory[0]?.id, employee.id);
   assert.equal(directory[0]?.position, 'Клинер');
-  assert.equal(directory[0]?.baseDailyRate, 1700);
+  assert.equal(directory[0]?.baseDailyRate, null);
   assert.equal(directory[0]?.workScheduleCode, '5_2');
   assert.equal(directory[0]?.workTimeText, '08:00–17:00');
 
