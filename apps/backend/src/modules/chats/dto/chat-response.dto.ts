@@ -61,6 +61,7 @@ export class ChatMessageResponseDto {
   replyTo!: ChatMessageReplyPreviewDto | null;
   forwardedFrom!: ChatMessageReplyPreviewDto | null;
   reactionCounts!: Record<string, number>;
+  reactionUsers!: Record<string, Array<{ id: string; fullName: string }>>;
   myReactions!: string[];
   author!: ChatUserSummaryDto | null;
   attachments!: FileResponseDto[];

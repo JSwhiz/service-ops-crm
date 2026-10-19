@@ -1497,9 +1497,23 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   const managerHeartMessage = (await managerHeartResponse.json()) as {
     reactionCounts: Record<string, number>;
     myReactions: string[];
+    reactionUsers: Record<string, Array<{ id: string; fullName: string }>>;
   };
   assert.equal(managerHeartMessage.reactionCounts.heart, 2);
   assert.deepEqual(managerHeartMessage.myReactions, ['heart']);
+  assert.deepEqual(
+    managerHeartMessage.reactionUsers.heart.map(({ id }) => id).sort(),
+    [founderUser.id, managerOne.id].sort(),
+  );
+  assert.ok(
+    managerHeartMessage.reactionUsers.heart.every(
+      (reactor) => reactor.id && reactor.fullName,
+    ),
+  );
+  assert.deepEqual(
+    Object.keys(managerHeartMessage.reactionUsers.heart[0]).sort(),
+    ['fullName', 'id'],
+  );
 
   const founderHeartToggleOffResponse = await fetch(
     `${baseUrl}/api/v1/chats/messages/${newCustomMessage.id}/reactions/heart`,

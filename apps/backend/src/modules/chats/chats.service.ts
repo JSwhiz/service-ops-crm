@@ -125,7 +125,11 @@ type ChatMessageMapContext = {
   attachmentsByMessageId: Map<string, FileResponseDto[]>;
   reactionsByMessageId: Map<
     string,
-    Array<{ userId: string; reactionType: string }>
+    Array<{
+      userId: string;
+      reactionType: string;
+      user: { id: string; fullName: string };
+    }>
   >;
   deletedUsersById: Map<
     string,
@@ -2029,6 +2033,7 @@ export class ChatsService implements OnModuleInit {
             chatMessageId: true,
             userId: true,
             reactionType: true,
+            user: { select: { id: true, fullName: true } },
           },
         }),
         deletedUserIds.length
@@ -2065,7 +2070,11 @@ export class ChatsService implements OnModuleInit {
 
     const reactionsByMessageId = new Map<
       string,
-      Array<{ userId: string; reactionType: string }>
+      Array<{
+        userId: string;
+        reactionType: string;
+        user: { id: string; fullName: string };
+      }>
     >();
 
     for (const messageId of messageIds) {
@@ -2077,6 +2086,7 @@ export class ChatsService implements OnModuleInit {
       current.push({
         userId: reaction.userId,
         reactionType: reaction.reactionType,
+        user: reaction.user,
       });
       reactionsByMessageId.set(reaction.chatMessageId, current);
     }
@@ -2134,6 +2144,7 @@ export class ChatsService implements OnModuleInit {
         select: {
           userId: true,
           reactionType: true,
+          user: { select: { id: true, fullName: true } },
         },
       }));
     const reactionCounts = reactions.reduce<Record<string, number>>(
@@ -2144,6 +2155,14 @@ export class ChatsService implements OnModuleInit {
       },
       {},
     );
+    const reactionUsers = reactions.reduce<
+      Record<string, Array<{ id: string; fullName: string }>>
+    >((usersByType, reaction) => {
+      const users = usersByType[reaction.reactionType] ?? [];
+      users.push(reaction.user);
+      usersByType[reaction.reactionType] = users;
+      return usersByType;
+    }, {});
     const deletedBy = message.deletedByUserId
       ? context?.deletedUsersById.has(message.deletedByUserId)
         ? context.deletedUsersById.get(message.deletedByUserId) ?? null
@@ -2198,6 +2217,7 @@ export class ChatsService implements OnModuleInit {
             )
         : null,
       reactionCounts,
+      reactionUsers,
       myReactions: currentUser.id
         ? reactions
             .filter((reaction) => reaction.userId === currentUser.id)

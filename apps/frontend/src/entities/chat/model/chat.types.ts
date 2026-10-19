@@ -68,6 +68,7 @@ export interface ChatMessage {
     isAccessRestricted: boolean;
   } | null;
   reactionCounts: Record<string, number>;
+  reactionUsers: Record<string, Array<{ id: string; fullName: string }>>;
   myReactions: string[];
   author: ChatUserSummary | null;
   attachments: AttachedFile[];

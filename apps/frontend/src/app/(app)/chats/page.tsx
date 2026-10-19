@@ -319,6 +319,9 @@ export default function ChatsPage(): React.JSX.Element {
   const [archivedRooms, setArchivedRooms] = useState<ChatRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
+  const [openReactionUsersId, setOpenReactionUsersId] = useState<string | null>(null);
+  const [isRoomMenuOpen, setIsRoomMenuOpen] = useState(false);
   const [participants, setParticipants] = useState<SystemUserOption[]>([]);
   const [newRoomMode, setNewRoomMode] = useState<'direct' | 'group'>('direct');
   const [directTargetUserId, setDirectTargetUserId] = useState('');
@@ -388,6 +391,43 @@ export default function ChatsPage(): React.JSX.Element {
     new Map<string, Promise<ChatMessage>>(),
   );
   const realtimeRefreshPromiseRef = useRef<Promise<void> | null>(null);
+  const messageLongPressTimerRef = useRef<number | null>(null);
+
+  const clearMessageLongPressTimer = (): void => {
+    if (messageLongPressTimerRef.current !== null) {
+      window.clearTimeout(messageLongPressTimerRef.current);
+      messageLongPressTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    const closeMenus = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setOpenMessageActionsId(null);
+        setOpenReactionUsersId(null);
+        setIsRoomMenuOpen(false);
+      }
+    };
+    const closeMenusOutside = (event: PointerEvent): void => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        !target.closest('.chat-message-menu, .chat-message__more, .chat-reaction-chip, .chat-room-menu, .chat-room-menu__trigger')
+      ) {
+        setOpenMessageActionsId(null);
+        setOpenReactionUsersId(null);
+        setIsRoomMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', closeMenus);
+    window.addEventListener('pointerdown', closeMenusOutside);
+    return () => {
+      window.removeEventListener('keydown', closeMenus);
+      window.removeEventListener('pointerdown', closeMenusOutside);
+      clearMessageLongPressTimer();
+    };
+  }, []);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) ?? null,
@@ -1838,30 +1878,25 @@ export default function ChatsPage(): React.JSX.Element {
                         ? `Новых: ${activeRoom.unreadCount}`
                         : 'Прочитано'}
                     </span>
-                    {activeRoom.capabilities.canHide ? (
-                      <button type="button" onClick={() => void handleHideRoom()}>
-                        Скрыть
-                      </button>
-                    ) : null}
-                    {activeRoom.capabilities.canLeave ? (
-                      <button type="button" onClick={() => void handleLeaveRoom()}>
-                        Покинуть
-                      </button>
-                    ) : null}
-                    {activeRoom.capabilities.canCloseGlobally ? (
-                      <button type="button" onClick={() => void handleCloseRoom()}>
-                        Закрыть для всех
-                      </button>
-                    ) : null}
-                    {activeRoom.capabilities.canManage ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setIsRoomSettingsOpen((current) => !current)
-                        }
-                      >
-                        Настройки
-                      </button>
+                    {activeRoom.capabilities.canHide || activeRoom.capabilities.canLeave || activeRoom.capabilities.canCloseGlobally || activeRoom.capabilities.canManage ? (
+                      <div className="chat-room-menu-wrap">
+                        <button
+                          type="button"
+                          className="chat-room-menu__trigger"
+                          aria-label="Действия с чатом"
+                          aria-haspopup="menu"
+                          aria-expanded={isRoomMenuOpen}
+                          onClick={() => setIsRoomMenuOpen((open) => !open)}
+                        >⋯</button>
+                        {isRoomMenuOpen ? (
+                          <div className="chat-room-menu" role="menu" aria-label="Действия с чатом">
+                            {activeRoom.capabilities.canManage ? <button type="button" role="menuitem" onClick={() => { setIsRoomSettingsOpen((current) => !current); setIsRoomMenuOpen(false); }}>Настройки</button> : null}
+                            {activeRoom.capabilities.canHide ? <button type="button" role="menuitem" onClick={() => { setIsRoomMenuOpen(false); void handleHideRoom(); }}>Скрыть чат</button> : null}
+                            {activeRoom.capabilities.canLeave ? <button type="button" role="menuitem" onClick={() => { setIsRoomMenuOpen(false); void handleLeaveRoom(); }}>Покинуть чат</button> : null}
+                            {activeRoom.capabilities.canCloseGlobally ? <button type="button" role="menuitem" className="is-danger" onClick={() => { setIsRoomMenuOpen(false); void handleCloseRoom(); }}>Закрыть для всех</button> : null}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 </header>
@@ -1918,6 +1953,32 @@ export default function ChatsPage(): React.JSX.Element {
                                 ? ' chat-message--highlighted'
                                 : ''
                             }`}
+                            onContextMenu={(event) => {
+                              if (!message.isDeleted) {
+                                event.preventDefault();
+                                setOpenMessageActionsId(message.id);
+                                setOpenReactionUsersId(null);
+                              }
+                            }}
+                            onTouchStart={(event) => {
+                              clearMessageLongPressTimer();
+                              if ((event.target as HTMLElement).closest('button, a, input, textarea')) return;
+                              if (!message.isDeleted) {
+                                messageLongPressTimerRef.current = window.setTimeout(() => {
+                                  setOpenMessageActionsId(message.id);
+                                  setOpenReactionUsersId(null);
+                                }, 480);
+                              }
+                            }}
+                            onTouchEnd={clearMessageLongPressTimer}
+                            onTouchMove={clearMessageLongPressTimer}
+                            onTouchCancel={clearMessageLongPressTimer}
+                            onKeyDown={(event) => {
+                              if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                                event.preventDefault();
+                                setOpenMessageActionsId(message.id);
+                              }
+                            }}
                           >
                             <div className="chat-message__meta">
                               <strong>
@@ -1933,6 +1994,21 @@ export default function ChatsPage(): React.JSX.Element {
                               ) : null}
                               <span>{formatDateTime(message.createdAt)}</span>
                               {message.editedAt ? <span>изменено</span> : null}
+                              {!message.isDeleted && (message.capabilities.canEdit || message.capabilities.canDelete || message.capabilities.canReply || message.capabilities.canForward || message.capabilities.canReact) ? (
+                                <button
+                                  type="button"
+                                  className="chat-message__more"
+                                  aria-label="Действия с сообщением"
+                                  aria-haspopup="menu"
+                                  aria-expanded={openMessageActionsId === message.id}
+                                  onClick={() => {
+                                    setOpenMessageActionsId((current) => current === message.id ? null : message.id);
+                                    setOpenReactionUsersId(null);
+                                  }}
+                                >
+                                  …
+                                </button>
+                              ) : null}
                             </div>
 
                             {isEditing && !message.isDeleted ? (
@@ -2006,76 +2082,60 @@ export default function ChatsPage(): React.JSX.Element {
                                   />
                                 ) : null}
                                 {!message.isDeleted ? (
-                                  <div className="action-row">
-                                    {message.capabilities.canEdit ? (
-                                      <button
-                                        type="button"
-                                        className="quiet-button"
-                                        onClick={() => {
-                                          setEditingMessageId(message.id);
-                                          setEditingText(message.text ?? '');
-                                        }}
-                                      >
-                                        Редактировать
-                                      </button>
-                                    ) : null}
-                                    {message.capabilities.canDelete ? (
-                                      <button
-                                        type="button"
-                                        className="quiet-button"
-                                        onClick={() => void handleDeleteMessage(message)}
-                                      >
-                                        Удалить
-                                      </button>
-                                    ) : null}
-                                    {message.capabilities.canReply ? (
-                                      <button
-                                        type="button"
-                                        className="quiet-button"
-                                        onClick={() => {
-                                          setReplyingTo(message);
-                                          composerFormRef.current
-                                            ?.querySelector('textarea')
-                                            ?.focus();
-                                        }}
-                                      >
-                                        Ответить
-                                      </button>
-                                    ) : null}
-                                    {message.capabilities.canForward ? (
-                                      <button
-                                        type="button"
-                                        className="quiet-button"
-                                        onClick={() => {
-                                          setForwardingMessage(message);
-                                          setForwardTargetRoomId(
-                                            forwardTargetRooms.at(0)?.id ?? '',
-                                          );
-                                        }}
-                                      >
-                                        Переслать
-                                      </button>
-                                    ) : null}
+                                  <div className="chat-message__footer">
                                     {message.capabilities.canReact ? (
                                       <button
                                         type="button"
-                                        className={`chat-reaction-button ${
-                                          message.myReactions.includes('heart')
-                                            ? 'is-active'
-                                            : ''
-                                        }`}
-                                        onClick={() =>
-                                          void handleToggleHeart(message)
-                                        }
-                                        aria-label="Поставить реакцию сердце"
+                                        className={`chat-reaction-button ${message.myReactions.includes('heart') ? 'is-active' : ''}`}
+                                        onClick={() => void handleToggleHeart(message)}
+                                        aria-label={message.myReactions.includes('heart') ? 'Убрать реакцию сердце' : 'Поставить реакцию сердце'}
+                                        aria-pressed={message.myReactions.includes('heart')}
                                       >
-                                        ♥ {message.reactionCounts.heart ?? 0}
+                                        ♥
                                       </button>
+                                    ) : null}
+                                    {(message.reactionCounts.heart ?? 0) > 0 ? (
+                                      <div className="chat-reaction-group">
+                                        <button
+                                          type="button"
+                                          className="chat-reaction-chip"
+                                          aria-expanded={openReactionUsersId === message.id}
+                                          aria-label={`Сердце: ${message.reactionCounts.heart}. Показать, кто поставил реакцию`}
+                                          onClick={() => {
+                                            setOpenReactionUsersId((current) => current === message.id ? null : message.id);
+                                            setOpenMessageActionsId(null);
+                                          }}
+                                        >
+                                          <span aria-hidden="true">❤️</span>
+                                          <span>{message.reactionCounts.heart}</span>
+                                          <span className="chat-reaction-avatars" aria-hidden="true">
+                                            {(message.reactionUsers.heart ?? []).slice(0, 3).map((reactor) => (
+                                              <span key={reactor.id} title={reactor.fullName}>{reactor.fullName.trim().charAt(0) || '?'}</span>
+                                            ))}
+                                          </span>
+                                        </button>
+                                        {openReactionUsersId === message.id ? (
+                                          <div className="chat-reaction-people" role="status" aria-label="Поставили реакцию">
+                                            {(message.reactionUsers.heart ?? []).map((reactor) => (
+                                              <span key={reactor.id}>{reactor.fullName}</span>
+                                            ))}
+                                          </div>
+                                        ) : null}
+                                      </div>
                                     ) : null}
                                   </div>
                                 ) : null}
                               </>
                             )}
+                            {openMessageActionsId === message.id ? (
+                              <div className="chat-message-menu" role="menu" aria-label="Действия с сообщением">
+                                {message.capabilities.canReply ? <button type="button" role="menuitem" onClick={() => { setReplyingTo(message); setOpenMessageActionsId(null); composerFormRef.current?.querySelector('textarea')?.focus(); }}>Ответить</button> : null}
+                                {message.capabilities.canForward ? <button type="button" role="menuitem" onClick={() => { setForwardingMessage(message); setForwardTargetRoomId(forwardTargetRooms.at(0)?.id ?? ''); setOpenMessageActionsId(null); }}>Переслать</button> : null}
+                                {message.capabilities.canEdit ? <button type="button" role="menuitem" onClick={() => { setEditingMessageId(message.id); setEditingText(message.text ?? ''); setOpenMessageActionsId(null); }}>Редактировать</button> : null}
+                                {message.capabilities.canDelete ? <button type="button" role="menuitem" onClick={() => { setOpenMessageActionsId(null); void handleDeleteMessage(message); }}>Удалить</button> : null}
+                                {message.capabilities.canReact ? <button type="button" role="menuitem" onClick={() => { setOpenMessageActionsId(null); void handleToggleHeart(message); }}>{message.myReactions.includes('heart') ? 'Убрать реакцию ♥' : 'Поставить ♥'}</button> : null}
+                              </div>
+                            ) : null}
                           </article>
                           </React.Fragment>
                         );
