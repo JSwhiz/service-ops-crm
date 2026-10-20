@@ -50,8 +50,10 @@ export class ChatsController {
   search(
     @CurrentUser() user: CurrentAuthUser,
     @Query('q') query?: string,
+    @Query('roomId') roomId?: string,
+    @Query('before') before?: string,
   ): Promise<ChatSearchResponseDto> {
-    return this.chatsService.search(user, query ?? '');
+    return this.chatsService.search(user, query ?? '', { roomId, before });
   }
 
   @Get('rooms')

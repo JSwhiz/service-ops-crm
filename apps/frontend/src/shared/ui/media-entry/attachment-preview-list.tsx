@@ -9,7 +9,10 @@ import {
   resolveFileApiUrl,
   retryFilePreview,
 } from '@/entities/file/api/file-client';
-import type { FilePreviewItem, FileView } from '@/entities/file/model/file.types';
+import type {
+  FilePreviewItem,
+  FileView,
+} from '@/entities/file/model/file.types';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
 const PREVIEW_POLL_ATTEMPTS = 40;
@@ -25,7 +28,15 @@ function getFileTypeLabel(file: FilePreviewItem): string {
   return extension && extension.length <= 5 ? extension : 'FILE';
 }
 
-function AttachmentPreviewCard({ file, iconDownload = false }: { file: FilePreviewItem; iconDownload?: boolean }): React.JSX.Element {
+function AttachmentPreviewCard({
+  file,
+  iconDownload = false,
+  compactMetadata = false,
+}: {
+  file: FilePreviewItem;
+  iconDownload?: boolean;
+  compactMetadata?: boolean;
+}): React.JSX.Element {
   const [view, setView] = useState<FileView | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [pollingRun, setPollingRun] = useState(0);
@@ -94,7 +105,9 @@ function AttachmentPreviewCard({ file, iconDownload = false }: { file: FilePrevi
   const thumbnailUrl = view?.thumbnailUrl
     ? resolveFileApiUrl(view.thumbnailUrl)
     : null;
-  const originalInlineUrl = resolveFileApiUrl(`/api/v1/files/${file.id}/content`);
+  const originalInlineUrl = resolveFileApiUrl(
+    `/api/v1/files/${file.id}/content`,
+  );
 
   if (isImage) {
     return (
@@ -129,7 +142,8 @@ function AttachmentPreviewCard({ file, iconDownload = false }: { file: FilePrevi
         >
           {iconDownload ? <MediaActionIcon name="download" /> : 'Скачать'}
         </a>
-        {view?.previewStatus === 'failed' && view.previewType !== 'unsupported' ? (
+        {view?.previewStatus === 'failed' &&
+        view.previewType !== 'unsupported' ? (
           <button
             type="button"
             disabled={isRetrying}
@@ -166,7 +180,8 @@ function AttachmentPreviewCard({ file, iconDownload = false }: { file: FilePrevi
         <span className="attachment-file-card__body">
           <strong title={file.originalName}>{file.originalName}</strong>
           <span>
-            {file.mimeType} · {formatFileSize(file.sizeBytes)}
+            {compactMetadata ? getFileTypeLabel(file) : file.mimeType} ·{' '}
+            {formatFileSize(file.sizeBytes)}
           </span>
           <span>{statusText}</span>
         </span>
@@ -176,7 +191,8 @@ function AttachmentPreviewCard({ file, iconDownload = false }: { file: FilePrevi
           Открыть
         </a>
         <a href={downloadUrl}>Скачать</a>
-        {view?.previewStatus === 'failed' && view.previewType !== 'unsupported' ? (
+        {view?.previewStatus === 'failed' &&
+        view.previewType !== 'unsupported' ? (
           <button
             type="button"
             disabled={isRetrying}
@@ -194,10 +210,12 @@ export function AttachmentPreviewList({
   files,
   emptyText = 'Вложений пока нет.',
   iconDownload = false,
+  compactMetadata = false,
 }: {
   files: FilePreviewItem[];
   emptyText?: string;
   iconDownload?: boolean;
+  compactMetadata?: boolean;
 }): React.JSX.Element {
   if (files.length === 0) {
     return <div className="page-muted">{emptyText}</div>;
@@ -219,7 +237,11 @@ export function AttachmentPreviewList({
           )}`}
         >
           {imageFiles.map((file) => (
-            <AttachmentPreviewCard key={file.id} file={file} iconDownload={iconDownload} />
+            <AttachmentPreviewCard
+              key={file.id}
+              file={file}
+              iconDownload={iconDownload}
+            />
           ))}
         </div>
       ) : null}
@@ -227,7 +249,11 @@ export function AttachmentPreviewList({
       {regularFiles.length > 0 ? (
         <div className="attachment-file-list">
           {regularFiles.map((file) => (
-            <AttachmentPreviewCard key={file.id} file={file} />
+            <AttachmentPreviewCard
+              key={file.id}
+              file={file}
+              compactMetadata={compactMetadata}
+            />
           ))}
         </div>
       ) : null}

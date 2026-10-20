@@ -49,7 +49,12 @@ import {
 } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { ChatIcon } from './chat-icon';
+import { ChatExplorer } from './chat-explorer';
+import { Dialog } from '@/shared/ui/overlays';
+import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
+import { ChatMessageMenu } from './chat-message-menu';
+import styles from './chat-ui.module.css';
 
 type RealtimePayload = {
   type?: string;
@@ -84,7 +89,9 @@ type LoadedMessagesResult = {
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message.trim() ? error.message : fallback;
+  return error instanceof Error && error.message.trim()
+    ? error.message
+    : fallback;
 }
 
 function formatDateTime(value: string | null): string {
@@ -101,18 +108,6 @@ function formatDateTime(value: string | null): string {
 }
 
 function getRoomTypeLabel(room: ChatRoom): string {
-  if (room.code === 'objects') {
-    return 'Объекты';
-  }
-
-  if (room.code === 'one_time_orders') {
-    return 'Разовые заказы';
-  }
-
-  if (room.code === 'leadership') {
-    return 'Руководство';
-  }
-
   if (room.roomType === 'direct') {
     return 'Личный чат';
   }
@@ -121,7 +116,26 @@ function getRoomTypeLabel(room: ChatRoom): string {
     return 'Группа';
   }
 
-  return 'Чат';
+  return '';
+}
+
+function highlightSearch(value: string, query: string): React.ReactNode {
+  const needle = query.trim().toLocaleLowerCase('ru');
+  if (!needle) return value;
+  const lower = value.toLocaleLowerCase('ru');
+  const parts: React.ReactNode[] = [];
+  let start = 0;
+  let match = lower.indexOf(needle);
+  while (match >= 0) {
+    parts.push(value.slice(start, match));
+    parts.push(
+      <mark key={match}>{value.slice(match, match + needle.length)}</mark>,
+    );
+    start = match + needle.length;
+    match = lower.indexOf(needle, start);
+  }
+  parts.push(value.slice(start));
+  return parts;
 }
 
 function getRoomDisplayTitle(room: ChatRoom): string {
@@ -154,9 +168,7 @@ function getFirstUnreadMessageId(
         message.author !== null && message.author.id === currentUserId;
 
       return (
-        Number.isFinite(createdAt) &&
-        createdAt > lastReadAt &&
-        !isOwnMessage
+        Number.isFinite(createdAt) && createdAt > lastReadAt && !isOwnMessage
       );
     })?.id ?? null
   );
@@ -233,7 +245,7 @@ function ParticipantPicker({
   );
   const normalizedQuery = query.trim().toLocaleLowerCase('ru-RU');
   const filteredCandidates = candidates
-    .filter((candidate) => candidate.isActive && !selectedIdSet.has(candidate.id))
+    .filter((candidate) => candidate.isActive)
     .filter((candidate) => {
       if (!normalizedQuery) {
         return true;
@@ -243,7 +255,12 @@ function ParticipantPicker({
         .toLocaleLowerCase('ru-RU')
         .includes(normalizedQuery);
     })
-    .slice(0, 8);
+    .slice(0, 50);
+  const candidateNameCounts = new Map<string, number>();
+  for (const candidate of candidates) {
+    const name = getUserDisplayName(candidate);
+    candidateNameCounts.set(name, (candidateNameCounts.get(name) ?? 0) + 1);
+  }
 
   const removeUser = (userId: string): void => {
     onChange(selectedIds.filter((selectedId) => selectedId !== userId));
@@ -257,34 +274,37 @@ function ParticipantPicker({
   return (
     <div className="participant-picker">
       <div className="participant-picker__chips">
-        {selectedUsers.length === 0 ? (
-          <span className="page-muted">Участники не выбраны.</span>
-        ) : (
-          selectedUsers.map((participant) => (
-            <span key={participant.id} className="identity-chip">
-              <span>
-                <strong>{getUserDisplayName(participant)}</strong>
-                {getUserSecondaryLabel(participant) ? (
-                  <small>{getUserSecondaryLabel(participant)}</small>
-                ) : null}
+        {selectedUsers.length === 0
+          ? null
+          : selectedUsers.map((participant) => (
+              <span key={participant.id} className="identity-chip">
+                <span>
+                  <strong>{getUserDisplayName(participant)}</strong>
+                  {getUserSecondaryLabel(participant) ? (
+                    <small>{getUserSecondaryLabel(participant)}</small>
+                  ) : null}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`Убрать ${getUserDisplayName(participant)}`}
+                  onClick={() => removeUser(participant.id)}
+                >
+                  <ChatIcon name="close" />
+                </button>
               </span>
-              <button
-                type="button"
-                aria-label={`Убрать ${getUserDisplayName(participant)}`}
-                onClick={() => removeUser(participant.id)}
-              >
-                ×
-              </button>
-            </span>
-          ))
-        )}
+            ))}
       </div>
 
-      <input
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder={placeholder}
-      />
+      <div className={styles.searchField}>
+        <ChatIcon name="search" />
+        <input
+          aria-label={placeholder}
+          data-dialog-initial-focus
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={placeholder}
+        />
+      </div>
 
       {filteredCandidates.length > 0 ? (
         <div className="participant-picker__options">
@@ -292,13 +312,26 @@ function ParticipantPicker({
             <button
               key={candidate.id}
               type="button"
-              onClick={() => addUser(candidate.id)}
+              aria-pressed={selectedIdSet.has(candidate.id)}
+              onClick={() =>
+                selectedIdSet.has(candidate.id)
+                  ? removeUser(candidate.id)
+                  : addUser(candidate.id)
+              }
             >
+              <UserAvatar fullName={getUserDisplayName(candidate)} />
               <span>
                 <strong>{getUserDisplayName(candidate)}</strong>
-                {getUserSecondaryLabel(candidate) ? (
-                  <small>{getUserSecondaryLabel(candidate)}</small>
+                {getUserSecondaryLabel(candidate) ||
+                (candidateNameCounts.get(getUserDisplayName(candidate)) ?? 0) >
+                  1 ? (
+                  <small>
+                    {getUserSecondaryLabel(candidate) ?? `@${candidate.login}`}
+                  </small>
                 ) : null}
+              </span>
+              <span className={styles.selectionCheck} aria-hidden="true">
+                {selectedIdSet.has(candidate.id) ? '✓' : ''}
               </span>
             </button>
           ))}
@@ -319,11 +352,27 @@ export default function ChatsPage(): React.JSX.Element {
   const [archivedRooms, setArchivedRooms] = useState<ChatRoom[]>([]);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [openMessageActionsId, setOpenMessageActionsId] = useState<
+    string | null
+  >(null);
+  const [openReactionUsersId, setOpenReactionUsersId] = useState<string | null>(
+    null,
+  );
+  const [isRoomMenuOpen, setIsRoomMenuOpen] = useState(false);
+  const [explorer, setExplorer] = useState<'search' | 'media' | 'files' | null>(
+    null,
+  );
+  const [groupDetailsStep, setGroupDetailsStep] = useState(false);
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [forwardQuery, setForwardQuery] = useState('');
+  const [participantsQuery, setParticipantsQuery] = useState('');
   const [participants, setParticipants] = useState<SystemUserOption[]>([]);
   const [newRoomMode, setNewRoomMode] = useState<'direct' | 'group'>('direct');
   const [directTargetUserId, setDirectTargetUserId] = useState('');
   const [newRoomTitle, setNewRoomTitle] = useState('');
-  const [newRoomParticipantIds, setNewRoomParticipantIds] = useState<string[]>([]);
+  const [newRoomParticipantIds, setNewRoomParticipantIds] = useState<string[]>(
+    [],
+  );
   const [renameTitle, setRenameTitle] = useState('');
   const [addParticipantIds, setAddParticipantIds] = useState<string[]>([]);
   const [text, setText] = useState('');
@@ -331,9 +380,8 @@ export default function ChatsPage(): React.JSX.Element {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
-  const [forwardingMessage, setForwardingMessage] = useState<ChatMessage | null>(
-    null,
-  );
+  const [forwardingMessage, setForwardingMessage] =
+    useState<ChatMessage | null>(null);
   const [forwardTargetRoomId, setForwardTargetRoomId] = useState('');
   const [isLoadingRooms, setIsLoadingRooms] = useState(true);
   const [isLoadingArchivedRooms, setIsLoadingArchivedRooms] = useState(false);
@@ -368,6 +416,38 @@ export default function ChatsPage(): React.JSX.Element {
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const composerFormRef = useRef<HTMLFormElement | null>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const fileDragDepthRef = useRef(0);
+
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent): void => {
+      if (
+        !(event.metaKey || event.ctrlKey) ||
+        !activeRoomId ||
+        document.querySelector('dialog[open]')
+      )
+        return;
+      if (event.key.toLowerCase() === 'f') {
+        event.preventDefault();
+        setExplorer('search');
+        document
+          .querySelector<HTMLInputElement>(
+            '[aria-label="Поиск сообщений в этом чате"]',
+          )
+          ?.focus();
+      } else if (
+        event.shiftKey &&
+        event.key.toLowerCase() === 'u' &&
+        rooms.find((room) => room.id === activeRoomId)?.capabilities.canWrite
+      ) {
+        event.preventDefault();
+        attachmentInputRef.current?.click();
+      }
+    };
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, [activeRoomId, rooms]);
   const pendingScrollToBottomRef = useRef(false);
   const activeRoomIdRef = useRef<string | null>(null);
   const lastMarkedReadMessageIdRef = useRef<string | null>(null);
@@ -388,6 +468,53 @@ export default function ChatsPage(): React.JSX.Element {
     new Map<string, Promise<ChatMessage>>(),
   );
   const realtimeRefreshPromiseRef = useRef<Promise<void> | null>(null);
+  const messageLongPressTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const textarea = composerTextareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = '42px';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`;
+  }, [text]);
+
+  const clearMessageLongPressTimer = (): void => {
+    if (messageLongPressTimerRef.current !== null) {
+      window.clearTimeout(messageLongPressTimerRef.current);
+      messageLongPressTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    const closeMenus = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setOpenMessageActionsId(null);
+        setOpenReactionUsersId(null);
+        setIsRoomMenuOpen(false);
+      }
+    };
+    const closeMenusOutside = (event: PointerEvent): void => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        !target.closest(
+          '.chat-message-menu, .chat-message__more, .chat-reaction-chip, .chat-room-menu, .chat-room-menu__trigger',
+        )
+      ) {
+        setOpenMessageActionsId(null);
+        setOpenReactionUsersId(null);
+        setIsRoomMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', closeMenus);
+    window.addEventListener('pointerdown', closeMenusOutside);
+    return () => {
+      window.removeEventListener('keydown', closeMenus);
+      window.removeEventListener('pointerdown', closeMenusOutside);
+      clearMessageLongPressTimer();
+    };
+  }, []);
 
   const activeRoom = useMemo(
     () => rooms.find((room) => room.id === activeRoomId) ?? null,
@@ -422,26 +549,27 @@ export default function ChatsPage(): React.JSX.Element {
     return true;
   }, []);
 
-  const scrollMessagesToBottom = useCallback((
-    behavior: ScrollBehavior = 'auto',
-  ): void => {
-    const container = messageListRef.current;
+  const scrollMessagesToBottom = useCallback(
+    (behavior: ScrollBehavior = 'auto'): void => {
+      const container = messageListRef.current;
 
-    if (!container) {
-      return;
-    }
+      if (!container) {
+        return;
+      }
 
-    if (behavior === 'auto') {
-      forceScrollMessagesToBottom();
-      return;
-    }
+      if (behavior === 'auto') {
+        forceScrollMessagesToBottom();
+        return;
+      }
 
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior,
-    });
-    setHasNewMessagesBelow(false);
-  }, [forceScrollMessagesToBottom]);
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior,
+      });
+      setHasNewMessagesBelow(false);
+    },
+    [forceScrollMessagesToBottom],
+  );
 
   const scrollToMessage = useCallback((messageId: string): boolean => {
     const container = messageListRef.current;
@@ -467,104 +595,102 @@ export default function ChatsPage(): React.JSX.Element {
     return true;
   }, []);
 
-  const scheduleInitialScroll = useCallback((
-    target: InitialScrollTarget,
-    runId: string,
-  ): void => {
-    if (initialScrollRunIdRef.current === runId) {
-      return;
-    }
+  const scheduleInitialScroll = useCallback(
+    (target: InitialScrollTarget, runId: string): void => {
+      if (initialScrollRunIdRef.current === runId) {
+        return;
+      }
 
-    clearInitialScrollTimers();
-    isInitialScrollPendingRef.current = true;
-    scheduledInitialScrollRunIdRef.current = runId;
-    let isDone = false;
+      clearInitialScrollTimers();
+      isInitialScrollPendingRef.current = true;
+      scheduledInitialScrollRunIdRef.current = runId;
+      let isDone = false;
 
-    if (target.target === 'bottom') {
-      const runBottomCorrection = (isFinalAttempt: boolean): void => {
+      if (target.target === 'bottom') {
+        const runBottomCorrection = (isFinalAttempt: boolean): void => {
+          if (isDone || scheduledInitialScrollRunIdRef.current !== runId) {
+            return;
+          }
+
+          forceScrollMessagesToBottom();
+
+          if (isFinalAttempt) {
+            isDone = true;
+            initialScrollRunIdRef.current = runId;
+            isInitialScrollPendingRef.current = false;
+            scheduledInitialScrollRunIdRef.current = null;
+            initialScrollTimeoutsRef.current = [];
+          }
+        };
+
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            runBottomCorrection(false);
+          });
+        });
+
+        for (const delayMs of [60, 160]) {
+          const timeoutId = window.setTimeout(() => {
+            runBottomCorrection(false);
+          }, delayMs);
+          initialScrollTimeoutsRef.current.push(timeoutId);
+        }
+
+        const finalTimeoutId = window.setTimeout(() => {
+          runBottomCorrection(true);
+        }, 320);
+        initialScrollTimeoutsRef.current.push(finalTimeoutId);
+        return;
+      }
+
+      const finishMessageAttempts = (): void => {
+        initialScrollRunIdRef.current = runId;
+        isInitialScrollPendingRef.current = false;
+        scheduledInitialScrollRunIdRef.current = null;
+        clearInitialScrollTimers();
+      };
+
+      const attemptMessageScroll = (isFinalAttempt: boolean): void => {
         if (isDone || scheduledInitialScrollRunIdRef.current !== runId) {
           return;
         }
 
-        forceScrollMessagesToBottom();
-
-        if (isFinalAttempt) {
+        if (scrollToMessage(target.messageId) || isFinalAttempt) {
           isDone = true;
-          initialScrollRunIdRef.current = runId;
-          isInitialScrollPendingRef.current = false;
-          scheduledInitialScrollRunIdRef.current = null;
-          initialScrollTimeoutsRef.current = [];
+          finishMessageAttempts();
+          return;
         }
       };
 
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
-          runBottomCorrection(false);
+          attemptMessageScroll(false);
         });
       });
 
       for (const delayMs of [60, 160]) {
         const timeoutId = window.setTimeout(() => {
-          runBottomCorrection(false);
+          attemptMessageScroll(false);
         }, delayMs);
         initialScrollTimeoutsRef.current.push(timeoutId);
       }
 
       const finalTimeoutId = window.setTimeout(() => {
-        runBottomCorrection(true);
+        attemptMessageScroll(true);
       }, 320);
       initialScrollTimeoutsRef.current.push(finalTimeoutId);
-      return;
-    }
-
-    const finishMessageAttempts = (): void => {
-      initialScrollRunIdRef.current = runId;
-      isInitialScrollPendingRef.current = false;
-      scheduledInitialScrollRunIdRef.current = null;
-      clearInitialScrollTimers();
-    };
-
-    const attemptMessageScroll = (isFinalAttempt: boolean): void => {
-      if (isDone || scheduledInitialScrollRunIdRef.current !== runId) {
-        return;
-      }
-
-      if (scrollToMessage(target.messageId) || isFinalAttempt) {
-        isDone = true;
-        finishMessageAttempts();
-        return;
-      }
-    };
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        attemptMessageScroll(false);
-      });
-    });
-
-    for (const delayMs of [60, 160]) {
-      const timeoutId = window.setTimeout(() => {
-        attemptMessageScroll(false);
-      }, delayMs);
-      initialScrollTimeoutsRef.current.push(timeoutId);
-    }
-
-    const finalTimeoutId = window.setTimeout(() => {
-      attemptMessageScroll(true);
-    }, 320);
-    initialScrollTimeoutsRef.current.push(finalTimeoutId);
-  }, [
-    clearInitialScrollTimers,
-    forceScrollMessagesToBottom,
-    scrollToMessage,
-  ]);
+    },
+    [clearInitialScrollTimers, forceScrollMessagesToBottom, scrollToMessage],
+  );
 
   const loadRooms = async (): Promise<ChatRoom[]> => {
     const nextRooms = await listChatRooms({ view: 'active' });
     setRooms(nextRooms);
 
     if (!activeRoomId && requestedRoomCode) {
-      const requestedRoom = nextRooms.find((room) => room.code === requestedRoomCode);
+      const requestedRoom = nextRooms.find(
+        (room) => room.code === requestedRoomCode,
+      );
 
       if (requestedRoom) {
         openingRoomSnapshotRef.current = requestedRoom;
@@ -744,7 +870,8 @@ export default function ChatsPage(): React.JSX.Element {
         return;
       }
 
-      const anchorMessage = currentMessages[Math.floor(currentMessages.length / 2)];
+      const anchorMessage =
+        currentMessages[Math.floor(currentMessages.length / 2)];
 
       if (!anchorMessage) {
         return;
@@ -834,7 +961,10 @@ export default function ChatsPage(): React.JSX.Element {
       });
     } catch (loadError) {
       setError(
-        getErrorMessage(loadError, 'Не удалось загрузить предыдущие сообщения.'),
+        getErrorMessage(
+          loadError,
+          'Не удалось загрузить предыдущие сообщения.',
+        ),
       );
     } finally {
       isLoadingOlderMessagesRef.current = false;
@@ -1000,7 +1130,7 @@ export default function ChatsPage(): React.JSX.Element {
     const roomSnapshot =
       openingRoomSnapshotRef.current?.id === activeRoomId
         ? openingRoomSnapshotRef.current
-        : rooms.find((room) => room.id === activeRoomId) ?? null;
+        : (rooms.find((room) => room.id === activeRoomId) ?? null);
 
     openingRoomSnapshotRef.current = roomSnapshot;
 
@@ -1069,7 +1199,9 @@ export default function ChatsPage(): React.JSX.Element {
         })
         .catch((searchError) => {
           if (!isCancelled) {
-            setError(getErrorMessage(searchError, 'Не удалось выполнить поиск.'));
+            setError(
+              getErrorMessage(searchError, 'Не удалось выполнить поиск.'),
+            );
           }
         })
         .finally(() => {
@@ -1110,10 +1242,7 @@ export default function ChatsPage(): React.JSX.Element {
           return;
         }
 
-        if (
-          isInitialScrollPendingRef.current ||
-          !isLatestWindowRef.current
-        ) {
+        if (isInitialScrollPendingRef.current || !isLatestWindowRef.current) {
           return;
         }
 
@@ -1185,44 +1314,46 @@ export default function ChatsPage(): React.JSX.Element {
           const messageId = getRealtimeMessageId(payload.payload);
 
           if ((isMessageCreated || isMessageUpdated) && messageId) {
-            void loadRealtimeMessage(messageId).then((incomingMessage) => {
-              if (payload.roomId !== activeRoomIdRef.current) {
-                return;
-              }
-
-              if (isMessageCreated && !isLatestWindowRef.current) {
-                setHasNewerMessages(true);
-                setHasNewMessagesBelow(true);
-                return;
-              }
-
-              if (isMessageCreated) {
-                const shouldStickToBottom = messageListRef.current
-                  ? isAtBottom(messageListRef.current)
-                  : true;
-
-                pendingScrollToBottomRef.current = shouldStickToBottom;
-                setHasNewMessagesBelow(!shouldStickToBottom);
-              }
-
-              setMessages((current) => {
-                const exists = current.some(
-                  (message) => message.id === incomingMessage.id,
-                );
-
-                if (isMessageUpdated) {
-                  return current.map((message) =>
-                    message.id === incomingMessage.id
-                      ? incomingMessage
-                      : message,
-                  );
+            void loadRealtimeMessage(messageId)
+              .then((incomingMessage) => {
+                if (payload.roomId !== activeRoomIdRef.current) {
+                  return;
                 }
 
-                return exists ? current : [...current, incomingMessage];
+                if (isMessageCreated && !isLatestWindowRef.current) {
+                  setHasNewerMessages(true);
+                  setHasNewMessagesBelow(true);
+                  return;
+                }
+
+                if (isMessageCreated) {
+                  const shouldStickToBottom = messageListRef.current
+                    ? isAtBottom(messageListRef.current)
+                    : true;
+
+                  pendingScrollToBottomRef.current = shouldStickToBottom;
+                  setHasNewMessagesBelow(!shouldStickToBottom);
+                }
+
+                setMessages((current) => {
+                  const exists = current.some(
+                    (message) => message.id === incomingMessage.id,
+                  );
+
+                  if (isMessageUpdated) {
+                    return current.map((message) =>
+                      message.id === incomingMessage.id
+                        ? incomingMessage
+                        : message,
+                    );
+                  }
+
+                  return exists ? current : [...current, incomingMessage];
+                });
+              })
+              .catch(() => {
+                void refreshActiveMessageWindow().catch(() => undefined);
               });
-            }).catch(() => {
-              void refreshActiveMessageWindow().catch(() => undefined);
-            });
           }
         }
       } catch {
@@ -1235,7 +1366,9 @@ export default function ChatsPage(): React.JSX.Element {
     };
   }, []);
 
-  const handleSend = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
+  const handleSend = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ): Promise<void> => {
     event.preventDefault();
 
     if (!activeRoomId || isSending) {
@@ -1390,7 +1523,9 @@ export default function ChatsPage(): React.JSX.Element {
       setIsArchiveOpen(false);
       setIsRoomListOpen(false);
     } catch (unhideError) {
-      setError(getErrorMessage(unhideError, 'Не удалось вернуть чат из архива.'));
+      setError(
+        getErrorMessage(unhideError, 'Не удалось вернуть чат из архива.'),
+      );
     }
   };
 
@@ -1401,7 +1536,9 @@ export default function ChatsPage(): React.JSX.Element {
       await unhideChatRoom(roomId);
       await refreshRoomLists();
     } catch (unhideError) {
-      setError(getErrorMessage(unhideError, 'Не удалось вернуть чат из архива.'));
+      setError(
+        getErrorMessage(unhideError, 'Не удалось вернуть чат из архива.'),
+      );
     }
   };
 
@@ -1438,7 +1575,9 @@ export default function ChatsPage(): React.JSX.Element {
     setError(null);
 
     try {
-      await closeChatRoom(activeRoom.id, { reason: reason.trim() || undefined });
+      await closeChatRoom(activeRoom.id, {
+        reason: reason.trim() || undefined,
+      });
       await clearActiveRoomAfterRemoval();
     } catch (closeError) {
       setError(getErrorMessage(closeError, 'Не удалось закрыть чат.'));
@@ -1460,7 +1599,9 @@ export default function ChatsPage(): React.JSX.Element {
       setEditingText('');
       setMessages((current) =>
         current.map((currentMessage) =>
-          currentMessage.id === updatedMessage.id ? updatedMessage : currentMessage,
+          currentMessage.id === updatedMessage.id
+            ? updatedMessage
+            : currentMessage,
         ),
       );
       void refreshRoomLists().catch(() => undefined);
@@ -1485,7 +1626,9 @@ export default function ChatsPage(): React.JSX.Element {
       const updatedMessage = await deleteChatMessage(message.id);
       setMessages((current) =>
         current.map((currentMessage) =>
-          currentMessage.id === updatedMessage.id ? updatedMessage : currentMessage,
+          currentMessage.id === updatedMessage.id
+            ? updatedMessage
+            : currentMessage,
         ),
       );
       void refreshRoomLists().catch(() => undefined);
@@ -1521,7 +1664,9 @@ export default function ChatsPage(): React.JSX.Element {
       setForwardTargetRoomId('');
       await refreshRoomLists();
     } catch (forwardError) {
-      setError(getErrorMessage(forwardError, 'Не удалось переслать сообщение.'));
+      setError(
+        getErrorMessage(forwardError, 'Не удалось переслать сообщение.'),
+      );
     }
   };
 
@@ -1532,7 +1677,9 @@ export default function ChatsPage(): React.JSX.Element {
       const updatedMessage = await toggleChatMessageHeart(message.id);
       setMessages((current) =>
         current.map((currentMessage) =>
-          currentMessage.id === updatedMessage.id ? updatedMessage : currentMessage,
+          currentMessage.id === updatedMessage.id
+            ? updatedMessage
+            : currentMessage,
         ),
       );
     } catch (reactionError) {
@@ -1564,6 +1711,7 @@ export default function ChatsPage(): React.JSX.Element {
     isRoomListOpen ? ' chat-layout--room-list-open' : ''
   }`;
   const selectRoom = (roomId: string): void => {
+    setExplorer(null);
     pendingSearchMessageRef.current = null;
     setHighlightedMessageId(null);
     openingRoomSnapshotRef.current =
@@ -1598,6 +1746,7 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
+    setParticipantsQuery('');
     setIsParticipantsPanelOpen(true);
     void loadRoomParticipants(activeRoom.id);
   };
@@ -1608,10 +1757,32 @@ export default function ChatsPage(): React.JSX.Element {
     );
   };
 
+  const addPendingFiles = (incoming: File[]): void => {
+    if (!activeRoom?.capabilities.canWrite || isSending) return;
+    setFiles((current) => {
+      const seen = new Set(
+        current.map((file) => `${file.name}:${file.size}:${file.lastModified}`),
+      );
+      return [
+        ...current,
+        ...incoming.filter((file) => {
+          const key = `${file.name}:${file.size}:${file.lastModified}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        }),
+      ];
+    });
+  };
+
   const handleTextKeyDown = (
     event: React.KeyboardEvent<HTMLTextAreaElement>,
   ): void => {
-    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+    if (
+      event.key !== 'Enter' ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing
+    ) {
       return;
     }
 
@@ -1621,9 +1792,9 @@ export default function ChatsPage(): React.JSX.Element {
 
   return (
     <>
-      <PageTitle title="Чаты" />
+      <h1 className="chat-page-title">Чаты</h1>
 
-      <div className="page-stack chat-page-stack">
+      <div className={`page-stack chat-page-stack ${styles.workspace}`}>
         {error ? (
           <div className="page-card" style={{ color: '#b91c1c' }}>
             {error}
@@ -1634,92 +1805,160 @@ export default function ChatsPage(): React.JSX.Element {
           <aside className="chat-room-panel page-card">
             <div className="section-header">
               <div>
-                <div className="section-title">Комнаты</div>
-                <div className="section-subtitle">
-                  Рабочие чаты отдельно от комментариев.
-                </div>
+                <div className="section-title">Чаты</div>
               </div>
               {canCreateDirectChat || canCreateGroupChat ? (
                 <button
                   type="button"
                   className="chat-icon-button"
+                  aria-label="Новый чат"
+                  title="Новый чат"
                   onClick={() => {
                     setNewRoomMode(canCreateDirectChat ? 'direct' : 'group');
+                    setGroupDetailsStep(false);
                     setIsCreateRoomOpen(true);
                   }}
                 >
-                  Новый чат
+                  <ChatIcon name="compose" />
                 </button>
               ) : null}
             </div>
 
             <div className="chat-search-box">
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Поиск по чатам и сообщениям"
-                aria-label="Поиск по чатам и сообщениям"
-              />
-              {searchQuery.trim().length >= 2 ? (
-                <div className="chat-search-results">
-                  {isSearching ? (
-                    <div className="page-muted">Поиск...</div>
-                  ) : searchResults.rooms.length === 0 &&
-                    searchResults.messages.length === 0 ? (
-                    <div className="page-muted">Ничего не найдено.</div>
-                  ) : (
-                    <>
-                      {searchResults.rooms.length > 0 ? (
-                        <div className="chat-search-group">
-                          <strong>Чаты</strong>
-                          {searchResults.rooms.map((room) => (
-                            <button
-                              key={room.id}
-                              type="button"
-                              onClick={() => {
-                                selectRoom(room.id);
-                                setSearchQuery('');
-                              }}
-                            >
-                              <span>{room.displayTitle || room.title}</span>
-                              <small>{room.lastMessagePreview ?? 'Без сообщений'}</small>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                      {searchResults.messages.length > 0 ? (
-                        <div className="chat-search-group">
-                          <strong>Сообщения</strong>
-                          {searchResults.messages.map((message) => (
-                            <button
-                              key={message.id}
-                              type="button"
-                              onClick={() =>
-                                openSearchMessage(message.roomId, message.id)
-                              }
-                            >
-                              <span>{message.room.displayTitle || message.room.title}</span>
-                              <small>
-                                {message.author
-                                  ? getUserDisplayName(message.author)
-                                  : 'Система'}{' '}
-                                · {formatDateTime(message.createdAt)}
-                              </small>
-                              <small>{message.text}</small>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-              ) : null}
+              <div className={styles.searchField}>
+                <ChatIcon name="search" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Поиск в чатах и сообщениях"
+                  aria-label="Поиск в чатах и сообщениях"
+                  aria-busy={isSearching}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setSearchQuery('');
+                    if (event.key === 'ArrowDown') {
+                      event.preventDefault();
+                      event.currentTarget
+                        .closest('.chat-room-panel')
+                        ?.querySelector<HTMLButtonElement>(
+                          '.chat-search-results button',
+                        )
+                        ?.focus();
+                    }
+                  }}
+                />
+                {searchQuery ? (
+                  <button
+                    type="button"
+                    aria-label="Очистить поиск в чатах"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    <ChatIcon name="close" />
+                  </button>
+                ) : null}
+              </div>
             </div>
-
-            <div className="chat-room-list">
+            {searchQuery.trim().length >= 2 ? (
+              <div
+                className="chat-search-results"
+                aria-label="Результаты поиска в чатах"
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setSearchQuery('');
+                    return;
+                  }
+                  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')
+                    return;
+                  event.preventDefault();
+                  const items = Array.from(
+                    event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                      'button',
+                    ),
+                  );
+                  const index = items.indexOf(
+                    document.activeElement as HTMLButtonElement,
+                  );
+                  items[
+                    (index +
+                      (event.key === 'ArrowDown' ? 1 : -1) +
+                      items.length) %
+                      items.length
+                  ]?.focus();
+                }}
+              >
+                {isSearching ? (
+                  <div className="page-muted">Поиск...</div>
+                ) : searchResults.rooms.length === 0 &&
+                  searchResults.messages.length === 0 ? (
+                  <div className="page-muted">Ничего не найдено.</div>
+                ) : (
+                  <>
+                    {searchResults.rooms.length > 0 ? (
+                      <div className="chat-search-group">
+                        <strong>
+                          Чаты <span>{searchResults.rooms.length}</span>
+                        </strong>
+                        {searchResults.rooms.map((room) => (
+                          <button
+                            key={room.id}
+                            type="button"
+                            onClick={() => {
+                              selectRoom(room.id);
+                              setSearchQuery('');
+                            }}
+                          >
+                            <span>
+                              {highlightSearch(
+                                room.displayTitle || room.title,
+                                searchQuery,
+                              )}
+                            </span>
+                            <small>
+                              {room.lastMessagePreview ?? 'Без сообщений'}
+                            </small>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {searchResults.messages.length > 0 ? (
+                      <div className="chat-search-group">
+                        <strong>
+                          Сообщения <span>{searchResults.messages.length}</span>
+                        </strong>
+                        {searchResults.messages.map((message) => (
+                          <button
+                            key={message.id}
+                            type="button"
+                            onClick={() =>
+                              openSearchMessage(message.roomId, message.id)
+                            }
+                          >
+                            <span>
+                              {message.room.displayTitle || message.room.title}
+                            </span>
+                            <small>
+                              {message.author
+                                ? getUserDisplayName(message.author)
+                                : 'Система'}{' '}
+                              · {formatDateTime(message.createdAt)}
+                            </small>
+                            <small>
+                              {highlightSearch(message.text ?? '', searchQuery)}
+                            </small>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            ) : null}
+            <div
+              className="chat-room-list"
+              hidden={searchQuery.trim().length >= 2}
+            >
               {isLoadingRooms ? (
-                <div className="page-muted">Загрузка комнат...</div>
+                <div className="page-muted">Загрузка чатов...</div>
               ) : rooms.length === 0 ? (
                 <div className="page-muted">Доступных чатов пока нет.</div>
               ) : (
@@ -1739,9 +1978,6 @@ export default function ChatsPage(): React.JSX.Element {
                       </span>
                     </span>
                     <span className="chat-room-item__meta">
-                      <span className="chat-room-item__type">
-                        {getRoomTypeLabel(room)}
-                      </span>
                       <span>{formatDateTime(room.lastMessageAt)}</span>
                       {room.unreadCount > 0 ? (
                         <span className="chat-unread">{room.unreadCount}</span>
@@ -1758,6 +1994,7 @@ export default function ChatsPage(): React.JSX.Element {
                 className="chat-archive-toggle"
                 onClick={() => setIsArchiveOpen((current) => !current)}
               >
+                <ChatIcon name="archive" />
                 <span>Архив</span>
                 <span>{archivedRooms.length}</span>
               </button>
@@ -1770,7 +2007,10 @@ export default function ChatsPage(): React.JSX.Element {
                     <div className="page-muted">В архиве пока пусто.</div>
                   ) : (
                     archivedRooms.map((room) => (
-                      <div key={room.id} className="chat-room-item chat-room-item--archived">
+                      <div
+                        key={room.id}
+                        className="chat-room-item chat-room-item--archived"
+                      >
                         <button
                           type="button"
                           className="chat-room-item__open"
@@ -1783,9 +2023,6 @@ export default function ChatsPage(): React.JSX.Element {
                             </span>
                           </span>
                           <span className="chat-room-item__meta">
-                            <span className="chat-room-item__type">
-                              {getRoomTypeLabel(room)}
-                            </span>
                             <span>{formatDateTime(room.lastMessageAt)}</span>
                           </span>
                         </button>
@@ -1804,7 +2041,63 @@ export default function ChatsPage(): React.JSX.Element {
             </div>
           </aside>
 
-          <section className="chat-main page-card">
+          <section
+            className="chat-main page-card"
+            onDragEnter={(event) => {
+              if (
+                !event.dataTransfer.types.includes('Files') ||
+                !activeRoom?.capabilities.canWrite ||
+                isSending
+              )
+                return;
+              event.preventDefault();
+              fileDragDepthRef.current++;
+              setIsDraggingFiles(true);
+            }}
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes('Files')) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect =
+                  activeRoom?.capabilities.canWrite && !isSending
+                    ? 'copy'
+                    : 'none';
+              }
+            }}
+            onDragLeave={() => {
+              fileDragDepthRef.current = Math.max(
+                0,
+                fileDragDepthRef.current - 1,
+              );
+              if (!fileDragDepthRef.current) setIsDraggingFiles(false);
+            }}
+            onDrop={(event) => {
+              if (!event.dataTransfer.types.includes('Files')) return;
+              event.preventDefault();
+              fileDragDepthRef.current = 0;
+              setIsDraggingFiles(false);
+              addPendingFiles(Array.from(event.dataTransfer.files));
+            }}
+          >
+            {activeRoom && explorer ? (
+              <ChatExplorer
+                key={activeRoom.id}
+                roomId={activeRoom.id}
+                roomTitle={getRoomDisplayTitle(activeRoom)}
+                initialTab={explorer}
+                onClose={() => setExplorer(null)}
+                onMessage={(messageId) => {
+                  setExplorer(null);
+                  openSearchMessage(activeRoom.id, messageId);
+                }}
+              />
+            ) : null}
+            {isDraggingFiles ? (
+              <div className={styles.dropZone}>
+                <ChatIcon name="attach" />
+                <strong>Добавить в сообщение</strong>
+                <span>Отпустите файлы здесь</span>
+              </div>
+            ) : null}
             {activeRoom ? (
               <>
                 <header className="chat-header">
@@ -1812,56 +2105,137 @@ export default function ChatsPage(): React.JSX.Element {
                     <button
                       type="button"
                       className="chat-back-button"
+                      aria-label="К списку чатов"
                       onClick={() => setIsRoomListOpen(true)}
                     >
-                      Комнаты
+                      <ChatIcon name="back" />
                     </button>
-                    <div>
-                      <div className="section-title">{getRoomDisplayTitle(activeRoom)}</div>
-                      <div className="section-subtitle">
-                        <span className="chat-room-type-badge">
-                          {activeRoomTypeLabel}
-                        </span>
-                        <button
-                          type="button"
-                          className="chat-participants-link"
-                          onClick={openParticipantsPanel}
-                        >
-                          Участники: {activeRoom.participantCount}
-                        </button>
-                      </div>
-                    </div>
+                    <button
+                      type="button"
+                      className={styles.roomIdentity}
+                      aria-label={`Участники: ${activeRoom.participantCount}`}
+                      onClick={openParticipantsPanel}
+                    >
+                      <span className="section-title">
+                        {getRoomDisplayTitle(activeRoom)}
+                      </span>
+                      <span className="section-subtitle">
+                        {activeRoomTypeLabel ? (
+                          <span className="chat-room-type-badge">
+                            {activeRoomTypeLabel}
+                          </span>
+                        ) : null}
+                        <span>Участники: {activeRoom.participantCount}</span>
+                      </span>
+                    </button>
                   </div>
                   <div className="chat-header__actions">
-                    <span className="status-pill">
-                      {activeRoom.unreadCount > 0
-                        ? `Новых: ${activeRoom.unreadCount}`
-                        : 'Прочитано'}
-                    </span>
-                    {activeRoom.capabilities.canHide ? (
-                      <button type="button" onClick={() => void handleHideRoom()}>
-                        Скрыть
-                      </button>
-                    ) : null}
-                    {activeRoom.capabilities.canLeave ? (
-                      <button type="button" onClick={() => void handleLeaveRoom()}>
-                        Покинуть
-                      </button>
-                    ) : null}
-                    {activeRoom.capabilities.canCloseGlobally ? (
-                      <button type="button" onClick={() => void handleCloseRoom()}>
-                        Закрыть для всех
-                      </button>
-                    ) : null}
-                    {activeRoom.capabilities.canManage ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setIsRoomSettingsOpen((current) => !current)
-                        }
-                      >
-                        Настройки
-                      </button>
+                    <button
+                      type="button"
+                      className="chat-icon-button"
+                      aria-label="Поиск в этом чате"
+                      title="Поиск в этом чате (⌘/Ctrl+F)"
+                      onClick={() => setExplorer('search')}
+                    >
+                      <ChatIcon name="search" />
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-icon-button"
+                      aria-label="Вложения чата"
+                      title="Вложения чата"
+                      onClick={() => setExplorer('media')}
+                    >
+                      <ChatIcon name="gallery" />
+                    </button>
+                    {activeRoom.capabilities.canHide ||
+                    activeRoom.capabilities.canLeave ||
+                    activeRoom.capabilities.canCloseGlobally ||
+                    activeRoom.capabilities.canManage ? (
+                      <div className="chat-room-menu-wrap">
+                        <button
+                          type="button"
+                          className="chat-room-menu__trigger"
+                          aria-label="Действия с чатом"
+                          aria-haspopup="menu"
+                          aria-expanded={isRoomMenuOpen}
+                          onClick={() => setIsRoomMenuOpen((open) => !open)}
+                        >
+                          <ChatIcon name="more" />
+                        </button>
+                        {isRoomMenuOpen ? (
+                          <div
+                            className="chat-room-menu"
+                            role="menu"
+                            aria-label="Действия с чатом"
+                          >
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setIsRoomMenuOpen(false);
+                                openParticipantsPanel();
+                              }}
+                            >
+                              <ChatIcon name="file" />
+                              Информация о чате
+                            </button>
+                            {activeRoom.capabilities.canManage ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setIsRoomSettingsOpen((current) => !current);
+                                  setIsRoomMenuOpen(false);
+                                }}
+                              >
+                                <ChatIcon name="edit" />
+                                Редактировать
+                              </button>
+                            ) : null}
+                            {activeRoom.capabilities.canHide ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setIsRoomMenuOpen(false);
+                                  void handleHideRoom();
+                                }}
+                              >
+                                <ChatIcon name="archive" />
+                                Скрыть чат
+                              </button>
+                            ) : null}
+                            {activeRoom.capabilities.canLeave ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setIsRoomMenuOpen(false);
+                                  void handleLeaveRoom();
+                                }}
+                              >
+                                <ChatIcon name="back" />
+                                Покинуть чат
+                              </button>
+                            ) : null}
+                            {activeRoom.capabilities.canCloseGlobally ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="is-danger"
+                                onClick={() => {
+                                  setIsRoomMenuOpen(false);
+                                  void handleCloseRoom();
+                                }}
+                              >
+                                <ChatIcon name="close" />
+                                Закрыть для всех
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 </header>
@@ -1905,178 +2279,328 @@ export default function ChatsPage(): React.JSX.Element {
                                 <span>Новые сообщения</span>
                               </div>
                             ) : null}
-                          <article
-                            data-message-id={message.id}
-                            className={`chat-message ${
-                              message.messageType === 'system'
-                                ? 'chat-message--system'
-                                : isOwn
-                                  ? 'chat-message--own'
+                            <article
+                              data-message-id={message.id}
+                              className={`chat-message ${
+                                message.messageType === 'system'
+                                  ? 'chat-message--system'
+                                  : isOwn
+                                    ? 'chat-message--own'
+                                    : ''
+                              }${
+                                highlightedMessageId === message.id
+                                  ? ' chat-message--highlighted'
                                   : ''
-                            }${
-                              highlightedMessageId === message.id
-                                ? ' chat-message--highlighted'
-                                : ''
-                            }`}
-                          >
-                            <div className="chat-message__meta">
-                              <strong>
-                                {message.messageType === 'system'
-                                  ? 'Система'
-                                  : getUserDisplayName(message.author)}
-                              </strong>
-                              {message.author &&
-                              getUserSecondaryLabel(message.author) ? (
-                                <span>
-                                  {getUserSecondaryLabel(message.author)}
-                                </span>
-                              ) : null}
-                              <span>{formatDateTime(message.createdAt)}</span>
-                              {message.editedAt ? <span>изменено</span> : null}
-                            </div>
-
-                            {isEditing && !message.isDeleted ? (
-                              <div className="chat-edit-box">
-                                <textarea
-                                  value={editingText}
-                                  onChange={(event) =>
-                                    setEditingText(event.target.value)
-                                  }
-                                  rows={3}
-                                />
-                                <div className="action-row">
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleEdit(message)}
-                                  >
-                                    Сохранить
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingMessageId(null);
-                                      setEditingText('');
-                                    }}
-                                  >
-                                    Отмена
-                                  </button>
-                                </div>
+                              }`}
+                              onContextMenu={(event) => {
+                                if (!message.isDeleted) {
+                                  event.preventDefault();
+                                  setOpenMessageActionsId(message.id);
+                                  setOpenReactionUsersId(null);
+                                }
+                              }}
+                              onTouchStart={(event) => {
+                                clearMessageLongPressTimer();
+                                if (
+                                  (event.target as HTMLElement).closest(
+                                    'button, a, input, textarea',
+                                  )
+                                )
+                                  return;
+                                if (!message.isDeleted) {
+                                  messageLongPressTimerRef.current =
+                                    window.setTimeout(() => {
+                                      setOpenMessageActionsId(message.id);
+                                      setOpenReactionUsersId(null);
+                                    }, 480);
+                                }
+                              }}
+                              onTouchEnd={clearMessageLongPressTimer}
+                              onTouchMove={clearMessageLongPressTimer}
+                              onTouchCancel={clearMessageLongPressTimer}
+                              onKeyDown={(event) => {
+                                if (
+                                  event.key === 'ContextMenu' ||
+                                  (event.shiftKey && event.key === 'F10')
+                                ) {
+                                  event.preventDefault();
+                                  setOpenMessageActionsId(message.id);
+                                }
+                              }}
+                            >
+                              <div className="chat-message__meta">
+                                <strong>
+                                  {message.messageType === 'system'
+                                    ? 'Система'
+                                    : getUserDisplayName(message.author)}
+                                </strong>
+                                {message.author &&
+                                getUserSecondaryLabel(message.author) ? (
+                                  <span>
+                                    {getUserSecondaryLabel(message.author)}
+                                  </span>
+                                ) : null}
+                                <span>{formatDateTime(message.createdAt)}</span>
+                                {message.editedAt ? (
+                                  <span>изменено</span>
+                                ) : null}
                               </div>
-                            ) : (
-                              <>
-                                {message.replyTo ? (
-                                  <div className="chat-reply-preview">
-                                    <strong>
-                                      {message.replyTo.isAccessRestricted
-                                        ? 'Недоступное сообщение'
-                                        : message.replyTo.author
-                                        ? getUserDisplayName(message.replyTo.author)
-                                        : 'Система'}
-                                    </strong>
-                                    {!message.replyTo.isAccessRestricted ? (
-                                      <span>
-                                        {message.replyTo.text ||
-                                          'Сообщение без текста'}
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                ) : null}
-                                {message.forwardedFrom ? (
-                                  <div className="chat-forwarded-label">
-                                    {message.forwardedFrom.isAccessRestricted
-                                      ? 'Исходное сообщение недоступно'
-                                      : `Переслано · ${
-                                          message.forwardedFrom.author
-                                            ? getUserDisplayName(
-                                                message.forwardedFrom.author,
-                                              )
-                                            : 'Пользователь'
-                                        }`}
-                                  </div>
-                                ) : null}
-                                {message.text ? (
-                                  <p className="chat-message__text">
-                                    {message.text}
-                                  </p>
-                                ) : null}
-                                {!message.isDeleted && message.attachments.length > 0 ? (
-                                  <AttachmentPreviewList
-                                    files={message.attachments}
-                                    emptyText=""
+                              {!message.isDeleted &&
+                              (message.capabilities.canEdit ||
+                                message.capabilities.canDelete ||
+                                message.capabilities.canReply ||
+                                message.capabilities.canForward ||
+                                message.capabilities.canReact) ? (
+                                <button
+                                  type="button"
+                                  className="chat-message__more"
+                                  aria-label="Действия с сообщением"
+                                  aria-haspopup="menu"
+                                  aria-expanded={
+                                    openMessageActionsId === message.id
+                                  }
+                                  onClick={() => {
+                                    setOpenMessageActionsId((current) =>
+                                      current === message.id
+                                        ? null
+                                        : message.id,
+                                    );
+                                    setOpenReactionUsersId(null);
+                                  }}
+                                >
+                                  <ChatIcon name="more" />
+                                </button>
+                              ) : null}
+
+                              {isEditing && !message.isDeleted ? (
+                                <div className="chat-edit-box">
+                                  <textarea
+                                    value={editingText}
+                                    onChange={(event) =>
+                                      setEditingText(event.target.value)
+                                    }
+                                    rows={3}
                                   />
-                                ) : null}
-                                {!message.isDeleted ? (
                                   <div className="action-row">
-                                    {message.capabilities.canEdit ? (
-                                      <button
-                                        type="button"
-                                        className="quiet-button"
-                                        onClick={() => {
-                                          setEditingMessageId(message.id);
-                                          setEditingText(message.text ?? '');
-                                        }}
-                                      >
-                                        Редактировать
-                                      </button>
-                                    ) : null}
-                                    {message.capabilities.canDelete ? (
-                                      <button
-                                        type="button"
-                                        className="quiet-button"
-                                        onClick={() => void handleDeleteMessage(message)}
-                                      >
-                                        Удалить
-                                      </button>
-                                    ) : null}
-                                    {message.capabilities.canReply ? (
-                                      <button
-                                        type="button"
-                                        className="quiet-button"
-                                        onClick={() => {
-                                          setReplyingTo(message);
-                                          composerFormRef.current
-                                            ?.querySelector('textarea')
-                                            ?.focus();
-                                        }}
-                                      >
-                                        Ответить
-                                      </button>
-                                    ) : null}
-                                    {message.capabilities.canForward ? (
-                                      <button
-                                        type="button"
-                                        className="quiet-button"
-                                        onClick={() => {
-                                          setForwardingMessage(message);
-                                          setForwardTargetRoomId(
-                                            forwardTargetRooms.at(0)?.id ?? '',
-                                          );
-                                        }}
-                                      >
-                                        Переслать
-                                      </button>
-                                    ) : null}
-                                    {message.capabilities.canReact ? (
-                                      <button
-                                        type="button"
-                                        className={`chat-reaction-button ${
-                                          message.myReactions.includes('heart')
-                                            ? 'is-active'
-                                            : ''
-                                        }`}
-                                        onClick={() =>
-                                          void handleToggleHeart(message)
-                                        }
-                                        aria-label="Поставить реакцию сердце"
-                                      >
-                                        ♥ {message.reactionCounts.heart ?? 0}
-                                      </button>
-                                    ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleEdit(message)}
+                                    >
+                                      Сохранить
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingMessageId(null);
+                                        setEditingText('');
+                                      }}
+                                    >
+                                      Отмена
+                                    </button>
                                   </div>
-                                ) : null}
-                              </>
-                            )}
-                          </article>
+                                </div>
+                              ) : (
+                                <>
+                                  {message.replyTo ? (
+                                    <div className="chat-reply-preview">
+                                      <strong>
+                                        {message.replyTo.isAccessRestricted
+                                          ? 'Недоступное сообщение'
+                                          : message.replyTo.author
+                                            ? getUserDisplayName(
+                                                message.replyTo.author,
+                                              )
+                                            : 'Система'}
+                                      </strong>
+                                      {!message.replyTo.isAccessRestricted ? (
+                                        <span>
+                                          {message.replyTo.text ||
+                                            'Сообщение без текста'}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                  {message.forwardedFrom ? (
+                                    <div className="chat-forwarded-label">
+                                      {message.forwardedFrom.isAccessRestricted
+                                        ? 'Исходное сообщение недоступно'
+                                        : `Переслано · ${
+                                            message.forwardedFrom.author
+                                              ? getUserDisplayName(
+                                                  message.forwardedFrom.author,
+                                                )
+                                              : 'Пользователь'
+                                          }`}
+                                    </div>
+                                  ) : null}
+                                  {message.text ? (
+                                    <p className="chat-message__text">
+                                      {message.text}
+                                    </p>
+                                  ) : null}
+                                  {!message.isDeleted &&
+                                  message.attachments.length > 0 ? (
+                                    <AttachmentPreviewList
+                                      files={message.attachments}
+                                      emptyText=""
+                                      compactMetadata
+                                    />
+                                  ) : null}
+                                  {!message.isDeleted &&
+                                  (message.reactionCounts.heart ?? 0) > 0 ? (
+                                    <div className="chat-message__footer">
+                                      {(message.reactionCounts.heart ?? 0) >
+                                      0 ? (
+                                        <div className="chat-reaction-group">
+                                          <button
+                                            type="button"
+                                            className={`chat-reaction-chip${message.myReactions.includes('heart') ? ' is-active' : ''}`}
+                                            aria-expanded={
+                                              openReactionUsersId === message.id
+                                            }
+                                            aria-label={`Сердце: ${message.reactionCounts.heart}. Показать, кто поставил реакцию`}
+                                            onClick={() => {
+                                              setOpenReactionUsersId(
+                                                (current) =>
+                                                  current === message.id
+                                                    ? null
+                                                    : message.id,
+                                              );
+                                              setOpenMessageActionsId(null);
+                                            }}
+                                          >
+                                            <ChatIcon name="heart" />
+                                            <span>
+                                              {message.reactionCounts.heart}
+                                            </span>
+                                            <span
+                                              className="chat-reaction-avatars"
+                                              aria-hidden="true"
+                                            >
+                                              {(
+                                                message.reactionUsers.heart ??
+                                                []
+                                              )
+                                                .slice(0, 3)
+                                                .map((reactor) => (
+                                                  <span
+                                                    key={reactor.id}
+                                                    title={reactor.fullName}
+                                                  >
+                                                    {reactor.fullName
+                                                      .trim()
+                                                      .charAt(0) || '?'}
+                                                  </span>
+                                                ))}
+                                            </span>
+                                          </button>
+                                          {openReactionUsersId ===
+                                          message.id ? (
+                                            <div
+                                              className="chat-reaction-people"
+                                              role="status"
+                                              aria-label="Поставили реакцию"
+                                            >
+                                              {(
+                                                message.reactionUsers.heart ??
+                                                []
+                                              ).map((reactor) => (
+                                                <span key={reactor.id}>
+                                                  {reactor.fullName}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </>
+                              )}
+                              {openMessageActionsId === message.id ? (
+                                <ChatMessageMenu
+                                  messageId={message.id}
+                                  onClose={() => setOpenMessageActionsId(null)}
+                                >
+                                  {message.capabilities.canReply ? (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      onClick={() => {
+                                        setReplyingTo(message);
+                                        setOpenMessageActionsId(null);
+                                        composerFormRef.current
+                                          ?.querySelector('textarea')
+                                          ?.focus();
+                                      }}
+                                    >
+                                      <ChatIcon name="reply" />
+                                      Ответить
+                                    </button>
+                                  ) : null}
+                                  {message.capabilities.canForward ? (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      onClick={() => {
+                                        setForwardingMessage(message);
+                                        setForwardQuery('');
+                                        setForwardTargetRoomId(
+                                          forwardTargetRooms.at(0)?.id ?? '',
+                                        );
+                                        setOpenMessageActionsId(null);
+                                      }}
+                                    >
+                                      <ChatIcon name="forward" />
+                                      Переслать
+                                    </button>
+                                  ) : null}
+                                  {message.capabilities.canEdit ? (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      onClick={() => {
+                                        setEditingMessageId(message.id);
+                                        setEditingText(message.text ?? '');
+                                        setOpenMessageActionsId(null);
+                                      }}
+                                    >
+                                      <ChatIcon name="edit" />
+                                      Редактировать
+                                    </button>
+                                  ) : null}
+                                  {message.capabilities.canReact ? (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      onClick={() => {
+                                        setOpenMessageActionsId(null);
+                                        void handleToggleHeart(message);
+                                      }}
+                                    >
+                                      <ChatIcon name="heart" />
+                                      {message.myReactions.includes('heart')
+                                        ? 'Убрать реакцию'
+                                        : 'Поставить реакцию'}
+                                    </button>
+                                  ) : null}
+                                  {message.capabilities.canDelete ? (
+                                    <button
+                                      type="button"
+                                      className="is-danger"
+                                      role="menuitem"
+                                      onClick={() => {
+                                        setOpenMessageActionsId(null);
+                                        void handleDeleteMessage(message);
+                                      }}
+                                    >
+                                      <ChatIcon name="trash" />
+                                      Удалить
+                                    </button>
+                                  ) : null}
+                                </ChatMessageMenu>
+                              ) : null}
+                            </article>
                           </React.Fragment>
                         );
                       })
@@ -2117,11 +2641,14 @@ export default function ChatsPage(): React.JSX.Element {
                       <div className="chat-composer-reply">
                         <div>
                           <strong>
-                            Ответ для {replyingTo.author
+                            Ответ для{' '}
+                            {replyingTo.author
                               ? getUserDisplayName(replyingTo.author)
                               : 'Система'}
                           </strong>
-                          <span>{replyingTo.text || 'Сообщение без текста'}</span>
+                          <span>
+                            {replyingTo.text || 'Сообщение без текста'}
+                          </span>
                         </div>
                         <button
                           type="button"
@@ -2134,41 +2661,70 @@ export default function ChatsPage(): React.JSX.Element {
                     ) : null}
                     {files.length > 0 ? (
                       <div className="chat-pending-files">
-                        <PendingMediaList files={files} onRemove={removePendingFile} />
+                        <PendingMediaList
+                          files={files}
+                          onRemove={removePendingFile}
+                        />
                       </div>
                     ) : null}
-                    <textarea
-                      value={text}
-                      onChange={(event) => setText(event.target.value)}
-                      onKeyDown={handleTextKeyDown}
-                      placeholder="Сообщение"
-                      rows={2}
-                    />
-                    <div className="chat-composer__actions">
-                      <label className="file-picker-button">
-                        <span>Вложения</span>
-                        <input
-                          type="file"
-                          multiple
-                          onChange={(event) => {
-                            const selectedFiles = Array.from(
-                              event.currentTarget.files ?? [],
-                            );
-                            setFiles((current) => [...current, ...selectedFiles]);
-                            event.currentTarget.value = '';
-                          }}
-                        />
-                      </label>
-                      <span className="page-muted">
-                        {files.length > 0
-                          ? `Выбрано файлов: ${files.length}`
-                          : 'Текст, фото или файл'}
-                      </span>
+                    <div className="chat-composer__input-row">
+                      <button
+                        type="button"
+                        className="chat-attach-button"
+                        aria-label="Прикрепить фото или файл"
+                        title="Прикрепить файл (⌘/Ctrl+Shift+U)"
+                        onClick={() => attachmentInputRef.current?.click()}
+                      >
+                        <ChatIcon name="attach" />
+                      </button>
+                      <input
+                        ref={attachmentInputRef}
+                        hidden
+                        type="file"
+                        multiple
+                        aria-label="Прикрепить фото или файл"
+                        onChange={(event) => {
+                          const selectedFiles = Array.from(
+                            event.currentTarget.files ?? [],
+                          );
+                          addPendingFiles(selectedFiles);
+                          event.currentTarget.value = '';
+                        }}
+                      />
+                      <textarea
+                        ref={composerTextareaRef}
+                        value={text}
+                        onChange={(event) => setText(event.target.value)}
+                        onKeyDown={handleTextKeyDown}
+                        onPaste={(event) => {
+                          const pastedFiles = Array.from(
+                            event.clipboardData.items,
+                          )
+                            .filter((item) => item.kind === 'file')
+                            .map((item) => item.getAsFile())
+                            .filter((file): file is File => file !== null);
+                          if (pastedFiles.length > 0) {
+                            event.preventDefault();
+                            addPendingFiles(pastedFiles);
+                          }
+                        }}
+                        placeholder="Сообщение"
+                        aria-label="Сообщение"
+                        rows={1}
+                      />
                       <button
                         type="submit"
-                        disabled={isSending || (!text.trim() && files.length === 0)}
+                        aria-label={
+                          isSending
+                            ? 'Отправка сообщения'
+                            : 'Отправить сообщение'
+                        }
+                        title="Отправить сообщение (Enter)"
+                        disabled={
+                          isSending || (!text.trim() && files.length === 0)
+                        }
                       >
-                        Отправить
+                        <ChatIcon name="send" />
                       </button>
                     </div>
                   </form>
@@ -2185,304 +2741,315 @@ export default function ChatsPage(): React.JSX.Element {
         </div>
 
         {(canCreateDirectChat || canCreateGroupChat) && isCreateRoomOpen ? (
-          <div
-            className="chat-modal-backdrop"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                setIsCreateRoomOpen(false);
-              }
-            }}
+          <Dialog
+            open
+            onOpenChange={(open) => setIsCreateRoomOpen(open)}
+            className={styles.dialog}
+            title={
+              newRoomMode === 'group' && groupDetailsStep
+                ? 'Новая группа'
+                : 'Новый чат'
+            }
+            footer={
+              <div className={styles.dialogActions}>
+                {newRoomMode === 'group' && groupDetailsStep ? (
+                  <button
+                    type="button"
+                    onClick={() => setGroupDetailsStep(false)}
+                  >
+                    Назад
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateRoomOpen(false)}
+                  >
+                    Отмена
+                  </button>
+                )}
+                {newRoomMode === 'group' && !groupDetailsStep ? (
+                  <button
+                    type="button"
+                    className={styles.primaryAction}
+                    disabled={!newRoomParticipantIds.length}
+                    onClick={() => setGroupDetailsStep(true)}
+                  >
+                    Далее
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    form="chat-create-form"
+                    className={styles.primaryAction}
+                    disabled={isCreateRoomDisabled}
+                  >
+                    {newRoomMode === 'direct'
+                      ? 'Открыть чат'
+                      : 'Создать группу'}
+                  </button>
+                )}
+              </div>
+            }
           >
-            <form className="chat-modal" onSubmit={handleCreateRoom}>
-              <div className="section-header">
-                <div>
-                  <div className="section-title">Новый чат</div>
-                  <div className="section-subtitle">
-                    Личный диалог или рабочая группа без смешивания с системными комнатами.
-                  </div>
+            <form
+              id="chat-create-form"
+              className={styles.dialogForm}
+              onSubmit={handleCreateRoom}
+            >
+              {!(newRoomMode === 'group' && groupDetailsStep) ? (
+                <div className={styles.tabs} role="group" aria-label="Тип чата">
+                  {canCreateDirectChat ? (
+                    <button
+                      type="button"
+                      aria-pressed={newRoomMode === 'direct'}
+                      onClick={() => setNewRoomMode('direct')}
+                    >
+                      Личный чат
+                    </button>
+                  ) : null}
+                  {canCreateGroupChat ? (
+                    <button
+                      type="button"
+                      aria-pressed={newRoomMode === 'group'}
+                      onClick={() => setNewRoomMode('group')}
+                    >
+                      Группа
+                    </button>
+                  ) : null}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCreateRoomOpen(false)}
-                >
-                  Закрыть
-                </button>
-              </div>
-
-              <div className="chat-mode-switch" role="group" aria-label="Тип чата">
-                {canCreateDirectChat ? (
-                  <button
-                    type="button"
-                    className={
-                      newRoomMode === 'direct' ? 'is-active' : undefined
-                    }
-                    onClick={() => setNewRoomMode('direct')}
-                  >
-                    Личный чат
-                  </button>
-                ) : null}
-                {canCreateGroupChat ? (
-                  <button
-                    type="button"
-                    className={newRoomMode === 'group' ? 'is-active' : undefined}
-                    onClick={() => setNewRoomMode('group')}
-                  >
-                    Групповой чат
-                  </button>
-                ) : null}
-              </div>
-
+              ) : null}
               {newRoomMode === 'direct' ? (
-                <div className="chat-form-field">
-                  <span>Собеседник</span>
-                  <ParticipantPicker
-                    candidates={directParticipants}
-                    selectedIds={
-                      directTargetUserId ? [directTargetUserId] : []
-                    }
-                    onChange={(selectedIds) =>
-                      setDirectTargetUserId(selectedIds.at(-1) ?? '')
-                    }
-                    placeholder="Найти пользователя по ФИО"
-                  />
-                </div>
-              ) : (
+                <ParticipantPicker
+                  candidates={directParticipants}
+                  selectedIds={directTargetUserId ? [directTargetUserId] : []}
+                  onChange={(ids) => setDirectTargetUserId(ids.at(-1) ?? '')}
+                  placeholder="Найти собеседника"
+                />
+              ) : groupDetailsStep ? (
                 <>
-                  <label>
-                    <span>Название</span>
+                  <label className={styles.field}>
+                    <span>Название группы</span>
                     <input
+                      autoFocus
                       value={newRoomTitle}
                       onChange={(event) => setNewRoomTitle(event.target.value)}
-                      placeholder="Например: Бригада вечер"
-                      autoFocus
+                      placeholder="Введите название"
                     />
                   </label>
-
-                  <div className="chat-form-field">
-                    <span>Участники</span>
-                    <ParticipantPicker
-                      candidates={directParticipants}
-                      selectedIds={newRoomParticipantIds}
-                      onChange={setNewRoomParticipantIds}
-                      placeholder="Найти участника по ФИО"
-                    />
+                  <div className={styles.listHeading}>
+                    Участники · {newRoomParticipantIds.length}
+                  </div>
+                  <div className={styles.peopleList}>
+                    {directParticipants
+                      .filter((person) =>
+                        newRoomParticipantIds.includes(person.id),
+                      )
+                      .map((person) => (
+                        <div className={styles.personRow} key={person.id}>
+                          <UserAvatar fullName={getUserDisplayName(person)} />
+                          <span>
+                            <strong>{getUserDisplayName(person)}</strong>
+                            <small>{getUserSecondaryLabel(person)}</small>
+                          </span>
+                        </div>
+                      ))}
                   </div>
                 </>
+              ) : (
+                <ParticipantPicker
+                  candidates={directParticipants}
+                  selectedIds={newRoomParticipantIds}
+                  onChange={setNewRoomParticipantIds}
+                  placeholder="Добавить участников"
+                />
               )}
-
-              <div className="action-row">
-                <button type="submit" disabled={isCreateRoomDisabled}>
-                  {newRoomMode === 'direct'
-                    ? 'Открыть личный чат'
-                    : 'Создать группу'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDirectTargetUserId('');
-                    setNewRoomTitle('');
-                    setNewRoomParticipantIds([]);
-                    setIsCreateRoomOpen(false);
-                  }}
-                >
-                  Отмена
-                </button>
-              </div>
+              {error ? (
+                <p role="alert" className={styles.error}>
+                  {error}
+                </p>
+              ) : null}
             </form>
-          </div>
+          </Dialog>
         ) : null}
 
         {activeRoom?.capabilities.canManage && isRoomSettingsOpen ? (
-          <div
-            className="chat-modal-backdrop"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                setIsRoomSettingsOpen(false);
-              }
-            }}
-          >
-            <form className="chat-modal" onSubmit={handleRenameRoom}>
-              <div className="section-header">
-                <div>
-                  <div className="section-title">Настройки комнаты</div>
-                  <div className="section-subtitle">
-                    Управление названием без лишнего шума в списке комнат.
-                  </div>
-                </div>
+          <Dialog
+            open
+            onOpenChange={setIsRoomSettingsOpen}
+            title="Редактировать чат"
+            className={styles.dialog}
+            footer={
+              <div className={styles.dialogActions}>
                 <button
                   type="button"
                   onClick={() => setIsRoomSettingsOpen(false)}
                 >
-                  Закрыть
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  form="chat-rename-form"
+                  className={styles.primaryAction}
+                  disabled={!renameTitle.trim()}
+                >
+                  Сохранить
                 </button>
               </div>
-
-              <label>
-                <span>Название комнаты</span>
+            }
+          >
+            <form
+              id="chat-rename-form"
+              className={styles.dialogForm}
+              onSubmit={handleRenameRoom}
+            >
+              <label className={styles.field}>
+                <span>Название чата</span>
                 <input
+                  autoFocus
                   value={renameTitle}
                   onChange={(event) => setRenameTitle(event.target.value)}
                   aria-label="Название чата"
+                  data-dialog-initial-focus
                 />
               </label>
-
-              <div className="action-row">
-                <button type="submit">Сохранить название</button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRoomSettingsOpen(false);
-                    openParticipantsPanel();
-                  }}
-                >
-                  Участники
-                </button>
-              </div>
+              {error ? (
+                <p role="alert" className={styles.error}>
+                  {error}
+                </p>
+              ) : null}
             </form>
-          </div>
+          </Dialog>
         ) : null}
 
         {activeRoom && isParticipantsPanelOpen ? (
-          <div
-            className="chat-modal-backdrop"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
-                setIsParticipantsPanelOpen(false);
-              }
-            }}
+          <Dialog
+            open
+            onOpenChange={setIsParticipantsPanelOpen}
+            title="Информация о чате"
+            className={styles.dialog}
           >
-            <div className="chat-modal chat-modal--wide">
-              <div className="section-header">
-                <div>
-                  <div className="section-title">Участники</div>
-                  <div className="section-subtitle">
-                    {getRoomDisplayTitle(activeRoom)} · {activeRoomTypeLabel}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsParticipantsPanelOpen(false)}
-                >
-                  Закрыть
-                </button>
-              </div>
-
-              {isLoadingParticipants ? (
-                <div className="page-muted">Загрузка участников...</div>
-              ) : roomParticipants.length === 0 ? (
-                <div className="page-muted">Участники пока не загружены.</div>
-              ) : (
-                <div className="chat-participant-list">
-                  {roomParticipants.map((participant) => (
-                    <div key={participant.id} className="chat-participant-row">
-                      <div>
+            <div className={styles.roomSummary}>
+              <UserAvatar
+                fullName={getRoomDisplayTitle(activeRoom)}
+                size="large"
+              />
+              <strong>{getRoomDisplayTitle(activeRoom)}</strong>
+              <span>Участники: {activeRoom.participantCount}</span>
+            </div>
+            <div className={styles.infoActions}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsParticipantsPanelOpen(false);
+                  setExplorer('search');
+                }}
+              >
+                <ChatIcon name="search" />
+                Поиск
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsParticipantsPanelOpen(false);
+                  setExplorer('media');
+                }}
+              >
+                <ChatIcon name="gallery" />
+                Медиа
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsParticipantsPanelOpen(false);
+                  setExplorer('files');
+                }}
+              >
+                <ChatIcon name="file" />
+                Файлы
+              </button>
+            </div>
+            <div className={styles.listHeading}>Участники</div>
+            <div className={styles.searchField}>
+              <ChatIcon name="search" />
+              <input
+                aria-label="Найти участника чата"
+                placeholder="Найти участника"
+                value={participantsQuery}
+                onChange={(event) => setParticipantsQuery(event.target.value)}
+              />
+            </div>
+            {isLoadingParticipants ? (
+              <p className={styles.hint}>Загрузка участников…</p>
+            ) : (
+              <div className={styles.peopleList}>
+                {roomParticipants
+                  .filter((person) =>
+                    `${person.user.fullName} ${person.user.login}`
+                      .toLocaleLowerCase('ru')
+                      .includes(participantsQuery.toLocaleLowerCase('ru')),
+                  )
+                  .map((participant) => (
+                    <div className={styles.personRow} key={participant.id}>
+                      <UserAvatar
+                        fullName={getUserDisplayName(participant.user)}
+                      />
+                      <span>
                         <strong>{getUserDisplayName(participant.user)}</strong>
-                        {getUserSecondaryLabel(participant.user) ? (
-                          <div className="identity-secondary">
-                            {getUserSecondaryLabel(participant.user)}
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className="chat-participant-row__meta">
-                        <span className="status-pill">
-                          {getParticipantRoleLabel(participant.roleInRoom)}
-                        </span>
-                        <span>
-                          с {formatDateTime(participant.joinedAt)}
-                        </span>
-                      </div>
+                        <small>{getUserSecondaryLabel(participant.user)}</small>
+                      </span>
+                      <small className={styles.personRole}>
+                        {getParticipantRoleLabel(participant.roleInRoom)}
+                      </small>
                     </div>
                   ))}
-                </div>
-              )}
-
-              {activeRoom.capabilities.canManage &&
-              activeRoom.roomType === 'group' ? (
-                <form
-                  className="chat-participant-add-form"
-                  onSubmit={handleAddParticipants}
+              </div>
+            )}
+            {activeRoom.capabilities.canManage &&
+            activeRoom.roomType === 'group' ? (
+              <form
+                className={styles.dialogForm}
+                onSubmit={handleAddParticipants}
+              >
+                <div className={styles.listHeading}>Добавить участников</div>
+                <ParticipantPicker
+                  candidates={addableParticipants}
+                  selectedIds={addParticipantIds}
+                  onChange={setAddParticipantIds}
+                  placeholder="Найти пользователя"
+                />
+                <button
+                  type="submit"
+                  className={styles.primaryAction}
+                  disabled={!addParticipantIds.length}
                 >
-                  <div>
-                    <div className="section-title">Добавить участников</div>
-                    <div className="section-subtitle">
-                      Новые участники увидят историю только после добавления.
-                    </div>
-                  </div>
-                  <ParticipantPicker
-                    candidates={addableParticipants}
-                    selectedIds={addParticipantIds}
-                    onChange={setAddParticipantIds}
-                    placeholder="Найти пользователя"
-                  />
-                  <button
-                    type="submit"
-                    disabled={addParticipantIds.length === 0}
-                  >
-                    Добавить выбранных
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          </div>
+                  Добавить выбранных
+                </button>
+                <p className={styles.hint}>
+                  Новые участники увидят сообщения с момента добавления.
+                </p>
+              </form>
+            ) : null}
+            {error ? (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
+            ) : null}
+          </Dialog>
         ) : null}
 
         {forwardingMessage ? (
-          <div
-            className="chat-modal-backdrop"
-            role="presentation"
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) {
+          <Dialog
+            open
+            onOpenChange={(open) => {
+              if (!open) {
                 setForwardingMessage(null);
                 setForwardTargetRoomId('');
               }
             }}
-          >
-            <form className="chat-modal" onSubmit={handleForwardMessage}>
-              <div className="section-header">
-                <div>
-                  <div className="section-title">Переслать сообщение</div>
-                  <div className="section-subtitle">
-                    Будут пересланы текст и вложения.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForwardingMessage(null);
-                    setForwardTargetRoomId('');
-                  }}
-                >
-                  Закрыть
-                </button>
-              </div>
-
-              <label>
-                <span>Чат назначения</span>
-                <select
-                  value={forwardTargetRoomId}
-                  onChange={(event) => setForwardTargetRoomId(event.target.value)}
-                >
-                  {forwardTargetRooms.map((room) => (
-                    <option key={room.id} value={room.id}>
-                      {getRoomDisplayTitle(room)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {forwardTargetRooms.length === 0 ? (
-                <div className="page-muted">
-                  Нет другой комнаты, куда можно отправить сообщение.
-                </div>
-              ) : null}
-
-              <div className="action-row">
-                <button type="submit" disabled={!forwardTargetRoomId}>
-                  Переслать
-                </button>
+            title="Переслать сообщение"
+            className={styles.dialog}
+            footer={
+              <div className={styles.dialogActions}>
                 <button
                   type="button"
                   onClick={() => {
@@ -2492,9 +3059,71 @@ export default function ChatsPage(): React.JSX.Element {
                 >
                   Отмена
                 </button>
+                <button
+                  type="submit"
+                  form="chat-forward-form"
+                  className={styles.primaryAction}
+                  disabled={!forwardTargetRoomId}
+                >
+                  Переслать
+                </button>
               </div>
+            }
+          >
+            <form
+              id="chat-forward-form"
+              className={styles.dialogForm}
+              onSubmit={handleForwardMessage}
+            >
+              <div className={styles.searchField}>
+                <ChatIcon name="search" />
+                <input
+                  autoFocus
+                  value={forwardQuery}
+                  onChange={(event) => setForwardQuery(event.target.value)}
+                  aria-label="Найти чат для пересылки"
+                  data-dialog-initial-focus
+                  placeholder="Кому переслать"
+                />
+              </div>
+              <div className={styles.peopleList}>
+                {forwardTargetRooms
+                  .filter((room) =>
+                    getRoomDisplayTitle(room)
+                      .toLocaleLowerCase('ru')
+                      .includes(forwardQuery.toLocaleLowerCase('ru')),
+                  )
+                  .map((room) => (
+                    <button
+                      type="button"
+                      key={room.id}
+                      className={styles.personRow}
+                      aria-pressed={forwardTargetRoomId === room.id}
+                      onClick={() => setForwardTargetRoomId(room.id)}
+                    >
+                      <UserAvatar fullName={getRoomDisplayTitle(room)} />
+                      <strong>{getRoomDisplayTitle(room)}</strong>
+                      <span
+                        className={styles.selectionCheck}
+                        aria-hidden="true"
+                      >
+                        {forwardTargetRoomId === room.id ? '✓' : ''}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+              {!forwardTargetRooms.length ? (
+                <p className={styles.hint}>
+                  Нет доступных чатов для пересылки.
+                </p>
+              ) : null}
+              {error ? (
+                <p role="alert" className={styles.error}>
+                  {error}
+                </p>
+              ) : null}
             </form>
-          </div>
+          </Dialog>
         ) : null}
       </div>
     </>
