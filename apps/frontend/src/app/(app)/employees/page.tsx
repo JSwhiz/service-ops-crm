@@ -38,6 +38,8 @@ import {
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
 
+import styles from './employee-registry.module.css';
+
 const DEFAULT_LIMIT = 25;
 const SORT_FIELDS = new Set<EmployeeSortField>([
   'fullName',
@@ -103,10 +105,11 @@ async function searchPositionOptions(
 function getRegistryTab(
   employeeType: string,
   archiveState: EmployeeArchiveState,
-): 'all' | 'regular' | 'one_time' | 'archived' {
+): 'all' | 'regular' | 'one_time' | 'substitution' | 'archived' {
   if (archiveState === 'archived') return 'archived';
   if (employeeType === 'regular') return 'regular';
   if (employeeType === 'one_time') return 'one_time';
+  if (employeeType === 'substitution') return 'substitution';
   return 'all';
 }
 
@@ -116,6 +119,7 @@ export default function EmployeesPage(): React.JSX.Element {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const requestSequenceRef = useRef(0);
+  const registryNavRef = useRef<HTMLElement>(null);
   const canAccessEmployeesHr = user?.capabilities?.canAccessEmployeesHr ?? false;
 
   const querySearch = searchParams.get('search') ?? '';
@@ -123,6 +127,8 @@ export default function EmployeesPage(): React.JSX.Element {
   const position = searchParams.get('position') ?? '';
   const employmentStatus = searchParams.get('employmentStatus') ?? '';
   const employeeType = searchParams.get('employeeType') ?? '';
+  const passportFilter = searchParams.get('passportReceived') ?? '';
+  const contractFilter = searchParams.get('contractReceived') ?? '';
   const archiveState = parseArchiveState(searchParams.get('archiveState'));
   const birthMonth = searchParams.get('birthMonth') ?? '';
   const assignmentFilter = searchParams.get('hasActiveObjectAssignment') ?? '';
@@ -207,6 +213,8 @@ export default function EmployeesPage(): React.JSX.Element {
     setIsLoading(true);
     setError(null);
     void listEmployees({
+      passportReceived: passportFilter === 'true' ? true : passportFilter === 'false' ? false : undefined,
+      contractReceived: contractFilter === 'true' ? true : contractFilter === 'false' ? false : undefined,
       search: querySearch || undefined,
       objectId: objectId || undefined,
       position: position || undefined,
@@ -234,11 +242,27 @@ export default function EmployeesPage(): React.JSX.Element {
       });
   }, [archiveState, assignmentFilter, birthMonth, canAccessEmployeesHr, employeeType,
     employmentStatus, limit, objectId, page, position, querySearch, reloadKey, sortBy,
-    sortOrder, workScheduleCode, workTimeSearch]);
+    sortOrder, workScheduleCode, workTimeSearch, passportFilter, contractFilter]);
 
   const tab = getRegistryTab(employeeType, archiveState);
+
+  useEffect(() => {
+    const nav = registryNavRef.current;
+    const activeTab = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!nav || !activeTab) return;
+
+    const viewport = nav.getBoundingClientRect();
+    const selected = activeTab.getBoundingClientRect();
+    // Scroll only the navigation strip; scrollIntoView can also move the page.
+    if (selected.left < viewport.left) {
+      nav.scrollLeft += selected.left - viewport.left;
+    } else if (selected.right > viewport.right) {
+      nav.scrollLeft += selected.right - viewport.right;
+    }
+  }, [tab, canAccessEmployeesHr]);
+
   const activeFilterCount = [objectId, position, employmentStatus, birthMonth,
-    assignmentFilter, workScheduleCode, workTimeSearch].filter(Boolean).length;
+    assignmentFilter, workScheduleCode, workTimeSearch, passportFilter, contractFilter].filter(Boolean).length;
   const firstItem = result.total === 0 ? 0 : (result.page - 1) * result.limit + 1;
   const lastItem = Math.min(result.total, result.page * result.limit);
   const selectedObjectOption = objects.find((object) => object.id === objectId);
@@ -246,7 +270,7 @@ export default function EmployeesPage(): React.JSX.Element {
 
   const setTab = (nextTab: typeof tab): void => {
     replaceQuery({
-      employeeType: nextTab === 'regular' || nextTab === 'one_time' ? nextTab : null,
+      employeeType: nextTab === 'regular' || nextTab === 'one_time' || nextTab === 'substitution' ? nextTab : null,
       archiveState: nextTab === 'archived' ? 'archived' : null,
       page: null,
     });
@@ -258,6 +282,15 @@ export default function EmployeesPage(): React.JSX.Element {
   const sortValue = `${sortBy}:${sortOrder}`;
   const sortValueOptions = sortOptions.flatMap((option) => [{ value: `${option.value}:asc`, label: `${option.label} · по возрастанию` }, { value: `${option.value}:desc`, label: `${option.label} · по убыванию` }]);
   const activeRegistryFilters: ActiveRegistryFilter[] = ([
+    ...([
+      ['passportReceived', 'Паспорт', passportFilter],
+      ['contractReceived', 'Трудовой договор', contractFilter],
+    ] as const).filter(([, , value]) => value).map(([id, label, value]) => ({
+      id, label, value,
+      options: [{ value: 'true', label: 'Получен' }, { value: 'false', label: 'Не получен' }],
+      onChange: (nextValue: string) => replaceQuery({ [id]: nextValue || null, page: null }),
+      onRemove: () => replaceQuery({ [id]: null, page: null }),
+    })),
     objectFilterActive || objectId ? { id: 'object', label: 'Объект', value: objectId, options: selectedObjectOption ? [{ value: objectId, label: selectedObjectOption.name }] : [], onChange: (value: string) => replaceQuery({ objectId: value || null, page: null }), onRemove: () => { setObjectFilterActive(false); replaceQuery({ objectId: null, page: null }); }, customControl: <SearchableSelect label="Объект" hideLabel value={objectId} options={[]} selectedOption={selectedObjectOption ? { value: objectId, label: selectedObjectOption.name } : null} placeholder="Все объекты" loading={isLoadingReferences} asyncSearch={searchObjectOptions} minimumSearchLength={2} searchPlaceholder="Введите название объекта" searchPromptText="Введите не менее 2 символов, чтобы найти объект" searchInputVariant="registry" onChange={(value) => replaceQuery({ objectId: value || null, page: null })} /> } : null,
     position ? { id: 'position', label: 'Должность', value: position, options: positionOptions, onChange: (value: string) => replaceQuery({ position: value || null, page: null }), onRemove: () => replaceQuery({ position: null, page: null }), customControl: <SearchableSelect label="Должность" hideLabel value={position} options={positionOptions} placeholder="Все должности" loading={isLoadingReferences} minimumSearchLength={2} searchPlaceholder="Введите должность" searchPromptText="Введите не менее 2 символов, чтобы найти должность" searchInputVariant="registry" asyncSearch={searchPositionOptions} onChange={(value) => replaceQuery({ position: value || null, page: null })} /> } : null,
     employmentStatus ? { id: 'employment', label: 'Статус работы', value: employmentStatus, options: statusOptions, onChange: (value: string) => replaceQuery({ employmentStatus: value || null, page: null }), onRemove: () => replaceQuery({ employmentStatus: null, page: null }) } : null,
@@ -268,6 +301,14 @@ export default function EmployeesPage(): React.JSX.Element {
     sortValue !== 'fullName:asc' ? { id: 'sort', label: 'Сортировка', value: sortValue, options: sortValueOptions, onChange: (value: string) => { const [sortBy, sortOrder] = value.split(':') as [EmployeeSortField, 'asc' | 'desc']; replaceQuery({ sortBy, sortOrder: sortOrder === 'asc' ? null : sortOrder, page: null }); }, onRemove: () => replaceQuery({ sortBy: null, sortOrder: null, page: null }) } : null,
   ].filter(Boolean) as ActiveRegistryFilter[]);
   const availableRegistryFilters: AvailableRegistryFilter[] = ([
+    ...([
+      ['passportReceived', 'Паспорт', passportFilter],
+      ['contractReceived', 'Трудовой договор', contractFilter],
+    ] as const).filter(([, , value]) => !value).map(([id, label]) => ({
+      id, label,
+      options: [{ value: 'true', label: 'Получен' }, { value: 'false', label: 'Не получен' }],
+      onAdd: (value: string) => replaceQuery({ [id]: value, page: null }),
+    })),
     !objectFilterActive && !objectId ? { id: 'object', label: 'Объект', options: [{ value: 'object', label: 'Выбрать объект' }], onAdd: () => setObjectFilterActive(true) } : null,
     !position && positionOptions.length ? { id: 'position', label: 'Должность', options: positionOptions, onAdd: (value: string) => replaceQuery({ position: value, page: null }) } : null,
     !employmentStatus ? { id: 'employment', label: 'Статус работы', options: statusOptions, onAdd: (value: string) => replaceQuery({ employmentStatus: value, page: null }) } : null,
@@ -283,8 +324,8 @@ export default function EmployeesPage(): React.JSX.Element {
         <div className="page-card inline-notice inline-notice--warning">У вас нет доступа к HR-контуру сотрудников.</div>
       ) : (
         <div className="page-stack workspace-page employee-registry">
-          <nav className="employee-tabs" aria-label="Разделы реестра">
-            {([['all', 'Все сотрудники'], ['regular', 'Постоянные'], ['one_time', 'Разовые'], ['archived', 'Архив']] as const)
+          <nav ref={registryNavRef} className={`employee-tabs ${styles.tabs}`} aria-label="Разделы реестра">
+            {([['all', 'Все сотрудники'], ['regular', 'Постоянные'], ['one_time', 'Разовые'], ['substitution', 'Подменные'], ['archived', 'Архив']] as const)
               .map(([value, label]) => <button key={value} type="button" className={tab === value ? 'is-active' : undefined}
                 aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}>{label}</button>)}
             {user?.capabilities?.canAccessCandidates ? <Link href="/employees/reserve">Резерв</Link> : null}
@@ -321,16 +362,20 @@ export default function EmployeesPage(): React.JSX.Element {
                 <div className="section-header"><div><strong>{item.fullName}</strong><div className="page-muted">{item.position ?? 'Должность не указана'}</div></div>
                   <span className="employee-type-badge">{getEmployeeTypeLabel(item.employeeType)}</span></div>
                 <div className="employee-mobile-card__meta"><span>{item.phone ?? 'Телефон не указан'}</span><span>{getEmployeeStatusLabel(item.employmentStatus)}</span>
-                  <span>{getEmployeeScheduleLabel(item.workScheduleCode, item.workScheduleCustom)}</span></div>
+                  <span>{getEmployeeScheduleLabel(item.workScheduleCode, item.workScheduleCustom)}</span>
+                  <span>Паспорт: {item.passportReceived ? 'получен' : 'не получен'}</span>
+                  <span>Договор: {item.contractReceived ? 'получен' : 'не получен'}</span></div>
                 <div className="employee-object-chips">{item.currentObjects.length ? item.currentObjects.map((object) => <span key={object.id}>{object.name}</span>) : <span>Без объекта</span>}</div>
               </Link>)}</div></>}
 
+          <div className={styles.pagination}>
           <TablePagination page={result.page} totalPages={result.totalPages} pending={isLoading} label="Страницы сотрудников"
             summary={result.total > 0 ? `Показано ${firstItem}–${lastItem} из ${result.total}` : 'Сотрудники не найдены'}
             onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
             beforeNavigation={<SearchableSelect label="На странице" value={String(limit)} clearable={false}
               options={[25, 50, 100].map((value) => ({ value: String(value), label: String(value) }))}
               onChange={(value) => replaceQuery({ limit: value === String(DEFAULT_LIMIT) ? null : value, page: null })} />} />
+          </div>
         </div>
       )}</>
   );

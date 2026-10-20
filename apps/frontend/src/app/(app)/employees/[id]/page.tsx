@@ -35,6 +35,7 @@ import {
   EmployeeFormFields,
   type EmployeeFormValue,
 } from '@/features/employee-form/employee-form-fields';
+import styles from '@/features/employee-form/employee-documents.module.css';
 import { ApiError } from '@/shared/api/fetcher';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
@@ -111,6 +112,8 @@ function getDependencyLabel(code: string): string {
 
 function buildEditForm(employee: EmployeeDetail): EmployeeFormValue {
   return {
+    passportReceived: employee.passportReceived,
+    contractReceived: employee.contractReceived,
     fullName: employee.fullName,
     phone: employee.phone ?? '',
     position: employee.position ?? '',
@@ -156,6 +159,8 @@ export default function EmployeeDetailPage({
   const [isActionPending, setIsActionPending] = useState(false);
 
   const [editForm, setEditForm] = useState<EmployeeFormValue>({
+    passportReceived: false,
+    contractReceived: false,
     fullName: '',
     phone: '',
     position: '',
@@ -313,12 +318,7 @@ export default function EmployeeDetailPage({
 
     return (
       <span
-        style={{
-          display: 'inline-flex',
-          padding: '2px 8px',
-          borderRadius: 999,
-          background: '#f3f4f6',
-        }}
+        className={styles.unavailableObject}
         title="Карточка объекта недоступна в рамках текущей object visibility"
       >
         {params.objectName}
@@ -331,13 +331,13 @@ export default function EmployeeDetailPage({
       <PageTitle title={item ? item.fullName : 'Карточка сотрудника'} />
 
       {!canAccessEmployeesHr ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <div className={`page-card ${styles.error}`}>
           У вас нет доступа к HR-контуру сотрудников.
         </div>
       ) : isLoading ? (
         <div className="page-card">Загрузка...</div>
       ) : loadError ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <div className={`page-card ${styles.error}`}>
           {loadError}
         </div>
       ) : !item ? (
@@ -345,7 +345,7 @@ export default function EmployeeDetailPage({
       ) : (
         <div className="page-stack employee-detail-workspace" data-active-section={activeSection}>
           {actionError ? (
-            <div className="page-card" style={{ color: '#b91c1c' }}>
+            <div className={`page-card ${styles.error}`}>
               {actionError}
               {hasVersionConflict ? (
                 <div className="action-row" style={{ marginTop: 12 }}>
@@ -518,6 +518,19 @@ export default function EmployeeDetailPage({
                 <div><dt>Время работы</dt><dd>{item.workTimeText ?? '—'}</dd></div>
                 <div><dt>Предпочтения по сменам</dt><dd>{item.shiftPreferences ?? '—'}</dd></div>
               </dl></section>
+              <section><h3>Документы</h3><dl>
+                {([
+                  ['passportReceived', 'Паспорт', item.passportReceivedByName],
+                  ['contractReceived', 'Трудовой договор', item.contractReceivedByName],
+                ] as const).map(([field, label, authorName]) => (
+                  <div key={field}><dt>{label}</dt><dd>
+                    {item[field] ? 'Получен' : 'Не получен'}
+                    {item[`${field}At`] ? <div className="page-muted">
+                      Изменено {new Date(item[`${field}At`]!).toLocaleString('ru-RU')} · {authorName ?? 'Автор недоступен'}
+                    </div> : null}
+                  </dd></div>
+                ))}
+              </dl></section>
               <section><h3>Примечание</h3><div>{item.notes ?? '—'}</div></section>
             </div>
             <div className="employee-record-meta">Создана {new Date(item.createdAt).toLocaleString('ru-RU')} · изменена {new Date(item.updatedAt).toLocaleString('ru-RU')}</div>
@@ -536,6 +549,8 @@ export default function EmployeeDetailPage({
 
                 try {
                   const updated = await updateEmployee(item.id, {
+                    passportReceived: editForm.passportReceived,
+                    contractReceived: editForm.contractReceived,
                     expectedVersion: item.version,
                     fullName: editForm.fullName,
                     phone: editForm.phone.trim() || null,

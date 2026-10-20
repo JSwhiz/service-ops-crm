@@ -480,6 +480,7 @@ model Object {
   timesheetManualExceptions TimesheetManualException[]
   auditLogs                 ObjectAuditLog[]
   candidates                Candidate[]
+  candidateConsiderations    CandidateManagerAssignment[]
   rubberMats                RubberMat[]
   userSubstitutionScopes    UserSubstitutionObject[]
 
@@ -526,6 +527,12 @@ model Employee {
   baseDailyRate      Int?
   notes              String?
   employmentStatus   String
+  passportReceived Boolean @default(false)
+  passportReceivedAt DateTime?
+  passportReceivedByUserId String?
+  contractReceived Boolean @default(false)
+  contractReceivedAt DateTime?
+  contractReceivedByUserId String?
   version            Int       @default(1)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -540,6 +547,7 @@ model Employee {
   timesheetRows              TimesheetEmployeeRow[]
   timesheetManualExceptions  TimesheetManualException[]
   accountabilityExpenses     AccountabilityExpense[]
+  sourceCandidate            Candidate?
 
   @@index([fullName])
   @@index([phone])
@@ -665,6 +673,9 @@ model Candidate {
   id              String    @id @default(uuid())
   fullName        String
   phone           String?
+  phones          String[] @default([])
+  phoneSearchText String @default("")
+  employeeId      String? @unique
   comment         String?
   candidateType   String    @default("regular")
   status          String    @default("new")
@@ -679,6 +690,7 @@ model Candidate {
   object      Object?                      @relation(fields: [objectId], references: [id], onDelete: Restrict)
   assignments CandidateManagerAssignment[]
   responses   CandidateResponse[]
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
 
   @@index([fullName])
   @@index([phone])
@@ -694,6 +706,7 @@ model CandidateManagerAssignment {
   id               String    @id @default(uuid())
   candidateId      String
   managerUserId    String
+  objectId         String?
   assignedByUserId String
   assignedAt       DateTime  @default(now())
   responseDueAt    DateTime
@@ -703,6 +716,7 @@ model CandidateManagerAssignment {
   endedByUserId    String?
 
   candidate  Candidate           @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  object Object? @relation(fields: [objectId], references: [id], onDelete: Restrict)
   manager    User                @relation("CandidateAssignmentManager", fields: [managerUserId], references: [id], onDelete: Restrict)
   assignedBy User                @relation("CandidateAssignmentAssignedBy", fields: [assignedByUserId], references: [id], onDelete: Restrict)
   endedBy    User?               @relation("CandidateAssignmentEndedBy", fields: [endedByUserId], references: [id], onDelete: SetNull)

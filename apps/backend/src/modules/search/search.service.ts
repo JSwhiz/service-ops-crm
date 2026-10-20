@@ -2,7 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { delegatedObjectIds } from '../user-substitutions/object-delegation.context';
 
-import { canViewCandidates } from '../candidates/utils/candidate-access.util';
+import { buildCandidateAccessWhere, canViewCandidates } from '../candidates/utils/candidate-access.util';
+import { candidatePhoneSearchDigits } from '../candidates/utils/candidate-phone.util';
 import { canViewCounterparties } from '../counterparties/utils/counterparty-access.util';
 import { canViewEmployeesHr } from '../employees/utils/employee-hr-access.util';
 import { canAccessEquipment } from '../equipment/utils/equipment-access.util';
@@ -39,6 +40,7 @@ interface SearchAccessContext {
   roleCodes: string[];
   permissionCodes: string[];
   objectWhere: Prisma.ObjectWhereInput;
+  candidateWhere: Prisma.CandidateWhereInput;
   taskWhere: Prisma.TaskWhereInput;
   orderWhere: Prisma.OneTimeOrderWhereInput;
   canSearchOrders: boolean;
@@ -204,10 +206,12 @@ export class SearchService {
         ? this.prisma.candidate.findMany({
             where: {
               deletedAt: null,
+              AND: [access.candidateWhere],
               OR: [
                 { id: { contains: term, mode: 'insensitive' } },
                 { fullName: { contains: term, mode: 'insensitive' } },
                 { phone: { contains: term, mode: 'insensitive' } },
+                ...(candidatePhoneSearchDigits(term).length >= 3 ? [{ phoneSearchText: { contains: candidatePhoneSearchDigits(term) } }] : []),
                 ...(phoneFragments.length > 0
                   ? [{
                       AND: phoneFragments.map((fragment) => ({
@@ -220,7 +224,7 @@ export class SearchService {
                   : []),
               ],
             },
-            select: { id: true, fullName: true, phone: true, status: true },
+            select: { id: true, fullName: true, phone: true, phones: true, status: true },
             orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
             take: candidateTake,
           })
@@ -388,11 +392,11 @@ export class SearchService {
         sequence: sequence++,
       })),
       ...candidates.map((item) => ({
-        item: this.mapCandidate(item),
+        item: this.mapCandidate(item, term),
         score: this.matchScore(
           term,
-          [item.id, item.fullName, item.phone, item.status],
-          [item.phone],
+          [item.id, item.fullName, item.phone, ...item.phones, item.status],
+          [item.phone, ...item.phones],
         ),
         sequence: sequence++,
       })),
@@ -516,8 +520,8 @@ export class SearchService {
         : Promise.resolve([]),
       access.canSearchCandidates && candidateIds.length
         ? this.prisma.candidate.findMany({
-            where: { id: { in: candidateIds }, deletedAt: null },
-            select: { id: true, fullName: true, phone: true, status: true },
+            where: { id: { in: candidateIds }, deletedAt: null, AND: [access.candidateWhere] },
+            select: { id: true, fullName: true, phone: true, phones: true, status: true },
           })
         : Promise.resolve([]),
       access.canSearchCounterparties && counterpartyIds.length
@@ -609,6 +613,7 @@ export class SearchService {
       roleCodes,
       permissionCodes,
       objectWhere,
+      candidateWhere: buildCandidateAccessWhere(currentUser),
       taskWhere: buildTaskAccessWhere({
         currentUserId: currentUser.id,
         roleCodes,
@@ -759,14 +764,19 @@ export class SearchService {
     id: string;
     fullName: string;
     phone: string | null;
+    phones?: string[];
     status: string;
-  }): GlobalSearchItemDto {
+  }, term = ''): GlobalSearchItemDto {
+    const phones = item.phones?.length ? item.phones : item.phone ? [item.phone] : [];
+    const digits = candidatePhoneSearchDigits(term);
+    const phone = (digits.length >= 3 ? phones.find((value) => value.replace(/\D/g, '').includes(digits)) : undefined) ?? phones[0];
+    const status = ({ new: 'Новый', in_progress: 'В работе', accepted: 'Принят', rejected: 'Отклонён' } as Record<string, string>)[item.status] ?? 'Кандидат';
     return {
       id: item.id,
       type: 'candidate',
       label: item.fullName,
       description:
-        [item.phone, item.status].filter(Boolean).join(' · ') || 'Кандидат',
+        [phone, status].filter(Boolean).join(' · '),
       href: `/candidates/${item.id}`,
     };
   }

@@ -12,6 +12,8 @@ import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 
 const INITIAL_FORM: EmployeeFormValue = {
+  passportReceived: false,
+  contractReceived: false,
   fullName: '',
   phone: '',
   birthDate: '',
@@ -51,6 +53,8 @@ export default function NewEmployeePage(): React.JSX.Element {
             setIsSubmitting(true);
             try {
               const created = await createEmployee({
+                passportReceived: form.passportReceived,
+                contractReceived: form.contractReceived,
                 fullName: form.fullName.trim(),
                 phone: form.phone.trim() || null,
                 birthDate: form.birthDate || null,

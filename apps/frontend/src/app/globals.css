@@ -156,7 +156,7 @@ select {
 select {
   appearance: none;
   padding-right: 34px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238b847c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364758a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
   background-position: right 10px center !important;
   background-size: 15px 15px !important;
@@ -482,18 +482,18 @@ a:hover {
 .candidate-sla {
   display: inline-flex;
   width: fit-content;
-  border: 1px solid #e3e3e0;
+  border: 1px solid var(--ui-border);
   padding: 4px 8px;
-  border-radius: 999px;
+  border-radius: var(--ui-radius-xs);
   background: var(--ui-surface-muted);
   color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
 
-.candidate-sla--awaiting_response { border-color: var(--ui-warning-border); background: var(--ui-warning-subtle); color: #9a5b13; }
+.candidate-sla--awaiting_response { border-color: var(--ui-warning-border); background: var(--ui-warning-subtle); color: var(--ui-warning); }
 .candidate-sla--overdue { border-color: var(--ui-danger-border); background: var(--ui-danger-subtle); color: var(--ui-danger); }
-.candidate-sla--responded { border-color: var(--ui-success-border); background: #f1fbf5; color: var(--ui-success); }
+.candidate-sla--responded { border-color: var(--ui-success-border); background: var(--ui-success-subtle); color: var(--ui-success); }
 
 .candidate-summary {
   display: grid;
@@ -510,6 +510,16 @@ a:hover {
 
 .candidate-summary > div:last-child {
   border-right: 0;
+}
+
+.candidate-summary > .candidate-sla-row {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--ui-space-3);
+  border-top: 1px solid var(--ui-border);
+  border-right: 0;
+  padding: var(--ui-space-2) var(--ui-space-4);
 }
 
 .candidate-summary > div,
@@ -5353,7 +5363,7 @@ tbody tr:hover {
   display: flex;
   gap: 4px;
   overflow-x: auto;
-  border-bottom: 1px solid #e6ded7;
+  border-bottom: 1px solid var(--ui-border);
   padding-inline: 2px;
 }
 
@@ -5666,11 +5676,11 @@ tbody tr:hover {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-xs);
   padding: 3px 8px;
   background: var(--ui-surface-muted);
-  color: #5f5e5b;
+  color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -5727,9 +5737,9 @@ tbody tr:hover {
   display: grid;
   gap: 12px;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-4);
 }
 
 .employee-form-sections legend {
@@ -5749,11 +5759,11 @@ tbody tr:hover {
   bottom: 12px;
   z-index: 4;
   width: fit-content;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 8px;
-  background: var(--surface);
-  box-shadow: 0 8px 24px rgb(53 41 32 / 8%);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-2);
+  background: var(--ui-surface);
+  box-shadow: none;
 }
 
 .employee-detail-sections {
@@ -5763,7 +5773,7 @@ tbody tr:hover {
 }
 
 .employee-detail-sections section {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--ui-border);
   padding-top: 12px;
 }
 
@@ -5780,7 +5790,7 @@ tbody tr:hover {
 
 .employee-detail-sections dt,
 .employee-record-meta {
-  color: var(--text-muted);
+  color: var(--ui-text-secondary);
   font-size: 12px;
 }
 
@@ -5841,8 +5851,8 @@ tbody tr:hover {
   display: inline-flex;
   align-items: center;
   width: fit-content;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-xs);
   padding: 4px 9px;
   font-size: 12px;
   font-weight: 750;
@@ -5850,8 +5860,8 @@ tbody tr:hover {
 
 .employee-state-badge.is-active {
   border-color: var(--ui-success-border);
-  background: var(--success-soft);
-  color: var(--success);
+  background: var(--ui-success-subtle);
+  color: var(--ui-success);
 }
 
 .employee-state-badge.is-archived {

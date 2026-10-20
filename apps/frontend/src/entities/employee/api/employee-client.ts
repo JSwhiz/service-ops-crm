@@ -15,6 +15,13 @@ export async function listEmployees(
 ): Promise<EmployeeListResponse> {
   const params = new URLSearchParams();
 
+  if (query.passportReceived !== undefined) {
+    params.set('passportReceived', String(query.passportReceived));
+  }
+  if (query.contractReceived !== undefined) {
+    params.set('contractReceived', String(query.contractReceived));
+  }
+
   if (query.search) {
     params.set('search', query.search);
   }

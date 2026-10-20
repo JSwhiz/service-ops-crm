@@ -2,6 +2,8 @@
 
 import React from 'react';
 
+import styles from './employee-documents.module.css';
+
 import {
   EMPLOYEE_SCHEDULE_OPTIONS,
   EMPLOYEE_TYPE_OPTIONS,
@@ -12,6 +14,8 @@ import type {
 } from '@/entities/employee/model/employee.types';
 
 export interface EmployeeFormValue {
+  passportReceived: boolean;
+  contractReceived: boolean;
   fullName: string;
   phone: string;
   birthDate: string;
@@ -125,6 +129,21 @@ export function EmployeeFormFields({
             <textarea value={value.shiftPreferences} maxLength={2000} onChange={(event) => update('shiftPreferences', event.target.value)} />
           </label>
         </div>
+      </fieldset>
+
+      <fieldset disabled={disabled}>
+        <legend>Документы</legend>
+        <div className={styles.choices}>
+          <label className={styles.choice}>
+            <input type="checkbox" checked={value.passportReceived} onChange={(event) => update('passportReceived', event.target.checked)} />
+            <span>Паспорт получен</span>
+          </label>
+          <label className={styles.choice}>
+            <input type="checkbox" checked={value.contractReceived} onChange={(event) => update('contractReceived', event.target.checked)} />
+            <span>Трудовой договор получен</span>
+          </label>
+        </div>
+        <p className={styles.help}>При изменении отметки сохраняются дата и автор.</p>
       </fieldset>
 
       <fieldset disabled={disabled}>

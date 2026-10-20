@@ -278,11 +278,13 @@ Sprint 1 closeout считается завершенным только есл�
 
 | Action | founder | deputy_founder | director | corporate_director | deputy_director | hr | operation_manager | manager |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| View | yes | yes | yes | yes | yes | yes | yes | yes |
+| View | yes | yes | yes | yes | yes | yes | active assignment only | active assignment only |
 | Manage | yes | yes | yes | yes | yes | yes | no | no |
-| Respond | no | no | no | no | no | no | yes | yes |
+| Respond | yes | yes | yes | yes | yes | yes | own active assignment | own active assignment |
 
-Адресные permissions `candidates.view`, `candidates.manage`, `candidates.respond` расширяют соответствующее действие. Назначаемый менеджер должен оставаться активным `manager` или `operation_manager` независимо от direct permission.
+Уточнение 2026-10-20: `candidates.manage` также разрешает обратную связь HR/руководства без своего назначения. Этот комментарий не закрывает SLA менеджера. Для остальных чтение кандидатов ограничено собственным активным назначением — в реестре, прямом URL, поиске и recent-resolution. Ответ менеджера допускается только при собственном активном назначении и активном кандидате. Несколько назначений имеют независимые SLA. «Оформить сотрудником» требует одновременно `candidates.manage` и `employees.create` и не назначает сотрудника на объект.
+
+Адресные permissions `candidates.view`, `candidates.manage`, `candidates.respond` расширяют соответствующее действие в указанном scope. Назначаемый менеджер должен оставаться активным `manager` или `operation_manager` независимо от direct permission. Отметки получения паспорта/договора следуют правам создания/редактирования Employee, даты и автор назначаются сервером.
 ## 16. Общий календарь пользователей и календарь разовых заказов
 
 Матрица относится к отдельному общему календарю пользователей. Она не заменяет текущий календарь разовых заказов и его контекстные права.

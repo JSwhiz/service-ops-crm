@@ -8,7 +8,16 @@ export type EmployeeSortField =
   | 'createdAt'
   | 'updatedAt';
 
-export type EmployeeType = 'regular' | 'one_time';
+export type EmployeeType = 'regular' | 'one_time' | 'substitution';
+
+export interface EmployeeDocumentState {
+  passportReceived: boolean;
+  passportReceivedAt: string | null;
+  passportReceivedByUserId: string | null;
+  contractReceived: boolean;
+  contractReceivedAt: string | null;
+  contractReceivedByUserId: string | null;
+}
 export type EmployeeWorkScheduleCode =
   | '5_2'
   | '2_2'
@@ -18,7 +27,7 @@ export type EmployeeWorkScheduleCode =
   | 'on_demand'
   | 'custom';
 
-export interface EmployeeListItem {
+export interface EmployeeListItem extends EmployeeDocumentState {
   id: string;
   fullName: string;
   phone: string | null;
@@ -53,6 +62,8 @@ export interface EmployeeListResponse {
 }
 
 export interface EmployeeListQuery {
+  passportReceived?: boolean;
+  contractReceived?: boolean;
   search?: string;
   objectId?: string;
   position?: string;
@@ -85,7 +96,9 @@ export interface EmployeeObjectReference {
   name: string;
 }
 
-export interface EmployeeDetail {
+export interface EmployeeDetail extends EmployeeDocumentState {
+  passportReceivedByName: string | null;
+  contractReceivedByName: string | null;
   id: string;
   fullName: string;
   phone: string | null;
@@ -171,6 +184,8 @@ export interface EmployeeDetail {
 }
 
 export interface EmployeeMutationPayload {
+  passportReceived?: boolean;
+  contractReceived?: boolean;
   fullName?: string;
   phone?: string | null;
   position?: string | null;

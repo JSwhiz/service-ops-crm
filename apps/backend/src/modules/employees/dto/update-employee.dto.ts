@@ -1,5 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
+  ValidateIf,
   IsDateString,
   IsIn,
   IsInt,
@@ -18,6 +20,14 @@ import {
 } from '../constants/employee-hr.constants';
 
 export class UpdateEmployeeDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  passportReceived?: boolean;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  contractReceived?: boolean;
+
   @IsInt()
   @Min(1)
   expectedVersion!: number;

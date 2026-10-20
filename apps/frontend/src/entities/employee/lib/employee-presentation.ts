@@ -9,6 +9,7 @@ export const EMPLOYEE_TYPE_OPTIONS: Array<{
 }> = [
   { value: 'regular', label: 'Постоянный' },
   { value: 'one_time', label: 'Разовый' },
+  { value: 'substitution', label: 'Подменный' },
 ];
 
 export const EMPLOYEE_SCHEDULE_OPTIONS: Array<{

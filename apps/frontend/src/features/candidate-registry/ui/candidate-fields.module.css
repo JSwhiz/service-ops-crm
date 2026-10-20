@@ -1,0 +1,199 @@
+.detailGrid.detailGrid {
+  align-items: start;
+}
+
+.detailGrid.detailGrid > :global(.page-card) {
+  margin-top: 0;
+  min-width: 0;
+}
+
+.feedbackForm.feedbackForm > label {
+  display: grid;
+  gap: var(--ui-space-1);
+  width: 100%;
+  min-width: 0;
+}
+
+.feedbackForm.feedbackForm textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.form.form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ui-space-4);
+  width: 100%;
+  max-width: 800px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.full {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.field.field {
+  display: grid;
+  gap: var(--ui-space-1);
+  align-content: start;
+  min-width: 0;
+}
+
+.field.field > label {
+  display: block;
+}
+
+.form.form input,
+.form.form textarea,
+.phoneRow.phoneRow input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  color: var(--ui-text);
+  border-color: var(--ui-border-strong);
+}
+
+.form.form textarea {
+  resize: vertical;
+}
+
+.section {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-4);
+}
+
+.section > legend {
+  padding-inline: var(--ui-space-2);
+  color: var(--ui-text);
+  font-size: var(--ui-text-md);
+  font-weight: 650;
+}
+
+.sectionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.quiet.quiet {
+  justify-self: start;
+  align-self: start;
+  width: auto;
+  max-width: 100%;
+}
+
+.actions.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--ui-space-2);
+}
+
+@media (min-width: 640px) {
+  .form.form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stack {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  align-content: start;
+}
+
+.phoneRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ui-space-2);
+  align-items: end;
+}
+
+.phoneRow > .quiet.quiet {
+  align-self: end;
+}
+
+.managerRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--ui-space-3);
+  padding-block: var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border);
+  min-width: 0;
+}
+
+.managerRow > .hint,
+.managerRow > :global(button) {
+  grid-column: 1 / -1;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--ui-text-sm);
+  color: var(--ui-text-secondary);
+}
+
+.assignment {
+  display: grid;
+  gap: var(--ui-space-1);
+  padding-block: var(--ui-space-3);
+  border-bottom: 1px solid var(--ui-border);
+  overflow-wrap: anywhere;
+}
+
+.overdue {
+  color: var(--ui-danger);
+}
+.responded {
+  color: var(--ui-success);
+}
+.awaiting_response {
+  color: var(--ui-text-secondary);
+}
+
+.phones {
+  display: grid;
+  gap: var(--ui-space-1);
+  overflow-wrap: anywhere;
+}
+
+.phonePreview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-1) var(--ui-space-2);
+  overflow-wrap: anywhere;
+}
+
+.phoneCount {
+  color: var(--ui-text-tertiary);
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .sectionGrid,
+  .managerRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .managerRow > .hint,
+  .managerRow > :global(button) {
+    grid-column: auto;
+  }
+
+  .phoneRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

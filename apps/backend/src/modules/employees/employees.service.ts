@@ -60,6 +60,15 @@ interface CurrentAuthUser {
   isActive: boolean;
 }
 
+interface EmployeeDocumentState {
+  passportReceived: boolean;
+  passportReceivedAt: Date | null;
+  passportReceivedByUserId: string | null;
+  contractReceived: boolean;
+  contractReceivedAt: Date | null;
+  contractReceivedByUserId: string | null;
+}
+
 @Injectable()
 export class EmployeesService {
   constructor(
@@ -146,6 +155,7 @@ export class EmployeesService {
             birthDate: this.formatDateOnly(employee.birthDate),
             employmentStatus: employee.employmentStatus,
             employeeType: employee.employeeType,
+            ...this.mapDocumentState(employee),
             workScheduleCode: employee.workScheduleCode,
             workScheduleCustom: employee.workScheduleCustom,
             workTimeText: employee.workTimeText,
@@ -278,7 +288,18 @@ export class EmployeesService {
         )
       : [];
 
-    return this.mapEmployee(employee, currentUser, permanentDeleteBlockers);
+    const authorIds = [employee.passportReceivedByUserId, employee.contractReceivedByUserId]
+      .filter((id): id is string => id !== null);
+    const authors = authorIds.length ? await this.prisma.user.findMany({
+      where: { id: { in: authorIds } },
+      select: { id: true, fullName: true },
+    }) : [];
+    const authorNames = new Map(authors.map((author) => [author.id, author.fullName]));
+    return {
+      ...this.mapEmployee(employee, currentUser, permanentDeleteBlockers),
+      passportReceivedByName: authorNames.get(employee.passportReceivedByUserId ?? '') ?? null,
+      contractReceivedByName: authorNames.get(employee.contractReceivedByUserId ?? '') ?? null,
+    };
   }
 
   async createEmployee(
@@ -300,6 +321,7 @@ export class EmployeesService {
           position: payload.position ?? null,
           birthDate,
           employeeType: payload.employeeType ?? 'regular',
+          ...this.buildDocumentChanges(payload, currentUser.id),
           workScheduleCode: schedule.workScheduleCode,
           workScheduleCustom: schedule.workScheduleCustom,
           workTimeText: payload.workTimeText ?? null,
@@ -370,6 +392,7 @@ export class EmployeesService {
           deletedAt: null,
         },
         data: {
+          ...this.buildDocumentChanges(payload, currentUser.id, existing),
           ...(payload.fullName !== undefined ? { fullName: payload.fullName } : {}),
           ...(payload.phone !== undefined ? { phone: payload.phone } : {}),
           ...(payload.position !== undefined ? { position: payload.position } : {}),
@@ -1060,6 +1083,13 @@ export class EmployeesService {
       );
     }
 
+    if (query.passportReceived !== undefined) {
+      conditions.push(Prisma.sql`employee."passportReceived" = ${query.passportReceived}`);
+    }
+    if (query.contractReceived !== undefined) {
+      conditions.push(Prisma.sql`employee."contractReceived" = ${query.contractReceived}`);
+    }
+
     if (query.workScheduleCode) {
       conditions.push(
         Prisma.sql`employee."workScheduleCode" = ${query.workScheduleCode}`,
@@ -1423,7 +1453,36 @@ export class EmployeesService {
     });
   }
 
-  private buildEmployeeAuditSnapshot(employee: {
+  private mapDocumentState(employee: EmployeeDocumentState) {
+    return {
+      passportReceived: employee.passportReceived,
+      passportReceivedAt: employee.passportReceivedAt?.toISOString() ?? null,
+      passportReceivedByUserId: employee.passportReceivedByUserId,
+      contractReceived: employee.contractReceived,
+      contractReceivedAt: employee.contractReceivedAt?.toISOString() ?? null,
+      contractReceivedByUserId: employee.contractReceivedByUserId,
+    };
+  }
+
+  private buildDocumentChanges(
+    payload: { passportReceived?: boolean; contractReceived?: boolean },
+    actorUserId: string,
+    existing?: EmployeeDocumentState,
+  ): Partial<EmployeeDocumentState> {
+    const changes: Partial<EmployeeDocumentState> = {};
+    const changedAt = new Date();
+    for (const field of ['passportReceived', 'contractReceived'] as const) {
+      const value = payload[field];
+      if (value !== undefined && value !== (existing?.[field] ?? false)) {
+        changes[field] = value;
+        changes[`${field}At`] = changedAt;
+        changes[`${field}ByUserId`] = actorUserId;
+      }
+    }
+    return changes;
+  }
+
+  private buildEmployeeAuditSnapshot(employee: EmployeeDocumentState & {
     fullName: string;
     phone: string | null;
     position: string | null;
@@ -1448,6 +1507,7 @@ export class EmployeesService {
       position: employee.position,
       birthDate: this.formatDateOnly(employee.birthDate),
       employeeType: employee.employeeType,
+      ...this.mapDocumentState(employee),
       workScheduleCode: employee.workScheduleCode,
       workScheduleCustom: employee.workScheduleCustom,
       workTimeText: employee.workTimeText,
@@ -1595,7 +1655,7 @@ export class EmployeesService {
   }
 
   private mapEmployee(
-    employee: {
+    employee: EmployeeDocumentState & {
       id: string;
       fullName: string;
       phone: string | null;
@@ -1688,6 +1748,9 @@ export class EmployeesService {
       position: employee.position,
       birthDate: this.formatDateOnly(employee.birthDate),
       employeeType: employee.employeeType,
+      ...this.mapDocumentState(employee),
+      passportReceivedByName: null,
+      contractReceivedByName: null,
       workScheduleCode: employee.workScheduleCode,
       workScheduleCustom: employee.workScheduleCustom,
       workTimeText: employee.workTimeText,

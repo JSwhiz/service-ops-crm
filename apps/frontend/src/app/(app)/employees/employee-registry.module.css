@@ -1,0 +1,53 @@
+.tabs.tabs {
+  border-color: var(--ui-border);
+}
+
+.pagination {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  /* TablePagination layout overrides belong only to the employee registry. */
+  .pagination > nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ui-space-2);
+  }
+
+  .pagination > nav > div {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .pagination > nav > div:last-child {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(44px, max-content) minmax(0, 1fr) minmax(44px, max-content);
+    gap: var(--ui-space-2);
+    align-items: center;
+  }
+
+  .pagination > nav > div:last-child > div {
+    grid-column: 1 / -1;
+    min-width: 0;
+    margin-right: 0;
+  }
+
+  .pagination > nav > div:last-child > span {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .pagination > nav > div:last-child > button,
+  .pagination :global(.searchable-select__trigger) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .pagination :global(.searchable-select) {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

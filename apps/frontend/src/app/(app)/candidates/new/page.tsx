@@ -3,15 +3,22 @@
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 
-import {
-  createCandidate,
-  listCandidateManagers,
-} from '@/entities/candidate/api/candidate-client';
+import { createCandidate } from '@/entities/candidate/api/candidate-client';
 import { CANDIDATE_TYPE_OPTIONS } from '@/entities/candidate/lib/candidate-presentation';
 import type { CandidateType } from '@/entities/candidate/model/candidate.types';
 import { listObjectsPage } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import {
+  CandidateManagerFields,
+  CandidatePhoneFields,
+  candidatePhoneDrafts,
+  candidateManagerPayload,
+  candidateManagersValid,
+  type CandidateManagerDraft,
+} from '@/features/candidate-registry/ui/candidate-fields';
+import styles from '@/features/candidate-registry/ui/candidate-fields.module.css';
+import { Button, Field } from '@/shared/ui/foundation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import {
   SearchableSelect,
@@ -22,7 +29,9 @@ function toObjectOption(object: ServiceObject): SearchableSelectOption {
   return {
     value: object.id,
     label: object.name,
-    description: [object.internalName, object.address].filter(Boolean).join(' · '),
+    description: [object.internalName, object.address]
+      .filter(Boolean)
+      .join(' · '),
     searchText: [object.name, object.internalName, object.address]
       .filter(Boolean)
       .join(' '),
@@ -33,11 +42,15 @@ export default function NewCandidatePage(): React.JSX.Element {
   const router = useRouter();
   const { user } = useAuth();
   const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phones, setPhones] = useState(() => candidatePhoneDrafts(['']));
   const [comment, setComment] = useState('');
   const [candidateType, setCandidateType] = useState<CandidateType>('regular');
   const [objectId, setObjectId] = useState('');
-  const [managerUserId, setManagerUserId] = useState('');
+  const [managers, setManagers] = useState<CandidateManagerDraft[]>([]);
+  const [selectedObject, setSelectedObject] = useState<ServiceObject | null>(
+    null,
+  );
+  const objectOptions = React.useRef<ServiceObject[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -51,16 +64,16 @@ export default function NewCandidatePage(): React.JSX.Element {
   }
 
   const regularReferencesMissing =
-    candidateType === 'regular' && (!objectId || !managerUserId);
+    candidateType === 'regular' && (!objectId || managers.length === 0);
 
   return (
     <>
       <PageTitle title="Новый кандидат" />
       <form
-        className="page-card candidate-form"
+        className={`page-card ${styles.form}`}
         onSubmit={(event) => {
           event.preventDefault();
-          if (regularReferencesMissing) {
+          if (regularReferencesMissing || !candidateManagersValid(managers)) {
             setError(
               'Для обычного кандидата выберите объект и ответственного менеджера.',
             );
@@ -71,11 +84,12 @@ export default function NewCandidatePage(): React.JSX.Element {
           setError(null);
           void createCandidate({
             fullName: fullName.trim(),
-            phone: phone.trim(),
+            phone: phones[0]?.value.trim() ?? '',
+            phones: phones.map((phone) => phone.value.trim()),
             comment: comment.trim() || undefined,
             candidateType,
             objectId: objectId || null,
-            managerUserId: managerUserId || null,
+            assignments: candidateManagerPayload(managers, objectId || null),
           })
             .then((candidate) => router.push(`/candidates/${candidate.id}`))
             .catch((caughtError) =>
@@ -88,116 +102,125 @@ export default function NewCandidatePage(): React.JSX.Element {
             .finally(() => setSaving(false));
         }}
       >
-        <label>
-          <span>ФИО *</span>
-          <input
-            required
-            minLength={2}
-            value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
+        <fieldset className={`${styles.section} ${styles.full}`} disabled={saving}>
+          <legend>Основное</legend>
+          <div className={styles.sectionGrid}>
+            <Field className={styles.field} label="ФИО" required>
+              <input
+                required
+                minLength={2}
+                maxLength={200}
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+              />
+            </Field>
+
+            <SearchableSelect
+              label="Тип *"
+              value={candidateType}
+              options={CANDIDATE_TYPE_OPTIONS}
+              clearable={false}
+              disabled={saving}
+              onChange={(value) => setCandidateType(value as CandidateType)}
+            />
+
+            <div className={styles.full}>
+              <CandidatePhoneFields
+                phones={phones}
+                onChange={setPhones}
+                disabled={saving}
+              />
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset className={`${styles.section} ${styles.full}`} disabled={saving}>
+          <legend>Рассмотрение</legend>
+          <SearchableSelect
+            label={candidateType === 'regular' ? 'Объект по умолчанию *' : 'Объект по умолчанию'}
+            value={objectId}
+            options={[]}
+            disabled={saving}
+            placeholder="Без привязки"
+            searchPlaceholder="Название, адрес или внутреннее имя"
+            emptyText="Доступные объекты не найдены"
+            asyncSearch={async (query) => {
+              const result = await listObjectsPage({
+                q: query,
+                page: 1,
+                limit: 20,
+                sortBy: 'name',
+                sortDirection: 'asc',
+              });
+              objectOptions.current = result.items;
+              return result.items.map(toObjectOption);
+            }}
+            onChange={(value) => {
+              setObjectId(value);
+              setSelectedObject(
+                objectOptions.current.find((item) => item.id === value) ?? null,
+              );
+            }}
           />
-        </label>
-
-        <label>
-          <span>Телефон *</span>
-          <input
-            required
-            minLength={3}
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
+          <div className={styles.hint}>
+            Этот объект подставляется каждому менеджеру. При необходимости укажите другой объект в его строке.
+          </div>
+          <section>
+            <h2 className="section-title">
+              Ответственные менеджеры{candidateType === 'regular' ? ' *' : ''}
+            </h2>
+          <CandidateManagerFields
+            rows={managers}
+            onChange={setManagers}
+            defaultObject={selectedObject}
+            disabled={saving}
           />
-        </label>
+          </section>
+        </fieldset>
 
-        <SearchableSelect
-          label="Тип *"
-          value={candidateType}
-          options={CANDIDATE_TYPE_OPTIONS}
-          clearable={false}
-          onChange={(value) => setCandidateType(value as CandidateType)}
-        />
-
-        <SearchableSelect
-          label={candidateType === 'regular' ? 'Объект *' : 'Объект'}
-          value={objectId}
-          options={[]}
-          placeholder="Без привязки"
-          searchPlaceholder="Название, адрес или внутреннее имя"
-          emptyText="Доступные объекты не найдены"
-          asyncSearch={async (query) => {
-            const result = await listObjectsPage({
-              q: query,
-              page: 1,
-              limit: 20,
-              sortBy: 'name',
-              sortDirection: 'asc',
-            });
-            return result.items.map(toObjectOption);
-          }}
-          onChange={setObjectId}
-        />
-
-        <SearchableSelect
-          label={
-            candidateType === 'regular'
-              ? 'Ответственный менеджер *'
-              : 'Ответственный менеджер'
-          }
-          value={managerUserId}
-          options={[]}
-          placeholder="Назначить позже"
-          searchPlaceholder="ФИО или логин"
-          emptyText="Подходящие менеджеры не найдены"
-          asyncSearch={async (query) =>
-            (await listCandidateManagers({ q: query })).map((manager) => ({
-              value: manager.id,
-              label: manager.fullName || manager.login,
-              description: `@${manager.login}`,
-              searchText: `${manager.fullName} ${manager.login}`,
-            }))
-          }
-          onChange={setManagerUserId}
-        />
-
-        <label className="candidate-form__wide">
-          <span>Комментарий</span>
-          <textarea
-            rows={4}
-            value={comment}
-            onChange={(event) => setComment(event.target.value)}
-          />
-        </label>
+        <fieldset className={`${styles.section} ${styles.full}`} disabled={saving}>
+          <legend>Дополнительно</legend>
+          <Field className={styles.field} label="Комментарий">
+            <textarea
+              rows={4}
+              maxLength={2000}
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+            />
+          </Field>
+        </fieldset>
 
         {candidateType === 'reserve' ? (
-          <div className="page-muted candidate-form__wide">
+          <div className={`page-muted ${styles.full}`}>
             Для резервного кандидата объект и менеджер можно назначить позже.
           </div>
         ) : null}
 
         {error ? (
-          <div className="inline-notice inline-notice--warning candidate-form__wide">
+          <div
+            className={`inline-notice inline-notice--warning ${styles.full}`}
+          >
             {error}
           </div>
         ) : null}
 
-        <div className="action-row candidate-form__wide">
-          <button
-            type="button"
-            className="button-secondary"
-            onClick={() => router.back()}
-          >
+        <div className={`${styles.actions} ${styles.full}`}>
+          <Button disabled={saving} onClick={() => router.back()}>
             Отмена
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             type="submit"
             disabled={
               saving ||
               fullName.trim().length < 2 ||
-              phone.trim().length < 3 ||
+              phones.some((phone) => phone.value.trim().length < 3) ||
+              !candidateManagersValid(managers) ||
               regularReferencesMissing
             }
           >
             {saving ? 'Сохраняем...' : 'Создать'}
-          </button>
+          </Button>
         </div>
       </form>
     </>

@@ -1,4 +1,12 @@
 export class EmployeeResponseDto {
+  passportReceived!: boolean;
+  passportReceivedAt!: string | null;
+  passportReceivedByUserId!: string | null;
+  passportReceivedByName!: string | null;
+  contractReceived!: boolean;
+  contractReceivedAt!: string | null;
+  contractReceivedByUserId!: string | null;
+  contractReceivedByName!: string | null;
   id!: string;
   fullName!: string;
   phone!: string | null;
