@@ -24,4 +24,5 @@ export class ChatSearchMessageResultDto {
 export class ChatSearchResponseDto {
   rooms!: ChatSearchRoomResultDto[];
   messages!: ChatSearchMessageResultDto[];
+  nextCursor?: string | null;
 }

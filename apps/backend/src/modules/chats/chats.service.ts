@@ -136,10 +136,7 @@ type ChatMessageMapContext = {
     { id: string; login: string; fullName: string } | null
   >;
   canManageByRoomId: Map<string, boolean>;
-  referencesByMessageId: Map<
-    string,
-    ChatMessageResponseDto['replyTo']
-  >;
+  referencesByMessageId: Map<string, ChatMessageResponseDto['replyTo']>;
 };
 
 type ChatRoomsView = 'active' | 'archived';
@@ -210,6 +207,7 @@ export class ChatsService implements OnModuleInit {
   async search(
     currentUser: CurrentAuthUser,
     rawQuery: string,
+    options: { roomId?: string; before?: string } = {},
   ): Promise<ChatSearchResponseDto> {
     const query = rawQuery.trim();
 
@@ -218,7 +216,9 @@ export class ChatsService implements OnModuleInit {
     }
 
     const normalizedQuery = query.toLocaleLowerCase('ru-RU');
-    const visibleRooms = await this.listRooms(currentUser, 'active');
+    const visibleRooms = (await this.listRooms(currentUser, 'active')).filter(
+      (room) => !options.roomId || room.id === options.roomId,
+    );
     const visibleRoomIds = visibleRooms.map((room) => room.id);
     const currentParticipants = visibleRoomIds.length
       ? await this.prisma.chatRoomParticipant.findMany({
@@ -260,7 +260,8 @@ export class ChatsService implements OnModuleInit {
         (room) =>
           `${room.displayTitle} ${room.title}`
             .toLocaleLowerCase('ru-RU')
-            .includes(normalizedQuery) || participantMatchedRoomIds.has(room.id),
+            .includes(normalizedQuery) ||
+          participantMatchedRoomIds.has(room.id),
       )
       .slice(0, 20)
       .map((room) => ({
@@ -275,32 +276,54 @@ export class ChatsService implements OnModuleInit {
       chatRoomId: participant.chatRoomId,
       createdAt: { gte: participant.joinedAt },
     }));
+    const cursor =
+      options.before && accessClauses.length
+        ? await this.prisma.chatMessage.findFirst({
+            where: { id: options.before, OR: accessClauses, deletedAt: null },
+            select: { id: true, createdAt: true },
+          })
+        : null;
+    if (options.before && !cursor) {
+      throw new BadRequestException('Search cursor is invalid');
+    }
     const messages = accessClauses.length
       ? await this.prisma.chatMessage.findMany({
-      where: {
-        OR: accessClauses,
-        deletedAt: null,
-        text: {
-          contains: query,
-          mode: 'insensitive',
-        },
-      },
-      include: {
-        chatRoom: true,
-        author: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
+          where: {
+            OR: accessClauses,
+            ...(cursor
+              ? {
+                  AND: [
+                    {
+                      OR: [
+                        { createdAt: { lt: cursor.createdAt } },
+                        { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+                      ],
+                    },
+                  ],
+                }
+              : {}),
+            deletedAt: null,
+            text: {
+              contains: query,
+              mode: 'insensitive',
+            },
           },
-        },
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 20,
-    })
+          include: {
+            chatRoom: true,
+            author: {
+              select: {
+                id: true,
+                login: true,
+                fullName: true,
+              },
+            },
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 21,
+        })
       : [];
     const messageResults = await Promise.all(
-      messages.map(async (message) => ({
+      messages.slice(0, 20).map(async (message) => ({
         id: message.id,
         roomId: message.chatRoomId,
         text: message.text ?? '',
@@ -323,7 +346,12 @@ export class ChatsService implements OnModuleInit {
       })),
     );
 
-    return { rooms, messages: messageResults };
+    return {
+      rooms,
+      messages: messageResults,
+      nextCursor:
+        messages.length > 20 ? (messageResults.at(-1)?.id ?? null) : null,
+    };
   }
 
   async getRoomByCode(
@@ -474,7 +502,9 @@ export class ChatsService implements OnModuleInit {
       ...(dto.participantUserIds ?? []),
     ]);
 
-    if (participantIds.filter((userId) => userId !== currentUser.id).length === 0) {
+    if (
+      participantIds.filter((userId) => userId !== currentUser.id).length === 0
+    ) {
       throw new BadRequestException('Group chat requires participants');
     }
 
@@ -507,7 +537,11 @@ export class ChatsService implements OnModuleInit {
       },
     });
 
-    await this.publishRoomLifecycleEvent(room, 'chat.room_created', participantIds);
+    await this.publishRoomLifecycleEvent(
+      room,
+      'chat.room_created',
+      participantIds,
+    );
 
     const participant = await this.ensureParticipantForAccessibleRoom(
       currentUser,
@@ -559,7 +593,10 @@ export class ChatsService implements OnModuleInit {
     await this.assertCanManageRoom(currentUser, room);
     this.assertRoomOpen(room);
 
-    if (room.roomType !== 'group' || room.visibilityType !== 'explicit_members') {
+    if (
+      room.roomType !== 'group' ||
+      room.visibilityType !== 'explicit_members'
+    ) {
       throw new BadRequestException(
         'Participants can be manually managed only for group chats',
       );
@@ -660,7 +697,9 @@ export class ChatsService implements OnModuleInit {
     this.assertRoomOpen(room);
 
     if (!this.isDirectOrGroupRoom(room)) {
-      throw new BadRequestException('Only direct or group chats can be unhidden');
+      throw new BadRequestException(
+        'Only direct or group chats can be unhidden',
+      );
     }
 
     const participant = await this.assertActiveManualParticipant(
@@ -772,7 +811,11 @@ export class ChatsService implements OnModuleInit {
       },
     });
 
-    await this.publishRoomLifecycleEvent(room, 'chat.room_closed', recipientUserIds);
+    await this.publishRoomLifecycleEvent(
+      room,
+      'chat.room_closed',
+      recipientUserIds,
+    );
 
     return { success: true };
   }
@@ -993,10 +1036,7 @@ export class ChatsService implements OnModuleInit {
           gt: unreadThreshold,
           gte: participant.joinedAt,
         },
-        OR: [
-          { authorUserId: { not: currentUser.id } },
-          { authorUserId: null },
-        ],
+        OR: [{ authorUserId: { not: currentUser.id } }, { authorUserId: null }],
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { id: true },
@@ -1143,7 +1183,10 @@ export class ChatsService implements OnModuleInit {
       );
     }
 
-    await this.updateRoomLastMessage(room.id, this.buildMessagePreview(text, files));
+    await this.updateRoomLastMessage(
+      room.id,
+      this.buildMessagePreview(text, files),
+    );
     await this.revealHiddenActiveParticipants(room.id);
 
     const mapped = await this.mapMessage(currentUser, message);
@@ -1210,11 +1253,17 @@ export class ChatsService implements OnModuleInit {
       throw new ForbiddenException('Deleted message cannot be edited');
     }
 
-    if (message.messageType !== 'user' || message.authorUserId !== currentUser.id) {
+    if (
+      message.messageType !== 'user' ||
+      message.authorUserId !== currentUser.id
+    ) {
       throw new ForbiddenException('Only message author can edit this message');
     }
 
-    if (Date.now() - message.createdAt.getTime() > CHAT_MESSAGE_EDIT_WINDOW_MS) {
+    if (
+      Date.now() - message.createdAt.getTime() >
+      CHAT_MESSAGE_EDIT_WINDOW_MS
+    ) {
       throw new ForbiddenException('Message edit window has expired');
     }
 
@@ -1507,7 +1556,9 @@ export class ChatsService implements OnModuleInit {
     });
 
     if (existing) {
-      await this.prisma.chatMessageReaction.delete({ where: { id: existing.id } });
+      await this.prisma.chatMessageReaction.delete({
+        where: { id: existing.id },
+      });
     } else {
       await this.prisma.chatMessageReaction.create({
         data: {
@@ -1634,11 +1685,7 @@ export class ChatsService implements OnModuleInit {
       newValues: auditNewValues,
     });
 
-    await this.publishMessageEvent(
-      room.id,
-      'chat.message_created',
-      message.id,
-    );
+    await this.publishMessageEvent(room.id, 'chat.message_created', message.id);
   }
 
   async canAccessChatMessage(
@@ -1678,7 +1725,10 @@ export class ChatsService implements OnModuleInit {
       return message.createdAt >= participant.joinedAt;
     }
 
-    return message.authorUserId === currentUser.id || canManageChats(this.getRoleCodes(currentUser));
+    return (
+      message.authorUserId === currentUser.id ||
+      canManageChats(this.getRoleCodes(currentUser))
+    );
   }
 
   private async ensureDefaultRooms(): Promise<void> {
@@ -1867,8 +1917,11 @@ export class ChatsService implements OnModuleInit {
       throw new ForbiddenException('Chat participant not found');
     }
 
-    const roleInRoom: ChatParticipantRole =
-      canManageChats(this.getRoleCodes(currentUser)) ? 'admin' : 'member';
+    const roleInRoom: ChatParticipantRole = canManageChats(
+      this.getRoleCodes(currentUser),
+    )
+      ? 'admin'
+      : 'member';
 
     return this.prisma.chatRoomParticipant.create({
       data: {
@@ -2050,10 +2103,16 @@ export class ChatsService implements OnModuleInit {
           where: { id: { in: roomIds } },
         }),
         Promise.all(
-          referenceIds.map(async (referenceId) => [
-            referenceId,
-            await this.loadMessageReferencePreview(currentUser, referenceId),
-          ] as const),
+          referenceIds.map(
+            async (referenceId) =>
+              [
+                referenceId,
+                await this.loadMessageReferencePreview(
+                  currentUser,
+                  referenceId,
+                ),
+              ] as const,
+          ),
         ),
       ]);
     const attachmentsByMessageId = new Map<string, FileResponseDto[]>();
@@ -2092,10 +2151,15 @@ export class ChatsService implements OnModuleInit {
     }
 
     const canManageEntries = await Promise.all(
-      rooms.map(async (room) => [
-        room.id,
-        currentUser.id ? await this.canManageRoom(currentUser, room) : false,
-      ] as const),
+      rooms.map(
+        async (room) =>
+          [
+            room.id,
+            currentUser.id
+              ? await this.canManageRoom(currentUser, room)
+              : false,
+          ] as const,
+      ),
     );
     const deletedUsersById = new Map<
       string,
@@ -2127,8 +2191,8 @@ export class ChatsService implements OnModuleInit {
     const isDeleted = message.deletedAt !== null;
     const attachments = isDeleted
       ? []
-      : context?.attachmentsByMessageId.get(message.id) ??
-        (await this.loadMessageAttachments(message.id));
+      : (context?.attachmentsByMessageId.get(message.id) ??
+        (await this.loadMessageAttachments(message.id)));
     const canManageRoom =
       context?.canManageByRoomId.get(message.chatRoomId) ??
       (currentUser.id
@@ -2165,7 +2229,7 @@ export class ChatsService implements OnModuleInit {
     }, {});
     const deletedBy = message.deletedByUserId
       ? context?.deletedUsersById.has(message.deletedByUserId)
-        ? context.deletedUsersById.get(message.deletedByUserId) ?? null
+        ? (context.deletedUsersById.get(message.deletedByUserId) ?? null)
         : await this.prisma.user.findUnique({
             where: { id: message.deletedByUserId },
             select: {
@@ -2201,7 +2265,8 @@ export class ChatsService implements OnModuleInit {
       deletedByKind,
       replyTo: message.replyToMessageId
         ? context?.referencesByMessageId.has(message.replyToMessageId)
-          ? context.referencesByMessageId.get(message.replyToMessageId) ?? null
+          ? (context.referencesByMessageId.get(message.replyToMessageId) ??
+            null)
           : await this.loadMessageReferencePreview(
               currentUser,
               message.replyToMessageId,
@@ -2209,8 +2274,9 @@ export class ChatsService implements OnModuleInit {
         : null,
       forwardedFrom: message.forwardedFromMessageId
         ? context?.referencesByMessageId.has(message.forwardedFromMessageId)
-          ? context.referencesByMessageId.get(message.forwardedFromMessageId) ??
-            null
+          ? (context.referencesByMessageId.get(
+              message.forwardedFromMessageId,
+            ) ?? null)
           : await this.loadMessageReferencePreview(
               currentUser,
               message.forwardedFromMessageId,
@@ -2477,7 +2543,9 @@ export class ChatsService implements OnModuleInit {
     fallback: number,
   ): number {
     const parsed = Number.parseInt(rawValue ?? '', 10);
-    return Number.isFinite(parsed) ? Math.min(50, Math.max(1, parsed)) : fallback;
+    return Number.isFinite(parsed)
+      ? Math.min(50, Math.max(1, parsed))
+      : fallback;
   }
 
   private buildMessagePreviewFromAttachmentCount(
@@ -2522,7 +2590,9 @@ export class ChatsService implements OnModuleInit {
     room: ChatRoomRecord,
   ): Promise<ChatParticipantRecord> {
     if (room.visibilityType !== 'explicit_members') {
-      throw new BadRequestException('Action is available only for manual rooms');
+      throw new BadRequestException(
+        'Action is available only for manual rooms',
+      );
     }
 
     const participant = (await this.prisma.chatRoomParticipant.findUnique({
@@ -2696,10 +2766,14 @@ export class ChatsService implements OnModuleInit {
       select: { id: true },
     });
     const existingUserIds = new Set(existingUsers.map((user) => user.id));
-    const missingUserIds = userIds.filter((userId) => !existingUserIds.has(userId));
+    const missingUserIds = userIds.filter(
+      (userId) => !existingUserIds.has(userId),
+    );
 
     if (missingUserIds.length > 0) {
-      throw new BadRequestException('Some chat participants are not active users');
+      throw new BadRequestException(
+        'Some chat participants are not active users',
+      );
     }
   }
 
@@ -2725,14 +2799,19 @@ export class ChatsService implements OnModuleInit {
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
-    if (Array.isArray(currentUser.roleCodes) && currentUser.roleCodes.length > 0) {
+    if (
+      Array.isArray(currentUser.roleCodes) &&
+      currentUser.roleCodes.length > 0
+    ) {
       return currentUser.roleCodes;
     }
 
     return currentUser.roleCode ? [currentUser.roleCode] : [];
   }
 
-  private mapJsonObject(value: Prisma.JsonValue | null): Record<string, unknown> | null {
+  private mapJsonObject(
+    value: Prisma.JsonValue | null,
+  ): Record<string, unknown> | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return null;
     }

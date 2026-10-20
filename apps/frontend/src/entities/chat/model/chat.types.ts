@@ -82,6 +82,7 @@ export interface ChatMessage {
 }
 
 export interface ChatSearchResponse {
+  nextCursor?: string | null;
   rooms: Array<{
     id: string;
     title: string;

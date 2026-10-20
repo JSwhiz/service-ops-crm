@@ -857,6 +857,29 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   });
   createdMessageIds.push(...paginationMessageIds);
 
+  // Room search paginates before limiting and never returns another room's history.
+  const foundIds: string[] = [];
+  let searchCursor: string | null = null;
+  do {
+    const query = new URLSearchParams({ q: 'Pagination message', roomId: paginationRoom.id });
+    if (searchCursor) query.set('before', searchCursor);
+    const response = await fetch(`${baseUrl}/api/v1/chats/search?${query}`, { headers: { Cookie: founderCookie } });
+    assert.equal(response.status, 200);
+    const page = await response.json() as { messages: Array<{ id: string; roomId: string }>; nextCursor: string | null };
+    assert.ok(page.messages.every((message) => message.roomId === paginationRoom.id));
+    foundIds.push(...page.messages.map((message) => message.id));
+    searchCursor = page.nextCursor;
+  } while (searchCursor);
+  assert.deepEqual(foundIds, [...paginationMessageIds].reverse());
+  assert.equal(new Set(foundIds).size, 55);
+
+  const otherRoomSearch = await fetch(`${baseUrl}/api/v1/chats/search?q=Pagination%20message&roomId=${objectsRoom.id}`, { headers: { Cookie: founderCookie } });
+  assert.equal(otherRoomSearch.status, 200);
+  assert.deepEqual((await otherRoomSearch.json() as { messages: unknown[] }).messages, []);
+  const deniedRoomSearch = await fetch(`${baseUrl}/api/v1/chats/search?q=Pagination&roomId=${leadershipRoom.id}`, { headers: { Cookie: managerOneCookie } });
+  assert.equal(deniedRoomSearch.status, 200);
+  assert.deepEqual((await deniedRoomSearch.json() as { messages: unknown[] }).messages, []);
+
   const managerPaginationParticipantBeforeUnreadWindow =
     await prisma.chatRoomParticipant.findUniqueOrThrow({
       where: {
@@ -1155,7 +1178,7 @@ test('chats support production messaging, access, unread and lifecycle flows', a
   );
 
   const joinedAtSearchResponse = await fetch(
-    `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent('before manager2 join')}`,
+    `${baseUrl}/api/v1/chats/search?q=${encodeURIComponent('before manager2 join')}&roomId=${customRoom.id}`,
     { headers: { Cookie: managerTwoCookie } },
   );
   assert.equal(joinedAtSearchResponse.status, 200);

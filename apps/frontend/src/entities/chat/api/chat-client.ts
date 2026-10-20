@@ -28,12 +28,20 @@ export async function listChatRooms(params?: {
   });
 }
 
-export async function searchChats(query: string): Promise<ChatSearchResponse> {
+export async function searchChats(
+  query: string,
+  options: { roomId?: string; before?: string } = {},
+): Promise<ChatSearchResponse> {
   const searchParams = new URLSearchParams({ q: query });
+  if (options.roomId) searchParams.set('roomId', options.roomId);
+  if (options.before) searchParams.set('before', options.before);
 
-  return fetcher<ChatSearchResponse>(`/chats/search?${searchParams.toString()}`, {
-    method: 'GET',
-  });
+  return fetcher<ChatSearchResponse>(
+    `/chats/search?${searchParams.toString()}`,
+    {
+      method: 'GET',
+    },
+  );
 }
 
 export async function getChatRoomByCode(code: ChatRoomCode): Promise<ChatRoom> {
@@ -103,7 +111,9 @@ export async function unhideChatRoom(roomId: string): Promise<ChatRoom> {
   });
 }
 
-export async function leaveChatRoom(roomId: string): Promise<{ success: true }> {
+export async function leaveChatRoom(
+  roomId: string,
+): Promise<{ success: true }> {
   return fetcher<{ success: true }>(`/chats/rooms/${roomId}/leave`, {
     method: 'POST',
   });
@@ -143,11 +153,12 @@ export async function listChatMessages(
 
   const query = searchParams.toString();
 
-  return fetcher<ChatMessage[]>(`/chats/rooms/${roomId}/messages${
-    query ? `?${query}` : ''
-  }`, {
-    method: 'GET',
-  });
+  return fetcher<ChatMessage[]>(
+    `/chats/rooms/${roomId}/messages${query ? `?${query}` : ''}`,
+    {
+      method: 'GET',
+    },
+  );
 }
 
 export async function listChatMessagesAround(
@@ -244,7 +255,9 @@ export async function editChatMessage(
   });
 }
 
-export async function deleteChatMessage(messageId: string): Promise<ChatMessage> {
+export async function deleteChatMessage(
+  messageId: string,
+): Promise<ChatMessage> {
   return fetcher<ChatMessage>(`/chats/messages/${messageId}/delete`, {
     method: 'POST',
   });
@@ -263,10 +276,9 @@ export async function forwardChatMessage(
 export async function toggleChatMessageHeart(
   messageId: string,
 ): Promise<ChatMessage> {
-  return fetcher<ChatMessage>(
-    `/chats/messages/${messageId}/reactions/heart`,
-    { method: 'POST' },
-  );
+  return fetcher<ChatMessage>(`/chats/messages/${messageId}/reactions/heart`, {
+    method: 'POST',
+  });
 }
 
 export async function markChatRoomRead(
