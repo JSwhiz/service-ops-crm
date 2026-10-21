@@ -13,6 +13,7 @@ export interface CandidateObjectSummaryDto {
 
 export interface CandidateAssignmentResponseDto {
   id: string;
+  object: CandidateObjectSummaryDto | null;
   manager: CandidateUserSummaryDto;
   assignedBy: CandidateUserSummaryDto;
   assignedAt: string;
@@ -35,6 +36,8 @@ export interface CandidateListItemDto {
   id: string;
   fullName: string;
   phone: string | null;
+  phones: string[];
+  employeeId: string | null;
   candidateType: string;
   status: string;
   version: number;
@@ -42,6 +45,7 @@ export interface CandidateListItemDto {
   updatedAt: string;
   object: CandidateObjectSummaryDto | null;
   currentAssignment: CandidateAssignmentResponseDto | null;
+  currentAssignments: CandidateAssignmentResponseDto[];
   latestFeedback: CandidateResponseItemDto | null;
   slaState: string;
 }
@@ -65,5 +69,7 @@ export interface CandidateCardResponseDto extends CandidateListItemDto {
     canRespond: boolean;
     canArchive: boolean;
     canRestore: boolean;
+    canConvert: boolean;
+    canViewEmployee: boolean;
   };
 }

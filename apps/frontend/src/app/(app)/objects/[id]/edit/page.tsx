@@ -14,6 +14,7 @@ import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { ObjectStatusPanel } from '@/features/object-status/ui/object-status-panel';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { Button } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -76,7 +77,7 @@ export default function EditObjectPage({
         <div className={styles.surfaceCompact}>
           <div className={styles.error}>{loadError}</div>
           <div className={styles.actions}>
-            <button type="button" onClick={goBack}>Вернуться назад</button>
+            <Button onClick={goBack}>Вернуться назад</Button>
           </div>
         </div>
       </div>
@@ -103,7 +104,7 @@ export default function EditObjectPage({
         <div className={styles.surfaceCompact}>
           <div className={styles.error}>У вас нет прав на редактирование карточки объекта.</div>
           <div className={styles.actions}>
-            <button type="button" onClick={goBack}>Вернуться назад</button>
+            <Button onClick={goBack}>Вернуться назад</Button>
           </div>
         </div>
       </div>
@@ -137,7 +138,7 @@ export default function EditObjectPage({
       /> : null}
 
       <div className={styles.backRow}>
-        <button type="button" onClick={() => router.push(`/objects/${objectId}`)}>Вернуться в карточку</button>
+        <Button onClick={() => router.push(`/objects/${objectId}`)}>Вернуться в карточку</Button>
       </div>
     </div>
   );

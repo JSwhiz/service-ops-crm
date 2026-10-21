@@ -1,3 +1,94 @@
+/*  Base shell rules (moved from globals.css)  */
+
+.app-sidebar {
+  padding: 24px 16px;
+  box-shadow: 12px 0 30px rgba(40, 49, 71, 0.04);
+}
+
+.app-header {
+  height: 64px;
+  justify-content: space-between;
+}
+
+.app-content {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.app-content:has(.object-registry),
+.app-content:has(.object-detail-page),
+.app-content:has(.object-create-page),
+.app-content:has(.object-history-page),
+.app-content:has(.counterparty-workspace) {
+  max-width: none;
+}
+
+@media (max-width: 1024px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-sidebar {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    overflow: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--ui-border);
+  }
+}
+
+@media (max-width: 640px) {
+  .app-content {
+    padding: 12px;
+  }
+
+  .app-header {
+    padding: 0 12px;
+  }
+}
+
+.app-shell:has(.chat-page-stack) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.app-shell:has(.chat-page-stack) .app-main {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-shell:has(.chat-page-stack) .app-header {
+  flex: 0 0 64px;
+}
+
+.app-content:has(.chat-page-stack) {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px;
+  overflow: hidden;
+}
+
+@media (max-width: 980px) {
+  .app-content:has(.chat-page-stack) {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .app-shell:has(.chat-page-stack) {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
+/* App shell: sidebar, header, content frame, header communication controls. */
+
 /* Service Ops CRM — Product Shell (Wave 1)
  * Loaded after legacy styles. This file owns only the authenticated application shell.
  */
@@ -270,12 +361,10 @@
 }
 
 .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link {
-  justify-content: center;
   padding-inline: 0;
 }
 
 .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link::after {
-  content: attr(aria-label);
   position: fixed;
   z-index: 120;
   left: 60px;
@@ -517,23 +606,10 @@
 }
 
 /* Existing notification behavior stays intact; only its shell presentation changes. */
-.app-header .notification-bell {
-  position: relative;
-}
 
 .app-header .notification-bell__trigger {
-  min-height: var(--ui-control-md);
-  height: var(--ui-control-md);
-  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0 9px;
-  border: 1px solid transparent;
-  border-radius: var(--ui-radius-md);
-  background: transparent;
-  color: var(--ui-text-secondary);
-  box-shadow: none;
-  font-size: var(--ui-text-sm);
   font-weight: 600;
 }
 
@@ -559,12 +635,7 @@
 }
 
 .app-header .notification-popover {
-  top: calc(100% + 8px);
-  right: 0;
   border-color: var(--ui-border);
-  border-radius: var(--ui-radius-lg);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-shadow-popover);
 }
 
 .app-header .notification-browser-permission {
@@ -691,5 +762,459 @@
     min-width: 16px;
     height: 16px;
     font-size: 9px;
+  }
+}
+
+/* Collapsed navigation */
+
+/* Legacy .app-sidebar kept 24px/16px padding and a blue-era shadow. On a 68px
+ * collapsed rail that left too little usable width and visually compressed icons. */
+.app-shell .app-sidebar {
+  padding: 0;
+  box-shadow: none;
+}
+
+/* Keep the top control explicit and stable in both states. */
+.app-shell .app-sidebar__toggle {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-md);
+  background: transparent;
+  color: var(--ui-text-tertiary);
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
+}
+
+.app-shell .app-sidebar__toggle:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+  box-shadow: none;
+  transform: none;
+}
+
+.app-shell .app-sidebar__toggle:active:not(:disabled) {
+  background: var(--ui-surface-pressed);
+  box-shadow: none;
+  transform: none;
+}
+
+.app-shell .app-sidebar__toggle:focus-visible {
+  outline: 0;
+  border-color: transparent;
+  box-shadow: var(--ui-focus-ring);
+}
+
+/* Expanded keeps the brand mark + copy and a permanently discoverable collapse
+ * control. Collapsed replaces the brand area with the expand arrow itself. */
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__brand-row {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__brand {
+  display: none;
+}
+
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__toggle {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+  margin: 0 auto;
+  color: var(--ui-text-secondary);
+}
+
+.app-shell[data-sidebar-expanded='true'] .app-sidebar__brand-row {
+  padding-inline: 10px 8px;
+}
+
+/* Reset the remaining blue/legacy interaction declarations. globals.css used a
+ * blue gradient and inset primary shadow for active items, and translated links
+ * on hover. Wave 1.1 makes the semantic shell the sole owner of those states. */
+.app-shell .app-sidebar__link,
+.app-shell .app-sidebar__link:hover,
+.app-shell .app-sidebar__link:active,
+.app-shell .app-sidebar__link--active,
+.app-shell .app-sidebar__link--active:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.app-shell .app-sidebar__link--active,
+.app-shell .app-sidebar__link--active:hover {
+  border-color: var(--ui-border);
+  background: var(--ui-accent-subtle);
+  color: var(--ui-accent);
+}
+
+/* One physical rail, aligned to the exact axis of the collapsed top arrow.
+ * The scrolling container intentionally hides its own scrollbar in collapsed
+ * mode so scrollbar reservation can never shift the glyph column sideways. */
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav {
+  width: 100%;
+  align-items: center;
+  padding-inline: 0;
+  scrollbar-width: none;
+}
+
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav::-webkit-scrollbar {
+  display: none;
+}
+
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-main,
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-bottom {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  align-items: center;
+  margin-inline: auto;
+}
+
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 40px;
+  min-height: 40px;
+  flex: 0 0 40px;
+  justify-content: center;
+  gap: 0;
+  margin-inline: auto;
+  padding: 0;
+}
+
+/* An opacity-hidden label still participates in flex layout and pulls the icon
+ * left. Remove it from the compact rail layout entirely; expanded mode keeps the
+ * original animated label behavior from product-shell.css. */
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link-label {
+  display: none;
+}
+
+/* Slightly larger icon slot improves optical weight while preserving a square,
+ * non-shrinking glyph box for every navigation item. */
+.app-shell .app-sidebar__link-icon {
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+  min-height: 21px;
+  flex: 0 0 21px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+
+.app-shell .app-sidebar__link-icon svg {
+  width: 21px;
+  height: 21px;
+  min-width: 21px;
+  min-height: 21px;
+  flex: none;
+  aspect-ratio: 1;
+  display: block;
+}
+
+/* On the compact rail the warm active surface is enough. Removing the left
+ * marker preserves perfect optical symmetry around the arrow axis. */
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link--active::before {
+  content: none;
+  display: none;
+}
+
+/* Disable the first Wave pseudo-tooltip. Its fixed left offset could not follow
+ * an individual row reliably. NavLink renders a viewport-positioned tooltip. */
+.app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link::after {
+  content: none;
+  display: none;
+}
+
+.app-sidebar-tooltip {
+  position: fixed;
+  z-index: 200;
+  max-width: min(260px, calc(100vw - 88px));
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-text);
+  color: var(--ui-text-inverse);
+  box-shadow: var(--ui-shadow-popover);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-xs);
+  font-weight: 550;
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+/* Desktop navigation is viewport-owned, not document-flow-owned. The main area
+ * is offset by the same semantic sidebar width, so scrolling long workspaces
+ * never moves the rail and expand/collapse remains geometrically stable. */
+@media (min-width: 761px) {
+  .app-shell {
+    display: block;
+    min-height: 100vh;
+  }
+
+  .app-shell .app-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--ui-sidebar-collapsed);
+    height: 100dvh;
+    z-index: 50;
+    transition: width var(--ui-duration-normal) var(--ui-ease-standard);
+  }
+
+  .app-shell[data-sidebar-expanded='true'] .app-sidebar {
+    width: var(--ui-sidebar-expanded);
+  }
+
+  .app-shell .app-main {
+    width: auto;
+    min-width: 0;
+    margin-left: var(--ui-sidebar-collapsed);
+    transition: margin-left var(--ui-duration-normal) var(--ui-ease-standard);
+  }
+
+  .app-shell[data-sidebar-expanded='true'] .app-main {
+    margin-left: var(--ui-sidebar-expanded);
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__link,
+  .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-main,
+  .app-shell:not([data-sidebar-expanded='true']) .app-sidebar__nav-bottom {
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+  }
+}
+
+/* Header communication controls */
+
+.app-header__icon-link--with-badge {
+  position: relative;
+}
+
+.app-header__icon-badge,
+.app-header .notification-bell__trigger > span {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 4px;
+  border: 2px solid var(--ui-surface);
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-danger);
+  color: var(--ui-text-inverse);
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.app-header .notification-bell {
+  position: relative;
+}
+
+.app-header .notification-bell__trigger {
+  position: relative;
+  width: var(--ui-control-md);
+  min-width: var(--ui-control-md);
+  height: var(--ui-control-md);
+  min-height: var(--ui-control-md);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-md);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  box-shadow: none;
+  font-size: 0;
+  cursor: pointer;
+  transition:
+    background-color var(--ui-duration-fast) var(--ui-ease-standard),
+    color var(--ui-duration-fast) var(--ui-ease-standard),
+    border-color var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.app-header .notification-bell__trigger:hover,
+.app-header .notification-bell__trigger[aria-expanded='true'],
+.app-header .notification-bell__trigger:focus,
+.app-header .notification-bell__trigger:focus-visible {
+  outline: 0;
+  border-color: transparent;
+  background: var(--ui-surface-hover);
+  color: var(--ui-text);
+  box-shadow: none;
+  transform: none;
+}
+
+.app-header .notification-bell__icon {
+  width: 18px !important;
+  height: 18px !important;
+  display: block;
+  flex: 0 0 18px;
+  overflow: visible;
+}
+
+.app-header .notification-popover {
+  position: absolute;
+  z-index: 180;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(520px, calc(100dvh - 86px));
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  box-shadow: var(--ui-shadow-popover);
+}
+
+.app-header .notification-popover__header {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+}
+
+.app-header .notification-popover__header strong {
+  color: var(--ui-text);
+  font-size: var(--ui-text-md);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.app-header .notification-popover__header button {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-accent);
+  box-shadow: none;
+  font: inherit;
+  font-size: var(--ui-text-xs);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.app-header .notification-popover__header button:hover,
+.app-header .notification-popover__header button:focus,
+.app-header .notification-popover__header button:focus-visible {
+  outline: 0;
+  background: var(--ui-accent-subtle);
+  color: var(--ui-accent-strong);
+  box-shadow: none;
+  transform: none;
+}
+
+.app-header .notification-popover__list {
+  max-height: min(460px, calc(100dvh - 140px));
+  overflow-y: auto;
+  padding: 6px;
+  scrollbar-width: thin;
+}
+
+.app-header .notification-popover__list > .page-muted {
+  min-height: 118px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 20px;
+  color: var(--ui-text-tertiary);
+  font-size: var(--ui-text-sm);
+  text-align: center;
+}
+
+.app-header .notification-item {
+  width: 100%;
+  min-height: 64px;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  box-shadow: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-header .notification-item:hover,
+.app-header .notification-item:focus,
+.app-header .notification-item:focus-visible {
+  outline: 0;
+  border-color: transparent;
+  background: var(--ui-surface-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.app-header .notification-item--unread {
+  background: var(--ui-accent-subtle);
+}
+
+.app-header .notification-item--unread:hover,
+.app-header .notification-item--unread:focus,
+.app-header .notification-item--unread:focus-visible {
+  background: var(--ui-surface-pressed);
+}
+
+.app-header .notification-item strong,
+.app-header .notification-item span,
+.app-header .notification-item small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header .notification-item strong {
+  color: var(--ui-text);
+  font-size: var(--ui-text-sm);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.app-header .notification-item span {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.app-header .notification-item small {
+  margin-top: 2px;
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .app-header .notification-popover {
+    position: fixed;
+    top: calc(var(--ui-topbar-height) + 6px);
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: calc(100dvh - var(--ui-topbar-height) - 16px);
   }
 }

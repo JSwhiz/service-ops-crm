@@ -9,6 +9,7 @@ export const EMPLOYEE_TYPE_OPTIONS: Array<{
 }> = [
   { value: 'regular', label: 'Постоянный' },
   { value: 'one_time', label: 'Разовый' },
+  { value: 'substitution', label: 'Подменный' },
 ];
 
 export const EMPLOYEE_SCHEDULE_OPTIONS: Array<{
@@ -69,4 +70,51 @@ export function getEmployeeAge(value: string | null): number | null {
 export function formatEmployeeRate(value: number | null): string {
   if (value === null) return '—';
   return `${new Intl.NumberFormat('ru-RU').format(value)} ₽`;
+}
+
+export type EmployeeStatusTone = 'success' | 'neutral' | 'warning';
+
+/** One lifecycle badge per employee: archive wins over employment status. */
+export function getEmployeeLifecycleBadge(params: {
+  isArchived: boolean;
+  employmentStatus: string;
+}): { label: string; tone: EmployeeStatusTone } {
+  if (params.isArchived) return { label: 'В архиве', tone: 'neutral' };
+  if (params.employmentStatus === 'active') return { label: 'Работает', tone: 'success' };
+  if (params.employmentStatus === 'inactive') return { label: 'Неактивен', tone: 'warning' };
+  return { label: 'Неизвестное состояние', tone: 'neutral' };
+}
+
+export const EMPLOYEE_SUBSTITUTION_STATUS_OPTIONS = [
+  { value: 'planned', label: 'Запланирована' },
+  { value: 'active', label: 'Идёт' },
+  { value: 'completed', label: 'Завершена' },
+  { value: 'cancelled', label: 'Отменена' },
+] as const;
+
+export function getSubstitutionStatusLabel(status: string): string {
+  return (
+    EMPLOYEE_SUBSTITUTION_STATUS_OPTIONS.find((option) => option.value === status)?.label ??
+    'Неизвестное состояние'
+  );
+}
+
+/** Display-only phone formatting; the stored value is never rewritten. */
+/** «Иванов И. И.» for dense places such as calendar cells. */
+export function getEmployeeShortName(fullName: string): string {
+  const [last, first, middle] = fullName.trim().split(/\s+/);
+  if (!last) return fullName;
+  return [last, first ? `${first[0]}.` : '', middle ? `${middle[0]}.` : ''].filter(Boolean).join(' ');
+}
+
+/** Human description of pay; distinguishes «not set» from a real amount. */
+export function formatEmployeeCompensation(
+  compensation: { amount: number | null; unit: 'shift' | 'month'; source: string; optionName: string | null } | null | undefined,
+): string | null {
+  if (!compensation) return null;
+  if (!compensation.amount) return 'Ставка не задана';
+  const amount = `${new Intl.NumberFormat('ru-RU').format(compensation.amount)} ₽ ${compensation.unit === 'month' ? 'в месяц' : 'за выход'}`;
+  if (compensation.source === 'rate_option' && compensation.optionName) return `${compensation.optionName}: ${amount}`;
+  if (compensation.source === 'individual') return `${amount}, индивидуально`;
+  return amount;
 }

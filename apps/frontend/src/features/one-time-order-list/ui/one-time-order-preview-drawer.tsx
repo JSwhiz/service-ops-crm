@@ -28,6 +28,7 @@ import {
 import { ConfirmDialog } from '@/shared/ui/overlays';
 
 import styles from './one-time-order-preview-drawer.module.css';
+import { Button } from '@/shared/ui/foundation';
 
 function formatExecutionDates(start: string | null, end: string | null): string {
   if (!start) return 'Даты не указаны';
@@ -360,13 +361,13 @@ export function OneTimeOrderPreviewDrawer({
                 />
               </label>
               <div className={styles.reviewActions}>
-                <button className={styles.primaryAction} type="submit" disabled={savingReview || !reviewDraft.trim()}>
+                <Button variant="primary" type="submit" disabled={savingReview || !reviewDraft.trim()}>
                   {savingReview ? 'Сохраняю…' : 'Сохранить отзыв'}
-                </button>
+                </Button>
                 {order && (order.reviewText !== null || order.reviewRating !== null) ? (
-                  <button className={styles.secondaryAction} type="button" disabled={savingReview} onClick={() => setClearReviewConfirmOpen(true)}>
+                  <Button disabled={savingReview} onClick={() => setClearReviewConfirmOpen(true)}>
                     Удалить отзыв
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </form>
@@ -441,9 +442,9 @@ export function OneTimeOrderPreviewDrawer({
                   </div>
                 ) : null}
               </div>
-              <button className={styles.secondaryAction} type="button" disabled={!nextStatus || savingStatus} onClick={() => void applyStatus()}>
+              <Button disabled={!nextStatus || savingStatus} onClick={() => void applyStatus()}>
                 {savingStatus ? 'Сохраняю…' : 'Применить'}
-              </button>
+              </Button>
             </div>
             <p className={styles.helper}>Завершение заказа проводится в полной карточке вместе с учётом поступлений.</p>
           </section>
@@ -467,9 +468,9 @@ export function OneTimeOrderPreviewDrawer({
           {canComment ? (
             <form className={styles.commentForm} onSubmit={(event) => { event.preventDefault(); void saveComment(); }}>
               <textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Добавить комментарий к заказу" aria-label="Новый комментарий" maxLength={5000} />
-              <button className={styles.secondaryAction} type="submit" disabled={!commentDraft.trim() || savingComment}>
+              <Button type="submit" disabled={!commentDraft.trim() || savingComment}>
                 {savingComment ? 'Добавляю…' : 'Добавить комментарий'}
-              </button>
+              </Button>
             </form>
           ) : null}
         </section>

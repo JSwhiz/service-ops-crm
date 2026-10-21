@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import React, { useDeferredValue, useEffect, useState } from 'react';
 
 import { listInventoryItems } from '@/entities/inventory/api/inventory-client';
@@ -8,7 +7,10 @@ import type { InventoryItem } from '@/entities/inventory/model/inventory.types';
 import { InventoryItemListTable } from '@/features/inventory-item-list/ui/inventory-item-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+import { Alert, ButtonLink } from '@/shared/ui/foundation';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -38,6 +40,7 @@ export default function InventoryPage(): React.JSX.Element {
   >('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(25, [25, 50, 100], () => setPage(1));
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,7 +68,7 @@ export default function InventoryPage(): React.JSX.Element {
             ? {}
             : { isActive: activeFilter === 'active' }),
           page,
-          limit: 25,
+          limit: pageSize,
           sortBy,
           sortDirection,
         });
@@ -99,6 +102,7 @@ export default function InventoryPage(): React.JSX.Element {
     category,
     deferredSearch,
     page,
+    pageSize,
     sortBy,
     sortDirection,
   ]);
@@ -141,26 +145,27 @@ export default function InventoryPage(): React.JSX.Element {
               ].filter((filter): filter is NonNullable<typeof filter> => filter !== null)}
             actions={<>
               {canViewInventoryReports ? <>
-                <Link className="button-link" href="/inventory/movements">Движения</Link>
-                <Link className="button-link" href="/inventory/reports">Отчеты</Link>
+                <ButtonLink href="/inventory/movements">Движения</ButtonLink>
+                <ButtonLink href="/inventory/reports">Отчёты</ButtonLink>
               </> : null}
-              {canManageInventoryCatalog ? <Link className="button-link button-link--primary" href="/inventory/new">Новая позиция</Link> : null}
+              {canManageInventoryCatalog ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/inventory/new">Добавить позицию</ButtonLink> : null}
             </>}
           />
 
           {isLoading ? (
             <div className="page-card">Загрузка...</div>
           ) : error ? (
-            <div className="page-card" style={{ color: '#b91c1c' }}>
+            <Alert tone="danger" role="alert">
               {error}
-            </div>
+            </Alert>
           ) : (
             <InventoryItemListTable items={items} />
           )}
 
           <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы расходников"
-            summary={total > 0 ? `Показано ${(page - 1) * 25 + 1}–${Math.min(page * 25, total)} из ${total}` : 'Расходники не найдены'}
-            onPageChange={(nextPage) => setPage(nextPage)} />
+            summary={total > 0 ? `Показано ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} из ${total}` : 'Расходники не найдены'}
+            onPageChange={(nextPage) => setPage(nextPage)}
+            pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} />
         </div>
       )}
     </>

@@ -8,6 +8,7 @@ import {
   getUserDisplayName,
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
+import { ButtonLink, StatusBadge } from '@/shared/ui/foundation';
 
 interface ObjectSummaryCardProps {
   item: ServiceObject;
@@ -40,7 +41,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
         <div className="object-summary__identity">
           <div className="object-summary__title-row">
             <div className="hero-title">{item.name}</div>
-            <span className="status-pill" data-status={item.status}>{getStatusLabel(item.status)}</span>
+            <StatusBadge status={item.status}>{getStatusLabel(item.status)}</StatusBadge>
           </div>
           {item.internalName ? (
             <div className="object-summary__internal-name">
@@ -52,9 +53,9 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
 
         <div className="action-row object-summary__actions">
           {allowEdit ? (
-            <Link className="button-link object-summary__primary-action" href={`/objects/${item.id}/edit`}>Редактировать</Link>
+            <ButtonLink href={`/objects/${item.id}/edit`}>Редактировать</ButtonLink>
           ) : null}
-          <Link className="button-link" href={`/objects/${item.id}/history`}>История</Link>
+          <ButtonLink variant="ghost" href={`/objects/${item.id}/history`}>История</ButtonLink>
         </div>
       </div>
 

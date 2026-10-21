@@ -9,6 +9,7 @@ import {
   retryFilePreview,
 } from '@/entities/file/api/file-client';
 import type { FileView } from '@/entities/file/model/file.types';
+import { Button } from '@/shared/ui/foundation';
 
 const VIEW_POLL_ATTEMPTS = 40;
 
@@ -172,14 +173,13 @@ export default function FileViewerPage(): React.JSX.Element {
         </div>
         <div className="action-row">
           {view.previewType === 'image' && inlineUrl ? (
-            <button
-              type="button"
+            <Button
               onClick={() => setShowOriginalSize((current) => !current)}
             >
               {showOriginalSize ? 'Вписать в экран' : 'Оригинальный размер'}
-            </button>
+            </Button>
           ) : null}
-          <a className="button-link" href={downloadUrl}>
+          <a className="ui-button" href={downloadUrl}>
             Скачать оригинал
           </a>
         </div>
@@ -190,15 +190,14 @@ export default function FileViewerPage(): React.JSX.Element {
           <div className="file-viewer-state">
             <strong>Предпросмотр документа формируется…</strong>
             {pollTimedOut ? (
-              <button
-                type="button"
+              <Button
                 onClick={() => {
                   setPollTimedOut(false);
                   setPollingRun((current) => current + 1);
                 }}
               >
                 Обновить статус
-              </button>
+              </Button>
             ) : (
               <span>Статус обновится автоматически.</span>
             )}
@@ -210,9 +209,9 @@ export default function FileViewerPage(): React.JSX.Element {
             <strong>Не удалось сформировать предпросмотр документа</strong>
             <span>{view.errorMessage || 'Предпросмотр недоступен.'}</span>
             {view.previewType !== 'unsupported' ? (
-              <button type="button" onClick={() => void handleRetry()}>
+              <Button onClick={() => void handleRetry()}>
                 Повторить
-              </button>
+              </Button>
             ) : null}
           </div>
         ) : null}

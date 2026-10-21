@@ -54,7 +54,7 @@ test('candidate registry, object assignment and scoped immutable feedback flow',
     ).capabilities;
     assert.equal(capabilities.canAccessCandidates, true);
     assert.equal(capabilities.canManageCandidates, canManage);
-    assert.equal(capabilities.canRespondToCandidates, canRespond);
+    assert.equal(capabilities.canRespondToCandidates, canRespond || canManage);
     assert.equal((await request(baseUrl, cookie, '/candidates')).status, 200);
   }
 
@@ -208,7 +208,7 @@ test('candidate registry, object assignment and scoped immutable feedback flow',
     ((await reserveList.json()) as { items: Array<{ id: string }> }).items.map(
       (item) => item.id,
     ),
-    [reserveId],
+    [],
   );
 
   const invalidAssignment = await request(
@@ -223,7 +223,7 @@ test('candidate registry, object assignment and scoped immutable feedback flow',
       }),
     },
   );
-  assert.equal(invalidAssignment.status, 409);
+  assert.equal(invalidAssignment.status, 400);
 
   const managerFilter = await request(
     baseUrl,
@@ -439,7 +439,7 @@ test('candidate registry, object assignment and scoped immutable feedback flow',
 
   const archivedReserve = await request(
     baseUrl,
-    managerCookie,
+    hrCookie,
     '/candidates?candidateType=reserve&archiveState=archived',
   );
   assert.deepEqual(

@@ -6,6 +6,7 @@ import type { AccountabilityExpenseItem } from '@/entities/accountability/model/
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { Button, Stack } from '@/shared/ui/foundation';
 
 export function AccountabilityExpenseForm({
   initialExpense,
@@ -117,16 +118,16 @@ export function AccountabilityExpenseForm({
       </div>
 
       {initialExpense?.attachments.length ? (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <Stack gap="sm">
           <div className="page-muted">Уже прикрепленные вложения</div>
           <AttachmentPreviewList
             files={initialExpense.attachments}
             emptyText="Вложений пока нет."
           />
-        </div>
+        </Stack>
       ) : null}
 
-      <div style={{ display: 'grid', gap: 8 }}>
+      <Stack gap="sm">
         <div className="page-muted">Фото и документы расхода</div>
         <MediaActionPicker
           disabled={isSubmitting}
@@ -143,31 +144,29 @@ export function AccountabilityExpenseForm({
           }
           emptyText="Новых вложений пока нет."
         />
-      </div>
+      </Stack>
 
       <div className="action-row">
-        <button
-          type="button"
+        <Button
           disabled={isSubmitting}
           onClick={() => {
             void handleSave(false);
           }}
         >
           {isSubmitting ? 'Сохраняем...' : 'Сохранить черновик'}
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           disabled={isSubmitting}
           onClick={() => {
             void handleSave(true);
           }}
         >
           {isSubmitting ? 'Отправляем...' : 'Отправить'}
-        </button>
+        </Button>
         {initialExpense && onCancelEdit ? (
-          <button type="button" disabled={isSubmitting} onClick={onCancelEdit}>
+          <Button disabled={isSubmitting} onClick={onCancelEdit}>
             Отмена
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

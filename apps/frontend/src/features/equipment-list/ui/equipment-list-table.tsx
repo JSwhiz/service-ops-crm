@@ -12,6 +12,7 @@ import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 
 import styles from './equipment-list-table.module.css';
+import { Alert, Button, Field, Stack, StatusBadge } from '@/shared/ui/foundation';
 
 function getLocation(item: EquipmentUnit): React.ReactNode {
   if (item.currentObject) {
@@ -108,19 +109,18 @@ export function EquipmentListTable({
             <strong>{selectedIds.length} выбрано</strong>
           </div>
           {selectedIds.length > 0 ? <>
-            <label>
-              <div style={{ marginBottom: 6 }}>Причина списания *</div>
+            <Field label="Причина списания *">
               <textarea value={writeoffReason} onChange={(event) => setWriteoffReason(event.target.value)} rows={2} required disabled={isWritingOff} placeholder="Укажите причину списания" />
-            </label>
-            <div style={{ display: 'grid', gap: 8 }}>
+            </Field>
+            <Stack gap="sm">
               <div className="page-muted">Подтверждающие фото или файлы (необязательно)</div>
               <MediaActionPicker disabled={isWritingOff} onPick={async (file) => setEvidenceFiles((current) => [...current, file])} />
               <PendingMediaList files={evidenceFiles} onRemove={(index) => setEvidenceFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} emptyText="Подтверждения пока не добавлены." />
-            </div>
-            {writeoffError ? <div className="inline-notice inline-notice--warning" role="alert">{writeoffError}</div> : null}
-            {writeoffSuccess ? <div className="inline-notice inline-notice--success" role="status">{writeoffSuccess}</div> : null}
+            </Stack>
+            {writeoffError ? <Alert tone="warning" role="alert">{writeoffError}</Alert> : null}
+            {writeoffSuccess ? <Alert tone="success" role="status">{writeoffSuccess}</Alert> : null}
             <div className="action-row">
-              <button type="submit" disabled={isWritingOff || !writeoffReason.trim()}>{isWritingOff ? 'Создаём согласования…' : `Отправить на согласование · ${selectedIds.length}`}</button>
+              <Button variant="primary" type="submit" disabled={isWritingOff || !writeoffReason.trim()}>{isWritingOff ? 'Создаём согласования…' : `Отправить на согласование · ${selectedIds.length}`}</Button>
               <button type="button" className="button-quiet" disabled={isWritingOff} onClick={() => setSelectedIds([])}>Снять выбор</button>
             </div>
           </> : <div className="page-muted">Отметьте единицы оборудования с доступным правом списания.</div>}
@@ -155,7 +155,7 @@ export function EquipmentListTable({
                 </span>
               </td>
               <td>{item.catalogItem.category}</td>
-              <td><span className="status-pill" data-status={item.status}>{getEquipmentStatusLabel(item.status)}</span></td>
+              <td><StatusBadge status={item.status}>{getEquipmentStatusLabel(item.status)}</StatusBadge></td>
               <td>{getLocation(item)}</td>
               <td title={new Date(item.updatedAt).toLocaleString('ru-RU')}>
                 {formatRegistryDate(item.updatedAt)}
@@ -178,7 +178,7 @@ export function EquipmentListTable({
                   <strong>{item.catalogItem.name}</strong>
                   <span className={styles.secondary}>{item.inventoryNumber}{item.serialNumber ? ` · ${item.serialNumber}` : ''}</span>
                 </span>
-                <span className="status-pill" data-status={item.status}>{getEquipmentStatusLabel(item.status)}</span>
+                <StatusBadge status={item.status}>{getEquipmentStatusLabel(item.status)}</StatusBadge>
               </span>
               <span className={styles.mobileMeta}>
                 {item.catalogItem.category} · {item.currentObject?.name ?? item.currentOneTimeOrder?.title ?? 'Склад'}

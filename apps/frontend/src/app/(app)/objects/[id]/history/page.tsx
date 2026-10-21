@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
 import {
@@ -13,6 +12,7 @@ import type {
 } from '@/entities/object/model/object.types';
 import { ObjectHistoryList } from '@/features/object-history/ui/object-history-list';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
+import { BackLink } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -63,9 +63,9 @@ export default function ObjectHistoryPage({
           <span className={styles.historyEyebrow}>История изменений</span>
           <h1 className={styles.historyTitle}>{item?.name ?? 'Объект'}</h1>
         </div>
-        <Link className={styles.backLink} href={objectId ? `/objects/${objectId}` : '/objects'}>
+        <BackLink href={objectId ? `/objects/${objectId}` : '/objects'}>
           К объекту
-        </Link>
+        </BackLink>
       </header>
 
       {isLoading ? (

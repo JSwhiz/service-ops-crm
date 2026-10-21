@@ -33,6 +33,16 @@ function optionalTrimmedString(value: unknown): unknown {
 
 export class ListEmployeesQueryDto {
   @IsOptional()
+  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
+  @IsBoolean()
+  passportReceived?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' ? true : value === 'false' ? false : value)
+  @IsBoolean()
+  contractReceived?: boolean;
+
+  @IsOptional()
   @Transform(({ value }) => optionalTrimmedString(value))
   @IsString()
   @MaxLength(200)

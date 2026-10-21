@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { buildChatRealtimeUrl } from '@/entities/chat/api/chat-client';
 import { getNotificationUnreadCount, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/entities/notification/api/notification-client';
 import type { AppNotification } from '@/entities/notification/model/notification.types';
+import { Button } from '@/shared/ui/foundation';
 
 function BellIcon(): React.JSX.Element {
   return (
@@ -186,9 +187,9 @@ export function NotificationBell(): React.JSX.Element {
           <div className="notification-popover__header">
             <strong>Уведомления</strong>
             {count > 0 ? (
-              <button type="button" onClick={() => { void markAllNotificationsRead().then(() => { setCount(0); setItems((current) => current.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() }))); }); }}>
+              <Button onClick={() => { void markAllNotificationsRead().then(() => { setCount(0); setItems((current) => current.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() }))); }); }}>
                 Прочитать все
-              </button>
+              </Button>
             ) : null}
           </div>
           {browserPermission !== 'unsupported' && browserPermission !== 'denied' ? (

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { Field } from '@/shared/ui/foundation';
 
 interface ObjectFiltersProps {
   search: string;
@@ -25,15 +26,13 @@ export function ObjectFilters({
         gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
       }}
     >
-      <label>
-        <div style={{ marginBottom: 6 }}>Поиск</div>
+      <Field label="Поиск">
         <input
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Название, внутреннее имя, адрес"
-          style={{ width: '100%', padding: 10 }}
         />
-      </label>
+      </Field>
 
       <div>
         <SearchableSelect

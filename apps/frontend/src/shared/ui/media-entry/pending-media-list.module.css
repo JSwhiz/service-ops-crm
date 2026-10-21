@@ -32,7 +32,7 @@
 }
 
 .iconButton:hover {
-  color: #3f332c;
+  color: var(--ui-text);
   background: var(--ui-surface-muted);
 }
 
@@ -73,7 +73,7 @@
 }
 
 .extension {
-  color: #78695e;
+  color: var(--ui-text-tertiary);
   white-space: nowrap;
 }
 

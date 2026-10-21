@@ -33,10 +33,10 @@
 .sectionLabel {
   display: block;
   color: var(--ui-text-tertiary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .header h2 {

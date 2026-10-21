@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState
 import { createPortal } from 'react-dom';
 
 import { Button, IconButton } from '@/shared/ui/foundation';
+import { CloseIcon } from '@/shared/ui/icons/icons';
 
 export interface TimesheetCellMutation {
   objectId: string;
@@ -49,14 +50,6 @@ function formatMoney(value: number): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), Math.max(min, max));
-}
-
-function CloseIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
-      <path d="m5.5 5.5 9 9M14.5 5.5l-9 9" />
-    </svg>
-  );
 }
 
 export function TimesheetCellEditor({
@@ -299,18 +292,17 @@ export function TimesheetCellEditor({
         ? createPortal(
             <div ref={menuRef} className="timesheet-cell-menu" style={menuPoint} role="menu">
               {canMutate ? (
-                <button type="button" role="menuitem" onClick={openEditor}>
+                <Button role="menuitem" onClick={openEditor}>
                   {canDirectEdit ? 'Изменить выплату' : 'Запросить корректировку'}
-                </button>
+                </Button>
               ) : null}
               {canDirectEdit && isEditableDate && isChangedManually ? (
-                <button type="button" role="menuitem" onClick={() => void restoreAuto()} disabled={saving}>
+                <Button role="menuitem" onClick={() => void restoreAuto()} disabled={saving}>
                   Вернуть авторасчёт
-                </button>
+                </Button>
               ) : null}
               {onOpenDetails ? (
-                <button
-                  type="button"
+                <Button
                   role="menuitem"
                   onClick={() => {
                     closeInteraction();
@@ -318,7 +310,7 @@ export function TimesheetCellEditor({
                   }}
                 >
                   История / детализация
-                </button>
+                </Button>
               ) : null}
               {!isEditableDate ? (
                 <div className="timesheet-cell-menu__hint">

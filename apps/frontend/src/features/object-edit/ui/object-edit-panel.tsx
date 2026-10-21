@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { Alert, Button, Field } from '@/shared/ui/foundation';
 
 interface ObjectEditPanelProps {
   item: ServiceObject;
@@ -162,8 +163,7 @@ export function ObjectEditPanel({
         </div>
 
         {!isEditing ? (
-          <button
-            type="button"
+          <Button
             onClick={() => {
               setError(null);
               setIsEditing(true);
@@ -171,7 +171,7 @@ export function ObjectEditPanel({
             disabled={!canEditCard && !canEditDailyRate && !canOverrideFrozen}
           >
             Редактировать
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -233,21 +233,18 @@ export function ObjectEditPanel({
               gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             }}
           >
-            <label>
-              <div style={{ marginBottom: 6 }}>Название</div>
+            <Field label="Название">
               <input
                 value={form.name}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, name: event.target.value }))
                 }
-                style={{ width: '100%', padding: 10 }}
                 disabled={!allowBaseFieldsEdit || isSubmitting}
                 required
               />
-            </label>
+            </Field>
 
-            <label>
-              <div style={{ marginBottom: 6 }}>Внутреннее имя</div>
+            <Field label="Внутреннее имя">
               <input
                 value={form.internalName}
                 onChange={(event) =>
@@ -256,11 +253,10 @@ export function ObjectEditPanel({
                     internalName: event.target.value,
                   }))
                 }
-                style={{ width: '100%', padding: 10 }}
                 disabled={!allowBaseFieldsEdit || isSubmitting}
                 required
               />
-            </label>
+            </Field>
 
             <label style={{ gridColumn: '1 / -1' }}>
               <div style={{ marginBottom: 6 }}>Адрес</div>
@@ -314,8 +310,7 @@ export function ObjectEditPanel({
               />
             </div>
 
-            <label>
-              <div style={{ marginBottom: 6 }}>Ставка за день</div>
+            <Field label="Ставка за день">
               <input
                 type="number"
                 min="0"
@@ -327,10 +322,9 @@ export function ObjectEditPanel({
                     dailyRate: event.target.value,
                   }))
                 }
-                style={{ width: '100%', padding: 10 }}
                 disabled={!allowDailyRateEdit || isSubmitting}
               />
-            </label>
+            </Field>
 
             <label style={{ gridColumn: '1 / -1' }}>
               <div style={{ marginBottom: 6 }}>Комментарий</div>
@@ -345,20 +339,19 @@ export function ObjectEditPanel({
             </label>
           </div>
 
-          {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
+          {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
           <div style={{ display: 'flex', gap: 12 }}>
-            <button type="submit" disabled={isSubmitting}>
+            <Button variant="primary" type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Сохраняем...' : 'Сохранить изменения'}
-            </button>
+            </Button>
 
-            <button
-              type="button"
+            <Button
               onClick={resetForm}
               disabled={isSubmitting}
             >
               Отмена
-            </button>
+            </Button>
           </div>
         </form>
       )}

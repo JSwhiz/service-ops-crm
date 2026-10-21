@@ -17,6 +17,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { ConfirmDialog } from '@/shared/ui/overlays';
+import { Alert, Badge, Button } from '@/shared/ui/foundation';
 
 export function OneTimeOrderSpecificationPanel({
   orderId,
@@ -160,23 +161,23 @@ export function OneTimeOrderSpecificationPanel({
             Требовать вложение
           </label>
           <div className="action-row">
-            <button type="submit" disabled={isBusy}>
+            <Button variant="primary" type="submit" disabled={isBusy}>
               {editingId
                 ? items.find((item) => item.id === editingId)?.isCompleted
                   ? 'Сохранить и переоткрыть'
                   : 'Сохранить пункт'
                 : 'Добавить пункт'}
-            </button>
+            </Button>
             {editingId ? (
-              <button type="button" className="button-secondary" onClick={resetForm}>
+              <Button onClick={resetForm}>
                 Отмена
-              </button>
+              </Button>
             ) : null}
           </div>
         </form>
       ) : null}
 
-      {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
       <div className="page-stack">
         {items.length === 0 ? (
@@ -221,31 +222,25 @@ export function OneTimeOrderSpecificationPanel({
                   <div>
                     <strong>{item.title}</strong>
                     {item.requiresAttachment ? (
-                      <span className="status-pill">Нужно вложение</span>
+                      <Badge>Нужно вложение</Badge>
                     ) : null}
                   </div>
                 </div>
                 {canManage ? (
                   <div className="action-row">
-                    <button
-                      type="button"
-                      className="button-secondary"
+                    <Button
                       disabled={index === 0}
                       onClick={() => void moveItem(index, -1)}
                     >
                       Выше
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary"
+                    </Button>
+                    <Button
                       disabled={index === items.length - 1}
                       onClick={() => void moveItem(index, 1)}
                     >
                       Ниже
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary"
+                    </Button>
+                    <Button
                       onClick={() => {
                         setEditingId(item.id);
                         setTitle(item.title);
@@ -254,14 +249,12 @@ export function OneTimeOrderSpecificationPanel({
                       }}
                     >
                       Изменить
-                    </button>
-                    <button
-                      type="button"
-                      className="button-danger"
+                    </Button>
+                    <Button variant="danger"
                       onClick={() => setDeleteTarget(item)}
                     >
                       Удалить
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
               </div>

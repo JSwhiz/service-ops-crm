@@ -3,7 +3,7 @@ export const EMPLOYEE_EMPLOYMENT_STATUSES = [
   'inactive',
 ] as const;
 
-export const EMPLOYEE_TYPES = ['regular', 'one_time'] as const;
+export const EMPLOYEE_TYPES = ['regular', 'one_time', 'substitution'] as const;
 
 export const EMPLOYEE_WORK_SCHEDULE_CODES = [
   '5_2',

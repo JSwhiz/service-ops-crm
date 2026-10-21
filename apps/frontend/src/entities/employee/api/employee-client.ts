@@ -1,6 +1,7 @@
 import { fetcher } from '@/shared/api/fetcher';
 
 import type {
+  EmployeeAttendanceMonth,
   EmployeeDetail,
   EmployeeListQuery,
   EmployeeListResponse,
@@ -14,6 +15,13 @@ export async function listEmployees(
   query: EmployeeListQuery = {},
 ): Promise<EmployeeListResponse> {
   const params = new URLSearchParams();
+
+  if (query.passportReceived !== undefined) {
+    params.set('passportReceived', String(query.passportReceived));
+  }
+  if (query.contractReceived !== undefined) {
+    params.set('contractReceived', String(query.contractReceived));
+  }
 
   if (query.search) {
     params.set('search', query.search);
@@ -119,6 +127,17 @@ export async function getEmployeeById(id: string): Promise<EmployeeDetail> {
   });
 }
 
+export async function getEmployeeAttendance(
+  id: string,
+  year: number,
+  month: number,
+): Promise<EmployeeAttendanceMonth> {
+  return fetcher<EmployeeAttendanceMonth>(
+    `/employees/${id}/attendance?year=${year}&month=${month}`,
+    { method: 'GET' },
+  );
+}
+
 export async function createEmployee(
   payload: EmployeeMutationPayload & { fullName: string },
 ): Promise<EmployeeDetail> {
@@ -205,6 +224,32 @@ export async function addEmployeeAvailability(
 ): Promise<EmployeeDetail> {
   return fetcher<EmployeeDetail>(`/employees/${id}/availability`, {
     method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateEmployeeAvailability(
+  id: string,
+  windowId: string,
+  payload: { endDate: string },
+): Promise<EmployeeDetail> {
+  return fetcher<EmployeeDetail>(`/employees/${id}/availability/${windowId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteEmployeeAvailability(id: string, windowId: string): Promise<EmployeeDetail> {
+  return fetcher<EmployeeDetail>(`/employees/${id}/availability/${windowId}`, { method: 'DELETE' });
+}
+
+export async function updateEmployeeSubstitution(
+  id: string,
+  substitutionId: string,
+  payload: { status?: string; endDate?: string },
+): Promise<EmployeeDetail> {
+  return fetcher<EmployeeDetail>(`/employees/${id}/substitutions/${substitutionId}`, {
+    method: 'PATCH',
     body: JSON.stringify(payload),
   });
 }

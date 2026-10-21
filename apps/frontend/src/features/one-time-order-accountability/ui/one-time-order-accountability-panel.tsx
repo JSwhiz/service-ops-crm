@@ -19,6 +19,8 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Badge, Button, StatusBadge } from '@/shared/ui/foundation';
 
 const CATEGORY_OPTIONS: Array<{
   value: AccountabilityExpenseCategory;
@@ -144,11 +146,11 @@ export function OneTimeOrderAccountabilityPanel({
             Здесь учитываются деньги менеджера и расходы, оформленные по этому заказу.
           </div>
         </div>
-        <span className="status-pill">
+        <Badge>
           {view.visibilityScope === 'administrative'
             ? 'Все доступные счета'
             : 'Мой подотчёт'}
-        </span>
+        </Badge>
       </div>
 
       {view.capabilities.canCreateExpense ? (
@@ -172,11 +174,7 @@ export function OneTimeOrderAccountabilityPanel({
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span>Дата расхода</span>
-              <input
-                type="date"
-                value={expenseDate}
-                onChange={(event) => setExpenseDate(event.target.value)}
-              />
+              <DatePicker value={expenseDate} onChange={(nextValue) => setExpenseDate(nextValue)} />
             </label>
             <SearchableSelect
                 label="Категория"
@@ -247,15 +245,13 @@ export function OneTimeOrderAccountabilityPanel({
             emptyText="Чек или документ еще не приложен."
           />
           <div className="action-row">
-            <button
-              type="button"
+            <Button
               disabled={isSaving || (!isEmployeePayout && !completionSelection)}
               onClick={() => void save(false)}
             >
               Сохранить черновик
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
               disabled={
                 isSaving ||
                 (!isEmployeePayout && !completionSelection) ||
@@ -264,7 +260,7 @@ export function OneTimeOrderAccountabilityPanel({
               onClick={() => void save(true)}
             >
               Отправить на проверку
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -287,12 +283,11 @@ export function OneTimeOrderAccountabilityPanel({
               <div key={account.accountId} className="record-card">
                 <div className="section-header">
                   <strong>{getUserDisplayName(account.user)}</strong>
-                  <span
-                    className="status-pill"
-                    data-status={account.accountStatus}
+                  <StatusBadge
+                    status={account.accountStatus}
                   >
                     {getAccountabilityAccountStatusLabel(account.accountStatus)}
-                  </span>
+                  </StatusBadge>
                 </div>
                 <div className="stat-grid">
                   <SummaryItem
@@ -368,12 +363,11 @@ export function OneTimeOrderAccountabilityPanel({
                                 : ' · Без привязки к циклу'}
                             </div>
                           </div>
-                          <span
-                            className="status-pill"
-                            data-status={expense.status}
+                          <StatusBadge
+                            status={expense.status}
                           >
                             {getAccountabilityExpenseStatusLabel(expense.status)}
-                          </span>
+                          </StatusBadge>
                         </div>
                         <div>{expense.description}</div>
                         <AttachmentPreviewList

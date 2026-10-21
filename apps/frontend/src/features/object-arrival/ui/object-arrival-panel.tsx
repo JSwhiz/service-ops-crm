@@ -12,6 +12,7 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { Button } from '@/shared/ui/foundation';
 
 interface ObjectArrivalPanelProps {
   item: ObjectArrivalPhoto | null;
@@ -138,13 +139,12 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
         {error ? <div className={styles.error}>{error}</div> : null}
 
         <div className={styles.formActions}>
-          <button
-            className={styles.primaryAction}
+          <Button variant="primary"
             type="submit"
             disabled={isSubmitting || (!item && pendingFiles.length === 0)}
           >
             {isSubmitting ? 'Сохраняем…' : item ? 'Обновить' : 'Сохранить'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

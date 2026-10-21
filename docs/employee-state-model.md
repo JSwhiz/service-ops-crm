@@ -38,6 +38,15 @@ history. Ending an assignment preserves history. Error deletion removes only the
 assignment records and is rejected once attendance, timesheet or substitution history
 uses the assignment. It never deletes the object.
 
+## Attendance calendar and schedule
+
+The employee card shows a read-only month calendar built from actual attendance facts
+(`ObjectAttendanceFact`) via `GET /employees/:id/attendance?year=&month=`. It exposes the
+date, object and worked hours only — no money, rate snapshots or planned shifts. Planned
+working days are never derived from `workScheduleCode` or object rate policies in this
+view. Availability windows and substitutions are entered from the same calendar and do
+not create or remove attendance facts. See OQ-141.
+
 ## Concurrency and audit
 
 Employee edits, archive, restore and permanent delete use `expectedVersion`. Successful
@@ -55,3 +64,8 @@ filter state in the URL and ignores stale asynchronous responses.
 
 Birthday notifications, candidate/reserve workflow, Employee/User linking and new salary
 or timesheet behavior are separate product stages.
+
+## Phones
+
+- `Employee.phones` (text[]) holds every number; the first one is the main phone and is mirrored into `phone`, which search, exports and older consumers keep reading. The API accepts `phones` (preferred) or the legacy single `phone`; numbers are trimmed, de-duplicated by digits and must contain at least 3 digits.
+- Migration `20261021120000_employee_phones` backfills `phones` from `phone`.

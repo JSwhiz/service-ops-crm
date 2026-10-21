@@ -32,7 +32,7 @@
 
 .sectionHeader h2 {
   margin: 0;
-  color: #39312c;
+  color: var(--ui-text);
   font-size: 15.5px;
   font-weight: 730;
   line-height: 1.25;
@@ -44,14 +44,6 @@
   align-items: baseline;
   gap: 10px;
   flex-wrap: wrap;
-}
-
-.sectionMeta {
-  min-width: 0;
-  color: var(--ui-text-tertiary);
-  font-size: 12px;
-  font-weight: 560;
-  line-height: 1.35;
 }
 
 .fieldGrid {
@@ -190,11 +182,11 @@
   width: 17px;
   height: 17px;
   flex: 0 0 17px;
-  color: #776a61;
+  color: var(--ui-text-tertiary);
 }
 
 .triggerPlaceholder {
-  color: #9a8f87;
+  color: var(--ui-text-disabled);
 }
 
 .selectPopover {
@@ -301,7 +293,7 @@
 
 .managerOptions::-webkit-scrollbar-thumb:hover,
 .form :global(.searchable-select__options)::-webkit-scrollbar-thumb:hover {
-  background: #ae9f94;
+  background: var(--ui-text-secondary);
   background-clip: padding-box;
 }
 
@@ -325,7 +317,7 @@
 
 .managerOption:hover,
 .managerOption[data-selected='true'] {
-  background: #f5f0ec;
+  background: var(--ui-surface-muted);
   box-shadow: none;
   transform: none;
 }
@@ -336,15 +328,15 @@
   display: inline-grid;
   flex: 0 0 17px;
   place-items: center;
-  border: 1px solid #c9bbb1;
+  border: 1px solid var(--ui-border-strong);
   border-radius: 5px;
   background: var(--ui-surface);
   color: var(--ui-text-secondary);
 }
 
 .managerOption[data-selected='true'] .managerCheckbox {
-  border-color: #9f8b7e;
-  background: #eee6e0;
+  border-color: var(--ui-border-hover);
+  background: var(--ui-surface-pressed);
 }
 
 .managerCheckbox svg {
@@ -370,7 +362,7 @@
 
 .managerCopy > span {
   overflow: hidden;
-  color: #91857d;
+  color: var(--ui-text-tertiary);
   font-size: 11.5px;
   line-height: 1.25;
   text-overflow: ellipsis;
@@ -388,16 +380,16 @@
 
 .emptyManagers,
 .notice {
-  border: 1px solid #e9e1db;
+  border: 1px solid var(--ui-border);
   background: var(--ui-surface-subtle);
-  color: #786c64;
+  color: var(--ui-text-tertiary);
 }
 
 .error,
 .formError {
-  border: 1px solid #ead2cc;
+  border: 1px solid var(--ui-danger-border);
   background: var(--ui-danger-subtle);
-  color: #8d4d3f;
+  color: var(--ui-danger);
 }
 
 .notesField {
@@ -420,8 +412,7 @@
   border-top: 0;
 }
 
-.form button.cancelButton,
-.form button.primaryButton {
+.form button.cancelButton {
   appearance: none;
   min-height: var(--ui-control-md);
   display: inline-flex;
@@ -444,45 +435,29 @@
   color: var(--ui-text);
 }
 
-.form button.primaryButton {
-  border: 1px solid var(--ui-accent);
-  background: var(--ui-accent);
-  color: var(--ui-accent-contrast);
-}
-
 .form button.cancelButton:hover:not(:disabled) {
-  border-color: #c9bcb3;
+  border-color: var(--ui-border-strong);
   background: var(--ui-surface-subtle);
   box-shadow: none;
   transform: none;
 }
 
-.form button.primaryButton:hover:not(:disabled) {
-  border-color: var(--ui-accent-hover);
-  background: var(--ui-accent-hover);
+.form button.cancelButton:active:not(:disabled) {
   box-shadow: none;
   transform: none;
 }
 
-.form button.cancelButton:active:not(:disabled),
-.form button.primaryButton:active:not(:disabled) {
-  box-shadow: none;
-  transform: none;
-}
-
-.form button.cancelButton:focus-visible,
-.form button.primaryButton:focus-visible {
+.form button.cancelButton:focus-visible {
   outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 2px;
   box-shadow: none;
 }
 
-.form button.cancelButton:disabled,
-.form button.primaryButton:disabled {
+.form button.cancelButton:disabled {
   cursor: not-allowed;
-  border-color: #ddd4ce;
-  background: #f4f0ed;
-  color: #a2978f;
+  border-color: var(--ui-border);
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-disabled);
   box-shadow: none;
   opacity: 1;
 }
@@ -517,12 +492,6 @@
   outline: 0;
   border-color: var(--ui-border-strong);
   box-shadow: 0 0 0 3px rgba(15, 49, 201, 0.11);
-}
-
-.form :global(.searchable-select__trigger > span:last-child) {
-  color: #766960;
-  font-size: 14px;
-  line-height: 1;
 }
 
 .form :global(.searchable-select__popover) {
@@ -571,7 +540,7 @@
 }
 
 .form :global(.searchable-select__option-description) {
-  color: #8d8179;
+  color: var(--ui-text-tertiary);
   font-size: 11.5px;
 }
 

@@ -14,6 +14,7 @@ import {
   GlobalCreateMenu,
 } from '@/shared/ui/global-command/global-command';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
+import { ChevronDownIcon } from '@/shared/ui/icons/icons';
 
 const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
   ['/dashboard', 'Рабочий стол'],
@@ -45,14 +46,6 @@ function ChatIcon(): React.JSX.Element {
       <path d="M6.5 5.5h11A2.5 2.5 0 0 1 20 8v6.5a2.5 2.5 0 0 1-2.5 2.5h-5.2L8 20v-3H6.5A2.5 2.5 0 0 1 4 14.5V8a2.5 2.5 0 0 1 2.5-2.5Z" />
       <circle cx="9" cy="11.25" r="0.72" fill="currentColor" stroke="none" />
       <circle cx="15" cy="11.25" r="0.72" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function ChevronIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m7 9.5 5 5 5-5" />
     </svg>
   );
 }
@@ -196,7 +189,7 @@ export function AppHeader(): React.JSX.Element {
                   <span className="app-header__account-name">{displayName}</span>
                   <span className="app-header__account-role">{roleLabel}</span>
                 </span>
-                <span className="app-header__account-chevron"><ChevronIcon /></span>
+                <span className="app-header__account-chevron"><ChevronDownIcon /></span>
               </button>
 
               {accountOpen ? (

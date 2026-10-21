@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 
@@ -16,7 +15,10 @@ import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+import { ButtonLink } from '@/shared/ui/foundation';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const EMPTY_RESULT: TaskListResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 1 };
 
@@ -27,6 +29,7 @@ export default function TasksPage(): React.JSX.Element {
 function TasksRegistry(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(20);
   const queryKey = searchParams.toString();
   const [result, setResult] = useState(EMPTY_RESULT);
   const [objects, setObjects] = useState<ServiceObject[]>([]);
@@ -82,7 +85,7 @@ function TasksRegistry(): React.JSX.Element {
       sortBy: filters.sortBy,
       sortDirection: filters.sortDirection,
       page,
-      limit: 20,
+      limit: pageSize,
     }).then((next) => {
       if (!cancelled) setResult(next);
     }).catch(() => {
@@ -92,7 +95,7 @@ function TasksRegistry(): React.JSX.Element {
     });
 
     return () => { cancelled = true; };
-  }, [filters, queryKey, searchParams]);
+  }, [filters, pageSize, queryKey, searchParams]);
 
   const updateQuery = (changes: Record<string, string | boolean | number>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -150,14 +153,15 @@ function TasksRegistry(): React.JSX.Element {
         onSearchChange={(value) => updateQuery({ q: value })}
         activeFilters={activeFilters}
         availableFilters={availableFilters}
-        actions={<Link className="button-link button-link--primary" href="/tasks/new">Создать задачу</Link>}
+        actions={<ButtonLink variant="primary" icon={<PlusIcon />} href="/tasks/new">Создать задачу</ButtonLink>}
       />
       {isLoading ? <div className="page-card">Загрузка…</div> : error ? (
         <div className="page-card task-error" role="alert">{error}</div>
       ) : <TaskListTable items={result.items} />}
       {!isLoading && !error ? <TablePagination page={result.page} totalPages={result.totalPages} label="Страницы задач"
         summary={result.total > 0 ? `Показано ${(result.page - 1) * result.limit + 1}–${Math.min(result.page * result.limit, result.total)} из ${result.total}` : 'Задачи не найдены'}
-        onPageChange={(page) => updateQuery({ page })} /> : null}
+        onPageChange={(page) => updateQuery({ page })}
+        pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} /> : null}
     </div>
   );
 }

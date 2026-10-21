@@ -83,10 +83,10 @@
 
 .filterLabel {
   color: var(--ui-text-tertiary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.035em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .filterCopy strong {
@@ -171,10 +171,10 @@
 .dropdownLabel {
   padding: 6px 8px 5px;
   color: var(--ui-text-tertiary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .filterOption,
@@ -248,49 +248,7 @@
 
 .actions { min-width: 0; display: flex; align-items: center; gap: 8px; }
 
-.actions :global(.button-link) {
-  min-height: var(--ui-control-lg);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 14px;
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-  color: var(--ui-text);
-  font-family: var(--ui-font-sans);
-  font-size: var(--ui-text-sm);
-  font-weight: 650;
-  line-height: 1;
-  text-decoration: none;
-  box-shadow: none;
-  transition: background-color var(--ui-duration-fast) var(--ui-ease-standard), border-color var(--ui-duration-fast) var(--ui-ease-standard), color var(--ui-duration-fast) var(--ui-ease-standard);
-}
-
-.actions :global(.button-link:hover) {
-  border-color: var(--ui-border-hover);
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-  text-decoration: none;
-  transform: none;
-}
-
-.actions :global(.button-link:focus-visible) {
-  outline: 2px solid var(--ui-focus-border);
-  outline-offset: 2px;
-}
-
-.actions :global(.button-link.button-link--primary) {
-  border-color: var(--ui-accent);
-  background: var(--ui-accent);
-  color: var(--ui-accent-contrast);
-}
-
-.actions :global(.button-link.button-link--primary:hover) {
-  border-color: var(--ui-accent-hover);
-  background: var(--ui-accent-hover);
-  color: var(--ui-accent-contrast);
-}
+.actions :global(.ui-button) { min-height: var(--ui-control-lg); }
 
 @media (max-width: 1180px) {
   .toolbar { grid-template-columns: 1fr; align-items: stretch; }

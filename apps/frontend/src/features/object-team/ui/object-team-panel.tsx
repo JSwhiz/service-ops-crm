@@ -13,6 +13,7 @@ import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-selec
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
 import styles from './object-team-panel.module.css';
+import { Button } from '@/shared/ui/foundation';
 
 interface ObjectTeamPanelProps {
   title: string;
@@ -145,10 +146,10 @@ export function ObjectTeamPanel({
                 />
                 <div className={styles.replacementOptions} role="listbox" aria-label="Кандидаты на роль ответственного">
                   {replacementOptions.length ? replacementOptions.map((option) => (
-                    <button key={option.value} type="button" role="option" onClick={() => handleAdd(option.value)} disabled={isSubmitting}>
+                    <Button key={option.value} role="option" onClick={() => handleAdd(option.value)} disabled={isSubmitting}>
                       <strong>{option.label}</strong>
                       {option.description ? <span>{option.description}</span> : null}
-                    </button>
+                    </Button>
                   )) : <div className={styles.empty}>{emptyAvailableText}</div>}
                 </div>
                 </section>
@@ -172,14 +173,13 @@ export function ObjectTeamPanel({
                     <span>{getUserSecondaryLabel(item)}</span>
                   ) : null}
                 </span>
-                {!replaceOnly ? <button
-                  type="button"
+                {!replaceOnly ? <Button
                   disabled={isSubmitting || currentItems.length <= minimumItemsToKeep}
                   title={currentItems.length <= minimumItemsToKeep ? 'Нельзя снять последнего ответственного' : undefined}
                   onClick={() => handleRemove(item.userId)}
                 >
                   {removeButtonText}
-                </button> : null}
+                </Button> : null}
               </div>
             ))}
           </div>

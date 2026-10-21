@@ -134,10 +134,10 @@
 .global-create__label {
   padding: 6px 8px 5px;
   color: var(--ui-text-tertiary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .global-create__section + .global-create__section {
@@ -288,10 +288,10 @@
 .command-group__title {
   padding: 7px 8px 5px;
   color: var(--ui-text-tertiary);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 750;
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .command-item {

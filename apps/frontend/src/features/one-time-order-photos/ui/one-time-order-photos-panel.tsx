@@ -13,6 +13,7 @@ import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { ReasonDialog } from '@/shared/ui/overlays';
+import { Alert, Button, Field, Stack } from '@/shared/ui/foundation';
 
 export function OneTimeOrderPhotosPanel({
   items,
@@ -92,18 +93,16 @@ export function OneTimeOrderPhotosPanel({
               onChange={setCategory}
           />
 
-          <label>
-            <div style={{ marginBottom: 6 }}>Комментарий</div>
+          <Field label="Комментарий">
             <textarea
               rows={3}
               value={comment}
               onChange={(event) => setComment(event.target.value)}
-              style={{ width: '100%', padding: 10, resize: 'vertical' }}
               placeholder="Что показано на фото"
             />
-          </label>
+          </Field>
 
-          <div style={{ display: 'grid', gap: 8 }}>
+          <Stack gap="sm">
             <div className="page-muted">Фото</div>
             <MediaActionPicker
               disabled={isSubmitting}
@@ -120,16 +119,16 @@ export function OneTimeOrderPhotosPanel({
               }
               emptyText="Новых фотографий пока нет."
             />
-          </div>
+          </Stack>
 
           {error ? (
-            <div style={{ color: '#b91c1c' }}>{error}</div>
+            <Alert tone="danger" role="alert">{error}</Alert>
           ) : null}
 
           <div>
-            <button type="submit" disabled={isSubmitting || pendingFiles.length === 0}>
+            <Button variant="primary" type="submit" disabled={isSubmitting || pendingFiles.length === 0}>
               {isSubmitting ? 'Сохраняем...' : 'Добавить фото'}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}
@@ -169,13 +168,12 @@ export function OneTimeOrderPhotosPanel({
               />
               {item.capabilities.canDelete ? (
                 <div className="action-row">
-                  <button
-                    type="button"
+                  <Button
                     disabled={busyPhotoId === item.id}
                     onClick={() => { setPhotoToDelete(item.id); setDeleteReason(''); }}
                   >
                     {busyPhotoId === item.id ? 'Удаляем...' : 'Удалить'}
-                  </button>
+                  </Button>
                 </div>
               ) : null}
             </article>
@@ -212,8 +210,7 @@ export function OneTimeOrderPhotosPanel({
                 ) : null}
                 {item.capabilities.canRestore ? (
                   <div className="action-row">
-                    <button
-                      type="button"
+                    <Button
                       disabled={busyPhotoId === item.id}
                       onClick={async () => {
                         setError(null);
@@ -230,7 +227,7 @@ export function OneTimeOrderPhotosPanel({
                       {busyPhotoId === item.id
                         ? 'Восстанавливаем...'
                         : 'Восстановить'}
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
               </article>

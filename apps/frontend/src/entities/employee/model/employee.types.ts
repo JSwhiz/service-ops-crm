@@ -8,7 +8,16 @@ export type EmployeeSortField =
   | 'createdAt'
   | 'updatedAt';
 
-export type EmployeeType = 'regular' | 'one_time';
+export type EmployeeType = 'regular' | 'one_time' | 'substitution';
+
+export interface EmployeeDocumentState {
+  passportReceived: boolean;
+  passportReceivedAt: string | null;
+  passportReceivedByUserId: string | null;
+  contractReceived: boolean;
+  contractReceivedAt: string | null;
+  contractReceivedByUserId: string | null;
+}
 export type EmployeeWorkScheduleCode =
   | '5_2'
   | '2_2'
@@ -18,7 +27,7 @@ export type EmployeeWorkScheduleCode =
   | 'on_demand'
   | 'custom';
 
-export interface EmployeeListItem {
+export interface EmployeeListItem extends EmployeeDocumentState {
   id: string;
   fullName: string;
   phone: string | null;
@@ -53,6 +62,8 @@ export interface EmployeeListResponse {
 }
 
 export interface EmployeeListQuery {
+  passportReceived?: boolean;
+  contractReceived?: boolean;
   search?: string;
   objectId?: string;
   position?: string;
@@ -80,15 +91,29 @@ export interface EmployeePositionReference {
   label: string;
 }
 
+/** Display description of pay; amount null means the rate is not set. */
+export interface EmployeeCompensation {
+  source: 'rate_option' | 'individual' | 'object_default';
+  optionName: string | null;
+  amount: number | null;
+  unit: 'shift' | 'month';
+}
+
 export interface EmployeeObjectReference {
   id: string;
   name: string;
+  /** Null when the viewer may not see object rates. */
+  compensation?: EmployeeCompensation | null;
 }
 
-export interface EmployeeDetail {
+export interface EmployeeDetail extends EmployeeDocumentState {
+  passportReceivedByName: string | null;
+  contractReceivedByName: string | null;
   id: string;
   fullName: string;
   phone: string | null;
+  /** All numbers; the first one is the main phone mirrored into `phone`. */
+  phones: string[];
   position: string | null;
   birthDate: string | null;
   residenceAddress: string | null;
@@ -110,7 +135,8 @@ export interface EmployeeDetail {
     historyId: string | null;
     objectId: string;
     objectName: string;
-    objectDailyRate: number;
+    objectDailyRate: number | null;
+    compensation: EmployeeCompensation | null;
     startDate: string | null;
     endDate: string | null;
     canOpenObjectCard: boolean;
@@ -119,7 +145,7 @@ export interface EmployeeDetail {
     id: string;
     objectId: string;
     objectName: string;
-    objectDailyRate: number;
+    objectDailyRate: number | null;
     startedAt: string;
     endedAt: string | null;
     canOpenObjectCard: boolean;
@@ -171,8 +197,10 @@ export interface EmployeeDetail {
 }
 
 export interface EmployeeMutationPayload {
+  passportReceived?: boolean;
+  contractReceived?: boolean;
   fullName?: string;
-  phone?: string | null;
+  phones?: string[];
   position?: string | null;
   birthDate?: string | null;
   residenceAddress?: string | null;
@@ -184,4 +212,19 @@ export interface EmployeeMutationPayload {
   workScheduleCode?: EmployeeWorkScheduleCode | null;
   workScheduleCustom?: string | null;
   workTimeText?: string | null;
+}
+
+/** Actual attendance facts for one month; no amounts or planned schedule days. */
+export interface EmployeeAttendanceMonth {
+  year: number;
+  month: number;
+  days: Array<{
+    date: string;
+    objects: Array<{
+      objectId: string;
+      objectName: string;
+      canOpenObjectCard: boolean;
+      workedHours: number | null;
+    }>;
+  }>;
 }

@@ -36,15 +36,6 @@
   white-space: nowrap;
 }
 
-.back {
-  color: var(--ui-text-secondary);
-  font-size: var(--ui-text-sm);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.back:hover { color: var(--ui-text); }
-
 .status {
   display: inline-flex;
   align-items: center;

@@ -265,3 +265,11 @@ EntitySummary, QueueRow, ApprovalDetail, Ledger, MatrixInspector и ChatMessage 
 ## Implementation acceptance
 
 В каждом module PR перечислить используемые primitives и заменённые legacy consumers; убедиться, что KEEP не переписан без необходимости. Unit tests — meaningful interaction/state transitions, не зеркальные snapshot tests каждого div. Проверять keyboard, touch, focus return, failure/pending, links и query Back; визуальные размеры сверять с Architecture. Проверки далее выполняются локально и в scoped объёме, без требования массового frontend rewrite.
+
+## Additions 2026-10-21
+
+- `ButtonLink` — navigation with Button variants/sizes; replaces the legacy `.button-link` classes (removed). `Button`/`ButtonLink` accept a leading `icon`; create actions use `variant="primary" icon={<PlusIcon />}` everywhere (registry toolbars, page headers, calendars).
+- `IconButton bordered` — outlined icon action next to header buttons (edit pencil beside OverflowMenu).
+- `Select` (`shared/ui/searchable-select/select`) — drop-in for native `<select>` with `<option>` children; renders the system dropdown. Native selects are no longer used in app code. `SelectField` lives next to it for label + error rhythm.
+- `DatePicker` — header switches days → months → years; no native selects inside.
+- `PhoneListField` — several phone numbers with the first as main; used by employee and candidate forms.

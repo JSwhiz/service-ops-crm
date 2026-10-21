@@ -4,7 +4,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 import { CandidateCardResponseDto, CandidateListResponseDto } from './dto/candidate-response.dto';
-import { AssignCandidateManagerDto, CandidateVersionDto, ChangeCandidateStatusDto, CreateCandidateDto, CreateCandidateResponseDto, UpdateCandidateDto } from './dto/candidate-mutations.dto';
+import { AssignCandidateManagerDto, CandidateVersionDto, ChangeCandidateStatusDto, ConvertCandidateToEmployeeDto, CreateCandidateDto, CreateCandidateResponseDto, UpdateCandidateDto } from './dto/candidate-mutations.dto';
 import { ListCandidateManagersQueryDto, ListCandidatesQueryDto } from './dto/list-candidates-query.dto';
 import { CandidatesService } from './candidates.service';
 
@@ -44,4 +44,7 @@ export class CandidatesController {
 
   @Post(':id/responses')
   respond(@CurrentUser() user: CurrentAuthUser, @Param('id') id: string, @Body() payload: CreateCandidateResponseDto): Promise<CandidateCardResponseDto> { return this.candidatesService.respond(user, id, payload); }
+
+  @Post(':id/employee')
+  convert(@CurrentUser() user: CurrentAuthUser, @Param('id') id: string, @Body() payload: ConvertCandidateToEmployeeDto): Promise<CandidateCardResponseDto> { return this.candidatesService.convertToEmployee(user, id, payload); }
 }

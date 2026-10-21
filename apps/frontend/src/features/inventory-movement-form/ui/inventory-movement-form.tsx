@@ -12,6 +12,8 @@ import type {
 import { INVENTORY_MOVEMENT_TYPE_OPTIONS } from '@/shared/lib/inventory-presentation';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Alert, Button, Field, Stack } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -220,16 +222,14 @@ export function InventoryMovementForm({
                   </div>
                   {line.movementId ? <div className="page-muted">Операция уже записана. Повторная отправка не создаст дубликат.</div> : (
                     <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-                      <label>
-                        <div style={{ marginBottom: 6 }}>Номенклатура</div>
-                        <select value={line.inventoryItemId} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, inventoryItemId: event.target.value } : entry))} style={{ width: '100%', padding: 10 }} required disabled={isSaving}>
+                      <Field label="Номенклатура">
+                        <Select value={line.inventoryItemId} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, inventoryItemId: event.target.value } : entry))} required disabled={isSaving}>
                           {items.filter((item) => item.id === line.inventoryItemId || !issueLines.some((other) => other.key !== line.key && other.inventoryItemId === item.id)).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.category}</option>)}
-                        </select>
-                      </label>
-                      <label>
-                        <div style={{ marginBottom: 6 }}>Количество</div>
-                        <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, quantity: event.target.value } : entry))} style={{ width: '100%', padding: 10 }} required disabled={isSaving || Boolean(line.movementId)} />
-                      </label>
+                        </Select>
+                      </Field>
+                      <Field label="Количество">
+                        <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, quantity: event.target.value } : entry))} required disabled={isSaving || Boolean(line.movementId)} />
+                      </Field>
                       <div><div className="page-muted">Цена</div><div>{selectedLineItem?.currentUnitPrice == null ? 'Не указана' : `${selectedLineItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedLineItem.unit}`}</div></div>
                     </div>
                   )}
@@ -239,12 +239,10 @@ export function InventoryMovementForm({
             {items.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? <button type="button" className="button-quiet" onClick={addIssueLine} disabled={isSaving}>+ Добавить позицию</button> : null}
             <div className="page-muted">Каждая позиция будет проведена отдельным движением с собственной проверкой остатка и историей.</div>
           </div>
-        ) : <label>
-          <div style={{ marginBottom: 6 }}>Номенклатура</div>
-          <select
+        ) : <Field label="Номенклатура">
+   <Select
             value={inventoryItemId}
             onChange={(event) => setInventoryItemId(event.target.value)}
-            style={{ width: '100%', padding: 10 }}
             required
           >
             {items.map((item) => (
@@ -252,12 +250,11 @@ export function InventoryMovementForm({
                 {item.name} • {item.category}
               </option>
             ))}
-          </select>
-        </label>}
+          </Select>
+ </Field>}
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Тип движения</div>
-          <select
+        <Field label="Тип движения">
+          <Select
             value={movementType}
             onChange={(event) => {
               const nextType =
@@ -276,42 +273,37 @@ export function InventoryMovementForm({
                 setRelationScope('none');
               }
             }}
-            style={{ width: '100%', padding: 10 }}
           >
             {movementOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
 
-        {!supportsMultipleItems ? <label>
-          <div style={{ marginBottom: 6 }}>Количество</div>
-          <input
+        {!supportsMultipleItems ? <Field label="Количество">
+   <input
             type="number"
             min="0.001"
             step="0.001"
             value={quantity}
             onChange={(event) => setQuantity(event.target.value)}
-            style={{ width: '100%', padding: 10 }}
             required
           />
-        </label> : null}
+ </Field> : null}
 
         {movementType === 'receipt' ? (
-          <label>
-            <div style={{ marginBottom: 6 }}>Цена за единицу</div>
+          <Field label="Цена за единицу">
             <input
               type="number"
               min="0"
               step="0.01"
               value={unitPrice}
               onChange={(event) => setUnitPrice(event.target.value)}
-              style={{ width: '100%', padding: 10 }}
               required
             />
-          </label>
+          </Field>
         ) : (
           <div>
             <div className="page-muted">
@@ -328,21 +320,19 @@ export function InventoryMovementForm({
       </div>
 
       {movementType === 'adjustment' ? (
-        <label>
-          <div style={{ marginBottom: 6 }}>Направление корректировки</div>
-          <select
+        <Field label="Направление корректировки">
+          <Select
             value={adjustmentDirection}
             onChange={(event) =>
               setAdjustmentDirection(
                 event.target.value as 'increase' | 'decrease',
               )
             }
-            style={{ width: '100%', padding: 10 }}
           >
             <option value="increase">Увеличить остаток</option>
             <option value="decrease">Уменьшить остаток</option>
-          </select>
-        </label>
+          </Select>
+        </Field>
       ) : null}
 
       {supportsObjectRelation || supportsOrderRelation ? (
@@ -354,14 +344,12 @@ export function InventoryMovementForm({
           }}
         >
           {movementType === 'return' || movementType === 'writeoff' ? (
-            <label>
-              <div style={{ marginBottom: 6 }}>Связанный контур</div>
-              <select
+            <Field label="Связанный контур">
+              <Select
                 value={relationScope}
                 onChange={(event) =>
                   setRelationScope(event.target.value as RelationScope)
                 }
-                style={{ width: '100%', padding: 10 }}
               >
                 {supportsObjectRelation ? (
                   <option value="object">Объект</option>
@@ -372,18 +360,16 @@ export function InventoryMovementForm({
                 {movementType === 'writeoff' ? (
                   <option value="none">Без связанного контура</option>
                 ) : null}
-              </select>
-            </label>
+              </Select>
+            </Field>
           ) : null}
 
           {(movementType === 'issue_to_object' ||
             relationScope === 'object') && supportsObjectRelation ? (
-            <label>
-              <div style={{ marginBottom: 6 }}>Объект</div>
-              <select
+            <Field label="Объект">
+              <Select
                 value={relatedObjectId}
                 onChange={(event) => setRelatedObjectId(event.target.value)}
-                style={{ width: '100%', padding: 10 }}
                 required={movementType === 'issue_to_object' || movementType === 'return'}
               >
                 <option value="">Выберите объект</option>
@@ -392,18 +378,16 @@ export function InventoryMovementForm({
                     {item.name} • {item.status}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           ) : null}
 
           {(movementType === 'issue_to_one_time_order' ||
             relationScope === 'one_time_order') && supportsOrderRelation ? (
-            <label>
-              <div style={{ marginBottom: 6 }}>Разовый заказ</div>
-              <select
+            <Field label="Разовый заказ">
+              <Select
                 value={relatedOneTimeOrderId}
                 onChange={(event) => setRelatedOneTimeOrderId(event.target.value)}
-                style={{ width: '100%', padding: 10 }}
                 required={
                   movementType === 'issue_to_one_time_order' ||
                   movementType === 'return'
@@ -415,21 +399,19 @@ export function InventoryMovementForm({
                     {item.title} • {item.status}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           ) : null}
         </div>
       ) : null}
 
-      <label>
-        <div style={{ marginBottom: 6 }}>Комментарий</div>
+      <Field label="Комментарий">
         <textarea
           value={comment}
           onChange={(event) => setComment(event.target.value)}
           rows={3}
-          style={{ width: '100%', padding: 10 }}
         />
-      </label>
+      </Field>
 
       <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
@@ -443,7 +425,7 @@ export function InventoryMovementForm({
           : 'Для движения требуется фото/файл подтверждения'}
       </label>
 
-      <div style={{ display: 'grid', gap: 8 }}>
+      <Stack gap="sm">
         <div style={{ fontWeight: 600 }}>Подтверждающие файлы</div>
         <MediaActionPicker
           onPick={async (file) => {
@@ -459,14 +441,14 @@ export function InventoryMovementForm({
           }
           emptyText="Подтверждения пока не добавлены."
         />
-      </div>
+      </Stack>
 
-      {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
       <div>
-        <button type="submit" disabled={isSaving || !canCreateMovement || (supportsMultipleItems && issueLines.some((line) => !line.inventoryItemId || (!line.movementId && Number(line.quantity) < 0.001)))}>
+        <Button variant="primary" type="submit" disabled={isSaving || !canCreateMovement || (supportsMultipleItems && issueLines.some((line) => !line.inventoryItemId || (!line.movementId && Number(line.quantity) < 0.001)))}>
           {isSaving ? 'Сохраняем...' : supportsMultipleItems ? `Создать движений: ${issueLines.length}` : 'Создать движение'}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { ConfirmDialog } from '@/shared/ui/overlays';
+import { Alert, Button } from '@/shared/ui/foundation';
 
 export function OneTimeOrderReviewPanel({
   item,
@@ -97,28 +98,24 @@ export function OneTimeOrderReviewPanel({
               rows={4}
             />
           </label>
-          {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
+          {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
           <div className="action-row">
-            <button type="submit" disabled={isSaving || !text.trim()}>
+            <Button variant="primary" type="submit" disabled={isSaving || !text.trim()}>
               {isSaving ? 'Сохраняем...' : 'Сохранить отзыв'}
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
+            </Button>
+            <Button
               disabled={isSaving}
               onClick={() => { setText(item.reviewText ?? ''); setError(null); setIsEditing(false); }}
             >
               Отмена
-            </button>
+            </Button>
             {hasReview ? (
-              <button
-                type="button"
-                className="button-secondary"
+              <Button
                 disabled={isSaving}
                 onClick={() => setClearConfirmOpen(true)}
               >
                 Удалить отзыв
-              </button>
+              </Button>
             ) : null}
           </div>
         </form>
@@ -126,9 +123,9 @@ export function OneTimeOrderReviewPanel({
         <div className="action-row" style={{ justifyContent: 'space-between' }}>
           <div>{item.reviewText ?? 'Отзыв пока не заполнен.'}</div>
           {item.capabilities.canEditReview ? (
-            <button type="button" className="button-secondary" onClick={() => setIsEditing(true)}>
+            <Button onClick={() => setIsEditing(true)}>
               {hasReview ? 'Изменить отзыв' : 'Добавить отзыв'}
-            </button>
+            </Button>
           ) : null}
         </div>
       )}

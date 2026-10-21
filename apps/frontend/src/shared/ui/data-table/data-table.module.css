@@ -37,11 +37,11 @@
   z-index: 2;
   background: var(--ui-surface-muted);
   box-shadow: inset 0 -1px 0 var(--ui-border);
-  color: var(--ui-text-tertiary);
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: 0.015em;
-  text-transform: uppercase;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   white-space: nowrap;
 }
 
@@ -50,7 +50,17 @@
 }
 
 .table tbody tr:hover > td {
-  background: var(--ui-surface-hover);
+  background: var(--ui-accent-subtle);
+}
+
+/* Accent marker on the hovered or keyboard-focused row keeps the eye on one line. */
+.table tbody tr:hover > td:first-child,
+.table tbody tr:focus-within > td:first-child {
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+}
+
+.table tbody tr:focus-within > td {
+  background: var(--ui-accent-subtle);
 }
 
 .table tbody tr:last-child > td {

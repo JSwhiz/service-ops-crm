@@ -1,0 +1,251 @@
+/* Candidate card: same rhythm as the employee card (header → facts → two columns). */
+
+.page {
+  display: grid;
+  gap: var(--ui-space-5);
+  width: 100%;
+  max-width: var(--ui-content-max);
+  min-width: 0;
+  margin: 0 auto;
+  color: var(--ui-text);
+  font-family: var(--ui-font-sans);
+}
+
+.page > * {
+  min-width: 0;
+}
+
+.header:global(.ui-entity-header) {
+  align-items: center;
+}
+
+.identity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+
+.badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1);
+}
+
+.metaLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1) var(--ui-space-3);
+  color: var(--ui-text-secondary);
+}
+
+.metaLine > * + *::before {
+  content: '·';
+  margin-right: var(--ui-space-3);
+  color: var(--ui-text-tertiary);
+}
+
+.phoneList {
+  display: grid;
+  gap: 2px;
+}
+
+.phoneList a {
+  white-space: nowrap;
+}
+
+.muted {
+  margin: 0;
+  color: var(--ui-text-secondary);
+  font-weight: 400;
+}
+
+.subtle {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  font-weight: 400;
+}
+
+/* Columns and sections */
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ui-space-4);
+}
+
+.column {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.section {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  padding: var(--ui-space-5);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  min-height: var(--ui-control-sm);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--ui-text-md);
+  font-weight: 650;
+}
+
+.sectionHeader > .sectionTitle {
+  margin-right: auto;
+}
+
+.count {
+  min-width: 22px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+}
+
+.comment {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--ui-leading-normal);
+}
+
+/* Lists */
+
+.list,
+.timeline {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timeline {
+  max-height: 360px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.listItem,
+.timelineItem {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  padding-block: var(--ui-space-3);
+  border-top: 1px solid var(--ui-border);
+}
+
+.listItem:first-child,
+.timelineItem:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.listItem {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+
+.listMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.timelineHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-1) var(--ui-space-3);
+}
+
+.timelineHead time {
+  color: var(--ui-text-tertiary);
+  font-size: var(--ui-text-xs);
+  white-space: nowrap;
+}
+
+.timelineItem p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  line-height: var(--ui-leading-normal);
+}
+
+/* Forms inside sections */
+
+.responseForm,
+.managerEditor {
+  display: grid;
+  gap: var(--ui-space-3);
+  padding-top: var(--ui-space-4);
+  border-top: 1px solid var(--ui-border);
+}
+
+.managerEditor {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.responseForm textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+}
+
+@media (max-width: 1100px) {
+
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+
+  .section {
+    padding: var(--ui-space-4);
+  }
+
+  .listItem {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .listItem > :global(.ui-badge) {
+    justify-self: start;
+  }
+}
+
+.section p,
+.section li {
+  font-size: var(--ui-text-md);
+}
+
+.timelineHead strong,
+.listMain strong {
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}

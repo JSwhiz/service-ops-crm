@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
@@ -19,9 +18,13 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { DataTable } from '@/shared/ui/data-table/data-table';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 import styles from './one-time-order-registry.module.css';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Alert, ButtonLink } from '@/shared/ui/foundation';
+import { CalendarIcon, PlusIcon } from '@/shared/ui/icons/icons';
 
 const PAGE_LIMIT = 20;
 const EMPTY_RESULT: OneTimeOrderListResponse = { items: [], page: 1, limit: PAGE_LIMIT, total: 0, totalPages: 0 };
@@ -60,6 +63,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
       ? rawReviewStatus
       : '';
   const page = parsePage(searchParams.get('page'));
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(PAGE_LIMIT);
   const sortBy = parseSortBy(searchParams.get('sortBy'));
   const sortDirection = searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc';
   const canAccess = user?.capabilities?.canAccessOneTimeOrders;
@@ -121,10 +125,10 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     setIsLoading(true);
     setError(null);
     const request = reviewOnly
-      ? listOneTimeOrderReviews({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: PAGE_LIMIT }).then((next) => {
+      ? listOneTimeOrderReviews({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: pageSize }).then((next) => {
           if (requestSequenceRef.current === requestSequence) setReviews(next);
         })
-      : listOneTimeOrders({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, linkedObjectId: linkedObjectId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, reviewStatus: reviewStatus || undefined, page, limit: PAGE_LIMIT, sortBy, sortDirection }).then((next) => {
+      : listOneTimeOrders({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, linkedObjectId: linkedObjectId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, reviewStatus: reviewStatus || undefined, page, limit: pageSize, sortBy, sortDirection }).then((next) => {
           if (requestSequenceRef.current === requestSequence) setResult(next);
         });
     void request.catch(() => {
@@ -132,7 +136,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     }).finally(() => {
       if (requestSequenceRef.current === requestSequence) setIsLoading(false);
     });
-  }, [canAccess, canViewReviews, dateFrom, dateTo, linkedObjectId, managerUserId, page, query, reviewOnly, reviewStatus, sortBy, sortDirection, status]);
+  }, [canAccess, canViewReviews, dateFrom, dateTo, linkedObjectId, managerUserId, page, pageSize, query, reviewOnly, reviewStatus, sortBy, sortDirection, status]);
 
   const total = reviewOnly ? reviews.total : result.total;
   const totalPages = reviewOnly ? reviews.totalPages : result.totalPages;
@@ -177,7 +181,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     activeFilters.has('manager') ? { id: 'manager', label: 'Менеджер', value: managerUserId, options: selectedManager ? [{ value: managerUserId, label: selectedManager.label }] : [], onChange: (value: string) => replaceQuery({ managerUserId: value || null, page: null }), onRemove: () => removeFilter('manager'), customControl: <SearchableSelect label="Менеджер" hideLabel value={managerUserId} options={[]} selectedOption={selectedManager} onChange={(value) => replaceQuery({ managerUserId: value || null, page: null })} placeholder="Все менеджеры" minimumSearchLength={2} searchPlaceholder="Введите ФИО или логин" searchPromptText="Введите не менее 2 символов, чтобы найти менеджера" searchInputVariant="registry" asyncSearch={async (search) => (await listOneTimeOrderManagerReferences({ search })).map((item) => ({ value: item.id, label: item.fullName || item.login, searchText: item.login }))} /> } : null,
     !reviewOnly && activeFilters.has('object') ? { id: 'object', label: 'Объект', value: linkedObjectId, options: selectedObject ? [{ value: linkedObjectId, label: selectedObject.label }] : [], onChange: (value: string) => replaceQuery({ linkedObjectId: value || null, page: null }), onRemove: () => removeFilter('object'), customControl: <SearchableSelect label="Объект" hideLabel value={linkedObjectId} options={[]} selectedOption={selectedObject} onChange={(value) => replaceQuery({ linkedObjectId: value || null, page: null })} placeholder="Все объекты" minimumSearchLength={2} searchPlaceholder="Введите название объекта" searchPromptText="Введите не менее 2 символов, чтобы найти объект" searchInputVariant="registry" asyncSearch={async (search) => (await listOneTimeOrderObjectReferences({ search })).map((item) => ({ value: item.id, label: item.name }))} /> } : null,
     !reviewOnly && canViewReviews && activeFilters.has('review') ? { id: 'review', label: 'Отзывы', value: reviewStatus || '__all', options: [{ value: '__all', label: 'Все отзывы' }, { value: 'missing', label: 'Требуют отзыва' }, { value: 'present', label: 'С отзывом' }], onChange: (value: string) => replaceQuery({ reviewStatus: value === '__all' ? null : value, page: null }), onRemove: () => removeFilter('review') } : null,
-    activeFilters.has('period') ? { id: 'period', label: 'Период', value: dateFrom || dateTo ? `${dateFrom || '…'} — ${dateTo || '…'}` : 'Любые даты', options: [], onChange: () => undefined, onRemove: () => removeFilter('period'), customControl: <div className="registry-date-range"><input aria-label="Дата с" type="date" max={dateTo || undefined} value={dateFrom} onChange={(event) => replaceQuery({ dateFrom: event.target.value || null, page: null })} /><span>—</span><input aria-label="Дата по" type="date" min={dateFrom || undefined} value={dateTo} onChange={(event) => replaceQuery({ dateTo: event.target.value || null, page: null })} /></div> } : null,
+    activeFilters.has('period') ? { id: 'period', label: 'Период', value: dateFrom || dateTo ? `${dateFrom || '…'} — ${dateTo || '…'}` : 'Любые даты', options: [], onChange: () => undefined, onRemove: () => removeFilter('period'), customControl: <div className="registry-date-range"><DatePicker aria-label="Дата с" max={dateTo || undefined} value={dateFrom} onChange={(nextValue) => replaceQuery({ dateFrom: nextValue || null, page: null })} /><span>—</span><DatePicker aria-label="Дата по" min={dateFrom || undefined} value={dateTo} onChange={(nextValue) => replaceQuery({ dateTo: nextValue || null, page: null })} /></div> } : null,
   ].filter(Boolean) as ActiveRegistryFilter[];
   const availableRegistryFilters: AvailableRegistryFilter[] = [
     !activeFilters.has('status') ? { id: 'status', label: 'Статус', options: STATUS_OPTIONS, onAdd: (value: string) => { replaceQuery({ status: value, page: null }); activateFilter('status'); } } : null,
@@ -188,11 +192,12 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   ].filter(Boolean) as AvailableRegistryFilter[];
 
   return <div className="page-stack workspace-page one-time-order-registry">
-    <RegistryToolbar searchValue={searchInput} searchLabel="Поиск по разовым заказам" searchPlaceholder={reviewOnly ? 'Заказ, менеджер или текст отзыва' : 'Заказ, адрес, контакт, объект, менеджер, отзыв'} onSearchChange={setSearchInput} activeFilters={registryFilters} availableFilters={reviewOnly ? availableRegistryFilters.filter((filter) => filter.id === 'status' || filter.id === 'manager' || filter.id === 'period') : availableRegistryFilters} actions={!reviewOnly ? <>{canViewCalendar ? <Link className={styles.secondaryButton} href="/one-time-orders/calendar"><CalendarIcon />Календарь</Link> : null}{canCreate ? <Link className={styles.createButton} href="/one-time-orders/new"><PlusIcon />Создать заказ</Link> : null}</> : null} />
-    {isLoading ? <div className="page-card workspace-surface workspace-empty">Загрузка...</div> : error ? <div className="page-card workspace-surface inline-notice inline-notice--warning">{error}</div> : reviewOnly ? <ReviewTable reviews={reviews} /> : <OneTimeOrderListTable items={result.items} sortBy={sortBy} sortDirection={sortDirection} onSort={(field) => replaceQuery({ sortBy: field, sortDirection: field === sortBy ? (sortDirection === 'asc' ? 'desc' : 'asc') : field === 'title' ? 'asc' : 'desc', page: null })} />}
+    <RegistryToolbar searchValue={searchInput} searchLabel="Поиск по разовым заказам" searchPlaceholder={reviewOnly ? 'Заказ, менеджер или текст отзыва' : 'Заказ, адрес, контакт, объект, менеджер, отзыв'} onSearchChange={setSearchInput} activeFilters={registryFilters} availableFilters={reviewOnly ? availableRegistryFilters.filter((filter) => filter.id === 'status' || filter.id === 'manager' || filter.id === 'period') : availableRegistryFilters} actions={!reviewOnly ? <>{canViewCalendar ? <ButtonLink icon={<CalendarIcon />} href="/one-time-orders/calendar">Календарь</ButtonLink> : null}{canCreate ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/one-time-orders/new">Создать заказ</ButtonLink> : null}</> : null} />
+    {isLoading ? <div className="page-card workspace-surface workspace-empty">Загрузка...</div> : error ? <Alert tone="warning">{error}</Alert> : reviewOnly ? <ReviewTable reviews={reviews} /> : <OneTimeOrderListTable items={result.items} sortBy={sortBy} sortDirection={sortDirection} onSort={(field) => replaceQuery({ sortBy: field, sortDirection: field === sortBy ? (sortDirection === 'asc' ? 'desc' : 'asc') : field === 'title' ? 'asc' : 'desc', page: null })} />}
     {!isLoading && !error ? <TablePagination page={currentPage} totalPages={totalPages} label={reviewOnly ? 'Страницы отзывов' : 'Страницы разовых заказов'}
-      summary={total > 0 ? `Показано ${(currentPage - 1) * PAGE_LIMIT + 1}–${Math.min(currentPage * PAGE_LIMIT, total)} из ${total}` : 'Записей не найдено'}
-      onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })} /> : null}
+      summary={total > 0 ? `Показано ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, total)} из ${total}` : 'Записей не найдено'}
+      onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
+      pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} /> : null}
   </div>;
 }
 
@@ -203,6 +208,3 @@ function ReviewTable({ reviews }: { reviews: OneTimeOrderReviewListResponse }): 
     </tbody>
   </DataTable>;
 }
-
-function PlusIcon(): React.JSX.Element { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>; }
-function CalendarIcon(): React.JSX.Element { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>; }

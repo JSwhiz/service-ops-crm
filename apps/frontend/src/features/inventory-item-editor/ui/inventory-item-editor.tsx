@@ -8,6 +8,7 @@ import {
 } from '@/entities/inventory/api/inventory-client';
 import type { InventoryItem } from '@/entities/inventory/model/inventory.types';
 import { ApiError } from '@/shared/api/fetcher';
+import { Alert, Button } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) {
@@ -133,11 +134,10 @@ export function InventoryItemEditor({
       </label>
 
       {hasVersionConflict ? (
-        <div className="inline-notice inline-notice--warning">
+        <Alert tone="warning">
           <strong>Карточка была изменена другим пользователем.</strong>
           <div className="action-row">
-            <button
-              type="button"
+            <Button
               onClick={() => {
                 setIsSaving(true);
                 void getInventoryItemById(item.id)
@@ -153,33 +153,29 @@ export function InventoryItemEditor({
               disabled={isSaving}
             >
               Загрузить актуальные данные
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
+            </Button>
+            <Button
               onClick={resetDraft}
               disabled={isSaving}
             >
               Отменить мои изменения
-            </button>
+            </Button>
           </div>
-        </div>
+        </Alert>
       ) : null}
 
       {error ? <div className="form-error">{error}</div> : null}
 
       <div className="action-row">
-        <button type="submit" disabled={isSaving || hasVersionConflict}>
+        <Button variant="primary" type="submit" disabled={isSaving || hasVersionConflict}>
           {isSaving ? 'Сохраняем...' : 'Сохранить изменения'}
-        </button>
-        <button
-          type="button"
-          className="button-secondary"
+        </Button>
+        <Button
           onClick={resetDraft}
           disabled={isSaving}
         >
           Сбросить
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,4 +1,10 @@
 export class EmployeeListItemDto {
+  passportReceived!: boolean;
+  passportReceivedAt!: string | null;
+  passportReceivedByUserId!: string | null;
+  contractReceived!: boolean;
+  contractReceivedAt!: string | null;
+  contractReceivedByUserId!: string | null;
   id!: string;
   fullName!: string;
   phone!: string | null;

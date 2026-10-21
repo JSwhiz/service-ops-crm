@@ -21,6 +21,7 @@ import type { TaskItem } from '@/entities/task/model/task.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 
 import styles from './object-preview-drawer.module.css';
+import { Button } from '@/shared/ui/foundation';
 
 function moscowBusinessDate(): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -246,7 +247,7 @@ export function ObjectPreviewDrawer({
                 })}
               </div>
               <div className={styles.actionGrid}>
-                <button className={styles.actionButton} type="button" disabled={savingAttendance} onClick={() => void saveAttendance()}>{savingAttendance ? 'Сохраняю…' : 'Сохранить присутствие'}</button>
+                <Button disabled={savingAttendance} onClick={() => void saveAttendance()}>{savingAttendance ? 'Сохраняю…' : 'Сохранить присутствие'}</Button>
               </div>
             </section>
           ) : null}
@@ -255,7 +256,7 @@ export function ObjectPreviewDrawer({
             <h3 className={styles.sectionTitle}>Дневной отчёт</h3>
             <textarea className={styles.textarea} value={reportDraft} onChange={(event) => setReportDraft(event.target.value)} placeholder="Кратко зафиксируйте состояние объекта за сегодня" />
             <div className={styles.actionGrid}>
-              <button className={styles.actionButton} type="button" disabled={savingReport || !reportDraft.trim()} onClick={() => void saveReport()}>{savingReport ? 'Сохраняю…' : report ? 'Обновить отчёт' : 'Сохранить отчёт'}</button>
+              <Button disabled={savingReport || !reportDraft.trim()} onClick={() => void saveReport()}>{savingReport ? 'Сохраняю…' : report ? 'Обновить отчёт' : 'Сохранить отчёт'}</Button>
             </div>
           </section>
 
@@ -263,7 +264,7 @@ export function ObjectPreviewDrawer({
             <h3 className={styles.sectionTitle}>Оперативный комментарий</h3>
             <textarea className={styles.textarea} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Добавить комментарий к объекту" />
             <div className={styles.actionGrid}>
-              <button className={styles.actionButton} type="button" disabled={savingComment || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</button>
+              <Button disabled={savingComment || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</Button>
             </div>
           </section>
 

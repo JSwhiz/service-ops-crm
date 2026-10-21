@@ -6,6 +6,7 @@ import React from 'react';
 import type { EquipmentUnit } from '@/entities/equipment/model/equipment.types';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
+import { StatusBadge } from '@/shared/ui/foundation';
 
 export function EquipmentScopePanel({
   title,
@@ -37,9 +38,9 @@ export function EquipmentScopePanel({
                 <strong>{unit.catalogItem.name} · {unit.inventoryNumber}</strong>
               )}
               <div className={styles.panelMeta}>
-                <span className="status-pill" data-status={unit.status}>
+                <StatusBadge status={unit.status}>
                   {getEquipmentStatusLabel(unit.status)}
-                </span>
+                </StatusBadge>
                 {unit.notes ? ` · ${unit.notes}` : ''}
               </div>
             </div>

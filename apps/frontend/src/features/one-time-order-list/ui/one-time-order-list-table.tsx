@@ -9,6 +9,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { OneTimeOrderPreviewDrawer } from './one-time-order-preview-drawer';
+import { StatusBadge } from '@/shared/ui/foundation';
 
 export function OneTimeOrderListTable({
   items,
@@ -120,9 +121,9 @@ export function OneTimeOrderListTable({
                 </td>
                 <td data-label="Адрес">{item.executionAddress}</td>
                 <td data-label="Статус">
-                  <span className="status-pill" data-status={item.status}>
+                  <StatusBadge status={item.status}>
                     {getOneTimeOrderStatusLabel(item.status)}
-                  </span>
+                  </StatusBadge>
                 </td>
                 <td data-label="Менеджеры">
                   {item.managers.map(getUserDisplayName).join(', ') || '—'}

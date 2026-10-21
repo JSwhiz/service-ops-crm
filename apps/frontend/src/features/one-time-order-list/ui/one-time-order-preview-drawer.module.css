@@ -30,7 +30,7 @@
 }
 
 .titleWrap { min-width: 0; }
-.eyebrow { color: var(--ui-text-tertiary); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.eyebrow { color: var(--ui-text-tertiary); font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; }
 .title { margin: 5px 0 0; color: var(--ui-text); font-size: 22px; line-height: 1.25; overflow-wrap: anywhere; }
 .address { display: block; margin-top: 7px; color: var(--ui-text-tertiary); font-size: 13px; line-height: 1.45; }
 
@@ -64,9 +64,9 @@
 }
 
 .statusRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; }
-.status { display: inline-flex; align-items: center; gap: 7px; min-height: 27px; padding: 0 9px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-success-subtle); color: #536957; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.status[data-status='completed'] { border-color: #d3e2d3; background: #edf5ed; color: #477650; }
-.status[data-status='in_progress'] { border-color: #ead9b9; background: var(--ui-warning-subtle); color: #8b672c; }
+.status { display: inline-flex; align-items: center; gap: 7px; min-height: 27px; padding: 0 9px; border: 1px solid var(--ui-border); border-radius: 6px; background: var(--ui-success-subtle); color:var(--ui-text-secondary); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.status[data-status='completed'] { border-color:var(--ui-border); background:var(--ui-surface-muted); color:var(--ui-text-secondary); }
+.status[data-status='in_progress'] { border-color:var(--ui-warning-border); background: var(--ui-warning-subtle); color:var(--ui-warning); }
 .status[data-status='cancelled'] { border-color: var(--ui-danger-border); background: var(--ui-danger-subtle); color: var(--ui-danger); }
 .statusDot { width: 7px; height: 7px; border-radius: 2px; background: currentColor; opacity: .72; }
 .date { color: var(--ui-text-tertiary); font-size: 13px; text-align: right; }
@@ -78,19 +78,16 @@
 .fact > span { color: var(--ui-text-tertiary); font-size: 12px; }
 .fact strong { overflow-wrap: anywhere; color: var(--ui-text); font-size: 13px; font-weight: 650; line-height: 1.4; }
 .factLink { min-width: 0; color: var(--ui-text-secondary); font-size: 13px; font-weight: 650; line-height: 1.4; text-decoration: none; overflow-wrap: anywhere; }
-.factLink:hover { color: #493b33; text-decoration: underline; }
+.factLink:hover { color:var(--ui-text); text-decoration: underline; }
 .factLink:focus-visible { outline: 2px solid rgba(15, 49, 201, .22); outline-offset: 2px; border-radius: 3px; }
 .progressRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ui-text-tertiary); font-size: 13px; }
 .progressRow strong { color: var(--ui-text); font-variant-numeric: tabular-nums; }
-.progressTrack { height: 6px; margin: 9px 0 16px; overflow: hidden; border-radius: 99px; background: #eee8e3; }
-.progressTrack > span { display: block; height: 100%; border-radius: inherit; background: #766052; transition: width 160ms ease; }
+.progressTrack { height: 6px; margin: 9px 0 16px; overflow: hidden; border-radius: 99px; background:var(--ui-surface-pressed); }
+.progressTrack > span { display: block; height: 100%; border-radius: inherit; background:var(--ui-text-secondary); transition: width 160ms ease; }
 .reviewSummary { padding: 16px 0; border-top: 1px solid var(--ui-border); }
 .reviewHeading, .sectionHeading, .commentMeta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .reviewHeading { color: var(--ui-text-tertiary); font-size: 12px; font-weight: 650; }
 .reviewHeading .sectionTitle { margin: 0; }
-.reviewRatingText { white-space: nowrap; }
-.reviewStars { display: flex; gap: 3px; margin-top: 8px; color: var(--ui-border); font-size: 20px; line-height: 1; letter-spacing: .04em; }
-.reviewStars > span { background: linear-gradient(90deg, var(--ui-warning) var(--fill), var(--ui-border) var(--fill)); background-clip: text; color: transparent; -webkit-background-clip: text; }
 .review { margin: 7px 0 0; color: var(--ui-text-secondary); font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
 .reviewForm { display: grid; gap: 12px; margin-top: 14px; }
 .reviewLabel { display: grid; gap: 6px; color: var(--ui-text-tertiary); font-size: 12px; }
@@ -106,7 +103,7 @@
 .commentForm textarea { box-sizing: border-box; min-width: 0; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-text); font: inherit; font-size: 13px; }
 .statusPicker { position: relative; min-width: 0; }
 .statusPickerTrigger { box-sizing: border-box; display: flex; width: 100%; min-height: 38px; align-items: center; justify-content: space-between; gap: 10px; padding: 0 11px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-text-tertiary); cursor: pointer; font: inherit; font-size: 13px; text-align: left; transition: border-color 120ms ease, background 120ms ease; }
-.statusPickerTrigger:hover:not(:disabled) { border-color: #cbb9ad; background: #fdfaf8; }
+.statusPickerTrigger:hover:not(:disabled) { border-color:var(--ui-border-strong); background:var(--ui-surface-subtle); }
 .statusPickerTrigger:focus-visible,
 .commentForm textarea:focus-visible { outline: 2px solid rgba(15, 49, 201, .18); outline-offset: 1px; border-color: var(--ui-border-strong); }
 .statusPickerTrigger:disabled { cursor: not-allowed; opacity: .6; }

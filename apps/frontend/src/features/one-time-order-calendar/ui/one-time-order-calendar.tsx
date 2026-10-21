@@ -28,6 +28,10 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Button, ButtonLink } from '@/shared/ui/foundation';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const AVAILABILITY_OPTIONS: Array<{
   value: OneTimeOrderAvailabilityType;
@@ -421,8 +425,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
           ) : null}
         </div>
         <div className="action-row one-time-calendar__actions">
-          <button
-            type="button"
+          <Button
             disabled={isExporting}
             onClick={() => {
               setIsExporting(true);
@@ -446,21 +449,21 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             }}
           >
             {isExporting ? 'Готовим Excel...' : 'Скачать Excel'}
-          </button>
+          </Button>
           {canManageOwn ? (
-            <button type="button" onClick={() => openAvailabilityForm('own')}>
+            <Button onClick={() => openAvailabilityForm('own')}>
               Запросить отсутствие
-            </button>
+            </Button>
           ) : null}
           {canManageAny ? (
-            <button type="button" onClick={() => openAvailabilityForm('direct')}>
+            <Button onClick={() => openAvailabilityForm('direct')}>
               Добавить запись
-            </button>
+            </Button>
           ) : null}
           {canCreateOrder ? (
-            <Link className="button-link" href="/one-time-orders/new">
+            <ButtonLink variant="primary" icon={<PlusIcon />} href="/one-time-orders/new">
               Создать заказ
-            </Link>
+            </ButtonLink>
           ) : null}
         </div>
       </div>
@@ -725,7 +728,7 @@ function DayDetailsModal({
             <div className="section-title">{formatDate(day.date)}</div>
             <div className="section-subtitle">{getUserDisplayName(manager.user)}</div>
           </div>
-          <button type="button" onClick={onClose}>Закрыть</button>
+          <Button onClick={onClose}>Закрыть</Button>
         </div>
 
         {warning ? <div className="calendar-modal__warning">{warning}</div> : null}
@@ -740,12 +743,12 @@ function DayDetailsModal({
             {day.availability.comment ? <p>{day.availability.comment}</p> : null}
             {canManageAny ? (
               <div className="action-row">
-                <button type="button" onClick={() => onEdit(day.availability!)}>
+                <Button onClick={() => onEdit(day.availability!)}>
                   Изменить
-                </button>
-                <button type="button" onClick={() => onCancel(day.availability!)}>
+                </Button>
+                <Button onClick={() => onCancel(day.availability!)}>
                   Отменить запись
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>
@@ -773,30 +776,27 @@ function DayDetailsModal({
                   />
                 </label>
                 <div className="action-row">
-                  <button
-                    type="button"
+                  <Button
                     disabled={isSubmitting}
                     onClick={() => onApprove(pending)}
                   >
                     Согласовать
-                  </button>
-                  <button
-                    type="button"
+                  </Button>
+                  <Button
                     disabled={isSubmitting}
                     onClick={() => onReject(pending)}
                   >
                     Отклонить
-                  </button>
+                  </Button>
                 </div>
               </>
             ) : manager.user.id === currentUserId ? (
-              <button
-                type="button"
+              <Button
                 disabled={isSubmitting}
                 onClick={() => onCancel(pending)}
               >
                 Отменить запрос
-              </button>
+              </Button>
             ) : null}
           </div>
         ))}
@@ -838,17 +838,17 @@ function DayDetailsModal({
 
         <div className="action-row">
           {canCreateOrder ? (
-            <Link
-              className="button-link"
+            <ButtonLink
+              icon={<PlusIcon />}
               href={`/one-time-orders/new?date=${day.date}&managerUserId=${manager.user.id}`}
             >
               Создать заказ на дату
-            </Link>
+            </ButtonLink>
           ) : null}
           {canManageOwn && manager.user.id === currentUserId ? (
-            <button type="button" onClick={() => onCreateOwn(day.date)}>
+            <Button onClick={() => onCreateOwn(day.date)}>
               Запросить отсутствие
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -888,13 +888,13 @@ function AvailabilityModal({
       >
         <div className="section-header">
           <div className="section-title">{title}</div>
-          <button type="button" onClick={onClose}>Закрыть</button>
+          <Button onClick={onClose}>Закрыть</Button>
         </div>
         {error ? <div className="one-time-calendar__error">{error}</div> : null}
         {form.mode === 'direct' ? (
           <label>
             <span>Менеджер</span>
-            <select
+            <Select
               required
               value={form.userId}
               onChange={(event) => onChange({ ...form, userId: event.target.value })}
@@ -905,12 +905,12 @@ function AvailabilityModal({
                   {getUserDisplayName(manager)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         ) : null}
         <label>
           <span>Тип</span>
-          <select
+          <Select
             value={form.entryType}
             onChange={(event) =>
               onChange({
@@ -922,27 +922,16 @@ function AvailabilityModal({
             {AVAILABILITY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <div className="calendar-modal__date-grid">
           <label>
             <span>Дата начала</span>
-            <input
-              type="date"
-              required
-              value={form.startDate}
-              onChange={(event) => onChange({ ...form, startDate: event.target.value })}
-            />
+            <DatePicker required value={form.startDate} onChange={(nextValue) => onChange({ ...form, startDate: nextValue })} />
           </label>
           <label>
             <span>Дата окончания</span>
-            <input
-              type="date"
-              required
-              min={form.startDate}
-              value={form.endDate}
-              onChange={(event) => onChange({ ...form, endDate: event.target.value })}
-            />
+            <DatePicker required min={form.startDate} value={form.endDate} onChange={(nextValue) => onChange({ ...form, endDate: nextValue })} />
           </label>
         </div>
         <label>
@@ -954,10 +943,10 @@ function AvailabilityModal({
           />
         </label>
         <div className="action-row">
-          <button type="submit" disabled={isSubmitting}>
+          <Button variant="primary" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Сохранение...' : 'Сохранить'}
-          </button>
-          <button type="button" onClick={onClose}>Отмена</button>
+          </Button>
+          <Button onClick={onClose}>Отмена</Button>
         </div>
       </form>
     </div>

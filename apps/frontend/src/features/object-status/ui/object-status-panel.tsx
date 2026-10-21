@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React, { useState } from 'react';
 
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
+import { Button } from '@/shared/ui/foundation';
 
 interface ObjectStatusPanelProps {
   currentStatus: string;
@@ -63,14 +64,13 @@ export function ObjectStatusPanel({
       ) : (
         <div className={styles.statusActions}>
           {STATUS_OPTIONS.map((option) => (
-            <button
+            <Button
               key={option.value}
-              type="button"
               onClick={() => void handleChange(option.value)}
               disabled={isSubmitting || option.value === currentStatus}
             >
               {option.label}
-            </button>
+            </Button>
           ))}
         </div>
       )}

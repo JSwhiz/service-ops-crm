@@ -39,6 +39,8 @@ import { formatTaskHistoryEvent } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Button } from '@/shared/ui/foundation';
 
 export default function TaskDetailPage({
   params,
@@ -213,31 +215,28 @@ export default function TaskDetailPage({
         <PageTitle title="Карточка задачи" />
         <div className="action-row">
           {item.capabilities.canEdit ? (
-            <button
-              type="button"
+            <Button
               disabled={isActionBusy}
               onClick={() => void openEditor()}
             >
               Редактировать
-            </button>
+            </Button>
           ) : null}
           {item.capabilities.canConfirm ? (
-            <button
-              type="button"
+            <Button
               disabled={isActionBusy}
               onClick={() => void runAction(() => confirmTask(taskId))}
             >
               Подтвердить и завершить
-            </button>
+            </Button>
           ) : null}
           {item.capabilities.canCompleteNow ? (
-            <button
-              type="button"
+            <Button
               disabled={isActionBusy}
               onClick={() => void runAction(() => completeTaskNow(taskId))}
             >
               Завершить сейчас
-            </button>
+            </Button>
           ) : null}
           {item.capabilities.canReturnToWork ? (
             <ReasonAction
@@ -310,8 +309,7 @@ export default function TaskDetailPage({
                   {item.capabilities.canManageAssignees &&
                   assignee.isActive &&
                   activeAssignees.length > 1 ? (
-                    <button
-                      type="button"
+                    <Button
                       disabled={isActionBusy}
                       onClick={() => {
                         if (
@@ -326,7 +324,7 @@ export default function TaskDetailPage({
                       }}
                     >
                       Удалить
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
                 {assignee.currentCompletion ? (
@@ -347,7 +345,7 @@ export default function TaskDetailPage({
 
           {item.capabilities.canManageAssignees ? (
             <div className="task-add-assignee">
-              <select
+              <Select
                 value={newAssigneeId}
                 onFocus={() => {
                   if (candidateUsers.length === 0)
@@ -371,9 +369,8 @@ export default function TaskDetailPage({
                       {getUserDisplayName(user)}
                     </option>
                   ))}
-              </select>
-              <button
-                type="button"
+              </Select>
+              <Button
                 disabled={!newAssigneeId || isActionBusy}
                 onClick={() => {
                   void runAction(() =>
@@ -382,7 +379,7 @@ export default function TaskDetailPage({
                 }}
               >
                 Добавить
-              </button>
+              </Button>
             </div>
           ) : null}
         </section>
@@ -481,9 +478,9 @@ export default function TaskDetailPage({
           >
             <div className="section-header">
               <div className="section-title">Редактировать задачу</div>
-              <button type="button" onClick={() => setIsEditing(false)}>
+              <Button onClick={() => setIsEditing(false)}>
                 Закрыть
-              </button>
+              </Button>
             </div>
             <TaskForm
               key={`${item.id}:${item.updatedAt}`}

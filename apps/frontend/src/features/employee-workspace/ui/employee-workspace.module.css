@@ -1,0 +1,990 @@
+/* Employees module composition. Values come only from --ui-* tokens. */
+
+.page {
+  display: grid;
+  gap: var(--ui-space-6);
+  width: 100%;
+  max-width: var(--ui-content-max);
+  min-width: 0;
+  margin: 0 auto;
+  color: var(--ui-text);
+  font-family: var(--ui-font-sans);
+}
+
+.page > * {
+  min-width: 0;
+}
+
+.formPage {
+  max-width: 1040px;
+}
+
+.formSurface {
+  padding: var(--ui-space-6);
+}
+
+.formAlert {
+  margin-bottom: var(--ui-space-4);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+  margin: var(--ui-space-2) calc(var(--ui-space-6) * -1) calc(var(--ui-space-6) * -1);
+  padding: var(--ui-space-4) var(--ui-space-6);
+  border-top: 1px solid var(--ui-border);
+  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
+  background: var(--ui-surface-subtle);
+}
+
+/* ---------- Identity ---------- */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.headerBlock {
+  display: grid;
+  gap: var(--ui-space-5);
+}
+
+.headerBlock :global(.ui-entity-header) {
+  align-items: center;
+}
+
+.metaLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1) var(--ui-space-3);
+  color: var(--ui-text-secondary);
+}
+
+.metaLine > * + *::before {
+  content: '·';
+  margin-right: var(--ui-space-3);
+  color: var(--ui-text-tertiary);
+}
+
+.muted {
+  color: var(--ui-text-secondary);
+  font-weight: 400;
+}
+
+/* ---------- Sections ---------- */
+
+.panel {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.panelGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--ui-space-4);
+  align-items: stretch;
+}
+
+.panelGrid > * {
+  height: 100%;
+  align-content: start;
+}
+
+.section {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  padding: var(--ui-space-4) var(--ui-space-5) var(--ui-space-5);
+}
+
+.section > * {
+  min-width: 0;
+}
+
+.sectionFlush {
+  padding: 0;
+  gap: 0;
+}
+
+.sectionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  min-width: 0;
+}
+
+.sectionFlush > .sectionHeader {
+  padding: var(--ui-space-4) var(--ui-space-5);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--ui-text-lg);
+  font-weight: 600;
+  line-height: var(--ui-leading-tight);
+}
+
+.details {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin: 0;
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: var(--ui-space-4);
+}
+
+.detailRow dt {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+}
+
+.detailRow dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  color: var(--ui-text-tertiary);
+}
+
+.note {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.recordMeta {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+}
+
+/* ---------- Lists inside sections ---------- */
+
+.list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3) var(--ui-space-4);
+  min-height: 56px;
+  padding: var(--ui-space-3) var(--ui-space-5);
+  border-top: 1px solid var(--ui-border);
+}
+
+.list > .listRow:first-child {
+  border-top: 0;
+}
+
+.listMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.listTitle {
+  overflow-wrap: anywhere;
+  color: var(--ui-text);
+  font-weight: 600;
+}
+
+a.listTitle {
+  text-decoration: none;
+}
+
+a.listTitle:hover {
+  color: var(--ui-accent);
+}
+
+.listMeta {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+}
+
+.listAside {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.sectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.warningText {
+  color: var(--ui-warning);
+  font-size: var(--ui-text-sm);
+}
+
+.listEmpty {
+  padding: var(--ui-space-5);
+  color: var(--ui-text-secondary);
+}
+
+.badge {
+  border-radius: var(--ui-radius-xs);
+}
+
+.monthNav {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.monthTitle {
+  min-width: 150px;
+  margin: 0;
+  font-size: var(--ui-text-lg);
+  font-weight: 600;
+  text-align: center;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  margin: 0;
+  padding: 0;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  list-style: none;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.swatchWorked { background: var(--ui-success); }
+.swatchUnavailable { background: var(--ui-warning); }
+.swatchSubstitution { background: var(--ui-info); }
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-border);
+  gap: 1px;
+}
+
+.calendarRow {
+  display: contents;
+}
+
+.weekday {
+  padding: var(--ui-space-2);
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  text-align: left;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  min-height: 74px;
+  padding: var(--ui-space-2);
+  background: var(--ui-surface);
+}
+
+.dayOutside {
+  background: var(--ui-surface-subtle);
+}
+
+.dayUnavailable {
+  background: var(--ui-warning-subtle);
+}
+
+.dayNumber {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: var(--ui-radius-pill);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.dayToday {
+  background: var(--ui-accent);
+  color: var(--ui-accent-contrast);
+  font-weight: 700;
+}
+
+.event {
+  display: block;
+  overflow: hidden;
+  padding: 2px 6px;
+  border-left: 3px solid transparent;
+  border-radius: var(--ui-radius-xs);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  line-height: var(--ui-leading-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventWorked {
+  border-color: var(--ui-success);
+  background: var(--ui-success-subtle);
+  color: var(--ui-success);
+}
+
+.eventUnavailable {
+  border-color: var(--ui-warning);
+  background: var(--ui-surface);
+  color: var(--ui-warning);
+}
+
+.eventSubstitution {
+  border-color: var(--ui-info);
+  background: var(--ui-info-subtle);
+  color: var(--ui-info);
+}
+
+.dots {
+  display: none;
+}
+
+.moreEvents {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.schedule {
+  gap: var(--ui-space-3);
+}
+
+.scheduleHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+
+.scheduleHeader .sectionActions {
+  margin-left: auto;
+}
+
+.scheduleBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: var(--ui-space-4);
+  align-items: stretch;
+}
+
+.calendarColumn {
+  min-width: 0;
+}
+
+.sidePanel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 320px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+}
+
+.segmentedTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: var(--ui-space-2);
+  padding: 2px;
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-muted);
+}
+
+.segmentedTabs > button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+}
+
+.segmentedTabs > button:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--ui-surface-hover);
+}
+
+.segmentedTabs > button[aria-selected='true'] {
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: inset 0 0 0 1px var(--ui-border);
+}
+
+.count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--ui-radius-pill);
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.sideNotice {
+  margin: 0 var(--ui-space-3) var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid var(--ui-warning-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-warning-subtle);
+  color: var(--ui-warning);
+  font-size: var(--ui-text-sm);
+}
+
+/* The list scrolls inside the panel; the panel height follows the calendar. */
+.sideList {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--ui-border);
+  overscroll-behavior: contain;
+}
+
+.sideRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-3);
+  border-top: 1px solid var(--ui-border);
+}
+
+.list > .sideRow:first-child {
+  border-top: 0;
+}
+
+.sideRowTitle {
+  overflow-wrap: anywhere;
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+}
+
+.sideRowAside {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-1);
+}
+
+.dayList {
+  display: none;
+}
+
+.dialogForm {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.dialogForm :global(.ui-field) {
+  gap: var(--ui-space-1);
+}
+
+.dialogForm input:not([type='checkbox']):not([type='radio']),
+.dialogForm select,
+.dialogForm textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.dialogForm textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.twoColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+}
+
+.segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface-muted);
+}
+
+.segmented label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--ui-space-3);
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented label:has(input:checked) {
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: inset 0 0 0 1px var(--ui-border);
+}
+
+.segmented label:has(input:focus-visible) {
+  box-shadow: var(--ui-focus-ring);
+}
+
+.fieldGroupLabel {
+  margin-bottom: var(--ui-space-1);
+  color: var(--ui-text);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+}
+
+/* ---------- Registry ---------- */
+
+.registryNav {
+  display: flex;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--ui-border);
+  scrollbar-width: none;
+}
+
+.registryNav::-webkit-scrollbar {
+  display: none;
+}
+
+.registryNav > button,
+.registryNav > a {
+  flex: 0 0 auto;
+  min-height: 40px;
+  margin-bottom: -1px;
+  padding: 0 var(--ui-space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+  line-height: 40px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.registryNav > button:hover,
+.registryNav > a:hover {
+  background: transparent;
+  color: var(--ui-text);
+}
+
+.registryNav > [aria-current='page'] {
+  border-bottom-color: var(--ui-accent);
+  color: var(--ui-text);
+}
+
+.registryNav > button:focus-visible,
+.registryNav > a:focus-visible {
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+.registryTable {
+  min-width: 860px;
+  table-layout: fixed;
+}
+
+.registryTable td {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: var(--ui-text-sm);
+}
+
+.registryTable th {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ui-text-secondary);
+}
+
+.registryTable tbody tr {
+  cursor: pointer;
+}
+
+.colPerson { width: 32%; }
+.colPhone { width: 15%; }
+.colObjects { width: 25%; }
+.colSchedule { width: 14%; }
+.colStatus { width: 12%; }
+.colOpen { width: 44px; }
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+
+.personText {
+  display: grid;
+  min-width: 0;
+}
+
+.personName {
+  overflow: hidden;
+  color: var(--ui-text);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personName:hover {
+  color: var(--ui-accent);
+}
+
+.personMeta {
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone {
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.objects {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+
+.objectChip {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-xs);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.objectMore {
+  flex: 0 0 auto;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  font-weight: 600;
+}
+
+.cellStack {
+  display: grid;
+  gap: 2px;
+}
+
+.mobileList {
+  display: none;
+}
+
+.pagination {
+  min-width: 0;
+}
+
+@media (max-width: 1280px) {
+  .scheduleBody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidePanel {
+    min-height: 0;
+  }
+
+  .sideList {
+    flex: none;
+    max-height: 360px;
+  }
+}
+
+@media (max-width: 1100px) {
+
+  .panelGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    gap: var(--ui-space-4);
+  }
+
+  .formSurface {
+    padding: var(--ui-space-4);
+  }
+
+  .formActions {
+    margin: var(--ui-space-2) calc(var(--ui-space-4) * -1) calc(var(--ui-space-4) * -1);
+    padding: var(--ui-space-3) var(--ui-space-4);
+  }
+
+  .formActions > :global(.ui-button) {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+
+  .headerBlock :global(.ui-entity-header) {
+    align-items: stretch;
+  }
+
+  .headerBlock :global(.ui-entity-header__title) {
+    font-size: var(--ui-text-xl);
+  }
+
+  .headerBlock :global(.ui-entity-header__actions .ui-button) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .section {
+    padding: var(--ui-space-4);
+  }
+
+  .sectionFlush {
+    padding: 0;
+  }
+
+  .sectionFlush > .sectionHeader,
+  .listRow {
+    padding-inline: var(--ui-space-4);
+  }
+
+  .detailRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .listRow {
+    flex-wrap: wrap;
+  }
+
+  .sectionActions {
+    width: 100%;
+  }
+
+  .sectionActions > :global(.ui-button) {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+
+  .twoColumns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Calendar collapses to markers; the day list below carries the details. */
+  .day {
+    align-items: center;
+    min-height: 48px;
+    padding: var(--ui-space-1);
+  }
+
+  .day .event {
+    display: none;
+  }
+
+  .dots {
+    display: flex;
+    gap: 3px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--ui-radius-pill);
+  }
+
+  .dayList {
+    display: grid;
+  }
+
+  .monthNav {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .monthTitle {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .monthNav :global(.ui-button) {
+    min-height: 44px;
+  }
+
+  /* Registry: compact list instead of the wide table. */
+  .tableFrame {
+    display: none;
+  }
+
+  .mobileList {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface);
+  }
+
+  .mobileList > li + li {
+    border-top: 1px solid var(--ui-border);
+  }
+
+  .mobileRow {
+    display: grid;
+    gap: var(--ui-space-2);
+    min-height: 44px;
+    padding: var(--ui-space-3) var(--ui-space-4);
+    color: inherit;
+    font-weight: 400;
+    text-decoration: none;
+  }
+
+  .mobileRow .personName,
+  .mobileRow .personMeta {
+    white-space: normal;
+  }
+
+  .mobileRowHead {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--ui-space-3);
+  }
+
+  .mobileMeta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-1) var(--ui-space-3);
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-text-sm);
+  }
+
+  .pagination > nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ui-space-2);
+  }
+
+  .pagination > nav > div {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .pagination > nav > div:last-child {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(44px, max-content) minmax(0, 1fr) minmax(44px, max-content);
+    gap: var(--ui-space-2);
+    align-items: center;
+  }
+
+  .pagination > nav > div:last-child > div {
+    grid-column: 1 / -1;
+    min-width: 0;
+    margin-right: 0;
+  }
+
+  .pagination > nav > div:last-child > span {
+    min-width: 0;
+    text-align: center;
+  }
+
+  .pagination > nav > div:last-child > button,
+  .pagination :global(.searchable-select__trigger) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+.phoneList {
+  display: grid;
+  gap: 2px;
+}

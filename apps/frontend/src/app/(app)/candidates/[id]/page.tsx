@@ -1,49 +1,80 @@
 'use client';
 
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
 import {
   addCandidateResponse,
-  assignCandidateManager,
+  assignCandidateManagers,
+  convertCandidateToEmployee,
   changeCandidateStatus,
   getCandidate,
-  listCandidateManagers,
   setCandidateArchive,
   updateCandidate,
 } from '@/entities/candidate/api/candidate-client';
 import {
   CANDIDATE_STATUS_OPTIONS,
   CANDIDATE_TYPE_OPTIONS,
+  CANDIDATE_EMPLOYEE_TYPE_OPTIONS,
+  candidateActiveAssignments,
+  candidateAssignmentSla,
+  candidatePhones,
   candidateSlaLabel,
   candidateStatusLabel,
   candidateTypeLabel,
 } from '@/entities/candidate/lib/candidate-presentation';
 import type {
   CandidateCard,
+  CandidateEmployeeType,
+  CandidateSlaState,
   CandidateStatus,
   CandidateType,
 } from '@/entities/candidate/model/candidate.types';
 import { listObjectsPage } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { formatPhone, getPhoneHref } from '@/shared/lib/phone';
+import { Alert, BackLink, Badge, Button, ButtonLink, EmptyState, EntityHeader, FactStrip, Field, IconButton, Skeleton, Surface, type BadgeProps } from '@/shared/ui/foundation';
+import { OverflowMenu, type OverflowMenuItem } from '@/shared/ui/overflow-menu/overflow-menu';
+import { SelectField } from '@/shared/ui/searchable-select/select-field';
+import { ConfirmDialog, Dialog } from '@/shared/ui/overlays';
+import {
+  CandidateManagerFields,
+  candidateManagerDrafts,
+  candidateManagerPayload,
+  candidateManagersValid,
+  type CandidateManagerDraft,
+} from '@/features/candidate-registry/ui/candidate-fields';
+import {
+  PhoneListField,
+  phoneDrafts,
+  phoneDraftValues,
+  phoneDraftsValid,
+} from '@/shared/ui/phone-list-field/phone-list-field';
+import styles from '@/features/candidate-registry/ui/candidate-fields.module.css';
+import card from '@/features/candidate-registry/ui/candidate-card.module.css';
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
+import { PencilIcon } from '@/shared/ui/icons/icons';
+import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 
 function toObjectOption(object: ServiceObject): SearchableSelectOption {
   return {
     value: object.id,
     label: object.name,
-    description: [object.internalName, object.address].filter(Boolean).join(' · '),
+    description: [object.internalName, object.address]
+      .filter(Boolean)
+      .join(' · '),
     searchText: [object.name, object.internalName, object.address]
       .filter(Boolean)
       .join(' '),
   };
 }
 
-function candidateObjectOption(candidate: CandidateCard): SearchableSelectOption | null {
+function candidateObjectOption(
+  candidate: CandidateCard,
+): SearchableSelectOption | null {
   return candidate.object
     ? {
         value: candidate.object.id,
@@ -55,18 +86,82 @@ function candidateObjectOption(candidate: CandidateCard): SearchableSelectOption
     : null;
 }
 
+const CLOSED_STATUSES: CandidateStatus[] = ['accepted', 'rejected'];
+
+const STATUS_TONE: Record<CandidateStatus, NonNullable<BadgeProps['tone']>> = {
+  new: 'info',
+  in_progress: 'accent',
+  accepted: 'success',
+  rejected: 'neutral',
+};
+
+const SLA_TONE: Record<CandidateSlaState, NonNullable<BadgeProps['tone']>> = {
+  unassigned: 'neutral',
+  awaiting_response: 'warning',
+  overdue: 'danger',
+  responded: 'success',
+};
+
+const dateTimeFormat = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+function formatDateTime(value: string): string {
+  return dateTimeFormat.format(new Date(value)).replace(' г.', '');
+}
+
+function latestManagerDrafts(candidate: CandidateCard): CandidateManagerDraft[] {
+  const ended = candidate.assignments
+    .filter((assignment) => assignment.endedAt)
+    .sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? ''));
+  const lastEndedAt = ended[0]?.endedAt;
+  if (!lastEndedAt) return [];
+  const lastBatch = ended.filter(
+    (assignment) =>
+      Math.abs(
+        new Date(assignment.endedAt ?? 0).getTime() -
+          new Date(lastEndedAt).getTime(),
+      ) < 60_000,
+  );
+  const seen = new Set<string>();
+  return candidateManagerDrafts(
+    lastBatch.filter((assignment) => {
+      if (seen.has(assignment.manager.id)) return false;
+      seen.add(assignment.manager.id);
+      return true;
+    }),
+  );
+}
+
 export default function CandidatePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const [candidate, setCandidate] = useState<CandidateCard | null>(null);
-  const [manager, setManager] = useState<SearchableSelectOption | null>(null);
+  const router = useRouter();
+  const [managers, setManagers] = useState<CandidateManagerDraft[]>([]);
+  const [editingManagers, setEditingManagers] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [employeeType, setEmployeeType] =
+    useState<CandidateEmployeeType>('regular');
+  const [conversionError, setConversionError] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<CandidateStatus | null>(
+    null,
+  );
+  const [reopenManagers, setReopenManagers] = useState<
+    CandidateManagerDraft[]
+  >([]);
+  const [, setClock] = useState(0);
   const [responseText, setResponseText] = useState('');
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     fullName: '',
-    phone: '',
+    phones: phoneDrafts(['']),
     comment: '',
     candidateType: 'regular' as CandidateType,
     objectId: '',
@@ -78,12 +173,20 @@ export default function CandidatePage({
   const syncForm = (item: CandidateCard): void => {
     setForm({
       fullName: item.fullName,
-      phone: item.phone ?? '',
+      phones: phoneDrafts(candidatePhones(item)),
       comment: item.comment ?? '',
       candidateType: item.candidateType,
       objectId: item.object?.id ?? '',
     });
   };
+
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setClock((value) => value + 1),
+      60_000,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -113,17 +216,20 @@ export default function CandidatePage({
 
   const mutate = async (
     operation: () => Promise<CandidateCard>,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
+    if (saving) return false;
     setSaving(true);
     setError(null);
     try {
       apply(await operation());
+      return true;
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
           : 'Не удалось сохранить изменение. Обновите карточку и повторите.',
       );
+      return false;
     } finally {
       setSaving(false);
     }
@@ -131,136 +237,318 @@ export default function CandidatePage({
 
   if (loading) {
     return (
-      <>
-        <PageTitle title="Кандидат" />
-        <div className="page-card">Загрузка...</div>
-      </>
+      <div className={card.page} aria-busy="true">
+        <Skeleton width={120} height={14} />
+        <Skeleton width={360} height={32} />
+        <Skeleton height={76} />
+        <Skeleton height={320} />
+      </div>
     );
   }
 
   if (!candidate) {
     return (
-      <>
-        <PageTitle title="Кандидат" />
-        <div className="page-card inline-notice inline-notice--warning">
-          {error ?? 'Кандидат не найден.'}
-        </div>
-      </>
+      <div className={card.page}>
+        <BackLink href="/candidates">Кандидаты</BackLink>
+        <EmptyState
+          title="Кандидат не найден"
+          description={error ?? 'Карточка удалена или недоступна.'}
+        />
+      </div>
     );
   }
 
-  const current = candidate.currentAssignment;
+  const activeAssignments = candidateActiveAssignments(candidate);
+  const canEditManagers =
+    candidate.capabilities.canManage &&
+    !candidate.deletedAt &&
+    !['accepted', 'rejected'].includes(candidate.status);
+  const isClosed = CLOSED_STATUSES.includes(candidate.status);
+  const reopening = Boolean(
+    statusTarget && isClosed && !CLOSED_STATUSES.includes(statusTarget),
+  );
+  const reopenNeedsManagers = reopening && candidate.candidateType === 'regular';
+  const phones = candidatePhones(candidate);
+  const requestStatusChange = (next: CandidateStatus): void => {
+    if (next === candidate.status) return;
+    const closing = CLOSED_STATUSES.includes(next);
+    const opening = isClosed && !closing;
+    if (closing || (opening && candidate.candidateType === 'regular')) {
+      setError(null);
+      setReopenManagers(opening ? latestManagerDrafts(candidate) : []);
+      setStatusTarget(next);
+      return;
+    }
+    void mutate(() => changeCandidateStatus(candidate.id, next, candidate.version));
+  };
+  const confirmStatusChange = (): void => {
+    if (!statusTarget) return;
+    const target = statusTarget;
+    void mutate(() =>
+      changeCandidateStatus(
+        candidate.id,
+        target,
+        candidate.version,
+        reopenNeedsManagers
+          ? candidateManagerPayload(reopenManagers, candidate.object?.id ?? null)
+          : undefined,
+      ),
+    ).then((success) => {
+      if (success) setStatusTarget(null);
+    });
+  };
   const regularObjectMissing =
     form.candidateType === 'regular' && !form.objectId;
+  const regularManagerMissing =
+    form.candidateType === 'regular' &&
+    !isClosed &&
+    activeAssignments.length === 0;
+
+  const statusBadge = (
+    <Badge tone={STATUS_TONE[candidate.status]}>
+      {candidateStatusLabel(candidate.status)}
+    </Badge>
+  );
+  const overflowItems: OverflowMenuItem[] = [
+    ...(candidate.capabilities.canRestore
+      ? [{
+          key: 'restore',
+          label: 'Восстановить из архива',
+          onSelect: () =>
+            void mutate(() => setCandidateArchive(candidate.id, candidate.version, true)),
+        }]
+      : []),
+    ...(candidate.capabilities.canArchive
+      ? [{
+          key: 'archive',
+          label: 'Архивировать',
+          tone: 'danger' as const,
+          onSelect: () => setArchiveOpen(true),
+        }]
+      : []),
+  ];
 
   return (
-    <div className="workspace-page candidate-detail-page">
-      <PageTitle title={candidate.fullName} />
-      <div className="page-stack candidate-card-page">
-        <div className="action-row">
-          <Link href="/candidates">К реестру</Link>
-          {candidate.deletedAt ? (
-            <span className="status-pill">В архиве</span>
-          ) : null}
-        </div>
+    <div className={card.page}>
+      <BackLink href="/candidates">Кандидаты</BackLink>
 
-        {error ? (
-          <div className="page-card inline-notice inline-notice--warning">
-            {error}
-          </div>
-        ) : null}
+      <EntityHeader
+        className={card.header}
+        title={
+          <span className={card.identity}>
+            <UserAvatar fullName={candidate.fullName} size="large" variant="soft" decorative />
+            <span>{candidate.fullName}</span>
+          </span>
+        }
+        status={
+          <span className={card.badges}>
+            {statusBadge}
+            {candidate.deletedAt ? <Badge>В архиве</Badge> : null}
+          </span>
+        }
+        metadata={
+          <span className={card.metaLine}>
+            <span>{candidateTypeLabel(candidate.candidateType)}</span>
+            <span>{candidate.object?.name ?? 'Объект не указан'}</span>
+          </span>
+        }
+        actions={
+          <>
+            {candidate.employeeId ? (
+              candidate.capabilities.canViewEmployee ? (
+                <ButtonLink href={`/employees/${candidate.employeeId}`}>
+                  Открыть сотрудника
+                </ButtonLink>
+              ) : (
+                <Badge tone="success">Сотрудник оформлен</Badge>
+              )
+            ) : candidate.capabilities.canConvert ? (
+              <Button
+                variant="primary"
+                disabled={saving}
+                onClick={() => {
+                  setConversionError(null);
+                  setConverting(true);
+                }}
+              >
+                Оформить сотрудником
+              </Button>
+            ) : null}
+            {candidate.capabilities.canManage && !editing ? (
+              <IconButton
+                aria-label="Редактировать данные кандидата"
+                title="Редактировать данные кандидата"
+                bordered
+                disabled={saving}
+                onClick={() => {
+                  syncForm(candidate);
+                  setEditing(true);
+                }}
+              >
+                <PencilIcon size={18} />
+              </IconButton>
+            ) : null}
+            <OverflowMenu items={overflowItems} />
+          </>
+        }
+      />
 
-        <section className="page-card candidate-summary">
-          <div>
-            <span className="detail-label">Телефон</span>
-            <strong>{candidate.phone ?? 'Не указан'}</strong>
-          </div>
-          <div>
-            <span className="detail-label">Тип</span>
-            <strong>{candidateTypeLabel(candidate.candidateType)}</strong>
-          </div>
-          <div>
-            <span className="detail-label">Объект</span>
-            <strong>{candidate.object?.name ?? 'Не указан'}</strong>
-          </div>
-          <div>
-            <span className="detail-label">Статус</span>
-            <strong>{candidateStatusLabel(candidate.status)}</strong>
-          </div>
-          <div>
-            <span className="detail-label">SLA</span>
-            <span className={`candidate-sla candidate-sla--${candidate.slaState}`}>
-              {candidateSlaLabel(candidate.slaState, current?.responseDueAt)}
-            </span>
-          </div>
-        </section>
+      {candidate.deletedAt ? (
+        <Alert tone="warning">
+          Кандидат в архиве: карточка доступна для просмотра, изменения недоступны.
+        </Alert>
+      ) : null}
+      {error && !statusTarget && !archiveOpen ? (
+        <Alert tone="danger" role="alert">{error}</Alert>
+      ) : null}
 
-        <section className="candidate-detail-grid">
-          <div className="page-card">
-            <div className="section-header">
-              <div className="section-title">Данные кандидата</div>
-              {candidate.capabilities.canManage ? (
-                <button
-                  type="button"
-                  className="button-secondary"
-                  onClick={() => setEditing((value) => !value)}
-                >
-                  {editing ? 'Отмена' : 'Редактировать'}
-                </button>
-              ) : null}
+      <FactStrip
+        items={[
+          {
+            key: 'phones',
+            label: phones.length > 1 ? 'Телефоны' : 'Телефон',
+            value: (
+              <>
+                {phones.length ? (
+              <span className={card.phoneList}>
+                {phones.map((phone) => {
+                  const href = getPhoneHref(phone);
+                  return href ? (
+                    <a key={phone} href={href}>{formatPhone(phone)}</a>
+                  ) : (
+                    <span key={phone}>{phone}</span>
+                  );
+                })}
+              </span>
+            ) : (
+              <span className={card.muted}>Не указан</span>
+            )}
+              </>
+            ),
+          },
+          {
+            key: 'status',
+            label: 'Статус',
+            value: (
+              <>
+                {candidate.capabilities.canManage && !candidate.deletedAt ? (
+              <SearchableSelect
+                label="Статус кандидата"
+                hideLabel
+                value={candidate.status}
+                options={CANDIDATE_STATUS_OPTIONS}
+                clearable={false}
+                searchable={false}
+                disabled={saving}
+                onChange={(value) => requestStatusChange(value as CandidateStatus)}
+              />
+            ) : (
+              statusBadge
+            )}
+              </>
+            ),
+          },
+          {
+            key: 'sla',
+            label: 'Срок обратной связи',
+            value: (
+              <>
+                <Badge tone={SLA_TONE[candidate.slaState]}>
+              {candidateSlaLabel(candidate.slaState)}
+            </Badge>
+              </>
+            ),
+          },
+          {
+            key: 'object',
+            label: 'Объект',
+            value: (
+              <>
+                {candidate.object ? (
+              <>
+                {candidate.object.name}
+                {candidate.object.address ? (
+                  <span className={card.subtle}>{candidate.object.address}</span>
+                ) : null}
+              </>
+            ) : (
+              <span className={card.muted}>Не указан</span>
+            )}
+              </>
+            ),
+          },
+        ]}
+      />
+
+      <div className={card.columns}>
+        <div className={card.column}>
+          <Surface className={card.section}>
+            <div className={card.sectionHeader}>
+              <h2 className={card.sectionTitle}>
+                {editing ? 'Редактирование кандидата' : 'Комментарий'}
+              </h2>
             </div>
-
             {editing ? (
               <form
-                className="candidate-form"
+                className={styles.form}
+                noValidate
                 onSubmit={(event) => {
                   event.preventDefault();
-                  if (regularObjectMissing) {
-                    setError('Для обычного кандидата требуется объект.');
+                  if (
+                    form.fullName.trim().length < 2 ||
+                    regularObjectMissing ||
+                    regularManagerMissing ||
+                    !phoneDraftsValid(form.phones, true)
+                  )
                     return;
-                  }
                   void mutate(() =>
                     updateCandidate(candidate.id, {
                       expectedVersion: candidate.version,
-                      fullName: form.fullName,
-                      phone: form.phone || null,
-                      comment: form.comment || null,
+                      fullName: form.fullName.trim(),
+                      phone: phoneDraftValues(form.phones)[0] ?? null,
+                      phones: phoneDraftValues(form.phones),
+                      comment: form.comment.trim() || null,
                       candidateType: form.candidateType,
                       objectId: form.objectId || null,
                     }),
-                  ).then(() => setEditing(false));
+                  ).then((success) => {
+                    if (success) setEditing(false);
+                  });
                 }}
               >
-                <label>
-                  <span>ФИО</span>
+                <Field
+                  className={`${styles.field} ${styles.full}`}
+                  label="ФИО"
+                  required
+                  error={form.fullName.trim().length < 2 ? 'Укажите ФИО.' : undefined}
+                >
                   <input
-                    required
+                    maxLength={200}
                     value={form.fullName}
+                    disabled={saving}
                     onChange={(event) =>
-                      setForm((value) => ({
-                        ...value,
-                        fullName: event.target.value,
-                      }))
+                      setForm((value) => ({ ...value, fullName: event.target.value }))
                     }
                   />
-                </label>
-                <label>
-                  <span>Телефон</span>
-                  <input
-                    value={form.phone}
-                    onChange={(event) =>
-                      setForm((value) => ({
-                        ...value,
-                        phone: event.target.value,
-                      }))
+                </Field>
+                <div className={styles.full}>
+                  <PhoneListField
+                    required
+                    phones={form.phones}
+                    disabled={saving}
+                    onChange={(nextPhones) =>
+                      setForm((value) => ({ ...value, phones: nextPhones }))
                     }
                   />
-                </label>
-                <SearchableSelect
+                </div>
+                <SelectField
                   label="Тип"
+                  required
                   value={form.candidateType}
                   options={CANDIDATE_TYPE_OPTIONS}
                   clearable={false}
+                  searchable={false}
+                  disabled={saving}
                   onChange={(value) =>
                     setForm((currentForm) => ({
                       ...currentForm,
@@ -268,11 +556,14 @@ export default function CandidatePage({
                     }))
                   }
                 />
-                <SearchableSelect
-                  label={form.candidateType === 'regular' ? 'Объект *' : 'Объект'}
+                <SelectField
+                  label="Объект"
+                  required={form.candidateType === 'regular'}
+                  error={regularObjectMissing ? 'Для обычного кандидата выберите объект.' : undefined}
                   value={form.objectId}
                   selectedOption={candidateObjectOption(candidate)}
                   options={[]}
+                  disabled={saving}
                   placeholder="Без привязки"
                   searchPlaceholder="Название, адрес или внутреннее имя"
                   emptyText="Доступные объекты не найдены"
@@ -287,250 +578,394 @@ export default function CandidatePage({
                     return result.items.map(toObjectOption);
                   }}
                   onChange={(value) =>
-                    setForm((currentForm) => ({
-                      ...currentForm,
-                      objectId: value,
-                    }))
+                    setForm((currentForm) => ({ ...currentForm, objectId: value }))
                   }
                 />
-                <label className="candidate-form__wide">
-                  <span>Комментарий</span>
+                <Field className={`${styles.field} ${styles.full}`} label="Комментарий">
                   <textarea
-                    rows={4}
+                    rows={3}
+                    maxLength={2000}
                     value={form.comment}
+                    disabled={saving}
                     onChange={(event) =>
-                      setForm((value) => ({
-                        ...value,
-                        comment: event.target.value,
-                      }))
+                      setForm((value) => ({ ...value, comment: event.target.value }))
                     }
                   />
-                </label>
-                <button type="submit" disabled={saving || regularObjectMissing}>
-                  Сохранить
-                </button>
+                </Field>
+                {regularManagerMissing ? (
+                  <p className={`${styles.warning} ${styles.full}`} role="alert">
+                    Обычному кандидату нужен ответственный менеджер — назначьте
+                    его в блоке «Ответственные менеджеры».
+                  </p>
+                ) : null}
+                <div className={`${styles.actions} ${styles.full}`}>
+                  <Button
+                    variant="ghost"
+                    disabled={saving}
+                    onClick={() => {
+                      syncForm(candidate);
+                      setEditing(false);
+                    }}
+                  >
+                    Отмена
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    pending={saving}
+                    pendingLabel="Сохранение…"
+                    disabled={regularObjectMissing || regularManagerMissing}
+                  >
+                    Сохранить
+                  </Button>
+                </div>
               </form>
+            ) : candidate.comment ? (
+              <p className={card.comment}>{candidate.comment}</p>
             ) : (
-              <div className="candidate-comment">
-                {candidate.comment || 'Комментарий не указан.'}
-              </div>
+              <p className={card.muted}>Комментарий не указан.</p>
             )}
-          </div>
+          </Surface>
 
-          <div className="page-card">
-            <div className="section-title">Ответственный менеджер</div>
-            {current ? (
-              <div className="candidate-current-manager">
-                <strong>{current.manager.fullName}</strong>
-                <span className="page-muted">
-                  Назначен {new Date(current.assignedAt).toLocaleString('ru-RU')}
-                </span>
-                <span className="page-muted">
-                  Обратная связь до{' '}
-                  {new Date(current.responseDueAt).toLocaleString('ru-RU')}
-                </span>
-              </div>
-            ) : (
-              <div className="page-muted">Менеджер не назначен.</div>
-            )}
-
-            {candidate.capabilities.canManage &&
-            !candidate.deletedAt &&
-            !['accepted', 'rejected'].includes(candidate.status) ? (
-              <div className="candidate-manager-control">
-                <SearchableSelect
-                  label="Назначить / переназначить"
-                  value={manager?.value ?? ''}
-                  selectedOption={manager}
-                  options={[]}
-                  placeholder="Выберите менеджера"
-                  searchPlaceholder="ФИО или логин"
-                  onChange={(value) => {
-                    if (!value) {
-                      setManager(null);
-                      return;
-                    }
-                    void listCandidateManagers({ selectedId: value }).then(
-                      ([item]) =>
-                        setManager(
-                          item
-                            ? {
-                                value: item.id,
-                                label: item.fullName || item.login,
-                                description: `@${item.login}`,
-                                searchText: item.login,
-                              }
-                            : null,
-                        ),
-                    );
-                  }}
-                  asyncSearch={async (value) =>
-                    (await listCandidateManagers({ q: value })).map((item) => ({
-                      value: item.id,
-                      label: item.fullName || item.login,
-                      description: `@${item.login}`,
-                      searchText: item.login,
-                    }))
-                  }
-                />
-                <button
-                  type="button"
-                  disabled={!manager || saving}
-                  onClick={() =>
-                    manager &&
-                    void mutate(() =>
-                      assignCandidateManager(
-                        candidate.id,
-                        manager.value,
-                        candidate.version,
-                      ),
-                    ).then(() => setManager(null))
-                  }
-                >
-                  Назначить
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        {candidate.capabilities.canManage ? (
-          <section className="page-card candidate-actions">
-            <SearchableSelect
-              label="Статус"
-              value={candidate.status}
-              options={CANDIDATE_STATUS_OPTIONS}
-              clearable={false}
-              onChange={(value) =>
-                void mutate(() =>
-                  changeCandidateStatus(
-                    candidate.id,
-                    value as CandidateStatus,
-                    candidate.version,
-                  ),
-                )
-              }
-            />
-            <div className="action-row">
-              {candidate.capabilities.canArchive ? (
-                <button
-                  type="button"
-                  className="button-danger"
-                  disabled={saving}
-                  onClick={() =>
-                    window.confirm('Архивировать кандидата?') &&
-                    void mutate(() =>
-                      setCandidateArchive(candidate.id, candidate.version),
-                    )
-                  }
-                >
-                  Архивировать
-                </button>
-              ) : null}
-              {candidate.capabilities.canRestore ? (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() =>
-                    void mutate(() =>
-                      setCandidateArchive(candidate.id, candidate.version, true),
-                    )
-                  }
-                >
-                  Восстановить
-                </button>
+          <Surface className={card.section}>
+            <div className={card.sectionHeader}>
+              <h2 className={card.sectionTitle}>Обратная связь</h2>
+              {candidate.responses.length ? (
+                <span className={card.count}>{candidate.responses.length}</span>
               ) : null}
             </div>
-          </section>
-        ) : null}
-
-        <section className="candidate-detail-grid">
-          <div className="page-card">
-            <div className="section-title">Обратная связь по кандидату</div>
             {candidate.responses.length ? (
-              <div className="candidate-history">
+              <ol className={card.timeline}>
                 {candidate.responses.map((response) => (
-                  <article key={response.id}>
-                    <div>
+                  <li key={response.id} className={card.timelineItem}>
+                    <div className={card.timelineHead}>
                       <strong>{response.author.fullName}</strong>
-                      <time>
-                        {new Date(response.createdAt).toLocaleString('ru-RU')}
-                      </time>
+                      <time dateTime={response.createdAt}>{formatDateTime(response.createdAt)}</time>
                     </div>
                     <p>{response.text}</p>
-                  </article>
+                  </li>
                 ))}
-              </div>
+              </ol>
             ) : (
-              <div className="page-muted">Обратной связи пока нет.</div>
+              <p className={card.muted}>Обратной связи пока нет.</p>
             )}
 
-            {candidate.capabilities.canRespond ? (
+            {candidate.capabilities.canRespond && !candidate.deletedAt ? (
               <form
-                className="candidate-response-form"
+                className={card.responseForm}
                 onSubmit={(event) => {
                   event.preventDefault();
                   const text = responseText.trim();
                   if (!text) return;
                   void mutate(() => addCandidateResponse(candidate.id, text)).then(
-                    () => setResponseText(''),
+                    (success) => {
+                      if (success) setResponseText('');
+                    },
                   );
                 }}
               >
-                <label>
-                  <span>Обратная связь менеджера</span>
+                <Field label="Новый ответ">
                   <textarea
-                    rows={3}
-                    required
+                    rows={2}
+                    maxLength={2000}
                     value={responseText}
                     onChange={(event) => setResponseText(event.target.value)}
-                    placeholder="Например: подходит, готов взять; не дозвонился; перезвонить позже"
+                    placeholder="Например: подходит, готов выйти; не дозвонился; перезвонить позже"
                   />
-                </label>
-                <button
-                  type="submit"
-                  disabled={saving || !responseText.trim()}
-                >
-                  Дать ответ о кандидате
-                </button>
+                </Field>
+                <div className={card.formActions}>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    pending={saving}
+                    disabled={!responseText.trim()}
+                  >
+                    Отправить ответ
+                  </Button>
+                </div>
               </form>
             ) : null}
-          </div>
+          </Surface>
+        </div>
 
-          <div className="page-card">
-            <div className="section-title">История назначений</div>
-            {candidate.assignments.length ? (
-              <div className="candidate-history">
-                {candidate.assignments.map((assignment) => (
-                  <article key={assignment.id}>
-                    <div>
-                      <strong>{assignment.manager.fullName}</strong>
-                      <time>
-                        {new Date(assignment.assignedAt).toLocaleString('ru-RU')}
-                      </time>
-                    </div>
-                    <p>Назначил: {assignment.assignedBy.fullName}</p>
-                    <p>
-                      {assignment.firstRespondedAt
-                        ? `Первая обратная связь: ${new Date(
-                            assignment.firstRespondedAt,
-                          ).toLocaleString('ru-RU')}`
-                        : 'Обратная связь не получена'}
-                      {assignment.endedAt
-                        ? ` · Завершено ${new Date(
-                            assignment.endedAt,
-                          ).toLocaleString('ru-RU')}`
-                        : ''}
-                    </p>
-                  </article>
-                ))}
+        <div className={card.column}>
+          <Surface className={card.section}>
+            <div className={card.sectionHeader}>
+              <h2 className={card.sectionTitle}>Ответственные менеджеры</h2>
+              {canEditManagers && !editingManagers ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={saving}
+                  onClick={() => {
+                    setManagers(candidateManagerDrafts(activeAssignments));
+                    setEditingManagers(true);
+                  }}
+                >
+                  Изменить
+                </Button>
+              ) : null}
+            </div>
+            {editingManagers ? (
+              <div className={card.managerEditor}>
+                <CandidateManagerFields
+                  rows={managers}
+                  onChange={setManagers}
+                  defaultObject={candidate.object}
+                  disabled={saving}
+                  requireManager={candidate.candidateType === 'regular'}
+                />
+                <div className={card.formActions}>
+                  <Button
+                    variant="ghost"
+                    disabled={saving}
+                    onClick={() => setEditingManagers(false)}
+                  >
+                    Отмена
+                  </Button>
+                  <Button
+                    variant="primary"
+                    pending={saving}
+                    disabled={
+                      !candidateManagersValid(
+                        managers,
+                        candidate.candidateType === 'regular',
+                      )
+                    }
+                    onClick={() => {
+                      void mutate(() =>
+                        assignCandidateManagers(
+                          candidate.id,
+                          candidateManagerPayload(managers, candidate.object?.id ?? null),
+                          candidate.version,
+                        ),
+                      ).then((success) => {
+                        if (success) setEditingManagers(false);
+                      });
+                    }}
+                  >
+                    Сохранить
+                  </Button>
+                </div>
               </div>
+            ) : activeAssignments.length ? (
+              <ul className={card.list}>
+                {activeAssignments.map((assignment) => {
+                  const sla = candidateAssignmentSla(assignment);
+                  return (
+                    <li key={assignment.id} className={card.listItem}>
+                      <div className={card.listMain}>
+                        <strong>{assignment.manager.fullName || assignment.manager.login}</strong>
+                        <span className={card.subtle}>
+                          {assignment.object?.name ?? 'Без объекта рассмотрения'}
+                          {' · назначен '}
+                          {formatDateTime(assignment.assignedAt)}
+                        </span>
+                      </div>
+                      <Badge tone={SLA_TONE[sla]}>
+                        {candidateSlaLabel(sla, assignment.responseDueAt)}
+                      </Badge>
+                    </li>
+                  );
+                })}
+              </ul>
             ) : (
-              <div className="page-muted">Назначений пока нет.</div>
+              <p className={card.muted}>
+                {isClosed
+                  ? 'Назначения закрыты вместе со статусом кандидата.'
+                  : 'Ответственный менеджер не назначен.'}
+              </p>
             )}
-          </div>
-        </section>
+          </Surface>
+
+          <Surface className={card.section}>
+            <div className={card.sectionHeader}>
+              <h2 className={card.sectionTitle}>История назначений</h2>
+            </div>
+            {candidate.assignments.length ? (
+              <ol className={card.timeline}>
+                {candidate.assignments.map((assignment) => (
+                  <li key={assignment.id} className={card.timelineItem}>
+                    <div className={card.timelineHead}>
+                      <strong>{assignment.manager.fullName || assignment.manager.login}</strong>
+                      <time dateTime={assignment.assignedAt}>{formatDateTime(assignment.assignedAt)}</time>
+                    </div>
+                    <p className={card.subtle}>
+                      {assignment.object?.name ?? 'Без объекта рассмотрения'} · назначил{' '}
+                      {assignment.assignedBy.fullName}
+                    </p>
+                    <p className={card.subtle}>
+                      {assignment.firstRespondedAt
+                        ? `Ответ ${formatDateTime(assignment.firstRespondedAt)}`
+                        : 'Ответа не было'}
+                      {assignment.endedAt
+                        ? ` · закрыто ${formatDateTime(assignment.endedAt)}`
+                        : ' · активно'}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className={card.muted}>Назначений пока нет.</p>
+            )}
+          </Surface>
+        </div>
       </div>
+
+      <ConfirmDialog
+        open={archiveOpen}
+        onOpenChange={setArchiveOpen}
+        title="Архивировать кандидата?"
+        consequence="Кандидат будет перемещён в архив."
+        confirmLabel="Архивировать"
+        tone="danger"
+        pending={saving}
+        error={error}
+        onConfirm={() => {
+          void mutate(() =>
+            setCandidateArchive(candidate.id, candidate.version),
+          ).then((success) => {
+            if (success) setArchiveOpen(false);
+          });
+        }}
+      />
+      <Dialog
+        open={Boolean(statusTarget)}
+        onOpenChange={(open) => {
+          if (!open) setStatusTarget(null);
+        }}
+        title={
+          reopening
+            ? `Вернуть кандидата в статус «${candidateStatusLabel(statusTarget ?? 'in_progress')}»?`
+            : `Перевести в статус «${candidateStatusLabel(statusTarget ?? 'accepted')}»?`
+        }
+        busy={saving}
+        footer={
+          <div className="action-row">
+            <Button
+              variant="ghost"
+              disabled={saving}
+              onClick={() => setStatusTarget(null)}
+            >
+              Отмена
+            </Button>
+            <Button
+              variant="primary"
+              pending={saving}
+              disabled={
+                reopenNeedsManagers &&
+                !candidateManagersValid(reopenManagers, true)
+              }
+              onClick={confirmStatusChange}
+            >
+              {reopening ? 'Вернуть в работу' : 'Изменить статус'}
+            </Button>
+          </div>
+        }
+      >
+        <div className={styles.stack}>
+          {reopening ? (
+            <>
+              <p className={styles.hint}>
+                Предыдущие назначения были закрыты. Выберите ответственных
+                менеджеров — им снова начнёт считаться срок обратной связи.
+              </p>
+              <CandidateManagerFields
+                rows={reopenManagers}
+                onChange={setReopenManagers}
+                defaultObject={candidate.object}
+                disabled={saving}
+                requireManager
+              />
+            </>
+          ) : (
+            <p>
+              Активные назначения менеджеров будут закрыты
+              {activeAssignments.length
+                ? ` (${activeAssignments.length})`
+                : ''}
+              . При возврате в работу менеджеров нужно будет выбрать снова.
+            </p>
+          )}
+          {error ? (
+            <Alert tone="danger" role="alert">
+              {error}
+            </Alert>
+          ) : null}
+        </div>
+      </Dialog>
+      <ConfirmDialog
+        open={converting}
+        onOpenChange={setConverting}
+        title="Оформить сотрудником?"
+        confirmLabel="Оформить сотрудником"
+        pending={saving}
+        error={conversionError}
+        consequence={
+          <div className={styles.stack}>
+            <p>В карточку сотрудника будут перенесены:</p>
+            <ul className={styles.transferList}>
+              <li>
+                <span>ФИО</span>
+                <strong>{candidate.fullName}</strong>
+              </li>
+              <li>
+                <span>Основной телефон</span>
+                <strong>{phones[0] ?? 'Не указан'}</strong>
+              </li>
+              {phones.length > 1 ? (
+                <li>
+                  <span>Другие телефоны</span>
+                  <span>{phones.slice(1).join(', ')} — в примечание</span>
+                </li>
+              ) : null}
+              {candidate.comment ? (
+                <li>
+                  <span>Комментарий</span>
+                  <span>в примечание</span>
+                </li>
+              ) : null}
+            </ul>
+            <p className={styles.hint}>
+              Назначение на объект и ставка задаются в карточке сотрудника.
+            </p>
+            <SearchableSelect
+              label="Тип сотрудника"
+              value={employeeType}
+              options={CANDIDATE_EMPLOYEE_TYPE_OPTIONS}
+              clearable={false}
+              disabled={saving}
+              onChange={(value) =>
+                setEmployeeType(value as CandidateEmployeeType)
+              }
+            />
+          </div>
+        }
+        onConfirm={() => {
+          if (saving) return;
+          setSaving(true);
+          setConversionError(null);
+          void convertCandidateToEmployee(
+            candidate.id,
+            employeeType,
+            candidate.version,
+          )
+            .then((next) => {
+              apply(next);
+              setConverting(false);
+              if (next.employeeId && next.capabilities.canViewEmployee)
+                router.push(`/employees/${next.employeeId}`);
+            })
+            .catch((caughtError) =>
+              setConversionError(
+                caughtError instanceof Error
+                  ? caughtError.message
+                  : 'Не удалось оформить сотрудника.',
+              ),
+            )
+            .finally(() => setSaving(false));
+        }}
+      />
     </div>
   );
 }

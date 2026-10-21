@@ -17,6 +17,7 @@ import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inv
 import { InventoryReportSummary } from '@/features/inventory-report/ui/inventory-report-summary';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { Alert } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -95,9 +96,9 @@ export default function InventoryReportsPage(): React.JSX.Element {
       ) : isLoading ? (
         <div className="page-card">Загрузка...</div>
       ) : error ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <Alert tone="danger" role="alert">
           {error}
-        </div>
+        </Alert>
       ) : (
         <div className="page-stack">
           {summary ? <InventoryReportSummary {...summary} /> : null}

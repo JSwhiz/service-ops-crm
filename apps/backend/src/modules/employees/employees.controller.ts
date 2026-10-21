@@ -23,6 +23,10 @@ import { EmployeeObjectOptionDto } from './dto/employee-object-option.dto';
 import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeVersionDto } from './dto/employee-version.dto';
 import {
+  EmployeeAttendanceQueryDto,
+  EmployeeAttendanceResponseDto,
+} from './dto/employee-attendance.dto';
+import {
   DeleteEmployeeAssignmentAsErrorDto,
   DeleteEmployeePermanentlyDto,
 } from './dto/delete-employee-record.dto';
@@ -34,6 +38,11 @@ import {
 import { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeesService } from './employees.service';
+import { EmployeeScheduleService } from './employee-schedule.service';
+import {
+  UpdateEmployeeAvailabilityDto,
+  UpdateEmployeeSubstitutionDto,
+} from './dto/update-employee-schedule.dto';
 
 interface CurrentAuthUser {
   id: string;
@@ -48,7 +57,10 @@ interface CurrentAuthUser {
 @UseGuards(JwtAuthGuard)
 @Controller('employees')
 export class EmployeesController {
-  constructor(private readonly employeesService: EmployeesService) {}
+  constructor(
+    private readonly employeesService: EmployeesService,
+    private readonly scheduleService: EmployeeScheduleService,
+  ) {}
 
   @Get()
   listEmployees(
@@ -87,6 +99,15 @@ export class EmployeesController {
     @Param('id') employeeId: string,
   ): Promise<EmployeeResponseDto> {
     return this.employeesService.getEmployeeById(user, employeeId);
+  }
+
+  @Get(':id/attendance')
+  getEmployeeAttendance(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') employeeId: string,
+    @Query() query: EmployeeAttendanceQueryDto,
+  ): Promise<EmployeeAttendanceResponseDto> {
+    return this.employeesService.getEmployeeAttendance(user, employeeId, query);
   }
 
   @Post()
@@ -162,6 +183,38 @@ export class EmployeesController {
     @Body() payload: CreateEmployeeSubstitutionDto,
   ): Promise<EmployeeResponseDto> {
     return this.employeesService.addSubstitution(user, employeeId, payload);
+  }
+
+  @Patch(':id/availability/:windowId')
+  async updateAvailabilityWindow(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') employeeId: string,
+    @Param('windowId') windowId: string,
+    @Body() payload: UpdateEmployeeAvailabilityDto,
+  ): Promise<EmployeeResponseDto> {
+    await this.scheduleService.updateAvailability(user, employeeId, windowId, payload);
+    return this.employeesService.getEmployeeById(user, employeeId);
+  }
+
+  @Delete(':id/availability/:windowId')
+  async deleteAvailabilityWindow(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') employeeId: string,
+    @Param('windowId') windowId: string,
+  ): Promise<EmployeeResponseDto> {
+    await this.scheduleService.deleteAvailability(user, employeeId, windowId);
+    return this.employeesService.getEmployeeById(user, employeeId);
+  }
+
+  @Patch(':id/substitutions/:substitutionId')
+  async updateSubstitution(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') employeeId: string,
+    @Param('substitutionId') substitutionId: string,
+    @Body() payload: UpdateEmployeeSubstitutionDto,
+  ): Promise<EmployeeResponseDto> {
+    await this.scheduleService.updateSubstitution(user, employeeId, substitutionId, payload);
+    return this.employeesService.getEmployeeById(user, employeeId);
   }
 
   @Post(':id/object-assignments')

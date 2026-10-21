@@ -1,5 +1,9 @@
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  ValidateIf,
   IsDateString,
   IsIn,
   IsInt,
@@ -18,6 +22,14 @@ import {
 } from '../constants/employee-hr.constants';
 
 export class UpdateEmployeeDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  passportReceived?: boolean;
+
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  contractReceived?: boolean;
+
   @IsInt()
   @Min(1)
   expectedVersion!: number;
@@ -36,6 +48,20 @@ export class UpdateEmployeeDto {
   @IsString()
   @MaxLength(50)
   phone?: string | null;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value
+          .map((item) => (typeof item === 'string' ? item.trim() : item))
+          .filter((item) => item !== '')
+      : value,
+  )
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  phones?: string[];
 
   @IsOptional()
   @Transform(({ value }) =>

@@ -6,6 +6,7 @@ import type { ServiceObject } from '@/entities/object/model/object.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
+import { Select } from '@/shared/ui/searchable-select/select';
 
 export interface TaskFilterValue {
   q: string;
@@ -42,7 +43,7 @@ export function TaskFilters({
       </label>
       <label className="task-field">
         <span>Контур</span>
-        <select
+        <Select
           value={value.mode}
           onChange={(event) => onChange({ mode: event.target.value as TaskFilterValue['mode'] })}
         >
@@ -50,37 +51,37 @@ export function TaskFilters({
           <option value="assigned">Мои задачи</option>
           <option value="created">Созданные мной</option>
           <option value="objects">Мои объекты</option>
-        </select>
+        </Select>
       </label>
       <label className="task-field">
         <span>Статус</span>
-        <select value={value.status} onChange={(event) => onChange({ status: event.target.value })}>
+        <Select value={value.status} onChange={(event) => onChange({ status: event.target.value })}>
           <option value="">Все статусы</option>
           {TASK_STATUS_OPTIONS.map((status) => (
             <option key={status.value} value={status.value}>{status.label}</option>
           ))}
-        </select>
+        </Select>
       </label>
       <label className="task-field">
         <span>Объект</span>
-        <select value={value.objectId} onChange={(event) => onChange({ objectId: event.target.value })}>
+        <Select value={value.objectId} onChange={(event) => onChange({ objectId: event.target.value })}>
           <option value="">Все объекты</option>
           {objects.map((object) => <option key={object.id} value={object.id}>{object.name}</option>)}
-        </select>
+        </Select>
       </label>
       <label className="task-field">
         <span>Исполнитель</span>
-        <select
+        <Select
           value={value.assigneeUserId}
           onChange={(event) => onChange({ assigneeUserId: event.target.value })}
         >
           <option value="">Все исполнители</option>
           {users.map((user) => <option key={user.id} value={user.id}>{getUserDisplayName(user)}</option>)}
-        </select>
+        </Select>
       </label>
       <label className="task-field">
         <span>Сортировка</span>
-        <select
+        <Select
           value={`${value.sortBy}:${value.sortDirection}`}
           onChange={(event) => {
             const [sortBy, sortDirection] = event.target.value.split(':') as [
@@ -94,7 +95,7 @@ export function TaskFilters({
           <option value="updatedAt:desc">Недавно изменённые</option>
           <option value="dueAt:asc">Ближайший срок</option>
           <option value="title:asc">По названию</option>
-        </select>
+        </Select>
       </label>
       <label className="task-check task-filters__overdue">
         <input

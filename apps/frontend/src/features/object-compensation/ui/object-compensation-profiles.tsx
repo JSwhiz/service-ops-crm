@@ -5,6 +5,7 @@ import React from 'react';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from './object-compensation-profiles.module.css';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 
 export interface ObjectCompensationProfilesValue {
   paymentType: 'monthly' | 'daily';
@@ -242,14 +243,7 @@ export function ObjectCompensationProfiles({
                     {scheduleCode !== '5/2' ? (
                       <label className={styles.field}>
                         <span>Дата первого рабочего дня цикла *</span>
-                        <input
-                          type="date"
-                          value={cycleStartDate}
-                          required
-                          disabled={disabled}
-                          aria-describedby={`${profile.id}-cycle-start-hint`}
-                          onChange={(event) => updateField(profile.cycleStartDateKey, event.target.value)}
-                        />
+                        <DatePicker value={cycleStartDate} required disabled={disabled} aria-describedby={`${profile.id}-cycle-start-hint`} onChange={(nextValue) => updateField(profile.cycleStartDateKey, nextValue)} />
                         <small id={`${profile.id}-cycle-start-hint`} className={styles.weekdayHint}>
                           Укажите дату, с которой начинается цикл графика {scheduleCode}.
                         </small>

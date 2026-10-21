@@ -11,6 +11,8 @@ import {
 import { TASK_PRIORITY_OPTIONS } from '@/shared/lib/task-presentation';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Button, Field, Stack } from '@/shared/ui/foundation';
 
 export function OneTimeOrderTasksPanel({
   items,
@@ -59,7 +61,7 @@ export function OneTimeOrderTasksPanel({
   };
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <Stack gap="lg">
       <div className="page-card">
         <div className="section-header" style={{ marginBottom: 12 }}>
           <div>
@@ -74,9 +76,9 @@ export function OneTimeOrderTasksPanel({
 
       {canCreateTask ? (
         <div className="action-row">
-          <button type="button" className="button-secondary" onClick={() => setIsCreating((value) => !value)}>
+          <Button onClick={() => setIsCreating((value) => !value)}>
             {isCreating ? 'Скрыть форму' : 'Добавить задачу'}
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -148,15 +150,13 @@ export function OneTimeOrderTasksPanel({
                 Также привязать к объекту «{linkedObject.name}»
               </label>
             ) : null}
-            <label>
-              <div style={{ marginBottom: 6 }}>Название</div>
+            <Field label="Название">
               <input
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                style={{ width: '100%', padding: 10 }}
                 required
               />
-            </label>
+            </Field>
 
             <SearchableSelect
                 label="Приоритет"
@@ -175,16 +175,9 @@ export function OneTimeOrderTasksPanel({
                 }
             />
 
-            <label>
-              <div style={{ marginBottom: 6 }}>Срок *</div>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                style={{ width: '100%', padding: 10 }}
-                required
-              />
-            </label>
+            <Field label="Срок *">
+              <DatePicker value={dueDate} onChange={(nextValue) => setDueDate(nextValue)} required />
+            </Field>
 
             <label style={{ gridColumn: '1 / -1' }}>
               <div style={{ marginBottom: 6 }}>Описание</div>
@@ -218,7 +211,7 @@ export function OneTimeOrderTasksPanel({
                         display: 'flex',
                         gap: 8,
                         alignItems: 'center',
-                        border: '1px solid #e5e7eb',
+                        border: '1px solid var(--ui-border)',
                         borderRadius: 10,
                         padding: 10,
                       }}
@@ -244,17 +237,17 @@ export function OneTimeOrderTasksPanel({
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <button
+            <Button variant="primary"
               type="submit"
               disabled={
                 isSubmitting || !title.trim() || assigneeUserIds.length === 0
               }
             >
               {isSubmitting ? 'Создаем...' : 'Создать задачу'}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}
-    </div>
+    </Stack>
   );
 }

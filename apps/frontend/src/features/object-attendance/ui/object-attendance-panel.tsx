@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Badge, Button } from '@/shared/ui/foundation';
 
 interface ObjectAttendancePanelProps {
   employees: ObjectEmployeeOption[];
@@ -172,8 +174,8 @@ export function ObjectAttendancePanel({
                   display: 'grid',
                   gridTemplateColumns: 'minmax(0, 1fr)',
                   gap: 8,
-                  border: employee.availability.isUnavailable ? '1px solid #ead7d2' : undefined,
-                  background: employee.availability.isUnavailable ? '#fbf4f2' : undefined,
+                  border: employee.availability.isUnavailable ? '1px solid var(--ui-danger-border)' : undefined,
+                  background: employee.availability.isUnavailable ? 'var(--ui-danger-subtle)' : undefined,
                   opacity: employee.availability.isUnavailable && !selectedIds.includes(employee.id) ? 0.75 : 1,
                 }}
                 title={getAvailabilityLabel(employee.availability) ?? undefined}
@@ -187,7 +189,7 @@ export function ObjectAttendancePanel({
                   />
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span>{employee.fullName}</span>
-                    {!employee.isAssignedToObject ? <span className="status-pill">Подмена</span> : null}
+                    {!employee.isAssignedToObject ? <Badge>Подмена</Badge> : null}
                     {employee.activeSubstitutions
                       .filter((item) => item.role === 'replacement')
                       .map((item) => (
@@ -201,7 +203,7 @@ export function ObjectAttendancePanel({
                   </span>
                 </label>
                 {employee.availability.isUnavailable ? (
-                  <div style={{ color: '#80655c', fontSize: 12 }}>{getAvailabilityLabel(employee.availability)}</div>
+                  <div style={{ color: 'var(--ui-text-secondary)', fontSize: 12 }}>{getAvailabilityLabel(employee.availability)}</div>
                 ) : null}
                 {selectedIds.includes(employee.id) ? (
                   <div style={{ display: 'grid', gridTemplateColumns: canEditRates ? 'repeat(auto-fit, minmax(180px, 1fr))' : 'minmax(160px, 1fr)', alignItems: 'end', gap: 8 }}>
@@ -219,11 +221,11 @@ export function ObjectAttendancePanel({
                     {canEditRates || canAddExtraShift ? (
                       <label className="attendance-hours-control">
                         <span>{canEditRates ? 'Особая ставка на этот выход' : 'Дополнительный выход'}</span>
-                        <select value={specialRateById[employee.id]?.type ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { type: event.target.value as '' | 'complex_shift' | 'side_job', amount: current[employee.id]?.amount ?? '', reason: current[employee.id]?.reason ?? '' } }))}>
+                        <Select value={specialRateById[employee.id]?.type ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { type: event.target.value as '' | 'complex_shift' | 'side_job', amount: current[employee.id]?.amount ?? '', reason: current[employee.id]?.reason ?? '' } }))}>
                           <option value="">Обычная ставка объекта</option>
                           {canEditRates ? <option value="complex_shift">Сложный выход</option> : null}
                           {canAddExtraShift ? <option value="side_job">Дополнительный выход</option> : null}
-                        </select>
+                        </Select>
                       </label>
                     ) : null}
                     {(canEditRates || canAddExtraShift) && specialRateById[employee.id]?.type && (canEditRates || specialRateById[employee.id]?.type === 'side_job') ? (
@@ -247,9 +249,9 @@ export function ObjectAttendancePanel({
           {error ? <div className={styles.error} style={{ marginTop: 12 }}>{error}</div> : null}
 
           <div style={{ marginTop: 12 }}>
-            <button type="submit" disabled={isSubmitting}>
+            <Button variant="primary" type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Сохраняем...' : 'Сохранить'}
-            </button>
+            </Button>
           </div>
         </form>
       )}

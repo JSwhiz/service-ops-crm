@@ -34,6 +34,11 @@ interface SearchableSelectProps {
   minimumSearchLength?: number;
   searchPromptText?: string;
   searchInputVariant?: 'default' | 'registry';
+  /** Attributes forwarded to the trigger, e.g. the id/aria wiring from Field. */
+  triggerProps?: Pick<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    'id' | 'onFocus' | 'aria-describedby' | 'aria-invalid' | 'aria-labelledby'
+  >;
 }
 
 export function SearchableSelect({
@@ -56,6 +61,7 @@ export function SearchableSelect({
   minimumSearchLength = 0,
   searchPromptText,
   searchInputVariant = 'default',
+  triggerProps,
 }: SearchableSelectProps): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -191,10 +197,11 @@ export function SearchableSelect({
     <div className="searchable-select" ref={rootRef}>
       {hideLabel ? null : <span className="detail-label">{label}</span>}
       <button
+        {...triggerProps}
         ref={triggerRef}
         type="button"
         className="searchable-select__trigger"
-        aria-label={hideLabel ? label : undefined}
+        aria-label={hideLabel && label ? label : undefined}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-required={required || undefined}
@@ -204,7 +211,9 @@ export function SearchableSelect({
         <span className={selected ? undefined : 'page-muted'}>
           {loading ? 'Загрузка...' : selected?.label ?? placeholder}
         </span>
-        <span aria-hidden="true">⌄</span>
+        <svg className="searchable-select__chevron" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M6 8l4 4 4-4" />
+        </svg>
       </button>
       {isOpen ? (
         <div

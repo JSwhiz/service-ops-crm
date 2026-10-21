@@ -22,17 +22,11 @@ import {
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
 import { getInventoryMovementTypeLabel } from '@/shared/lib/inventory-presentation';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { SearchField } from '@/shared/ui/search-field/search-field';
 import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
-import {
-  Alert,
-  Badge,
-  Button,
-  EmptyState,
-  Skeleton,
-  Surface,
-} from '@/shared/ui/foundation';
+import { Alert, Badge, Button, EmptyState, Skeleton, Surface } from '@/shared/ui/foundation';
 import {
   ConfirmDialog,
   Drawer,
@@ -40,6 +34,7 @@ import {
 } from '@/shared/ui/overlays';
 
 import styles from './approvals.module.css';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 type ApprovalStatusTone = 'neutral' | 'danger' | 'warning' | 'success';
 
@@ -164,13 +159,13 @@ function DateFilterPicker({
           style={{ '--approval-popover-max-height': `${placement.availableHeight}px` } as React.CSSProperties}
         >
           <div className={styles.datePickerHeader}>
-            <button type="button" aria-label="Предыдущий месяц" onClick={() => shiftMonth(-1)}>
+            <Button aria-label="Предыдущий месяц" onClick={() => shiftMonth(-1)}>
               <span aria-hidden="true">‹</span>
-            </button>
+            </Button>
             <strong>{CALENDAR_MONTHS[view.month]} {view.year}</strong>
-            <button type="button" aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>
+            <Button aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>
               <span aria-hidden="true">›</span>
-            </button>
+            </Button>
           </div>
           <div className={styles.datePickerGrid}>
             {CALENDAR_WEEKDAYS.map((weekday) => (
@@ -199,14 +194,6 @@ function DateFilterPicker({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function PlusIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
   );
 }
 
@@ -666,6 +653,7 @@ export default function ApprovalsPage(): React.JSX.Element {
   const pageParam = searchParams.get('page');
   const parsedPage = Number(pageParam);
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(PAGE_LIMIT);
 
   const [items, setItems] = useState<ApprovalRequestItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -684,8 +672,8 @@ export default function ApprovalsPage(): React.JSX.Element {
   const queueFallbackRef = useRef<HTMLDivElement>(null);
 
   const currentPage = Math.min(page, Math.max(1, totalPages));
-  const firstVisible = total === 0 ? 0 : (currentPage - 1) * PAGE_LIMIT + 1;
-  const lastVisible = Math.min(currentPage * PAGE_LIMIT, total);
+  const firstVisible = total === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const lastVisible = Math.min(currentPage * pageSize, total);
   const pageItems = items;
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
   const hasScope = Boolean(sourceEntityId);
@@ -756,7 +744,7 @@ export default function ApprovalsPage(): React.JSX.Element {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         page,
-        limit: PAGE_LIMIT,
+        limit: pageSize,
       });
 
       setItems(response.items);
@@ -799,6 +787,7 @@ export default function ApprovalsPage(): React.JSX.Element {
     dateFrom,
     dateTo,
     page,
+    pageSize,
   ]);
 
   useEffect(() => {
@@ -1117,7 +1106,8 @@ export default function ApprovalsPage(): React.JSX.Element {
           </div>
           <TablePagination page={currentPage} totalPages={totalPages} pending={isLoading} label="Страницы согласований"
             summary={total > 0 ? `Показано ${firstVisible}–${lastVisible} из ${total}` : 'Запросов нет'}
-            onPageChange={(page) => updateQuery({ page: String(page) })} />
+            onPageChange={(page) => updateQuery({ page: String(page) })}
+            pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} />
         </Surface>
       ) : null}
 

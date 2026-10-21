@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -22,12 +21,13 @@ import {
 import { getOneTimeOrderById } from '@/entities/one-time-order/api/one-time-order-client';
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
-import { Button } from '@/shared/ui/foundation';
+import { BackLink, Button, StatusBadge } from '@/shared/ui/foundation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from './workforce.module.css';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 
 function moscowMonth(): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -184,8 +184,8 @@ export default function OneTimeOrderWorkforcePage({
       <PageTitle title="Команда заказа" />
       <div className={styles.toolbar}>
         <div className={styles.orderContext}>
-          <Link className={styles.back} href={orderId ? `/one-time-orders/${orderId}` : '/one-time-orders'}>← К карточке заказа</Link>
-          {order ? <><strong>{order.title}</strong><span className="status-pill" data-status={order.status}>{getOneTimeOrderStatusLabel(order.status)}</span></> : null}
+          <BackLink href={orderId ? `/one-time-orders/${orderId}` : '/one-time-orders'}>К карточке заказа</BackLink>
+          {order ? <><strong>{order.title}</strong><StatusBadge status={order.status}>{getOneTimeOrderStatusLabel(order.status)}</StatusBadge></> : null}
         </div>
         {attendance ? (
           <span className={styles.status} data-saved={attendance.submittedAt ? 'true' : 'false'}>
@@ -323,8 +323,8 @@ export default function OneTimeOrderWorkforcePage({
           <div className={styles.body}>
             <label className={styles.dateField}>
               <span>Дата выхода</span>
-              <input className={styles.input} type="date" value={attendanceDate} max={new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(new Date())} onChange={(event) => {
-                const nextDate = event.target.value;
+              <DatePicker value={attendanceDate} max={new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(new Date())} onChange={(nextValue) => {
+                const nextDate = nextValue;
                 setAttendanceDate(nextDate);
                 setCorrectionReason('');
                 if (!nextDate || !orderId) return;

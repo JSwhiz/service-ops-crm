@@ -10,6 +10,7 @@ import {
 } from '@/shared/lib/task-presentation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
+import { StatusBadge } from '@/shared/ui/foundation';
 
 export function TaskListTable({
   items,
@@ -61,7 +62,7 @@ export function TaskListTable({
                 {item.isOverdue ? <span className="task-table__meta">Просрочено</span> : null}
               </td>
               <td>
-                <span className="status-pill" data-status={item.status}>{getTaskStatusLabel(item.status)}</span>
+                <StatusBadge status={item.status}>{getTaskStatusLabel(item.status)}</StatusBadge>
                 {item.requiresConfirmation ? <span className="task-table__meta">С подтверждением</span> : null}
               </td>
               <td className="registry-open-cell"><RegistryOpenLink href={`/tasks/${item.id}`} label={`Открыть задачу ${item.title}`} /></td>

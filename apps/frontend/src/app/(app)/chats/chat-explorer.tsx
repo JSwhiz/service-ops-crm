@@ -10,6 +10,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { ChatIcon } from './chat-icon';
 import styles from './chat-ui.module.css';
+import { Button } from '@/shared/ui/foundation';
 
 function snippet(text: string, query: string): React.ReactNode {
   const at = text
@@ -102,13 +103,12 @@ function RoomSearch({
           onChange={(e) => setQuery(e.target.value)}
         />
         {query ? (
-          <button
-            type="button"
+          <Button
             aria-label="Очистить запрос"
             onClick={() => setQuery('')}
           >
             <ChatIcon name="close" />
-          </button>
+          </Button>
         ) : null}
       </div>
       <div className={styles.resultList} aria-busy={busy}>
@@ -152,14 +152,12 @@ function RoomSearch({
           </p>
         ) : null}
         {result.nextCursor ? (
-          <button
-            type="button"
-            className={styles.textAction}
+          <Button variant="ghost"
             disabled={busy}
             onClick={() => void loadMore()}
           >
             Ещё результаты
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>
@@ -261,14 +259,12 @@ function RoomAttachments({
               compactMetadata
               iconDownload
             />
-            <button
-              type="button"
-              className={styles.textAction}
+            <Button variant="ghost"
               onClick={() => onMessage(message.id)}
             >
               К сообщению ·{' '}
               {new Date(message.createdAt).toLocaleDateString('ru-RU')}
-            </button>
+            </Button>
           </div>
         ))}
         {!busy && entries.length === 0 ? (
@@ -289,14 +285,12 @@ function RoomAttachments({
           </p>
         ) : null}
         {hasMore || error ? (
-          <button
-            type="button"
-            className={styles.textAction}
+          <Button variant="ghost"
             disabled={busy}
             onClick={() => void loadMore()}
           >
             {error ? 'Повторить' : 'Загрузить предыдущие сообщения'}
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>
@@ -340,13 +334,12 @@ export function ChatExplorer({
     >
       <header className={styles.explorerHeader}>
         <strong>{roomTitle}</strong>
-        <button
-          type="button"
+        <Button
           aria-label="Закрыть поиск и вложения"
           onClick={onClose}
         >
           <ChatIcon name="close" />
-        </button>
+        </Button>
       </header>
       <div className={styles.tabs} role="group" aria-label="Просмотр чата">
         {(
@@ -356,14 +349,13 @@ export function ChatExplorer({
             ['files', 'Файлы'],
           ] as const
         ).map(([value, label]) => (
-          <button
-            type="button"
+          <Button
             key={value}
             aria-pressed={tab === value}
             onClick={() => setTab(value)}
           >
             {label}
-          </button>
+          </Button>
         ))}
       </div>
       {tab === 'search' ? (

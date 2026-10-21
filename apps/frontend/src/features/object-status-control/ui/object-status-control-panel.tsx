@@ -5,6 +5,7 @@ import React, { useMemo, useState } from 'react';
 
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
+import { StatusBadge } from '@/shared/ui/foundation';
 
 type ObjectStatusCode = 'active' | 'frozen' | 'archived';
 
@@ -68,7 +69,7 @@ export function ObjectStatusControlPanel({
       <div className={`${styles.statusHeader} object-status-control__header`}>
         <div className="section-title">Статус объекта</div>
         <div className={styles.statusControls}>
-          <span className="status-pill" data-status={currentStatus}>{getStatusLabel(currentStatus)}</span>
+          <StatusBadge status={currentStatus}>{getStatusLabel(currentStatus)}</StatusBadge>
           {availableTransitions.map((statusCode) => (
             <button
               key={statusCode}

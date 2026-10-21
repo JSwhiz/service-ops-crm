@@ -13,6 +13,7 @@ import type { TaskCompletionRequirement } from '@/entities/task/model/task.types
 import { getCompletionRequirementLabel } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { Button } from '@/shared/ui/foundation';
 
 export function TaskResultPanel({
   taskId,
@@ -74,8 +75,7 @@ export function TaskResultPanel({
           <div className="section-subtitle">{getCompletionRequirementLabel(requirement)}</div>
         </div>
         {canUndo ? (
-          <button
-            type="button"
+          <Button
             disabled={isBusy}
             onClick={() => {
               if (!window.confirm('Отменить отметку выполнения? Задача вернётся в работу, если ожидала подтверждения или автозавершения.')) return;
@@ -84,7 +84,7 @@ export function TaskResultPanel({
             }}
           >
             Отменить выполнение
-          </button>
+          </Button>
         ) : null}
       </div>
       {canComplete ? (
@@ -118,9 +118,9 @@ export function TaskResultPanel({
           />
           {files.length > 0 ? <AttachmentPreviewList files={files} /> : null}
           {error ? <div className="task-form__error" role="alert">{error}</div> : null}
-          <button type="submit" disabled={isBusy || lacksRequiredResult}>
+          <Button variant="primary" type="submit" disabled={isBusy || lacksRequiredResult}>
             {isBusy ? 'Отправляем…' : 'Отметить выполненной'}
-          </button>
+          </Button>
         </form>
       ) : error ? <div className="task-form__error" role="alert">{error}</div> : null}
     </div>

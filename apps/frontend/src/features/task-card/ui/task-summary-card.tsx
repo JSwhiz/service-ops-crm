@@ -9,6 +9,7 @@ import {
   getTaskPriorityLabel,
   getTaskStatusLabel,
 } from '@/shared/lib/task-presentation';
+import { StatusBadge } from '@/shared/ui/foundation';
 
 export function TaskSummaryCard({
   item,
@@ -25,7 +26,7 @@ export function TaskSummaryCard({
           <div className="hero-meta">Создал(а): {getUserDisplayName(item.createdBy)}</div>
         </div>
         <div className="task-summary__status">
-          <span className="status-pill" data-status={item.status}>{getTaskStatusLabel(item.status)}</span>
+          <StatusBadge status={item.status}>{getTaskStatusLabel(item.status)}</StatusBadge>
           {item.isOverdue ? <span className="task-overdue">Просрочено</span> : null}
         </div>
       </div>

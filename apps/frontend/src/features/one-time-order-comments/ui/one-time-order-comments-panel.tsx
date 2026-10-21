@@ -7,6 +7,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { Button } from '@/shared/ui/foundation';
 
 export function OneTimeOrderCommentsPanel({
   items,
@@ -85,14 +86,14 @@ export function OneTimeOrderCommentsPanel({
             />
           </div>
           <div>
-            <button
+            <Button variant="primary"
               type="submit"
               disabled={
                 isSubmitting || (!content.trim() && pendingFiles.length === 0)
               }
             >
               {isSubmitting ? 'Сохраняем...' : 'Добавить комментарий'}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}

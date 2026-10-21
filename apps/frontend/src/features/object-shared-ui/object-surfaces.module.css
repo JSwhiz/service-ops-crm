@@ -52,12 +52,6 @@
   grid-column: 1 / -1;
 }
 
-.field {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
 .field > label {
   display: flex;
   align-items: center;
@@ -128,7 +122,7 @@
 }
 
 .categoryField :global(.detail-label) {
-  color: #51453d;
+  color: var(--ui-text);
   font-size: 13px;
   font-weight: 740;
 }
@@ -142,7 +136,6 @@
 }
 
 .pendingFilesViewport,
-.savedFilesViewport,
 .savedPhotosViewport,
 .attendanceList {
   min-height: 0;
@@ -159,10 +152,6 @@
   max-height: 244px;
 }
 
-.savedFilesViewport {
-  max-height: 212px;
-}
-
 .savedPhotosViewport {
   min-height: 0;
   overflow-x: auto;
@@ -172,7 +161,6 @@
 }
 
 .pendingFilesViewport :global(.pending-media-item),
-.savedFilesViewport :global(.attachment-file-card),
 .savedPhotosViewport :global(.attachment-image-card-shell) {
   scroll-snap-align: start;
   scroll-snap-stop: always;
@@ -220,13 +208,11 @@
   height: 28px;
 }
 
-.savedPhotosViewport :global(.attachment-preview-stack),
-.savedFilesViewport :global(.attachment-preview-stack) {
+.savedPhotosViewport :global(.attachment-preview-stack) {
   min-width: 0;
 }
 
-.savedPhotosViewport :global(.attachment-file-list),
-.savedFilesViewport :global(.attachment-file-list) {
+.savedPhotosViewport :global(.attachment-file-list) {
   max-height: 212px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -235,8 +221,7 @@
   scroll-snap-type: y mandatory;
 }
 
-.savedPhotosViewport :global(.attachment-file-card),
-.savedFilesViewport :global(.attachment-file-card) {
+.savedPhotosViewport :global(.attachment-file-card) {
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
@@ -298,10 +283,10 @@
 .panelState {
   flex: 0 0 auto;
   padding: 3px 7px;
-  border: 1px solid #dfd6cf;
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   background: var(--ui-surface-muted);
-  color: #776a62;
+  color: var(--ui-text-tertiary);
   font-size: 11px;
   font-weight: 700;
 }
@@ -331,18 +316,6 @@
   padding-top: 2px;
 }
 
-.primaryAction {
-  border-color: var(--ui-text-secondary) !important;
-  background: var(--ui-text-secondary) !important;
-  color: var(--ui-text-inverse) !important;
-}
-
-.primaryAction:hover:not(:disabled) {
-  border-color: var(--ui-text-secondary) !important;
-  background: var(--ui-text-secondary) !important;
-  color: var(--ui-text-inverse) !important;
-}
-
 .emptyState {
   min-height: 24px;
   display: flex;
@@ -360,10 +333,10 @@
   display: flex;
   align-items: center;
   padding: 8px 10px;
-  border: 1px solid #e4dcd6;
+  border: 1px solid var(--ui-border);
   border-radius: 7px;
   background: var(--ui-surface-subtle);
-  color: #51473f;
+  color: var(--ui-text);
   font-size: 13px;
 }
 
@@ -450,8 +423,7 @@
 
 .surface :global(button),
 .surfaceCompact :global(button),
-.buttonLike,
-.backLink {
+.buttonLike {
   appearance: none;
   min-height: 36px;
   display: inline-flex;
@@ -476,8 +448,7 @@
 
 .surface :global(button:hover:not(:disabled)),
 .surfaceCompact :global(button:hover:not(:disabled)),
-.buttonLike:hover,
-.backLink:hover {
+.buttonLike:hover {
   border-color: var(--ui-border-hover);
   background: var(--ui-surface-hover);
   box-shadow: none;
@@ -487,8 +458,7 @@
 
 .surface :global(button:focus-visible),
 .surfaceCompact :global(button:focus-visible),
-.buttonLike:focus-visible,
-.backLink:focus-visible {
+.buttonLike:focus-visible {
   outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 2px;
   border-color: var(--ui-border-strong);
@@ -501,31 +471,9 @@
   opacity: 0.52;
 }
 
-.managerList,
 .recordList {
   display: grid;
   gap: 8px;
-}
-
-.optionRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  padding: 9px 10px;
-  border: 0;
-  border-bottom: 1px solid var(--ui-border);
-  border-radius: 0;
-  background: transparent;
-  color: var(--ui-text);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
-}
-
-.optionRow:hover {
-  border-color: var(--ui-border);
-  background: var(--ui-surface-hover);
 }
 
 .recordCard {
@@ -541,20 +489,6 @@
   color: var(--ui-text);
   font-size: 13px;
   font-weight: 700;
-}
-
-.payload {
-  margin: 0;
-  padding: 10px;
-  overflow-x: auto;
-  border: 1px solid var(--ui-border);
-  border-radius: 7px;
-  background: var(--ui-surface-subtle);
-  color: #5f554e;
-  font-size: 12px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 .auditHeader {
   display: flex;
@@ -601,11 +535,11 @@
 }
 
 .auditChangeRow del {
-  color: #9b8e85;
+  color: var(--ui-text-disabled);
 }
 
 .auditArrow {
-  color: #ad9f96;
+  color: var(--ui-text-disabled);
 }
 
 .auditTechnical {
@@ -619,10 +553,6 @@
   font-size: 12px;
   cursor: pointer;
   user-select: none;
-}
-
-.auditTechnical .payload {
-  margin-top: 8px;
 }
 
 .error,
@@ -641,9 +571,9 @@
 }
 
 .success {
-  border: 1px solid #dbe5dc;
+  border: 1px solid var(--ui-border);
   background: var(--ui-success-subtle);
-  color: #526b56;
+  color: var(--ui-text-secondary);
 }
 
 .notice {
