@@ -146,6 +146,8 @@ Primitives: EntityHeader, Surface/Section, Tabs, DataTable(scroll), FilterBar, F
 
 ## Employees — MIGRATE
 
+> Статус 2026-10-21: мигрировано локально. Вкладки карточки — «Профиль» (просмотр, правка по кнопке «Редактировать»), «Объекты» (текущие + завершённые назначения; отдельная «История» не дублируется), «График и подмены» (календарь фактических выходов + недоступность + подмены, OQ-141). Старые `?section=edit|history` ведут в «Профиль»/«Объекты». Первый consumer `OverflowMenu` (`shared/ui/overflow-menu`). Legacy `.employee-*` правила удалены из `globals.css`, стили модуля — `features/employee-workspace/ui/employee-workspace.module.css` и `features/employee-form/employee-form.module.css` на `--ui-*`.
+
 - Current registry с desktop table/mobile cards; detail1104 строк с profile/edit/assignments/availability/substitutions/history. Target Registry + workspace; Employee остаётся отдельным от User, login/account flows не добавлять.
 - Columns: Сотрудник (name+position) / Контакт / Назначения (object names/count) / Рабочий режим (existing schedule label) / Статус / overflow. Prominent name/employmentStatus/current assignment, secondary phone/position/work conditions; sensitive fields только в existing permitted profile.
 - Filters existing name/search+employmentStatus, остальные object/position/work-time/month и existing query filters в advanced. Сохранить async object/position lookups и server pagination, не local filter текущей page. Reserve link остаётся `/employees/reserve` с CandidateRegistry, не convert в Employee registry.
@@ -173,6 +175,8 @@ Primitives: EntityHeader, Surface/Section, Tabs, DataTable(scroll), FilterBar, F
 - Mobile matrix scroll сохраняется, selected cell открывает full-width Drawer; не employee-day cards. Remove локальные conflicting colors/state notices только при polish. Primitives KEEP grid/MonthPeriodPicker; FilterBar, Field, Drawer, Alert, Skeleton. Risk высокий при touch/cell editing, минимизировать изменения domain handlers. Dependencies Wave0 и готовый inspector; validate GP-TS-001…004, monthly boundaries, historical values, comments/capability, no month creation on read, export unchanged.
 
 ## Candidates — POLISH
+
+- Status 2026-10-21: detail actions на shared Button/IconButton; смена статуса через подтверждение, возврат в работу с выбором менеджеров (OQ-143); форма без рамок у групп полей; диалог оформления показывает перенос данных.
 
 - Current/target: CandidateRegistry и detail/create, reserve view shared. Registry + лёгкий workspace, сохранить SLA/manager response/reserve state, не создавать Employee при reserve.
 - Information/columns: Кандидат (name/contact) / Ответственный менеджер / Состояние / Срок ответа / overflow, только available fields; secondary source/notes in detail. Primary registry «Добавить кандидата», detail existing contextual manager response; secondary edit если supported; overflow archive with ConfirmDialog.

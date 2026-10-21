@@ -95,6 +95,7 @@ import {
 } from '@/shared/lib/one-time-order-presentation';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import styles from './one-time-order-detail.module.css';
+import { Alert, Button, ButtonLink, StatusBadge } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -330,9 +331,9 @@ export default function OneTimeOrderDetailPage({
       {isLoading ? (
         <div className="page-card workspace-empty">Загрузка...</div>
       ) : error ? (
-        <div className="page-card inline-notice inline-notice--warning" role="alert">
+        <Alert tone="warning" role="alert">
           {error}
-        </div>
+        </Alert>
       ) : item ? (
         <div className="page-stack order-detail-workspace">
           <OneTimeOrderSummaryCard
@@ -358,9 +359,9 @@ export default function OneTimeOrderDetailPage({
                   Разовый состав и согласованная оплата каждого сотрудника за текущий цикл.
                 </div>
               </div>
-              <Link className="button-link" href={`/one-time-orders/${item.id}/workforce`}>
+              <ButtonLink href={`/one-time-orders/${item.id}/workforce`}>
                 Открыть команду
-              </Link>
+              </ButtonLink>
             </div>
 
             {workforce.filter((employee) => employee.isActive).length === 0 ? (
@@ -433,18 +434,17 @@ export default function OneTimeOrderDetailPage({
                     Выберите следующий статус заказа.
                   </div>
                 </div>
-                <span className="status-pill" data-status={item.status}>
+                <StatusBadge status={item.status}>
                   {getOneTimeOrderStatusLabel(item.status)}
-                </span>
+                </StatusBadge>
               </div>
               <div className="action-row">
                 {ONE_TIME_ORDER_STATUS_OPTIONS.filter(
                   (option) =>
                     option.value !== item.status && option.value !== 'completed',
                 ).map((option) => (
-                  <button
+                  <Button
                     key={option.value}
-                    type="button"
                     onClick={async () => {
                       let conflictFingerprint: string | undefined;
                       if (
@@ -478,7 +478,7 @@ export default function OneTimeOrderDetailPage({
                     }}
                   >
                     {option.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

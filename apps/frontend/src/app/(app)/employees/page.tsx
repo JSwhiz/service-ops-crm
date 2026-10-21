@@ -11,14 +11,13 @@ import {
 } from '@/entities/employee/api/employee-client';
 import {
   EMPLOYEE_SCHEDULE_OPTIONS,
-  formatEmployeeDate,
-  formatEmployeeRate,
+  getEmployeeLifecycleBadge,
   getEmployeeScheduleLabel,
-  getEmployeeStatusLabel,
   getEmployeeTypeLabel,
 } from '@/entities/employee/lib/employee-presentation';
 import type {
   EmployeeArchiveState,
+  EmployeeListItem,
   EmployeeListResponse,
   EmployeeObjectReference,
   EmployeePositionReference,
@@ -27,7 +26,6 @@ import type {
   EmployeeWorkScheduleCode,
 } from '@/entities/employee/model/employee.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { formatRegistryDate } from '@/shared/lib/registry-presentation';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 import { DataTable } from '@/shared/ui/data-table/data-table';
@@ -38,7 +36,11 @@ import {
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
 
-import styles from './employee-registry.module.css';
+import styles from '@/features/employee-workspace/ui/employee-workspace.module.css';
+import { Alert, Badge, Button, ButtonLink, EmptyState, PageHeader, Skeleton } from '@/shared/ui/foundation';
+import { formatPhone, getPhoneHref } from '@/shared/lib/phone';
+import { PlusIcon } from '@/shared/ui/icons/icons';
+import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 
 const DEFAULT_LIMIT = 25;
 const SORT_FIELDS = new Set<EmployeeSortField>([
@@ -319,64 +321,189 @@ export default function EmployeesPage(): React.JSX.Element {
     sortValue === 'fullName:asc' ? { id: 'sort', label: 'Сортировка', options: sortValueOptions, onAdd: (value: string) => { const [sortBy, sortOrder] = value.split(':') as [EmployeeSortField, 'asc' | 'desc']; replaceQuery({ sortBy, sortOrder: sortOrder === 'asc' ? null : sortOrder, page: null }); } } : null,
   ].filter(Boolean) as AvailableRegistryFilter[]);
 
+  const resetFilters = (): void => {
+    setSearchInput('');
+    setWorkTimeInput('');
+    setWorkTimeFilterActive(false);
+    setObjectFilterActive(false);
+    replaceQuery({
+      search: null, objectId: null, position: null, employmentStatus: null, birthMonth: null,
+      hasActiveObjectAssignment: null, workScheduleCode: null, workTimeSearch: null,
+      passportReceived: null, contractReceived: null, sortBy: null, sortOrder: null, page: null,
+    });
+  };
+
+  if (!canAccessEmployeesHr) {
+    return <div className={styles.page}><Alert tone="warning">У вас нет доступа к разделу сотрудников.</Alert></div>;
+  }
+
+  const renderObjects = (item: EmployeeListItem): React.ReactNode => {
+    if (!item.currentObjects.length) return <span className={styles.muted}>Без объекта</span>;
+    const [first, ...rest] = item.currentObjects;
+    return (
+      <span className={styles.objects} title={item.currentObjects.map((object) => object.name).join(', ')}>
+        <span className={styles.objectChip}>{first!.name}</span>
+        {rest.length ? <span className={styles.objectMore}>+{rest.length}</span> : null}
+      </span>
+    );
+  };
+
+  const renderStatus = (item: EmployeeListItem): React.ReactNode => {
+    const badge = getEmployeeLifecycleBadge(item);
+    return <Badge className={styles.badge} tone={badge.tone}>{badge.label}</Badge>;
+  };
+
+  const personMeta = (item: EmployeeListItem): string =>
+    [item.position ?? 'Должность не указана', item.employeeType !== 'regular' ? getEmployeeTypeLabel(item.employeeType) : null]
+      .filter(Boolean).join(' · ');
+
+  const scheduleText = (item: EmployeeListItem): string | null =>
+    item.workScheduleCode ? getEmployeeScheduleLabel(item.workScheduleCode, item.workScheduleCustom) : null;
+
   return (
-    <>{!canAccessEmployeesHr ? (
-        <div className="page-card inline-notice inline-notice--warning">У вас нет доступа к HR-контуру сотрудников.</div>
+    <div className={styles.page}>
+      <PageHeader
+        title="Сотрудники"
+        actions={result.capabilities.canCreate
+          ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/employees/new">Добавить сотрудника</ButtonLink>
+          : null}
+      />
+
+      <nav ref={registryNavRef} className={styles.registryNav} aria-label="Разделы реестра">
+        {([['all', 'Все'], ['regular', 'Постоянные'], ['one_time', 'Разовые'], ['substitution', 'Подменные'], ['archived', 'Архив']] as const)
+          .map(([value, label]) => (
+            <Button key={value} aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}>
+              {label}
+            </Button>
+          ))}
+        {user?.capabilities?.canAccessCandidates ? <Link href="/employees/reserve">Резерв</Link> : null}
+      </nav>
+
+      <RegistryToolbar
+        searchValue={searchInput}
+        searchLabel="Поиск по сотрудникам"
+        searchPlaceholder="ФИО или телефон"
+        onSearchChange={setSearchInput}
+        activeFilters={activeRegistryFilters}
+        availableFilters={availableRegistryFilters}
+      />
+
+      {error ? (
+        <Alert tone="danger" title="Список не загрузился"
+          action={<Button size="sm" onClick={() => setReloadKey((current) => current + 1)}>Повторить</Button>}>
+          {error}
+        </Alert>
+      ) : !isLoading && result.items.length === 0 ? (
+        querySearch || activeFilterCount ? (
+          <EmptyState title="Ничего не найдено" description="По заданным условиям сотрудников нет."
+            action={<Button onClick={resetFilters}>Сбросить фильтры</Button>} />
+        ) : (
+          <EmptyState title="Сотрудников пока нет"
+            description={archiveState === 'archived' ? 'В архиве нет карточек.' : 'Добавьте первого сотрудника.'}
+            action={result.capabilities.canCreate && archiveState !== 'archived'
+              ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/employees/new">Добавить сотрудника</ButtonLink> : undefined} />
+        )
       ) : (
-        <div className="page-stack workspace-page employee-registry">
-          <nav ref={registryNavRef} className={`employee-tabs ${styles.tabs}`} aria-label="Разделы реестра">
-            {([['all', 'Все сотрудники'], ['regular', 'Постоянные'], ['one_time', 'Разовые'], ['substitution', 'Подменные'], ['archived', 'Архив']] as const)
-              .map(([value, label]) => <button key={value} type="button" className={tab === value ? 'is-active' : undefined}
-                aria-current={tab === value ? 'page' : undefined} onClick={() => setTab(value)}>{label}</button>)}
-            {user?.capabilities?.canAccessCandidates ? <Link href="/employees/reserve">Резерв</Link> : null}
-          </nav>
+        <div aria-busy={isLoading}>
+          <DataTable label="Сотрудники" className={styles.registryTable} frameClassName={styles.tableFrame}>
+            <colgroup>
+              <col className={styles.colPerson} /><col className={styles.colPhone} /><col className={styles.colObjects} />
+              <col className={styles.colSchedule} /><col className={styles.colStatus} /><col className={styles.colOpen} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">Сотрудник</th>
+                <th scope="col">Телефон</th>
+                <th scope="col">Объекты</th>
+                <th scope="col">Рабочий режим</th>
+                <th scope="col">Статус</th>
+                <th scope="col" aria-label="Открыть" />
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && result.items.length === 0
+                ? Array.from({ length: 6 }, (_unused, index) => (
+                  <tr key={index} aria-hidden="true">
+                    {Array.from({ length: 6 }, (_cell, cell) => <td key={cell}><Skeleton height={16} /></td>)}
+                  </tr>
+                ))
+                : result.items.map((item) => {
+                  const phoneHref = getPhoneHref(item.phone);
+                  const href = `/employees/${item.id}`;
+                  return (
+                    <tr
+                      key={item.id}
+                      onClick={(event) => {
+                        const target = event.target as HTMLElement;
+                        if (target.closest('a, button, input, select') || window.getSelection()?.toString()) return;
+                        router.push(href);
+                      }}
+                    >
+                      <td>
+                        <span className={styles.person}>
+                          <UserAvatar fullName={item.fullName} size="medium" variant="soft" decorative />
+                          <span className={styles.personText}>
+                            <Link className={styles.personName} href={href} title={item.fullName}>{item.fullName}</Link>
+                            <span className={styles.personMeta}>{personMeta(item)}</span>
+                          </span>
+                        </span>
+                      </td>
+                      <td>
+                        {item.phone
+                          ? phoneHref ? <a className={styles.phone} href={phoneHref}>{formatPhone(item.phone)}</a> : item.phone
+                          : <span className={styles.muted}>—</span>}
+                      </td>
+                      <td>{renderObjects(item)}</td>
+                      <td>
+                        <span className={styles.cellStack}>
+                          <span>{scheduleText(item) ?? <span className={styles.muted}>Не указан</span>}</span>
+                          {item.workTimeText ? <span className={styles.personMeta} title={item.workTimeText}>{item.workTimeText}</span> : null}
+                        </span>
+                      </td>
+                      <td>{renderStatus(item)}</td>
+                      <td className="registry-open-cell"><RegistryOpenLink href={href} label={`Открыть: ${item.fullName}`} /></td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </DataTable>
 
-          <RegistryToolbar
-            searchValue={searchInput}
-            searchLabel="Поиск по сотрудникам"
-            searchPlaceholder="Поиск по ФИО или телефону"
-            onSearchChange={setSearchInput}
-            activeFilters={activeRegistryFilters}
-            availableFilters={availableRegistryFilters}
-            actions={result.capabilities.canCreate ? <Link className="button-link button-link--primary" href="/employees/new">Добавить сотрудника</Link> : null}
-          />
-
-          {isLoading ? <div className="page-card employee-loading" aria-live="polite">Загружаем сотрудников...</div>
-            : error ? <div className="page-card inline-notice inline-notice--warning"><div>{error}</div>
-              <button type="button" className="button-secondary" onClick={() => setReloadKey((current) => current + 1)}>Повторить</button></div>
-            : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">{querySearch || activeFilterCount
-              ? 'По выбранным фильтрам сотрудников нет.' : 'Сотрудники не найдены.'}</div>
-            : <><DataTable label="Таблица сотрудников" className="employee-registry-table" frameClassName="page-card workspace-surface data-table-shell employee-table-wrap"><thead><tr>
-              <th>ФИО</th><th>Телефон</th><th>Должность</th><th>Тип</th><th>Статус</th><th>Дата рождения</th>
-              <th>График</th><th>Время работы</th><th>Ставка за день</th><th>Текущие объекты</th><th>Изменён</th><th aria-label="Открыть" />
-            </tr></thead><tbody>{result.items.map((item) => <tr key={item.id} tabIndex={0}
-              onClick={() => router.push(`/employees/${item.id}`)} onKeyDown={(event) => { if (event.key === 'Enter') router.push(`/employees/${item.id}`); }}>
-              <td title={item.fullName}><Link href={`/employees/${item.id}`}>{item.fullName}</Link></td><td title={item.phone ?? undefined}>{item.phone ?? '—'}</td><td title={item.position ?? undefined}>{item.position ?? '—'}</td>
-              <td><span className="employee-type-badge">{getEmployeeTypeLabel(item.employeeType)}</span></td><td>{getEmployeeStatusLabel(item.employmentStatus)}</td>
-              <td>{formatEmployeeDate(item.birthDate)}</td><td title={item.workScheduleCustom ?? undefined}>{getEmployeeScheduleLabel(item.workScheduleCode, item.workScheduleCustom)}</td>
-              <td title={item.workTimeText ?? undefined}>{item.workTimeText ?? '—'}</td><td>{formatEmployeeRate(item.baseDailyRate)}</td><td title={item.currentObjects.map((object) => object.name).join(', ') || undefined}><div className="employee-object-chips">
-                {item.currentObjects.length ? item.currentObjects.map((object) => <span key={object.id}>{object.name}</span>) : '—'}</div></td>
-              <td title={new Date(item.updatedAt).toLocaleString('ru-RU')}>{formatRegistryDate(item.updatedAt)}</td>
-              <td className="registry-open-cell"><RegistryOpenLink href={`/employees/${item.id}`} label={`Открыть сотрудника ${item.fullName}`} /></td></tr>)}</tbody></DataTable>
-              <div className="employee-mobile-list">{result.items.map((item) => <Link key={item.id} href={`/employees/${item.id}`} className="page-card employee-mobile-card">
-                <div className="section-header"><div><strong>{item.fullName}</strong><div className="page-muted">{item.position ?? 'Должность не указана'}</div></div>
-                  <span className="employee-type-badge">{getEmployeeTypeLabel(item.employeeType)}</span></div>
-                <div className="employee-mobile-card__meta"><span>{item.phone ?? 'Телефон не указан'}</span><span>{getEmployeeStatusLabel(item.employmentStatus)}</span>
-                  <span>{getEmployeeScheduleLabel(item.workScheduleCode, item.workScheduleCustom)}</span>
-                  <span>Паспорт: {item.passportReceived ? 'получен' : 'не получен'}</span>
-                  <span>Договор: {item.contractReceived ? 'получен' : 'не получен'}</span></div>
-                <div className="employee-object-chips">{item.currentObjects.length ? item.currentObjects.map((object) => <span key={object.id}>{object.name}</span>) : <span>Без объекта</span>}</div>
-              </Link>)}</div></>}
-
-          <div className={styles.pagination}>
-          <TablePagination page={result.page} totalPages={result.totalPages} pending={isLoading} label="Страницы сотрудников"
-            summary={result.total > 0 ? `Показано ${firstItem}–${lastItem} из ${result.total}` : 'Сотрудники не найдены'}
-            onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
-            beforeNavigation={<SearchableSelect label="На странице" value={String(limit)} clearable={false}
-              options={[25, 50, 100].map((value) => ({ value: String(value), label: String(value) }))}
-              onChange={(value) => replaceQuery({ limit: value === String(DEFAULT_LIMIT) ? null : value, page: null })} />} />
-          </div>
+          <ul className={styles.mobileList} aria-label="Сотрудники">
+            {result.items.map((item) => (
+              <li key={item.id}>
+                <Link className={styles.mobileRow} href={`/employees/${item.id}`}>
+                  <span className={styles.mobileRowHead}>
+                    <span className={styles.person}>
+                      <UserAvatar fullName={item.fullName} size="medium" variant="soft" decorative />
+                      <span className={styles.personText}>
+                        <span className={styles.personName}>{item.fullName}</span>
+                        <span className={styles.personMeta}>{personMeta(item)}</span>
+                      </span>
+                    </span>
+                    {renderStatus(item)}
+                  </span>
+                  <span className={styles.mobileMeta}>
+                    <span>{formatPhone(item.phone) ?? 'Телефон не указан'}</span>
+                    {scheduleText(item) ? <span>{scheduleText(item)}</span> : null}
+                  </span>
+                  {renderObjects(item)}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
-      )}</>
+      )}
+
+      {result.total > 0 ? (
+        <div className={styles.pagination}>
+          <TablePagination page={result.page} totalPages={result.totalPages} pending={isLoading} label="Страницы сотрудников"
+            summary={`Показано ${firstItem}–${lastItem} из ${result.total}`}
+            onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
+            pageSize={limit}
+            pageSizeOptions={[25, 50, 100]}
+            onPageSizeChange={(value) => replaceQuery({ limit: value === DEFAULT_LIMIT ? null : String(value), page: null })} />
+        </div>
+      ) : null}
+    </div>
   );
 }

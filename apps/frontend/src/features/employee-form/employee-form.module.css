@@ -1,0 +1,126 @@
+.form {
+  display: grid;
+  min-width: 0;
+}
+
+.requiredNote {
+  margin: 0 0 var(--ui-space-2);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+}
+
+.fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.section {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: var(--ui-space-4) var(--ui-space-8);
+  min-width: 0;
+  padding: var(--ui-space-6) 0;
+  border-top: 1px solid var(--ui-border);
+}
+
+.fieldset:first-of-type .section {
+  border-top: 0;
+  padding-top: var(--ui-space-2);
+}
+
+.sectionHeading {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-1);
+}
+
+.sectionTitle {
+  margin: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-text-lg);
+  font-weight: 600;
+  line-height: var(--ui-leading-tight);
+}
+
+.sectionDescription {
+  margin: 0;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  line-height: var(--ui-leading-normal);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+  align-items: start;
+  min-width: 0;
+}
+
+.grid > * {
+  min-width: 0;
+}
+
+.grid :global(.ui-field) {
+  gap: var(--ui-space-1);
+}
+
+.grid input:not([type='checkbox']),
+.grid select,
+.grid textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.grid textarea {
+  min-height: 88px;
+  resize: vertical;
+  line-height: var(--ui-leading-normal);
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2) var(--ui-space-6);
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-height: 44px;
+  color: var(--ui-text);
+  font-size: var(--ui-text-md);
+  cursor: pointer;
+}
+
+.choice input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--ui-accent);
+}
+
+@media (max-width: 900px) {
+  .section {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ui-space-3);
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .section {
+    padding-block: var(--ui-space-5);
+  }
+}

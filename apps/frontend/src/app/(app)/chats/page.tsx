@@ -55,6 +55,7 @@ import { Dialog } from '@/shared/ui/overlays';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 import { ChatMessageMenu } from './chat-message-menu';
 import styles from './chat-ui.module.css';
+import { Alert, Button } from '@/shared/ui/foundation';
 
 type RealtimePayload = {
   type?: string;
@@ -284,13 +285,12 @@ function ParticipantPicker({
                     <small>{getUserSecondaryLabel(participant)}</small>
                   ) : null}
                 </span>
-                <button
-                  type="button"
+                <Button
                   aria-label={`Убрать ${getUserDisplayName(participant)}`}
                   onClick={() => removeUser(participant.id)}
                 >
                   <ChatIcon name="close" />
-                </button>
+                </Button>
               </span>
             ))}
       </div>
@@ -309,9 +309,8 @@ function ParticipantPicker({
       {filteredCandidates.length > 0 ? (
         <div className="participant-picker__options">
           {filteredCandidates.map((candidate) => (
-            <button
+            <Button
               key={candidate.id}
-              type="button"
               aria-pressed={selectedIdSet.has(candidate.id)}
               onClick={() =>
                 selectedIdSet.has(candidate.id)
@@ -333,7 +332,7 @@ function ParticipantPicker({
               <span className={styles.selectionCheck} aria-hidden="true">
                 {selectedIdSet.has(candidate.id) ? '✓' : ''}
               </span>
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
@@ -1796,9 +1795,9 @@ export default function ChatsPage(): React.JSX.Element {
 
       <div className={`page-stack chat-page-stack ${styles.workspace}`}>
         {error ? (
-          <div className="page-card" style={{ color: '#b91c1c' }}>
+          <Alert tone="danger" role="alert">
             {error}
-          </div>
+          </Alert>
         ) : null}
 
         <div className={layoutClassName}>
@@ -1848,13 +1847,12 @@ export default function ChatsPage(): React.JSX.Element {
                   }}
                 />
                 {searchQuery ? (
-                  <button
-                    type="button"
+                  <Button
                     aria-label="Очистить поиск в чатах"
                     onClick={() => setSearchQuery('')}
                   >
                     <ChatIcon name="close" />
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </div>
@@ -1899,9 +1897,8 @@ export default function ChatsPage(): React.JSX.Element {
                           Чаты <span>{searchResults.rooms.length}</span>
                         </strong>
                         {searchResults.rooms.map((room) => (
-                          <button
+                          <Button
                             key={room.id}
-                            type="button"
                             onClick={() => {
                               selectRoom(room.id);
                               setSearchQuery('');
@@ -1916,7 +1913,7 @@ export default function ChatsPage(): React.JSX.Element {
                             <small>
                               {room.lastMessagePreview ?? 'Без сообщений'}
                             </small>
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     ) : null}
@@ -1926,9 +1923,8 @@ export default function ChatsPage(): React.JSX.Element {
                           Сообщения <span>{searchResults.messages.length}</span>
                         </strong>
                         {searchResults.messages.map((message) => (
-                          <button
+                          <Button
                             key={message.id}
-                            type="button"
                             onClick={() =>
                               openSearchMessage(message.roomId, message.id)
                             }
@@ -1945,7 +1941,7 @@ export default function ChatsPage(): React.JSX.Element {
                             <small>
                               {highlightSearch(message.text ?? '', searchQuery)}
                             </small>
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     ) : null}
@@ -2169,8 +2165,7 @@ export default function ChatsPage(): React.JSX.Element {
                             role="menu"
                             aria-label="Действия с чатом"
                           >
-                            <button
-                              type="button"
+                            <Button
                               role="menuitem"
                               onClick={() => {
                                 setIsRoomMenuOpen(false);
@@ -2179,10 +2174,9 @@ export default function ChatsPage(): React.JSX.Element {
                             >
                               <ChatIcon name="file" />
                               Информация о чате
-                            </button>
+                            </Button>
                             {activeRoom.capabilities.canManage ? (
-                              <button
-                                type="button"
+                              <Button
                                 role="menuitem"
                                 onClick={() => {
                                   setIsRoomSettingsOpen((current) => !current);
@@ -2191,11 +2185,10 @@ export default function ChatsPage(): React.JSX.Element {
                               >
                                 <ChatIcon name="edit" />
                                 Редактировать
-                              </button>
+                              </Button>
                             ) : null}
                             {activeRoom.capabilities.canHide ? (
-                              <button
-                                type="button"
+                              <Button
                                 role="menuitem"
                                 onClick={() => {
                                   setIsRoomMenuOpen(false);
@@ -2204,11 +2197,10 @@ export default function ChatsPage(): React.JSX.Element {
                               >
                                 <ChatIcon name="archive" />
                                 Скрыть чат
-                              </button>
+                              </Button>
                             ) : null}
                             {activeRoom.capabilities.canLeave ? (
-                              <button
-                                type="button"
+                              <Button
                                 role="menuitem"
                                 onClick={() => {
                                   setIsRoomMenuOpen(false);
@@ -2217,7 +2209,7 @@ export default function ChatsPage(): React.JSX.Element {
                               >
                                 <ChatIcon name="back" />
                                 Покинуть чат
-                              </button>
+                              </Button>
                             ) : null}
                             {activeRoom.capabilities.canCloseGlobally ? (
                               <button
@@ -2382,21 +2374,19 @@ export default function ChatsPage(): React.JSX.Element {
                                     rows={3}
                                   />
                                   <div className="action-row">
-                                    <button
-                                      type="button"
+                                    <Button
                                       onClick={() => void handleEdit(message)}
                                     >
                                       Сохранить
-                                    </button>
-                                    <button
-                                      type="button"
+                                    </Button>
+                                    <Button
                                       onClick={() => {
                                         setEditingMessageId(null);
                                         setEditingText('');
                                       }}
                                     >
                                       Отмена
-                                    </button>
+                                    </Button>
                                   </div>
                                 </div>
                               ) : (
@@ -2523,8 +2513,7 @@ export default function ChatsPage(): React.JSX.Element {
                                   onClose={() => setOpenMessageActionsId(null)}
                                 >
                                   {message.capabilities.canReply ? (
-                                    <button
-                                      type="button"
+                                    <Button
                                       role="menuitem"
                                       onClick={() => {
                                         setReplyingTo(message);
@@ -2536,11 +2525,10 @@ export default function ChatsPage(): React.JSX.Element {
                                     >
                                       <ChatIcon name="reply" />
                                       Ответить
-                                    </button>
+                                    </Button>
                                   ) : null}
                                   {message.capabilities.canForward ? (
-                                    <button
-                                      type="button"
+                                    <Button
                                       role="menuitem"
                                       onClick={() => {
                                         setForwardingMessage(message);
@@ -2553,11 +2541,10 @@ export default function ChatsPage(): React.JSX.Element {
                                     >
                                       <ChatIcon name="forward" />
                                       Переслать
-                                    </button>
+                                    </Button>
                                   ) : null}
                                   {message.capabilities.canEdit ? (
-                                    <button
-                                      type="button"
+                                    <Button
                                       role="menuitem"
                                       onClick={() => {
                                         setEditingMessageId(message.id);
@@ -2567,11 +2554,10 @@ export default function ChatsPage(): React.JSX.Element {
                                     >
                                       <ChatIcon name="edit" />
                                       Редактировать
-                                    </button>
+                                    </Button>
                                   ) : null}
                                   {message.capabilities.canReact ? (
-                                    <button
-                                      type="button"
+                                    <Button
                                       role="menuitem"
                                       onClick={() => {
                                         setOpenMessageActionsId(null);
@@ -2582,7 +2568,7 @@ export default function ChatsPage(): React.JSX.Element {
                                       {message.myReactions.includes('heart')
                                         ? 'Убрать реакцию'
                                         : 'Поставить реакцию'}
-                                    </button>
+                                    </Button>
                                   ) : null}
                                   {message.capabilities.canDelete ? (
                                     <button
@@ -2712,7 +2698,7 @@ export default function ChatsPage(): React.JSX.Element {
                         aria-label="Сообщение"
                         rows={1}
                       />
-                      <button
+                      <Button variant="primary"
                         type="submit"
                         aria-label={
                           isSending
@@ -2725,7 +2711,7 @@ export default function ChatsPage(): React.JSX.Element {
                         }
                       >
                         <ChatIcon name="send" />
-                      </button>
+                      </Button>
                     </div>
                   </form>
                 ) : (
@@ -2753,40 +2739,35 @@ export default function ChatsPage(): React.JSX.Element {
             footer={
               <div className={styles.dialogActions}>
                 {newRoomMode === 'group' && groupDetailsStep ? (
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => setGroupDetailsStep(false)}
                   >
                     Назад
-                  </button>
+                  </Button>
                 ) : (
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => setIsCreateRoomOpen(false)}
                   >
                     Отмена
-                  </button>
+                  </Button>
                 )}
                 {newRoomMode === 'group' && !groupDetailsStep ? (
-                  <button
-                    type="button"
-                    className={styles.primaryAction}
+                  <Button variant="primary"
                     disabled={!newRoomParticipantIds.length}
                     onClick={() => setGroupDetailsStep(true)}
                   >
                     Далее
-                  </button>
+                  </Button>
                 ) : (
-                  <button
+                  <Button variant="primary"
                     type="submit"
                     form="chat-create-form"
-                    className={styles.primaryAction}
                     disabled={isCreateRoomDisabled}
                   >
                     {newRoomMode === 'direct'
                       ? 'Открыть чат'
                       : 'Создать группу'}
-                  </button>
+                  </Button>
                 )}
               </div>
             }
@@ -2799,22 +2780,20 @@ export default function ChatsPage(): React.JSX.Element {
               {!(newRoomMode === 'group' && groupDetailsStep) ? (
                 <div className={styles.tabs} role="group" aria-label="Тип чата">
                   {canCreateDirectChat ? (
-                    <button
-                      type="button"
+                    <Button
                       aria-pressed={newRoomMode === 'direct'}
                       onClick={() => setNewRoomMode('direct')}
                     >
                       Личный чат
-                    </button>
+                    </Button>
                   ) : null}
                   {canCreateGroupChat ? (
-                    <button
-                      type="button"
+                    <Button
                       aria-pressed={newRoomMode === 'group'}
                       onClick={() => setNewRoomMode('group')}
                     >
                       Группа
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
               ) : null}
@@ -2880,20 +2859,18 @@ export default function ChatsPage(): React.JSX.Element {
             className={styles.dialog}
             footer={
               <div className={styles.dialogActions}>
-                <button
-                  type="button"
+                <Button
                   onClick={() => setIsRoomSettingsOpen(false)}
                 >
                   Отмена
-                </button>
-                <button
+                </Button>
+                <Button variant="primary"
                   type="submit"
                   form="chat-rename-form"
-                  className={styles.primaryAction}
                   disabled={!renameTitle.trim()}
                 >
                   Сохранить
-                </button>
+                </Button>
               </div>
             }
           >
@@ -2937,8 +2914,7 @@ export default function ChatsPage(): React.JSX.Element {
               <span>Участники: {activeRoom.participantCount}</span>
             </div>
             <div className={styles.infoActions}>
-              <button
-                type="button"
+              <Button
                 onClick={() => {
                   setIsParticipantsPanelOpen(false);
                   setExplorer('search');
@@ -2946,9 +2922,8 @@ export default function ChatsPage(): React.JSX.Element {
               >
                 <ChatIcon name="search" />
                 Поиск
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
                 onClick={() => {
                   setIsParticipantsPanelOpen(false);
                   setExplorer('media');
@@ -2956,9 +2931,8 @@ export default function ChatsPage(): React.JSX.Element {
               >
                 <ChatIcon name="gallery" />
                 Медиа
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
                 onClick={() => {
                   setIsParticipantsPanelOpen(false);
                   setExplorer('files');
@@ -2966,7 +2940,7 @@ export default function ChatsPage(): React.JSX.Element {
               >
                 <ChatIcon name="file" />
                 Файлы
-              </button>
+              </Button>
             </div>
             <div className={styles.listHeading}>Участники</div>
             <div className={styles.searchField}>
@@ -3017,13 +2991,12 @@ export default function ChatsPage(): React.JSX.Element {
                   onChange={setAddParticipantIds}
                   placeholder="Найти пользователя"
                 />
-                <button
+                <Button variant="primary"
                   type="submit"
-                  className={styles.primaryAction}
                   disabled={!addParticipantIds.length}
                 >
                   Добавить выбранных
-                </button>
+                </Button>
                 <p className={styles.hint}>
                   Новые участники увидят сообщения с момента добавления.
                 </p>
@@ -3050,23 +3023,21 @@ export default function ChatsPage(): React.JSX.Element {
             className={styles.dialog}
             footer={
               <div className={styles.dialogActions}>
-                <button
-                  type="button"
+                <Button
                   onClick={() => {
                     setForwardingMessage(null);
                     setForwardTargetRoomId('');
                   }}
                 >
                   Отмена
-                </button>
-                <button
+                </Button>
+                <Button variant="primary"
                   type="submit"
                   form="chat-forward-form"
-                  className={styles.primaryAction}
                   disabled={!forwardTargetRoomId}
                 >
                   Переслать
-                </button>
+                </Button>
               </div>
             }
           >

@@ -16,6 +16,8 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Alert, Button, Field } from '@/shared/ui/foundation';
 
 type OneTimeOrderFormPayload = {
   title: string;
@@ -218,20 +220,17 @@ export function OneTimeOrderForm({
           gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
         }}
       >
-        <label>
-          <div style={{ marginBottom: 6 }}>Название заказа</div>
+        <Field label="Название заказа">
           <input
             value={form.title}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, title: event.target.value }))
             }
-            style={{ width: '100%', padding: 10 }}
             required
           />
-        </label>
+        </Field>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Адрес / место выполнения</div>
+        <Field label="Адрес / место выполнения">
           <input
             value={form.executionAddress}
             onChange={(event) =>
@@ -240,10 +239,9 @@ export function OneTimeOrderForm({
                 executionAddress: event.target.value,
               }))
             }
-            style={{ width: '100%', padding: 10 }}
             required
           />
-        </label>
+        </Field>
 
         {allowStatusEdit ? (
           <SearchableSelect
@@ -292,43 +290,22 @@ export function OneTimeOrderForm({
                 marginTop: 12,
               }}
             >
-              <label>
-                <div style={{ marginBottom: 6 }}>
-                  {form.dateMode === 'range' ? 'Дата начала' : 'Дата'}
-                </div>
-                <input
-                  type="date"
-                  value={form.executionStartDate.slice(0, 10)}
-                  onChange={(event) =>
-                    setForm((prev) => ({
+              <Field label={form.dateMode === 'range' ? 'Дата начала' : 'Дата'}>
+                <DatePicker value={form.executionStartDate.slice(0, 10)} onChange={(nextValue) => setForm((prev) => ({
                       ...prev,
-                      executionStartDate: event.target.value,
+                      executionStartDate: nextValue,
                       ...(prev.dateMode === 'single'
-                        ? { executionEndDate: event.target.value }
+                        ? { executionEndDate: nextValue }
                         : {}),
-                    }))
-                  }
-                  style={{ width: '100%', padding: 10 }}
-                  required
-                />
-              </label>
+                    }))} required />
+              </Field>
               {form.dateMode === 'range' ? (
-                <label>
-                  <div style={{ marginBottom: 6 }}>Дата окончания</div>
-                  <input
-                    type="date"
-                    value={form.executionEndDate.slice(0, 10)}
-                    min={form.executionStartDate.slice(0, 10)}
-                    onChange={(event) =>
-                      setForm((prev) => ({
+                <Field label="Дата окончания">
+                  <DatePicker value={form.executionEndDate.slice(0, 10)} min={form.executionStartDate.slice(0, 10)} onChange={(nextValue) => setForm((prev) => ({
                         ...prev,
-                        executionEndDate: event.target.value,
-                      }))
-                    }
-                    style={{ width: '100%', padding: 10 }}
-                    required
-                  />
-                </label>
+                        executionEndDate: nextValue,
+                      }))} required />
+                </Field>
               ) : null}
             </div>
           ) : null}
@@ -353,33 +330,28 @@ export function OneTimeOrderForm({
           />
         ) : null}
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Контакт</div>
+        <Field label="Контакт">
           <input
             value={form.contactName}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, contactName: event.target.value }))
             }
-            style={{ width: '100%', padding: 10 }}
             required
           />
-        </label>
+        </Field>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Телефон контакта</div>
+        <Field label="Телефон контакта">
           <input
             value={form.contactPhone}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, contactPhone: event.target.value }))
             }
-            style={{ width: '100%', padding: 10 }}
           />
-        </label>
+        </Field>
 
         {canEditFinancialFields ? (
           <>
-            <label>
-              <div style={{ marginBottom: 6 }}>Согласованная сумма</div>
+            <Field label="Согласованная сумма">
               <input
                 type="number"
                 min={0}
@@ -387,9 +359,8 @@ export function OneTimeOrderForm({
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, agreedSum: event.target.value }))
                 }
-                style={{ width: '100%', padding: 10 }}
               />
-            </label>
+            </Field>
             <SearchableSelect
                 label="Плановый способ оплаты"
                 value={form.plannedPaymentMethod}
@@ -524,9 +495,7 @@ export function OneTimeOrderForm({
                   Выполнение и вложения исходного заказа не копируются.
                 </div>
               </div>
-              <button
-                type="button"
-                className="button-secondary"
+              <Button
                 onClick={() =>
                   setSpecificationItems((items) => [
                     ...items,
@@ -535,13 +504,12 @@ export function OneTimeOrderForm({
                 }
               >
                 Добавить пункт
-              </button>
+              </Button>
             </div>
             <div className="record-list">
               {specificationItems.map((item, index) => (
                 <div className="record-item" key={index}>
-                  <label>
-                    <div style={{ marginBottom: 6 }}>Название пункта</div>
+                  <Field label="Название пункта">
                     <input
                       value={item.title}
                       maxLength={500}
@@ -556,9 +524,8 @@ export function OneTimeOrderForm({
                         )
                       }
                     />
-                  </label>
-                  <label>
-                    <div style={{ marginBottom: 6 }}>Описание</div>
+                  </Field>
+                  <Field label="Описание">
                     <textarea
                       value={item.description ?? ''}
                       rows={2}
@@ -572,7 +539,7 @@ export function OneTimeOrderForm({
                         )
                       }
                     />
-                  </label>
+                  </Field>
                   <div className="action-row">
                     <label>
                       <input
@@ -612,12 +579,12 @@ export function OneTimeOrderForm({
         ) : null}
       </div>
 
-      {error ? <div style={{ marginTop: 12, color: '#b91c1c' }}>{error}</div> : null}
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
       <div style={{ marginTop: 16 }}>
-        <button type="submit" disabled={isSubmitting}>
+        <Button variant="primary" type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Сохраняем...' : submitLabel}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -18,6 +18,8 @@ import {
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
 import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Button } from '@/shared/ui/foundation';
 
 interface ObjectEditFormProps {
   item: ServiceObject;
@@ -241,11 +243,11 @@ export function ObjectEditForm({
         </div>
         <label className={styles.field}>
           <span className={styles.fieldLabel}>Зимний профиль: трактор</span>
-          <select value={form.winterTractorMode} onChange={(event) => setForm((prev) => ({ ...prev, winterTractorMode: event.target.value as typeof prev.winterTractorMode }))} disabled={!canEditObject || isSubmitting}>
+          <Select value={form.winterTractorMode} onChange={(event) => setForm((prev) => ({ ...prev, winterTractorMode: event.target.value as typeof prev.winterTractorMode }))} disabled={!canEditObject || isSubmitting}>
             <option value="none">Не нужен</option>
             <option value="with_removal">С вывозом</option>
             <option value="without_removal">Без вывоза</option>
-          </select>
+          </Select>
         </label>
       </section>
 
@@ -395,9 +397,9 @@ export function ObjectEditForm({
       {success ? <div className={styles.success}>{success}</div> : null}
 
       <div className={styles.actions}>
-        <button type="submit" disabled={isSubmitting || (canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canManageCompensationRates && invalidScheduleProfiles.length > 0) || (!canEditObject && !canManageCompensationRates)}>
+        <Button variant="primary" type="submit" disabled={isSubmitting || (canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canManageCompensationRates && invalidScheduleProfiles.length > 0) || (!canEditObject && !canManageCompensationRates)}>
           {isSubmitting ? 'Сохраняем...' : canEditObject ? 'Сохранить изменения' : 'Сохранить тарифы'}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,13 +1,9 @@
 import './globals.css';
 import '@/shared/styles/design-tokens.css';
 import '@/shared/styles/ui-foundation.css';
-import '@/shared/styles/product-shell.css';
-import '@/shared/styles/product-shell-wave-1-1.css';
+import '@/shared/styles/app-shell.css';
 import '@/shared/styles/global-command.css';
-import '@/shared/styles/topbar-communication.css';
-import '@/shared/styles/timesheet-editing.css';
-import '@/shared/styles/timesheet-page.css';
-import '@/shared/styles/dashboard-workspace.css';
+import '@/shared/styles/timesheet.css';
 import type { Metadata } from 'next';
 import React from 'react';
 

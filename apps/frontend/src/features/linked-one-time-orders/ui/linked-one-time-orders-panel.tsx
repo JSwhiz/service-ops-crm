@@ -6,6 +6,7 @@ import React from 'react';
 import type { LinkedOneTimeOrderProjection } from '@/entities/object/model/object-operations.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
+import { Stack } from '@/shared/ui/foundation';
 
 export function LinkedOneTimeOrdersPanel({
   items,
@@ -24,10 +25,10 @@ export function LinkedOneTimeOrdersPanel({
         <div className="record-list local-scroll">
           {items.map((item) => {
             const header = (
-              <div style={{ display: 'grid', gap: 4 }}>
+              <Stack gap="xs">
                 <div style={{ fontWeight: 600 }}>{item.title}</div>
                 <div className="page-muted">Заказ #{item.id}</div>
-              </div>
+              </Stack>
             );
 
             return (

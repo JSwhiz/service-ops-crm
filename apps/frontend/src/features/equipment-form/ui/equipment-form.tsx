@@ -7,6 +7,8 @@ import type {
   CreateEquipmentUnitPayload,
   EquipmentCatalogItem,
 } from '@/entities/equipment/model/equipment.types';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Alert, Button } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -52,10 +54,10 @@ export function EquipmentCatalogItemForm({
       <input value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="Бренд" />
       <input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Модель" />
       <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Заметки" rows={2} />
-      {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
-      <button type="submit" disabled={isSaving}>
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
+      <Button variant="primary" type="submit" disabled={isSaving}>
         {isSaving ? 'Создаем...' : 'Создать тип'}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -107,9 +109,7 @@ export function EquipmentCatalogManager({
                     </div>
                   </div>
                   {canDelete ? (
-                    <button
-                      type="button"
-                      className="button-danger"
+                    <Button variant="danger"
                       disabled={!canDeleteItem || pendingId === item.id}
                       onClick={() => {
                         setError(null);
@@ -117,18 +117,16 @@ export function EquipmentCatalogManager({
                       }}
                     >
                       Удалить тип
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
 
                 {isConfirming && canDeleteItem ? (
-                  <div className="inline-notice inline-notice--warning">
+                  <Alert tone="warning">
                     <strong>Удалить тип «{item.name}»?</strong>
                     <div>Он не используется ни одной единицей оборудования.</div>
                     <div className="action-row">
-                      <button
-                        type="button"
-                        className="button-danger"
+                      <Button variant="danger"
                         disabled={pendingId === item.id}
                         onClick={() => {
                           setPendingId(item.id);
@@ -147,17 +145,15 @@ export function EquipmentCatalogManager({
                         }}
                       >
                         {pendingId === item.id ? 'Удаляем...' : 'Удалить'}
-                      </button>
-                      <button
-                        type="button"
-                        className="button-secondary"
+                      </Button>
+                      <Button
                         disabled={pendingId === item.id}
                         onClick={() => setConfirmId(null)}
                       >
                         Отмена
-                      </button>
+                      </Button>
                     </div>
-                  </div>
+                  </Alert>
                 ) : null}
               </div>
             );
@@ -211,20 +207,20 @@ export function EquipmentUnitForm({
       }}
     >
       <strong>Новая единица оборудования</strong>
-      <select value={catalogItemId} onChange={(event) => setCatalogItemId(event.target.value)} required>
+      <Select value={catalogItemId} onChange={(event) => setCatalogItemId(event.target.value)} required>
         {catalog.map((item) => (
           <option key={item.id} value={item.id}>
             {item.category} · {item.name}
           </option>
         ))}
-      </select>
+      </Select>
       <input value={inventoryNumber} onChange={(event) => setInventoryNumber(event.target.value)} placeholder="Инвентарный номер" required />
       <input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} placeholder="Серийный номер" />
       <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Заметки" rows={2} />
-      {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
-      <button type="submit" disabled={isSaving || catalog.length === 0}>
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
+      <Button variant="primary" type="submit" disabled={isSaving || catalog.length === 0}>
         {isSaving ? 'Создаем...' : 'Создать единицу'}
-      </button>
+      </Button>
     </form>
   );
 }

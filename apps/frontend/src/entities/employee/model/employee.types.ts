@@ -91,9 +91,19 @@ export interface EmployeePositionReference {
   label: string;
 }
 
+/** Display description of pay; amount null means the rate is not set. */
+export interface EmployeeCompensation {
+  source: 'rate_option' | 'individual' | 'object_default';
+  optionName: string | null;
+  amount: number | null;
+  unit: 'shift' | 'month';
+}
+
 export interface EmployeeObjectReference {
   id: string;
   name: string;
+  /** Null when the viewer may not see object rates. */
+  compensation?: EmployeeCompensation | null;
 }
 
 export interface EmployeeDetail extends EmployeeDocumentState {
@@ -102,6 +112,8 @@ export interface EmployeeDetail extends EmployeeDocumentState {
   id: string;
   fullName: string;
   phone: string | null;
+  /** All numbers; the first one is the main phone mirrored into `phone`. */
+  phones: string[];
   position: string | null;
   birthDate: string | null;
   residenceAddress: string | null;
@@ -123,7 +135,8 @@ export interface EmployeeDetail extends EmployeeDocumentState {
     historyId: string | null;
     objectId: string;
     objectName: string;
-    objectDailyRate: number;
+    objectDailyRate: number | null;
+    compensation: EmployeeCompensation | null;
     startDate: string | null;
     endDate: string | null;
     canOpenObjectCard: boolean;
@@ -132,7 +145,7 @@ export interface EmployeeDetail extends EmployeeDocumentState {
     id: string;
     objectId: string;
     objectName: string;
-    objectDailyRate: number;
+    objectDailyRate: number | null;
     startedAt: string;
     endedAt: string | null;
     canOpenObjectCard: boolean;
@@ -187,7 +200,7 @@ export interface EmployeeMutationPayload {
   passportReceived?: boolean;
   contractReceived?: boolean;
   fullName?: string;
-  phone?: string | null;
+  phones?: string[];
   position?: string | null;
   birthDate?: string | null;
   residenceAddress?: string | null;
@@ -199,4 +212,19 @@ export interface EmployeeMutationPayload {
   workScheduleCode?: EmployeeWorkScheduleCode | null;
   workScheduleCustom?: string | null;
   workTimeText?: string | null;
+}
+
+/** Actual attendance facts for one month; no amounts or planned schedule days. */
+export interface EmployeeAttendanceMonth {
+  year: number;
+  month: number;
+  days: Array<{
+    date: string;
+    objects: Array<{
+      objectId: string;
+      objectName: string;
+      canOpenObjectCard: boolean;
+      workedHours: number | null;
+    }>;
+  }>;
 }

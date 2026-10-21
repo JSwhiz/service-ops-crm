@@ -1,3 +1,11 @@
+/** Display description of pay; amount null means the rate is not set. */
+export class EmployeeCompensationDto {
+  source!: 'rate_option' | 'individual' | 'object_default';
+  optionName!: string | null;
+  amount!: number | null;
+  unit!: 'shift' | 'month';
+}
+
 export class EmployeeResponseDto {
   passportReceived!: boolean;
   passportReceivedAt!: string | null;
@@ -10,6 +18,7 @@ export class EmployeeResponseDto {
   id!: string;
   fullName!: string;
   phone!: string | null;
+  phones!: string[];
   position!: string | null;
   birthDate!: string | null;
   residenceAddress!: string | null;
@@ -31,7 +40,10 @@ export class EmployeeResponseDto {
     historyId: string | null;
     objectId: string;
     objectName: string;
-    objectDailyRate: number;
+    /** Null when the viewer may not see object rates. */
+    objectDailyRate: number | null;
+    /** Null when the viewer may not see object rates. */
+    compensation: EmployeeCompensationDto | null;
     startDate: string | null;
     endDate: string | null;
     canOpenObjectCard: boolean;
@@ -40,7 +52,7 @@ export class EmployeeResponseDto {
     id: string;
     objectId: string;
     objectName: string;
-    objectDailyRate: number;
+    objectDailyRate: number | null;
     startedAt: string;
     endedAt: string | null;
     canOpenObjectCard: boolean;

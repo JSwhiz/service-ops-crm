@@ -8,14 +8,17 @@ import {
   EmployeeFormFields,
   type EmployeeFormValue,
 } from '@/features/employee-form/employee-form-fields';
+import { phoneDrafts, phoneDraftsValid } from '@/shared/ui/phone-list-field/phone-list-field';
+import { toEmployeeMutationPayload } from '@/features/employee-form/employee-form-payload';
+import styles from '@/features/employee-workspace/ui/employee-workspace.module.css';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { Alert, BackLink, Button, PageHeader, Surface } from '@/shared/ui/foundation';
 
 const INITIAL_FORM: EmployeeFormValue = {
   passportReceived: false,
   contractReceived: false,
   fullName: '',
-  phone: '',
+  phones: phoneDrafts([]),
   birthDate: '',
   residenceAddress: '',
   employeeType: 'regular',
@@ -38,60 +41,50 @@ export default function NewEmployeePage(): React.JSX.Element {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
-    <>
-      <PageTitle title="Добавить сотрудника" />
+    <div className={`${styles.page} ${styles.formPage}`}>
+      <BackLink href="/employees">Сотрудники</BackLink>
+      <PageHeader title="Новый сотрудник" />
+
       {!canCreate ? (
-        <div className="page-card inline-notice inline-notice--warning">
-          У вас нет прав на создание карточек сотрудников.
-        </div>
+        <Alert tone="warning">У вас нет прав на создание карточек сотрудников.</Alert>
       ) : (
-        <form
-          className="page-card employee-edit-form"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setError(null);
-            setIsSubmitting(true);
-            try {
-              const created = await createEmployee({
-                passportReceived: form.passportReceived,
-                contractReceived: form.contractReceived,
-                fullName: form.fullName.trim(),
-                phone: form.phone.trim() || null,
-                birthDate: form.birthDate || null,
-                residenceAddress: form.residenceAddress.trim() || null,
-                employeeType: form.employeeType,
-                position: form.position.trim() || null,
-                employmentStatus: form.employmentStatus,
-                baseDailyRate: form.baseDailyRate.trim() ? Number(form.baseDailyRate) : null,
-                workScheduleCode: form.workScheduleCode || null,
-                workScheduleCustom: form.workScheduleCustom.trim() || null,
-                workTimeText: form.workTimeText.trim() || null,
-                shiftPreferences: form.shiftPreferences.trim() || null,
-                notes: form.notes.trim() || null,
-              });
-              router.push(`/employees/${created.id}`);
-            } catch (caughtError) {
-              setError(caughtError instanceof Error && caughtError.message
-                ? caughtError.message : 'Не удалось создать сотрудника.');
-            } finally {
-              setIsSubmitting(false);
-            }
-          }}
-        >
-          <div className="section-header">
-            <div>
-              <div className="section-title">Новая карточка сотрудника</div>
-              <div className="section-subtitle">Назначения на объекты настраиваются после создания карточки.</div>
+        <Surface className={styles.formSurface}>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (!phoneDraftsValid(form.phones)) return;
+              setError(null);
+              setIsSubmitting(true);
+              try {
+                const created = await createEmployee({
+                  ...toEmployeeMutationPayload(form),
+                  fullName: form.fullName.trim(),
+                });
+                router.push(`/employees/${created.id}`);
+              } catch (caughtError) {
+                setError(caughtError instanceof Error && caughtError.message
+                  ? caughtError.message : 'Не удалось создать сотрудника.');
+                setIsSubmitting(false);
+              }
+            }}
+          >
+            {error ? (
+              <Alert tone="danger" role="alert" title="Карточка не создана" className={styles.formAlert}>
+                {error}
+              </Alert>
+            ) : null}
+            <EmployeeFormFields value={form} onChange={setForm} disabled={isSubmitting} />
+            <div className={styles.formActions}>
+              <Button variant="ghost" disabled={isSubmitting} onClick={() => router.push('/employees')}>
+                Отмена
+              </Button>
+              <Button type="submit" variant="primary" pending={isSubmitting} pendingLabel="Создание…">
+                Создать сотрудника
+              </Button>
             </div>
-          </div>
-          {error ? <div className="inline-notice inline-notice--warning">{error}</div> : null}
-          <EmployeeFormFields value={form} onChange={setForm} disabled={isSubmitting} />
-          <div className="action-row employee-form-actions">
-            <button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Создание...' : 'Добавить сотрудника'}</button>
-            <button type="button" className="button-secondary" onClick={() => router.push('/employees')} disabled={isSubmitting}>Отмена</button>
-          </div>
-        </form>
+          </form>
+        </Surface>
       )}
-    </>
+    </div>
   );
 }

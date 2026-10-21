@@ -17,6 +17,8 @@ import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from './object-staffing-panel.module.css';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Button } from '@/shared/ui/foundation';
 
 interface ObjectStaffingPanelProps {
   object: ServiceObject;
@@ -169,7 +171,7 @@ function ScheduleEditor({
         {requiresCycleStartDate(mode, code) ? (
           <label>
             <span>Дата первого рабочего дня цикла *</span>
-            <input type="date" value={cycleStartDate} required aria-required="true" disabled={disabled} onChange={(event) => onCycleStartDateChange(event.target.value)} />
+            <DatePicker value={cycleStartDate} required aria-required="true" disabled={disabled} onChange={(nextValue) => onCycleStartDateChange(nextValue)} />
             <small>{cycleStartDate ? `От этой даты повторяется цикл графика ${code}.` : 'Обязательное поле: задаёт точку отсчёта цикла.'}</small>
           </label>
         ) : (
@@ -407,13 +409,13 @@ export function ObjectStaffingPanel({
         <section aria-label="Варианты оплаты команды">
           <div className={styles.rateCatalogHeader}>
             <div><h3>Варианты оплаты команды</h3><p className="page-muted">Именные ставки и тарифы для подмены. Управлять вариантами и назначать их сотрудникам могут только пользователи с соответствующим правом.</p></div>
-            {canManageRatePolicy ? <button type="button" onClick={() => beginRateOptionEdit()}>Добавить вариант</button> : null}
+            {canManageRatePolicy ? <Button onClick={() => beginRateOptionEdit()}>Добавить вариант</Button> : null}
           </div>
           {rateOptionsError ? <div className={`${sharedStyles.error} ${styles.feedbackError}`}>{rateOptionsError}</div> : null}
           <div className={styles.rateCatalog}>
             {rateOptions.length === 0 ? <div className="page-muted">Варианты оплаты пока не созданы.</div> : rateOptions.map((rate) => <div className={styles.rateOption} key={rate.id}>
               <div><strong>{rate.name}</strong><span>{rate.category === 'substitution' ? 'Подмена' : 'Стандартный вариант'} · {rate.ratePolicyType === 'monthly_fixed' ? 'Оклад' : 'За выход'} · {rate.baseAmount.toLocaleString('ru-RU')} ₽ · {rate.isActive ? 'Активен' : 'Отключен'}</span>{rate.scheduleWeekdays.length ? <small>{rate.scheduleWeekdays.join(', ')}</small> : rate.scheduleCode ? <small>График {rate.scheduleCode}</small> : null}</div>
-              {canManageRatePolicy ? <div className={styles.rateOptionActions}><button type="button" onClick={() => beginRateOptionEdit(rate)}>Изменить</button><button type="button" onClick={() => void toggleRateOption(rate)}>{rate.isActive ? 'Отключить' : 'Включить'}</button></div> : null}
+              {canManageRatePolicy ? <div className={styles.rateOptionActions}><Button onClick={() => beginRateOptionEdit(rate)}>Изменить</Button><Button onClick={() => void toggleRateOption(rate)}>{rate.isActive ? 'Отключить' : 'Включить'}</Button></div> : null}
             </div>)}
           </div>
         </section>
@@ -422,7 +424,7 @@ export function ObjectStaffingPanel({
       {canManageRatePolicy && rateEditor !== false ? (
         <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setRateEditor(false); }}>
           <form className={styles.modal} onSubmit={saveRateOption}>
-            <div className="section-header"><div><div className="section-title">{rateEditor ? 'Изменить вариант оплаты' : 'Новый вариант оплаты'}</div><div className="section-subtitle">Изменение тарифа не меняет ранее сохранённые начисления.</div></div><button type="button" onClick={() => setRateEditor(false)}>Закрыть</button></div>
+            <div className="section-header"><div><div className="section-title">{rateEditor ? 'Изменить вариант оплаты' : 'Новый вариант оплаты'}</div><div className="section-subtitle">Изменение тарифа не меняет ранее сохранённые начисления.</div></div><Button onClick={() => setRateEditor(false)}>Закрыть</Button></div>
             <div className={styles.ratePolicyGrid}>
               <label><span>Название варианта</span><input value={rateOptionForm.name} required maxLength={120} onChange={(event) => setRateOptionForm((current) => ({ ...current, name: event.target.value }))} /></label>
               <RateSelect label="Назначение" value={rateOptionForm.category} options={[{ value: 'standard', label: 'Обычная ставка' }, { value: 'substitution', label: 'Подмена' }]} disabled={isSavingRateOption} onChange={(value) => setRateOptionForm((current) => ({ ...current, category: value as 'standard' | 'substitution' }))} />
@@ -434,7 +436,7 @@ export function ObjectStaffingPanel({
               <label className={styles.fullWidth}><span>Примечание</span><textarea value={rateOptionForm.notes} rows={2} onChange={(event) => setRateOptionForm((current) => ({ ...current, notes: event.target.value }))} /></label>
             </div>
             {rateOptionsError ? <div className={sharedStyles.error}>{rateOptionsError}</div> : null}
-            <div className="action-row"><button type="submit" disabled={isSavingRateOption || (rateOptionForm.scheduleMode === 'weekdays' && rateOptionForm.scheduleWeekdays.length === 0) || (requiresCycleStartDate(rateOptionForm.scheduleMode, rateOptionForm.scheduleCode) && !rateOptionForm.scheduleCycleStartDate)}>{isSavingRateOption ? 'Сохраняем…' : 'Сохранить вариант'}</button><button type="button" onClick={() => setRateEditor(false)}>Отмена</button></div>
+            <div className="action-row"><Button variant="primary" type="submit" disabled={isSavingRateOption || (rateOptionForm.scheduleMode === 'weekdays' && rateOptionForm.scheduleWeekdays.length === 0) || (requiresCycleStartDate(rateOptionForm.scheduleMode, rateOptionForm.scheduleCode) && !rateOptionForm.scheduleCycleStartDate)}>{isSavingRateOption ? 'Сохраняем…' : 'Сохранить вариант'}</Button><Button onClick={() => setRateEditor(false)}>Отмена</Button></div>
           </form>
         </div>
       ) : null}
@@ -494,12 +496,11 @@ export function ObjectStaffingPanel({
                     {employee.ratePolicy?.label ?? 'Условия оплаты объекта'}
                   </span>
                   {canManageRatePolicy && onUpdateRatePolicy ? (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => setEditingRateEmployee(employee)}
                     >
                       Настроить расчет
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
                 <div className="page-muted">
@@ -524,9 +525,9 @@ export function ObjectStaffingPanel({
               </div>
 
               {canManageAssignments ? (
-                <button type="button" onClick={() => void onRemove(employee.id)}>
+                <Button onClick={() => void onRemove(employee.id)}>
                   Завершить назначение
-                </button>
+                </Button>
               ) : null}
             </div>
           ))}
@@ -555,9 +556,9 @@ export function ObjectStaffingPanel({
                   сотрудника к объекту.
                 </div>
               </div>
-              <button type="button" onClick={() => setEditingRateEmployee(null)}>
+              <Button onClick={() => setEditingRateEmployee(null)}>
                 Закрыть
-              </button>
+              </Button>
             </div>
 
             <div className={styles.ratePolicyGrid}>
@@ -736,12 +737,12 @@ export function ObjectStaffingPanel({
             ) : null}
 
             <div className="action-row">
-              <button type="submit" disabled={isSavingRate || (rateForm.scheduleMode === 'weekdays' && rateForm.scheduleWeekdays.length === 0) || (requiresCycleStartDate(rateForm.scheduleMode, rateForm.scheduleCode) && !rateForm.scheduleCycleStartDate)}>
+              <Button variant="primary" type="submit" disabled={isSavingRate || (rateForm.scheduleMode === 'weekdays' && rateForm.scheduleWeekdays.length === 0) || (requiresCycleStartDate(rateForm.scheduleMode, rateForm.scheduleCode) && !rateForm.scheduleCycleStartDate)}>
                 {isSavingRate ? 'Сохраняем...' : 'Сохранить расчет'}
-              </button>
-              <button type="button" onClick={() => setEditingRateEmployee(null)}>
+              </Button>
+              <Button onClick={() => setEditingRateEmployee(null)}>
                 Отмена
-              </button>
+              </Button>
             </div>
           </form>
         </div>
@@ -812,9 +813,9 @@ export function ObjectStaffingPanel({
                     ) : null}
                   </div>
 
-                  <button type="button" onClick={() => void onAdd(employee.id)}>
+                  <Button onClick={() => void onAdd(employee.id)}>
                     В состав
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>

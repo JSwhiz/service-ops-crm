@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import styles from './month-period-picker.module.css';
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@/shared/ui/icons/icons';
 
 const MONTHS = [
   'Январь',
@@ -41,22 +42,6 @@ interface MonthPeriodPickerProps {
   maxYear?: number;
   label?: string;
   onChange: (year: number, month: number) => void;
-}
-
-function ArrowIcon({ direction }: { direction: 'left' | 'right' }): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d={direction === 'left' ? 'M12.5 4.5 7 10l5.5 5.5' : 'M7.5 4.5 13 10l-5.5 5.5'} />
-    </svg>
-  );
-}
-
-function ChevronIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m6 8 4 4 4-4" />
-    </svg>
-  );
 }
 
 export function MonthPeriodPicker({
@@ -121,7 +106,7 @@ export function MonthPeriodPicker({
           disabled={isPreviousDisabled}
           onClick={() => shiftMonth(-1)}
         >
-          <ArrowIcon direction="left" />
+          <ChevronLeftIcon />
         </button>
 
         <button
@@ -132,7 +117,7 @@ export function MonthPeriodPicker({
           onClick={() => setIsOpen((value) => !value)}
         >
           <span>{MONTHS[month - 1]} {year}</span>
-          <ChevronIcon />
+          <ChevronDownIcon />
         </button>
 
         <button
@@ -142,7 +127,7 @@ export function MonthPeriodPicker({
           disabled={isNextDisabled}
           onClick={() => shiftMonth(1)}
         >
-          <ArrowIcon direction="right" />
+          <ChevronRightIcon />
         </button>
       </div>
 
@@ -156,7 +141,7 @@ export function MonthPeriodPicker({
               disabled={viewYear <= minYear}
               onClick={() => setViewYear((value) => Math.max(minYear, value - 1))}
             >
-              <ArrowIcon direction="left" />
+              <ChevronLeftIcon />
             </button>
             <strong>{viewYear}</strong>
             <button
@@ -166,7 +151,7 @@ export function MonthPeriodPicker({
               disabled={viewYear >= maxYear}
               onClick={() => setViewYear((value) => Math.min(maxYear, value + 1))}
             >
-              <ArrowIcon direction="right" />
+              <ChevronRightIcon />
             </button>
           </div>
 

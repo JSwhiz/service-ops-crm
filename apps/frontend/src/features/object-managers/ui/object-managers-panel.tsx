@@ -8,6 +8,7 @@ import {
   getUserDisplayName,
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
+import { Button, Stack } from '@/shared/ui/foundation';
 
 interface ObjectManagersPanelProps {
   responsibles: ObjectAssignedUser[];
@@ -72,18 +73,17 @@ export function ObjectManagersPanel({
                     alignItems: 'center',
                     gap: 12,
                     padding: 10,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--ui-border-strong)',
                     borderRadius: 10,
                   }}
                 >
                   <span>{getUserDisplayName(item)}</span>
 
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => void onRemoveResponsible(item.userId)}
                   >
                     Снять
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -96,7 +96,7 @@ export function ObjectManagersPanel({
           {responsibleCandidates.length === 0 ? (
             <div className="page-muted">Подходящих кандидатов нет.</div>
           ) : (
-            <div style={{ display: 'grid', gap: 8 }}>
+            <Stack gap="sm">
               {responsibleCandidates.map((user) => (
                 <div
                   key={user.id}
@@ -106,7 +106,7 @@ export function ObjectManagersPanel({
                     alignItems: 'center',
                     gap: 12,
                     padding: 10,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--ui-border-strong)',
                     borderRadius: 10,
                   }}
                 >
@@ -122,16 +122,15 @@ export function ObjectManagersPanel({
                   {responsibleIds.has(user.id) ? (
                     <span className="page-muted">Уже назначен</span>
                   ) : (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => void onAddResponsible(user.id)}
                     >
                       Назначить
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}
-            </div>
+            </Stack>
           )}
         </section>
 
@@ -155,18 +154,17 @@ export function ObjectManagersPanel({
                     alignItems: 'center',
                     gap: 12,
                     padding: 10,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--ui-border-strong)',
                     borderRadius: 10,
                   }}
                 >
                   <span>{getUserDisplayName(item)}</span>
 
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => void onRemoveManager(item.userId)}
                   >
                     Снять
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
@@ -179,7 +177,7 @@ export function ObjectManagersPanel({
           {managerCandidates.length === 0 ? (
             <div className="page-muted">Подходящих кандидатов нет.</div>
           ) : (
-            <div style={{ display: 'grid', gap: 8 }}>
+            <Stack gap="sm">
               {managerCandidates.map((user) => (
                 <div
                   key={user.id}
@@ -189,7 +187,7 @@ export function ObjectManagersPanel({
                     alignItems: 'center',
                     gap: 12,
                     padding: 10,
-                    border: '1px solid #d1d5db',
+                    border: '1px solid var(--ui-border-strong)',
                     borderRadius: 10,
                   }}
                 >
@@ -205,16 +203,15 @@ export function ObjectManagersPanel({
                   {managerIds.has(user.id) ? (
                     <span className="page-muted">Уже назначен</span>
                   ) : (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => void onAddManager(user.id)}
                     >
                       Назначить
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}
-            </div>
+            </Stack>
           )}
         </section>
       </div>

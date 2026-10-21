@@ -39,8 +39,11 @@ import type {
 } from '@/shared/ui/registry-filters/registry-toolbar';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import styles from './candidate-fields.module.css';
+import { Alert, Badge, ButtonLink } from '@/shared/ui/foundation';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const EMPTY: CandidateListResponse = {
   items: [],
@@ -49,6 +52,11 @@ const EMPTY: CandidateListResponse = {
   total: 0,
   totalPages: 0,
 };
+
+const ARCHIVE_FILTER_OPTIONS = [
+  { value: 'active', label: 'Активные' },
+  { value: 'archived', label: 'В архиве' },
+];
 
 export function CandidateRegistry({
   fixedType,
@@ -69,11 +77,15 @@ export function CandidateRegistry({
   const managerUserId = searchParams.get('managerUserId') ?? '';
   const slaState =
     (searchParams.get('slaState') as CandidateSlaState | null) ?? '';
-  const archiveState = fixedType
+  // Without an explicit filter the registry shows active and archived cards together.
+  const archiveParam = searchParams.get('archiveState');
+  const archiveFilter: Exclude<CandidateArchiveState, 'all'> | '' =
+    archiveParam === 'active' || archiveParam === 'archived' ? archiveParam : '';
+  const archiveState: CandidateArchiveState = fixedType
     ? 'active'
-    : ((searchParams.get('archiveState') as CandidateArchiveState | null) ??
-      'active');
+    : archiveFilter || 'all';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(25);
   const [search, setSearch] = useState(q);
   const [manager, setManager] = useState<SearchableSelectOption | null>(null);
   const [managerFilterActive, setManagerFilterActive] = useState(
@@ -152,7 +164,7 @@ export function CandidateRegistry({
       slaState: slaState || undefined,
       archiveState,
       page,
-      limit: 25,
+      limit: pageSize,
     })
       .then((next) => {
         if (sequence === sequenceRef.current) setResult(next);
@@ -164,7 +176,7 @@ export function CandidateRegistry({
       .finally(() => {
         if (sequence === sequenceRef.current) setLoading(false);
       });
-  }, [archiveState, canAccess, managerUserId, page, q, slaState, status, type]);
+  }, [archiveState, canAccess, managerUserId, page, pageSize, q, slaState, status, type]);
 
   const activeRegistryFilters = [
     !fixedType && type
@@ -241,22 +253,15 @@ export function CandidateRegistry({
           onRemove: () => replaceQuery({ slaState: null, page: null }),
         }
       : null,
-    !fixedType
+    !fixedType && archiveFilter
       ? {
           id: 'archive',
           label: 'Архив',
-          value: archiveState,
-          options: [
-            { value: 'active', label: 'Активные' },
-            { value: 'archived', label: 'Архив' },
-            { value: 'all', label: 'Все' },
-          ],
+          value: archiveFilter,
+          options: ARCHIVE_FILTER_OPTIONS,
           onChange: (value: string) =>
-            replaceQuery({
-              archiveState: value === 'active' ? null : value,
-              page: null,
-            }),
-          onRemove: () => replaceQuery({ archiveState: 'all', page: null }),
+            replaceQuery({ archiveState: value || null, page: null }),
+          onRemove: () => replaceQuery({ archiveState: null, page: null }),
         }
       : null,
   ].filter(Boolean) as ActiveRegistryFilter[];
@@ -295,6 +300,15 @@ export function CandidateRegistry({
             replaceQuery({ slaState: value, page: null }),
         }
       : null,
+    !fixedType && !archiveFilter
+      ? {
+          id: 'archive',
+          label: 'Архив',
+          options: ARCHIVE_FILTER_OPTIONS,
+          onAdd: (value: string) =>
+            replaceQuery({ archiveState: value, page: null }),
+        }
+      : null,
   ].filter(Boolean) as AvailableRegistryFilter[];
   useEffect(() => {
     if (
@@ -325,12 +339,9 @@ export function CandidateRegistry({
         availableFilters={availableRegistryFilters}
         actions={
           canManage && !fixedType ? (
-            <Link
-              className="button-link button-link--primary"
-              href="/candidates/new"
-            >
+            <ButtonLink variant="primary" icon={<PlusIcon />} href="/candidates/new">
               Добавить кандидата
-            </Link>
+            </ButtonLink>
           ) : null
         }
       />
@@ -339,9 +350,9 @@ export function CandidateRegistry({
           Загрузка...
         </div>
       ) : error ? (
-        <div className="page-card inline-notice inline-notice--warning">
+        <Alert tone="warning">
           {error}
-        </div>
+        </Alert>
       ) : result.items.length === 0 ? (
         <div className="page-card workspace-surface workspace-empty">
           Кандидаты не найдены.
@@ -370,6 +381,9 @@ export function CandidateRegistry({
                 <tr key={item.id}>
                   <td>
                     <Link href={`/candidates/${item.id}`}>{item.fullName}</Link>
+                    {item.deletedAt ? (
+                      <Badge className={styles.archivedBadge}>В архиве</Badge>
+                    ) : null}
                     {candidatePhones(item).length ? (
                       <div className={`page-muted ${styles.phonePreview}`}>
                         <span>{candidatePhones(item)[0]}</span>
@@ -546,6 +560,9 @@ export function CandidateRegistry({
               : 'Кандидаты не найдены'
           }
           onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
+          pageSize={pageSize}
+          pageSizeOptions={pageSizeOptions}
+          onPageSizeChange={setPageSize}
         />
       ) : null}
     </div>

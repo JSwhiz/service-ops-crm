@@ -23,6 +23,8 @@ import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-selec
 import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
 
 import styles from './new-object.module.css';
+import { Button } from '@/shared/ui/foundation';
+import { CheckIcon, ChevronDownIcon } from '@/shared/ui/icons/icons';
 
 interface CompactSelectOption {
   value: string;
@@ -35,38 +37,6 @@ interface CompactSelectProps {
   options: CompactSelectOption[];
   onChange: (value: string) => void;
   disabled?: boolean;
-}
-
-function ChevronIcon(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m6.5 8 3.5 3.5L13.5 8" />
-    </svg>
-  );
-}
-
-function CheckIcon(): React.JSX.Element {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="m5.5 10 3 3 6-6" />
-    </svg>
-  );
 }
 
 function CompactSelect({
@@ -114,7 +84,7 @@ function CompactSelect({
         onClick={() => setOpen((current) => !current)}
       >
         <span>{selected?.label ?? 'Выберите значение'}</span>
-        <ChevronIcon />
+        <ChevronDownIcon />
       </button>
 
       {open ? (
@@ -240,7 +210,7 @@ function ManagerMultiSelect({
         <span className={selectedUsers.length === 0 ? styles.triggerPlaceholder : undefined}>
           {triggerLabel}
         </span>
-        <ChevronIcon />
+        <ChevronDownIcon />
       </button>
 
       {open ? (
@@ -708,13 +678,12 @@ export default function NewObjectPage(): React.JSX.Element {
           >
             Отмена
           </button>
-          <button
+          <Button variant="primary"
             type="submit"
-            className={styles.primaryButton}
             disabled={isSubmitting || isUsersLoading || !allowCreateObject || !responsibleUserId || invalidScheduleProfiles.length > 0}
           >
             {isSubmitting ? 'Создаём…' : 'Создать объект'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

@@ -80,10 +80,11 @@ export function changeCandidateStatus(
   id: string,
   status: CandidateStatus,
   expectedVersion: number,
+  assignments?: CandidateAssignmentInput[],
 ): Promise<CandidateCard> {
   return fetcher(`/candidates/${id}/status`, {
     method: 'POST',
-    body: JSON.stringify({ status, expectedVersion }),
+    body: JSON.stringify({ status, expectedVersion, assignments }),
   });
 }
 export function setCandidateArchive(

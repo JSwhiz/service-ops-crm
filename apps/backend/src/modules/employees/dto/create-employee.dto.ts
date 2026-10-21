@@ -1,5 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   ValidateIf,
   IsDateString,
@@ -41,6 +43,20 @@ export class CreateEmployeeDto {
   @IsString()
   @MaxLength(50)
   phone?: string | null;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    Array.isArray(value)
+      ? value
+          .map((item) => (typeof item === 'string' ? item.trim() : item))
+          .filter((item) => item !== '')
+      : value,
+  )
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  phones?: string[];
 
   @IsOptional()
   @Transform(({ value }) =>

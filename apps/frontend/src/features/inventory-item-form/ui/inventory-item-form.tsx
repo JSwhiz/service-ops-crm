@@ -6,6 +6,7 @@ import type {
   CreateInventoryItemPayload,
   InventoryItem,
 } from '@/entities/inventory/model/inventory.types';
+import { Alert, Button, Field } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -66,16 +67,14 @@ export function InventoryItemForm({
     >
       <div style={{ fontWeight: 600 }}>{submitLabel}</div>
 
-      <label>
-        <div style={{ marginBottom: 6 }}>Название</div>
+      <Field label="Название">
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
           required
           minLength={2}
-          style={{ width: '100%', padding: 10 }}
         />
-      </label>
+      </Field>
 
       <div
         style={{
@@ -84,46 +83,40 @@ export function InventoryItemForm({
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
         }}
       >
-        <label>
-          <div style={{ marginBottom: 6 }}>Категория</div>
+        <Field label="Категория">
           <input
             value={category}
             onChange={(event) => setCategory(event.target.value)}
             required
             minLength={2}
-            style={{ width: '100%', padding: 10 }}
           />
-        </label>
+        </Field>
 
-        <label>
-          <div style={{ marginBottom: 6 }}>Единица измерения</div>
+        <Field label="Единица измерения">
           <input
             value={unit}
             onChange={(event) => setUnit(event.target.value)}
             required
             minLength={1}
-            style={{ width: '100%', padding: 10 }}
             placeholder="шт, л, кг"
           />
-        </label>
+        </Field>
       </div>
 
-      <label>
-        <div style={{ marginBottom: 6 }}>Примечание</div>
+      <Field label="Примечание">
         <textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           rows={4}
-          style={{ width: '100%', padding: 10 }}
         />
-      </label>
+      </Field>
 
-      {error ? <div style={{ color: '#b91c1c' }}>{error}</div> : null}
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
       <div>
-        <button type="submit" disabled={isSaving}>
+        <Button variant="primary" type="submit" disabled={isSaving}>
           {isSaving ? 'Сохраняем...' : submitLabel}
-        </button>
+        </Button>
       </div>
     </form>
   );

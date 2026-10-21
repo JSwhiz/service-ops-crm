@@ -9,6 +9,8 @@ import {
   Min,
 } from 'class-validator';
 
+import { EmployeeCompensationDto } from './employee-response.dto';
+
 export class ListEmployeeReferencesQueryDto {
   @IsOptional()
   @Transform(({ value }) =>
@@ -38,4 +40,6 @@ export class EmployeePositionReferenceDto {
 export class EmployeeObjectReferenceDto {
   id!: string;
   name!: string;
+  /** Object default pay; null when the viewer may not see object rates. */
+  compensation!: EmployeeCompensationDto | null;
 }

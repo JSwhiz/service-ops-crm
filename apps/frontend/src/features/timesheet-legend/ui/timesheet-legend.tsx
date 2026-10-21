@@ -14,7 +14,7 @@ export function TimesheetLegend(): React.JSX.Element {
       >
         <div
           style={{
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--ui-border)',
             borderRadius: 10,
             padding: 10,
           }}
@@ -25,7 +25,7 @@ export function TimesheetLegend(): React.JSX.Element {
 
         <div
           style={{
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--ui-border)',
             borderRadius: 10,
             padding: 10,
           }}
@@ -35,7 +35,7 @@ export function TimesheetLegend(): React.JSX.Element {
 
         <div
           style={{
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--ui-border)',
             borderRadius: 10,
             padding: 10,
           }}
@@ -46,7 +46,7 @@ export function TimesheetLegend(): React.JSX.Element {
 
         <div
           style={{
-            border: '1px solid #e5e7eb',
+            border: '1px solid var(--ui-border)',
             borderRadius: 10,
             padding: 10,
           }}

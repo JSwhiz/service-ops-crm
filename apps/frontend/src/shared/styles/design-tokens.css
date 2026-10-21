@@ -98,6 +98,8 @@
   --ui-control-lg: 42px;
 
   /* Elevation: borders first, shadows only where hierarchy requires it */
+  --ui-shadow-sm: 0 1px 2px rgba(40, 49, 71, 0.04);
+  --ui-shadow-md: 0 14px 32px rgba(40, 49, 71, 0.08);
   --ui-shadow-popover: 0 12px 32px rgba(40, 49, 71, 0.12), 0 2px 8px rgba(40, 49, 71, 0.06);
   --ui-shadow-dialog: 0 24px 64px rgba(40, 49, 71, 0.16), 0 4px 12px rgba(40, 49, 71, 0.08);
 

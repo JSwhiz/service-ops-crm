@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 
@@ -15,10 +14,13 @@ import {
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectListTable } from '@/features/object-list/ui/object-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
-import { RegistryPlusIcon, RegistryToolbar, type ActiveRegistryFilter, type AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { RegistryToolbar, type ActiveRegistryFilter, type AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './objects-registry.module.css';
+import { Alert, ButtonLink } from '@/shared/ui/foundation';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const PAGE_LIMIT = 20;
 const SIGNAL_BATCH_SIZE = 50;
@@ -141,11 +143,12 @@ export default function ObjectsPage(): React.JSX.Element {
   const status = searchParams.get('status') ?? '';
   const issue = parseIssue(searchParams.get('issue'));
   const page = parsePage(searchParams.get('page'));
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(PAGE_LIMIT);
   const sortBy = parseSortBy(searchParams.get('sortBy'));
   const sortDirection = searchParams.get('sortDirection') === 'asc' ? 'asc' : 'desc';
 
   const [searchInput, setSearchInput] = useState(query);
-  const [result, setResult] = useState<ObjectListPage>({ items: [], page: 1, limit: PAGE_LIMIT, total: 0, totalPages: 0 });
+  const [result, setResult] = useState<ObjectListPage>({ items: [], page: 1, limit: pageSize, total: 0, totalPages: 0 });
   const [signals, setSignals] = useState<Map<string, ObjectRegistrySignal>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -183,7 +186,7 @@ export default function ObjectsPage(): React.JSX.Element {
             q: query || undefined,
             status: status || undefined,
             page,
-            limit: PAGE_LIMIT,
+            limit: pageSize,
             sortBy,
             sortDirection,
           });
@@ -194,14 +197,14 @@ export default function ObjectsPage(): React.JSX.Element {
         const allVisible = await listObjects({ search: query || undefined, status: status || undefined });
         const filtered = await filterByOperationalIssue(allVisible, issue);
         const sorted = [...filtered].sort((a, b) => compareObjects(a, b, sortBy, sortDirection));
-        const totalPages = Math.ceil(sorted.length / PAGE_LIMIT);
+        const totalPages = Math.ceil(sorted.length / pageSize);
         const safePage = Math.min(page, Math.max(1, totalPages || 1));
-        const start = (safePage - 1) * PAGE_LIMIT;
+        const start = (safePage - 1) * pageSize;
         if (!cancelled) {
           setResult({
-            items: sorted.slice(start, start + PAGE_LIMIT),
+            items: sorted.slice(start, start + pageSize),
             page: safePage,
-            limit: PAGE_LIMIT,
+            limit: pageSize,
             total: sorted.length,
             totalPages,
           });
@@ -213,7 +216,7 @@ export default function ObjectsPage(): React.JSX.Element {
       }
     })();
     return () => { cancelled = true; };
-  }, [issue, page, query, sortBy, sortDirection, status]);
+  }, [issue, page, pageSize, query, sortBy, sortDirection, status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,10 +283,9 @@ export default function ObjectsPage(): React.JSX.Element {
         availableFilters={availableFilters}
         actions={
           allowCreateObject ? (
-            <Link className={`${styles.createButton} button-link`} href="/objects/new">
-              <RegistryPlusIcon />
-              <span>Создать объект</span>
-            </Link>
+            <ButtonLink variant="primary" icon={<PlusIcon />} href="/objects/new">
+              Создать объект
+            </ButtonLink>
           ) : null
         }
       />
@@ -291,7 +293,7 @@ export default function ObjectsPage(): React.JSX.Element {
       {isLoading ? (
         <div className="page-card workspace-surface workspace-empty" aria-live="polite">Загрузка списка объектов...</div>
       ) : error ? (
-        <div className="page-card workspace-surface inline-notice inline-notice--warning">{error}</div>
+        <Alert tone="warning">{error}</Alert>
       ) : (
         <>
           <ObjectListTable items={result.items} signals={signals} sortBy={sortBy} sortDirection={sortDirection} onSort={handleSort} />
@@ -299,6 +301,9 @@ export default function ObjectsPage(): React.JSX.Element {
             page={result.page}
             totalPages={result.totalPages}
             onPageChange={(page) => replaceQuery({ page: String(page) })}
+            pageSize={pageSize}
+            pageSizeOptions={pageSizeOptions}
+            onPageSizeChange={setPageSize}
             summary={result.total > 0 ? `Показано ${firstVisible}–${lastVisible} из ${result.total}` : 'Ничего не найдено'}
             label="Страницы объектов"
           />

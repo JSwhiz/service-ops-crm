@@ -10,6 +10,8 @@ import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searc
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './user-substitutions.module.css';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const STATUS_LABELS = { active: 'Действует', scheduled: 'Запланировано', expired: 'Завершено', revoked: 'Прекращено' };
 function moscowDateTime(value: Date): string {
@@ -98,7 +100,7 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
   };
 
   return <div className={styles.page}>
-    <PageHeader title="Замещения" description="Передайте свой доступ к выбранным объектам на определённый срок. Собственные права заместителя сохраняются." actions={<Button variant="primary" onClick={start}>Создать замещение</Button>} />
+    <PageHeader title="Замещения" description="Передайте свой доступ к выбранным объектам на определённый срок. Собственные права заместителя сохраняются." actions={<Button variant="primary" icon={<PlusIcon />} onClick={start}>Создать замещение</Button>} />
     <Alert>Замещение не выдаёт глобальных прав на деньги, зарплаты, кадровые данные или согласования. Автором действий остаётся заместитель. Время указано по Москве.</Alert>
     {error ? <Alert tone="danger" role="alert" action={<Button onClick={() => setReloadKey((key) => key + 1)}>Повторить</Button>}>{error}</Alert> : null}
     {loading ? <p aria-live="polite">Загрузка замещений…</p> : !error && !list?.items.length ? <p className={styles.muted}>У вас пока нет замещений.</p> : null}
@@ -126,7 +128,7 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
           <p className={styles.muted}>Показаны первые 100 результатов. Уточните поиск; выбранные объекты сохранятся.</p>
         </fieldset>
         <label className={styles.check}><input type="checkbox" checked={startNow} onChange={(event) => setStartNow(event.target.checked)} disabled={pending} /> Начать сразу после сохранения</label>
-        <div className={styles.dates}>{!startNow ? <Field label="Начало · Москва" required><input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} disabled={pending} /></Field> : null}<Field label="Окончание · Москва" required><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} disabled={pending} /></Field></div>
+        <div className={styles.dates}>{!startNow ? <Field label="Начало · Москва" required><DatePicker withTime value={startsAt} onChange={(nextValue) => setStartsAt(nextValue)} disabled={pending} /></Field> : null}<Field label="Окончание · Москва" required><DatePicker withTime value={endsAt} onChange={(nextValue) => setEndsAt(nextValue)} disabled={pending} /></Field></div>
         <Field label="Основание" required><textarea rows={3} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Например, отпуск или временное замещение" disabled={pending} /></Field>
       </form>
     </Dialog>

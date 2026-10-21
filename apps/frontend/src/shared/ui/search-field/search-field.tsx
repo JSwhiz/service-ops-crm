@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import styles from './search-field.module.css';
+import { SearchIcon } from '@/shared/ui/icons/icons';
 
 interface SearchFieldProps {
   value: string;
@@ -11,15 +12,6 @@ interface SearchFieldProps {
   placeholder: string;
   busy?: boolean;
   className?: string;
-}
-
-function SearchIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16 16 4 4" />
-    </svg>
-  );
 }
 
 export function SearchField({

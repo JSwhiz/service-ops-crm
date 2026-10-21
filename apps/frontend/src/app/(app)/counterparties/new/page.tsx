@@ -7,6 +7,7 @@ import { createCounterparty } from '@/entities/counterparty/api/counterparty-cli
 import { useAuth } from '@/shared/auth/use-auth';
 
 import styles from '../counterparties.module.css';
+import { Button } from '@/shared/ui/foundation';
 
 export default function NewCounterpartyPage(): React.JSX.Element {
   const router = useRouter();
@@ -126,10 +127,10 @@ export default function NewCounterpartyPage(): React.JSX.Element {
         </div>
         {error ? <div className={styles.error} role="alert">{error}</div> : null}
         <div className={styles.formActions}>
-          <button type="button" className={styles.secondaryButton} onClick={() => router.push('/counterparties')}>Отмена</button>
-          <button className={styles.primaryButton} type="submit" disabled={saving || form.name.trim().length < 2}>
+          <Button onClick={() => router.push('/counterparties')}>Отмена</Button>
+          <Button variant="primary" type="submit" disabled={saving || form.name.trim().length < 2}>
             {saving ? 'Сохраняем...' : 'Создать'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

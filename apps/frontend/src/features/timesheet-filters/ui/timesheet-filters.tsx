@@ -3,6 +3,8 @@
 import React from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Field } from '@/shared/ui/foundation';
 
 export function TimesheetFilters({
   objects,
@@ -30,44 +32,38 @@ export function TimesheetFilters({
         gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
       }}
     >
-      <label>
-        <div style={{ marginBottom: 6 }}>Объект</div>
-        <select
+      <Field label="Объект">
+        <Select
           value={selectedObjectId}
           onChange={(event) => onObjectChange(event.target.value)}
-          style={{ width: '100%', padding: 10 }}
         >
           {objects.map((object) => (
             <option key={object.id} value={object.id}>
               {object.name} {object.internalName ? `(${object.internalName})` : ''}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Field>
 
-      <label>
-        <div style={{ marginBottom: 6 }}>Год</div>
+      <Field label="Год">
         <input
           type="number"
           value={selectedYear}
           onChange={(event) => onYearChange(Number(event.target.value))}
-          style={{ width: '100%', padding: 10 }}
           min={2024}
           max={2100}
         />
-      </label>
+      </Field>
 
-      <label>
-        <div style={{ marginBottom: 6 }}>Месяц</div>
+      <Field label="Месяц">
         <input
           type="number"
           value={selectedMonth}
           onChange={(event) => onMonthChange(Number(event.target.value))}
-          style={{ width: '100%', padding: 10 }}
           min={1}
           max={12}
         />
-      </label>
+      </Field>
     </div>
   );
 }

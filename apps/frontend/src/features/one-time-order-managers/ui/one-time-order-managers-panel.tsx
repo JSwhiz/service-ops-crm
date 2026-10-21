@@ -10,6 +10,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { Button, Stack } from '@/shared/ui/foundation';
 
 export function OneTimeOrderManagersPanel({
   item,
@@ -34,7 +35,7 @@ export function OneTimeOrderManagersPanel({
         {item.managers.length === 0 ? (
           <div className="page-muted">Менеджеры пока не назначены.</div>
         ) : (
-          <div style={{ display: 'grid', gap: 8 }}>
+          <Stack gap="sm">
             {item.managers.map((manager) => (
               <div
                 key={manager.userId}
@@ -53,22 +54,21 @@ export function OneTimeOrderManagersPanel({
                   </div>
                 </div>
                 {item.capabilities.canManageManagers ? (
-                  <button
-                    type="button"
+                  <Button
                     disabled={isAssigning}
                     onClick={() => void onRemove(manager.userId)}
                   >
                     Снять
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             ))}
-          </div>
+          </Stack>
         )}
       </div>
 
       {item.capabilities.canManageManagers ? (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <Stack gap="sm">
           <SearchableSelect
             label="Назначить менеджера"
             viewportAware
@@ -108,7 +108,7 @@ export function OneTimeOrderManagersPanel({
             }}
           />
           {error ? <div className="form-error">{error}</div> : null}
-        </div>
+        </Stack>
       ) : null}
     </div>
   );

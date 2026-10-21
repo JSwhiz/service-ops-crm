@@ -15,11 +15,14 @@ import type { ServiceObject } from '@/entities/object/model/object.types';
 import { Button, Field } from '@/shared/ui/foundation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { useAuth } from '@/shared/auth/use-auth';
 
 import styles from './rubber-mats.module.css';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const PAGE_SIZE = 20;
 const CONDITIONS: Array<{ value: RubberMatCondition | ''; label: string }> = [
@@ -52,6 +55,7 @@ export default function RubberMatsPage(): React.JSX.Element {
   const [objectId, setObjectId] = useState('');
   const [items, setItems] = useState<RubberMatRegistryItem[]>([]);
   const [page, setPage] = useState(1);
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(PAGE_SIZE, [PAGE_SIZE, 50, 100], () => setPage(1));
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -65,7 +69,7 @@ export default function RubberMatsPage(): React.JSX.Element {
     setLoading(true);
     setError(null);
     try {
-      const result = await listRubberMatsRegistry({ q: query, condition, objectId, page, limit: PAGE_SIZE });
+      const result = await listRubberMatsRegistry({ q: query, condition, objectId, page, limit: pageSize });
       setItems(result.items);
       setTotal(result.total);
       setTotalPages(result.totalPages);
@@ -75,7 +79,7 @@ export default function RubberMatsPage(): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [condition, objectId, page, query]);
+  }, [condition, objectId, page, pageSize, query]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, query ? 250 : 0);
@@ -118,7 +122,7 @@ export default function RubberMatsPage(): React.JSX.Element {
       <div className={styles.heading}>
         <PageTitle title="Ковры" />
         {canRegisterRubberMat ? (
-          <Button variant="primary" onClick={() => { setCreateOpen((value) => !value); setCreateError(null); }}>
+          <Button variant={createOpen ? 'default' : 'primary'} icon={createOpen ? undefined : <PlusIcon />} onClick={() => { setCreateOpen((value) => !value); setCreateError(null); }}>
             {createOpen ? 'Скрыть форму' : 'Добавить ковёр'}
           </Button>
         ) : null}
@@ -150,9 +154,9 @@ export default function RubberMatsPage(): React.JSX.Element {
           <SearchableSelect label="Фильтр по объекту" value={objectId} options={[]} asyncSearch={searchObjects} minimumSearchLength={2} searchPlaceholder="Название, адрес или внутреннее имя" searchPromptText="Введите не менее 2 символов" placeholder="Все объекты" onChange={(value) => { setObjectId(value); setPage(1); }} />
         </Field>
         <Field label="Состояние">
-          <select value={condition} onChange={(event) => { setCondition(event.target.value as RubberMatCondition | ''); setPage(1); }}>
+          <Select value={condition} onChange={(event) => { setCondition(event.target.value as RubberMatCondition | ''); setPage(1); }}>
             {CONDITIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
+          </Select>
         </Field>
       </section>
 
@@ -172,7 +176,7 @@ export default function RubberMatsPage(): React.JSX.Element {
           ))}
         </tbody>
       </DataTable>
-      <TablePagination page={page} totalPages={totalPages || 1} pending={loading} label="Страницы реестра ковров" summary={`Показано ${items.length ? (page - 1) * PAGE_SIZE + 1 : 0}–${Math.min(page * PAGE_SIZE, total)} из ${total}`} onPageChange={setPage} />
+      <TablePagination page={page} totalPages={totalPages || 1} pending={loading} label="Страницы реестра ковров" summary={`Показано ${items.length ? (page - 1) * pageSize + 1 : 0}–${Math.min(page * pageSize, total)} из ${total}`} onPageChange={setPage} pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} />
     </div>
   );
 }

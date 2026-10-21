@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 
 import { createEquipmentMovement, listEquipmentUnits } from '@/entities/equipment/api/equipment-client';
@@ -9,6 +8,8 @@ import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import { EquipmentListTable } from '@/features/equipment-list/ui/equipment-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import { Alert, ButtonLink } from '@/shared/ui/foundation';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -92,15 +93,15 @@ export default function EquipmentPage(): React.JSX.Element {
               onChange: setStatus, onRemove: () => setStatus(''),
             }] : []}
             availableFilters={status ? [] : [{ id: 'status', label: 'Статус', options: statusOptions, onAdd: setStatus }]}
-            actions={canManageEquipmentCatalog ? <Link className="button-link button-link--primary" href="/equipment/new">Добавить оборудование</Link> : null}
+            actions={canManageEquipmentCatalog ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/equipment/new">Добавить оборудование</ButtonLink> : null}
           />
 
           {isLoading ? (
             <div className="page-card">Загрузка...</div>
           ) : error ? (
-            <div className="page-card" style={{ color: '#b91c1c' }}>
+            <Alert tone="danger" role="alert">
               {error}
-            </div>
+            </Alert>
           ) : (
             <EquipmentListTable
               items={items}

@@ -11,7 +11,9 @@ import {
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+import { Alert, Badge, ButtonLink, StatusBadge } from '@/shared/ui/foundation';
 
 const EMPTY: OneTimeOrderAttentionResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 0 };
 
@@ -44,6 +46,7 @@ export default function OneTimeOrderAttentionPage(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const page = parsePage(searchParams.get('page'));
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(20);
   const [result, setResult] = useState(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,29 +55,29 @@ export default function OneTimeOrderAttentionPage(): React.JSX.Element {
     let active = true;
     setLoading(true);
     setError(null);
-    void listOneTimeOrderAttention({ page, limit: 20 })
+    void listOneTimeOrderAttention({ page, limit: pageSize })
       .then((response) => { if (active) setResult(response); })
       .catch((caught) => { if (active) setError(caught instanceof Error ? caught.message : 'Не удалось загрузить горящие разовые заказы.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [page]);
+  }, [page, pageSize]);
 
   return (
     <div className="page-stack workspace-page one-time-order-registry">
       <PageTitle title="Разовые заказы" />
       <div className="page-card workspace-surface section-header registry-header">
         <div><div className="section-title">Операционный приоритет</div><div className="page-muted">Просроченные → сегодня → ближайшие → без даты. Доступно: {result.total}</div></div>
-        <Link className="button-link" href="/one-time-orders">Снять фильтр</Link>
+        <ButtonLink href="/one-time-orders">Снять фильтр</ButtonLink>
       </div>
       <div className="page-card workspace-surface filter-panel">
-        <span className="status-pill" data-status="attention">Горящие ×</span>
+        <StatusBadge status="attention">Горящие ×</StatusBadge>
         <span className="page-muted">Выборка строится на backend до пагинации и учитывает права текущего пользователя.</span>
       </div>
-      {loading ? <div className="page-card workspace-surface workspace-empty">Загрузка…</div> : error ? <div className="page-card workspace-surface inline-notice inline-notice--warning">{error}</div> : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">Горящих разовых заказов нет.</div> : (
+      {loading ? <div className="page-card workspace-surface workspace-empty">Загрузка…</div> : error ? <Alert tone="warning">{error}</Alert> : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">Горящих разовых заказов нет.</div> : (
         <DataTable label="Таблица горящих разовых заказов" className="data-table" frameClassName="page-card workspace-surface data-table-shell table-scroll">
             <thead><tr><th scope="col">Приоритет</th><th scope="col">Заказ</th><th scope="col">Дата</th><th scope="col">Статус</th><th scope="col">Объект / адрес</th><th scope="col">Менеджеры</th><th scope="col" aria-label="Действие" /></tr></thead>
             <tbody>{result.items.map((item) => <tr key={item.id}>
-              <td><span className="status-pill">{urgency(item.executionStartDate)}</span></td>
+              <td><Badge>{urgency(item.executionStartDate)}</Badge></td>
               <td><strong>{item.title}</strong></td>
               <td>{formatDate(item.executionStartDate)}</td>
               <td>{getOneTimeOrderStatusLabel(item.status)}</td>
@@ -86,7 +89,8 @@ export default function OneTimeOrderAttentionPage(): React.JSX.Element {
       )}
       {!loading ? <TablePagination page={result.page} totalPages={result.totalPages} label="Страницы заказов, требующих внимания"
         summary={result.total > 0 ? `Показано ${(result.page - 1) * result.limit + 1}–${Math.min(result.page * result.limit, result.total)} из ${result.total}` : 'Заказов не найдено'}
-        onPageChange={(nextPage) => router.replace(`/one-time-orders/attention?page=${nextPage}`)} /> : null}
+        onPageChange={(nextPage) => router.replace(`/one-time-orders/attention?page=${nextPage}${pageSize !== 20 ? `&limit=${pageSize}` : ''}`)}
+        pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} /> : null}
     </div>
   );
 }

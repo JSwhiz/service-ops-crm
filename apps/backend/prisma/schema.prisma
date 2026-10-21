@@ -516,6 +516,7 @@ model Employee {
   id                 String    @id @default(uuid())
   fullName           String
   phone              String?
+  phones             String[]  @default([])
   position           String?
   birthDate          DateTime? @db.Date
   employeeType       String    @default("regular")

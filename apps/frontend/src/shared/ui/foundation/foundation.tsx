@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import React, { useId } from 'react';
 
 type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
@@ -16,6 +17,23 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   fullWidth?: boolean;
   pending?: boolean;
   pendingLabel?: React.ReactNode;
+  /** Leading icon, e.g. <PlusIcon /> for create actions. */
+  icon?: React.ReactNode;
+}
+
+function buttonClassName(
+  variant: ButtonVariant,
+  size: ButtonSize,
+  fullWidth: boolean,
+  className?: string,
+): string {
+  return classes(
+    'ui-button',
+    variant !== 'default' && `ui-button--${variant}`,
+    size !== 'md' && `ui-button--${size}`,
+    fullWidth && 'ui-button--full',
+    className,
+  );
 }
 
 export function Button({
@@ -24,6 +42,7 @@ export function Button({
   fullWidth = false,
   pending = false,
   pendingLabel,
+  icon,
   className,
   type = 'button',
   disabled,
@@ -34,13 +53,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={classes(
-        'ui-button',
-        variant !== 'default' && `ui-button--${variant}`,
-        size !== 'md' && `ui-button--${size}`,
-        fullWidth && 'ui-button--full',
-        className,
-      )}
+      className={buttonClassName(variant, size, fullWidth, className)}
       disabled={disabled || pending}
       aria-busy={pending || ariaBusy}
       {...props}
@@ -53,9 +66,39 @@ export function Button({
           </span>
         </span>
       ) : (
-        children
+        <>
+          {icon ? <span className="ui-button__icon" aria-hidden="true">{icon}</span> : null}
+          {children}
+        </>
       )}
     </button>
+  );
+}
+
+export interface ButtonLinkProps
+  extends Omit<React.ComponentProps<typeof Link>, 'className'> {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  fullWidth?: boolean;
+  icon?: React.ReactNode;
+  className?: string;
+}
+
+/** Navigation styled exactly like Button (same height, focus and hover states). */
+export function ButtonLink({
+  variant = 'default',
+  size = 'md',
+  fullWidth = false,
+  icon,
+  className,
+  children,
+  ...props
+}: ButtonLinkProps): React.JSX.Element {
+  return (
+    <Link className={buttonClassName(variant, size, fullWidth, className)} {...props}>
+      {icon ? <span className="ui-button__icon" aria-hidden="true">{icon}</span> : null}
+      {children}
+    </Link>
   );
 }
 
@@ -211,17 +254,20 @@ export function EntityHeader({
 export interface IconButtonProps
   extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'> {
   'aria-label': string;
+  /** Outlined like a default Button; use next to other header actions. */
+  bordered?: boolean;
 }
 
 export function IconButton({
   className,
   type = 'button',
+  bordered = false,
   ...props
 }: IconButtonProps): React.JSX.Element {
   return (
     <button
       type={type}
-      className={classes('ui-icon-button', className)}
+      className={classes('ui-icon-button', bordered && 'ui-icon-button--bordered', className)}
       {...props}
     />
   );
@@ -246,6 +292,73 @@ export function Badge({
       {...props}
     />
   );
+}
+
+const STATUS_TONES: Record<string, BadgeTone> = {
+  active: 'success', completed: 'success', closed: 'success', in_storage: 'success',
+  in_progress: 'info', assigned_to_object: 'info', assigned_to_one_time_order: 'info',
+  awaiting_confirmation: 'warning', pending_auto_close: 'warning', partially_completed: 'warning',
+  under_repair: 'warning', frozen: 'warning', attention: 'warning', pending: 'warning',
+  broken: 'danger', lost: 'danger', written_off: 'danger', cancelled: 'danger',
+  archived: 'danger', rejected: 'danger',
+};
+
+export interface StatusBadgeProps extends BadgeProps {
+  /** Domain status code; its tone comes from one shared map (unknown codes stay neutral). */
+  status?: string | null;
+}
+
+/** Badge for workflow statuses (orders, tasks, equipment, objects, accountability). */
+export function StatusBadge({ status, tone, ...props }: StatusBadgeProps): React.JSX.Element {
+  return <Badge tone={tone ?? (status ? STATUS_TONES[status] : undefined) ?? 'neutral'} data-status={status ?? undefined} {...props} />;
+}
+
+export interface BackLinkProps extends Omit<React.ComponentProps<typeof Link>, 'className'> {
+  className?: string;
+}
+
+/** «← Раздел» link above an entity header. */
+export function BackLink({ className, children, ...props }: BackLinkProps): React.JSX.Element {
+  return (
+    <Link className={classes('ui-back-link', className)} {...props}>
+      <span aria-hidden="true">←</span>
+      {children}
+    </Link>
+  );
+}
+
+export interface Fact {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  key?: string;
+}
+
+export interface FactStripProps extends React.HTMLAttributes<HTMLDListElement> {
+  items: Fact[];
+}
+
+/** Key facts under an entity header: a bordered strip of label/value cells (4 → 2 → 1 columns). */
+export function FactStrip({ items, className, ...props }: FactStripProps): React.JSX.Element {
+  return (
+    <dl className={classes('ui-fact-strip', className)} {...props}>
+      {items.map((item, index) => (
+        <div key={item.key ?? index} className="ui-fact-strip__item">
+          <dt className="ui-fact-strip__label">{item.label}</dt>
+          <dd className="ui-fact-strip__value">{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export interface StackProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Vertical gap from the spacing scale: xs 4 · sm 8 · md 12 · lg 16 · xl 24 px. */
+  gap?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+}
+
+/** Vertical layout with token spacing; replaces ad-hoc `display: grid; gap` inline styles. */
+export function Stack({ gap = 'md', className, ...props }: StackProps): React.JSX.Element {
+  return <div className={classes('ui-stack', `ui-stack--${gap}`, className)} {...props} />;
 }
 
 export interface SurfaceProps extends React.HTMLAttributes<HTMLDivElement> {

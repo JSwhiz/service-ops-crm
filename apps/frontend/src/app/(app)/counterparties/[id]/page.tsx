@@ -28,6 +28,7 @@ import {
 } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from '../counterparties.module.css';
+import { Button, StatusBadge } from '@/shared/ui/foundation';
 
 function toObjectOption(object: ServiceObject): SearchableSelectOption {
   return {
@@ -234,19 +235,19 @@ export default function CounterpartyPage({
           <div className={styles.summaryIdentity}>
             <div className={styles.summaryTitleRow}>
               <h1 className="hero-title">{item.name}</h1>
-              <span className="status-pill" data-status={item.status}>{item.status === 'active' ? 'Активный' : 'Архив'}</span>
+              <StatusBadge status={item.status}>{item.status === 'active' ? 'Активный' : 'Архив'}</StatusBadge>
             </div>
             {item.legalName ? <div className={styles.summaryLegalName}><span>Юридическое название</span><strong>{item.legalName}</strong></div> : null}
           </div>
           <div className={styles.summaryActions}>
             {item.capabilities.canManage ? (
-              <button type="button" className={`button-link object-summary__primary-action ${styles.summaryButton}`} onClick={() => setEditing((current) => !current)}>
+              <Button onClick={() => setEditing((current) => !current)}>
                 {editing ? 'Отменить' : 'Редактировать'}
-              </button>
+              </Button>
             ) : null}
-            <button type="button" className={`button-link ${styles.historyButton}`} onClick={() => { setEditing(false); setActiveTab('history'); }}>
+            <Button variant="ghost" onClick={() => { setEditing(false); setActiveTab('history'); }}>
               История
-            </button>
+            </Button>
           </div>
         </div>
         <div className={`detail-grid ${styles.summaryFacts}`}>
@@ -273,7 +274,7 @@ export default function CounterpartyPage({
         <div className={styles.statusHeader}>
           <h2 className={styles.sectionTitle}>Статус контрагента</h2>
           <div className={styles.statusActions}>
-            <span className="status-pill" data-status={item.status}>{item.status === 'active' ? 'Активный' : 'Архив'}</span>
+            <StatusBadge status={item.status}>{item.status === 'active' ? 'Активный' : 'Архив'}</StatusBadge>
             {item.capabilities.canManage ? (
               item.status === 'active' ? (
                 <button type="button" className={styles.statusAction} disabled={saving} onClick={() => { setArchiveError(null); setArchiveDialogOpen(true); }}>
@@ -381,16 +382,15 @@ export default function CounterpartyPage({
               />
             </label>
             <div className={`${styles.formActions} ${styles.fullRow}`}>
-              <button type="button" className={styles.secondaryButton} onClick={() => { sync(item); setEditing(false); }}>
+              <Button onClick={() => { sync(item); setEditing(false); }}>
                 Отмена
-              </button>
-              <button
+              </Button>
+              <Button variant="primary"
                 type="submit"
-                className={styles.primaryButton}
                 disabled={saving || form.name.trim().length < 2}
               >
                 {saving ? 'Сохраняем...' : 'Сохранить'}
-              </button>
+              </Button>
             </div>
           </form>
         ) : null}
@@ -436,9 +436,7 @@ export default function CounterpartyPage({
               onChange={setLinkObjectId}
             />
             <div className={styles.objectLinkAction}>
-              <button
-                type="button"
-                className={styles.primaryButton}
+              <Button variant="primary"
                 disabled={saving || !linkObjectId}
                 onClick={() => {
                   const objectId = linkObjectId;
@@ -448,7 +446,7 @@ export default function CounterpartyPage({
                 }}
               >
                 Привязать объект
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -472,15 +470,13 @@ export default function CounterpartyPage({
                 ) : null}
                 {item.capabilities.canLinkObjects && item.status === 'active' ? (
                   item.masterObject?.id === object.id ? (
-                    <button type="button" className={styles.quietButton} disabled={saving} onClick={() => void mutate(() => clearCounterpartyMasterObject(item.id))}>Снять мастер-объект</button>
+                    <Button variant="ghost" disabled={saving} onClick={() => void mutate(() => clearCounterpartyMasterObject(item.id))}>Снять мастер-объект</Button>
                   ) : (
-                    <button type="button" className={styles.quietButton} disabled={saving} onClick={() => void mutate(() => setCounterpartyMasterObject(item.id, object.id))}>Назначить мастером</button>
+                    <Button variant="ghost" disabled={saving} onClick={() => void mutate(() => setCounterpartyMasterObject(item.id, object.id))}>Назначить мастером</Button>
                   )
                 ) : null}
                 {item.capabilities.canLinkObjects ? (
-                  <button
-                    type="button"
-                    className={styles.quietButton}
+                  <Button variant="ghost"
                     disabled={saving}
                     onClick={() =>
                       void mutate(() =>
@@ -489,7 +485,7 @@ export default function CounterpartyPage({
                     }
                   >
                     Отвязать
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             ))}

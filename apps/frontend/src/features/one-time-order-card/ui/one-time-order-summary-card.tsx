@@ -3,7 +3,7 @@ import React from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
-import { Button, EntityHeader } from '@/shared/ui/foundation';
+import { Button, EntityHeader, StatusBadge } from '@/shared/ui/foundation';
 import styles from './one-time-order-summary-card.module.css';
 
 export function OneTimeOrderSummaryCard({
@@ -17,7 +17,7 @@ export function OneTimeOrderSummaryCard({
   onComplete?: () => void;
   isEditing?: boolean;
 }): React.JSX.Element {
-  const status = <span className="status-pill" data-status={item.status}>{getOneTimeOrderStatusLabel(item.status)}</span>;
+  const status = <StatusBadge status={item.status}>{getOneTimeOrderStatusLabel(item.status)}</StatusBadge>;
   const facts = [
     {
       label: 'Дата исполнения',

@@ -9,7 +9,7 @@ import type {
   CandidateObjectSummary,
 } from '@/entities/candidate/model/candidate.types';
 import { listObjectsPage } from '@/entities/object/api/object-client';
-import { Button, Field } from '@/shared/ui/foundation';
+import { Button } from '@/shared/ui/foundation';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from './candidate-fields.module.css';
@@ -18,18 +18,6 @@ export interface CandidateManagerDraft extends CandidateAssignmentInput {
   key: string;
   manager?: CandidateAssignment['manager'];
   object?: CandidateObjectSummary | null;
-}
-
-export interface CandidatePhoneDraft {
-  key: string;
-  value: string;
-}
-
-export function candidatePhoneDrafts(phones: string[]): CandidatePhoneDraft[] {
-  return (phones.length ? phones : ['']).map((value, index) => ({
-    key: `phone-${index}`,
-    value,
-  }));
 }
 
 export function candidateManagerDrafts(
@@ -54,75 +42,15 @@ export function candidateManagerPayload(
   }));
 }
 
-export function candidateManagersValid(rows: CandidateManagerDraft[]): boolean {
+export function candidateManagersValid(
+  rows: CandidateManagerDraft[],
+  requireManager = false,
+): boolean {
   return (
+    (!requireManager || rows.length > 0) &&
     rows.length <= 30 &&
     rows.every((row) => Boolean(row.managerUserId)) &&
     new Set(rows.map((row) => row.managerUserId)).size === rows.length
-  );
-}
-
-export function CandidatePhoneFields({
-  phones,
-  onChange,
-  disabled = false,
-}: {
-  phones: CandidatePhoneDraft[];
-  onChange: (phones: CandidatePhoneDraft[]) => void;
-  disabled?: boolean;
-}): React.JSX.Element {
-  return (
-    <div className={styles.stack}>
-      {phones.map((phone, index) => (
-        <div className={styles.phoneRow} key={phone.key}>
-          <Field
-            className={styles.field}
-            label={`Телефон ${index + 1}`}
-            required
-          >
-            <input
-              type="tel"
-              autoComplete="tel"
-              minLength={3}
-              maxLength={50}
-              value={phone.value}
-              disabled={disabled}
-              onChange={(event) =>
-                onChange(
-                  phones.map((value) =>
-                    value.key === phone.key
-                      ? { ...value, value: event.target.value }
-                      : value,
-                  ),
-                )
-              }
-            />
-          </Field>
-          <Button
-            variant="ghost"
-            className={styles.quiet}
-            disabled={disabled || phones.length === 1}
-            aria-label={`Удалить телефон ${index + 1}`}
-            onClick={() =>
-              onChange(phones.filter((value) => value.key !== phone.key))
-            }
-          >
-            Удалить
-          </Button>
-        </div>
-      ))}
-      <Button
-        variant="ghost"
-        className={styles.quiet}
-        disabled={disabled || phones.length >= 10}
-        onClick={() => {
-          if (phones.length < 10)
-            onChange([...phones, { key: crypto.randomUUID(), value: '' }]);
-        }}
-      >
-        Добавить телефон
-      </Button>
-    </div>
   );
 }
 
@@ -131,11 +59,13 @@ export function CandidateManagerFields({
   onChange,
   defaultObject,
   disabled = false,
+  requireManager = false,
 }: {
   rows: CandidateManagerDraft[];
   onChange: (rows: CandidateManagerDraft[]) => void;
   defaultObject: CandidateObjectSummary | null;
   disabled?: boolean;
+  requireManager?: boolean;
 }): React.JSX.Element {
   const objectCache = useRef(new Map<string, CandidateObjectSummary>());
   const update = (key: string, patch: Partial<CandidateManagerDraft>): void =>
@@ -247,8 +177,12 @@ export function CandidateManagerFields({
           </div>
         );
       })}
-      {!candidateManagersValid(rows) ? (
-        <p className={styles.hint}>
+      {requireManager && rows.length === 0 ? (
+        <p className={styles.warning} role="alert">
+          Назначьте хотя бы одного ответственного менеджера.
+        </p>
+      ) : !candidateManagersValid(rows) ? (
+        <p className={styles.warning} role="alert">
           Выберите разных менеджеров в каждой строке.
         </p>
       ) : null}

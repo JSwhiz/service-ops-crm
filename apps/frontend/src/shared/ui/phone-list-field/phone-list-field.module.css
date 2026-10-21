@@ -1,0 +1,63 @@
+.root {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.root > legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--ui-space-2);
+  padding: 0;
+}
+
+.root > :global(.ui-field__error) {
+  margin-top: var(--ui-space-2);
+}
+
+.rows {
+  clear: both;
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.row > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.row:has(> input:only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mainTag {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--ui-control-md) + var(--ui-space-2) + 10px);
+  transform: translateY(-50%);
+  color: var(--ui-text-tertiary);
+  font-size: var(--ui-text-xs, 12px);
+  pointer-events: none;
+}
+
+.remove {
+  color: var(--ui-text-tertiary);
+}
+
+.add.add {
+  justify-self: start;
+  margin-top: var(--ui-space-1);
+  margin-left: calc(var(--ui-space-2) * -1);
+}

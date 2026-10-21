@@ -29,6 +29,9 @@ import {
   INVENTORY_MOVEMENT_TYPE_OPTIONS,
 } from '@/shared/lib/inventory-presentation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Alert, Button, StatusBadge } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -289,9 +292,9 @@ export default function InventoryItemDetailPage({
       {isLoading ? (
         <div className="page-card">Загрузка...</div>
       ) : error ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <Alert tone="danger" role="alert">
           {error}
-        </div>
+        </Alert>
       ) : item ? (
         <div className="page-stack">
           <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
@@ -303,20 +306,17 @@ export default function InventoryItemDetailPage({
                 </div>
               </div>
               <div className="action-row">
-                <span
-                  className="status-pill"
-                  data-status={item.isActive ? 'active' : 'archived'}
+                <StatusBadge
+                  status={item.isActive ? 'active' : 'archived'}
                 >
                   {item.isActive ? 'Активна' : 'Удалена'}
-                </span>
+                </StatusBadge>
                 {item.capabilities.canEditCatalog && item.isActive ? (
-                  <button
-                    type="button"
-                    className="button-secondary"
+                  <Button
                     onClick={() => setIsEditing((value) => !value)}
                   >
                     {isEditing ? 'Закрыть редактор' : 'Редактировать'}
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </div>
@@ -422,29 +422,26 @@ export default function InventoryItemDetailPage({
                 </div>
                 {item.isActive ? (
                   item.capabilities.canDelete ? (
-                    <button
-                      type="button"
-                      className="button-danger"
+                    <Button variant="danger"
                       onClick={() => setIsDeleteConfirmationOpen(true)}
                     >
                       Удалить
-                    </button>
+                    </Button>
                   ) : null
                 ) : (
                   item.capabilities.canDelete ? (
-                    <button
-                      type="button"
+                    <Button
                       disabled={isItemActionPending}
                       onClick={() => void handleRestore()}
                     >
                       {isItemActionPending ? 'Восстанавливаем...' : 'Восстановить'}
-                    </button>
+                    </Button>
                   ) : null
                 )}
               </div>
 
               {isDeleteConfirmationOpen && item.isActive ? (
-                <div className="inline-notice inline-notice--warning">
+                <Alert tone="warning">
                   <strong>Удалить «{item.name}»?</strong>
                   {item.deletionState.mode === 'hard' ? (
                     <div>
@@ -463,24 +460,20 @@ export default function InventoryItemDetailPage({
                     <div key={code}>{getDeleteBlockerLabel(code)}</div>
                   ))}
                   <div className="action-row">
-                    <button
-                      type="button"
-                      className="button-danger"
+                    <Button variant="danger"
                       disabled={!item.deletionState.canDelete || isItemActionPending}
                       onClick={() => void handleDelete()}
                     >
                       {isItemActionPending ? 'Удаляем...' : 'Удалить'}
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary"
+                    </Button>
+                    <Button
                       onClick={() => setIsDeleteConfirmationOpen(false)}
                       disabled={isItemActionPending}
                     >
                       Отмена
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </Alert>
               ) : null}
 
               {item.isActive && item.deletionState.blockerCodes.length > 0 ? (
@@ -554,7 +547,7 @@ export default function InventoryItemDetailPage({
                 <div className="detail-grid">
                   <label>
                     <div className="detail-label">Тип</div>
-                    <select
+                    <Select
                       value={movementType}
                       onChange={(event) => {
                         setMovementType(event.target.value);
@@ -567,11 +560,11 @@ export default function InventoryItemDetailPage({
                           {option.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     <div className="detail-label">Статус</div>
-                    <select
+                    <Select
                       value={movementStatus}
                       onChange={(event) => {
                         setMovementStatus(event.target.value);
@@ -583,11 +576,11 @@ export default function InventoryItemDetailPage({
                       <option value="pending_approval">Ожидает согласования</option>
                       <option value="rejected">Отклонено</option>
                       <option value="cancelled">Отменено</option>
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     <div className="detail-label">Объект</div>
-                    <select
+                    <Select
                       value={selectedObjectId}
                       onChange={(event) => {
                         setSelectedObjectId(event.target.value);
@@ -600,11 +593,11 @@ export default function InventoryItemDetailPage({
                           {option.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     <div className="detail-label">Разовый заказ</div>
-                    <select
+                    <Select
                       value={selectedOrderId}
                       onChange={(event) => {
                         setSelectedOrderId(event.target.value);
@@ -617,29 +610,21 @@ export default function InventoryItemDetailPage({
                           {option.title}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     <div className="detail-label">С даты</div>
-                    <input
-                      type="date"
-                      value={dateFrom}
-                      onChange={(event) => {
-                        setDateFrom(event.target.value);
+                    <DatePicker value={dateFrom} onChange={(nextValue) => {
+                        setDateFrom(nextValue);
                         setMovementPage(1);
-                      }}
-                    />
+                      }} />
                   </label>
                   <label>
                     <div className="detail-label">По дату</div>
-                    <input
-                      type="date"
-                      value={dateTo}
-                      onChange={(event) => {
-                        setDateTo(event.target.value);
+                    <DatePicker value={dateTo} onChange={(nextValue) => {
+                        setDateTo(nextValue);
                         setMovementPage(1);
-                      }}
-                    />
+                      }} />
                   </label>
                 </div>
               </div>

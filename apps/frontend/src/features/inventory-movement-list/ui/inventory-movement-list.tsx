@@ -50,7 +50,7 @@ export function InventoryMovementList({
                 {' • '}
                 <span
                   style={{
-                    color: item.signedQuantity >= 0 ? '#166534' : '#b91c1c',
+                    color: item.signedQuantity >= 0 ? 'var(--ui-success)' : 'var(--ui-danger)',
                   }}
                 >
                   {item.signedQuantity >= 0 ? '+' : ''}

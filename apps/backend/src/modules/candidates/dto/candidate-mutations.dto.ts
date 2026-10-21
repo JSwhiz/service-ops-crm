@@ -120,6 +120,14 @@ export class CandidateVersionDto {
 export class ChangeCandidateStatusDto extends CandidateVersionDto {
   @IsIn(CANDIDATE_STATUSES)
   status!: (typeof CANDIDATE_STATUSES)[number];
+
+  /** Managers to assign when a closed candidate is returned to work. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => CandidateManagerSelectionDto)
+  assignments?: CandidateManagerSelectionDto[];
 }
 
 export class AssignCandidateManagerDto extends CandidateVersionDto {

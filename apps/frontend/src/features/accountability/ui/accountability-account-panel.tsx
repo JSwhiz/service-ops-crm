@@ -22,6 +22,8 @@ import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 
 import { AccountabilityExpenseForm } from './accountability-expense-form';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Button, Stack, StatusBadge } from '@/shared/ui/foundation';
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString('ru-RU', {
@@ -115,9 +117,9 @@ export function AccountabilityAccountPanel({
       },
       customControl: (
         <div className="registry-date-range">
-          <input aria-label="Дата с" type="date" max={dateTo || undefined} value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+          <DatePicker aria-label="Дата с" max={dateTo || undefined} value={dateFrom} onChange={(nextValue) => setDateFrom(nextValue)} />
           <span>—</span>
-          <input aria-label="Дата по" type="date" min={dateFrom || undefined} value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+          <DatePicker aria-label="Дата по" min={dateFrom || undefined} value={dateTo} onChange={(nextValue) => setDateTo(nextValue)} />
         </div>
       ),
     } : null,
@@ -205,16 +207,15 @@ export function AccountabilityAccountPanel({
                 .join(' · ')}
             </div>
           </div>
-          <span
-            className="status-pill"
-            data-status={view.account.status ?? 'archived'}
+          <StatusBadge
+            status={view.account.status ?? 'archived'}
           >
             {getAccountabilityAccountStatusLabel(view.account.status)}
-          </span>
+          </StatusBadge>
         </div>
 
         {view.account.status === 'closing_requested' ? (
-          <div className="record-card" style={{ background: '#fffbeb' }}>
+          <div className="record-card" style={{ background: 'var(--ui-warning-subtle)' }}>
             Новые расходы и новые выдачи денег временно заблокированы, пока идет
             сверка.
           </div>
@@ -270,7 +271,7 @@ export function AccountabilityAccountPanel({
           </details>
           {isOwnView && view.capabilities.canRequestClosure ? (
             <div className="action-row">
-              <button type="button" onClick={() => void onRequestClosure()}>Отправить на сверку</button>
+              <Button onClick={() => void onRequestClosure()}>Отправить на сверку</Button>
             </div>
           ) : null}
         </div>
@@ -351,12 +352,12 @@ export function AccountabilityAccountPanel({
                       <>
                         <textarea rows={2} value={fundingReversalReason} onChange={(event) => setFundingReversalReason(event.target.value)} maxLength={500} placeholder="Причина сторнирования (обязательно)" />
                         <div className="action-row">
-                          <button type="button" disabled={!fundingReversalReason.trim()} onClick={() => void onReverseExternalReceipt(funding.id, fundingReversalReason.trim()).then(() => { setReversingFundingId(null); setFundingReversalReason(''); }).catch(() => undefined)}>Провести сторно</button>
-                          <button type="button" className="button-secondary" onClick={() => { setReversingFundingId(null); setFundingReversalReason(''); }}>Отмена</button>
+                          <Button disabled={!fundingReversalReason.trim()} onClick={() => void onReverseExternalReceipt(funding.id, fundingReversalReason.trim()).then(() => { setReversingFundingId(null); setFundingReversalReason(''); }).catch(() => undefined)}>Провести сторно</Button>
+                          <Button onClick={() => { setReversingFundingId(null); setFundingReversalReason(''); }}>Отмена</Button>
                         </div>
                       </>
                     ) : (
-                      <div className="action-row"><button type="button" className="button-secondary" onClick={() => setReversingFundingId(funding.id)}>Сторнировать поступление</button></div>
+                      <div className="action-row"><Button onClick={() => setReversingFundingId(funding.id)}>Сторнировать поступление</Button></div>
                     )}
                   </div>
                 ) : null}
@@ -415,7 +416,7 @@ export function AccountabilityAccountPanel({
             {filteredExpenses.map((expense) => (
               <div key={expense.id} className="record-card" style={{ display: 'grid', gap: 10 }}>
                 <div className="section-header" style={{ paddingBottom: 0 }}>
-                  <div style={{ display: 'grid', gap: 6 }}>
+                  <Stack gap="sm">
                     <strong>{formatMoney(expense.amount)}</strong>
                     <div className="page-muted">
                       {expense.expenseDate
@@ -427,13 +428,12 @@ export function AccountabilityAccountPanel({
                         ? ` · заказ ${expense.oneTimeOrderId.slice(0, 8)}`
                         : ''}
                     </div>
-                  </div>
-                  <span
-                    className="status-pill"
-                    data-status={expense.status}
+                  </Stack>
+                  <StatusBadge
+                    status={expense.status}
                   >
                     {getAccountabilityExpenseStatusLabel(expense.status)}
-                  </span>
+                  </StatusBadge>
                 </div>
 
                 <div style={{ whiteSpace: 'pre-wrap' }}>{expense.description}</div>
@@ -455,7 +455,7 @@ export function AccountabilityAccountPanel({
                 ) : null}
 
                 {expense.rejectionComment ? (
-                  <div className="record-card" style={{ background: '#fef2f2' }}>
+                  <div className="record-card" style={{ background: 'var(--ui-danger-subtle)' }}>
                     Причина отклонения: {expense.rejectionComment}
                   </div>
                 ) : null}
@@ -467,53 +467,49 @@ export function AccountabilityAccountPanel({
 
                 <div className="action-row">
                   {expense.capabilities.canEdit ? (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => {
                         setEditingExpense(expense);
                       }}
                     >
                       Редактировать
-                    </button>
+                    </Button>
                   ) : null}
 
                   {expense.capabilities.canSubmit ? (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => {
                         void onSubmitExpense(expense.id);
                       }}
                     >
                       Отправить
-                    </button>
+                    </Button>
                   ) : null}
 
                   {expense.capabilities.canApprove ? (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => {
                         void onApproveExpense(expense.id);
                       }}
                     >
                       Подтвердить
-                    </button>
+                    </Button>
                   ) : null}
 
                   {expense.capabilities.canReject ? (
-                    <button
-                      type="button"
+                    <Button
                       onClick={() => {
                         setRejectingExpenseId(expense.id);
                         setExpenseRejectComment('');
                       }}
                     >
                       Отклонить
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
 
                 {rejectingExpenseId === expense.id ? (
-                  <div style={{ display: 'grid', gap: 8 }}>
+                  <Stack gap="sm">
                     <textarea
                       rows={3}
                       value={expenseRejectComment}
@@ -523,8 +519,7 @@ export function AccountabilityAccountPanel({
                       placeholder="Укажите причину отклонения"
                     />
                     <div className="action-row">
-                      <button
-                        type="button"
+                      <Button
                         onClick={() => {
                           void onRejectExpense(expense.id, expenseRejectComment).finally(
                             () => {
@@ -535,18 +530,17 @@ export function AccountabilityAccountPanel({
                         }}
                       >
                         Подтвердить отклонение
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
                         onClick={() => {
                           setRejectingExpenseId(null);
                           setExpenseRejectComment('');
                         }}
                       >
                         Отмена
-                      </button>
+                      </Button>
                     </div>
-                  </div>
+                  </Stack>
                 ) : null}
               </div>
             ))}
@@ -606,9 +600,9 @@ function ClosureCard({
             Запросил: {getUserDisplayName(closure.requestedBy)}
           </div>
         </div>
-        <span className="status-pill" data-status={closure.status}>
+        <StatusBadge status={closure.status}>
           {getAccountabilityClosureStatusLabel(closure.status)}
-        </span>
+        </StatusBadge>
       </div>
 
       {closure.comment ? <div>{closure.comment}</div> : null}

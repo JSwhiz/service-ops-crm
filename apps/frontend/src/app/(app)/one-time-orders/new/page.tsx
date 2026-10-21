@@ -28,6 +28,7 @@ import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { getOneTimeOrderConflictTypeLabel } from '@/shared/lib/one-time-order-presentation';
+import { Alert } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -186,9 +187,9 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
       ) : isLoading ? (
         <div className="page-card">Загрузка...</div>
       ) : error ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <Alert tone="danger" role="alert">
           {error}
-        </div>
+        </Alert>
       ) : (
         <OneTimeOrderForm
           initialLinkedObjectOption={initialLinkedObjectOption}

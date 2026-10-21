@@ -10,9 +10,12 @@ import type {
 } from '@/entities/counterparty/model/counterparty.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { DataTable } from '@/shared/ui/data-table/data-table';
+import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './counterparties.module.css';
+import { ButtonLink } from '@/shared/ui/foundation';
+import { ChevronDownIcon, PlusIcon, SearchIcon } from '@/shared/ui/icons/icons';
 
 const EMPTY: CounterpartyListResponse = {
   items: [],
@@ -37,31 +40,6 @@ const STATUS_OPTIONS = [
   { value: 'active', label: 'Активные' },
   { value: 'archived', label: 'Архив' },
 ] as const;
-
-function SearchIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16 16 4 4" />
-    </svg>
-  );
-}
-
-function PlusIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function ChevronIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m7 10 5 5 5-5" />
-    </svg>
-  );
-}
 
 function StatusFilter({
   value,
@@ -107,7 +85,7 @@ function StatusFilter({
               <span className={styles.filterLabel}>Статус</span>
               <strong>{selectedOption.label}</strong>
             </span>
-            <ChevronIcon />
+            <ChevronDownIcon />
           </button>
           <button
             type="button"
@@ -174,6 +152,7 @@ export default function CounterpartiesPage(): React.JSX.Element {
     (searchParams.get('status') as 'active' | 'archived' | 'all' | null) ??
     'all';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(25);
 
   const [search, setSearch] = useState(q);
   const [result, setResult] = useState(EMPTY);
@@ -216,7 +195,7 @@ export default function CounterpartiesPage(): React.JSX.Element {
       q: q || undefined,
       status,
       page,
-      limit: 25,
+      limit: pageSize,
     })
       .then((next) => {
         if (sequence === sequenceRef.current) setResult(next);
@@ -233,7 +212,7 @@ export default function CounterpartiesPage(): React.JSX.Element {
       .finally(() => {
         if (sequence === sequenceRef.current) setLoading(false);
       });
-  }, [canAccess, page, q, status]);
+  }, [canAccess, page, pageSize, q, status]);
 
   if (!canAccess) {
     return (
@@ -266,10 +245,9 @@ export default function CounterpartiesPage(): React.JSX.Element {
             onReset={() => replaceQuery({ status: null, page: null })}
           />
           {canManage ? (
-            <Link className={`${styles.primaryButton} ${styles.createButton}`} href="/counterparties/new">
-              <PlusIcon />
-              <span>Создать контрагента</span>
-            </Link>
+            <ButtonLink variant="primary" icon={<PlusIcon />} href="/counterparties/new">
+              Создать контрагента
+            </ButtonLink>
           ) : null}
         </div>
       </section>
@@ -351,6 +329,9 @@ export default function CounterpartiesPage(): React.JSX.Element {
           onPageChange={(nextPage) => replaceQuery({ page: String(nextPage) })}
           summary={result.total > 0 ? `Показано ${(page - 1) * result.limit + 1}–${Math.min(page * result.limit, result.total)} из ${result.total}` : 'Ничего не найдено'}
           label="Страницы контрагентов"
+          pageSize={pageSize}
+          pageSizeOptions={pageSizeOptions}
+          onPageSizeChange={setPageSize}
         />
       ) : null}
     </div>

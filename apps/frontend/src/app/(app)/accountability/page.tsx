@@ -34,6 +34,7 @@ import {
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
+import { Alert, Button, Stack, StatusBadge } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -287,7 +288,7 @@ export default function AccountabilityPage(): React.JSX.Element {
       {pendingReceiptAttachments ? (
         <div className="page-card page-card--subtle accountability-receipt-retry">
           <span>Поступление уже учтено, но файл не прикреплён.</span>
-          <button type="button" disabled={isRecordingExternal} onClick={() => void (async () => {
+          <Button disabled={isRecordingExternal} onClick={() => void (async () => {
             if (!pendingReceiptAttachments) return;
             setIsRecordingExternal(true);
             try {
@@ -297,11 +298,11 @@ export default function AccountabilityPage(): React.JSX.Element {
             } catch {
               setActionError('Поступление уже учтено, но файл не прикреплён. Повторите прикрепление.');
             } finally { setIsRecordingExternal(false); }
-          })()}>Повторить прикрепление</button>
+          })()}>Повторить прикрепление</Button>
         </div>
       ) : null}
       <div className="action-row accountability-receipt-actions">
-        <button type="button" disabled={isRecordingExternal || pendingReceiptAttachments !== null || !Number.isFinite(Number(externalAmount)) || Number(externalAmount) <= 0 || !externalSource.trim() || !externalComment.trim() || ownView.account.status === 'closing_requested'} onClick={() => void (async () => {
+        <Button disabled={isRecordingExternal || pendingReceiptAttachments !== null || !Number.isFinite(Number(externalAmount)) || Number(externalAmount) <= 0 || !externalSource.trim() || !externalComment.trim() || ownView.account.status === 'closing_requested'} onClick={() => void (async () => {
           setActionError(null);
           setIsRecordingExternal(true);
           try {
@@ -320,7 +321,7 @@ export default function AccountabilityPage(): React.JSX.Element {
           } catch (error) {
             setActionError(getErrorMessage(error, 'Не удалось записать поступление.'));
           } finally { setIsRecordingExternal(false); }
-        })()}>{isRecordingExternal ? 'Сохраняем...' : 'Зафиксировать поступление'}</button>
+        })()}>{isRecordingExternal ? 'Сохраняем...' : 'Зафиксировать поступление'}</Button>
       </div>
     </section>
   ) : null;
@@ -340,9 +341,9 @@ export default function AccountabilityPage(): React.JSX.Element {
 
       <div className="page-stack workspace-page accountability-workspace">
         {actionError ? (
-          <div className="page-card" style={{ color: '#b91c1c' }}>
+          <Alert tone="danger" role="alert">
             {actionError}
-          </div>
+          </Alert>
         ) : null}
 
         {workspaceSections.length > 1 ? (
@@ -366,9 +367,9 @@ export default function AccountabilityPage(): React.JSX.Element {
         {ownLoading ? (
           <div className="page-card">Загрузка вашего подотчета...</div>
         ) : ownError ? (
-          <div className="page-card" style={{ color: '#b91c1c' }}>
+          <Alert tone="danger" role="alert">
             {ownError}
-          </div>
+          </Alert>
         ) : ownView ? (
           <>
           <AccountabilityAccountPanel
@@ -500,7 +501,7 @@ export default function AccountabilityPage(): React.JSX.Element {
             </div>
 
             <div className="field-grid">
-              <div style={{ display: 'grid', gap: 6 }}>
+              <Stack gap="sm">
                 <span className="detail-label">Пользователь</span>
                 <SearchableSelect
                   label="Пользователь"
@@ -518,7 +519,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                   clearable={false}
                   hideLabel
                 />
-              </div>
+              </Stack>
 
               {canIssueAccountabilityFunds ? (
                 <>
@@ -574,8 +575,7 @@ export default function AccountabilityPage(): React.JSX.Element {
 
             {canIssueAccountabilityFunds ? (
               <div className="action-row">
-                <button
-                  type="button"
+                <Button
                   disabled={
                     isIssuingFunding ||
                     !selectedUserId ||
@@ -610,7 +610,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                   }}
                 >
                   {isIssuingFunding ? 'Выдаем...' : 'Выдать деньги'}
-                </button>
+                </Button>
               </div>
             ) : null}
 
@@ -645,9 +645,9 @@ export default function AccountabilityPage(): React.JSX.Element {
                     >
                       <div className="section-header" style={{ paddingBottom: 0 }}>
                         <strong>{getUserDisplayName(item.user)}</strong>
-                        <span className="status-pill" data-status={item.status}>
+                        <StatusBadge status={item.status}>
                           {getAccountabilityAccountStatusLabel(item.status)}
-                        </span>
+                        </StatusBadge>
                       </div>
                       {getUserSecondaryLabel(item.user) ? (
                         <div className="page-muted">
@@ -684,9 +684,9 @@ export default function AccountabilityPage(): React.JSX.Element {
           reviewLoading ? (
             <div className="page-card">Загрузка review-экрана...</div>
           ) : reviewError ? (
-            <div className="page-card" style={{ color: '#b91c1c' }}>
+            <Alert tone="danger" role="alert">
               {reviewError}
-            </div>
+            </Alert>
           ) : reviewView ? (
             <AccountabilityAccountPanel
               title={

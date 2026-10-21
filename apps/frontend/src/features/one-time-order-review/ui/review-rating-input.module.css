@@ -24,7 +24,7 @@
 }
 .halfStar[data-side='left'] { margin-right: -1px; }
 .halfStar[data-filled='true'] { color: var(--ui-warning) !important; }
-.halfStar:hover:not(:disabled) { color: #8e5d34 !important; }
+.halfStar:hover:not(:disabled) { color:var(--ui-warning) !important; }
 .halfStar:focus-visible { z-index: 1; outline: 2px solid var(--ui-text-secondary); outline-offset: -2px; }
 .halfStar:disabled { cursor: not-allowed; }
 .halfGlyph { position: absolute; top: 1px; left: 0; display: block; width: 28px; color: currentColor; font-size: 23px; line-height: 1.15; pointer-events: none; }

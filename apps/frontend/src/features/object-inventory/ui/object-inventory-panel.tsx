@@ -14,6 +14,7 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { Button, Stack } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -114,7 +115,7 @@ export function ObjectInventoryPanel({
             })();
           }}
         >
-          <div style={{ display: 'grid', gap: 10 }}>
+          <Stack gap="md">
             {issueLines.map((line, index) => {
               const selectedItem = availableItems.find((item) => item.id === line.inventoryItemId) ?? null;
               const options = availableItems.filter((item) =>
@@ -163,7 +164,7 @@ export function ObjectInventoryPanel({
                 </div>
               );
             })}
-          </div>
+          </Stack>
 
           {availableItems.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? (
             <button type="button" className={styles.buttonLike} onClick={addLine} disabled={isSaving}>+ Добавить позицию</button>
@@ -205,9 +206,9 @@ export function ObjectInventoryPanel({
           {error ? <div className={styles.error}>{error}</div> : null}
 
           <div className={styles.formActions}>
-            <button className={styles.primaryAction} type="submit" disabled={isSaving || issueLines.some((line) => !line.inventoryItemId || (!line.movementId && Number(line.quantity) < 0.001))}>
+            <Button variant="primary" type="submit" disabled={isSaving || issueLines.some((line) => !line.inventoryItemId || (!line.movementId && Number(line.quantity) < 0.001))}>
               {isSaving ? 'Списываем…' : issueLines.some((line) => line.movementId) ? 'Продолжить списание' : `Списать позиций: ${issueLines.length}`}
-            </button>
+            </Button>
           </div>
         </form>
       ) : null}

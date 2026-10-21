@@ -17,6 +17,7 @@ import {
 } from '@/features/equipment-form/ui/equipment-form';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { Alert } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -81,9 +82,9 @@ export default function EquipmentNewPage(): React.JSX.Element {
       ) : isLoading ? (
         <div className="page-card">Загрузка...</div>
       ) : error ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <Alert tone="danger" role="alert">
           {error}
-        </div>
+        </Alert>
       ) : (
         <div className="page-stack">
           <EquipmentCatalogItemForm

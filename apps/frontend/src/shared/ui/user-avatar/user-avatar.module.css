@@ -1,0 +1,44 @@
+.avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ui-radius-pill);
+  color: var(--ui-text-inverse);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.soft {
+  background: var(--ui-accent-subtle);
+  color: var(--ui-accent);
+  box-shadow: none;
+}
+
+.small {
+  width: 28px;
+  height: 28px;
+  font-size: var(--ui-text-xs);
+}
+
+.medium {
+  width: 36px;
+  height: 36px;
+  font-size: var(--ui-text-sm);
+}
+
+.large {
+  width: 52px;
+  height: 52px;
+  font-size: var(--ui-text-xl);
+}
+
+@media (max-width: 760px) {
+  .large {
+    width: 44px;
+    height: 44px;
+    font-size: var(--ui-text-lg);
+  }
+}

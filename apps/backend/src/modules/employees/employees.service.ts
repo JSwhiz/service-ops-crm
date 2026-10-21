@@ -9,9 +9,13 @@ import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { canViewObjectBasicProfile } from '../objects/utils/object-access.util';
+import {
+  canViewObjectBasicProfile,
+  canViewObjectCompensationRates,
+} from '../objects/utils/object-access.util';
 
 import { EmployeeAssignmentHistoryService } from './employee-assignment-history.service';
+import { EmployeeScheduleService } from './employee-schedule.service';
 import { CreateEmployeeAvailabilityDto } from './dto/create-employee-availability.dto';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { CreateEmployeeSubstitutionDto } from './dto/create-employee-substitution.dto';
@@ -22,8 +26,12 @@ import {
   EmployeeListResponseDto,
 } from './dto/employee-list-item.dto';
 import { EmployeeObjectOptionDto } from './dto/employee-object-option.dto';
-import { EmployeeResponseDto } from './dto/employee-response.dto';
+import { EmployeeCompensationDto, EmployeeResponseDto } from './dto/employee-response.dto';
 import { EmployeeVersionDto } from './dto/employee-version.dto';
+import {
+  EmployeeAttendanceQueryDto,
+  EmployeeAttendanceResponseDto,
+} from './dto/employee-attendance.dto';
 import {
   DeleteEmployeeAssignmentAsErrorDto,
   DeleteEmployeePermanentlyDto,
@@ -69,12 +77,68 @@ interface EmployeeDocumentState {
   contractReceivedByUserId: string | null;
 }
 
+const MONTHLY_RATE_POLICY_TYPES = new Set([
+  'monthly_fixed',
+  'monthly_excluding_holidays',
+  'shift_2_2_fixed',
+]);
+
+function compensationUnit(ratePolicyType: string): 'shift' | 'month' {
+  return MONTHLY_RATE_POLICY_TYPES.has(ratePolicyType) ? 'month' : 'shift';
+}
+
+/** Phones as stored, falling back to the legacy single number. */
+export function employeePhones(employee: { phone: string | null; phones: string[] }): string[] {
+  if (employee.phones.length) return employee.phones;
+  return employee.phone ? [employee.phone] : [];
+}
+
+/**
+ * Normalises phone input: `phones` wins over the legacy single `phone`; the
+ * first number is mirrored into `phone` for search and exports.
+ */
+function employeePhoneData(
+  payload: { phone?: string | null; phones?: string[] },
+  existing: { phone: string | null; phones: string[] },
+): { phone: string | null; phones: string[] } {
+  let phones: string[];
+  if (payload.phones !== undefined) {
+    phones = payload.phones;
+  } else {
+    const rest = employeePhones(existing).slice(1);
+    phones = payload.phone ? [payload.phone, ...rest] : rest;
+  }
+  const unique = [...new Map(phones.map((phone) => [phone.replace(/\D/g, '') || phone, phone])).values()];
+  if (unique.some((phone) => phone.replace(/\D/g, '').length < 3)) {
+    throw new BadRequestException({
+      code: 'EMPLOYEE_PHONE_INVALID',
+      message: 'В номере телефона должно быть не меньше 3 цифр.',
+    });
+  }
+  return { phone: unique[0] ?? null, phones: unique };
+}
+
+export function describeObjectCompensation(object: {
+  paymentType: string;
+  dailyRate: number;
+  monthlySalary: number;
+}): EmployeeCompensationDto {
+  const monthly = object.paymentType === 'monthly';
+  return {
+    source: 'object_default',
+    optionName: null,
+    amount: (monthly ? object.monthlySalary : object.dailyRate) || null,
+    unit: monthly ? 'month' : 'shift',
+  };
+}
+
 @Injectable()
 export class EmployeesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
     private readonly assignmentHistoryService: EmployeeAssignmentHistoryService,
+    private readonly scheduleService: EmployeeScheduleService,
   ) {}
 
   async listEmployees(
@@ -210,6 +274,7 @@ export class EmployeesService {
     query: ListEmployeeReferencesQueryDto,
   ): Promise<EmployeeObjectReferenceDto[]> {
     this.assertViewAccess(currentUser);
+    const select = this.getObjectVisibilitySelect();
 
     const [objects, selectedObject] = await Promise.all([
       this.prisma.object.findMany({
@@ -219,26 +284,30 @@ export class EmployeesService {
             ? { name: { contains: query.search, mode: 'insensitive' as const } }
             : {}),
         },
-        select: { id: true, name: true },
+        select,
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
         take: query.limit,
       }),
       query.selectedId
         ? this.prisma.object.findFirst({
             where: { id: query.selectedId, deletedAt: null },
-            select: { id: true, name: true },
+            select,
           })
         : null,
     ]);
 
-    if (
-      selectedObject &&
-      !objects.some((object) => object.id === selectedObject.id)
-    ) {
-      return [selectedObject, ...objects];
-    }
+    const list =
+      selectedObject && !objects.some((object) => object.id === selectedObject.id)
+        ? [selectedObject, ...objects]
+        : objects;
 
-    return objects;
+    return list.map((object) => ({
+      id: object.id,
+      name: object.name,
+      compensation: this.canViewRates(currentUser, object)
+        ? describeObjectCompensation(object)
+        : null,
+    }));
   }
 
   async listObjectCandidates(
@@ -302,6 +371,64 @@ export class EmployeesService {
     };
   }
 
+  /**
+   * Month calendar of actual attendance facts. Only the fact of a shift is exposed:
+   * timesheet amounts, rate snapshots and schedule-derived planned days are not.
+   * Archived cards stay readable, matching the employee detail endpoint.
+   */
+  async getEmployeeAttendance(
+    currentUser: CurrentAuthUser,
+    employeeId: string,
+    query: EmployeeAttendanceQueryDto,
+  ): Promise<EmployeeAttendanceResponseDto> {
+    this.assertViewAccess(currentUser);
+
+    const employee = await this.prisma.employee.findUnique({
+      where: { id: employeeId },
+      select: { id: true },
+    });
+
+    if (!employee) {
+      throw new NotFoundException('Employee not found');
+    }
+
+    // Same server-local month boundaries as attendance writes and the timesheet.
+    const facts = await this.prisma.objectAttendanceFact.findMany({
+      where: {
+        employeeId,
+        operationDate: {
+          gte: new Date(query.year, query.month - 1, 1),
+          lt: new Date(query.year, query.month, 1),
+        },
+      },
+      orderBy: [{ operationDate: 'asc' }, { objectId: 'asc' }],
+      select: {
+        operationDate: true,
+        workedHours: true,
+        object: { select: this.getObjectVisibilitySelect() },
+      },
+    });
+
+    const days = new Map<string, EmployeeAttendanceResponseDto['days'][number]>();
+    for (const fact of facts) {
+      const date = [
+        fact.operationDate.getFullYear(),
+        String(fact.operationDate.getMonth() + 1).padStart(2, '0'),
+        String(fact.operationDate.getDate()).padStart(2, '0'),
+      ].join('-');
+      const day = days.get(date) ?? { date, objects: [] };
+      day.objects.push({
+        objectId: fact.object.id,
+        objectName: fact.object.name,
+        canOpenObjectCard: this.canOpenObjectCard(currentUser, fact.object),
+        workedHours: fact.workedHours,
+      });
+      days.set(date, day);
+    }
+
+    return { year: query.year, month: query.month, days: [...days.values()] };
+  }
+
   async createEmployee(
     currentUser: CurrentAuthUser,
     payload: CreateEmployeeDto,
@@ -317,7 +444,7 @@ export class EmployeesService {
       const employee = await tx.employee.create({
         data: {
           fullName: payload.fullName,
-          phone: payload.phone ?? null,
+          ...employeePhoneData(payload, { phone: null, phones: [] }),
           position: payload.position ?? null,
           birthDate,
           employeeType: payload.employeeType ?? 'regular',
@@ -394,7 +521,9 @@ export class EmployeesService {
         data: {
           ...this.buildDocumentChanges(payload, currentUser.id, existing),
           ...(payload.fullName !== undefined ? { fullName: payload.fullName } : {}),
-          ...(payload.phone !== undefined ? { phone: payload.phone } : {}),
+          ...(payload.phone !== undefined || payload.phones !== undefined
+            ? employeePhoneData(payload, existing)
+            : {}),
           ...(payload.position !== undefined ? { position: payload.position } : {}),
           ...(birthDate !== undefined ? { birthDate } : {}),
           ...(payload.employeeType !== undefined
@@ -636,7 +765,10 @@ export class EmployeesService {
       : null;
 
     if (endDate && endDate < startDate) {
-      throw new BadRequestException('Availability endDate must be after startDate');
+      throw new BadRequestException({
+        code: 'AVAILABILITY_END_BEFORE_START',
+        message: 'Дата окончания раньше даты начала.',
+      });
     }
 
     await this.prisma.employeeAvailabilityWindow.create({
@@ -694,21 +826,55 @@ export class EmployeesService {
     const endDate = payload.endDate ? new Date(payload.endDate) : null;
 
     if (endDate && endDate < startDate) {
-      throw new BadRequestException('Substitution endDate must be after startDate');
+      throw new BadRequestException({
+        code: 'SUBSTITUTION_END_BEFORE_START',
+        message: 'Окончание подмены раньше её начала.',
+      });
     }
 
-    await this.prisma.employeeSubstitution.create({
-      data: {
-        employeeId: employee.id,
-        substituteEmployeeId: substituteEmployee.id,
-        objectId: payload.objectId ?? null,
-        startDate,
-        endDate,
-        status: payload.status ?? EMPLOYEE_SUBSTITUTION_STATUSES[0],
-        reason: payload.reason.trim(),
-        comment: payload.comment?.trim() || null,
-        createdByUserId: currentUser.id,
-      },
+    const status = payload.status ?? EMPLOYEE_SUBSTITUTION_STATUSES[0];
+    await this.prisma.$transaction(async (tx) => {
+      // Lock both people so two parallel requests cannot double-book them.
+      await tx.$queryRaw`
+        SELECT "id" FROM "employees" WHERE "id" IN (${employee.id}, ${substituteEmployee.id}) ORDER BY "id" FOR UPDATE
+      `;
+      if (status === 'planned' || status === 'active') {
+        await this.scheduleService.assertSubstitutionIsFree({
+          employeeId: employee.id,
+          substituteEmployeeId: substituteEmployee.id,
+          objectId: payload.objectId ?? null,
+          startDate,
+          endDate,
+        }, tx);
+      }
+
+      const created = await tx.employeeSubstitution.create({
+        data: {
+          employeeId: employee.id,
+          substituteEmployeeId: substituteEmployee.id,
+          objectId: payload.objectId ?? null,
+          startDate,
+          endDate,
+          status,
+          reason: payload.reason.trim(),
+          comment: payload.comment?.trim() || null,
+          createdByUserId: currentUser.id,
+        },
+      });
+      await this.auditService.writeAuditEvent({
+        entityType: 'employee',
+        entityId: employee.id,
+        actorUserId: currentUser.id,
+        action: 'employee.substitution.created',
+        newValues: {
+          substitutionId: created.id,
+          substituteEmployeeId: created.substituteEmployeeId,
+          objectId: created.objectId,
+          startDate: created.startDate.toISOString(),
+          endDate: created.endDate?.toISOString() ?? null,
+          status: created.status,
+        },
+      }, tx);
     });
 
     return this.getEmployeeById(currentUser, employeeId);
@@ -1051,6 +1217,7 @@ export class EmployeesService {
         Prisma.sql`(
           employee."fullName" ILIKE ${pattern}
           OR COALESCE(employee."phone", '') ILIKE ${pattern}
+          OR array_to_string(employee."phones", ' ') ILIKE ${pattern}
         )`,
       );
     }
@@ -1485,6 +1652,7 @@ export class EmployeesService {
   private buildEmployeeAuditSnapshot(employee: EmployeeDocumentState & {
     fullName: string;
     phone: string | null;
+    phones: string[];
     position: string | null;
     birthDate: Date | null;
     employeeType: string;
@@ -1504,6 +1672,7 @@ export class EmployeesService {
     return {
       fullName: employee.fullName,
       phone: employee.phone,
+      phones: employee.phones,
       position: employee.position,
       birthDate: this.formatDateOnly(employee.birthDate),
       employeeType: employee.employeeType,
@@ -1534,6 +1703,9 @@ export class EmployeesService {
         include: {
           object: {
             select: this.getObjectVisibilitySelect(),
+          },
+          rateOption: {
+            select: { name: true, baseAmount: true, ratePolicyType: true },
           },
         },
         orderBy: {
@@ -1601,6 +1773,8 @@ export class EmployeesService {
       id: true,
       name: true,
       dailyRate: true,
+      paymentType: true,
+      monthlySalary: true,
       createdByUserId: true,
       assignments: {
         where: {
@@ -1612,6 +1786,47 @@ export class EmployeesService {
         },
       },
     };
+  }
+
+  private canViewRates(
+    currentUser: CurrentAuthUser,
+    object: { id: string; createdByUserId: string; assignments: Array<{ userId: string; isActive?: boolean }> },
+  ): boolean {
+    return canViewObjectCompensationRates({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      object,
+    });
+  }
+
+  /**
+   * Effective pay of one assignment for display: catalog option, then an
+   * individual policy, then the object default. Amount 0 means «not set».
+   */
+  private describeAssignmentCompensation(assignment: {
+    ratePolicyType: string;
+    ratePolicyBaseAmount: number | null;
+    ratePolicyUpdatedAt: Date | null;
+    rateOption: { name: string; baseAmount: number; ratePolicyType: string } | null;
+    object: { paymentType: string; dailyRate: number; monthlySalary: number };
+  }): EmployeeCompensationDto {
+    if (assignment.rateOption) {
+      return {
+        source: 'rate_option',
+        optionName: assignment.rateOption.name,
+        amount: assignment.rateOption.baseAmount || null,
+        unit: compensationUnit(assignment.rateOption.ratePolicyType),
+      };
+    }
+    if (assignment.ratePolicyUpdatedAt && assignment.ratePolicyBaseAmount !== null) {
+      return {
+        source: 'individual',
+        optionName: null,
+        amount: assignment.ratePolicyBaseAmount || null,
+        unit: compensationUnit(assignment.ratePolicyType),
+      };
+    }
+    return describeObjectCompensation(assignment.object);
   }
 
   private canOpenObjectCard(
@@ -1659,6 +1874,7 @@ export class EmployeesService {
       id: string;
       fullName: string;
       phone: string | null;
+      phones: string[];
       position: string | null;
       birthDate: Date | null;
       employeeType: string;
@@ -1679,10 +1895,16 @@ export class EmployeesService {
         isActive: boolean;
         startDate: Date | null;
         endDate: Date | null;
+        ratePolicyType: string;
+        ratePolicyBaseAmount: number | null;
+        ratePolicyUpdatedAt: Date | null;
+        rateOption: { name: string; baseAmount: number; ratePolicyType: string } | null;
         object: {
           id: string;
           name: string;
           dailyRate: number;
+          paymentType: string;
+          monthlySalary: number;
           createdByUserId: string;
           assignments: Array<{
             userId: string;
@@ -1698,6 +1920,8 @@ export class EmployeesService {
           id: string;
           name: string;
           dailyRate: number;
+          paymentType: string;
+          monthlySalary: number;
           createdByUserId: string;
           assignments: Array<{
             userId: string;
@@ -1745,6 +1969,7 @@ export class EmployeesService {
       id: employee.id,
       fullName: employee.fullName,
       phone: employee.phone,
+      phones: employeePhones(employee),
       position: employee.position,
       birthDate: this.formatDateOnly(employee.birthDate),
       employeeType: employee.employeeType,
@@ -1775,7 +2000,10 @@ export class EmployeesService {
             )?.id ?? null,
           objectId: assignment.object.id,
           objectName: assignment.object.name,
-          objectDailyRate: assignment.object.dailyRate,
+          objectDailyRate: this.canViewRates(currentUser, assignment.object) ? assignment.object.dailyRate : null,
+          compensation: this.canViewRates(currentUser, assignment.object)
+            ? this.describeAssignmentCompensation(assignment)
+            : null,
           startDate: assignment.startDate?.toISOString() ?? null,
           endDate: assignment.endDate?.toISOString() ?? null,
           canOpenObjectCard: this.canOpenObjectCard(currentUser, assignment.object),
@@ -1784,7 +2012,7 @@ export class EmployeesService {
         id: item.id,
         objectId: item.object.id,
         objectName: item.object.name,
-        objectDailyRate: item.object.dailyRate,
+        objectDailyRate: this.canViewRates(currentUser, item.object) ? item.object.dailyRate : null,
         startedAt: item.startedAt.toISOString(),
         endedAt: item.endedAt?.toISOString() ?? null,
         canOpenObjectCard: this.canOpenObjectCard(currentUser, item.object),

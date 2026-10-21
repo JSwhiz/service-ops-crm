@@ -8,6 +8,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
+import { Button } from '@/shared/ui/foundation';
 
 interface ObjectCommentsPanelProps {
   items: ObjectComment[];
@@ -73,13 +74,12 @@ export function ObjectCommentsPanel({ items, onCreate }: ObjectCommentsPanelProp
         {error ? <div className={styles.error}>{error}</div> : null}
 
         <div className={styles.formActions}>
-          <button
-            className={styles.primaryAction}
+          <Button variant="primary"
             type="submit"
             disabled={isSubmitting || (!content.trim() && pendingFiles.length === 0)}
           >
             {isSubmitting ? 'Сохраняем…' : 'Добавить'}
-          </button>
+          </Button>
         </div>
       </form>
 

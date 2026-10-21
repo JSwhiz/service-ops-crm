@@ -11,14 +11,18 @@ import type { ServiceObject } from '@/entities/object/model/object.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import {
   CandidateManagerFields,
-  CandidatePhoneFields,
-  candidatePhoneDrafts,
   candidateManagerPayload,
   candidateManagersValid,
   type CandidateManagerDraft,
 } from '@/features/candidate-registry/ui/candidate-fields';
+import {
+  PhoneListField,
+  phoneDrafts,
+  phoneDraftValues,
+  phoneDraftsValid,
+} from '@/shared/ui/phone-list-field/phone-list-field';
 import styles from '@/features/candidate-registry/ui/candidate-fields.module.css';
-import { Button, Field } from '@/shared/ui/foundation';
+import { Alert, Button, Field } from '@/shared/ui/foundation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import {
   SearchableSelect,
@@ -42,7 +46,7 @@ export default function NewCandidatePage(): React.JSX.Element {
   const router = useRouter();
   const { user } = useAuth();
   const [fullName, setFullName] = useState('');
-  const [phones, setPhones] = useState(() => candidatePhoneDrafts(['']));
+  const [phones, setPhones] = useState(() => phoneDrafts(['']));
   const [comment, setComment] = useState('');
   const [candidateType, setCandidateType] = useState<CandidateType>('regular');
   const [objectId, setObjectId] = useState('');
@@ -73,7 +77,7 @@ export default function NewCandidatePage(): React.JSX.Element {
         className={`page-card ${styles.form}`}
         onSubmit={(event) => {
           event.preventDefault();
-          if (regularReferencesMissing || !candidateManagersValid(managers)) {
+          if (regularReferencesMissing || !candidateManagersValid(managers, candidateType === 'regular')) {
             setError(
               'Для обычного кандидата выберите объект и ответственного менеджера.',
             );
@@ -84,8 +88,8 @@ export default function NewCandidatePage(): React.JSX.Element {
           setError(null);
           void createCandidate({
             fullName: fullName.trim(),
-            phone: phones[0]?.value.trim() ?? '',
-            phones: phones.map((phone) => phone.value.trim()),
+            phone: phoneDraftValues(phones)[0] ?? '',
+            phones: phoneDraftValues(phones),
             comment: comment.trim() || undefined,
             candidateType,
             objectId: objectId || null,
@@ -125,7 +129,8 @@ export default function NewCandidatePage(): React.JSX.Element {
             />
 
             <div className={styles.full}>
-              <CandidatePhoneFields
+              <PhoneListField
+                required
                 phones={phones}
                 onChange={setPhones}
                 disabled={saving}
@@ -174,6 +179,7 @@ export default function NewCandidatePage(): React.JSX.Element {
             onChange={setManagers}
             defaultObject={selectedObject}
             disabled={saving}
+            requireManager={candidateType === 'regular'}
           />
           </section>
         </fieldset>
@@ -197,11 +203,9 @@ export default function NewCandidatePage(): React.JSX.Element {
         ) : null}
 
         {error ? (
-          <div
-            className={`inline-notice inline-notice--warning ${styles.full}`}
-          >
+          <Alert tone="warning" role="alert" className={styles.full}>
             {error}
-          </div>
+          </Alert>
         ) : null}
 
         <div className={`${styles.actions} ${styles.full}`}>
@@ -214,8 +218,8 @@ export default function NewCandidatePage(): React.JSX.Element {
             disabled={
               saving ||
               fullName.trim().length < 2 ||
-              phones.some((phone) => phone.value.trim().length < 3) ||
-              !candidateManagersValid(managers) ||
+              !phoneDraftsValid(phones, true) ||
+              !candidateManagersValid(managers, candidateType === 'regular') ||
               regularReferencesMissing
             }
           >

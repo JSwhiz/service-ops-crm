@@ -7,6 +7,8 @@ import { SearchField } from '@/shared/ui/search-field/search-field';
 
 import styles from './registry-toolbar.module.css';
 
+import { ChevronDownIcon, PlusIcon } from '@/shared/ui/icons/icons';
+
 export interface RegistryFilterOption {
   value: string;
   label: string;
@@ -38,22 +40,6 @@ interface RegistryToolbarProps {
   activeFilters: ReadonlyArray<ActiveRegistryFilter>;
   availableFilters: ReadonlyArray<AvailableRegistryFilter>;
   actions?: React.ReactNode;
-}
-
-export function RegistryPlusIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function ChevronIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m7 10 5 5 5-5" />
-    </svg>
-  );
 }
 
 export function RegistryToolbar({
@@ -139,7 +125,7 @@ export function RegistryToolbar({
                   <span className={styles.filterLabel}>{filter.label}</span>
                   <strong>{selectedLabel}</strong>
                 </span>
-                <ChevronIcon />
+                <ChevronDownIcon />
               </button>}
               <button
                 type="button"
@@ -203,7 +189,7 @@ export function RegistryToolbar({
               setAddMenuOpen((value) => !value);
             }}
           >
-            <RegistryPlusIcon />
+            <PlusIcon />
             <span>{availableFilters.length > 0 ? 'Добавить фильтр' : 'Все фильтры добавлены'}</span>
           </button>
 
@@ -229,7 +215,7 @@ export function RegistryToolbar({
                         setAddMenuOpen(false);
                       }}
                     >
-                      <span className={styles.addFilterOptionIcon}><RegistryPlusIcon /></span>
+                      <span className={styles.addFilterOptionIcon}><PlusIcon /></span>
                       <span>{option.label}</span>
                     </button>
                   ))}

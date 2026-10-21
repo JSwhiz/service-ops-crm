@@ -18,6 +18,8 @@ import {
 } from '@/entities/rubber-mat/api/rubber-mat-client';
 
 import styles from './object-rubber-mats-panel.module.css';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Button } from '@/shared/ui/foundation';
 
 const conditionLabels = { good: 'В работе', worn: 'Изношен', damaged: 'Повреждён', retired: 'Списан' } as const;
 
@@ -95,11 +97,11 @@ export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React
       }}>
         <h3>Назначить ковёр из реестра</h3>
         <div className={styles.fields}>
-          <label className={styles.wide}>Свободный ковёр<select required value={draft.matId} disabled={busy || available.length === 0} onChange={(event) => setDraft({ ...draft, matId: event.target.value })}><option value="">{available.length ? 'Выберите зарегистрированный ковёр' : 'Нет свободных ковров'}</option>{available.map((mat) => <option key={mat.id} value={mat.id}>{mat.inventoryCode || 'Без номера'} · {mat.lengthCm} × {mat.widthCm} см{mat.thicknessMm ? ` · ${mat.thicknessMm} мм` : ''}</option>)}</select></label>
+          <label className={styles.wide}>Свободный ковёр<Select required value={draft.matId} disabled={busy || available.length === 0} onChange={(event) => setDraft({ ...draft, matId: event.target.value })}><option value="">{available.length ? 'Выберите зарегистрированный ковёр' : 'Нет свободных ковров'}</option>{available.map((mat) => <option key={mat.id} value={mat.id}>{mat.inventoryCode || 'Без номера'} · {mat.lengthCm} × {mat.widthCm} см{mat.thicknessMm ? ` · ${mat.thicknessMm} мм` : ''}</option>)}</Select></label>
           <label>Зона<input required maxLength={160} value={draft.zone} onChange={(event) => setDraft({ ...draft, zone: event.target.value })} placeholder="Вход, кухня, санузел" /></label>
           <label className={styles.wide}>Основание записи<input required minLength={2} maxLength={500} value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} placeholder="Например: первичная инвентаризация" /></label>
         </div>
-        <button type="submit" disabled={busy || available.length === 0 || !draft.matId}>Назначить объекту</button>
+        <Button variant="primary" type="submit" disabled={busy || available.length === 0 || !draft.matId}>Назначить объекту</Button>
       </form>
 
       {items.length === 0 ? <div className={styles.empty}>На объекте пока нет учтённых ковров.</div> : (
@@ -107,7 +109,7 @@ export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React
           <div className={styles.summary}>Всего: {items.length} · в работе: {items.filter((item) => item.condition === 'good').length} · требуют внимания: {items.filter((item) => item.condition === 'worn' || item.condition === 'damaged').length} · списано: {items.filter((item) => item.condition === 'retired').length}</div>
           <div className={styles.filters}>
             <label>Поиск по коврам<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Номер, зона, размер или примечание" /></label>
-            <label>Состояние<select value={conditionFilter} onChange={(event) => setConditionFilter(event.target.value as RubberMatItem['condition'] | '')}><option value="">Все состояния</option>{Object.entries(conditionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label>Состояние<Select value={conditionFilter} onChange={(event) => setConditionFilter(event.target.value as RubberMatItem['condition'] | '')}><option value="">Все состояния</option>{Object.entries(conditionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></label>
           </div>
           {visibleItems.length === 0 ? <div className={styles.empty}>Ковры по заданным фильтрам не найдены.</div> : visibleItems.map((mat) => {
             const moveDraft = moveDrafts[mat.id] ?? { targetObjectId: '', zone: mat.zone ?? '', note: '' };
@@ -120,38 +122,38 @@ export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React
               </div>
               {mat.notes ? <p>{mat.notes}</p> : null}
               {mat.condition !== 'retired' ? <div className={styles.actions}>
-                <select aria-label={`Новое состояние ковра ${mat.zone}`} value={conditionDraft.condition} disabled={busy} onChange={(event) => setConditionDrafts({ ...conditionDrafts, [mat.id]: { ...conditionDraft, condition: event.target.value as RubberMatItem['condition'] } })}>
+                <Select aria-label={`Новое состояние ковра ${mat.zone}`} value={conditionDraft.condition} disabled={busy} onChange={(event) => setConditionDrafts({ ...conditionDrafts, [mat.id]: { ...conditionDraft, condition: event.target.value as RubberMatItem['condition'] } })}>
                   {Object.entries(conditionLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
+                </Select>
                 {conditionDraft.condition !== mat.condition ? <>
                   <input aria-label="Причина изменения состояния" value={conditionDraft.note} onChange={(event) => setConditionDrafts({ ...conditionDrafts, [mat.id]: { ...conditionDraft, note: event.target.value } })} placeholder="Причина изменения состояния" />
-                  <button type="button" className={styles.secondary} disabled={busy || !conditionDraft.note.trim()} onClick={() => void run(async () => {
+                  <Button disabled={busy || !conditionDraft.note.trim()} onClick={() => void run(async () => {
                     await updateRubberMat(objectId, mat.id, { condition: conditionDraft.condition, note: conditionDraft.note.trim() });
                     setConditionDrafts({ ...conditionDrafts, [mat.id]: { condition: conditionDraft.condition, note: '' } });
-                  })}>Сохранить состояние</button>
+                  })}>Сохранить состояние</Button>
                 </> : null}
-                <button type="button" className={styles.secondary} disabled={busy} onClick={() => {
+                <Button disabled={busy} onClick={() => {
                   setServiceOpenId(serviceOpenId === mat.id ? null : mat.id);
-                }}>Записать обслуживание</button>
-                <button type="button" className={styles.secondary} disabled={busy} onClick={() => {
+                }}>Записать обслуживание</Button>
+                <Button disabled={busy} onClick={() => {
                   const note = window.prompt('Укажите причину возврата ковра в свободный реестр:');
                   if (note?.trim()) void run(() => returnRubberMatToStock(objectId, mat.id, note.trim()));
-                }}>Вернуть в реестр</button>
+                }}>Вернуть в реестр</Button>
                 {objects.length ? <>
-                  <select aria-label={`Объект назначения для ковра ${mat.zone}`} value={moveDraft.targetObjectId} disabled={busy} onChange={(event) => setMoveDrafts({ ...moveDrafts, [mat.id]: { ...moveDraft, targetObjectId: event.target.value } })}>
+                  <Select aria-label={`Объект назначения для ковра ${mat.zone}`} value={moveDraft.targetObjectId} disabled={busy} onChange={(event) => setMoveDrafts({ ...moveDrafts, [mat.id]: { ...moveDraft, targetObjectId: event.target.value } })}>
                     <option value="">Переместить на объект…</option>
                     {objects.map((object) => <option key={object.id} value={object.id}>{object.name}</option>)}
-                  </select>
+                  </Select>
                   {moveDraft.targetObjectId ? <>
                     <input aria-label="Новая зона ковра" value={moveDraft.zone} onChange={(event) => setMoveDrafts({ ...moveDrafts, [mat.id]: { ...moveDraft, zone: event.target.value } })} placeholder="Зона назначения" />
                     <input aria-label="Причина перемещения" value={moveDraft.note} onChange={(event) => setMoveDrafts({ ...moveDrafts, [mat.id]: { ...moveDraft, note: event.target.value } })} placeholder="Причина перемещения" />
-                    <button type="button" className={styles.secondary} disabled={busy || !moveDraft.note.trim()} onClick={() => void run(async () => { await moveRubberMat(objectId, mat.id, moveDraft); setMoveDrafts({ ...moveDrafts, [mat.id]: { targetObjectId: '', zone: mat.zone ?? '', note: '' } }); })}>Переместить</button>
+                    <Button disabled={busy || !moveDraft.note.trim()} onClick={() => void run(async () => { await moveRubberMat(objectId, mat.id, moveDraft); setMoveDrafts({ ...moveDrafts, [mat.id]: { targetObjectId: '', zone: mat.zone ?? '', note: '' } }); })}>Переместить</Button>
                   </> : null}
                 </> : null}
               </div> : null}
               {serviceOpenId === mat.id ? <div className={styles.serviceForm}>
                 <label>Что сделано<input value={serviceDrafts[mat.id] ?? ''} maxLength={500} onChange={(event) => setServiceDrafts({ ...serviceDrafts, [mat.id]: event.target.value })} placeholder="Например: промыт и высушен" /></label>
-                <button type="button" disabled={busy || !(serviceDrafts[mat.id] ?? '').trim()} onClick={() => {
+                <Button disabled={busy || !(serviceDrafts[mat.id] ?? '').trim()} onClick={() => {
                   const note = serviceDrafts[mat.id]?.trim();
                   if (!note) return;
                   void run(async () => {
@@ -159,7 +161,7 @@ export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React
                   setServiceOpenId(null);
                   setServiceDrafts({ ...serviceDrafts, [mat.id]: '' });
                   });
-                }}>Сохранить запись</button>
+                }}>Сохранить запись</Button>
               </div> : null}
               <button type="button" className={styles.historyButton} onClick={async () => {
                 try { setHistory({ ...history, [mat.id]: await getRubberMatHistory(objectId, mat.id) }); }

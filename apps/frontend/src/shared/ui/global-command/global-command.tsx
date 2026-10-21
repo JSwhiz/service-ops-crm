@@ -22,6 +22,7 @@ import {
   readRecentRefs,
   recordRecentCommand,
 } from './global-command-recent';
+import { ArrowRightIcon, PlusIcon, SearchIcon } from '@/shared/ui/icons/icons';
 
 const SEARCH_DEBOUNCE_MS = 220;
 const SEARCH_LIMIT_PER_DOMAIN = 5;
@@ -36,31 +37,6 @@ const SEARCH_GROUP_BY_TYPE: Record<GlobalSearchEntityType, CommandGroup> = {
   inventory_item: 'Расходники',
   equipment_unit: 'Оборудование',
 };
-
-function SearchIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="m16 16 4 4" />
-    </svg>
-  );
-}
-
-function PlusIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function ArrowIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M8 12h8m-3-3 3 3-3 3" />
-    </svg>
-  );
-}
 
 function createMenuLabel(label: string): string {
   const short = label.replace(/^(Создать|Добавить)\s+/u, '');
@@ -298,7 +274,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
                     onClick={() => run(item)}
                   >
                     <span className={`command-item__icon command-item__icon--${item.kind}`} aria-hidden="true">
-                      {item.kind === 'action' ? <PlusIcon /> : item.kind === 'navigation' ? <ArrowIcon /> : <SearchIcon />}
+                      {item.kind === 'action' ? <PlusIcon /> : item.kind === 'navigation' ? <ArrowRightIcon /> : <SearchIcon />}
                     </span>
                     <span className="command-item__copy">
                       <strong>{item.label}</strong>

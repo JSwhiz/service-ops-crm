@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useId, useState } from 'react';
 
-import styles from './employee-documents.module.css';
-
+import { listEmployeePositionReferences } from '@/entities/employee/api/employee-client';
 import {
   EMPLOYEE_SCHEDULE_OPTIONS,
   EMPLOYEE_TYPE_OPTIONS,
@@ -12,12 +11,26 @@ import type {
   EmployeeType,
   EmployeeWorkScheduleCode,
 } from '@/entities/employee/model/employee.types';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Field } from '@/shared/ui/foundation';
+import {
+  PhoneListField,
+  type PhoneDraft,
+} from '@/shared/ui/phone-list-field/phone-list-field';
+import { SelectField } from '@/shared/ui/searchable-select/select-field';
+
+import styles from './employee-form.module.css';
+
+const EMPLOYMENT_STATUS_OPTIONS = [
+  { value: 'active', label: 'Работает' },
+  { value: 'inactive', label: 'Неактивен' },
+];
 
 export interface EmployeeFormValue {
   passportReceived: boolean;
   contractReceived: boolean;
   fullName: string;
-  phone: string;
+  phones: PhoneDraft[];
   birthDate: string;
   residenceAddress: string;
   employeeType: EmployeeType;
@@ -37,122 +50,168 @@ interface EmployeeFormFieldsProps {
   disabled?: boolean;
 }
 
+function FormSection({
+  title,
+  description,
+  disabled,
+  children,
+}: {
+  title: string;
+  description?: string;
+  disabled: boolean;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const titleId = useId();
+  return (
+    <fieldset className={styles.fieldset} disabled={disabled}>
+      <div className={styles.section} role="group" aria-labelledby={titleId}>
+        <div className={styles.sectionHeading}>
+          <h3 id={titleId} className={styles.sectionTitle}>{title}</h3>
+          {description ? <p className={styles.sectionDescription}>{description}</p> : null}
+        </div>
+        <div className={styles.grid}>{children}</div>
+      </div>
+    </fieldset>
+  );
+}
+
+/** Shared create/edit fields. Payload shape is owned by the pages and unchanged. */
 export function EmployeeFormFields({
   value,
   onChange,
   disabled = false,
 }: EmployeeFormFieldsProps): React.JSX.Element {
+  const positionListId = useId();
+  const [positions, setPositions] = useState<string[]>([]);
   const update = <K extends keyof EmployeeFormValue>(
     key: K,
     nextValue: EmployeeFormValue[K],
   ): void => onChange({ ...value, [key]: nextValue });
 
+  useEffect(() => {
+    let cancelled = false;
+    // Suggestions only: free text stays allowed, but existing spellings are offered first.
+    void listEmployeePositionReferences()
+      .then((items) => { if (!cancelled) setPositions(items.map((item) => item.label)); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
   return (
-    <div className="employee-form-sections">
-      <fieldset disabled={disabled}>
-        <legend>Основное</legend>
-        <div className="employee-form-grid">
-          <label>
-            <span className="detail-label">ФИО *</span>
-            <input value={value.fullName} maxLength={200} required onChange={(event) => update('fullName', event.target.value)} />
-          </label>
-          <label>
-            <span className="detail-label">Телефон</span>
-            <input value={value.phone} maxLength={50} onChange={(event) => update('phone', event.target.value)} />
-          </label>
-          <label>
-            <span className="detail-label">Дата рождения</span>
-            <input type="date" value={value.birthDate} max={new Date().toISOString().slice(0, 10)} onChange={(event) => update('birthDate', event.target.value)} />
-          </label>
-          <label>
-            <span className="detail-label">Адрес проживания</span>
-            <input value={value.residenceAddress} maxLength={1000} onChange={(event) => update('residenceAddress', event.target.value)} />
-          </label>
-        </div>
-      </fieldset>
+    <div className={styles.form}>
+      <p className={styles.requiredNote}>* — обязательные поля</p>
 
-      <fieldset disabled={disabled}>
-        <legend>Работа</legend>
-        <div className="employee-form-grid">
-          <label>
-            <span className="detail-label">Тип сотрудника *</span>
-            <select value={value.employeeType} required onChange={(event) => update('employeeType', event.target.value as EmployeeType)}>
-              {EMPLOYEE_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="detail-label">Должность</span>
-            <input value={value.position} maxLength={150} onChange={(event) => update('position', event.target.value)} />
-          </label>
-          <label>
-            <span className="detail-label">Статус работы *</span>
-            <select value={value.employmentStatus} required onChange={(event) => update('employmentStatus', event.target.value)}>
-              <option value="active">Работает</option>
-              <option value="inactive">Неактивен</option>
-            </select>
-          </label>
-          <label>
-            <span className="detail-label">Базовая ставка за день</span>
-            <input type="number" min="0" step="1" value={value.baseDailyRate} onChange={(event) => update('baseDailyRate', event.target.value)} />
-          </label>
-        </div>
-      </fieldset>
+      <FormSection title="Основное" disabled={disabled}>
+        <Field className={styles.full} label="ФИО" required>
+          <input value={value.fullName} maxLength={200} autoComplete="off"
+            placeholder="Фамилия Имя Отчество"
+            onChange={(event) => update('fullName', event.target.value)} />
+        </Field>
+        <PhoneListField phones={value.phones} disabled={disabled}
+          onChange={(phones) => update('phones', phones)} />
+        <Field label="Дата рождения">
+          <DatePicker value={value.birthDate} max={new Date().toISOString().slice(0, 10)} onChange={(nextValue) => update('birthDate', nextValue)} />
+        </Field>
+        <Field className={styles.full} label="Адрес проживания">
+          <input value={value.residenceAddress} maxLength={1000}
+            onChange={(event) => update('residenceAddress', event.target.value)} />
+        </Field>
+      </FormSection>
 
-      <fieldset disabled={disabled}>
-        <legend>График</legend>
-        <div className="employee-form-grid">
-          <label>
-            <span className="detail-label">График работы</span>
-            <select value={value.workScheduleCode} onChange={(event) => {
-              const nextCode = event.target.value as EmployeeWorkScheduleCode | '';
-              onChange({ ...value, workScheduleCode: nextCode, workScheduleCustom: nextCode === 'custom' ? value.workScheduleCustom : '' });
-            }}>
-              <option value="">Не указан</option>
-              {EMPLOYEE_SCHEDULE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          {value.workScheduleCode === 'custom' ? (
-            <label>
-              <span className="detail-label">Описание графика *</span>
-              <input value={value.workScheduleCustom} maxLength={300} required
-                placeholder="Например: Пн, Ср, Пт и каждая вторая суббота"
-                onChange={(event) => update('workScheduleCustom', event.target.value)} />
-            </label>
-          ) : null}
-          <label>
-            <span className="detail-label">Время работы</span>
-            <input value={value.workTimeText} maxLength={200} placeholder="Например: 08:00–17:00" onChange={(event) => update('workTimeText', event.target.value)} />
-            <small className="page-muted">Время вводится вручную, можно указать произвольный режим.</small>
-          </label>
-          <label>
-            <span className="detail-label">Предпочтения по сменам</span>
-            <textarea value={value.shiftPreferences} maxLength={2000} onChange={(event) => update('shiftPreferences', event.target.value)} />
-          </label>
-        </div>
-      </fieldset>
+      <FormSection title="Работа" disabled={disabled}>
+        <SelectField
+          label="Тип сотрудника"
+          required
+          value={value.employeeType}
+          options={EMPLOYEE_TYPE_OPTIONS}
+          clearable={false}
+          searchable={false}
+          disabled={disabled}
+          onChange={(nextValue) => update('employeeType', nextValue as EmployeeType)}
+        />
+        <SelectField
+          label="Статус работы"
+          required
+          value={value.employmentStatus}
+          options={EMPLOYMENT_STATUS_OPTIONS}
+          clearable={false}
+          searchable={false}
+          disabled={disabled}
+          onChange={(nextValue) => update('employmentStatus', nextValue)}
+        />
+        <Field label="Должность">
+          <input value={value.position} maxLength={150} list={positionListId}
+            onChange={(event) => update('position', event.target.value)} />
+        </Field>
+        <Field label="Базовая ставка за день, ₽">
+          <input inputMode="numeric" autoComplete="off" placeholder="Не задана"
+            value={value.baseDailyRate}
+            onChange={(event) => update('baseDailyRate', event.target.value.replace(/\D/g, '').slice(0, 9))} />
+        </Field>
+        <datalist id={positionListId}>
+          {positions.map((position) => <option key={position} value={position} />)}
+        </datalist>
+      </FormSection>
 
-      <fieldset disabled={disabled}>
-        <legend>Документы</legend>
-        <div className={styles.choices}>
+      <FormSection
+        title="Рабочий режим"
+        description="Для подбора смен. Выходы считаются по табелю."
+        disabled={disabled}
+      >
+        <SelectField
+          label="График работы"
+          value={value.workScheduleCode}
+          options={EMPLOYEE_SCHEDULE_OPTIONS}
+          placeholder="Не указан"
+          searchable={false}
+          disabled={disabled}
+          onChange={(nextValue) => {
+            const nextCode = nextValue as EmployeeWorkScheduleCode | '';
+            onChange({
+              ...value,
+              workScheduleCode: nextCode,
+              workScheduleCustom: nextCode === 'custom' ? value.workScheduleCustom : '',
+            });
+          }}
+        />
+        <Field label="Время работы">
+          <input value={value.workTimeText} maxLength={200} placeholder="08:00–17:00"
+            onChange={(event) => update('workTimeText', event.target.value)} />
+        </Field>
+        {value.workScheduleCode === 'custom' ? (
+          <Field className={styles.full} label="Описание графика" required>
+            <input value={value.workScheduleCustom} maxLength={300}
+              placeholder="Например: Пн, Ср, Пт и каждая вторая суббота"
+              onChange={(event) => update('workScheduleCustom', event.target.value)} />
+          </Field>
+        ) : null}
+        <Field className={styles.full} label="Предпочтения по сменам">
+          <textarea rows={3} value={value.shiftPreferences} maxLength={2000}
+            onChange={(event) => update('shiftPreferences', event.target.value)} />
+        </Field>
+      </FormSection>
+
+      <FormSection title="Документы" description="Дата и автор отметки сохраняются." disabled={disabled}>
+        <div className={`${styles.full} ${styles.choices}`}>
           <label className={styles.choice}>
-            <input type="checkbox" checked={value.passportReceived} onChange={(event) => update('passportReceived', event.target.checked)} />
+            <input type="checkbox" checked={value.passportReceived}
+              onChange={(event) => update('passportReceived', event.target.checked)} />
             <span>Паспорт получен</span>
           </label>
           <label className={styles.choice}>
-            <input type="checkbox" checked={value.contractReceived} onChange={(event) => update('contractReceived', event.target.checked)} />
+            <input type="checkbox" checked={value.contractReceived}
+              onChange={(event) => update('contractReceived', event.target.checked)} />
             <span>Трудовой договор получен</span>
           </label>
         </div>
-        <p className={styles.help}>При изменении отметки сохраняются дата и автор.</p>
-      </fieldset>
+      </FormSection>
 
-      <fieldset disabled={disabled}>
-        <legend>Дополнительно</legend>
-        <label>
-          <span className="detail-label">Примечание</span>
-          <textarea value={value.notes} maxLength={4000} onChange={(event) => update('notes', event.target.value)} />
-        </label>
-      </fieldset>
+      <FormSection title="Примечание" disabled={disabled}>
+        <Field className={styles.full} label="Комментарий для коллег">
+          <textarea rows={4} value={value.notes} maxLength={4000}
+            onChange={(event) => update('notes', event.target.value)} />
+        </Field>
+      </FormSection>
     </div>
   );
 }

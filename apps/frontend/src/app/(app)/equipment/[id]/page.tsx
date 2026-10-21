@@ -23,6 +23,7 @@ import {
   getEquipmentStatusLabel,
 } from '@/shared/lib/equipment-presentation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { Alert, Button, StatusBadge } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -139,9 +140,9 @@ export default function EquipmentDetailPage({
       {isLoading ? (
         <div className="page-card">Загрузка...</div>
       ) : error ? (
-        <div className="page-card" style={{ color: '#b91c1c' }}>
+        <Alert tone="danger" role="alert">
           {error}
-        </div>
+        </Alert>
       ) : unit ? (
         <div className="page-stack">
           <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
@@ -153,9 +154,9 @@ export default function EquipmentDetailPage({
                   {unit.serialNumber ? ` · ${unit.serialNumber}` : ''}
                 </div>
               </div>
-              <span className="status-pill" data-status={unit.status}>
+              <StatusBadge status={unit.status}>
                 {getEquipmentStatusLabel(unit.status)}
-              </span>
+              </StatusBadge>
             </div>
 
             <div className="detail-grid">
@@ -199,14 +200,12 @@ export default function EquipmentDetailPage({
                     Доступно только для ошибочно заведённого оборудования без истории операций.
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="button-danger"
+                <Button variant="danger"
                   disabled={!unit.deletionState.canDelete}
                   onClick={() => setIsDeleteConfirmationOpen(true)}
                 >
                   Удалить
-                </button>
+                </Button>
               </div>
 
               {!unit.deletionState.canDelete && unit.deletionState.blockerCodes.length > 0 ? (
@@ -218,13 +217,11 @@ export default function EquipmentDetailPage({
               ) : null}
 
               {isDeleteConfirmationOpen && unit.deletionState.canDelete ? (
-                <div className="inline-notice inline-notice--warning">
+                <Alert tone="warning">
                   <strong>Удалить «{unit.catalogItem.name} · {unit.inventoryNumber}»?</strong>
                   <div>Карточка будет удалена безвозвратно, так как по ней ещё не было операций.</div>
                   <div className="action-row">
-                    <button
-                      type="button"
-                      className="button-danger"
+                    <Button variant="danger"
                       disabled={isDeleting}
                       onClick={() => {
                         setIsDeleting(true);
@@ -243,17 +240,15 @@ export default function EquipmentDetailPage({
                       }}
                     >
                       {isDeleting ? 'Удаляем...' : 'Удалить'}
-                    </button>
-                    <button
-                      type="button"
-                      className="button-secondary"
+                    </Button>
+                    <Button
                       disabled={isDeleting}
                       onClick={() => setIsDeleteConfirmationOpen(false)}
                     >
                       Отмена
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </Alert>
               ) : null}
 
               {deleteError ? <div className="form-error">{deleteError}</div> : null}

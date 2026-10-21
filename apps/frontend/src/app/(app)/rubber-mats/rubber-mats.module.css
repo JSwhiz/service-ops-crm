@@ -1,7 +1,7 @@
 .page { display: grid; gap: 14px; width: 100%; min-width: 0; }
 .heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .heading h1 { margin: 0; }
-.intro { margin: -5px 0 2px; color: var(--text-muted, var(--ui-text-tertiary)); font-size: 14px; }
+.intro { margin: -5px 0 2px; color: var(--ui-text-tertiary, var(--ui-text-tertiary)); font-size: 14px; }
 .filters { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(180px, 300px) minmax(180px, 240px); align-items: end; gap: 12px; padding: 12px; border: 1px solid var(--ui-border); border-radius: 11px; background: var(--ui-surface); }
 .filters input, .filters select, .formGrid input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--ui-border); border-radius: 9px; background: var(--ui-surface); padding: 8px 10px; color: var(--ui-text); font: inherit; }
 .createForm { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--ui-border); border-radius: 11px; background: var(--ui-surface); }
@@ -13,10 +13,10 @@
 .tableFrame td:nth-child(2) a:hover { text-decoration: underline; }
 .tableFrame td small { display: block; margin-top: 3px; overflow: hidden; color: var(--ui-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
 .condition { display: inline-flex; align-items: center; min-height: 26px; border: 1px solid transparent; border-radius: 7px; padding: 0 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.good { border-color: #d6e0d3; background: var(--ui-success-subtle); color: var(--ui-success); }
+.good { border-color:var(--ui-border); background: var(--ui-success-subtle); color: var(--ui-success); }
 .worn { border-color: var(--ui-warning-border); background: var(--ui-warning-subtle); color: var(--ui-warning); }
-.damaged, .retired { border-color: #ead4d0; background: var(--ui-danger-subtle); color: #9e584c; }
-.openLink { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; color: #bdb5af; font-size: 24px; text-decoration: none; }
+.damaged, .retired { border-color:var(--ui-danger-border); background: var(--ui-danger-subtle); color:var(--ui-danger); }
+.openLink { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; color:var(--ui-text-disabled); font-size: 24px; text-decoration: none; }
 .openLink:hover { background: var(--ui-surface-muted); color: var(--ui-accent); }
 .empty { height: 80px; color: var(--ui-text-tertiary); text-align: center !important; }
 .error { margin: 0; border: 1px solid var(--ui-danger-border); border-radius: 9px; background: var(--ui-danger-subtle); padding: 10px 12px; color: var(--ui-danger); }

@@ -20,7 +20,7 @@ import {
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Stack, StatusBadge } from '@/shared/ui/foundation';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 export function EquipmentMovementPanel({
@@ -58,7 +58,7 @@ export function EquipmentMovementPanel({
   const movementType = allowedTypes.find((value) => value === requestedMovementType) ?? allowedTypes[0] ?? '';
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <Stack gap="lg">
       {canSubmit && allowedTypes.length ? (
         <form
           className="page-card"
@@ -137,16 +137,16 @@ export function EquipmentMovementPanel({
               <strong>{getEquipmentMovementLabel(movement.movementType)}</strong>
               <div className="page-muted">
                 {movement.fromStatus ? (
-                  <span className="status-pill" data-status={movement.fromStatus}>
+                  <StatusBadge status={movement.fromStatus}>
                     {getEquipmentStatusLabel(movement.fromStatus)}
-                  </span>
+                  </StatusBadge>
                 ) : (
                   '—'
                 )}{' '}
                 →{' '}
-                <span className="status-pill" data-status={movement.toStatus}>
+                <StatusBadge status={movement.toStatus}>
                   {getEquipmentStatusLabel(movement.toStatus)}
-                </span>
+                </StatusBadge>
               </div>
               <div className="page-muted">
                 {new Date(movement.createdAt).toLocaleString('ru-RU')} ·{' '}
@@ -176,6 +176,6 @@ export function EquipmentMovementPanel({
           ))
         )}
       </div>
-    </div>
+    </Stack>
   );
 }

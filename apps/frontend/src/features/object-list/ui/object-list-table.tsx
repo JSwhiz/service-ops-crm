@@ -13,6 +13,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 
 import styles from './object-list-table.module.css';
+import { Button } from '@/shared/ui/foundation';
 
 interface ObjectListTableProps {
   items: ServiceObject[];
@@ -255,7 +256,7 @@ export function ObjectListTable({
                 ) : null}
               </div>
               <div className={styles.mobileActions}>
-                <button type="button" onClick={() => setPreviewItem(item)}>Быстрый просмотр</button>
+                <Button onClick={() => setPreviewItem(item)}>Быстрый просмотр</Button>
                 <Link href={`/objects/${item.id}`}>Открыть карточку</Link>
               </div>
             </article>

@@ -17,11 +17,14 @@ import type {
 } from '@/entities/user-absence/model/user-absence.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { Button, Field } from '@/shared/ui/foundation';
+import { Alert, Button, Field } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { ConfirmDialog } from '@/shared/ui/overlays';
 
 import styles from './user-absences.module.css';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const TYPE_LABELS: Record<UserAbsenceType, string> = {
   vacation: 'Отпуск',
@@ -236,10 +239,10 @@ export default function UserAbsencesPage(): React.JSX.Element {
         <div className={styles.filters}>
           {canManageAll ? (
             <Field label="Пользователь">
-              <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
+              <Select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
                 <option value="">Все пользователи</option>
                 {users.map((entry) => <option key={entry.id} value={entry.id}>{entry.fullName || entry.login}</option>)}
-              </select>
+              </Select>
             </Field>
           ) : null}
           {canManageAll ? (
@@ -248,12 +251,12 @@ export default function UserAbsencesPage(): React.JSX.Element {
             </Field>
           ) : null}
           <Field label="Тип отсутствия">
-            <select value={selectedType} onChange={(event) => setSelectedType(event.target.value as UserAbsenceType | '')}>
+            <Select value={selectedType} onChange={(event) => setSelectedType(event.target.value as UserAbsenceType | '')}>
               <option value="">Все типы</option>
               {Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
+            </Select>
           </Field>
-          {canManage ? <Button variant="primary" onClick={() => openCreate()}>Добавить отсутствие</Button> : null}
+          {canManage ? <Button variant="primary" icon={<PlusIcon />} onClick={() => openCreate()}>Добавить отсутствие</Button> : null}
         </div>
       </section>
 
@@ -262,16 +265,16 @@ export default function UserAbsencesPage(): React.JSX.Element {
         <strong>{upcomingCount}</strong><span>запланировано в месяце</span>
       </div>
 
-      {error ? <div className="inline-notice inline-notice--warning" role="alert">{error}</div> : null}
+      {error ? <Alert tone="warning" role="alert">{error}</Alert> : null}
 
       {editorOpen && canManage ? (
         <section className={styles.editor} aria-labelledby="absence-editor-title">
           <div className={styles.editorHeading}><h2 id="absence-editor-title">{editing ? 'Изменить отсутствие' : 'Новое отсутствие'}</h2><span>* — обязательные поля</span></div>
           <div className={styles.editorGrid}>
-            {canManageAll ? <Field label="Пользователь" required><select value={form.userId} disabled={Boolean(editing)} onChange={(event) => setForm((value) => ({ ...value, userId: event.target.value }))}>{users.map((entry) => <option key={entry.id} value={entry.id}>{entry.fullName || entry.login}</option>)}</select></Field> : null}
-            <Field label="Тип отсутствия" required><select value={form.absenceType} onChange={(event) => setForm((value) => ({ ...value, absenceType: event.target.value as UserAbsenceType }))}><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></select></Field>
-            <Field label="С" required><input type="date" value={form.startDate} onChange={(event) => setForm((value) => ({ ...value, startDate: event.target.value, endDate: value.endDate < event.target.value ? event.target.value : value.endDate }))} /></Field>
-            <Field label="По" required><input type="date" min={form.startDate} value={form.endDate} onChange={(event) => setForm((value) => ({ ...value, endDate: event.target.value }))} /></Field>
+            {canManageAll ? <Field label="Пользователь" required><Select value={form.userId} disabled={Boolean(editing)} onChange={(event) => setForm((value) => ({ ...value, userId: event.target.value }))}>{users.map((entry) => <option key={entry.id} value={entry.id}>{entry.fullName || entry.login}</option>)}</Select></Field> : null}
+            <Field label="Тип отсутствия" required><Select value={form.absenceType} onChange={(event) => setForm((value) => ({ ...value, absenceType: event.target.value as UserAbsenceType }))}><option value="vacation">Отпуск</option><option value="sick_leave">Больничный</option><option value="day_off">Отгул</option></Select></Field>
+            <Field label="С" required><DatePicker value={form.startDate} onChange={(nextValue) => setForm((value) => ({ ...value, startDate: nextValue, endDate: value.endDate < nextValue ? nextValue : value.endDate }))} /></Field>
+            <Field label="По" required><DatePicker min={form.startDate} value={form.endDate} onChange={(nextValue) => setForm((value) => ({ ...value, endDate: nextValue }))} /></Field>
             {editing && editing.userId !== user?.id && !canManageAll ? null : <Field label="Комментарий"><input value={form.comment} onChange={(event) => setForm((value) => ({ ...value, comment: event.target.value }))} placeholder="Необязательно" /></Field>}
           </div>
           <div className={styles.editorActions}><Button variant="primary" onClick={() => void save()}>Сохранить</Button><Button onClick={() => setEditorOpen(false)}>Отмена</Button></div>

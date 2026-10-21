@@ -27,6 +27,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
+import { DownloadIcon } from '@/shared/ui/icons/icons';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -51,14 +52,6 @@ function saveBlob(blob: Blob, fileName: string): void {
   link.download = fileName;
   link.click();
   URL.revokeObjectURL(url);
-}
-
-function DownloadIcon(): React.JSX.Element {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M10 3v9m0 0 3.2-3.2M10 12 6.8 8.8M4 15.5h12" />
-    </svg>
-  );
 }
 
 export default function TimesheetPage(): React.JSX.Element {

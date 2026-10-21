@@ -22,6 +22,7 @@ import {
   getOneTimeOrderPaymentZeroReasonLabel,
 } from '@/shared/lib/one-time-order-presentation';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
+import { Badge, Button, StatusBadge } from '@/shared/ui/foundation';
 
 const PAYMENT_METHODS: OneTimeOrderPaymentMethod[] = [
   'cash',
@@ -320,7 +321,7 @@ export function OneTimeOrderCompletionPanel({
             Записывайте полученные деньги по текущему циклу. Согласованная сумма — ориентир, не факт оплаты.
           </div>
         </div>
-        <span className="status-pill">Цикл {item.workCycle}</span>
+        <Badge>Цикл {item.workCycle}</Badge>
       </div>
 
       <div className="order-completion-summary">
@@ -400,8 +401,7 @@ export function OneTimeOrderCompletionPanel({
 
           {error ? <div className="form-error">{error}</div> : null}
           <div className="action-row">
-            <button
-              type="button"
+            <Button
               disabled={isSaving || !canSubmit}
               onClick={() => void submit()}
             >
@@ -410,7 +410,7 @@ export function OneTimeOrderCompletionPanel({
                 : canRetry
                   ? 'Повторить завершение'
                   : 'Завершить заказ'}
-            </button>
+            </Button>
           </div>
         </div>
       ) : item.capabilities.canReopen ? (
@@ -421,8 +421,7 @@ export function OneTimeOrderCompletionPanel({
               Для повторной поездки откройте новый цикл. Старые поступления сохранятся.
             </div>
           </div>
-          <button
-            type="button"
+          <Button
             disabled={isReopening}
             onClick={() => {
               void (async () => {
@@ -443,7 +442,7 @@ export function OneTimeOrderCompletionPanel({
             }}
           >
             {isReopening ? 'Открываем...' : 'Открыть новый цикл'}
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -723,9 +722,9 @@ function CompletionHistory({
                       : `${new Date(completion.completedAt).toLocaleString('ru-RU')} · ${getUserDisplayName(completion.completedBy)}`}
                   </div>
                 </div>
-                <span className="status-pill" data-status={completion.status}>
+                <StatusBadge status={completion.status}>
                   {completion.status === 'active' ? 'Текущий' : 'Завершен'}
-                </span>
+                </StatusBadge>
               </div>
               {completion.completionComment ? (
                 <div>{completion.completionComment}</div>
@@ -835,7 +834,7 @@ function PaymentHistoryRow({
       ) : null}
       {payment.comment ? <div>{payment.comment}</div> : null}
       {payment.status === 'reversed' ? (
-        <span className="status-pill" data-status="rejected">Сторнировано</span>
+        <StatusBadge status="rejected">Сторнировано</StatusBadge>
       ) : null}
       {item.capabilities.canCorrectPayments && payment.status === 'active' ? (
         <div className="action-row">
@@ -910,8 +909,7 @@ function PaymentCorrectionForm({
       </label>
       {error ? <div className="form-error">{error}</div> : null}
       <div className="action-row">
-        <button
-          type="button"
+        <Button
           disabled={isSaving || !isDraftValid(draft) || !reason.trim()}
           onClick={() => {
             void (async () => {
@@ -955,7 +953,7 @@ function PaymentCorrectionForm({
           }}
         >
           {isSaving ? 'Сохраняем...' : 'Сохранить исправление'}
-        </button>
+        </Button>
         <button type="button" className="button-quiet" onClick={onCancel}>
           Отмена
         </button>

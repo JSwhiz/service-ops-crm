@@ -10,11 +10,9 @@
   min-width: 0;
 }
 
-.filterHeading,
 .queueRowTop {
   display: flex;
   min-width: 0;
-  align-items: flex-start;
   justify-content: space-between;
   gap: var(--ui-space-4);
 }
@@ -112,8 +110,8 @@
 .filterLabel {
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.035em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .filterRemove {
@@ -171,8 +169,8 @@
   color: var(--ui-text-tertiary);
   font-size: var(--ui-text-xs);
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .filterOption,
@@ -289,8 +287,8 @@
   color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.035em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .datePickerRoot {
@@ -430,7 +428,7 @@
 }
 
 .datePickerDay:disabled {
-  color: #d5cfc9;
+  color: var(--ui-text-disabled);
   cursor: not-allowed;
 }
 
@@ -452,61 +450,6 @@
   white-space: nowrap;
 }
 
-.pagination button {
-  min-height: 36px;
-  padding: 8px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--ui-radius-md);
-  background: transparent;
-  color: var(--ui-text-secondary);
-  box-shadow: none;
-  font: inherit;
-  font-size: var(--ui-text-sm);
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.pagination button:hover:not(:disabled) {
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-  box-shadow: none;
-  transform: none;
-}
-
-.pagination button:focus-visible {
-  outline: 2px solid var(--ui-focus-border);
-  outline-offset: 2px;
-}
-
-.pagination button:disabled {
-  color: var(--ui-text-disabled);
-  cursor: not-allowed;
-}
-
-.pagination {
-  min-height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-space-3);
-  padding: 5px var(--ui-space-4);
-  border-top: 1px solid var(--ui-border);
-}
-
-.resultCount,
-.pageNumber {
-  color: var(--ui-text-secondary);
-  font-size: var(--ui-text-sm);
-  font-variant-numeric: tabular-nums;
-}
-
-.paginationActions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--ui-space-2);
-}
-
 .sectionTitle,
 .sectionDescription,
 .preWrap {
@@ -525,59 +468,6 @@
   color: var(--ui-text-secondary);
   font-size: var(--ui-text-sm);
   line-height: var(--ui-leading-normal);
-}
-
-.filterGroups {
-  display: grid;
-  gap: var(--ui-space-4);
-}
-
-.primaryFilters,
-.dateFilters {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ui-space-4);
-}
-
-.additionalFilters {
-  min-width: 0;
-  margin: 0;
-  padding: var(--ui-space-3);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-}
-
-.additionalFilters legend {
-  padding: 0 var(--ui-space-1);
-  color: var(--ui-text-secondary);
-  font-size: var(--ui-text-xs);
-  font-weight: 600;
-}
-
-.control {
-  width: 100%;
-  min-height: var(--ui-control-md);
-  padding: 0 var(--ui-space-3);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-  color: var(--ui-text);
-  box-shadow: none;
-  font-family: var(--ui-font-sans);
-  font-size: var(--ui-text-md);
-  transition:
-    border-color var(--ui-duration-fast) var(--ui-ease-standard),
-    box-shadow var(--ui-duration-fast) var(--ui-ease-standard);
-}
-
-.control:hover:not(:disabled) {
-  border-color: var(--ui-border-hover);
-}
-
-.control:focus-visible {
-  outline: 0;
-  border-color: var(--ui-focus-border);
-  box-shadow: var(--ui-focus-ring);
 }
 
 .scope {
@@ -902,20 +792,6 @@
 
   .dateRangeDash {
     display: none;
-  }
-
-  .pagination {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .paginationActions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .control {
-    min-height: 44px;
   }
 
   .queueRow {

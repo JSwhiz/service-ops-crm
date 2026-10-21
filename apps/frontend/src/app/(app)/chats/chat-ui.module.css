@@ -1,14 +1,3 @@
-.workspace {
-  --chat-bg: var(--ui-canvas);
-  --chat-panel: var(--ui-surface);
-  --chat-panel-hover: var(--ui-surface-hover);
-  --chat-border: var(--ui-border);
-  --chat-text: var(--ui-text);
-  --chat-muted: var(--ui-text-tertiary);
-  --chat-accent: var(--ui-accent);
-  --chat-own: var(--ui-accent-subtle);
-  --chat-incoming: var(--ui-surface);
-}
 
 .dialog.dialog {
   margin: auto;
@@ -94,8 +83,7 @@
   align-items: center;
   gap: 8px;
 }
-.dialogActions button,
-.dialog .primaryAction {
+.dialogActions button {
   min-height: 40px;
   padding: 8px 16px;
   border: 0;
@@ -104,10 +92,6 @@
   color: var(--ui-accent);
   box-shadow: none;
   font-weight: 500;
-}
-.dialog .primaryAction {
-  background: var(--ui-accent);
-  color: var(--ui-text-inverse);
 }
 .dialog button:disabled {
   opacity: 1;
@@ -364,19 +348,6 @@
 .error {
   color: var(--ui-danger);
   font-size: 13px;
-}
-.textAction {
-  display: flex;
-  justify-content: center;
-  min-height: 40px;
-  align-items: center;
-  padding: 8px;
-  border: 0;
-  background: transparent;
-  color: var(--ui-accent);
-  font-size: 13px;
-  font-weight: 400;
-  box-shadow: none;
 }
 .attachmentEntry {
   min-width: 0;

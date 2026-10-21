@@ -3,7 +3,7 @@
   display: grid;
   place-items: center;
   padding: 28px;
-  background: #f3f0ec;
+  background: var(--ui-surface-muted);
 }
 
 .shell {
@@ -69,7 +69,7 @@
 .brandText {
   display: grid;
   gap: 1px;
-  color: #3d332d;
+  color: var(--ui-text);
   line-height: 1.15;
 }
 
@@ -95,7 +95,7 @@
 .brandCopy p {
   max-width: 360px;
   margin: 18px 0 0;
-  color: #71635a;
+  color: var(--ui-text-secondary);
   font-size: 14px;
   line-height: 1.6;
 }

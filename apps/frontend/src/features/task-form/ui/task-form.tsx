@@ -18,6 +18,9 @@ import {
   TASK_COMPLETION_OPTIONS,
   TASK_PRIORITY_OPTIONS,
 } from '@/shared/lib/task-presentation';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Select } from '@/shared/ui/searchable-select/select';
+import { Button } from '@/shared/ui/foundation';
 
 export interface TaskFormInitialValue {
   title: string;
@@ -191,7 +194,7 @@ export function TaskForm({
 
         <label className="task-field">
           <span>Приоритет</span>
-          <select
+          <Select
             value={form.priority}
             onChange={(event) =>
               setForm({ ...form, priority: event.target.value as TaskPriority })
@@ -202,12 +205,12 @@ export function TaskForm({
                 {option.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="task-field">
           <span>Требования к отчёту</span>
-          <select
+          <Select
             value={form.completionRequirement}
             onChange={(event) =>
               setForm({
@@ -222,7 +225,7 @@ export function TaskForm({
                 {option.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="task-field task-field--wide">
@@ -238,7 +241,7 @@ export function TaskForm({
 
         <label className="task-field">
           <span>Объект (необязательно)</span>
-          <select
+          <Select
             value={form.objectId}
             onChange={(event) => setTarget('objectId', event.target.value)}
           >
@@ -248,12 +251,12 @@ export function TaskForm({
                 {object.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="task-field">
           <span>Разовый заказ (необязательно)</span>
-          <select
+          <Select
             value={form.oneTimeOrderId}
             onChange={(event) =>
               setTarget('oneTimeOrderId', event.target.value)
@@ -265,22 +268,14 @@ export function TaskForm({
                 {order.title}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
 
       <fieldset className="task-form__section">
         <legend>Срок *</legend>
         <div className="task-form__inline">
-          <input
-            type="date"
-            aria-label="Дата срока"
-            value={form.dueDate}
-            required
-            onChange={(event) =>
-              setForm({ ...form, dueDate: event.target.value })
-            }
-          />
+          <DatePicker aria-label="Дата срока" value={form.dueDate} required onChange={(nextValue) => setForm({ ...form, dueDate: nextValue })} />
           <label className="task-check">
             <input
               type="checkbox"
@@ -401,17 +396,17 @@ export function TaskForm({
         </div>
       ) : null}
       <div className="action-row">
-        <button type="submit" disabled={isSubmitting}>
+        <Button variant="primary" type="submit" disabled={isSubmitting}>
           {isSubmitting
             ? 'Сохраняем…'
             : isEdit
               ? 'Сохранить изменения'
               : 'Создать задачу'}
-        </button>
+        </Button>
         {onCancel ? (
-          <button type="button" onClick={onCancel}>
+          <Button onClick={onCancel}>
             Отмена
-          </button>
+          </Button>
         ) : null}
       </div>
     </form>

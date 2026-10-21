@@ -51,6 +51,8 @@ type CandidateListView = Candidate & {
   responses: CandidateFeedbackView[];
 };
 
+const CLOSED_CANDIDATE_STATUSES: string[] = ['accepted', 'rejected'];
+
 @Injectable()
 export class CandidatesService {
   constructor(
@@ -270,18 +272,18 @@ export class CandidatesService {
         payload.objectId !== undefined ? payload.objectId : existing.objectId;
 
       if (nextCandidateType === 'regular' && !nextObjectId) {
-        throw new BadRequestException('Regular candidate requires object');
+        throw new BadRequestException('Для обычного кандидата укажите объект.');
       }
       if (payload.objectId) {
         await this.assertCandidateObjectAvailable(tx, currentUser, payload.objectId);
       }
-      if (nextCandidateType === 'regular') {
+      if (nextCandidateType === 'regular' && !CLOSED_CANDIDATE_STATUSES.includes(existing.status)) {
         const activeAssignment = await tx.candidateManagerAssignment.findFirst({
           where: { candidateId: id, endedAt: null },
           select: { id: true },
         });
         if (!activeAssignment) {
-          throw new BadRequestException('Regular candidate requires active manager');
+          throw new BadRequestException({ code: 'CANDIDATE_MANAGER_REQUIRED', message: 'Назначьте хотя бы одного ответственного менеджера.' });
         }
       }
 
@@ -320,13 +322,58 @@ export class CandidatesService {
       const existing = await this.lockCandidate(tx, id);
       this.assertVersion(existing, payload.expectedVersion);
       if (existing.status === payload.status) return;
+      const closing = CLOSED_CANDIDATE_STATUSES.includes(payload.status);
+      const reopening = !closing && CLOSED_CANDIDATE_STATUSES.includes(existing.status);
+      const selections = reopening && payload.assignments?.length
+        ? this.managerSelections({ assignments: payload.assignments }, existing.objectId)
+        : [];
+      if (reopening && existing.candidateType === 'regular' && !selections.length) {
+        const active = await tx.candidateManagerAssignment.count({ where: { candidateId: id, endedAt: null } });
+        if (!active) {
+          throw new BadRequestException({
+            code: 'CANDIDATE_MANAGER_REQUIRED',
+            message: 'Чтобы вернуть кандидата в работу, назначьте ответственного менеджера.',
+          });
+        }
+      }
       await tx.candidate.update({ where: { id }, data: { status: payload.status, version: { increment: 1 } } });
-      if (['accepted', 'rejected'].includes(payload.status)) {
+      if (closing) {
         await tx.candidateManagerAssignment.updateMany({ where: { candidateId: id, endedAt: null }, data: { endedAt: new Date(), endedByUserId: currentUser.id } });
       }
-      await this.auditService.writeAuditEvent({ entityType: 'candidate', entityId: id, actorUserId: currentUser.id, action: 'candidate.status_changed', oldValues: { status: existing.status }, newValues: { status: payload.status } }, tx);
+      if (selections.length) {
+        await this.openManagerAssignments(tx, currentUser, existing, selections);
+      }
+      await this.auditService.writeAuditEvent({
+        entityType: 'candidate', entityId: id, actorUserId: currentUser.id, action: 'candidate.status_changed',
+        oldValues: { status: existing.status },
+        newValues: { status: payload.status, ...(selections.length ? { managers: selections } : {}) },
+      }, tx);
     });
     return this.getById(currentUser, id);
+  }
+
+  /** Validates and opens new manager assignments with their own SLA and notification. */
+  private async openManagerAssignments(
+    tx: Prisma.TransactionClient,
+    currentUser: CurrentAuthUser,
+    candidate: Candidate,
+    selections: Array<{ managerUserId: string; objectId: string | null }>,
+  ): Promise<void> {
+    const now = new Date();
+    for (const selection of selections) {
+      await this.loadEligibleManager(tx, selection.managerUserId);
+      if (selection.objectId) await this.assertCandidateObjectAvailable(tx, currentUser, selection.objectId);
+      const created = await tx.candidateManagerAssignment.create({ data: {
+        candidateId: candidate.id, managerUserId: selection.managerUserId, objectId: selection.objectId,
+        assignedByUserId: currentUser.id, assignedAt: now,
+        responseDueAt: new Date(now.getTime() + CANDIDATE_RESPONSE_SLA_MS),
+      } });
+      await this.notificationsService.create({
+        recipientUserId: selection.managerUserId, type: 'candidate.assigned', title: `Назначен кандидат ${candidate.fullName}`,
+        entityType: 'candidate', entityId: candidate.id, targetUrl: `/candidates/${candidate.id}`,
+        dedupeKey: `candidate:${candidate.id}:assignment:${created.id}:assigned`,
+      }, tx);
+    }
   }
 
   async archive(currentUser: CurrentAuthUser, id: string, payload: CandidateVersionDto): Promise<CandidateCardResponseDto> {
@@ -345,9 +392,9 @@ export class CandidatesService {
     await this.prisma.$transaction(async (tx) => {
       const candidate = await this.lockCandidate(tx, id);
       this.assertVersion(candidate, payload.expectedVersion);
-      if (candidate.deletedAt || ['accepted', 'rejected'].includes(candidate.status)) throw new ConflictException('Candidate is not active');
+      if (candidate.deletedAt || ['accepted', 'rejected'].includes(candidate.status)) throw new ConflictException('Кандидат закрыт или находится в архиве. Обновите карточку.');
       const selections = this.managerSelections(payload, candidate.objectId);
-      if (candidate.candidateType === 'regular' && !selections.length) throw new BadRequestException('Regular candidate requires active manager');
+      if (candidate.candidateType === 'regular' && !selections.length) throw new BadRequestException({ code: 'CANDIDATE_MANAGER_REQUIRED', message: 'Назначьте хотя бы одного ответственного менеджера.' });
       for (const selection of selections) {
         await this.loadEligibleManager(tx, selection.managerUserId);
         if (selection.objectId) await this.assertCandidateObjectAvailable(tx, currentUser, selection.objectId);
@@ -391,9 +438,11 @@ export class CandidatesService {
       // A retried request must return the previously created employee, never create a duplicate.
       if (candidate.employeeId) return;
       this.assertVersion(candidate, payload.expectedVersion);
-      if (candidate.deletedAt || candidate.status === 'rejected') throw new ConflictException('Candidate is not active');
+      if (candidate.deletedAt || candidate.status === 'rejected') throw new ConflictException('Кандидат закрыт или находится в архиве. Обновите карточку.');
+      // All candidate numbers move to the employee; the first stays the main one.
+      const phones = candidate.phones.length ? candidate.phones : candidate.phone ? [candidate.phone] : [];
       const employee = await tx.employee.create({ data: {
-        fullName: candidate.fullName, phone: candidate.phone, notes: candidate.comment,
+        fullName: candidate.fullName, phone: phones[0] ?? null, phones, notes: candidate.comment ?? null,
         employeeType: payload.employeeType ?? 'regular', employmentStatus: 'active',
       } });
       await tx.candidate.update({ where: { id }, data: { employeeId: employee.id, status: 'accepted', version: { increment: 1 } } });
@@ -414,7 +463,7 @@ export class CandidatesService {
         candidate.deletedAt ||
         (!canManageCandidates(this.permissions(currentUser)) && ['accepted', 'rejected'].includes(candidate.status))
       ) {
-        throw new ConflictException('Candidate is not active');
+        throw new ConflictException('Кандидат закрыт или находится в архиве. Обновите карточку.');
       }
 
       const assignment = await tx.candidateManagerAssignment.findFirst({
@@ -633,7 +682,7 @@ export class CandidatesService {
     if (provided > 1) throw new BadRequestException('Use one manager selection format');
     const selections = payload.assignments?.map((item) => ({ managerUserId: item.managerUserId, objectId: item.objectId === undefined ? defaultObjectId : item.objectId }))
       ?? (payload.managerUserIds ?? (payload.managerUserId ? [payload.managerUserId] : [])).map((managerUserId) => ({ managerUserId, objectId: defaultObjectId }));
-    if (new Set(selections.map((item) => item.managerUserId)).size !== selections.length) throw new BadRequestException('Manager is selected more than once');
+    if (new Set(selections.map((item) => item.managerUserId)).size !== selections.length) throw new BadRequestException('Один и тот же менеджер выбран несколько раз.');
     return selections;
   }
 
