@@ -421,8 +421,8 @@
   flex-wrap: wrap;
 }
 
-.surface :global(button),
-.surfaceCompact :global(button),
+.surface :global(button:where(:not(.ui-button, .ui-icon-button, .searchable-select__trigger))),
+.surfaceCompact :global(button:where(:not(.ui-button, .ui-icon-button, .searchable-select__trigger))),
 .buttonLike {
   appearance: none;
   min-height: 36px;
@@ -446,8 +446,8 @@
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-.surface :global(button:hover:not(:disabled)),
-.surfaceCompact :global(button:hover:not(:disabled)),
+.surface :global(button:where(:not(.ui-button, .ui-icon-button, .searchable-select__trigger)):hover:not(:disabled)),
+.surfaceCompact :global(button:where(:not(.ui-button, .ui-icon-button, .searchable-select__trigger)):hover:not(:disabled)),
 .buttonLike:hover {
   border-color: var(--ui-border-hover);
   background: var(--ui-surface-hover);
@@ -456,8 +456,8 @@
   transform: none;
 }
 
-.surface :global(button:focus-visible),
-.surfaceCompact :global(button:focus-visible),
+.surface :global(button:where(:not(.ui-button, .ui-icon-button, .searchable-select__trigger)):focus-visible),
+.surfaceCompact :global(button:where(:not(.ui-button, .ui-icon-button, .searchable-select__trigger)):focus-visible),
 .buttonLike:focus-visible {
   outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 2px;
@@ -465,8 +465,8 @@
   box-shadow: none;
 }
 
-.surface :global(button:disabled),
-.surfaceCompact :global(button:disabled) {
+.surface :global(button:where(:not(.ui-button, .ui-icon-button, .searchable-select__trigger)):disabled),
+.surfaceCompact :global(button:where(:not(.ui-button, .ui-icon-button, .searchable-select__trigger)):disabled) {
   cursor: not-allowed;
   opacity: 0.52;
 }

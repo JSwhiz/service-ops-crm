@@ -1,11 +1,12 @@
 .page, .records, .form { display: grid; min-width: 0; gap: var(--ui-space-4); }
-.card { display: grid; gap: var(--ui-space-3); padding: var(--ui-space-5); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-lg); background: var(--ui-surface); }
+.card { display: grid; gap: var(--ui-space-2); padding: var(--ui-space-5); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-lg); background: var(--ui-surface); }
 .cardHeader, .cardFooter, .actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ui-space-3); }
-.cardHeader h2 { margin: 0; font-size: var(--ui-text-lg); color: var(--ui-text); overflow-wrap: anywhere; }
+.cardHeader h2 { margin: 0; font-size: 15px; font-weight: 650; color: var(--ui-text); overflow-wrap: anywhere; }
 .muted { margin: 0; color: var(--ui-text-secondary); font-size: var(--ui-text-sm); line-height: var(--ui-leading-normal); }
-.reason { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reason { margin: 0; color: var(--ui-text); font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .objectLinks, .selected { display: flex; flex-wrap: wrap; gap: var(--ui-space-2); }
-.objectLinks a { color: var(--ui-accent); text-decoration: underline; overflow-wrap: anywhere; }
+.objectLinks a { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 9px; border: 1px solid var(--ui-border); border-radius: 999px; background: var(--ui-surface-subtle); color: var(--ui-text); font-size: 12.5px; font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.objectLinks a:hover { border-color: var(--ui-border-hover); color: var(--ui-accent); }
 .selected button { max-width: 100%; height: auto; min-height: var(--ui-control-sm); white-space: normal; text-align: start; }
 .scope { display: grid; min-width: 0; gap: var(--ui-space-3); margin: 0; padding: var(--ui-space-3); border: 1px solid var(--ui-border); border-radius: var(--ui-radius-md); }
 .scope legend { color: var(--ui-text); font-size: var(--ui-text-sm); font-weight: 600; }

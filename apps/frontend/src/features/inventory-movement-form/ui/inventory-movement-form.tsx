@@ -1,5 +1,6 @@
 'use client';
 
+import { PlusIcon } from '@/shared/ui/icons/icons';
 import React, { useMemo, useState } from 'react';
 
 import type {
@@ -236,7 +237,7 @@ export function InventoryMovementForm({
                 </Surface>
               );
             })}
-            {items.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? <Button onClick={addIssueLine} disabled={isSaving}>+ Добавить позицию</Button> : null}
+            {items.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? <Button onClick={addIssueLine} disabled={isSaving} icon={<PlusIcon />}>Добавить позицию</Button> : null}
             <div className="ui-text-muted">Каждая позиция будет проведена отдельным движением с собственной проверкой остатка и историей.</div>
           </div>
         ) : <Field label="Номенклатура">

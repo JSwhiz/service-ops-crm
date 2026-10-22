@@ -20,13 +20,13 @@ import { InventoryMovementForm } from '@/features/inventory-movement-form/ui/inv
 import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inventory-movement-list';
 import { INVENTORY_MOVEMENT_TYPE_OPTIONS } from '@/shared/lib/inventory-presentation';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { PlusIcon } from '@/shared/ui/icons/icons';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Alert, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Button, LoadingState, Surface } from '@/shared/ui/foundation';
 import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -43,6 +43,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
   const canAccessInventory = capabilities?.canAccessInventory ?? false;
 
   const [items, setItems] = useState<InventoryItem[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [objectOptions, setObjectOptions] = useState<InventoryObjectReference[]>(
     [],
@@ -173,13 +174,32 @@ export default function InventoryMovementsPage(): React.JSX.Element {
 
   return (
     <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
-      <PageTitle title="Движения расходников" />
+      <BackLink href="/inventory">Расходники</BackLink>
 
       {!canAccessInventory ? (
         <Surface padding="md">У вас нет доступа к inventory-модулю.</Surface>
       ) : (
         <div className="ui-stack ui-stack--lg">
-          <InventoryMovementForm
+          <RegistryToolbar
+            showSearch={false}
+            searchValue=""
+            searchLabel=""
+            searchPlaceholder=""
+            onSearchChange={() => undefined}
+            activeFilters={activeFilters}
+            availableFilters={availableFilters}
+            actions={capabilities?.canCreateInventoryMovement ? (
+              <Button
+                variant={createOpen ? 'default' : 'primary'}
+                icon={createOpen ? undefined : <PlusIcon />}
+                onClick={() => setCreateOpen((value) => !value)}
+              >
+                {createOpen ? 'Скрыть форму' : 'Новое движение'}
+              </Button>
+            ) : null}
+          />
+
+          {createOpen ? <InventoryMovementForm
             items={items}
             objectOptions={objectOptions}
             oneTimeOrderOptions={oneTimeOrderOptions}
@@ -224,12 +244,10 @@ export default function InventoryMovementsPage(): React.JSX.Element {
               setMovements(updatedMovements.items);
               setTotalPages(updatedMovements.totalPages);
             }}
-          />
-
-          <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeFilters} availableFilters={availableFilters} />
+          /> : null}
 
           {isLoading ? (
-            <Surface padding="md">Загрузка...</Surface>
+            <LoadingState label="Загружаем движения…" />
           ) : error ? (
             <Alert tone="danger" role="alert">
               {error}

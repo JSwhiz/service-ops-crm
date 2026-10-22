@@ -16,7 +16,7 @@ import {
 } from '@/entities/counterparty/api/counterparty-client';
 import type { CounterpartyCard, CounterpartyHistoryItem } from '@/entities/counterparty/model/counterparty.types';
 import type { CounterpartyInventoryMovement } from '@/entities/counterparty/model/counterparty.types';
-import { listObjectsPage } from '@/entities/object/api/object-client';
+import { getObjectById, listObjectsPage } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
@@ -29,6 +29,7 @@ import {
 
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import styles from '../counterparties.module.css';
+import { CounterpartyHistory } from './counterparty-history';
 import { Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 function toObjectOption(object: ServiceObject): SearchableSelectOption {
@@ -40,21 +41,6 @@ function toObjectOption(object: ServiceObject): SearchableSelectOption {
       .filter(Boolean)
       .join(' '),
   };
-}
-
-function historyActionLabel(action: string): string {
-  switch (action) {
-    case 'counterparty.created': return 'Контрагент создан';
-    case 'counterparty.updated': return 'Данные изменены';
-    case 'counterparty.archived': return 'Контрагент перенесён в архив';
-    case 'counterparty.restored': return 'Контрагент восстановлен';
-    case 'counterparty.object_linked': return 'Объект привязан';
-    case 'counterparty.object_unlinked': return 'Объект отвязан';
-    case 'counterparty.object_unlinked_by_relink': return 'Объект перенесён к другому контрагенту';
-    case 'counterparty.master_object_changed': return 'Назначен мастер-объект';
-    case 'counterparty.master_object_cleared': return 'Мастер-объект снят';
-    default: return action;
-  }
 }
 
 function movementTypeLabel(type: string): string {
@@ -85,6 +71,7 @@ export default function CounterpartyPage({
   const [history, setHistory] = useState<CounterpartyHistoryItem[]>([]);
   const [historyLoadedForId, setHistoryLoadedForId] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [extraObjectNames, setExtraObjectNames] = useState<Record<string, string>>({});
   const [inventoryMovements, setInventoryMovements] = useState<CounterpartyInventoryMovement[]>([]);
   const [inventoryMovementsTotal, setInventoryMovementsTotal] = useState(0);
   const [inventoryMovementsLoading, setInventoryMovementsLoading] = useState(false);
@@ -166,6 +153,34 @@ export default function CounterpartyPage({
       active = false;
     };
   }, [activeTab, historyLoadedForId, item]);
+
+  const historyObjectNames = useMemo(() => {
+    const names = new Map<string, string>(Object.entries(extraObjectNames));
+    if (item?.masterObject) names.set(item.masterObject.id, item.masterObject.name);
+    for (const object of item?.objects ?? []) names.set(object.id, object.name);
+    return names;
+  }, [extraObjectNames, item]);
+
+  useEffect(() => {
+    const missing = new Set<string>();
+    for (const event of history) {
+      for (const values of [event.oldValues, event.newValues]) {
+        const id = values?.objectId;
+        if (typeof id === 'string' && !historyObjectNames.has(id)) missing.add(id);
+      }
+    }
+    if (missing.size === 0) return;
+    let cancelled = false;
+    void Promise.allSettled([...missing].map((id) => getObjectById(id))).then((results) => {
+      if (cancelled) return;
+      const found: Record<string, string> = {};
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') found[result.value.id] = result.value.name;
+      });
+      if (Object.keys(found).length) setExtraObjectNames((current) => ({ ...current, ...found }));
+    });
+    return () => { cancelled = true; };
+  }, [history, historyObjectNames]);
 
   useEffect(() => {
     if (activeTab !== 'overview' || !item) return;
@@ -543,17 +558,7 @@ export default function CounterpartyPage({
           ) : history.length === 0 ? (
             <div className={styles.emptyState}>История изменений пока пуста.</div>
           ) : (
-            <div className={styles.recordList}>
-              {history.map((event) => (
-                <article key={event.id} className={styles.recordCard}>
-                  <div className={styles.recordMain}>
-                    <strong>{historyActionLabel(event.action)}</strong>
-                    <div className={styles.muted}>{event.actor?.fullName ?? 'Система'}</div>
-                  </div>
-                  <time className={styles.muted}>{new Date(event.createdAt).toLocaleString('ru-RU')}</time>
-                </article>
-              ))}
-            </div>
+            <CounterpartyHistory items={history} objectNames={historyObjectNames} />
           )}
         </Surface>
       )}

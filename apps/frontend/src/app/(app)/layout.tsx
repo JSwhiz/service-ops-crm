@@ -12,6 +12,16 @@ export default function AppLayout({
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
 
+  // Scrolling the page over a focused number field must not change the amount.
+  useEffect(() => {
+    const onWheel = (): void => {
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement && active.type === 'number') active.blur();
+    };
+    document.addEventListener('wheel', onWheel, { passive: true });
+    return () => document.removeEventListener('wheel', onWheel);
+  }, []);
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/login');

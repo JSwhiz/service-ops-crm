@@ -8,7 +8,9 @@ import type {
   EquipmentCatalogItem,
 } from '@/entities/equipment/model/equipment.types';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Alert, Button, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
+
+import styles from './equipment-form.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -29,8 +31,7 @@ export function EquipmentCatalogItemForm({
 
   return (
     <form
-      className="ui-surface ui-surface--padded"
-      style={{ display: 'grid', gap: 12 }}
+      className="ui-surface ui-surface--padded ui-stack ui-stack--md"
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
@@ -48,16 +49,20 @@ export function EquipmentCatalogItemForm({
           .finally(() => setIsSaving(false));
       }}
     >
-      <strong>Новый тип оборудования</strong>
-      <input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Категория" required />
-      <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Название" required />
-      <input value={brand} onChange={(event) => setBrand(event.target.value)} placeholder="Бренд" />
-      <input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Модель" />
-      <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Заметки" rows={2} />
+      <div className="ui-section-title">Новый тип оборудования</div>
+      <div className={styles.grid}>
+        <Field label="Категория" required><input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Например, пылесос" required /></Field>
+        <Field label="Название" required><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Как называть тип в списках" required /></Field>
+        <Field label="Бренд"><input value={brand} onChange={(event) => setBrand(event.target.value)} /></Field>
+        <Field label="Модель"><input value={model} onChange={(event) => setModel(event.target.value)} /></Field>
+      </div>
+      <Field label="Заметки"><textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} /></Field>
       {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
-      <Button variant="primary" type="submit" disabled={isSaving}>
-        {isSaving ? 'Создаем...' : 'Создать тип'}
-      </Button>
+      <div className="ui-inline">
+        <Button variant="primary" type="submit" pending={isSaving} pendingLabel="Создаём…">
+          Создать тип
+        </Button>
+      </div>
     </form>
   );
 }
@@ -76,7 +81,7 @@ export function EquipmentCatalogManager({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
+    <Surface padding="md" className="ui-stack ui-stack--md">
       <div className="ui-section-header">
         <div>
           <div className="ui-section-title">Типы оборудования</div>
@@ -108,9 +113,9 @@ export function EquipmentCatalogManager({
                         : ' · не используется'}
                     </div>
                   </div>
-                  {canDelete ? (
-                    <Button variant="danger"
-                      disabled={!canDeleteItem || pendingId === item.id}
+                  {canDeleteItem ? (
+                    <Button variant="ghost" size="sm"
+                      disabled={pendingId === item.id}
                       onClick={() => {
                         setError(null);
                         setConfirmId(item.id);

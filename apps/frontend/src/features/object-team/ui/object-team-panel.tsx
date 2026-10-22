@@ -116,7 +116,7 @@ export function ObjectTeamPanel({
         <div className={styles.title}>{title}</div>
         {replaceOnly ? (
           <div className={styles.replacementControl}>
-            <Button size="sm"
+            <IconButton bordered
               disabled={isSubmitting || options.length === 0}
               aria-label={currentItems.length ? 'Заменить ответственного' : 'Назначить ответственного'}
               aria-expanded={isReplacementOpen}
@@ -124,7 +124,7 @@ export function ObjectTeamPanel({
               onClick={() => setIsReplacementOpen((open) => !open)}
             >
               <MediaActionIcon name="replace" />
-            </Button>
+            </IconButton>
             {isReplacementOpen && typeof document !== 'undefined' ? createPortal(
               <div className={styles.replacementOverlay} onMouseDown={(event) => { if (event.target === event.currentTarget) setIsReplacementOpen(false); }}>
                 <section className={styles.replacementDialog} role="dialog" aria-modal="true" aria-labelledby="replace-responsible-title">
@@ -145,10 +145,10 @@ export function ObjectTeamPanel({
                 />
                 <div className={styles.replacementOptions} role="listbox" aria-label="Кандидаты на роль ответственного">
                   {replacementOptions.length ? replacementOptions.map((option) => (
-                    <Button key={option.value} role="option" onClick={() => handleAdd(option.value)} disabled={isSubmitting}>
+                    <button key={option.value} type="button" role="option" aria-selected={false} onClick={() => handleAdd(option.value)} disabled={isSubmitting}>
                       <strong>{option.label}</strong>
                       {option.description ? <span>{option.description}</span> : null}
-                    </Button>
+                    </button>
                   )) : <div className={styles.empty}>{emptyAvailableText}</div>}
                 </div>
                 </section>

@@ -37,11 +37,10 @@ import { TaskResultPanel } from '@/features/task-result/ui/task-result-panel';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { formatTaskHistoryEvent } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
-import { Button, Surface } from '@/shared/ui/foundation';
+import { BackLink, Button, Surface } from '@/shared/ui/foundation';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export default function TaskDetailPage({
@@ -212,8 +211,8 @@ export default function TaskDetailPage({
     <div className={`ui-page ${taskStyles.taskDetailPage}`}>
       {confirmDialog}
       {reasonDialog}
-      <Surface padding="md" className={`${taskStyles.taskPageHeading} registry-header`}>
-        <PageTitle title="Карточка задачи" />
+      <div className={taskStyles.taskPageHeading}>
+        <BackLink href="/tasks">Задачи</BackLink>
         <div className="ui-inline">
           {item.capabilities.canEdit ? (
             <Button
@@ -280,7 +279,7 @@ export default function TaskDetailPage({
             </Button>
           ) : null}
         </div>
-      </Surface>
+      </div>
 
       {error ? (
         <div className={`${taskStyles.taskAlert} ${taskStyles.taskAlertDanger}`} role="alert">

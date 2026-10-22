@@ -14,19 +14,17 @@ import { listObjects } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { Button, Field } from '@/shared/ui/foundation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { useAuth } from '@/shared/auth/use-auth';
 
 import styles from './rubber-mats.module.css';
-import { Select } from '@/shared/ui/searchable-select/select';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const PAGE_SIZE = 20;
-const CONDITIONS: Array<{ value: RubberMatCondition | ''; label: string }> = [
-  { value: '', label: 'Все состояния' },
+const CONDITIONS: Array<{ value: RubberMatCondition; label: string }> = [
   { value: 'good', label: 'В хорошем состоянии' },
   { value: 'worn', label: 'Изношен' },
   { value: 'damaged', label: 'Повреждён' },
@@ -53,6 +51,7 @@ export default function RubberMatsPage(): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [condition, setCondition] = useState<RubberMatCondition | ''>('');
   const [objectId, setObjectId] = useState('');
+  const [objectFilterActive, setObjectFilterActive] = useState(false);
   const [items, setItems] = useState<RubberMatRegistryItem[]>([]);
   const [page, setPage] = useState(1);
   const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(PAGE_SIZE, [PAGE_SIZE, 50, 100], () => setPage(1));
@@ -92,6 +91,16 @@ export default function RubberMatsPage(): React.JSX.Element {
     return found.slice(0, 30).map(objectOption);
   }, []);
 
+  const activeFilters = [
+    condition ? { id: 'condition', label: 'Состояние', value: condition, options: CONDITIONS, onChange: (value: string) => { setCondition(value as RubberMatCondition); setPage(1); }, onRemove: () => { setCondition(''); setPage(1); } } : null,
+    objectFilterActive || objectId ? { id: 'object', label: 'Объект', value: objectId, options: [], onChange: (value: string) => { setObjectId(value); setPage(1); }, onRemove: () => { setObjectId(''); setObjectFilterActive(false); setPage(1); }, customControl: <SearchableSelect label="Объект" hideLabel value={objectId} options={[]} asyncSearch={searchObjects} minimumSearchLength={2} searchPlaceholder="Название, адрес или внутреннее имя" searchPromptText="Введите не менее 2 символов, чтобы найти объект" searchInputVariant="registry" placeholder="Все объекты" onChange={(value) => { setObjectId(value); setPage(1); }} /> } : null,
+  ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
+
+  const availableFilters = [
+    !condition ? { id: 'condition', label: 'Состояние', options: CONDITIONS, onAdd: (value: string) => { setCondition(value as RubberMatCondition); setPage(1); } } : null,
+    !objectFilterActive && !objectId ? { id: 'object', label: 'Объект', options: [{ value: 'object', label: 'Выбрать объект' }], onAdd: () => setObjectFilterActive(true) } : null,
+  ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
+
   const submitCreate = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     if (!form.lengthCm || !form.widthCm || form.note.trim().length < 2) return;
@@ -119,16 +128,19 @@ export default function RubberMatsPage(): React.JSX.Element {
 
   return (
     <div className={styles.page}>
-      <div className={styles.heading}>
-        <PageTitle title="Ковры" />
-        {canRegisterRubberMat ? (
+      <RegistryToolbar
+        searchValue={query}
+        searchLabel="Поиск ковров"
+        searchPlaceholder="Номер, зона, размер или примечание"
+        onSearchChange={(value) => { setQuery(value); setPage(1); }}
+        activeFilters={activeFilters}
+        availableFilters={availableFilters}
+        actions={canRegisterRubberMat ? (
           <Button variant={createOpen ? 'default' : 'primary'} icon={createOpen ? undefined : <PlusIcon />} onClick={() => { setCreateOpen((value) => !value); setCreateError(null); }}>
             {createOpen ? 'Скрыть форму' : 'Добавить ковёр'}
           </Button>
         ) : null}
-      </div>
-
-      <p className={styles.intro}>Общий реестр активов: сначала зарегистрируйте ковёр, затем назначьте его на объект из карточки объекта. Возврат в свободный реестр, перемещение, обслуживание и списание сохраняются в истории актива.</p>
+      />
 
       {createOpen && canRegisterRubberMat ? (
         <form className={styles.createForm} onSubmit={(event) => void submitCreate(event)}>
@@ -145,20 +157,6 @@ export default function RubberMatsPage(): React.JSX.Element {
           <div className={styles.formActions}><Button type="submit" variant="primary" disabled={saving}>{saving ? 'Сохраняем…' : 'Зарегистрировать'}</Button><Button type="button" onClick={() => setCreateOpen(false)}>Отмена</Button></div>
         </form>
       ) : null}
-
-      <section className={styles.filters} aria-label="Фильтры ковров">
-        <Field label="Поиск по коврам">
-          <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Номер, зона, размер или примечание" />
-        </Field>
-        <Field label="Объект">
-          <SearchableSelect label="Фильтр по объекту" value={objectId} options={[]} asyncSearch={searchObjects} minimumSearchLength={2} searchPlaceholder="Название, адрес или внутреннее имя" searchPromptText="Введите не менее 2 символов" placeholder="Все объекты" onChange={(value) => { setObjectId(value); setPage(1); }} />
-        </Field>
-        <Field label="Состояние">
-          <Select value={condition} onChange={(event) => { setCondition(event.target.value as RubberMatCondition | ''); setPage(1); }}>
-            {CONDITIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </Select>
-        </Field>
-      </section>
 
       {error ? <div className={styles.error} role="alert">{error}</div> : null}
       <DataTable label="Реестр резиновых ковров" frameClassName={styles.tableFrame}>

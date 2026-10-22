@@ -10,10 +10,9 @@ import {
 } from '@/entities/one-time-order/api/one-time-order-attention-client';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
-import { Alert, Badge, ButtonLink, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Badge, LoadingState, Surface } from '@/shared/ui/foundation';
 import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 const EMPTY: OneTimeOrderAttentionResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 0 };
@@ -65,16 +64,11 @@ export default function OneTimeOrderAttentionPage(): React.JSX.Element {
 
   return (
     <div className={`ui-page ${orderStyles.oneTimeOrderRegistry}`}>
-      <PageTitle title="Разовые заказы" />
+      <BackLink href="/one-time-orders">Все разовые заказы</BackLink>
       <Surface padding="md" className="ui-section-header registry-header">
-        <div><div className="ui-section-title">Операционный приоритет</div><div className="ui-text-muted">Просроченные → сегодня → ближайшие → без даты. Доступно: {result.total}</div></div>
-        <ButtonLink href="/one-time-orders">Снять фильтр</ButtonLink>
+        <div><div className="ui-section-title">Горящие заказы</div><div className="ui-text-muted">Сначала просроченные, затем сегодняшние, ближайшие и без даты. Найдено: {result.total}</div></div>
       </Surface>
-      <Surface padding="md" className="filter-panel">
-        <StatusBadge status="attention">Горящие ×</StatusBadge>
-        <span className="ui-text-muted">Выборка строится на backend до пагинации и учитывает права текущего пользователя.</span>
-      </Surface>
-      {loading ? <div className="ui-empty-state">Загрузка…</div> : error ? <Alert tone="warning">{error}</Alert> : result.items.length === 0 ? <div className="ui-empty-state">Горящих разовых заказов нет.</div> : (
+      {loading ? <LoadingState label="Загружаем заказы…" /> : error ? <Alert tone="warning">{error}</Alert> : result.items.length === 0 ? <div className="ui-empty-state">Горящих разовых заказов нет.</div> : (
         <DataTable label="Таблица горящих разовых заказов" className="data-table" frameClassName="table-scroll">
             <thead><tr><th scope="col">Приоритет</th><th scope="col">Заказ</th><th scope="col">Дата</th><th scope="col">Статус</th><th scope="col">Объект / адрес</th><th scope="col">Менеджеры</th><th scope="col" aria-label="Действие" /></tr></thead>
             <tbody>{result.items.map((item) => <tr key={item.id}>

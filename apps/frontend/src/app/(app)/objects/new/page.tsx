@@ -23,6 +23,7 @@ import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-selec
 import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
 
 import { SelectField } from '@/shared/ui/searchable-select/select-field';
+import { PageTitle } from '@/shared/ui/page-title/page-title';
 import styles from './new-object.module.css';
 import { Button } from '@/shared/ui/foundation';
 import { CheckIcon, ChevronDownIcon } from '@/shared/ui/icons/icons';
@@ -365,6 +366,7 @@ export default function NewObjectPage(): React.JSX.Element {
 
   return (
     <div className={`ui-page object-create-page ${styles.page}`}>
+      <PageTitle title="Новый объект" />
       <form className={styles.form} onSubmit={handleSubmit}>
         <section className={styles.section}>
           <div className={styles.sectionHeader}>

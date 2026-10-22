@@ -99,11 +99,19 @@
   line-height: 1.4;
 }
 
+.employeeNameRow > span:first-child {
+  color: var(--ui-text);
+  font-size: 14px;
+  font-weight: 650;
+}
+
 .ratePolicyLine {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  color: var(--ui-text-secondary);
+  font-size: 13px;
 }
 
 .modalBackdrop {

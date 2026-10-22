@@ -10,6 +10,11 @@ import {
   listApprovalRequestsPage,
   rejectApprovalRequest,
 } from '@/entities/approval/api/approval-client';
+import {
+  getApprovalSubtitle,
+  getApprovalTitle,
+  getStringValue,
+} from '@/entities/approval/model/approval-summary';
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
 import {
   APPROVAL_SOURCE_OPTIONS,
@@ -21,7 +26,6 @@ import {
 } from '@/shared/lib/approval-presentation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
-import { getInventoryMovementTypeLabel } from '@/shared/lib/inventory-presentation';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Alert, Badge, Button, EmptyState, Skeleton, Surface } from '@/shared/ui/foundation';
@@ -42,9 +46,6 @@ interface BusinessContextItem {
   label: string;
   value: string;
 }
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -69,89 +70,6 @@ function ApprovalStatusBadge({ status }: { status: string }): React.JSX.Element 
       {getApprovalStatusLabel(status)}
     </Badge>
   );
-}
-
-function getApprovalTitle(item: ApprovalRequestItem): string {
-  const title = item.summary.title.trim();
-
-  if (
-    !title ||
-    title === item.approvalType ||
-    title === 'Inventory exception' ||
-    UUID_PATTERN.test(title)
-  ) {
-    return getApprovalTypeLabel(item.approvalType);
-  }
-
-  return title;
-}
-
-function getObjectStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    active: 'Активный',
-    frozen: 'Приостановлен',
-    archived: 'Архив',
-  };
-
-  return labels[status] ?? 'Неизвестное состояние';
-}
-
-function getApprovalSubtitle(item: ApprovalRequestItem): string | null {
-  const subtitle = item.summary.subtitle?.trim();
-
-  if (!subtitle || UUID_PATTERN.test(subtitle)) {
-    return null;
-  }
-
-  if (item.approvalType === 'inventory_exception_confirmation') {
-    const [movementType, ...rest] = subtitle.split(' · ');
-    const movementLabel = movementType
-      ? getInventoryMovementTypeLabel(movementType)
-      : null;
-
-    return movementType
-      ? [
-          movementLabel === movementType
-            ? 'Движение расходников'
-            : movementLabel,
-          ...rest,
-        ]
-          .filter(Boolean)
-          .join(' · ')
-      : subtitle;
-  }
-
-  if (item.approvalType === 'object_change_confirmation') {
-    const objectName = getStringValue(item.payloadSnapshot, 'objectName');
-    const currentStatus = getStringValue(
-      item.payloadSnapshot,
-      'currentStatus',
-    );
-    const requestedStatus = getStringValue(
-      item.payloadSnapshot,
-      'requestedStatus',
-    );
-
-    if (objectName && currentStatus && requestedStatus) {
-      return (
-        objectName +
-        ' · ' +
-        getObjectStatusLabel(currentStatus) +
-        ' → ' +
-        getObjectStatusLabel(requestedStatus)
-      );
-    }
-  }
-
-  return subtitle;
-}
-
-function getStringValue(
-  payload: Record<string, unknown>,
-  key: string,
-): string | null {
-  const value = payload[key];
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function getNumberValue(
@@ -700,6 +618,8 @@ export default function ApprovalsPage(): React.JSX.Element {
           >
             {pageItems.map((item) => {
               const subtitle = getApprovalSubtitle(item);
+              const title = getApprovalTitle(item);
+              const typeLabel = getApprovalTypeLabel(item.approvalType);
               const isSelected = item.id === selectedId;
 
               return (
@@ -717,7 +637,7 @@ export default function ApprovalsPage(): React.JSX.Element {
                 >
                   <span className={styles.queueRowTop}>
                     <strong className={styles.queueTitle}>
-                      {getApprovalTitle(item)}
+                      {title}
                     </strong>
                     <ApprovalStatusBadge status={item.status} />
                   </span>
@@ -726,9 +646,9 @@ export default function ApprovalsPage(): React.JSX.Element {
                       {subtitle}
                     </span>
                   ) : null}
-                  <span className={styles.queueType}>
-                    {getApprovalTypeLabel(item.approvalType)}
-                  </span>
+                  {typeLabel !== title ? (
+                    <span className={styles.queueType}>{typeLabel}</span>
+                  ) : null}
                   <span className={styles.queueMeta}>
                     <span>{getUserDisplayName(item.createdBy)}</span>
                     <time dateTime={item.createdAt}>
@@ -965,7 +885,29 @@ function ApprovalDetail({
             </Button>
           ) : null}
         </div>
+      ) : item.status === 'pending' ? (
+        <Alert tone="info" title="Решение принимает другой участник">
+          {getApprovalResolverHint(item.approvalType)}
+        </Alert>
       ) : null}
     </div>
+  );
+}
+
+const APPROVAL_RESOLVER_HINTS: Record<string, string> = {
+  inventory_exception_confirmation:
+    'Выдачу расходников на объект без фото подтверждает только директор.',
+  accountability_closure_confirmation:
+    'Закрытие подотчёта подтверждает сотрудник с правом согласования расходов.',
+  manual_timesheet_exception_confirmation:
+    'Ручную правку табеля подтверждает руководитель с правом корректировки табеля.',
+  one_time_manager_availability:
+    'Доступность менеджера подтверждает сотрудник с правом согласования календаря разовых заказов.',
+};
+
+function getApprovalResolverHint(approvalType: string): string {
+  return (
+    APPROVAL_RESOLVER_HINTS[approvalType] ??
+    'У вас нет прав на решение по этому запросу. Он останется в очереди, пока его не рассмотрит ответственный.'
   );
 }

@@ -1986,6 +1986,7 @@ export default function ChatsPage(): React.JSX.Element {
                     type="button"
                     onClick={() => selectRoom(room.id)}
                   >
+                    <UserAvatar fullName={getRoomDisplayTitle(room)} size="medium" decorative />
                     <span className={styles.chatRoomItemMain}>
                       <strong>{getRoomDisplayTitle(room)}</strong>
                       <span>

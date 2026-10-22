@@ -28,10 +28,9 @@ import {
   formatInventoryQuantity,
   INVENTORY_MOVEMENT_TYPE_OPTIONS,
 } from '@/shared/lib/inventory-presentation';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Alert, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Button, FactStrip, LoadingState, StatusBadge, Surface } from '@/shared/ui/foundation';
 import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -288,17 +287,17 @@ export default function InventoryItemDetailPage({
 
   return (
     <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
-      <PageTitle title={item ? item.name : 'Карточка расходника'} />
+      <BackLink href="/inventory">Расходники</BackLink>
 
       {isLoading ? (
-        <Surface padding="md">Загрузка...</Surface>
+        <LoadingState label="Загружаем позицию…" />
       ) : error ? (
         <Alert tone="danger" role="alert">
           {error}
         </Alert>
       ) : item ? (
         <div className="ui-stack ui-stack--lg">
-          <Surface padding="md" className="hero-card" style={{ display: 'grid', gap: 18 }}>
+          <Surface padding="md" className="hero-card ui-stack ui-stack--lg">
             <div className="ui-section-header">
               <div>
                 <div className="hero-title">{item.name}</div>
@@ -363,32 +362,17 @@ export default function InventoryItemDetailPage({
               </div>
             </div>
 
-            <div className="summary-grid">
-              <div className="summary-card">
-                <span>Все движения</span>
-                <strong>{item.summary.movementsCount}</strong>
-              </div>
-              <div className="summary-card">
-                <span>Приходы</span>
-                <strong>{item.summary.receiptsCount}</strong>
-              </div>
-              <div className="summary-card">
-                <span>Выдачи</span>
-                <strong>{item.summary.issuesCount}</strong>
-              </div>
-              <div className="summary-card">
-                <span>Возвраты</span>
-                <strong>{item.summary.returnsCount}</strong>
-              </div>
-              <div className="summary-card">
-                <span>Списания</span>
-                <strong>{item.summary.writeoffsCount}</strong>
-              </div>
-              <div className="summary-card">
-                <span>Корректировки</span>
-                <strong>{item.summary.adjustmentsCount}</strong>
-              </div>
-            </div>
+            <FactStrip
+              aria-label="Движения по позиции"
+              items={[
+                { key: 'all', label: 'Все движения', value: item.summary.movementsCount },
+                { key: 'receipts', label: 'Приходы', value: item.summary.receiptsCount },
+                { key: 'issues', label: 'Выдачи', value: item.summary.issuesCount },
+                { key: 'returns', label: 'Возвраты', value: item.summary.returnsCount },
+                { key: 'writeoffs', label: 'Списания', value: item.summary.writeoffsCount },
+                { key: 'adjustments', label: 'Корректировки', value: item.summary.adjustmentsCount },
+              ]}
+            />
 
             <div className="ui-detail-field">
               <div className="ui-detail-label">Примечание</div>

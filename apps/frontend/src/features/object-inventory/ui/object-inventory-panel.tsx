@@ -1,5 +1,6 @@
 'use client';
 
+import { PlusIcon } from '@/shared/ui/icons/icons';
 import Link from 'next/link';
 import React, { useState } from 'react';
 
@@ -167,7 +168,7 @@ export function ObjectInventoryPanel({
           </Stack>
 
           {availableItems.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? (
-            <Button onClick={addLine} disabled={isSaving}>+ Добавить позицию</Button>
+            <Button onClick={addLine} disabled={isSaving} icon={<PlusIcon />}>Добавить позицию</Button>
           ) : null}
           <div className={styles.emptyState}>Каждая позиция попадёт в журнал отдельным движением с собственным остатком и историей.</div>
 

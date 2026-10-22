@@ -424,6 +424,11 @@
 
 .triplet > button,
 .peopleGrid > button {
+  height: auto;
+  justify-content: stretch;
+  justify-items: start;
+  white-space: normal;
+  text-align: left;
   cursor: pointer;
 }
 

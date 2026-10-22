@@ -99,8 +99,8 @@ export function EquipmentListTable({
 
   return (
     <>
-      {eligibleItems.length > 0 ? (
-        <form className="ui-surface ui-surface--padded" style={{ display: 'grid', gap: 12 }} onSubmit={submitWriteoff}>
+      {eligibleItems.length > 0 && (selectedIds.length > 0 || writeoffSuccess) ? (
+        <form className="ui-surface ui-surface--padded ui-stack ui-stack--md" onSubmit={submitWriteoff}>
           <div className="ui-section-header">
             <div>
               <div className="ui-section-title">Пакетное списание оборудования</div>
@@ -123,7 +123,7 @@ export function EquipmentListTable({
               <Button variant="primary" type="submit" disabled={isWritingOff || !writeoffReason.trim()}>{isWritingOff ? 'Создаём согласования…' : `Отправить на согласование · ${selectedIds.length}`}</Button>
               <Button disabled={isWritingOff} onClick={() => setSelectedIds([])}>Снять выбор</Button>
             </div>
-          </> : <div className="ui-text-muted">Отметьте единицы оборудования с доступным правом списания.</div>}
+          </> : writeoffSuccess ? <Alert tone="success" role="status">{writeoffSuccess}</Alert> : null}
         </form>
       ) : null}
       <DataTable

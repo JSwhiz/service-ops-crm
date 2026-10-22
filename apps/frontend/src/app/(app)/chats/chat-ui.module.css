@@ -1890,3 +1890,39 @@
     font-size: 12px;
   }
 }
+
+/* Room list: avatar + hairline separators between rooms (hidden around the active/hovered row). */
+.chatRoomList > .chatRoomItem {
+  position: relative;
+  min-height: 60px;
+  gap: 10px;
+}
+
+.chatRoomList > .chatRoomItem + .chatRoomItem::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: 10px;
+  left: 56px;
+  height: 1px;
+  background: var(--ui-border);
+}
+
+.chatRoomList > .chatRoomItem:hover::before,
+.chatRoomList > .chatRoomItem:hover + .chatRoomItem::before,
+.chatRoomList > .chatRoomItemActive::before,
+.chatRoomList > .chatRoomItemActive + .chatRoomItem::before {
+  opacity: 0;
+}
+
+.chatRoomItemMain {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.chatRoomList .chatRoomItemMain > span {
+  color: var(--ui-text-tertiary);
+  font-size: 12.5px;
+  font-weight: 450;
+}

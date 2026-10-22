@@ -13,6 +13,9 @@ body {
 
 body {
   min-height: 100vh;
+  /* Base text size for content that does not set its own: matches the 14 px used by controls and tables. */
+  font-size: var(--ui-text-md);
+  line-height: var(--ui-leading-normal);
 }
 
 a {
@@ -1306,4 +1309,17 @@ tbody tr:hover {
   gap: 10px;
   padding-top: 14px;
   border-top: 1px solid var(--ui-border);
+}
+
+/* Numeric fields are typed, not stepped: hide the spinner arrows everywhere. */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
 }

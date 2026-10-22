@@ -6,7 +6,7 @@
 
 | # | Источник | Что в нём | Владелец |
 |---|----------|-----------|----------|
-| 1 | `app/globals.css` (~1.3k строк) | Базовые стили тегов (reset, `html/body`, `a`, нативные `button/input/textarea`), оформление `searchable-select`, классы, которые читают DOM-запросы (`chat-message`, `chat-room-menu`, `timesheet-object-detail`…) или стилизуют чужие модули через `:global()` (вложения, уведомления, реестр объектов) | общий |
+| 1 | `app/globals.css` (~1.3k строк) | Базовые стили тегов (reset, `html/body` — базовый размер текста 14 px, у `input[type=number]` скрыты стрелки, `a`, нативные `button/input/textarea`), оформление `searchable-select`, классы, которые читают DOM-запросы (`chat-message`, `chat-room-menu`, `timesheet-object-detail`…) или стилизуют чужие модули через `:global()` (вложения, уведомления, реестр объектов) | общий |
 | 2 | `shared/styles/design-tokens.css` | Только `--ui-*` токены | дизайн-система |
 | 3 | `shared/styles/ui-foundation.css` | Классы `.ui-*` компонентов foundation и утилиты раскладки (`ui-page`, `ui-inline`, `ui-section-*`, `ui-detail-*`, `ui-text-muted`, `ui-surface--padded/compact`). Утилиты и `Surface` объявлены через `:where()` — нулевая специфичность, любой класс раздела их переопределяет | дизайн-система |
 | 4 | `shared/styles/app-shell.css` | Сайдбар, шапка, область контента | shell |
@@ -34,6 +34,7 @@
 | Сообщение | `Alert` | `.inline-notice`, красный inline-текст |
 | Подтверждение / причина | `ConfirmDialog`, `ReasonDialog`, `useConfirm()`, `useReasonPrompt()` | `window.confirm/prompt/alert` |
 | Карточка / секция | `Surface padding="md"` (`as="section"`…); элемент списка — `padding="sm"`; для `<form>`, `<details>`, `Link` — классы `ui-surface ui-surface--padded` | `.page-card`, `.workspace-surface`, `.record-card` |
+| Возврат к родителю (подстраницы, карточки) | `BackLink` над контентом, без отдельного крупного заголовка | `PageTitle` в карточке сущности |
 | Тело страницы | `className="ui-page"` / `Stack` | `.page-stack`, `.workspace-page` |
 | Заголовок секции | `ui-section-header`, `ui-section-title`, `ui-section-subtitle` | `.section-*` |
 | Подпись — значение | `FactStrip` (полоса фактов) или `ui-detail-grid/field/label/value` | `.detail-*` |

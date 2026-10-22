@@ -330,7 +330,7 @@ export default function AccountabilityPage(): React.JSX.Element {
   if (!canAccessAccountability) {
     return (
       <>
-        <PageTitle title="Подотчет" />
+        <PageTitle title="Подотчёт" />
         <Surface padding="md">У вас нет доступа к модулю подотчета.</Surface>
       </>
     );
@@ -338,7 +338,7 @@ export default function AccountabilityPage(): React.JSX.Element {
 
   return (
     <>
-      <PageTitle title="Подотчет" />
+      <PageTitle title="Подотчёт" />
 
       <div className={`ui-page ${accountabilityStyles.accountabilityWorkspace}`}>
         {actionError ? (

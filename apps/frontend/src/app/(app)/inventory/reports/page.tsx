@@ -16,8 +16,7 @@ import { InventoryItemListTable } from '@/features/inventory-item-list/ui/invent
 import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inventory-movement-list';
 import { InventoryReportSummary } from '@/features/inventory-report/ui/inventory-report-summary';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { Alert, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, LoadingState, Surface } from '@/shared/ui/foundation';
 import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -90,12 +89,12 @@ export default function InventoryReportsPage(): React.JSX.Element {
 
   return (
     <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
-      <PageTitle title="Отчеты по расходникам" />
+      <BackLink href="/inventory">Расходники</BackLink>
 
       {!canAccessInventory || !canViewInventoryReports ? (
         <Surface padding="md">У вас нет доступа к inventory-отчетам.</Surface>
       ) : isLoading ? (
-        <Surface padding="md">Загрузка...</Surface>
+        <LoadingState label="Собираем отчёт…" />
       ) : error ? (
         <Alert tone="danger" role="alert">
           {error}

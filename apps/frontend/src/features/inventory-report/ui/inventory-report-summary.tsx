@@ -2,6 +2,8 @@
 
 import React from 'react';
 
+import { FactStrip } from '@/shared/ui/foundation';
+
 export function InventoryReportSummary({
   totalItems,
   totalActiveItems,
@@ -15,25 +17,16 @@ export function InventoryReportSummary({
   totalStockValueEstimate: number;
   missingPhotoBridgeCount: number;
 }): React.JSX.Element {
-  const cards = [
-    { label: 'Всего позиций', value: totalItems },
-    { label: 'Активных позиций', value: totalActiveItems },
-    { label: 'Всего движений', value: movementCount },
-    {
-      label: 'Оценка остатка',
-      value: `${totalStockValueEstimate.toLocaleString('ru-RU')} ₽`,
-    },
-    { label: 'Без фото — ждут согласования', value: missingPhotoBridgeCount },
-  ];
-
   return (
-    <div className="stat-grid">
-      {cards.map((card) => (
-        <div key={card.label} className="stat-card">
-          <div className="ui-detail-label">{card.label}</div>
-          <div className="stat-card__value">{card.value}</div>
-        </div>
-      ))}
-    </div>
+    <FactStrip
+      aria-label="Сводка по расходникам"
+      items={[
+        { key: 'items', label: 'Всего позиций', value: totalItems },
+        { key: 'active', label: 'Активных позиций', value: totalActiveItems },
+        { key: 'movements', label: 'Всего движений', value: movementCount },
+        { key: 'value', label: 'Оценка остатка', value: `${totalStockValueEstimate.toLocaleString('ru-RU')} ₽` },
+        { key: 'bridge', label: 'Без фото — ждут согласования', value: missingPhotoBridgeCount },
+      ]}
+    />
   );
 }

@@ -22,8 +22,7 @@ import { EquipmentMovementPanel } from '@/features/equipment-card/ui/equipment-m
 import {
   getEquipmentStatusLabel,
 } from '@/shared/lib/equipment-presentation';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { Alert, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Button, LoadingState, StatusBadge, Surface } from '@/shared/ui/foundation';
 import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -134,19 +133,17 @@ export default function EquipmentDetailPage({
 
   return (
     <div className={`ui-page ${inventoryStyles.equipmentWorkspace}`}>
-      <PageTitle
-        title={unit ? `${unit.catalogItem.name} · ${unit.inventoryNumber}` : 'Оборудование'}
-      />
+      <BackLink href="/equipment">Оборудование</BackLink>
 
       {isLoading ? (
-        <Surface padding="md">Загрузка...</Surface>
+        <LoadingState label="Загружаем оборудование…" />
       ) : error ? (
         <Alert tone="danger" role="alert">
           {error}
         </Alert>
       ) : unit ? (
         <div className="ui-stack ui-stack--lg">
-          <Surface padding="md" className="hero-card" style={{ display: 'grid', gap: 18 }}>
+          <Surface padding="md" className="hero-card ui-stack ui-stack--lg">
             <div className="ui-section-header">
               <div>
                 <div className="hero-title">{unit.catalogItem.name}</div>

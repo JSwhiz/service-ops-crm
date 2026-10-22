@@ -58,14 +58,14 @@ export default function ObjectHistoryPage({
 
   return (
     <div className={`ui-page object-history-page ${styles.page}`}>
+      <BackLink href={objectId ? `/objects/${objectId}` : '/objects'}>
+        {item?.name ?? 'К объекту'}
+      </BackLink>
       <header className={styles.historyHeader}>
         <div className={styles.historyHeading}>
           <span className={styles.historyEyebrow}>История изменений</span>
           <h1 className={styles.historyTitle}>{item?.name ?? 'Объект'}</h1>
         </div>
-        <BackLink href={objectId ? `/objects/${objectId}` : '/objects'}>
-          К объекту
-        </BackLink>
       </header>
 
       {isLoading ? (

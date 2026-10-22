@@ -462,6 +462,18 @@ a.ui-button--primary:hover {
   margin-left: -2px;
 }
 
+.ui-button > svg:not([width]),
+.ui-icon-button > svg:not([width]) {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.ui-icon-button > svg:not([width]) {
+  width: 18px;
+  height: 18px;
+}
+
 .ui-button__icon > svg {
   width: 100%;
   height: 100%;

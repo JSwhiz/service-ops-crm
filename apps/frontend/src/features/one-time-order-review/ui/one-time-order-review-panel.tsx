@@ -122,7 +122,7 @@ export function OneTimeOrderReviewPanel({
         </form>
       ) : (
         <div className="ui-inline" style={{ justifyContent: 'space-between' }}>
-          <div>{item.reviewText ?? 'Отзыв пока не заполнен.'}</div>
+          <div className={item.reviewText ? undefined : 'ui-text-muted'}>{item.reviewText ?? 'Отзыв пока не заполнен.'}</div>
           {item.capabilities.canEditReview ? (
             <Button onClick={() => setIsEditing(true)}>
               {hasReview ? 'Изменить отзыв' : 'Добавить отзыв'}

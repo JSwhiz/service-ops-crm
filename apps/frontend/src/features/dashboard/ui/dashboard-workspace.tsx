@@ -1,5 +1,6 @@
 'use client';
 
+import { getApprovalSubtitle, getApprovalTitle } from '@/entities/approval/model/approval-summary';
 import Link from 'next/link';
 import React, { useEffect, useMemo, useState } from 'react';
 
@@ -43,7 +44,7 @@ function buildAttention(approvals: ApprovalRequestItem[], tasks: TaskItem[]): Ar
   const today = dateKey(new Date());
   const rows = [
     ...tasks.filter((task) => task.isOverdue && task.status !== 'completed').map((task) => ({ id:`task-overdue-${task.id}`, href:`/tasks/${task.id}`, badge:'Просрочено', tone:'danger' as const, title:task.title, subtitle:task.targetName || 'Без привязки', date:formatDate(task.dueAt) })),
-    ...approvals.map((item) => ({ id:`approval-${item.id}`, href:'/approvals', badge:'Согласование', tone:'warning' as const, title:item.summary.title, subtitle:item.summary.subtitle ?? 'Ожидает решения', date:formatDate(item.createdAt) })),
+    ...approvals.map((item) => ({ id:`approval-${item.id}`, href:'/approvals', badge:'Согласование', tone:'warning' as const, title:getApprovalTitle(item), subtitle:getApprovalSubtitle(item) ?? 'Ожидает решения', date:formatDate(item.createdAt) })),
     ...tasks.filter((task) => !task.isOverdue && task.dueAt && dateKey(new Date(task.dueAt)) === today && task.status !== 'completed').map((task) => ({ id:`task-today-${task.id}`, href:`/tasks/${task.id}`, badge:'Сегодня', tone:'warning' as const, title:task.title, subtitle:task.targetName || 'Без привязки', date:'Сегодня' })),
     ...tasks.filter((task) => task.status === 'awaiting_confirmation' && !task.isOverdue).map((task) => ({ id:`task-confirm-${task.id}`, href:`/tasks/${task.id}`, badge:'Подтверждение', tone:'neutral' as const, title:task.title, subtitle:task.targetName || 'Без привязки', date:formatDate(task.dueAt) })),
   ];

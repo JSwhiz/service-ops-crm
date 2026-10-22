@@ -127,7 +127,7 @@ export function AppSidebar({ expanded, onToggle }: AppSidebarProps): React.JSX.E
           {canAccessOneTimeOrders || canViewOneTimeOrderReviews ? (
             <NavLink href="/one-time-orders" label="Разовые заказы" icon={<Icon name="orders" />} />
           ) : null}
-          {canAccessAccountability ? <NavLink href="/accountability" label="Подотчет" icon={<Icon name="accountability" />} /> : null}
+          {canAccessAccountability ? <NavLink href="/accountability" label="Подотчёт" icon={<Icon name="accountability" />} /> : null}
           {canAccessInventory ? <NavLink href="/inventory" label="Расходники" icon={<Icon name="inventory" />} /> : null}
           <NavLink href="/rubber-mats" label="Ковры" icon={<Icon name="mats" />} />
           {canAccessEquipment ? <NavLink href="/equipment" label="Оборудование" icon={<Icon name="equipment" />} /> : null}

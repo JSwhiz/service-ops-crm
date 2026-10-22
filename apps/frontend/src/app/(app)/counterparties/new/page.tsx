@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { createCounterparty } from '@/entities/counterparty/api/counterparty-client';
 import { useAuth } from '@/shared/auth/use-auth';
 
+import { PageTitle } from '@/shared/ui/page-title/page-title';
 import styles from '../counterparties.module.css';
 import { Button, Surface } from '@/shared/ui/foundation';
 
@@ -32,8 +33,9 @@ export default function NewCounterpartyPage(): React.JSX.Element {
 
   return (
     <div className={`ui-page counterparty-workspace ${styles.page} ${styles.createPage}`}>
+      <PageTitle title="Новый контрагент" />
       <form
-        className={styles.createForm}
+        className={`ui-surface ui-surface--padded ${styles.createForm}`}
         onSubmit={(event) => {
           event.preventDefault();
           setSaving(true);
@@ -56,7 +58,7 @@ export default function NewCounterpartyPage(): React.JSX.Element {
             .finally(() => setSaving(false));
         }}
       >
-        <h1 className={styles.createTitle}>Основные данные</h1>
+        <h2 className={styles.createTitle}>Основные данные</h2>
         <div className={styles.formFields}>
           <label>
             <span>Название <b aria-hidden="true">*</b></span>

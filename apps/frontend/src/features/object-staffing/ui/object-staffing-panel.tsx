@@ -497,6 +497,8 @@ export function ObjectStaffingPanel({
                   </span>
                   {canManageRatePolicy && onUpdateRatePolicy ? (
                     <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={() => setEditingRateEmployee(employee)}
                     >
                       Настроить расчет
