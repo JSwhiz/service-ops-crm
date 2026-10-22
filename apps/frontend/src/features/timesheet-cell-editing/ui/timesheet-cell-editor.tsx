@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 
 import { Button, IconButton } from '@/shared/ui/foundation';
 import { CloseIcon } from '@/shared/ui/icons/icons';
+import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
 
 export interface TimesheetCellMutation {
   objectId: string;
@@ -271,7 +272,7 @@ export function TimesheetCellEditor({
       <button
         ref={triggerRef}
         type="button"
-        className={`timesheet-cell-trigger${selected ? ' is-selected' : ''}${isChangedManually ? ' is-manual' : ''}${!isEditableDate ? ' is-locked' : ''}`}
+        className={`${timesheetStyles.timesheetCellTrigger}${selected ? ' is-selected' : ''}${isChangedManually ? ' is-manual' : ''}${!isEditableDate ? ' is-locked' : ''}`}
         aria-label={`${employeeName}, ${dayOfMonth}.${month}.${year}: ${formatMoney(finalValue)}`}
         aria-describedby={editorOpen ? editorId : undefined}
         aria-pressed={selected}
@@ -290,7 +291,7 @@ export function TimesheetCellEditor({
 
       {menuPoint && typeof document !== 'undefined'
         ? createPortal(
-            <div ref={menuRef} className="timesheet-cell-menu" style={menuPoint} role="menu">
+            <div ref={menuRef} className={timesheetStyles.timesheetCellMenu} style={menuPoint} role="menu">
               {canMutate ? (
                 <Button role="menuitem" onClick={openEditor}>
                   {canDirectEdit ? 'Изменить выплату' : 'Запросить корректировку'}
@@ -313,7 +314,7 @@ export function TimesheetCellEditor({
                 </Button>
               ) : null}
               {!isEditableDate ? (
-                <div className="timesheet-cell-menu__hint">
+                <div className={timesheetStyles.timesheetCellMenuHint}>
                   Корректировка недоступна для закрытого или будущего периода.
                 </div>
               ) : null}
@@ -327,19 +328,19 @@ export function TimesheetCellEditor({
             <div
               ref={editorRef}
               id={editorId}
-              className="timesheet-cell-editor"
+              className={timesheetStyles.timesheetCellEditor}
               style={editorPoint}
               role="dialog"
               aria-modal="false"
               aria-label="Корректировка выплаты"
             >
-              <div className="timesheet-cell-editor__header">
+              <div className={timesheetStyles.timesheetCellEditorHeader}>
                 <div>
                   <strong>{employeeName}</strong>
                   <span>{objectName} · {dayOfMonth}.{String(month).padStart(2, '0')}.{year}</span>
                 </div>
                 <IconButton
-                  className="timesheet-cell-editor__close"
+                  className={timesheetStyles.timesheetCellEditorClose}
                   onClick={closeInteraction}
                   aria-label="Закрыть редактор"
                 >
@@ -347,12 +348,12 @@ export function TimesheetCellEditor({
                 </IconButton>
               </div>
 
-              <div className="timesheet-cell-editor__summary">
+              <div className={timesheetStyles.timesheetCellEditorSummary}>
                 <span>Текущая выплата</span>
                 <strong>{formatMoney(finalValue)}</strong>
               </div>
 
-              <label className="timesheet-cell-editor__field">
+              <label className={timesheetStyles.timesheetCellEditorField}>
                 <span>{canDirectEdit ? 'Новая выплата' : 'Запросить выплату'}</span>
                 <input
                   type="number"
@@ -365,7 +366,7 @@ export function TimesheetCellEditor({
                 />
               </label>
 
-              <label className="timesheet-cell-editor__field">
+              <label className={timesheetStyles.timesheetCellEditorField}>
                 <span>
                   Причина {Number(value) === autoValue ? '(не требуется при возврате к авторасчёту)' : ''}
                 </span>
@@ -377,17 +378,17 @@ export function TimesheetCellEditor({
                 />
               </label>
 
-              {message ? <div className="timesheet-cell-editor__message">{message}</div> : null}
+              {message ? <div className={timesheetStyles.timesheetCellEditorMessage}>{message}</div> : null}
 
-              <div className="timesheet-cell-editor__actions">
-                <div className="timesheet-cell-editor__actions-left">
+              <div className={timesheetStyles.timesheetCellEditorActions}>
+                <div className={timesheetStyles.timesheetCellEditorActionsLeft}>
                   {canDirectEdit && isChangedManually && finalValue !== autoValue ? (
                     <Button variant="ghost" size="sm" onClick={() => void restoreAuto()} disabled={saving}>
                       Вернуть авторасчёт
                     </Button>
                   ) : null}
                 </div>
-                <div className="timesheet-cell-editor__actions-right">
+                <div className={timesheetStyles.timesheetCellEditorActionsRight}>
                   <Button size="sm" onClick={closeInteraction} disabled={saving}>
                     Отмена
                   </Button>

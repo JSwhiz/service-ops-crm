@@ -10,6 +10,7 @@ import { useAuth } from '@/shared/auth/use-auth';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { Alert, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -82,7 +83,7 @@ export default function EquipmentPage(): React.JSX.Element {
       {!canAccessEquipment ? (
         <Surface padding="md">У вас нет доступа к equipment-модулю.</Surface>
       ) : (
-        <div className="ui-page equipment-workspace">
+        <div className={`ui-page ${inventoryStyles.equipmentWorkspace}`}>
           <RegistryToolbar
             searchValue={search}
             searchLabel="Поиск по оборудованию"

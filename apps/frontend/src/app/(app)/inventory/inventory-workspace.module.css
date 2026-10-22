@@ -1,0 +1,79 @@
+/* Склад и оборудование — moved from globals.css; classes are local to this module. */
+
+/* Склад и оборудование — moved from globals.css; classes are local to this module. */
+
+.inventoryWorkspace,
+.equipmentWorkspace {
+  min-width: 0;
+}
+
+.inventoryWorkspace :global(.ui-surface--padded),
+.equipmentWorkspace :global(.ui-surface--padded) {
+  border-color: var(--ui-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(53 41 32 / 3%);
+}
+
+.inventoryWorkspace :global(.ui-surface--padded):hover,
+.equipmentWorkspace :global(.ui-surface--padded):hover {
+  border-color: var(--ui-border);
+  box-shadow: 0 5px 16px rgb(53 41 32 / 5%);
+}
+
+.inventoryWorkspace :global(.filter-panel),
+.equipmentWorkspace :global(.filter-panel) {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  align-items: end;
+  padding: 16px;
+}
+
+.inventoryWorkspace :global(.filter-panel) label,
+.equipmentWorkspace :global(.filter-panel) label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.inventoryWorkspace :global(.filter-panel) :global(.ui-detail-label),
+.equipmentWorkspace :global(.filter-panel) label > div {
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.inventoryWorkspace input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.inventoryWorkspace select,
+.inventoryWorkspace textarea,
+.equipmentWorkspace input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.equipmentWorkspace select,
+.equipmentWorkspace textarea {
+  min-width: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: none;
+}
+
+.inventoryWorkspace input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.inventoryWorkspace select:focus,
+.inventoryWorkspace textarea:focus,
+.equipmentWorkspace input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.equipmentWorkspace select:focus,
+.equipmentWorkspace textarea:focus {
+  border-color: var(--ui-focus-border);
+  outline: var(--ui-focus-ring);
+}
+
+.inventoryWorkspace :global(.data-table-shell),
+.equipmentWorkspace :global(.data-table-shell) {
+  overflow-x: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
+}
+
+.inventoryWorkspace :global(.ui-inline) > button,
+.equipmentWorkspace :global(.ui-inline) > button {
+  min-height: 38px;
+}

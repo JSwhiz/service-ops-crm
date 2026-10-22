@@ -27,6 +27,7 @@ import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Alert, Surface } from '@/shared/ui/foundation';
+import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -171,7 +172,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
   ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
 
   return (
-    <div className="ui-page inventory-workspace">
+    <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
       <PageTitle title="Движения расходников" />
 
       {!canAccessInventory ? (

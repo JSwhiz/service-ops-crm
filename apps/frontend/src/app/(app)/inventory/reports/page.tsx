@@ -18,6 +18,7 @@ import { InventoryReportSummary } from '@/features/inventory-report/ui/inventory
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { Alert, Surface } from '@/shared/ui/foundation';
+import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -88,7 +89,7 @@ export default function InventoryReportsPage(): React.JSX.Element {
   }, [canAccessInventory, canViewInventoryReports]);
 
   return (
-    <div className="ui-page inventory-workspace">
+    <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
       <PageTitle title="Отчеты по расходникам" />
 
       {!canAccessInventory || !canViewInventoryReports ? (

@@ -14,6 +14,7 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Alert, Badge, ButtonLink, StatusBadge, Surface } from '@/shared/ui/foundation';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 const EMPTY: OneTimeOrderAttentionResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 0 };
 
@@ -63,7 +64,7 @@ export default function OneTimeOrderAttentionPage(): React.JSX.Element {
   }, [page, pageSize]);
 
   return (
-    <div className="ui-page one-time-order-registry">
+    <div className={`ui-page ${orderStyles.oneTimeOrderRegistry}`}>
       <PageTitle title="Разовые заказы" />
       <Surface padding="md" className="ui-section-header registry-header">
         <div><div className="ui-section-title">Операционный приоритет</div><div className="ui-text-muted">Просроченные → сегодня → ближайшие → без даты. Доступно: {result.total}</div></div>

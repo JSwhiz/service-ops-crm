@@ -11,6 +11,7 @@ import { DataTable } from '@/shared/ui/data-table/data-table';
 import { OneTimeOrderPreviewDrawer } from './one-time-order-preview-drawer';
 import { StatusBadge } from '@/shared/ui/foundation';
 import { SortableHeader } from '@/shared/ui/data-table/sortable-header';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 export function OneTimeOrderListTable({
   items,
@@ -34,8 +35,8 @@ export function OneTimeOrderListTable({
     <>
       <DataTable
         label="Таблица разовых заказов"
-        className="one-time-order-registry-table"
-        frameClassName="one-time-order-table-scroll"
+        className={orderStyles.oneTimeOrderRegistryTable}
+        frameClassName={orderStyles.oneTimeOrderTableScroll}
       >
         <thead>
           <tr>
@@ -63,7 +64,7 @@ export function OneTimeOrderListTable({
             return (
               <tr
                 key={item.id}
-                className="one-time-order-preview-row"
+                className={orderStyles.oneTimeOrderPreviewRow}
                 tabIndex={0}
                 aria-label={`Быстрый просмотр заказа ${item.title}`}
                 onClick={() => setPreviewItem(item)}
@@ -77,14 +78,14 @@ export function OneTimeOrderListTable({
               >
                 <td data-label="Заказ">
                   <Link href={href} onClick={(event) => event.stopPropagation()}><strong>{item.title}</strong></Link>
-                  <span className="one-time-order-table-meta">
+                  <span className={orderStyles.oneTimeOrderTableMeta}>
                     {item.contact.name}
                     {item.contact.phone ? ` · ${item.contact.phone}` : ''}
                   </span>
                 </td>
                 <td data-label="Даты">
                   <span
-                    className="one-time-order-execution-date"
+                    className={orderStyles.oneTimeOrderExecutionDate}
                     title={formatExecutionRangeFull(
                       item.executionStartDate,
                       item.executionEndDate,
@@ -96,7 +97,7 @@ export function OneTimeOrderListTable({
                     )}
                   </span>
                   {executionDateMeta ? (
-                    <span className="one-time-order-table-meta">
+                    <span className={orderStyles.oneTimeOrderTableMeta}>
                       {executionDateMeta}
                     </span>
                   ) : null}
@@ -125,7 +126,7 @@ export function OneTimeOrderListTable({
                 </td>
                 <td data-label="ТЗ">
                   <span
-                    className="one-time-order-specification-progress"
+                    className={orderStyles.oneTimeOrderSpecificationProgress}
                     data-complete={item.specificationProgress.total > 0 && item.specificationProgress.completed >= item.specificationProgress.total}
                     title={`Выполнено пунктов ТЗ: ${item.specificationProgress.completed} из ${item.specificationProgress.total}`}
                   >
@@ -136,15 +137,15 @@ export function OneTimeOrderListTable({
                 </td>
                 <td data-label="Задачи">{item.accessibleTaskCount}</td>
                 <td data-label="Отзыв">
-                  <span className="one-time-order-review-preview" title={item.reviewPreview ?? undefined}>
+                  <span className={orderStyles.oneTimeOrderReviewPreview} title={item.reviewPreview ?? undefined}>
                     {item.reviewPreview || '—'}
                   </span>
                 </td>
                 <td data-label="">
-                  <div className="one-time-order-table-actions">
+                  <div className={orderStyles.oneTimeOrderTableActions}>
                     <Link
                       href={href}
-                      className="one-time-order-preview-trigger"
+                      className={orderStyles.oneTimeOrderPreviewTrigger}
                       aria-label={`Открыть заказ ${item.title} полностью`}
                       title="Открыть полную карточку"
                       onClick={(event) => event.stopPropagation()}

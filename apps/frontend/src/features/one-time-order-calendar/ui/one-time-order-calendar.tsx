@@ -33,6 +33,7 @@ import { Button, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 import { useConfirm } from '@/shared/ui/overlays';
+import calendarStyles from '@/features/one-time-order-calendar/ui/one-time-order-calendar.module.css';
 
 const AVAILABILITY_OPTIONS: Array<{
   value: OneTimeOrderAvailabilityType;
@@ -157,7 +158,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   const scrollTodayIntoView = (): void => {
     window.requestAnimationFrame(() => {
       const root = calendarRootRef.current;
-      const grid = root?.querySelector<HTMLElement>('.one-time-calendar__grid-shell');
+      const grid = root?.querySelector<HTMLElement>(`.${calendarStyles.oneTimeCalendarGridShell}`);
       const desktopToday = grid?.querySelector<HTMLElement>('[data-today="true"]');
       if (grid && desktopToday && grid.clientWidth > 0 && grid.getClientRects().length > 0) {
         grid.scrollLeft = Math.max(
@@ -167,7 +168,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
         return;
       }
       root
-        ?.querySelector<HTMLElement>('.one-time-calendar__mobile [data-today="true"]')
+        ?.querySelector<HTMLElement>(`.${calendarStyles.oneTimeCalendarMobile} [data-today="true"]`)
         ?.scrollIntoView({ block: 'center', behavior: 'auto' });
     });
   };
@@ -380,10 +381,10 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
         })) ?? [];
 
   return (
-    <div className="one-time-calendar" ref={calendarRootRef}>
+    <div className={calendarStyles.oneTimeCalendar} ref={calendarRootRef}>
       {confirmDialog}
-      <Surface padding="md" className="filter-panel one-time-calendar__toolbar">
-        <div className="one-time-calendar__month-nav">
+      <Surface padding="md" className={`filter-panel ${calendarStyles.oneTimeCalendarToolbar}`}>
+        <div className={calendarStyles.oneTimeCalendarMonthNav}>
           <MonthPeriodPicker
             year={Number(month.slice(0, 4))}
             month={Number(month.slice(5, 7))}
@@ -394,7 +395,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             }
           />
         </div>
-        <div className="one-time-calendar__manager-filter">
+        <div className={calendarStyles.oneTimeCalendarManagerFilter}>
           <SearchableSelect
             label="Чей календарь"
             value={managerUserId}
@@ -431,7 +432,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             </Button>
           ) : null}
         </div>
-        <div className="ui-inline one-time-calendar__actions">
+        <div className={`ui-inline ${calendarStyles.oneTimeCalendarActions}`}>
           <Button
             disabled={isExporting}
             onClick={() => {
@@ -475,27 +476,27 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
         </div>
       </Surface>
 
-      <div className="one-time-calendar__legend" aria-label="Обозначения календаря">
+      <div className={calendarStyles.oneTimeCalendarLegend} aria-label="Обозначения календаря">
         {AVAILABILITY_OPTIONS.map((option) => (
           <span key={option.value} data-availability={option.value}>
             {option.label}
           </span>
         ))}
-        <span className="one-time-calendar__legend-warning">Конфликт расписания</span>
+        <span className={calendarStyles.oneTimeCalendarLegendWarning}>Конфликт расписания</span>
       </div>
 
-      {error ? <Surface padding="md" className="one-time-calendar__error">{error}</Surface> : null}
+      {error ? <Surface padding="md" className={calendarStyles.oneTimeCalendarError}>{error}</Surface> : null}
       {isLoading ? (
         <Surface padding="md">Загрузка календаря...</Surface>
       ) : !calendar || calendar.managers.length === 0 ? (
         <Surface padding="md" className="ui-text-muted">Менеджеры за выбранный период не найдены.</Surface>
       ) : (
         <>
-          <Surface padding="md" className="data-table-shell one-time-calendar__grid-shell">
-            <table className="one-time-calendar__grid">
+          <Surface padding="md" className={`data-table-shell ${calendarStyles.oneTimeCalendarGridShell}`}>
+            <table className={calendarStyles.oneTimeCalendarGrid}>
               <thead>
                 <tr>
-                  <th className="one-time-calendar__manager-cell">Менеджер</th>
+                  <th className={calendarStyles.oneTimeCalendarManagerCell}>Менеджер</th>
                   {calendar.managers[0]!.days.map((day) => (
                     <th
                       key={day.date}
@@ -506,13 +507,13 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                       <strong>{Number(day.date.slice(-2))}</strong>
                     </th>
                   ))}
-                  <th className="one-time-calendar__worked-cell">Дни</th>
+                  <th className={calendarStyles.oneTimeCalendarWorkedCell}>Дни</th>
                 </tr>
               </thead>
               <tbody>
                 {calendar.managers.map((manager) => (
                   <tr key={manager.user.id}>
-                    <th className="one-time-calendar__manager-cell">
+                    <th className={calendarStyles.oneTimeCalendarManagerCell}>
                       <strong>{getUserDisplayName(manager.user)}</strong>
                       <span>{manager.isActive ? 'Активен' : 'Неактивен'}</span>
                     </th>
@@ -542,7 +543,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                         </td>
                       );
                     })}
-                    <td className="one-time-calendar__worked-cell">
+                    <td className={calendarStyles.oneTimeCalendarWorkedCell}>
                       <strong>{manager.workedDays}</strong>
                       <span>из {calendar.daysInMonth}</span>
                     </td>
@@ -553,7 +554,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
           </Surface>
 
           {mobileManager ? (
-            <div className="one-time-calendar__mobile">
+            <div className={calendarStyles.oneTimeCalendarMobile}>
               {!managerUserId && calendar.managers.length > 1 ? (
                 <div className="ui-text-muted">
                   На узком экране показан первый менеджер. Выберите нужного в фильтре.
@@ -573,7 +574,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                 <button
                   key={day.date}
                   type="button"
-                  className="one-time-calendar__mobile-day"
+                  className={calendarStyles.oneTimeCalendarMobileDay}
                   data-today={day.date === today || undefined}
                   data-conflict={day.conflictLevel !== 'none' || undefined}
                   onClick={() => {
@@ -581,11 +582,11 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                     setSelectedDay({ manager: mobileManager, day });
                   }}
                 >
-                  <span className="one-time-calendar__mobile-date">
+                  <span className={calendarStyles.oneTimeCalendarMobileDate}>
                     <strong>{formatDate(day.date, { day: 'numeric', month: 'long' })}</strong>
                     <span>{formatDate(day.date, { weekday: 'long' })}</span>
                   </span>
-                  <span className="one-time-calendar__mobile-summary">
+                  <span className={calendarStyles.oneTimeCalendarMobileSummary}>
                     {day.orders.length} заказов
                     {day.availability
                       ? ` · ${availabilityLabel(day.availability.entryType)}`
@@ -645,14 +646,14 @@ function CalendarDayContent({
   warning: string | null;
 }): React.JSX.Element {
   return (
-    <div className="one-time-calendar__day-content">
+    <div className={calendarStyles.oneTimeCalendarDayContent}>
       {day.availability ? (
-        <span className="one-time-calendar__availability" data-availability={day.availability.entryType}>
+        <span className={calendarStyles.oneTimeCalendarAvailability} data-availability={day.availability.entryType}>
           {availabilityLabel(day.availability.entryType)}
         </span>
       ) : null}
       {day.pendingRequests.length > 0 ? (
-        <span className="one-time-calendar__pending">
+        <span className={calendarStyles.oneTimeCalendarPending}>
           Ожидает согласования: {day.pendingRequests.length}
         </span>
       ) : null}
@@ -676,9 +677,9 @@ function CalendarDayContent({
         ),
       )}
       {day.orders.length > 2 ? (
-        <span className="one-time-calendar__more">Еще {day.orders.length - 2}</span>
+        <span className={calendarStyles.oneTimeCalendarMore}>Еще {day.orders.length - 2}</span>
       ) : null}
-      {warning ? <span className="one-time-calendar__warning">{warning}</span> : null}
+      {warning ? <span className={calendarStyles.oneTimeCalendarWarning}>{warning}</span> : null}
     </div>
   );
 }
@@ -722,9 +723,9 @@ function DayDetailsModal({
   const warning = conflictLabel(day.conflictLevel);
 
   return (
-    <div className="calendar-modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className={calendarStyles.calendarModalBackdrop} role="presentation" onMouseDown={onClose}>
       <div
-        className="calendar-modal"
+        className={calendarStyles.calendarModal}
         role="dialog"
         aria-modal="true"
         aria-label="Детали дня"
@@ -738,11 +739,11 @@ function DayDetailsModal({
           <Button onClick={onClose}>Закрыть</Button>
         </div>
 
-        {warning ? <div className="calendar-modal__warning">{warning}</div> : null}
-        {error ? <div className="one-time-calendar__error">{error}</div> : null}
+        {warning ? <div className={calendarStyles.calendarModalWarning}>{warning}</div> : null}
+        {error ? <div className={calendarStyles.oneTimeCalendarError}>{error}</div> : null}
 
         {day.availability ? (
-          <div className="calendar-modal__section">
+          <div className={calendarStyles.calendarModalSection}>
             <strong>{availabilityLabel(day.availability.entryType)}</strong>
             <span>
               {formatDate(day.availability.startDate)} — {formatDate(day.availability.endDate)}
@@ -763,7 +764,7 @@ function DayDetailsModal({
 
         {day.pendingRequests.map((pending) => (
           <div
-            className="calendar-modal__section calendar-modal__section--pending"
+            className={`${calendarStyles.calendarModalSection} ${calendarStyles.calendarModalSectionPending}`}
             key={pending.id}
           >
             <strong>Запрос: {availabilityLabel(pending.entryType)}</strong>
@@ -808,13 +809,13 @@ function DayDetailsModal({
           </div>
         ))}
 
-        <div className="calendar-modal__section">
+        <div className={calendarStyles.calendarModalSection}>
           <strong>Заказы: {day.orders.length}</strong>
           {day.orders.length === 0 ? <span className="ui-text-muted">Нет заказов</span> : null}
           {day.orders.map((order, index) =>
             order.relatedOrder ? (
               <Link
-                className="calendar-modal__order"
+                className={calendarStyles.calendarModalOrder}
                 key={order.relatedOrder.id}
                 href={`/one-time-orders/${order.relatedOrder.id}`}
               >
@@ -833,7 +834,7 @@ function DayDetailsModal({
               </Link>
             ) : (
               <div
-                className="calendar-modal__order calendar-modal__order--restricted"
+                className={`${calendarStyles.calendarModalOrder} calendar-modal__order--restricted`}
                 key={`restricted-${index}`}
               >
                 <strong>Занят</strong>
@@ -887,9 +888,9 @@ function AvailabilityModal({
         ? 'Добавить запись менеджеру'
         : 'Изменить запись';
   return (
-    <div className="calendar-modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <div className={calendarStyles.calendarModalBackdrop} role="presentation" onMouseDown={onClose}>
       <form
-        className="calendar-modal calendar-modal--form"
+        className={`${calendarStyles.calendarModal} ${calendarStyles.calendarModalForm}`}
         onSubmit={onSubmit}
         onMouseDown={(event) => event.stopPropagation()}
       >
@@ -897,7 +898,7 @@ function AvailabilityModal({
           <div className="ui-section-title">{title}</div>
           <Button onClick={onClose}>Закрыть</Button>
         </div>
-        {error ? <div className="one-time-calendar__error">{error}</div> : null}
+        {error ? <div className={calendarStyles.oneTimeCalendarError}>{error}</div> : null}
         {form.mode === 'direct' ? (
           <label>
             <span>Менеджер</span>
@@ -931,7 +932,7 @@ function AvailabilityModal({
             ))}
           </Select>
         </label>
-        <div className="calendar-modal__date-grid">
+        <div className={calendarStyles.calendarModalDateGrid}>
           <label>
             <span>Дата начала</span>
             <DatePicker required value={form.startDate} onChange={(nextValue) => onChange({ ...form, startDate: nextValue })} />

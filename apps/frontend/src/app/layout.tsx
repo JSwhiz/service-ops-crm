@@ -3,7 +3,6 @@ import '@/shared/styles/design-tokens.css';
 import '@/shared/styles/ui-foundation.css';
 import '@/shared/styles/app-shell.css';
 import '@/shared/styles/global-command.css';
-import '@/shared/styles/timesheet.css';
 import type { Metadata } from 'next';
 import React from 'react';
 

@@ -35,6 +35,7 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import { Alert, Button, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import accountabilityStyles from '@/features/accountability/ui/accountability-ui.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -282,7 +283,7 @@ export default function AccountabilityPage(): React.JSX.Element {
         </label>
         <label className="accountability-full-field">
           <span>Подтверждающий файл <span className="ui-text-muted">(необязательно)</span></span>
-          <input className="accountability-file-input" type="file" multiple onChange={(event) => setExternalFiles(Array.from(event.target.files ?? []))} />
+          <input className={accountabilityStyles.accountabilityFileInput} type="file" multiple onChange={(event) => setExternalFiles(Array.from(event.target.files ?? []))} />
         </label>
       </div>
       {pendingReceiptAttachments ? (
@@ -339,7 +340,7 @@ export default function AccountabilityPage(): React.JSX.Element {
     <>
       <PageTitle title="Подотчет" />
 
-      <div className="ui-page accountability-workspace">
+      <div className={`ui-page ${accountabilityStyles.accountabilityWorkspace}`}>
         {actionError ? (
           <Alert tone="danger" role="alert">
             {actionError}
@@ -357,7 +358,7 @@ export default function AccountabilityPage(): React.JSX.Element {
 
         {canOpenOwnLedger ? (
         <section
-          className="ui-stack ui-stack--lg accountability-workspace-panel"
+          className={`ui-stack ui-stack--lg ${accountabilityStyles.accountabilityWorkspacePanel}`}
           role={workspaceSections.length > 1 ? 'tabpanel' : 'region'}
           id="workspace-panel-mine"
           aria-labelledby={workspaceSections.length > 1 ? 'workspace-tab-mine' : undefined}
@@ -483,14 +484,14 @@ export default function AccountabilityPage(): React.JSX.Element {
         ) : null}
         {canReviewAccountability ? (
         <section
-          className="ui-stack ui-stack--lg accountability-workspace-panel"
+          className={`ui-stack ui-stack--lg ${accountabilityStyles.accountabilityWorkspacePanel}`}
           role={workspaceSections.length > 1 ? 'tabpanel' : 'region'}
           id="workspace-panel-accounts"
           aria-labelledby={workspaceSections.length > 1 ? 'workspace-tab-accounts' : undefined}
           aria-label={workspaceSections.length > 1 ? undefined : 'Счета сотрудников'}
           hidden={activeWorkspaceSection !== 'accounts'}
         >
-          <Surface padding="md" className="accountability-review" style={{ display: 'grid', gap: 18 }}>
+          <Surface padding="md" className={accountabilityStyles.accountabilityReview} style={{ display: 'grid', gap: 18 }}>
             <div className="ui-section-header">
               <div>
                 <div className="ui-section-title">Сверка и выдача денег</div>
@@ -614,7 +615,7 @@ export default function AccountabilityPage(): React.JSX.Element {
               </div>
             ) : null}
 
-            <details className="ui-surface ui-surface--padded ui-surface--subtle accountability-account-directory">
+            <details className={`ui-surface ui-surface--padded ui-surface--subtle ${accountabilityStyles.accountabilityAccountDirectory}`}>
               <summary className="ui-section-title">
                 Все подотчётные счета <span className="ui-text-muted">({accountItems.length})</span>
               </summary>

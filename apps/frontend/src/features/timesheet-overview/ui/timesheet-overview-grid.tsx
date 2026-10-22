@@ -10,6 +10,7 @@ import {
 } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { isTimesheetDateEditable } from '@/shared/lib/timesheet-edit-window';
 import { Surface } from '@/shared/ui/foundation';
+import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -51,8 +52,8 @@ export function TimesheetOverviewGrid({
   );
 
   return (
-    <div className="timesheet-overview">
-      <div className="timesheet-overview__totals" aria-label="Итоги табеля">
+    <div className={timesheetStyles.timesheetOverview}>
+      <div className={timesheetStyles.timesheetOverviewTotals} aria-label="Итоги табеля">
         <div><span>Аванс</span><strong>{formatMoney(overview.totals.advanceTotal)}</strong></div>
         <div><span>ЗП</span><strong>{formatMoney(overview.totals.salaryTotal)}</strong></div>
         <div><span>Итого за месяц</span><strong>{formatMoney(overview.totals.monthTotal)}</strong></div>
@@ -62,9 +63,9 @@ export function TimesheetOverviewGrid({
         <Surface padding="md">За выбранный период начислений нет.</Surface>
       ) : (
         <>
-          <div className="timesheet-overview__desktop">
-            <div className="timesheet-overview__scroll">
-              <table className="timesheet-overview__table">
+          <div className={timesheetStyles.timesheetOverviewDesktop}>
+            <div className={timesheetStyles.timesheetOverviewScroll}>
+              <table className={timesheetStyles.timesheetOverviewTable}>
                 <thead>
                   <tr>
                     <th className="is-object">Объект</th>
@@ -117,21 +118,21 @@ export function TimesheetOverviewGrid({
             </div>
           </div>
 
-          <div className="timesheet-overview__mobile">
+          <div className={timesheetStyles.timesheetOverviewMobile}>
             {overview.rows.map((row) => (
-              <article className="timesheet-overview-card" key={`${row.objectId}:${row.employeeId}`}>
-                <div className="timesheet-overview-card__header">
+              <article className={timesheetStyles.timesheetOverviewCard} key={`${row.objectId}:${row.employeeId}`}>
+                <div className={timesheetStyles.timesheetOverviewCardHeader}>
                   <span>{row.objectName}</span>
                   <strong>{row.employeeName}</strong>
                 </div>
-                <div className="timesheet-overview-card__totals">
+                <div className={timesheetStyles.timesheetOverviewCardTotals}>
                   <div><span>Аванс</span><strong>{formatMoney(row.advanceTotal)}</strong></div>
                   <div><span>ЗП</span><strong>{formatMoney(row.salaryTotal)}</strong></div>
                   <div><span>Итого</span><strong>{formatMoney(row.monthTotal)}</strong></div>
                 </div>
                 <details>
                   <summary>Дни месяца</summary>
-                  <div className="timesheet-overview-card__days">
+                  <div className={timesheetStyles.timesheetOverviewCardDays}>
                     {row.entries.map((entry) => (
                       <div
                         key={entry.dayOfMonth}
@@ -139,7 +140,7 @@ export function TimesheetOverviewGrid({
                         title={getEntryTitle(entry)}
                       >
                         <span>{entry.dayOfMonth}</span>
-                        <strong className={entry.isChangedManually ? 'timesheet-value--manual' : undefined}>{entry.finalValue === 0 ? '—' : entry.finalValue}</strong>
+                        <strong className={entry.isChangedManually ? timesheetStyles.timesheetValueManual : undefined}>{entry.finalValue === 0 ? '—' : entry.finalValue}</strong>
                       </div>
                     ))}
                   </div>

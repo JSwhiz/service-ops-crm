@@ -1,0 +1,427 @@
+/* Календарь разовых заказов — moved from globals.css; classes are local to this module. */
+
+.oneTimeCalendarPage .oneTimeCalendarLegend {
+  padding-inline: 2px;
+}
+
+.oneTimeCalendarPage .calendarModal {
+  border-color: var(--ui-border);
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgb(53 41 32 / 14%);
+}
+
+.oneTimeCalendar {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.oneTimeCalendarToolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 280px) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.oneTimeCalendarMonthNav,
+.oneTimeCalendarActions,
+.oneTimeCalendarLegend {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.oneTimeCalendarManagerFilter {
+  display: grid;
+  gap: 6px;
+  color: var(--ui-text-tertiary);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.oneTimeCalendarManagerFilter select {
+  width: 100%;
+}
+
+.oneTimeCalendarLegend {
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+}
+
+.oneTimeCalendarLegend span,
+.oneTimeCalendarAvailability,
+.oneTimeCalendarPending,
+.oneTimeCalendarWarning {
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  padding: 3px 7px;
+  line-height: 1.25;
+}
+
+.oneTimeCalendar [data-availability="day_off"] {
+  border-color: var(--ui-success-border);
+  background: var(--ui-success-subtle);
+  color: var(--ui-success);
+}
+
+.oneTimeCalendar [data-availability="vacation"] {
+  border-color: var(--ui-warning-border);
+  background: var(--ui-warning-subtle);
+  color: var(--ui-warning);
+}
+
+.oneTimeCalendar [data-availability="sick_leave"] {
+  border-color: var(--ui-danger-border);
+  background: var(--ui-danger-subtle);
+  color: var(--ui-danger);
+}
+
+.oneTimeCalendarLegendWarning,
+.oneTimeCalendarWarning,
+.calendarModalWarning {
+  border-color: var(--ui-warning-border) !important;
+  background: var(--ui-warning-subtle) !important;
+  color: var(--ui-warning) !important;
+}
+
+.oneTimeCalendarError {
+  border-color: var(--ui-danger-border);
+  color: var(--ui-danger);
+}
+
+.oneTimeCalendarGridShell {
+  max-height: calc(100vh - 300px);
+  min-height: 360px;
+  overflow: auto;
+  padding: 0;
+  scrollbar-gutter: stable;
+}
+
+.oneTimeCalendarGrid {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.oneTimeCalendarGrid th,
+.oneTimeCalendarGrid td {
+  width: 116px;
+  min-width: 116px;
+  max-width: 116px;
+  height: 92px;
+  border-right: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+  padding: 7px;
+  vertical-align: top;
+  background: var(--ui-surface);
+}
+
+.oneTimeCalendarGrid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 58px;
+  background: var(--ui-surface-subtle);
+  text-align: center;
+}
+
+.oneTimeCalendarGrid thead th > span,
+.oneTimeCalendarGrid thead th > strong {
+  display: block;
+}
+
+.oneTimeCalendarGrid thead th > span {
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+}
+
+.oneTimeCalendarGrid td {
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.oneTimeCalendarGrid td:hover,
+.oneTimeCalendarGrid td:focus-visible {
+  position: relative;
+  z-index: 4;
+  outline: 0;
+  background: var(--ui-surface-hover);
+  box-shadow: inset 0 0 0 2px var(--ui-focus-border);
+}
+
+.oneTimeCalendarGrid :global(.is-weekend) {
+  background: var(--ui-accent-subtle);
+}
+
+.oneTimeCalendarGrid [data-today="true"] {
+  background: var(--ui-accent-subtle);
+  box-shadow: inset 0 3px 0 var(--ui-accent);
+}
+
+.oneTimeCalendarGrid [data-conflict="true"] {
+  background: var(--ui-warning-subtle);
+}
+
+.oneTimeCalendarManagerCell,
+.oneTimeCalendarWorkedCell {
+  position: sticky;
+  z-index: 10;
+  background: var(--ui-surface) !important;
+}
+
+.oneTimeCalendarManagerCell {
+  left: 0;
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+  text-align: left !important;
+  box-shadow: 9px 0 12px -12px rgba(40, 49, 71, 0.34);
+}
+
+.oneTimeCalendarWorkedCell {
+  right: 0;
+  width: 78px !important;
+  min-width: 78px !important;
+  max-width: 78px !important;
+  text-align: center !important;
+  box-shadow: -9px 0 12px -12px rgba(40, 49, 71, 0.34);
+}
+
+.oneTimeCalendarGrid thead .oneTimeCalendarManagerCell,
+.oneTimeCalendarGrid thead .oneTimeCalendarWorkedCell {
+  z-index: 30;
+  background: var(--ui-surface-subtle) !important;
+}
+
+.oneTimeCalendarManagerCell strong,
+.oneTimeCalendarManagerCell span,
+.oneTimeCalendarWorkedCell strong,
+.oneTimeCalendarWorkedCell span {
+  display: block;
+}
+
+.oneTimeCalendarManagerCell span,
+.oneTimeCalendarWorkedCell span {
+  margin-top: 4px;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.oneTimeCalendarDayContent {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.oneTimeCalendarDayContent > a,
+.oneTimeCalendarMore {
+  display: block;
+  overflow: hidden;
+  color: var(--ui-accent);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oneTimeCalendarAvailability,
+.oneTimeCalendarPending,
+.oneTimeCalendarWarning {
+  display: block;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oneTimeCalendarPending {
+  border-color: var(--ui-info-border);
+  background: var(--ui-accent-subtle);
+  color: var(--ui-accent);
+}
+
+.oneTimeCalendarMobile {
+  display: none;
+  gap: 10px;
+}
+
+.oneTimeCalendarMobileDay {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+}
+
+.oneTimeCalendarMobileDay[data-today="true"] {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-subtle);
+}
+
+.oneTimeCalendarMobileDay[data-conflict="true"] {
+  border-color: var(--ui-warning-border);
+}
+
+.oneTimeCalendarMobileDate,
+.oneTimeCalendarMobileSummary {
+  display: grid;
+  gap: 3px;
+}
+
+.oneTimeCalendarMobileDate span,
+.oneTimeCalendarMobileSummary {
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+}
+
+.calendarModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.44);
+}
+
+.calendarModal {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 48px);
+  display: grid;
+  gap: 14px;
+  overflow-y: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  background: var(--ui-surface);
+  padding: 18px;
+  box-shadow: var(--ui-shadow-md);
+}
+
+.calendarModalForm {
+  width: min(560px, 100%);
+}
+
+.calendarModal label,
+.calendarModalSection {
+  display: grid;
+  gap: 7px;
+}
+
+.calendarModal label > span,
+.calendarModalSection > span,
+.calendarModalSection > p {
+  margin: 0;
+  color: var(--ui-text-tertiary);
+  font-size: 13px;
+}
+
+.calendarModalSection {
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.calendarModalSectionPending {
+  border-color: var(--ui-info-border);
+  background: var(--ui-accent-subtle);
+}
+
+.calendarModalWarning {
+  border: 1px solid;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.calendarModalOrder {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid var(--ui-border);
+  padding-top: 9px;
+}
+
+.calendarModalOrder span {
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.calendarModalDateGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1180px) {
+  .oneTimeCalendarToolbar {
+    grid-template-columns: 1fr 280px;
+  }
+
+  .oneTimeCalendarActions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .oneTimeCalendarToolbar,
+  .calendarModalDateGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .oneTimeCalendarMonthNav,
+  .oneTimeCalendarActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .oneTimeCalendarMonthNav input,
+  .oneTimeCalendarMonthNav button,
+  .oneTimeCalendarActions a,
+  .oneTimeCalendarActions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .oneTimeCalendarGridShell {
+    display: none;
+  }
+
+  .oneTimeCalendarMobile {
+    display: grid;
+  }
+
+  .calendarModalBackdrop {
+    padding: 0;
+  }
+
+  .calendarModal {
+    width: 100%;
+    min-height: 100vh;
+    max-height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .oneTimeCalendarToolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .oneTimeCalendarToolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

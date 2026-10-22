@@ -21,6 +21,7 @@ import {
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Button } from '@/shared/ui/foundation';
+import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export interface TaskFormInitialValue {
   title: string;
@@ -177,9 +178,9 @@ export function TaskForm({
   };
 
   return (
-    <form className="task-form" onSubmit={(event) => void submit(event)}>
-      <div className="task-form__grid">
-        <label className="task-field task-field--wide">
+    <form className={taskStyles.taskForm} onSubmit={(event) => void submit(event)}>
+      <div className={taskStyles.taskFormGrid}>
+        <label className={`${taskStyles.taskField} ${taskStyles.taskFieldWide}`}>
           <span>Название</span>
           <input
             value={form.title}
@@ -192,7 +193,7 @@ export function TaskForm({
           />
         </label>
 
-        <label className="task-field">
+        <label className={taskStyles.taskField}>
           <span>Приоритет</span>
           <Select
             value={form.priority}
@@ -208,7 +209,7 @@ export function TaskForm({
           </Select>
         </label>
 
-        <label className="task-field">
+        <label className={taskStyles.taskField}>
           <span>Требования к отчёту</span>
           <Select
             value={form.completionRequirement}
@@ -228,7 +229,7 @@ export function TaskForm({
           </Select>
         </label>
 
-        <label className="task-field task-field--wide">
+        <label className={`${taskStyles.taskField} ${taskStyles.taskFieldWide}`}>
           <span>Описание</span>
           <textarea
             rows={4}
@@ -239,7 +240,7 @@ export function TaskForm({
           />
         </label>
 
-        <label className="task-field">
+        <label className={taskStyles.taskField}>
           <span>Объект (необязательно)</span>
           <Select
             value={form.objectId}
@@ -254,7 +255,7 @@ export function TaskForm({
           </Select>
         </label>
 
-        <label className="task-field">
+        <label className={taskStyles.taskField}>
           <span>Разовый заказ (необязательно)</span>
           <Select
             value={form.oneTimeOrderId}
@@ -272,11 +273,11 @@ export function TaskForm({
         </label>
       </div>
 
-      <fieldset className="task-form__section">
+      <fieldset className={taskStyles.taskFormSection}>
         <legend>Срок *</legend>
-        <div className="task-form__inline">
+        <div className={taskStyles.taskFormInline}>
           <DatePicker aria-label="Дата срока" value={form.dueDate} required onChange={(nextValue) => setForm({ ...form, dueDate: nextValue })} />
-          <label className="task-check">
+          <label className={taskStyles.taskCheck}>
             <input
               type="checkbox"
               checked={Boolean(form.dueTime)}
@@ -317,9 +318,9 @@ export function TaskForm({
         />
       ) : null}
 
-      <fieldset className="task-form__section">
+      <fieldset className={taskStyles.taskFormSection}>
         <legend>Видимость</legend>
-        <label className="task-radio">
+        <label className={taskStyles.taskRadio}>
           <input
             type="radio"
             name="visibility"
@@ -330,7 +331,7 @@ export function TaskForm({
           />
           Только участники задачи
         </label>
-        <label className="task-radio">
+        <label className={taskStyles.taskRadio}>
           <input
             type="radio"
             name="visibility"
@@ -340,7 +341,7 @@ export function TaskForm({
           />
           Участники объекта или разового заказа
         </label>
-        <label className="task-radio">
+        <label className={taskStyles.taskRadio}>
           <input
             type="radio"
             name="visibility"
@@ -349,7 +350,7 @@ export function TaskForm({
           />
           Только выбранные пользователи
         </label>
-        <label className="task-radio">
+        <label className={taskStyles.taskRadio}>
           <input
             type="radio"
             name="visibility"
@@ -379,7 +380,7 @@ export function TaskForm({
         ) : null}
       </fieldset>
 
-      <label className="task-check task-form__confirmation">
+      <label className={`${taskStyles.taskCheck} ${taskStyles.taskFormConfirmation}`}>
         <input
           type="checkbox"
           checked={form.requiresConfirmation}
@@ -391,7 +392,7 @@ export function TaskForm({
       </label>
 
       {error ? (
-        <div className="task-form__error" role="alert">
+        <div className={taskStyles.taskFormError} role="alert">
           {error}
         </div>
       ) : null}
@@ -431,7 +432,7 @@ function UserChecklist({
   onToggle: (id: string) => void;
 }): React.JSX.Element {
   return (
-    <fieldset className="task-form__section">
+    <fieldset className={taskStyles.taskFormSection}>
       <legend>{title}</legend>
       {hint ? <div className="ui-section-subtitle">{hint}</div> : null}
       <input
@@ -441,12 +442,12 @@ function UserChecklist({
         placeholder="Найти по ФИО или логину"
         aria-label={`Поиск: ${title}`}
       />
-      <div className="task-user-grid local-scroll local-scroll--sm">
+      <div className={`${taskStyles.taskUserGrid} local-scroll local-scroll--sm`}>
         {users.length === 0 ? (
           <div className="ui-text-muted">Пользователи не найдены.</div>
         ) : (
           users.map((user) => (
-            <label key={user.id} className="task-user-option">
+            <label key={user.id} className={taskStyles.taskUserOption}>
               <input
                 type="checkbox"
                 checked={selectedIds.includes(user.id)}

@@ -11,6 +11,7 @@ import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Alert, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -125,7 +126,7 @@ export default function InventoryPage(): React.JSX.Element {
       {!canAccessInventory ? (
         <Surface padding="md">У вас нет доступа к inventory-модулю.</Surface>
       ) : (
-        <div className="ui-page inventory-workspace">
+        <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
           <RegistryToolbar
               searchValue={search}
               searchLabel="Поиск по расходникам"

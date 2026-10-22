@@ -1,0 +1,33 @@
+/* Вложения — moved from globals.css; classes are local to this module. */
+
+.attachmentPreviewSkeleton {
+  position: static !important;
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  border-radius: 0 !important;
+  background: var(--ui-surface-muted) !important;
+  color: var(--ui-text-tertiary);
+}
+
+.pendingMediaList {
+  display: grid;
+  gap: 8px;
+}
+
+.attachmentFileCardIcon,
+.pendingMediaItemIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-tertiary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+/* Вложения — moved from globals.css; classes are local to this module. */

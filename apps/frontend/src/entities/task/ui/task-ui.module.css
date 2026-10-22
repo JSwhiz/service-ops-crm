@@ -1,0 +1,436 @@
+/* Задачи — moved from globals.css; classes are local to this module. */
+
+.taskFilters {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.taskField {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.taskField > span,
+.taskFormSection legend {
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.taskField input,
+.taskField textarea,
+.taskField select,
+.taskFormSection > input[type="search"] {
+  width: 100%;
+}
+
+.taskFieldWide {
+  grid-column: 1 / -1;
+}
+
+.taskFieldSearch {
+  grid-column: span 2;
+}
+
+.taskCheck,
+.taskRadio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.taskCheck input,
+.taskRadio input {
+  width: 16px;
+  height: 16px;
+}
+
+.taskFiltersOverdue {
+  min-height: 40px;
+}
+
+.taskFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.taskFormSection {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  background: var(--ui-surface-subtle);
+  padding: 14px;
+}
+
+.taskFormSection legend {
+  padding: 0 6px;
+}
+
+.taskFormInline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.taskFormInline input[type="date"],
+.taskFormInline input[type="time"] {
+  min-width: 170px;
+}
+
+.taskFormConfirmation {
+  width: fit-content;
+  border-radius: 12px;
+  background: var(--ui-accent-subtle);
+  padding: 10px 12px;
+}
+
+.taskUserGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.taskUserOption {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 11px;
+  background: var(--ui-surface);
+  padding: 9px;
+}
+
+.taskUserOption > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.taskUserOption small {
+  display: block;
+  color: var(--ui-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.taskFormError {
+  color: var(--ui-danger);
+}
+
+.taskSummary {
+  display: grid;
+  gap: 18px;
+}
+
+.taskSummaryStatus,
+.taskLinks {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.taskProgress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--ui-border-strong);
+}
+
+.taskProgress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-accent);
+  transition: width 180ms ease;
+}
+
+.taskProgressLabel {
+  margin-top: -10px;
+  color: var(--ui-text-tertiary);
+  font-size: 13px;
+}
+
+.taskDescription {
+  border-top: 1px solid var(--ui-border);
+  padding-top: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.taskCountdown {
+  border: 1px solid var(--ui-warning-border);
+  border-radius: 12px;
+  background: var(--ui-warning-subtle);
+  color: var(--ui-warning);
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.taskCompletionPanel form {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+@media (max-width: 1200px) {
+  .taskFilters {
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+  }
+
+  .taskFieldSearch {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 800px) {
+  .taskFilters,
+  .taskFormGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .taskFieldSearch {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .taskFormInline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+.taskRegistry :global(.task-table) a {
+  color: var(--ui-text);
+  text-decoration: none;
+}
+
+.taskRegistry :global(.task-table) a:hover {
+  color: var(--ui-accent);
+  text-decoration: underline;
+}
+
+.taskRegistry :global(.task-table) :global(.registry-open-cell) a {
+  color: var(--ui-text-tertiary);
+  text-decoration: none;
+}
+
+.taskRegistry :global(.task-table) :global(.registry-open-cell) a:hover {
+  color: var(--ui-text-secondary);
+  background: var(--ui-surface-muted);
+  text-decoration: none;
+}
+
+@media (max-width: 900px) {
+  .taskFilters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  :global(.ui-page) .taskFieldSearch {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .taskFilters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Задачи — moved from globals.css; classes are local to this module. */
+
+.taskPageHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.taskPageHeading :global(.page-title) {
+  margin-bottom: 4px;
+}
+
+.taskForm {
+  display: grid;
+  gap: 18px;
+}
+
+.taskError {
+  color: var(--ui-danger);
+}
+
+.taskAlert {
+  border: 1px solid var(--ui-warning-border);
+  border-radius: 12px;
+  background: var(--ui-warning-subtle);
+  color: var(--ui-warning);
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.taskAlertDanger {
+  border-color: var(--ui-danger-border);
+  background: var(--ui-danger-subtle);
+  color: var(--ui-danger);
+}
+
+.taskDetailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.taskAssigneeList {
+  margin-top: 14px;
+}
+
+.taskAssigneeInactive {
+  opacity: 0.64;
+}
+
+.taskAssigneeResult {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--ui-border);
+  padding-top: 12px;
+  white-space: pre-wrap;
+}
+
+.taskAddAssignee {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.taskAddAssignee select {
+  min-width: 0;
+  flex: 1;
+}
+
+.taskHistory {
+  display: grid;
+  gap: 0;
+  margin-top: 14px;
+}
+
+.taskHistoryItem {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  margin-left: 8px;
+  border-left: 2px solid var(--ui-border);
+  padding: 0 8px 18px 20px;
+}
+
+.taskHistoryItem::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: -6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ui-accent);
+}
+
+.taskHistoryItem time,
+.taskHistoryItem span {
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+}
+
+.taskModalBackdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+  background: rgba(15, 23, 42, 0.48);
+  padding: 24px;
+}
+
+.taskModal {
+  width: min(960px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border-radius: 18px;
+  background: var(--ui-surface);
+  padding: 20px;
+  box-shadow: var(--ui-shadow-md);
+}
+
+@media (max-width: 800px) {
+  .taskDetailGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .taskPageHeading,
+  .taskPageHeading :global(.ui-inline),
+  .taskAddAssignee {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .taskPageHeading :global(.ui-inline) button,
+.taskAddAssignee button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .taskModalBackdrop {
+    padding: 0;
+  }
+
+  .taskModal {
+    width: 100%;
+    max-height: 100vh;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+}
+
+.taskDetailPage :global(.ui-surface--padded) {
+  border-color: var(--ui-border);
+  border-radius: 11px;
+  box-shadow: none;
+  animation: none;
+}
+
+.taskDetailPage :global(.ui-surface--padded):hover {
+  border-color: var(--ui-border);
+  box-shadow: none;
+}
+
+.taskDetailPage :global(.ui-surface--compact) {
+  border-color: var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface-subtle);
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  :global(.ui-page) .taskPageHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

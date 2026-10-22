@@ -13,6 +13,7 @@ import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { TaskForm } from '@/features/task-form/ui/task-form';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { Surface } from '@/shared/ui/foundation';
+import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export default function NewTaskPage(): React.JSX.Element {
   const router = useRouter();
@@ -62,10 +63,10 @@ export default function NewTaskPage(): React.JSX.Element {
   }, [targets]);
 
   return (
-    <div className="ui-page task-detail-page">
+    <div className={`ui-page ${taskStyles.taskDetailPage}`}>
       <PageTitle title="Создать задачу" />
       {isLoading ? <Surface padding="md">Загрузка…</Surface> : error ? (
-        <Surface padding="md" className="task-error" role="alert">{error}</Surface>
+        <Surface padding="md" className={taskStyles.taskError} role="alert">{error}</Surface>
       ) : (
         <Surface padding="md">
           <TaskForm

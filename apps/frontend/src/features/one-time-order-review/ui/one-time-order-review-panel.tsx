@@ -6,6 +6,7 @@ import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { ConfirmDialog } from '@/shared/ui/overlays';
 import { Alert, Button } from '@/shared/ui/foundation';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 export function OneTimeOrderReviewPanel({
   item,
@@ -46,7 +47,7 @@ export function OneTimeOrderReviewPanel({
 
   return (
     <>
-    <section id="review" ref={sectionRef} className="ui-surface ui-surface--padded one-time-order-review-section">
+    <section id="review" ref={sectionRef} className={`ui-surface ui-surface--padded ${orderStyles.oneTimeOrderReviewSection}`}>
       <div className="ui-section-header">
         <div>
           <div className="ui-section-title">Отзыв</div>

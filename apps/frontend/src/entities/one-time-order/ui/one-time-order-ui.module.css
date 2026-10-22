@@ -1,0 +1,703 @@
+/* Разовые заказы — moved from globals.css; classes are local to this module. */
+
+:global(.ui-page) .oneTimeOrderRegistryTable {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+:global(.ui-page) .oneTimeOrderRegistryTable th,
+:global(.ui-page) .oneTimeOrderRegistryTable td {
+  border-bottom-color: var(--ui-border);
+  padding: 13px 14px;
+}
+
+:global(.ui-page) .oneTimeOrderRegistryTable th {
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+}
+
+:global(.ui-page) .oneTimeOrderRegistryTable tbody tr {
+  transition: background-color 120ms ease;
+}
+
+:global(.ui-page) .oneTimeOrderRegistryTable tbody tr:hover {
+  background: var(--ui-surface-subtle);
+}
+
+.oneTimeOrderRegistryTable .oneTimeOrderReviewPreview {
+  display: block;
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orderCompletionPanel {
+  display: grid;
+  gap: 18px;
+}
+
+.orderCompletionSummary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.orderCompletionForm,
+.orderCompletionHistory,
+.orderPaymentCorrection {
+  display: grid;
+  gap: 14px;
+}
+
+.orderPaymentCard,
+.orderCompletionCycle {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--ui-surface-subtle);
+}
+
+.orderPaymentCard label,
+.orderCompletionWideField {
+  display: grid;
+  gap: 6px;
+}
+
+.orderCompletionWideField {
+  grid-column: 1 / -1;
+}
+
+.orderPaymentNote,
+.orderCompletionWarning {
+  border-left: 3px solid var(--ui-warning);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--ui-warning-subtle);
+  color: var(--ui-warning);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.orderCompletionWarning {
+  display: grid;
+  gap: 8px;
+}
+
+.orderCompletionClosedState {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--ui-success-border);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--ui-success-subtle);
+}
+
+.orderPaymentHistoryList {
+  display: grid;
+  gap: 8px;
+}
+
+.orderPaymentHistoryRow {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--ui-border);
+  padding-top: 10px;
+}
+
+.orderPaymentHistoryRow[data-payment-status="reversed"] {
+  color: var(--ui-text-tertiary);
+}
+
+.orderPaymentHistoryMain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.orderPaymentHistoryAmount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.oneTimeOrderRegistry {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  container: one-time-orders / inline-size;
+}
+
+.oneTimeOrderRegistry > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.oneTimeOrderTableScroll {
+  container-type: inline-size;
+  overflow-x: auto;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+}
+
+.oneTimeOrderRegistryTable {
+  width: 100%;
+  min-width: 1320px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.oneTimeOrderRegistryTable th,
+.oneTimeOrderRegistryTable td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ui-border);
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+}
+
+.oneTimeOrderRegistryTable th:last-child,
+.oneTimeOrderRegistryTable td:last-child {
+  width: 44px;
+  padding-right: 10px;
+  padding-left: 4px;
+  text-align: right;
+}
+
+.oneTimeOrderRegistryTable th {
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.oneTimeOrderRegistryTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.oneTimeOrderRegistryTable tbody tr {
+  transition: background-color 120ms ease;
+}
+
+.oneTimeOrderPreviewRow {
+  cursor: pointer;
+}
+
+.oneTimeOrderPreviewRow:focus-visible {
+  outline: 2px solid rgba(15, 49, 201, .28);
+  outline-offset: -2px;
+}
+
+.oneTimeOrderRegistryTable tbody tr:hover {
+  background: var(--ui-surface-subtle);
+}
+
+.oneTimeOrderTableMeta {
+  display: block;
+  margin-top: 4px;
+  color: var(--ui-text-tertiary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryTable,
+.oneTimeOrderRegistry :global(.data-table) {
+  color: var(--ui-text);
+  font-size: 14px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryTable th,
+.oneTimeOrderRegistry .oneTimeOrderRegistryTable td,
+.oneTimeOrderRegistry :global(.data-table) th,
+.oneTimeOrderRegistry :global(.data-table) td {
+  padding: 13px 12px;
+  border-bottom-color: var(--ui-border);
+  vertical-align: middle;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryTable td,
+.oneTimeOrderRegistry :global(.data-table) td {
+  color: var(--ui-text);
+  font-size: 14px;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryTable tbody td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryTable.oneTimeOrderRegistryTable thead th,
+.oneTimeOrderRegistry :global(.data-table) thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 11px 12px;
+  background: var(--ui-surface-muted);
+  box-shadow: inset 0 -1px 0 var(--ui-border);
+  color: var(--ui-text-secondary);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryTable tbody tr:hover,
+.oneTimeOrderRegistry :global(.data-table) tbody tr:hover {
+  background: var(--ui-surface-subtle);
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryTable td:first-child a,
+.oneTimeOrderRegistry :global(.data-table) td:first-child strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ui-text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderTableMeta {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--ui-text-tertiary);
+  font-size: 13px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oneTimeOrderExecutionDate {
+  color: var(--ui-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.oneTimeOrderFormFields {
+  gap: 14px !important;
+}
+
+.oneTimeOrderDateMode {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: 12px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+}
+
+.oneTimeOrderDateMode legend {
+  padding: 0 6px;
+  color: var(--ui-text);
+  font-size: var(--ui-text-sm);
+  font-weight: 700;
+}
+
+.oneTimeOrderDateModeOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.oneTimeOrderDateModeOption {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  padding: 7px 10px;
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.oneTimeOrderDateModeOption:has(input:checked) {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-accent-subtle);
+  color: var(--ui-accent);
+}
+
+.oneTimeOrderDateModeOption input[type='radio'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ui-accent);
+}
+
+.oneTimeOrderDateModeOption:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--ui-accent) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.oneTimeOrderSpecificationProgress {
+  display: inline-flex;
+  min-width: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.oneTimeOrderSpecificationProgress strong {
+  color: var(--ui-text);
+  font-weight: 700;
+}
+
+.oneTimeOrderSpecificationProgress[data-complete='true'] {
+  border-color: var(--ui-success-border);
+  background: var(--ui-success-subtle);
+  color: var(--ui-success);
+}
+
+.oneTimeOrderSpecificationProgress[data-complete='true'] strong {
+  color: var(--ui-success);
+}
+
+@container (max-width: 1240px) {
+  .oneTimeOrderRegistryTable {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .oneTimeOrderRegistryTable th:nth-child(8),
+  .oneTimeOrderRegistryTable td:nth-child(8) {
+    display: none;
+  }
+
+  .oneTimeOrderRegistryTable th:nth-child(1) { width: 20%; }
+  .oneTimeOrderRegistryTable th:nth-child(2) { width: 12%; }
+  .oneTimeOrderRegistryTable th:nth-child(3) { width: 14%; }
+  .oneTimeOrderRegistryTable th:nth-child(4) { width: 10%; }
+  .oneTimeOrderRegistryTable th:nth-child(5) { width: 14%; }
+  .oneTimeOrderRegistryTable th:nth-child(6) { width: 9%; }
+  .oneTimeOrderRegistryTable th:nth-child(7) { width: 7%; }
+  .oneTimeOrderRegistryTable th:nth-child(9) { width: 10%; }
+  .oneTimeOrderRegistryTable th:nth-child(10) { width: 4%; }
+}
+
+@container (max-width: 1100px) {
+  .oneTimeOrderRegistryTable th:nth-child(6),
+  .oneTimeOrderRegistryTable td:nth-child(6) {
+    display: none;
+  }
+
+  .oneTimeOrderRegistryTable th:nth-child(1) { width: 21%; }
+  .oneTimeOrderRegistryTable th:nth-child(2) { width: 13%; }
+  .oneTimeOrderRegistryTable th:nth-child(3) { width: 16%; }
+  .oneTimeOrderRegistryTable th:nth-child(4) { width: 12%; }
+  .oneTimeOrderRegistryTable th:nth-child(5) { width: 17%; }
+  .oneTimeOrderRegistryTable th:nth-child(7) { width: 8%; }
+  .oneTimeOrderRegistryTable th:nth-child(9) { width: 10%; }
+  .oneTimeOrderRegistryTable th:nth-child(10) { width: 3%; }
+}
+
+@container (max-width: 980px) {
+  .oneTimeOrderRegistryTable th:nth-child(1) { width: 22%; }
+  .oneTimeOrderRegistryTable th:nth-child(2) { width: 13%; }
+  .oneTimeOrderRegistryTable th:nth-child(3) { width: 15%; }
+  .oneTimeOrderRegistryTable th:nth-child(4) { width: 13%; }
+  .oneTimeOrderRegistryTable th:nth-child(5) { width: 17%; }
+  .oneTimeOrderRegistryTable th:nth-child(7) { width: 8%; }
+  .oneTimeOrderRegistryTable th:nth-child(9) { width: 9%; }
+  .oneTimeOrderRegistryTable th:nth-child(10) { width: 3%; }
+}
+
+@container (max-width: 760px) {
+  .oneTimeOrderRegistryTable th:nth-child(7),
+  .oneTimeOrderRegistryTable td:nth-child(7) {
+    display: none;
+  }
+
+  .oneTimeOrderRegistryTable th:nth-child(1) { width: 25%; }
+  .oneTimeOrderRegistryTable th:nth-child(2) { width: 14%; }
+  .oneTimeOrderRegistryTable th:nth-child(3) { width: 18%; }
+  .oneTimeOrderRegistryTable th:nth-child(4) { width: 13%; }
+  .oneTimeOrderRegistryTable th:nth-child(5) { width: 18%; }
+  .oneTimeOrderRegistryTable th:nth-child(9) { width: 9%; }
+  .oneTimeOrderRegistryTable th:nth-child(10) { width: 3%; }
+}
+
+.oneTimeOrderTableActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.oneTimeOrderPreviewTrigger {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ui-text-disabled);
+  box-shadow: none;
+  font-size: 25px;
+  line-height: 1;
+  text-decoration: none;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.oneTimeOrderPreviewTrigger:hover:not(:disabled) {
+  background: var(--ui-surface-muted);
+  color: var(--ui-text-secondary);
+  box-shadow: none;
+  transform: none;
+}
+
+.oneTimeOrderPreviewTrigger:focus-visible {
+  outline: 2px solid rgba(15, 49, 201, .25);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .oneTimeOrderRegistryTable td:last-child {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 12px;
+  }
+
+  .oneTimeOrderRegistryTable td:last-child::before {
+    display: none;
+  }
+}
+
+.oneTimeOrderReviewSection {
+  scroll-margin-top: 88px;
+}
+
+.orderDetailPage .orderPaymentCard,
+.orderDetailPage .orderCompletionCycle {
+  border-color: var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface-subtle);
+}
+
+@media (max-width: 700px) {
+  .orderCompletionSummary {
+    grid-template-columns: 1fr;
+  }
+
+  .orderCompletionClosedState,
+  .orderPaymentHistoryMain {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .orderPaymentHistoryAmount {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 640px) {
+  .oneTimeOrderTableScroll {
+    overflow: visible;
+    padding: 12px;
+  }
+
+  .oneTimeOrderRegistryTable,
+  .oneTimeOrderRegistryTable tbody,
+  .oneTimeOrderRegistryTable tr,
+  .oneTimeOrderRegistryTable td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .oneTimeOrderRegistryTable thead {
+    display: none;
+  }
+
+  .oneTimeOrderRegistryTable tr {
+    margin-bottom: 12px;
+    overflow: hidden;
+    border: 1px solid var(--ui-border);
+    border-radius: 10px;
+  }
+
+  .oneTimeOrderRegistryTable tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .oneTimeOrderRegistryTable td {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--ui-border);
+  }
+
+  .oneTimeOrderRegistry .oneTimeOrderRegistryTable tbody td {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .oneTimeOrderRegistry .oneTimeOrderRegistryTable td:first-child a,
+  .oneTimeOrderRegistry .oneTimeOrderTableMeta {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .oneTimeOrderRegistryTable td::before {
+    content: attr(data-label);
+    color: var(--ui-text-tertiary);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+}
+
+/* Разовые заказы — moved from globals.css; classes are local to this module. */
+
+.orderDetailPage :global(.ui-surface--padded) {
+  border-color: var(--ui-border);
+  border-radius: 11px;
+  box-shadow: none;
+  animation: none;
+}
+
+.orderDetailPage :global(.ui-surface--padded):hover {
+  border-color: var(--ui-border);
+  box-shadow: none;
+}
+
+.oneTimeOrderForm {
+  display: grid;
+  gap: 16px;
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font-family: var(--ui-font-sans);
+}
+
+.oneTimeOrderForm label {
+  min-width: 0;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+}
+
+.oneTimeOrderForm input:not([type='radio']):not([type='checkbox']),
+.oneTimeOrderForm select,
+.oneTimeOrderForm textarea {
+  min-width: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+}
+
+.oneTimeOrderForm input:not([type='radio']):not([type='checkbox']):focus,
+.oneTimeOrderForm select:focus,
+.oneTimeOrderForm textarea:focus {
+  border-color: var(--ui-focus-border);
+  outline: var(--ui-focus-ring);
+}
+
+.oneTimeOrderForm input[type='checkbox'] {
+  accent-color: var(--ui-accent);
+}
+
+.oneTimeOrderForm > div:last-child button[type='submit'] {
+  min-height: 40px;
+  border: 1px solid var(--ui-accent);
+  border-radius: var(--ui-radius-sm);
+  padding: 9px 14px;
+  background: var(--ui-accent);
+  color: var(--ui-text-inverse);
+  font: inherit;
+  font-size: var(--ui-text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.oneTimeOrderForm > div:last-child button[type='submit']:hover:not(:disabled) {
+  background: var(--ui-accent-hover);
+}
+
+.oneTimeOrderForm > div:last-child button[type='submit']:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.orderDetailPage :global(.hero-card)::before {
+  display: none;
+}
+
+.orderDetailPage :global(.hero-card) :global(.ui-detail-grid) {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+}
+
+.orderDetailPage :global(.hero-card) :global(.ui-detail-field) {
+  padding: 12px 14px;
+  border-right: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+@media (max-width: 900px) {
+  .orderDetailPage :global(.hero-card) :global(.ui-detail-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .orderDetailPage :global(.hero-card) :global(.ui-detail-field):nth-child(2n) {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .orderDetailPage :global(.hero-card) :global(.ui-detail-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orderDetailPage :global(.hero-card) :global(.ui-detail-field) {
+    border-right: 0;
+    border-bottom: 1px solid var(--ui-border);
+  }
+
+  .orderDetailPage :global(.hero-card) :global(.ui-detail-field):last-child {
+    border-bottom: 0;
+  }
+}

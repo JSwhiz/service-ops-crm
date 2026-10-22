@@ -3,6 +3,7 @@
 import React from 'react';
 
 import type { TimesheetCorrectionItem } from '@/entities/timesheet/model/timesheet.types';
+import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
 
 interface TimesheetCorrectionsPanelProps {
   items: TimesheetCorrectionItem[];
@@ -40,8 +41,8 @@ export function TimesheetCorrectionsPanel({
   employeeName = null,
 }: TimesheetCorrectionsPanelProps): React.JSX.Element {
   return (
-    <section className="timesheet-corrections-panel" aria-label="Ручные корректировки табеля">
-      <div className="timesheet-corrections-panel__header">
+    <section className={timesheetStyles.timesheetCorrectionsPanel} aria-label="Ручные корректировки табеля">
+      <div className={timesheetStyles.timesheetCorrectionsPanelHeader}>
         <div>
           <h3>Ручные корректировки</h3>
           <p>
@@ -50,38 +51,38 @@ export function TimesheetCorrectionsPanel({
               : 'Изменения выплат за выбранный объект и период'}
           </p>
         </div>
-        <span className="timesheet-corrections-panel__count">{items.length}</span>
+        <span className={timesheetStyles.timesheetCorrectionsPanelCount}>{items.length}</span>
       </div>
 
       {items.length === 0 ? (
-        <div className="timesheet-corrections-panel__empty">
+        <div className={timesheetStyles.timesheetCorrectionsPanelEmpty}>
           Ручных корректировок для текущей выборки нет.
         </div>
       ) : (
-        <div className="timesheet-corrections-list">
+        <div className={timesheetStyles.timesheetCorrectionsList}>
           {items.map((item) => (
             <article
               key={`${item.employeeId}-${item.dayOfMonth}`}
-              className="timesheet-correction-row"
+              className={timesheetStyles.timesheetCorrectionRow}
             >
-              <div className="timesheet-correction-row__date">
+              <div className={timesheetStyles.timesheetCorrectionRowDate}>
                 <span>{formatDay(item.dayOfMonth)}</span>
                 <small>{item.hasFact ? 'Есть факт присутствия' : 'Без факта присутствия'}</small>
               </div>
 
-              <div className="timesheet-correction-row__main">
-                <div className="timesheet-correction-row__topline">
+              <div className={timesheetStyles.timesheetCorrectionRowMain}>
+                <div className={timesheetStyles.timesheetCorrectionRowTopline}>
                   <strong>{item.employeeName}</strong>
-                  <span className="timesheet-correction-row__amount">
+                  <span className={timesheetStyles.timesheetCorrectionRowAmount}>
                     {moneyFormatter.format(item.dayValue)}
                   </span>
                 </div>
-                <p className="timesheet-correction-row__comment">
+                <p className={timesheetStyles.timesheetCorrectionRowComment}>
                   {item.comment?.trim() || 'Без комментария'}
                 </p>
               </div>
 
-              <div className="timesheet-correction-row__audit">
+              <div className={timesheetStyles.timesheetCorrectionRowAudit}>
                 <span>{item.updatedByUserName ?? 'Неизвестный пользователь'}</span>
                 <time dateTime={item.updatedAt}>{formatDateTime(item.updatedAt)}</time>
               </div>

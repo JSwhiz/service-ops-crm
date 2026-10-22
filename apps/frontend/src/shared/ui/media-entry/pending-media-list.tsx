@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 import styles from './pending-media-list.module.css';
+import mediaStyles from '@/shared/ui/media-entry/media-entry.module.css';
 
 function formatFileSize(size: number): string {
   return size < 1024 * 1024
@@ -60,7 +61,7 @@ export function PendingMediaList({
   );
 
   return (
-    <div className="pending-media-list">
+    <div className={mediaStyles.pendingMediaList}>
       {files.map((file, index) => {
         const key = getPendingFileKey(file, index);
         const previewUrl = previewByKey.get(key);
@@ -85,7 +86,7 @@ export function PendingMediaList({
             {previewUrl ? (
               <img src={previewUrl} alt={file.name} />
             ) : (
-              <span className="pending-media-item__icon">FILE</span>
+              <span className={mediaStyles.pendingMediaItemIcon}>FILE</span>
             )}
             <div className="pending-media-item__body">
               {isEditing ? (

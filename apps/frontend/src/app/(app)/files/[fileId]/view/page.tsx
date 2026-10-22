@@ -10,6 +10,7 @@ import {
 } from '@/entities/file/api/file-client';
 import type { FileView } from '@/entities/file/model/file.types';
 import { Button, Surface } from '@/shared/ui/foundation';
+import viewerStyles from '@/app/(app)/files/[fileId]/view/file-viewer.module.css';
 
 const VIEW_POLL_ATTEMPTS = 40;
 
@@ -148,11 +149,11 @@ export default function FileViewerPage(): React.JSX.Element {
   };
 
   if (error && !view) {
-    return <Surface padding="md" className="file-viewer-error">{error}</Surface>;
+    return <Surface padding="md" className={viewerStyles.fileViewerError}>{error}</Surface>;
   }
 
   if (!view) {
-    return <Surface padding="md" className="file-viewer-loading">Загрузка файла…</Surface>;
+    return <Surface padding="md" className={viewerStyles.fileViewerLoading}>Загрузка файла…</Surface>;
   }
 
   const inlineUrl = view.inlineContentUrl
@@ -163,8 +164,8 @@ export default function FileViewerPage(): React.JSX.Element {
     view.previewStatus === 'pending' || view.previewStatus === 'processing';
 
   return (
-    <main className="file-viewer-page">
-      <header className="file-viewer-header">
+    <main className={viewerStyles.fileViewerPage}>
+      <header className={viewerStyles.fileViewerHeader}>
         <div>
           <h1 title={view.originalName}>{view.originalName}</h1>
           <p>
@@ -185,9 +186,9 @@ export default function FileViewerPage(): React.JSX.Element {
         </div>
       </header>
 
-      <section className="file-viewer-stage" aria-live="polite">
+      <section className={viewerStyles.fileViewerStage} aria-live="polite">
         {isWaiting ? (
-          <div className="file-viewer-state">
+          <div className={viewerStyles.fileViewerState}>
             <strong>Предпросмотр документа формируется…</strong>
             {pollTimedOut ? (
               <Button
@@ -205,7 +206,7 @@ export default function FileViewerPage(): React.JSX.Element {
         ) : null}
 
         {view.previewStatus === 'failed' ? (
-          <div className="file-viewer-state">
+          <div className={viewerStyles.fileViewerState}>
             <strong>Не удалось сформировать предпросмотр документа</strong>
             <span>{view.errorMessage || 'Предпросмотр недоступен.'}</span>
             {view.previewType !== 'unsupported' ? (
@@ -218,8 +219,8 @@ export default function FileViewerPage(): React.JSX.Element {
 
         {view.previewStatus === 'ready' && view.previewType === 'image' && inlineUrl && !imageUnavailable ? (
           <div
-            className={`file-viewer-image${
-              showOriginalSize ? ' file-viewer-image--original' : ''
+            className={`${viewerStyles.fileViewerImage}${
+              showOriginalSize ? ` ${viewerStyles.fileViewerImageOriginal}` : ''
             }`}
           >
             <img
@@ -234,7 +235,7 @@ export default function FileViewerPage(): React.JSX.Element {
         ) : null}
 
         {imageUnavailable ? (
-          <div className="file-viewer-state">
+          <div className={viewerStyles.fileViewerState}>
             <strong>Не удалось открыть изображение</strong>
             <span>Оригинал файла также недоступен для просмотра. Попробуйте скачать его.</span>
           </div>
@@ -242,14 +243,14 @@ export default function FileViewerPage(): React.JSX.Element {
 
         {view.previewStatus === 'ready' && view.previewType === 'pdf' && inlineUrl ? (
           <iframe
-            className="file-viewer-pdf"
+            className={viewerStyles.fileViewerPdf}
             src={inlineUrl}
             title={`Предпросмотр ${view.originalName}`}
           />
         ) : null}
 
         {view.previewStatus === 'ready' && view.previewType === 'text' ? (
-          <div className="file-viewer-text">
+          <div className={viewerStyles.fileViewerText}>
             {textTruncated ? (
               <p>Показаны первые 512 КБ файла.</p>
             ) : null}

@@ -273,12 +273,12 @@ function ParticipantPicker({
   };
 
   return (
-    <div className="participant-picker">
-      <div className="participant-picker__chips">
+    <div className={styles.participantPicker}>
+      <div className={styles.participantPickerChips}>
         {selectedUsers.length === 0
           ? null
           : selectedUsers.map((participant) => (
-              <span key={participant.id} className="identity-chip">
+              <span key={participant.id} className={styles.identityChip}>
                 <span>
                   <strong>{getUserDisplayName(participant)}</strong>
                   {getUserSecondaryLabel(participant) ? (
@@ -307,7 +307,7 @@ function ParticipantPicker({
       </div>
 
       {filteredCandidates.length > 0 ? (
-        <div className="participant-picker__options">
+        <div className={styles.participantPickerOptions}>
           {filteredCandidates.map((candidate) => (
             <Button
               key={candidate.id}
@@ -1723,8 +1723,8 @@ export default function ChatsPage(): React.JSX.Element {
     (room) => room.id !== activeRoomId && room.capabilities.canWrite,
   );
   const activeRoomTypeLabel = activeRoom ? getRoomTypeLabel(activeRoom) : '';
-  const layoutClassName = `chat-layout${
-    isRoomListOpen ? ' chat-layout--room-list-open' : ''
+  const layoutClassName = `${styles.chatLayout}${
+    isRoomListOpen ? ` ${styles.chatLayoutRoomListOpen}` : ''
   }`;
   const selectRoom = (roomId: string): void => {
     setExplorer(null);
@@ -1810,7 +1810,7 @@ export default function ChatsPage(): React.JSX.Element {
     <>
       {confirmDialog}
       {reasonDialog}
-      <h1 className="chat-page-title">Чаты</h1>
+      <h1 className={styles.chatPageTitle}>Чаты</h1>
 
       <div className={`ui-stack ui-stack--lg chat-page-stack ${styles.workspace}`}>
         {error ? (
@@ -1828,7 +1828,7 @@ export default function ChatsPage(): React.JSX.Element {
               {canCreateDirectChat || canCreateGroupChat ? (
                 <button
                   type="button"
-                  className="chat-icon-button"
+                  className={styles.chatIconButton}
                   aria-label="Новый чат"
                   title="Новый чат"
                   onClick={() => {
@@ -1842,7 +1842,7 @@ export default function ChatsPage(): React.JSX.Element {
               ) : null}
             </div>
 
-            <div className="chat-search-box">
+            <div className={styles.chatSearchBox}>
               <div className={styles.searchField}>
                 <ChatIcon name="search" />
                 <input
@@ -1859,7 +1859,7 @@ export default function ChatsPage(): React.JSX.Element {
                       event.currentTarget
                         .closest('.chat-room-panel')
                         ?.querySelector<HTMLButtonElement>(
-                          '.chat-search-results button',
+                          `.${styles.chatSearchResults} button`,
                         )
                         ?.focus();
                     }
@@ -1877,7 +1877,7 @@ export default function ChatsPage(): React.JSX.Element {
             </div>
             {searchQuery.trim().length >= 2 ? (
               <div
-                className="chat-search-results"
+                className={styles.chatSearchResults}
                 aria-label="Результаты поиска в чатах"
                 onKeyDown={(event) => {
                   if (event.key === 'Escape') {
@@ -1911,7 +1911,7 @@ export default function ChatsPage(): React.JSX.Element {
                 ) : (
                   <>
                     {searchResults.rooms.length > 0 ? (
-                      <div className="chat-search-group">
+                      <div className={styles.chatSearchGroup}>
                         <strong>
                           Чаты <span>{searchResults.rooms.length}</span>
                         </strong>
@@ -1937,7 +1937,7 @@ export default function ChatsPage(): React.JSX.Element {
                       </div>
                     ) : null}
                     {searchResults.messages.length > 0 ? (
-                      <div className="chat-search-group">
+                      <div className={styles.chatSearchGroup}>
                         <strong>
                           Сообщения <span>{searchResults.messages.length}</span>
                         </strong>
@@ -1969,7 +1969,7 @@ export default function ChatsPage(): React.JSX.Element {
               </div>
             ) : null}
             <div
-              className="chat-room-list"
+              className={styles.chatRoomList}
               hidden={searchQuery.trim().length >= 2}
             >
               {isLoadingRooms ? (
@@ -1980,22 +1980,22 @@ export default function ChatsPage(): React.JSX.Element {
                 rooms.map((room) => (
                   <button
                     key={room.id}
-                    className={`chat-room-item${
-                      room.id === activeRoomId ? ' chat-room-item--active' : ''
+                    className={`${styles.chatRoomItem}${
+                      room.id === activeRoomId ? ` ${styles.chatRoomItemActive}` : ''
                     }`}
                     type="button"
                     onClick={() => selectRoom(room.id)}
                   >
-                    <span className="chat-room-item__main">
+                    <span className={styles.chatRoomItemMain}>
                       <strong>{getRoomDisplayTitle(room)}</strong>
                       <span>
                         {room.lastMessagePreview ?? 'Сообщений пока нет'}
                       </span>
                     </span>
-                    <span className="chat-room-item__meta">
+                    <span className={styles.chatRoomItemMeta}>
                       <span>{formatDateTime(room.lastMessageAt)}</span>
                       {room.unreadCount > 0 ? (
-                        <span className="chat-unread">{room.unreadCount}</span>
+                        <span className={styles.chatUnread}>{room.unreadCount}</span>
                       ) : null}
                     </span>
                   </button>
@@ -2003,10 +2003,10 @@ export default function ChatsPage(): React.JSX.Element {
               )}
             </div>
 
-            <div className="chat-archive-block">
+            <div className={styles.chatArchiveBlock}>
               <button
                 type="button"
-                className="chat-archive-toggle"
+                className={styles.chatArchiveToggle}
                 onClick={() => setIsArchiveOpen((current) => !current)}
               >
                 <ChatIcon name="archive" />
@@ -2015,7 +2015,7 @@ export default function ChatsPage(): React.JSX.Element {
               </button>
 
               {isArchiveOpen ? (
-                <div className="chat-room-list chat-room-list--archive">
+                <div className={`${styles.chatRoomList} ${styles.chatRoomListArchive}`}>
                   {isLoadingArchivedRooms ? (
                     <div className="ui-text-muted">Загрузка архива...</div>
                   ) : archivedRooms.length === 0 ? (
@@ -2024,20 +2024,20 @@ export default function ChatsPage(): React.JSX.Element {
                     archivedRooms.map((room) => (
                       <div
                         key={room.id}
-                        className="chat-room-item chat-room-item--archived"
+                        className={`${styles.chatRoomItem} ${styles.chatRoomItemArchived}`}
                       >
                         <button
                           type="button"
-                          className="chat-room-item__open"
+                          className={styles.chatRoomItemOpen}
                           onClick={() => void handleOpenArchivedRoom(room.id)}
                         >
-                          <span className="chat-room-item__main">
+                          <span className={styles.chatRoomItemMain}>
                             <strong>{getRoomDisplayTitle(room)}</strong>
                             <span>
                               {room.lastMessagePreview ?? 'Сообщений пока нет'}
                             </span>
                           </span>
-                          <span className="chat-room-item__meta">
+                          <span className={styles.chatRoomItemMeta}>
                             <span>{formatDateTime(room.lastMessageAt)}</span>
                           </span>
                         </button>
@@ -2056,7 +2056,7 @@ export default function ChatsPage(): React.JSX.Element {
           </Surface>
 
           <Surface as="section" padding="md"
-            className="chat-main"
+            className={styles.chatMain}
             onDragEnter={(event) => {
               if (
                 !event.dataTransfer.types.includes('Files') ||
@@ -2114,11 +2114,11 @@ export default function ChatsPage(): React.JSX.Element {
             ) : null}
             {activeRoom ? (
               <>
-                <header className="chat-header">
-                  <div className="chat-header__main">
+                <header className={styles.chatHeader}>
+                  <div className={styles.chatHeaderMain}>
                     <button
                       type="button"
-                      className="chat-back-button"
+                      className={styles.chatBackButton}
                       aria-label="К списку чатов"
                       onClick={() => setIsRoomListOpen(true)}
                     >
@@ -2135,7 +2135,7 @@ export default function ChatsPage(): React.JSX.Element {
                       </span>
                       <span className="ui-section-subtitle">
                         {activeRoomTypeLabel ? (
-                          <span className="chat-room-type-badge">
+                          <span className={styles.chatRoomTypeBadge}>
                             {activeRoomTypeLabel}
                           </span>
                         ) : null}
@@ -2143,10 +2143,10 @@ export default function ChatsPage(): React.JSX.Element {
                       </span>
                     </button>
                   </div>
-                  <div className="chat-header__actions">
+                  <div className={styles.chatHeaderActions}>
                     <button
                       type="button"
-                      className="chat-icon-button"
+                      className={styles.chatIconButton}
                       aria-label="Поиск в этом чате"
                       title="Поиск в этом чате (⌘/Ctrl+F)"
                       onClick={() => setExplorer('search')}
@@ -2155,7 +2155,7 @@ export default function ChatsPage(): React.JSX.Element {
                     </button>
                     <button
                       type="button"
-                      className="chat-icon-button"
+                      className={styles.chatIconButton}
                       aria-label="Вложения чата"
                       title="Вложения чата"
                       onClick={() => setExplorer('media')}
@@ -2166,7 +2166,7 @@ export default function ChatsPage(): React.JSX.Element {
                     activeRoom.capabilities.canLeave ||
                     activeRoom.capabilities.canCloseGlobally ||
                     activeRoom.capabilities.canManage ? (
-                      <div className="chat-room-menu-wrap">
+                      <div className={styles.chatRoomMenuWrap}>
                         <button
                           type="button"
                           className="chat-room-menu__trigger"
@@ -2250,10 +2250,10 @@ export default function ChatsPage(): React.JSX.Element {
                   </div>
                 </header>
 
-                <div className="chat-message-stage">
+                <div className={styles.chatMessageStage}>
                   <div
                     ref={messageListRef}
-                    className="chat-message-list"
+                    className={styles.chatMessageList}
                     onScroll={(event) => {
                       const container = event.currentTarget;
 
@@ -2267,14 +2267,14 @@ export default function ChatsPage(): React.JSX.Element {
                     }}
                   >
                     {isLoadingOlderMessages ? (
-                      <div className="chat-history-loader">
+                      <div className={styles.chatHistoryLoader}>
                         Загрузка предыдущих сообщений...
                       </div>
                     ) : null}
                     {isLoadingMessages ? (
                       <div className="ui-text-muted">Загрузка сообщений...</div>
                     ) : messages.length === 0 ? (
-                      <div className="chat-empty">
+                      <div className={styles.chatEmpty}>
                         Пока нет сообщений. Напишите текст или прикрепите файл.
                       </div>
                     ) : (
@@ -2285,7 +2285,7 @@ export default function ChatsPage(): React.JSX.Element {
                         return (
                           <React.Fragment key={message.id}>
                             {initialUnreadMessageId === message.id ? (
-                              <div className="chat-unread-divider">
+                              <div className={styles.chatUnreadDivider}>
                                 <span>Новые сообщения</span>
                               </div>
                             ) : null}
@@ -2293,13 +2293,13 @@ export default function ChatsPage(): React.JSX.Element {
                               data-message-id={message.id}
                               className={`chat-message ${
                                 message.messageType === 'system'
-                                  ? 'chat-message--system'
+                                  ? styles.chatMessageSystem
                                   : isOwn
-                                    ? 'chat-message--own'
+                                    ? styles.chatMessageOwn
                                     : ''
                               }${
                                 highlightedMessageId === message.id
-                                  ? ' chat-message--highlighted'
+                                  ? ` ${styles.chatMessageHighlighted}`
                                   : ''
                               }`}
                               onContextMenu={(event) => {
@@ -2338,7 +2338,7 @@ export default function ChatsPage(): React.JSX.Element {
                                 }
                               }}
                             >
-                              <div className="chat-message__meta">
+                              <div className={styles.chatMessageMeta}>
                                 <strong>
                                   {message.messageType === 'system'
                                     ? 'Система'
@@ -2383,7 +2383,7 @@ export default function ChatsPage(): React.JSX.Element {
                               ) : null}
 
                               {isEditing && !message.isDeleted ? (
-                                <div className="chat-edit-box">
+                                <div className={styles.chatEditBox}>
                                   <textarea
                                     value={editingText}
                                     onChange={(event) =>
@@ -2410,7 +2410,7 @@ export default function ChatsPage(): React.JSX.Element {
                               ) : (
                                 <>
                                   {message.replyTo ? (
-                                    <div className="chat-reply-preview">
+                                    <div className={styles.chatReplyPreview}>
                                       <strong>
                                         {message.replyTo.isAccessRestricted
                                           ? 'Недоступное сообщение'
@@ -2429,7 +2429,7 @@ export default function ChatsPage(): React.JSX.Element {
                                     </div>
                                   ) : null}
                                   {message.forwardedFrom ? (
-                                    <div className="chat-forwarded-label">
+                                    <div className={styles.chatForwardedLabel}>
                                       {message.forwardedFrom.isAccessRestricted
                                         ? 'Исходное сообщение недоступно'
                                         : `Переслано · ${
@@ -2442,7 +2442,7 @@ export default function ChatsPage(): React.JSX.Element {
                                     </div>
                                   ) : null}
                                   {message.text ? (
-                                    <p className="chat-message__text">
+                                    <p className={styles.chatMessageText}>
                                       {message.text}
                                     </p>
                                   ) : null}
@@ -2456,10 +2456,10 @@ export default function ChatsPage(): React.JSX.Element {
                                   ) : null}
                                   {!message.isDeleted &&
                                   (message.reactionCounts.heart ?? 0) > 0 ? (
-                                    <div className="chat-message__footer">
+                                    <div className={styles.chatMessageFooter}>
                                       {(message.reactionCounts.heart ?? 0) >
                                       0 ? (
-                                        <div className="chat-reaction-group">
+                                        <div className={styles.chatReactionGroup}>
                                           <button
                                             type="button"
                                             className={`chat-reaction-chip${message.myReactions.includes('heart') ? ' is-active' : ''}`}
@@ -2482,7 +2482,7 @@ export default function ChatsPage(): React.JSX.Element {
                                               {message.reactionCounts.heart}
                                             </span>
                                             <span
-                                              className="chat-reaction-avatars"
+                                              className={styles.chatReactionAvatars}
                                               aria-hidden="true"
                                             >
                                               {(
@@ -2505,7 +2505,7 @@ export default function ChatsPage(): React.JSX.Element {
                                           {openReactionUsersId ===
                                           message.id ? (
                                             <div
-                                              className="chat-reaction-people"
+                                              className={styles.chatReactionPeople}
                                               role="status"
                                               aria-label="Поставили реакцию"
                                             >
@@ -2611,14 +2611,14 @@ export default function ChatsPage(): React.JSX.Element {
                     )}
                     <div
                       ref={bottomSentinelRef}
-                      className="chat-bottom-sentinel"
+                      className={styles.chatBottomSentinel}
                       aria-hidden
                     />
                   </div>
                   {hasNewMessagesBelow ? (
                     <button
                       type="button"
-                      className="chat-new-messages-button"
+                      className={styles.chatNewMessagesButton}
                       onClick={() => scrollMessagesToBottom('smooth')}
                     >
                       Новые сообщения ниже
@@ -2627,7 +2627,7 @@ export default function ChatsPage(): React.JSX.Element {
                   {hasNewerMessages ? (
                     <button
                       type="button"
-                      className="chat-latest-messages-button"
+                      className={styles.chatLatestMessagesButton}
                       onClick={() => void loadLatestMessages()}
                     >
                       К последним сообщениям
@@ -2638,11 +2638,11 @@ export default function ChatsPage(): React.JSX.Element {
                 {activeRoom.capabilities.canWrite ? (
                   <form
                     ref={composerFormRef}
-                    className="chat-composer"
+                    className={styles.chatComposer}
                     onSubmit={handleSend}
                   >
                     {replyingTo ? (
-                      <div className="chat-composer-reply">
+                      <div className={styles.chatComposerReply}>
                         <div>
                           <strong>
                             Ответ для{' '}
@@ -2663,14 +2663,14 @@ export default function ChatsPage(): React.JSX.Element {
                       </div>
                     ) : null}
                     {files.length > 0 ? (
-                      <div className="chat-pending-files">
+                      <div className={styles.chatPendingFiles}>
                         <PendingMediaList
                           files={files}
                           onRemove={removePendingFile}
                         />
                       </div>
                     ) : null}
-                    <div className="chat-composer__input-row">
+                    <div className={styles.chatComposerInputRow}>
                       <button
                         type="button"
                         className="chat-attach-button"
@@ -2732,13 +2732,13 @@ export default function ChatsPage(): React.JSX.Element {
                     </div>
                   </form>
                 ) : (
-                  <div className="chat-readonly-notice">
+                  <div className={styles.chatReadonlyNotice}>
                     Нет права писать в этот чат.
                   </div>
                 )}
               </>
             ) : (
-              <div className="chat-empty">Выберите чат слева.</div>
+              <div className={styles.chatEmpty}>Выберите чат слева.</div>
             )}
           </Surface>
         </div>

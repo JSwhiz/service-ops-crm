@@ -1,0 +1,23 @@
+/* Реестр кандидатов — moved from globals.css; classes are local to this module. */
+
+.candidateTableWrap {
+  overflow-x: auto;
+  padding: 0;
+}
+
+.candidateTable {
+  width: 100%;
+  min-width: 900px;
+}
+
+.candidateMobileList {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .candidateTableWrap { display: none; }
+  .candidateMobileList { display: grid; gap: 10px; }
+  .candidateMobileCard { display: grid; gap: 8px; color: inherit; }
+}
+
+/* Реестр кандидатов — moved from globals.css; classes are local to this module. */

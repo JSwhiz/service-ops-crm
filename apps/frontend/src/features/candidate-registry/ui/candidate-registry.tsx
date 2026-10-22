@@ -44,6 +44,7 @@ import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import styles from './candidate-fields.module.css';
 import { Alert, Badge, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import registryStyles from '@/features/candidate-registry/ui/candidate-registry.module.css';
 
 const EMPTY: CandidateListResponse = {
   items: [],
@@ -361,8 +362,8 @@ export function CandidateRegistry({
         <>
           <DataTable
             label="Таблица кандидатов"
-            className="data-table candidate-table"
-            frameClassName="candidate-table-wrap"
+            className={`data-table ${registryStyles.candidateTable}`}
+            frameClassName={registryStyles.candidateTableWrap}
           >
             <thead>
               <tr>
@@ -492,12 +493,12 @@ export function CandidateRegistry({
               ))}
             </tbody>
           </DataTable>
-          <div className="candidate-mobile-list">
+          <div className={registryStyles.candidateMobileList}>
             {result.items.map((item) => (
               <Link
                 key={item.id}
                 href={`/candidates/${item.id}`}
-                className="ui-surface ui-surface--padded candidate-mobile-card"
+                className={`ui-surface ui-surface--padded ${registryStyles.candidateMobileCard}`}
               >
                 <div className="ui-section-header">
                   <strong>{item.fullName}</strong>

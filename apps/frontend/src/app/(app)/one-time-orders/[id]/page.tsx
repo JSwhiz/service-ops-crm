@@ -96,6 +96,7 @@ import {
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import styles from './one-time-order-detail.module.css';
 import { Alert, Button, ButtonLink, StatusBadge, Surface } from '@/shared/ui/foundation';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -327,7 +328,7 @@ export default function OneTimeOrderDetailPage({
   };
 
   return (
-    <div className="ui-page order-detail-page">
+    <div className={`ui-page ${orderStyles.orderDetailPage}`}>
       {isLoading ? (
         <div className="ui-empty-state">Загрузка...</div>
       ) : error ? (

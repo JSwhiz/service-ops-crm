@@ -28,6 +28,7 @@ import {
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
 import { DownloadIcon } from '@/shared/ui/icons/icons';
+import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -198,8 +199,8 @@ export default function TimesheetPage(): React.JSX.Element {
     : corrections;
 
   return (
-    <div className="timesheet-page">
-      <Surface as="section" padding="md" className="timesheet-overview-filters" aria-label="Фильтры табеля">
+    <div className={timesheetStyles.timesheetPage}>
+      <Surface as="section" padding="md" className={timesheetStyles.timesheetOverviewFilters} aria-label="Фильтры табеля">
         <MonthPeriodPicker
           year={year}
           month={month}
@@ -230,7 +231,7 @@ export default function TimesheetPage(): React.JSX.Element {
           asyncSearch={async (query) => (await listTimesheetOverviewEmployees({ year, month, objectId: objectId || undefined, q: query })).map((item) => ({ value: item.id, label: item.name }))}
         />
         <Button
-          className="timesheet-export-button"
+          className={timesheetStyles.timesheetExportButton}
           size="md"
           disabled={isExporting || !overview?.capabilities.canExport}
           onClick={() => {
@@ -260,7 +261,7 @@ export default function TimesheetPage(): React.JSX.Element {
 
       {objectId ? (
         <section className="timesheet-object-detail">
-          <div className="timesheet-object-detail__heading">
+          <div className={timesheetStyles.timesheetObjectDetailHeading}>
             <div>
               <h2 className="ui-section-title">Детализация объекта</h2>
               <p className="ui-section-subtitle">
@@ -272,8 +273,8 @@ export default function TimesheetPage(): React.JSX.Element {
           {detailError ? <Surface padding="md" className="page-error">{detailError}</Surface> : null}
           {!detailLoading && objectTimesheet ? (
             <>
-              <div className="timesheet-object-inspector" aria-label="Сводка выбранного объекта">
-                <div className="timesheet-object-inspector__identity">
+              <div className={timesheetStyles.timesheetObjectInspector} aria-label="Сводка выбранного объекта">
+                <div className={timesheetStyles.timesheetObjectInspectorIdentity}>
                   <span>Объект</span>
                   <strong>{objectTimesheet.objectName}</strong>
                   {selectedEmployee ? <small>Сотрудник: {selectedEmployee.label}</small> : null}

@@ -23,6 +23,7 @@ import {
 } from '@/shared/lib/one-time-order-presentation';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { Badge, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 const PAYMENT_METHODS: OneTimeOrderPaymentMethod[] = [
   'cash',
@@ -313,7 +314,7 @@ export function OneTimeOrderCompletionPanel({
   };
 
   return (
-    <Surface as="section" padding="md" id="order-completion" className="order-completion-panel">
+    <Surface as="section" padding="md" id="order-completion" className={orderStyles.orderCompletionPanel}>
       <div className="ui-section-header">
         <div>
           <div className="ui-section-title">Фактические поступления</div>
@@ -324,7 +325,7 @@ export function OneTimeOrderCompletionPanel({
         <Badge>Цикл {item.workCycle}</Badge>
       </div>
 
-      <div className="order-completion-summary">
+      <div className={orderStyles.orderCompletionSummary}>
         <Summary label="Согласованная сумма" value={item.agreedSum === null ? 'Не указана' : formatMoney(item.agreedSum)} />
         <Summary label="Получено в предыдущих циклах" value={formatMoney(previousActual)} />
       </div>
@@ -337,7 +338,7 @@ export function OneTimeOrderCompletionPanel({
       ) : null}
 
       {item.capabilities.canComplete ? (
-        <div className="order-completion-form">
+        <div className={orderStyles.orderCompletionForm}>
           {payments.map((payment, index) => (
             <PaymentFields
               key={payment.key}
@@ -365,7 +366,7 @@ export function OneTimeOrderCompletionPanel({
             </Button>
           ) : null}
 
-          <label className="order-completion-wide-field">
+          <label className={orderStyles.orderCompletionWideField}>
             <span>Комментарий к завершению</span>
             <textarea
               rows={3}
@@ -376,7 +377,7 @@ export function OneTimeOrderCompletionPanel({
           </label>
 
           {needsDifferenceReason ? (
-            <div className="order-completion-warning">
+            <div className={orderStyles.orderCompletionWarning}>
               <strong>Комментарий к расхождению общей суммы</strong>
               {fullPreviousTotalVisible ? (
                 <div>
@@ -413,7 +414,7 @@ export function OneTimeOrderCompletionPanel({
           </div>
         </div>
       ) : item.capabilities.canReopen ? (
-        <div className="order-completion-closed-state">
+        <div className={orderStyles.orderCompletionClosedState}>
           <div>
             <strong>Текущий цикл завершен.</strong>
             <div className="ui-text-muted">
@@ -476,7 +477,7 @@ function PaymentFields({
   onRemove: () => void;
 }): React.JSX.Element {
   return (
-    <div className="order-payment-card">
+    <div className={orderStyles.orderPaymentCard}>
       <div className="ui-section-header">
         <strong>{title}</strong>
         {canRemove ? (
@@ -526,7 +527,7 @@ function PaymentFields({
               }
           />
 
-          <label className="order-completion-wide-field">
+          <label className={orderStyles.orderCompletionWideField}>
             <span>Комментарий</span>
             <input
               value={draft.comment}
@@ -544,7 +545,7 @@ function PaymentFields({
             />
           </label>
 
-          <div className="order-payment-note">
+          <div className={orderStyles.orderPaymentNote}>
             Заказ закрывается без записи о получении денег; личный подотчёт не пополняется.
           </div>
         </div>
@@ -646,7 +647,7 @@ function PaymentFields({
             />
           ) : null}
 
-          <label className="order-completion-wide-field">
+          <label className={orderStyles.orderCompletionWideField}>
             <span>Комментарий</span>
             <input
               value={draft.comment}
@@ -665,12 +666,12 @@ function PaymentFields({
           </label>
 
           {draft.paymentDestination === 'organization' ? (
-            <div className="order-payment-note">
+            <div className={orderStyles.orderPaymentNote}>
               Деньги сохранятся в истории заказа. Личный подотчёт менеджера не изменится.
             </div>
           ) : null}
           {draft.paymentDestination === 'manager_accountability' ? (
-            <div className="order-payment-note">
+            <div className={orderStyles.orderPaymentNote}>
               Поступление будет учтено в подотчёте выбранного получателя.
             </div>
           ) : null}
@@ -693,7 +694,7 @@ function CompletionHistory({
   ) => Promise<void>;
 }): React.JSX.Element {
   return (
-    <div className="order-completion-history">
+    <div className={orderStyles.orderCompletionHistory}>
       <div>
         <div className="ui-section-title">История циклов</div>
         <div className="ui-section-subtitle">
@@ -709,7 +710,7 @@ function CompletionHistory({
       ) : (
         <div className="record-list local-scroll local-scroll--lg">
           {completions.map((completion) => (
-            <div key={completion.id} className="order-completion-cycle">
+            <div key={completion.id} className={orderStyles.orderCompletionCycle}>
               <div className="ui-section-header">
                 <div>
                   <strong>Цикл {completion.workCycle}</strong>
@@ -728,7 +729,7 @@ function CompletionHistory({
               {completion.completionComment ? (
                 <div>{completion.completionComment}</div>
               ) : null}
-              <div className="order-payment-history-list">
+              <div className={orderStyles.orderPaymentHistoryList}>
                 {completion.payments.map((payment) => (
                   <PaymentHistoryRow
                     key={payment.id}
@@ -762,7 +763,7 @@ function PaymentHistoryRow({
 
   if (payment.detailsRestricted) {
     return (
-      <div className="order-payment-history-row" data-payment-status="restricted">
+      <div className={orderStyles.orderPaymentHistoryRow} data-payment-status="restricted">
         <div className="ui-text-muted">
           Финансовые сведения доступны только получателю и ответственному за
           подотчет.
@@ -782,8 +783,8 @@ function PaymentHistoryRow({
         : 'Поступление';
 
   return (
-    <div className="order-payment-history-row" data-payment-status={payment.status}>
-      <div className="order-payment-history-main">
+    <div className={orderStyles.orderPaymentHistoryRow} data-payment-status={payment.status}>
+      <div className={orderStyles.orderPaymentHistoryMain}>
         <div>
           <strong>{entryLabel}</strong>
           <div className="ui-text-muted">
@@ -804,7 +805,7 @@ function PaymentHistoryRow({
                 }`}
           </div>
         </div>
-        <strong className="order-payment-history-amount">
+        <strong className={orderStyles.orderPaymentHistoryAmount}>
           {isNoPayment
             ? 'Без поступления'
             : `${isReversal ? '−' : '+'}${formatMoney(payment.amount)}`}
@@ -886,7 +887,7 @@ function PaymentCorrectionForm({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="order-payment-correction">
+    <div className={orderStyles.orderPaymentCorrection}>
       <PaymentFields
         title="Исправленное поступление"
         draft={draft}
@@ -896,7 +897,7 @@ function PaymentCorrectionForm({
         onChange={(update) => setDraft((current) => update(current))}
         onRemove={() => undefined}
       />
-      <label className="order-completion-wide-field">
+      <label className={orderStyles.orderCompletionWideField}>
         <span>Причина исправления</span>
         <textarea
           rows={2}

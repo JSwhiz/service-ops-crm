@@ -8,6 +8,7 @@ import {
   type TimesheetCellMutation,
 } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { isTimesheetDateEditable } from '@/shared/lib/timesheet-edit-window';
+import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -20,8 +21,8 @@ function getCellClassNames(params: {
   hasFact: boolean;
 }): string {
   return [
-    params.isChangedManually ? 'timesheet-table__changed-cell' : '',
-    params.hasFact ? 'timesheet-table__fact-cell' : '',
+    params.isChangedManually ? timesheetStyles.timesheetTableChangedCell : '',
+    params.hasFact ? timesheetStyles.timesheetTableFactCell : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -71,8 +72,8 @@ export function TimesheetGrid({
   );
 
   return (
-    <div className="timesheet-card">
-      <div className="timesheet-card__meta">
+    <div className={timesheetStyles.timesheetCard}>
+      <div className={timesheetStyles.timesheetCardMeta}>
         <div><strong>Объект:</strong> {timesheet.objectName}</div>
         <div>
           <strong>Оплата:</strong>{' '}
@@ -85,9 +86,9 @@ export function TimesheetGrid({
         <div><strong>Итого:</strong> {moneyFormatter.format(timesheet.monthTotal)}</div>
       </div>
 
-      <div className="timesheet-shell">
-        <div className="timesheet-scroll">
-          <table className="timesheet-table">
+      <div className={timesheetStyles.timesheetShell}>
+        <div className={timesheetStyles.timesheetScroll}>
+          <table className={timesheetStyles.timesheetTable}>
             <colgroup>
               <col style={{ width: 240 }} />
               {days.map((day) => <col key={day} style={{ width: 76 }} />)}
@@ -98,18 +99,18 @@ export function TimesheetGrid({
 
             <thead>
               <tr>
-                <th className="timesheet-table__sticky-left">Сотрудник</th>
+                <th className={timesheetStyles.timesheetTableStickyLeft}>Сотрудник</th>
                 {days.map((day) => <th key={day}>{day}</th>)}
-                <th className="timesheet-table__summary">Аванс</th>
-                <th className="timesheet-table__summary">ЗП</th>
-                <th className="timesheet-table__summary timesheet-table__sticky-right">Итого</th>
+                <th className={timesheetStyles.timesheetTableSummary}>Аванс</th>
+                <th className={timesheetStyles.timesheetTableSummary}>ЗП</th>
+                <th className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableStickyRight}`}>Итого</th>
               </tr>
             </thead>
 
             <tbody>
               {timesheet.rows.map((row) => (
                 <tr key={row.employeeId}>
-                  <td className="timesheet-table__sticky-left timesheet-table__name">{row.employeeName}</td>
+                  <td className={`${timesheetStyles.timesheetTableStickyLeft} ${timesheetStyles.timesheetTableName}`}>{row.employeeName}</td>
                   {row.entries.map((entry) => (
                     <td
                       key={entry.dayOfMonth}
@@ -145,16 +146,16 @@ export function TimesheetGrid({
                       />
                     </td>
                   ))}
-                  <td className="timesheet-table__summary timesheet-table__total">{moneyFormatter.format(row.advanceTotal)}</td>
-                  <td className="timesheet-table__summary timesheet-table__total">{moneyFormatter.format(row.salaryTotal)}</td>
-                  <td className="timesheet-table__summary timesheet-table__sticky-right timesheet-table__total">{moneyFormatter.format(row.rowTotal)}</td>
+                  <td className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableTotal}`}>{moneyFormatter.format(row.advanceTotal)}</td>
+                  <td className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableTotal}`}>{moneyFormatter.format(row.salaryTotal)}</td>
+                  <td className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableStickyRight} ${timesheetStyles.timesheetTableTotal}`}>{moneyFormatter.format(row.rowTotal)}</td>
                 </tr>
               ))}
             </tbody>
 
             <tfoot>
               <tr>
-                <td className="timesheet-table__sticky-left timesheet-table__footer-label">Итого</td>
+                <td className={`${timesheetStyles.timesheetTableStickyLeft} ${timesheetStyles.timesheetTableFooterLabel}`}>Итого</td>
                 {days.map((day) => {
                   const dayTotal = timesheet.rows.reduce((sum, row) => {
                     const entry = row.entries.find((item) => item.dayOfMonth === day);
@@ -162,9 +163,9 @@ export function TimesheetGrid({
                   }, 0);
                   return <td key={day}>{dayTotal === 0 ? '' : dayTotal}</td>;
                 })}
-                <td className="timesheet-table__summary timesheet-table__grand-total">{moneyFormatter.format(timesheet.advanceTotal)}</td>
-                <td className="timesheet-table__summary timesheet-table__grand-total">{moneyFormatter.format(timesheet.salaryTotal)}</td>
-                <td className="timesheet-table__sticky-right timesheet-table__grand-total">{moneyFormatter.format(timesheet.monthTotal)}</td>
+                <td className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableGrandTotal}`}>{moneyFormatter.format(timesheet.advanceTotal)}</td>
+                <td className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableGrandTotal}`}>{moneyFormatter.format(timesheet.salaryTotal)}</td>
+                <td className={`${timesheetStyles.timesheetTableStickyRight} ${timesheetStyles.timesheetTableGrandTotal}`}>{moneyFormatter.format(timesheet.monthTotal)}</td>
               </tr>
             </tfoot>
           </table>

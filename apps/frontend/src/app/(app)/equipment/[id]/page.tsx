@@ -24,6 +24,7 @@ import {
 } from '@/shared/lib/equipment-presentation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { Alert, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -132,7 +133,7 @@ export default function EquipmentDetailPage({
   }, [params]);
 
   return (
-    <div className="ui-page equipment-workspace">
+    <div className={`ui-page ${inventoryStyles.equipmentWorkspace}`}>
       <PageTitle
         title={unit ? `${unit.catalogItem.name} · ${unit.inventoryNumber}` : 'Оборудование'}
       />

@@ -8,6 +8,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Surface } from '@/shared/ui/foundation';
+import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export interface TaskFilterValue {
   q: string;
@@ -32,8 +33,8 @@ export function TaskFilters({
   onChange: (next: Partial<TaskFilterValue>) => void;
 }): React.JSX.Element {
   return (
-    <Surface padding="md" className="filter-panel task-filters">
-      <label className="task-field task-field--search">
+    <Surface padding="md" className={`filter-panel ${taskStyles.taskFilters}`}>
+      <label className={`${taskStyles.taskField} ${taskStyles.taskFieldSearch}`}>
         <span>Поиск</span>
         <input
           type="search"
@@ -42,7 +43,7 @@ export function TaskFilters({
           placeholder="Задача, объект, автор или исполнитель"
         />
       </label>
-      <label className="task-field">
+      <label className={taskStyles.taskField}>
         <span>Контур</span>
         <Select
           value={value.mode}
@@ -54,7 +55,7 @@ export function TaskFilters({
           <option value="objects">Мои объекты</option>
         </Select>
       </label>
-      <label className="task-field">
+      <label className={taskStyles.taskField}>
         <span>Статус</span>
         <Select value={value.status} onChange={(event) => onChange({ status: event.target.value })}>
           <option value="">Все статусы</option>
@@ -63,14 +64,14 @@ export function TaskFilters({
           ))}
         </Select>
       </label>
-      <label className="task-field">
+      <label className={taskStyles.taskField}>
         <span>Объект</span>
         <Select value={value.objectId} onChange={(event) => onChange({ objectId: event.target.value })}>
           <option value="">Все объекты</option>
           {objects.map((object) => <option key={object.id} value={object.id}>{object.name}</option>)}
         </Select>
       </label>
-      <label className="task-field">
+      <label className={taskStyles.taskField}>
         <span>Исполнитель</span>
         <Select
           value={value.assigneeUserId}
@@ -80,7 +81,7 @@ export function TaskFilters({
           {users.map((user) => <option key={user.id} value={user.id}>{getUserDisplayName(user)}</option>)}
         </Select>
       </label>
-      <label className="task-field">
+      <label className={taskStyles.taskField}>
         <span>Сортировка</span>
         <Select
           value={`${value.sortBy}:${value.sortDirection}`}
@@ -98,7 +99,7 @@ export function TaskFilters({
           <option value="title:asc">По названию</option>
         </Select>
       </label>
-      <label className="task-check task-filters__overdue">
+      <label className={`${taskStyles.taskCheck} ${taskStyles.taskFiltersOverdue}`}>
         <input
           type="checkbox"
           checked={value.overdue}

@@ -24,6 +24,7 @@ import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import { AccountabilityExpenseForm } from './accountability-expense-form';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Button, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import accountabilityStyles from '@/features/accountability/ui/accountability-ui.module.css';
 
 function formatMoney(value: number): string {
   return `${value.toLocaleString('ru-RU', {
@@ -196,7 +197,7 @@ export function AccountabilityAccountPanel({
     : 'overview';
 
   return (
-    <div className="ui-stack ui-stack--lg accountability-account-panel">
+    <div className={`ui-stack ui-stack--lg ${accountabilityStyles.accountabilityAccountPanel}`}>
       <Surface padding="md" className="hero-card accountability-account-overview" style={{ display: 'grid', gap: 16 }}>
         <div className="ui-section-header">
           <div>
@@ -237,7 +238,7 @@ export function AccountabilityAccountPanel({
       />
 
       <section
-        className="accountability-section-panel"
+        className={accountabilityStyles.accountabilitySectionPanel}
         role="tabpanel"
         id={`${idPrefix}-panel-overview`}
         aria-labelledby={`${idPrefix}-tab-overview`}
@@ -252,14 +253,14 @@ export function AccountabilityAccountPanel({
               </div>
             ))}
           </div>
-          <div className="accountability-overview-meta">
+          <div className={accountabilityStyles.accountabilityOverviewMeta}>
             <span>Черновики расходов: <strong>{view.summary.draftExpensesCount}</strong></span>
             <span>На проверке: <strong>{view.summary.submittedExpensesCount}</strong></span>
             <span>Последняя сверка: <strong>{latestClosure
               ? getAccountabilityClosureStatusLabel(latestClosure.status)
               : 'не проводилась'}</strong></span>
           </div>
-          <details className="accountability-secondary-totals">
+          <details className={accountabilityStyles.accountabilitySecondaryTotals}>
             <summary>Дополнительные финансовые итоги</summary>
             <div className="ui-detail-grid">
               <div className="ui-detail-field"><div className="ui-detail-label">Поступило всего</div><div className="ui-detail-value">{formatMoney(view.summary.totalFunding)}</div></div>
@@ -278,7 +279,7 @@ export function AccountabilityAccountPanel({
       </section>
 
       <section
-        className="accountability-section-panel ui-stack ui-stack--lg"
+        className={`${accountabilityStyles.accountabilitySectionPanel} ui-stack ui-stack--lg`}
         role="tabpanel"
         id={`${idPrefix}-panel-movements`}
         aria-labelledby={`${idPrefix}-tab-movements`}
@@ -286,7 +287,7 @@ export function AccountabilityAccountPanel({
       >
         {movementContent}
       {activeSection === 'movements' && (view.fundings.length > 0 || view.expenses.length > 0) ? (
-        <Surface as="section" padding="md" tone="subtle" className="accountability-ledger-filters">
+        <Surface as="section" padding="md" tone="subtle" className={accountabilityStyles.accountabilityLedgerFilters}>
           <div className="ui-section-title">Фильтры финансовой истории</div>
           <div className="ui-section-subtitle">Отбор применяется к поступлениям и расходам ниже.</div>
           <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeLedgerFilters} availableFilters={availableLedgerFilters} />
@@ -370,7 +371,7 @@ export function AccountabilityAccountPanel({
       </section>
 
       <section
-        className="accountability-section-panel ui-stack ui-stack--lg"
+        className={`${accountabilityStyles.accountabilitySectionPanel} ui-stack ui-stack--lg`}
         role="tabpanel"
         id={`${idPrefix}-panel-expenses`}
         aria-labelledby={`${idPrefix}-tab-expenses`}
@@ -391,7 +392,7 @@ export function AccountabilityAccountPanel({
       ) : null}
 
       {(view.fundings.length > 0 || view.expenses.length > 0) ? (
-        <Surface as="section" padding="md" tone="subtle" className="accountability-ledger-filters">
+        <Surface as="section" padding="md" tone="subtle" className={accountabilityStyles.accountabilityLedgerFilters}>
           <div className="ui-section-title">Фильтры финансовой истории</div>
           <div className="ui-section-subtitle">Отбор применяется к поступлениям и расходам ниже.</div>
           <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeLedgerFilters} availableFilters={availableLedgerFilters} />
@@ -439,7 +440,7 @@ export function AccountabilityAccountPanel({
                 <div style={{ whiteSpace: 'pre-wrap' }}>{expense.description}</div>
 
                 {expense.expenseCategory === 'employee_payout' ? (
-                  <div className="accountability-payout-context">
+                  <div className={accountabilityStyles.accountabilityPayoutContext}>
                     <strong>Выплата за разовый заказ</strong>
                     <span>Сотрудник: {expense.employeeFullName || 'не указан'}</span>
                     <span>Цикл: {expense.oneTimeOrderWorkCycle ?? 'не указан'}</span>
@@ -551,7 +552,7 @@ export function AccountabilityAccountPanel({
       </section>
 
       <section
-        className="accountability-section-panel"
+        className={accountabilityStyles.accountabilitySectionPanel}
         role="tabpanel"
         id={`${idPrefix}-panel-reconciliation`}
         aria-labelledby={`${idPrefix}-tab-reconciliation`}

@@ -1,0 +1,120 @@
+/* Просмотр файла — moved from globals.css; classes are local to this module. */
+
+/* Просмотр файла — moved from globals.css; classes are local to this module. */
+
+.fileViewerPage {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  background: var(--ui-surface-muted);
+}
+
+.fileViewerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  padding: 14px 18px;
+}
+
+.fileViewerHeader h1 {
+  max-width: min(70vw, 840px);
+  overflow: hidden;
+  margin: 0;
+  font-size: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileViewerHeader p {
+  margin: 4px 0 0;
+  color: var(--ui-text-tertiary);
+  font-size: 13px;
+}
+
+.fileViewerStage {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 18px;
+}
+
+.fileViewerImage {
+  min-height: 65vh;
+  display: grid;
+  place-items: center;
+}
+
+.fileViewerImage img {
+  max-width: 100%;
+  max-height: calc(100vh - 210px);
+  object-fit: contain;
+  box-shadow: var(--ui-shadow-md);
+}
+
+.fileViewerImageOriginal {
+  display: block;
+}
+
+.fileViewerImageOriginal img {
+  max-width: none;
+  max-height: none;
+}
+
+.fileViewerPdf {
+  width: 100%;
+  min-height: calc(100vh - 210px);
+  border: 0;
+  background: var(--ui-surface);
+}
+
+.fileViewerText {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.fileViewerText > p {
+  color: var(--ui-text-tertiary);
+}
+
+.fileViewerText pre {
+  overflow: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  background: var(--ui-surface);
+  padding: 18px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.fileViewerState,
+.fileViewerLoading,
+.fileViewerError {
+  min-height: 260px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  color: var(--ui-text-tertiary);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .fileViewerHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .fileViewerHeader h1 {
+    max-width: 88vw;
+  }
+
+  .fileViewerStage {
+    padding: 8px;
+  }
+}

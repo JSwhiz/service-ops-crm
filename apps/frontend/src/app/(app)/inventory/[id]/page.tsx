@@ -32,6 +32,7 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Alert, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -286,7 +287,7 @@ export default function InventoryItemDetailPage({
   };
 
   return (
-    <div className="ui-page inventory-workspace">
+    <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
       <PageTitle title={item ? item.name : 'Карточка расходника'} />
 
       {isLoading ? (

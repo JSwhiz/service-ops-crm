@@ -1,0 +1,263 @@
+/* Подотчёт — moved from globals.css; classes are local to this module. */
+
+.accountabilityWorkspace {
+  min-width: 0;
+}
+
+.accountabilityWorkspacePanel[hidden],
+.accountabilitySectionPanel[hidden] {
+  display: none !important;
+}
+
+.accountabilityWorkspacePanel,
+.accountabilitySectionPanel {
+  min-width: 0;
+}
+
+.accountabilityWorkspace :global(.ui-surface--padded),
+.accountabilityAccountPanel :global(.ui-surface--padded) {
+  border-color: var(--ui-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgb(53 41 32 / 3%);
+}
+
+.accountabilityWorkspace :global(.ui-surface--padded):hover,
+.accountabilityAccountPanel :global(.ui-surface--padded):hover {
+  border-color: var(--ui-border);
+  box-shadow: 0 5px 16px rgb(53 41 32 / 5%);
+}
+
+.accountabilityWorkspace label,
+.accountabilityAccountPanel label {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.accountabilityWorkspace label > span,
+.accountabilityAccountPanel label > span {
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.accountabilityWorkspace input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.accountabilityWorkspace select,
+.accountabilityWorkspace textarea,
+.accountabilityAccountPanel input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.accountabilityAccountPanel select,
+.accountabilityAccountPanel textarea {
+  min-width: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  background: var(--ui-surface);
+  color: var(--ui-text);
+  box-shadow: none;
+}
+
+.accountabilityWorkspace input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.accountabilityWorkspace select:focus,
+.accountabilityWorkspace textarea:focus,
+.accountabilityAccountPanel input:not([type="search"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+.accountabilityAccountPanel select:focus,
+.accountabilityAccountPanel textarea:focus {
+  border-color: var(--ui-focus-border);
+  outline: var(--ui-focus-ring);
+}
+
+.accountabilityWorkspace .accountabilityReview :global(.field-grid) {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+}
+
+.accountabilityWorkspace .accountabilityReview > :global(.ui-surface--subtle) {
+  border-color: var(--ui-border);
+  background: var(--ui-surface-subtle);
+  box-shadow: none;
+}
+
+.accountabilityAccountPanel {
+  min-width: 0;
+  gap: 14px;
+}
+
+.accountabilityAccountPanel :global(.hero-card) {
+  gap: 16px !important;
+  border-color: var(--ui-border);
+  background: var(--ui-surface);
+}
+
+.accountabilityAccountPanel :global(.stat-grid) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 9px;
+}
+
+.accountabilityAccountPanel :global(.stat-card) {
+  min-width: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--ui-surface);
+}
+
+.accountabilityAccountPanel :global(.stat-card__value) {
+  font-size: clamp(18px, 2vw, 24px);
+  color: var(--ui-text);
+  overflow-wrap: anywhere;
+}
+
+.accountabilityAccountPanel .accountabilityOverviewMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+}
+
+.accountabilityAccountPanel .accountabilityOverviewMeta strong {
+  color: var(--ui-text);
+}
+
+.accountabilityAccountPanel .accountabilitySecondaryTotals {
+  border-top: 1px solid var(--ui-surface-muted);
+  padding-top: 12px;
+  color: var(--ui-text-secondary);
+}
+
+.accountabilityAccountPanel .accountabilitySecondaryTotals summary {
+  width: fit-content;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.accountabilityAccountPanel .accountabilitySecondaryTotals :global(.ui-detail-grid) {
+  margin-top: 12px;
+}
+
+.accountabilityPayoutContext {
+  display: grid;
+  gap: 5px;
+  border-left: 3px solid var(--ui-border-strong);
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+  background: var(--ui-surface-subtle);
+  font-size: 13px;
+}
+
+.accountabilityPayoutContext strong {
+  color: var(--ui-text);
+}
+
+.accountabilityReview :global(.searchable-select) {
+  min-width: 0;
+}
+
+.accountabilityReview :global(.searchable-select__trigger) {
+  min-height: 42px;
+}
+
+.accountabilityAccountDirectory > summary {
+  width: fit-content;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.accountabilityAccountDirectory[open] > summary {
+  margin-bottom: 12px;
+}
+
+.accountabilityAccountPanel :global(.ui-detail-grid) {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.accountabilityAccountPanel .accountabilityLedgerFilters {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) repeat(2, minmax(150px, 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.accountabilityAccountPanel .accountabilityLedgerFilters > div:first-child {
+  grid-column: 1 / -1;
+}
+
+.accountabilityAccountPanel .accountabilityLedgerFilters > :global(.field-grid) {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.accountabilityAccountPanel :global(.ui-surface--compact) {
+  border-color: var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface);
+  box-shadow: none;
+}
+
+.accountabilityAccountPanel :global(.ui-surface--compact):hover {
+  border-color: var(--ui-border);
+  box-shadow: 0 4px 14px rgb(53 41 32 / 5%);
+}
+
+.accountabilityAccountPanel :global(.ui-inline) > button,
+.accountabilityWorkspace :global(.ui-inline) > button {
+  min-height: 38px;
+}
+
+@media (max-width: 640px) {
+  .accountabilityAccountPanel .accountabilityLedgerFilters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .accountabilityAccountPanel .accountabilityLedgerFilters > div:first-child {
+    grid-column: auto;
+  }
+
+  .accountabilityWorkspace :global(.ui-section-header),
+  .accountabilityAccountPanel :global(.ui-section-header) {
+    align-items: flex-start;
+  }
+
+  .accountabilityAccountPanel :global(.stat-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.accountabilityWorkspace .accountabilityFileInput {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface);
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+}
+
+.accountabilityWorkspace .accountabilityFileInput::file-selector-button {
+  margin: -1px 10px -1px -1px;
+  padding: 10px 12px;
+  border: 0;
+  border-right: 1px solid var(--ui-border);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-secondary);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.accountabilityLedgerFilters {
+  display: grid;
+  gap: 14px;
+}
+
+.accountabilityLedgerFilters label {
+  display: grid;
+  gap: 6px;
+}
+
+/* Подотчёт — moved from globals.css; classes are local to this module. */

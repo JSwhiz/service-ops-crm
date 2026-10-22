@@ -18,6 +18,7 @@ import {
 } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 type OneTimeOrderFormPayload = {
   title: string;
@@ -211,9 +212,9 @@ export function OneTimeOrderForm({
   };
 
   return (
-    <form className="ui-surface ui-surface--padded one-time-order-form" onSubmit={handleSubmit}>
+    <form className={`ui-surface ui-surface--padded ${orderStyles.oneTimeOrderForm}`} onSubmit={handleSubmit}>
       <div
-        className="one-time-order-form__fields"
+        className={orderStyles.oneTimeOrderFormFields}
         style={{
           display: 'grid',
           gap: 12,
@@ -256,15 +257,15 @@ export function OneTimeOrderForm({
           />
         ) : null}
 
-        <fieldset className="one-time-order-date-mode" style={{ gridColumn: '1 / -1' }}>
+        <fieldset className={orderStyles.oneTimeOrderDateMode} style={{ gridColumn: '1 / -1' }}>
           <legend>Дата выполнения</legend>
-          <div className="one-time-order-date-mode__options">
+          <div className={orderStyles.oneTimeOrderDateModeOptions}>
             {[
               { value: 'none', label: 'Без даты' },
               { value: 'single', label: 'Один день' },
               { value: 'range', label: 'Несколько дней' },
             ].map((option) => (
-              <label className="one-time-order-date-mode__option" key={option.value}>
+              <label className={orderStyles.oneTimeOrderDateModeOption} key={option.value}>
                 <input
                   type="radio"
                   name="one-time-order-date-mode"

@@ -24,6 +24,7 @@ import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/
 import styles from './one-time-order-registry.module.css';
 import { Alert, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { CalendarIcon, PlusIcon } from '@/shared/ui/icons/icons';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 const PAGE_LIMIT = 20;
 const EMPTY_RESULT: OneTimeOrderListResponse = { items: [], page: 1, limit: PAGE_LIMIT, total: 0, totalPages: 0 };
@@ -190,7 +191,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     !activeFilters.has('period') ? { id: 'period', label: 'Период', options: [{ value: 'period', label: 'Выбрать даты' }], onAdd: () => activateFilter('period') } : null,
   ].filter(Boolean) as AvailableRegistryFilter[];
 
-  return <div className="ui-page one-time-order-registry">
+  return <div className={`ui-page ${orderStyles.oneTimeOrderRegistry}`}>
     <RegistryToolbar searchValue={searchInput} searchLabel="Поиск по разовым заказам" searchPlaceholder={reviewOnly ? 'Заказ, менеджер или текст отзыва' : 'Заказ, адрес, контакт, объект, менеджер, отзыв'} onSearchChange={setSearchInput} activeFilters={registryFilters} availableFilters={reviewOnly ? availableRegistryFilters.filter((filter) => filter.id === 'status' || filter.id === 'manager' || filter.id === 'period') : availableRegistryFilters} actions={!reviewOnly ? <>{canViewCalendar ? <ButtonLink icon={<CalendarIcon />} href="/one-time-orders/calendar">Календарь</ButtonLink> : null}{canCreate ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/one-time-orders/new">Создать заказ</ButtonLink> : null}</> : null} />
     {isLoading ? <div className="ui-empty-state">Загрузка...</div> : error ? <Alert tone="warning">{error}</Alert> : reviewOnly ? <ReviewTable reviews={reviews} /> : <OneTimeOrderListTable items={result.items} sortBy={sortBy} sortDirection={sortDirection} onSort={(field) => replaceQuery({ sortBy: field, sortDirection: field === sortBy ? (sortDirection === 'asc' ? 'desc' : 'asc') : field === 'title' ? 'asc' : 'desc', page: null })} />}
     {!isLoading && !error ? <TablePagination page={currentPage} totalPages={totalPages} label={reviewOnly ? 'Страницы отзывов' : 'Страницы разовых заказов'}

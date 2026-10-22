@@ -14,6 +14,7 @@ import type {
   FileView,
 } from '@/entities/file/model/file.types';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
+import mediaStyles from '@/shared/ui/media-entry/media-entry.module.css';
 
 const PREVIEW_POLL_ATTEMPTS = 40;
 
@@ -126,7 +127,7 @@ function AttachmentPreviewCard({
               onError={() => setThumbnailFailed(true)}
             />
           ) : (
-            <span className="attachment-preview-skeleton">
+            <span className={mediaStyles.attachmentPreviewSkeleton}>
               {view?.previewStatus === 'failed'
                 ? 'Предпросмотр недоступен'
                 : 'Формируется превью…'}
@@ -174,7 +175,7 @@ function AttachmentPreviewCard({
         rel="noopener noreferrer"
         className="attachment-file-card__open"
       >
-        <span className="attachment-file-card__icon">
+        <span className={mediaStyles.attachmentFileCardIcon}>
           {getFileTypeLabel(file)}
         </span>
         <span className="attachment-file-card__body">

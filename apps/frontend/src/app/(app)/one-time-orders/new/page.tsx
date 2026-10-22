@@ -30,6 +30,7 @@ import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searc
 import { Alert, Surface } from '@/shared/ui/foundation';
 import { useConfirm } from '@/shared/ui/overlays';
 import { ScheduleConflictList } from '@/entities/one-time-order/ui/schedule-conflicts';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -179,7 +180,7 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
   }, [canCreateOneTimeOrder, copyFromId, searchParams]);
 
   return (
-    <div className="ui-page order-detail-page">
+    <div className={`ui-page ${orderStyles.orderDetailPage}`}>
       {confirmDialog}
       <PageTitle
         title={copyFromId ? 'Скопировать разовый заказ' : 'Создать разовый заказ'}

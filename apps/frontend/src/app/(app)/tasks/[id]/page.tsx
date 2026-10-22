@@ -42,6 +42,7 @@ import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
 import { Button, Surface } from '@/shared/ui/foundation';
+import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export default function TaskDetailPage({
   params,
@@ -198,7 +199,7 @@ export default function TaskDetailPage({
   if (isLoading) return <Surface padding="md">Загрузка…</Surface>;
   if (!item)
     return (
-      <Surface padding="md" className="task-error">
+      <Surface padding="md" className={taskStyles.taskError}>
         {error ?? 'Задача не найдена.'}
       </Surface>
     );
@@ -208,10 +209,10 @@ export default function TaskDetailPage({
   );
 
   return (
-    <div className="ui-page task-detail-page">
+    <div className={`ui-page ${taskStyles.taskDetailPage}`}>
       {confirmDialog}
       {reasonDialog}
-      <Surface padding="md" className="task-page-heading registry-header">
+      <Surface padding="md" className={`${taskStyles.taskPageHeading} registry-header`}>
         <PageTitle title="Карточка задачи" />
         <div className="ui-inline">
           {item.capabilities.canEdit ? (
@@ -282,13 +283,13 @@ export default function TaskDetailPage({
       </Surface>
 
       {error ? (
-        <div className="task-alert task-alert--danger" role="alert">
+        <div className={`${taskStyles.taskAlert} ${taskStyles.taskAlertDanger}`} role="alert">
           {error}
         </div>
       ) : null}
       <TaskSummaryCard item={item} autoCloseSeconds={autoCloseSeconds} />
 
-      <div className="task-detail-grid">
+      <div className={taskStyles.taskDetailGrid}>
         <Surface as="section" padding="md">
           <div className="ui-section-header">
             <div>
@@ -302,10 +303,10 @@ export default function TaskDetailPage({
               {item.completionProgress.total}
             </strong>
           </div>
-          <div className="record-list task-assignee-list">
+          <div className={`record-list ${taskStyles.taskAssigneeList}`}>
             {item.assignees.map((assignee) => (
               <Surface as="article" padding="sm"
-                className={`${!assignee.isActive ? 'task-assignee--inactive' : ''}`}
+                className={!assignee.isActive ? taskStyles.taskAssigneeInactive : undefined}
                 key={assignee.id}
               >
                 <div className="ui-section-header">
@@ -343,7 +344,7 @@ export default function TaskDetailPage({
                   ) : null}
                 </div>
                 {assignee.currentCompletion ? (
-                  <div className="task-assignee__result">
+                  <div className={taskStyles.taskAssigneeResult}>
                     <div>
                       {assignee.currentCompletion.completionText ||
                         'Комментарий не указан.'}
@@ -359,7 +360,7 @@ export default function TaskDetailPage({
           </div>
 
           {item.capabilities.canManageAssignees ? (
-            <div className="task-add-assignee">
+            <div className={taskStyles.taskAddAssignee}>
               <Select
                 value={newAssigneeId}
                 onFocus={() => {
@@ -465,12 +466,12 @@ export default function TaskDetailPage({
       {item.capabilities.canViewHistory ? (
         <Surface as="section" padding="md">
           <div className="ui-section-title">История</div>
-          <div className="task-history local-scroll local-scroll--lg">
+          <div className={`${taskStyles.taskHistory} local-scroll local-scroll--lg`}>
             {history.length === 0 ? (
               <div className="ui-text-muted">История пока пуста.</div>
             ) : (
               history.map((event) => (
-                <article key={event.id} className="task-history__item">
+                <article key={event.id} className={taskStyles.taskHistoryItem}>
                   <time>{formatDateTime(event.createdAt)}</time>
                   <strong>{formatTaskHistoryEvent(event)}</strong>
                   {typeof event.payload?.reason === 'string' ? (
@@ -484,9 +485,9 @@ export default function TaskDetailPage({
       ) : null}
 
       {isEditing ? (
-        <div className="task-modal-backdrop" role="presentation">
+        <div className={taskStyles.taskModalBackdrop} role="presentation">
           <div
-            className="task-modal"
+            className={taskStyles.taskModal}
             role="dialog"
             aria-modal="true"
             aria-label="Редактировать задачу"

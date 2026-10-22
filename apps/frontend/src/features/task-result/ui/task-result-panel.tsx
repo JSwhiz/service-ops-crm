@@ -15,6 +15,7 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { Button, Surface } from '@/shared/ui/foundation';
 import { useConfirm } from '@/shared/ui/overlays';
+import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export function TaskResultPanel({
   taskId,
@@ -70,7 +71,7 @@ export function TaskResultPanel({
   };
 
   return (
-    <Surface padding="md" className="task-completion-panel">
+    <Surface padding="md" className={taskStyles.taskCompletionPanel}>
       {confirmDialog}
       <div className="ui-section-header">
         <div>
@@ -96,7 +97,7 @@ export function TaskResultPanel({
       </div>
       {canComplete ? (
         <form onSubmit={(event) => void submit(event)}>
-          <label className="task-field">
+          <label className={taskStyles.taskField}>
             <span>Комментарий</span>
             <textarea
               rows={4}
@@ -124,12 +125,12 @@ export function TaskResultPanel({
             }}
           />
           {files.length > 0 ? <AttachmentPreviewList files={files} /> : null}
-          {error ? <div className="task-form__error" role="alert">{error}</div> : null}
+          {error ? <div className={taskStyles.taskFormError} role="alert">{error}</div> : null}
           <Button variant="primary" type="submit" disabled={isBusy || lacksRequiredResult}>
             {isBusy ? 'Отправляем…' : 'Отметить выполненной'}
           </Button>
         </form>
-      ) : error ? <div className="task-form__error" role="alert">{error}</div> : null}
+      ) : error ? <div className={taskStyles.taskFormError} role="alert">{error}</div> : null}
     </Surface>
   );
 }
