@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
+import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { SearchField } from '@/shared/ui/search-field/search-field';
 
 import styles from './registry-toolbar.module.css';
@@ -226,6 +227,30 @@ export function RegistryToolbar({
         </div>
         {actions ? <div className={styles.actions}>{actions}</div> : null}
       </div>
+    </div>
+  );
+}
+
+/** «с … — по …» control for a period filter (use as `customControl`). */
+export function RegistryDateRange({
+  label,
+  from,
+  to,
+  onFromChange,
+  onToChange,
+}: {
+  label?: string;
+  from: string;
+  to: string;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+}): React.JSX.Element {
+  return (
+    <div className={styles.dateRange}>
+      {label ? <span className={styles.filterLabel}>{label}</span> : null}
+      <DatePicker aria-label={`${label ?? 'Период'}: с`} placeholder="с" displayFormat="short" max={to || undefined} value={from} onChange={onFromChange} />
+      <span className={styles.dateDash} aria-hidden="true">—</span>
+      <DatePicker aria-label={`${label ?? 'Период'}: по`} placeholder="по" displayFormat="short" min={from || undefined} value={to} onChange={onToChange} />
     </div>
   );
 }

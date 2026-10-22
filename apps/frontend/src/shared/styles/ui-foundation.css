@@ -598,3 +598,34 @@ a.ui-button--primary:hover {
 .ui-stack--md { gap: var(--ui-space-3); }
 .ui-stack--lg { gap: var(--ui-space-4); }
 .ui-stack--xl { gap: var(--ui-space-6); }
+
+/* Loading state */
+.ui-loading-state {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-height: 96px;
+  padding: var(--ui-space-5);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-md);
+}
+
+.ui-loading-state__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--ui-border);
+  border-top-color: var(--ui-accent);
+  border-radius: var(--ui-radius-pill);
+  animation: ui-spin 0.8s linear infinite;
+}
+
+@keyframes ui-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-loading-state__spinner { animation: none; }
+}

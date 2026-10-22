@@ -17,6 +17,7 @@ const MONTH_SHORT = [
 ] as const;
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
 const displayDate = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+const shortDate = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
 
 export interface DatePickerProps {
   /** `YYYY-MM-DD`, or `YYYY-MM-DDTHH:mm` with `withTime`; empty string when unset. */
@@ -28,6 +29,8 @@ export interface DatePickerProps {
   min?: string;
   max?: string;
   placeholder?: string;
+  /** `short` shows 01.10.26 — for narrow filter controls. */
+  displayFormat?: 'long' | 'short';
   clearable?: boolean;
   disabled?: boolean;
   id?: string;
@@ -66,6 +69,7 @@ export function DatePicker({
   min,
   max,
   placeholder = 'Выберите дату',
+  displayFormat = 'long',
   clearable = true,
   disabled = false,
   id,
@@ -172,7 +176,7 @@ export function DatePicker({
   };
 
   const label = selected
-    ? `${displayDate.format(selected).replace(' г.', '')}${selectedTime ? `, ${selectedTime}` : ''}`
+    ? `${(displayFormat === 'short' ? shortDate : displayDate).format(selected).replace(' г.', '')}${selectedTime ? `, ${selectedTime}` : ''}`
     : '';
 
   return (

@@ -23,7 +23,6 @@
 }
 
 .sectionHeader,
-.toolbar,
 .formActions {
   display: flex;
   align-items: center;
@@ -46,51 +45,12 @@
   line-height: 1.45;
 }
 
-.toolbar {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(0, auto);
-  align-items: center;
-  gap: 12px;
-}
-
-.searchField {
-  min-width: 0;
-  min-height: var(--ui-control-lg);
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 10px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface-subtle);
-  color: var(--ui-text-tertiary);
-  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
-}
-
-.searchField:hover {
-  border-color: var(--ui-border-hover);
-  background: var(--ui-surface-hover);
-}
-
-.searchField:focus-within {
-  border-color: var(--ui-focus-border);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-focus-ring);
-}
-
-.searchField > svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-}
-
 .formFields label > span {
   color: var(--ui-text-secondary);
   font-size: 12px;
   font-weight: 680;
 }
 
-.searchField input,
 .formFields input,
 .formFields textarea {
   width: 100%;
@@ -106,214 +66,10 @@
   box-shadow: none;
 }
 
-.searchField input {
-  height: calc(var(--ui-control-lg) - 2px);
-  outline: 0;
-}
-
-.searchField input:focus,
-.searchField input:focus-visible {
-  border: 0;
-  outline: 0;
-  box-shadow: none;
-}
-
-.searchField input::placeholder {
-  color: var(--ui-text-tertiary);
-}
-
-.searchField input::-webkit-search-cancel-button {
-  display: none;
-}
-
-.searchClear {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ui-text-tertiary);
-  font: inherit;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.searchClear:hover {
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-}
-
-.toolbarActions {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.filterControl {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  min-width: 0;
-  min-height: var(--ui-control-lg);
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-}
-
-.filterControl:hover,
-.filterControl:focus-within {
-  border-color: var(--ui-border-hover);
-}
-
-.filterTrigger {
-  min-width: 0;
-  min-height: calc(var(--ui-control-lg) - 2px);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 8px 5px 10px;
-  border: 0;
-  border-radius: var(--ui-radius-md) 0 0 var(--ui-radius-md);
-  background: transparent;
-  color: var(--ui-text-secondary);
-  box-shadow: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.filterTrigger:hover,
-.filterTrigger[aria-expanded='true'] {
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-  box-shadow: none;
-  transform: none;
-}
-
-.filterTrigger > svg {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 14px;
-  color: var(--ui-text-tertiary);
-}
-
-.filterCopy {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.filterLabel {
-  color: var(--ui-text-tertiary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.filterCopy strong {
-  color: var(--ui-text);
-  font-size: 12.5px;
-  font-weight: 680;
-}
-
-.filterRemove {
-  width: 30px;
-  min-width: 30px;
-  min-height: calc(var(--ui-control-lg) - 2px);
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-left: 1px solid var(--ui-border);
-  border-radius: 0 var(--ui-radius-md) var(--ui-radius-md) 0;
-  background: transparent;
-  color: var(--ui-text-tertiary);
-  box-shadow: none;
-  font: inherit;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.filterRemove:hover {
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-}
-
-.filterDropdown {
-  position: absolute;
-  z-index: 120;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 230px;
-  padding: 6px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-shadow-popover);
-}
-
-.filterDropdownLabel {
-  padding: 6px 8px 5px;
-  color: var(--ui-text-tertiary);
-  font-size: 12px;
-  font-weight: 750;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.filterOption {
-  width: 100%;
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 9px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--ui-text-secondary);
-  box-shadow: none;
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.filterOption:hover,
-.filterOption[data-selected='true'] {
-  background: var(--ui-accent-subtle);
-  color: var(--ui-text);
-}
-
-.filterCheck {
-  color: var(--ui-accent);
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.searchField input:focus,
 .formFields input:focus,
 .formFields textarea:focus {
   border-color: var(--ui-border-strong);
   outline: 3px solid rgba(15, 49, 201, 0.12);
-}
-
-.tableShell {
-  overflow: hidden;
-  padding: 0;
 }
 
 .tableScroll {
@@ -423,41 +179,6 @@
   text-underline-offset: 3px;
 }
 
-.statusPill {
-  box-sizing: border-box;
-  min-height: 26px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 8px;
-  border: 1px solid var(--ui-success-border);
-  border-radius: 6px;
-  background: var(--ui-success-subtle);
-  color: var(--ui-success);
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
-.statusDot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 2px;
-  background: var(--ui-success);
-}
-
-.statusPill[data-status='archived'] {
-  border-color: var(--ui-border);
-  background: var(--ui-surface-muted);
-  color: var(--ui-text-tertiary);
-}
-
-.statusPill[data-status='archived'] .statusDot {
-  background: var(--ui-text-tertiary);
-}
-
 .actionCell {
   padding-inline: 4px !important;
   text-align: center;
@@ -527,15 +248,6 @@
 .inlineForm textarea:focus {
   border-color: var(--ui-border-strong);
   outline: 3px solid rgba(15, 49, 201, 0.12);
-  box-shadow: none;
-}
-
-.filterTrigger:focus-visible,
-.filterRemove:focus-visible,
-.filterOption:focus-visible,
-.searchClear:focus-visible {
-  outline: 2px solid var(--ui-focus-border);
-  outline-offset: 2px;
   box-shadow: none;
 }
 
@@ -728,93 +440,6 @@
   color: var(--ui-text-tertiary);
 }
 
-/* Match the compact, removable filter chips used in the objects registry. */
-.addFilterRoot {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.addFilterButton {
-  min-height: var(--ui-control-lg);
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 11px;
-  border: 1px solid transparent;
-  border-radius: var(--ui-radius-md);
-  background: transparent;
-  color: var(--ui-accent);
-  box-shadow: none;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 650;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.addFilterButton > svg,
-.addFilterOptionIcon svg {
-  width: 15px;
-  height: 15px;
-}
-
-.addFilterButton:hover,
-.addFilterButton[aria-expanded='true'] {
-  background: var(--ui-accent-subtle);
-  color: var(--ui-text);
-}
-
-.addFilterMenu {
-  position: absolute;
-  z-index: 120;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 230px;
-  padding: 6px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-shadow-popover);
-}
-
-.addFilterOption {
-  width: 100%;
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 6px 8px;
-  background: transparent;
-  color: var(--ui-text-secondary);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.addFilterOption:hover {
-  background: var(--ui-accent-subtle);
-  color: var(--ui-text);
-}
-
-.addFilterOptionIcon {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  flex: 0 0 28px;
-  place-items: center;
-  border-radius: 6px;
-  background: var(--ui-surface-subtle);
-  color: var(--ui-accent);
-}
-
-.addFilterButton:focus-visible,
-.addFilterOption:focus-visible {
-  outline: 2px solid var(--ui-focus-border);
-  outline-offset: 2px;
-}
-
 .createPage {
   gap: 0;
 }
@@ -894,45 +519,11 @@
   margin-top: 2px;
 }
 
-.page .filterTrigger:hover,
-.page .filterTrigger:active,
-.page .filterRemove:hover,
-.page .filterRemove:active,
-.page .filterOption:hover,
-.page .filterOption:active,
-.page .addFilterButton:hover,
-.page .addFilterButton:active,
-.page .addFilterOption:hover,
-.page .addFilterOption:active,
-.page .searchClear:hover,
 .page .navigation button:hover,
 .page .navigation button:active {
   border-color: transparent;
   box-shadow: none;
   transform: none;
-}
-
-.page .addFilterButton:hover,
-.page .addFilterButton[aria-expanded='true'] {
-  background: var(--ui-accent-subtle);
-  color: var(--ui-text);
-}
-
-.page .addFilterOption:hover,
-.page .filterOption:hover {
-  background: var(--ui-accent-subtle);
-  color: var(--ui-text);
-}
-
-.filterDropdown,
-.addFilterMenu {
-  overflow: hidden;
-  border-radius: 9px;
-}
-
-.addFilterOption {
-  border: 0;
-  border-radius: 7px;
 }
 
 .counterpartyHero {
@@ -1211,14 +802,6 @@
 
   .surface {
     padding: 14px;
-  }
-
-  .toolbar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .toolbarActions {
-    justify-content: flex-start;
   }
 
   .formFields,

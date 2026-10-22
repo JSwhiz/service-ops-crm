@@ -24,8 +24,6 @@ import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
 import { getInventoryMovementTypeLabel } from '@/shared/lib/inventory-presentation';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
-import { SearchField } from '@/shared/ui/search-field/search-field';
-import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
 import { Alert, Badge, Button, EmptyState, Skeleton, Surface } from '@/shared/ui/foundation';
 import {
   ConfirmDialog,
@@ -33,8 +31,8 @@ import {
   ReasonDialog,
 } from '@/shared/ui/overlays';
 
+import { RegistryDateRange, RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import styles from './approvals.module.css';
-import { PlusIcon } from '@/shared/ui/icons/icons';
 
 type ApprovalStatusTone = 'neutral' | 'danger' | 'warning' | 'success';
 
@@ -70,336 +68,6 @@ function ApprovalStatusBadge({ status }: { status: string }): React.JSX.Element 
     <Badge className={styles.statusBadge} tone={getApprovalStatusTone(status)}>
       {getApprovalStatusLabel(status)}
     </Badge>
-  );
-}
-
-type ApprovalFilterOption = { value: string; label: string };
-
-const CALENDAR_MONTHS = [
-  'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
-  'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь',
-] as const;
-const CALENDAR_WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] as const;
-
-function DateFilterPicker({
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  min?: string;
-  max?: string;
-  onChange: (value: string) => void;
-}): React.JSX.Element {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-  const [open, setOpen] = useState(false);
-  const selected = value ? new Date(`${value}T12:00:00`) : new Date();
-  const [view, setView] = useState(() => ({ year: selected.getFullYear(), month: selected.getMonth() }));
-  const viewStart = new Date(view.year, view.month, 1);
-  const gridStart = new Date(view.year, view.month, 1 - ((viewStart.getDay() + 6) % 7));
-  const days = Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index);
-    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return { date, iso };
-  });
-  const today = new Date();
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const placement = usePopoverPlacement(open, triggerRef, popoverRef, 360);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointer = (event: PointerEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointer);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('pointerdown', onPointer);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  const shiftMonth = (delta: number): void => {
-    const next = new Date(view.year, view.month + delta, 1);
-    setView({ year: next.getFullYear(), month: next.getMonth() });
-  };
-
-  return (
-    <div className={styles.datePickerRoot} ref={rootRef}>
-      <span className={styles.dateRangeLabel}>{label}</span>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={styles.datePickerTrigger}
-        aria-label={`${label}: ${value ? formatDateOnly(value) : 'выбрать дату'}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => {
-          if (!open) setView({ year: selected.getFullYear(), month: selected.getMonth() });
-          setOpen((current) => !current);
-        }}
-      >
-        {value ? formatDateOnly(value) : 'Выбрать дату'}
-      </button>
-      {open ? (
-        <div
-          ref={popoverRef}
-          className={styles.datePickerPopover}
-          role="dialog"
-          aria-label={`Выбор даты: ${label}`}
-          data-placement={placement.placement}
-          style={{ '--approval-popover-max-height': `${placement.availableHeight}px` } as React.CSSProperties}
-        >
-          <div className={styles.datePickerHeader}>
-            <Button aria-label="Предыдущий месяц" onClick={() => shiftMonth(-1)}>
-              <span aria-hidden="true">‹</span>
-            </Button>
-            <strong>{CALENDAR_MONTHS[view.month]} {view.year}</strong>
-            <Button aria-label="Следующий месяц" onClick={() => shiftMonth(1)}>
-              <span aria-hidden="true">›</span>
-            </Button>
-          </div>
-          <div className={styles.datePickerGrid}>
-            {CALENDAR_WEEKDAYS.map((weekday) => (
-              <span className={styles.datePickerWeekday} key={weekday}>{weekday}</span>
-            ))}
-            {days.map(({ date, iso }) => {
-              const disabled = Boolean((min && iso < min) || (max && iso > max));
-              return (
-                <button
-                  type="button"
-                  key={iso}
-                  className={styles.datePickerDay}
-                  data-outside={date.getMonth() !== view.month || undefined}
-                  data-selected={iso === value || undefined}
-                  data-today={iso === todayIso || undefined}
-                  disabled={disabled}
-                  aria-label={date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  aria-pressed={iso === value}
-                  onClick={() => { onChange(iso); setOpen(false); }}
-                >
-                  {date.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ApprovalFilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-  onRemove,
-}: {
-  label: string;
-  value: string;
-  options: readonly ApprovalFilterOption[];
-  onChange: (value: string) => void;
-  onRemove: () => void;
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-  const placement = usePopoverPlacement(open, triggerRef, popoverRef, 360);
-  const selectedLabel = options.find((option) => option.value === value)?.label ?? value;
-
-  useEffect(() => {
-    if (!open) return;
-    const handlePointer = (event: MouseEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const handleKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', handlePointer);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handlePointer);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [open]);
-
-  return (
-    <div className={styles.filterControl} ref={rootRef}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={styles.filterTrigger}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span className={styles.filterCopy}>
-          <span className={styles.filterLabel}>{label}</span>
-          <strong>{selectedLabel}</strong>
-        </span>
-        <span className={styles.filterChevron} aria-hidden="true">⌄</span>
-      </button>
-      <button
-        type="button"
-        className={styles.filterRemove}
-        aria-label={`Убрать фильтр «${label}»`}
-        title="Убрать фильтр"
-        onClick={onRemove}
-      >
-        ×
-      </button>
-      {open ? (
-        <div
-          ref={popoverRef}
-          className={styles.filterDropdown}
-          role="listbox"
-          aria-label={label}
-          data-placement={placement.placement}
-          style={{ '--approval-popover-max-height': `${placement.availableHeight}px` } as React.CSSProperties}
-        >
-          <div className={styles.filterDropdownLabel}>{label}</div>
-          {options.map((option) => (
-            <button
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className={styles.filterOption}
-              data-selected={option.value === value ? 'true' : 'false'}
-              key={option.value}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              <span>{option.label}</span>
-              {option.value === value ? <span className={styles.filterCheck} aria-hidden="true">✓</span> : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function AddApprovalFilterMenu({
-  statusActive,
-  typeActive,
-  periodActive,
-  sourceActive,
-  onStatus,
-  onType,
-  onPeriod,
-  onSource,
-}: {
-  statusActive: boolean;
-  typeActive: boolean;
-  periodActive: boolean;
-  sourceActive: boolean;
-  onStatus: (value: string) => void;
-  onType: (value: string) => void;
-  onPeriod: () => void;
-  onSource: (value: string) => void;
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-  const placement = usePopoverPlacement(open, triggerRef, popoverRef, 420);
-  const statusOptions = APPROVAL_STATUS_OPTIONS.filter((option) => option.value);
-  const typeOptions = APPROVAL_TYPE_OPTIONS.filter((option) => option.value);
-  const available = !statusActive || !typeActive || !periodActive || !sourceActive;
-
-  useEffect(() => {
-    if (!open) return;
-    const handlePointer = (event: MouseEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const handleKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', handlePointer);
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('mousedown', handlePointer);
-      document.removeEventListener('keydown', handleKey);
-    };
-  }, [open]);
-
-  return (
-    <div className={styles.addFilterRoot} ref={rootRef}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={styles.addFilterButton}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Добавить фильтр"
-        disabled={!available}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <PlusIcon />
-        <span>Добавить фильтр</span>
-      </button>
-      {open ? (
-        <div
-          ref={popoverRef}
-          className={styles.addFilterMenu}
-          role="menu"
-          aria-label="Доступные фильтры"
-          data-placement={placement.placement}
-          style={{ '--approval-popover-max-height': `${placement.availableHeight}px` } as React.CSSProperties}
-        >
-          {!statusActive ? (
-            <div className={styles.addFilterSection}>
-              <div className={styles.filterDropdownLabel}>Статус</div>
-              {statusOptions.map((option) => (
-                <button type="button" role="menuitem" className={styles.addFilterOption} key={option.value} onClick={() => { onStatus(option.value); setOpen(false); }}>
-                  <span className={styles.addFilterOptionIcon}><PlusIcon /></span><span>{option.label}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {!typeActive ? (
-            <div className={styles.addFilterSection}>
-              <div className={styles.filterDropdownLabel}>Тип запроса</div>
-              {typeOptions.map((option) => (
-                <button type="button" role="menuitem" className={styles.addFilterOption} key={option.value} onClick={() => { onType(option.value); setOpen(false); }}>
-                  <span className={styles.addFilterOptionIcon}><PlusIcon /></span><span>{option.label}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {!periodActive ? (
-            <div className={styles.addFilterSection}>
-              <div className={styles.filterDropdownLabel}>Период</div>
-              <button type="button" role="menuitem" className={styles.addFilterOption} onClick={() => { onPeriod(); setOpen(false); }}>
-                <span className={styles.addFilterOptionIcon}><PlusIcon /></span><span>Дата создания</span>
-              </button>
-            </div>
-          ) : null}
-          {!sourceActive ? (
-            <div className={styles.addFilterSection}>
-              <div className={styles.filterDropdownLabel}>Источник</div>
-              {APPROVAL_SOURCE_OPTIONS.map((option) => (
-                <button type="button" role="menuitem" className={styles.addFilterOption} key={option.value} onClick={() => { onSource(option.value); setOpen(false); }}>
-                  <span className={styles.addFilterOptionIcon}><PlusIcon /></span><span>{option.label}</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
   );
 }
 
@@ -892,91 +560,58 @@ export default function ApprovalsPage(): React.JSX.Element {
   return (
     <div className={styles.page}>
       <div className={styles.filters} role="region" aria-label="Фильтры согласований">
-        <div className={styles.filterToolbar}>
-          <SearchField
-            value={searchDraft}
-            onChange={(value) => {
-              setSearchDraft(value);
-              setSelectedId(null);
-              setDetailError(null);
-            }}
-            label="Поиск в согласованиях"
-            placeholder="По названию, объекту, сотруднику или автору"
-            busy={isLoading}
-            className={styles.approvalsSearch}
-          />
-          <div className={styles.activeFilters}>
-            {status ? (
-              <ApprovalFilterSelect
-                label="Статус"
-                value={status}
-                options={APPROVAL_STATUS_OPTIONS.filter((option) => option.value)}
-                onChange={(value) => updateQuery({ status: value, page: '' })}
-                onRemove={() => updateQuery({ status: '', page: '' })}
-              />
-            ) : null}
-            {approvalType ? (
-              <ApprovalFilterSelect
-                label="Тип запроса"
-                value={approvalType}
-                options={APPROVAL_TYPE_OPTIONS.filter((option) => option.value)}
-                onChange={(value) => updateQuery({ approvalType: value, page: '' })}
-                onRemove={() => updateQuery({ approvalType: '', page: '' })}
-              />
-            ) : null}
-            {periodActive ? (
-              <div className={styles.periodFilter}>
-                <span className={styles.periodTitle}>Дата</span>
-                <DateFilterPicker
-                  label="с"
-                  value={dateFrom}
-                  max={dateTo || undefined}
-                  onChange={(value) => updateQuery({ dateFrom: value, page: '' })}
+        <RegistryToolbar
+          searchValue={searchDraft}
+          searchLabel="Поиск в согласованиях"
+          searchPlaceholder="По названию, объекту, сотруднику или автору"
+          onSearchChange={(value) => {
+            setSearchDraft(value);
+            setSelectedId(null);
+            setDetailError(null);
+          }}
+          activeFilters={[
+            ...(status ? [{
+              id: 'status', label: 'Статус', value: status,
+              options: APPROVAL_STATUS_OPTIONS.filter((option) => option.value),
+              onChange: (value: string) => updateQuery({ status: value, page: '' }),
+              onRemove: () => updateQuery({ status: '', page: '' }),
+            }] : []),
+            ...(approvalType ? [{
+              id: 'type', label: 'Тип запроса', value: approvalType,
+              options: APPROVAL_TYPE_OPTIONS.filter((option) => option.value),
+              onChange: (value: string) => updateQuery({ approvalType: value, page: '' }),
+              onRemove: () => updateQuery({ approvalType: '', page: '' }),
+            }] : []),
+            ...(periodActive ? [{
+              id: 'period', label: 'Дата создания', value: '', options: [],
+              onChange: () => undefined,
+              onRemove: () => updateQuery({ dateFrom: '', dateTo: '', period: '', page: '' }),
+              customControl: (
+                <RegistryDateRange label="Дата создания"
+                  from={dateFrom}
+                  to={dateTo}
+                  onFromChange={(value) => updateQuery({ dateFrom: value, page: '' })}
+                  onToChange={(value) => updateQuery({ dateTo: value, page: '' })}
                 />
-                <span className={styles.dateRangeDash}>—</span>
-                <DateFilterPicker
-                  label="по"
-                  value={dateTo}
-                  min={dateFrom || undefined}
-                  onChange={(value) => updateQuery({ dateTo: value, page: '' })}
-                />
-                <button
-                  type="button"
-                  className={styles.filterRemove}
-                  aria-label="Убрать фильтр «Дата создания»"
-                  title="Убрать фильтр"
-                  onClick={() => updateQuery({ dateFrom: '', dateTo: '', period: '', page: '' })}
-                >
-                  ×
-                </button>
-              </div>
-            ) : null}
-            {sourceFilterActive ? (
-              <ApprovalFilterSelect
-                label="Источник"
-                value={sourceEntityType}
-                options={APPROVAL_SOURCE_OPTIONS}
-                onChange={(value) => updateQuery({ sourceEntityType: value, page: '' })}
-                onRemove={() => updateQuery({ sourceEntityType: '', page: '' })}
-              />
-            ) : null}
-          </div>
-          <AddApprovalFilterMenu
-            statusActive={Boolean(status)}
-            typeActive={Boolean(approvalType)}
-            periodActive={periodActive}
-            sourceActive={Boolean(sourceEntityType) || hasScope}
-            onStatus={(value) => updateQuery({ status: value, page: '' })}
-            onType={(value) => updateQuery({ approvalType: value, page: '' })}
-            onPeriod={() => updateQuery({ period: '1', page: '' })}
-            onSource={(value) => updateQuery({ sourceEntityType: value, page: '' })}
-          />
-          {hasEditableFilters ? (
-            <Button className={styles.resetFilters} variant="ghost" onClick={resetFilters}>
-              Сбросить
-            </Button>
+              ),
+            }] : []),
+            ...(sourceFilterActive ? [{
+              id: 'source', label: 'Источник', value: sourceEntityType,
+              options: APPROVAL_SOURCE_OPTIONS,
+              onChange: (value: string) => updateQuery({ sourceEntityType: value, page: '' }),
+              onRemove: () => updateQuery({ sourceEntityType: '', page: '' }),
+            }] : []),
+          ]}
+          availableFilters={[
+            ...(!status ? [{ id: 'status', label: 'Статус', options: APPROVAL_STATUS_OPTIONS.filter((option) => option.value), onAdd: (value: string) => updateQuery({ status: value, page: '' }) }] : []),
+            ...(!approvalType ? [{ id: 'type', label: 'Тип запроса', options: APPROVAL_TYPE_OPTIONS.filter((option) => option.value), onAdd: (value: string) => updateQuery({ approvalType: value, page: '' }) }] : []),
+            ...(!periodActive ? [{ id: 'period', label: 'Период', options: [{ value: 'period', label: 'Дата создания' }], onAdd: () => updateQuery({ period: '1', page: '' }) }] : []),
+            ...(!sourceEntityType && !hasScope ? [{ id: 'source', label: 'Источник', options: APPROVAL_SOURCE_OPTIONS, onAdd: (value: string) => updateQuery({ sourceEntityType: value, page: '' }) }] : []),
+          ]}
+          actions={hasEditableFilters ? (
+            <Button variant="ghost" onClick={resetFilters}>Сбросить</Button>
           ) : null}
-        </div>
+        />
 
         {hasScope ? (
           <div className={styles.scope}>

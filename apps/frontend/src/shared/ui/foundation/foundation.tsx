@@ -406,6 +406,20 @@ export function EmptyState({
   );
 }
 
+export interface LoadingStateProps extends React.HTMLAttributes<HTMLDivElement> {
+  label?: string;
+}
+
+/** Placeholder while a list or card loads; announced to assistive tech. */
+export function LoadingState({ label = 'Загрузка…', className, ...props }: LoadingStateProps): React.JSX.Element {
+  return (
+    <div className={classes('ui-loading-state', className)} role="status" aria-live="polite" aria-busy="true" {...props}>
+      <span className="ui-loading-state__spinner" aria-hidden="true" />
+      {label}
+    </div>
+  );
+}
+
 export interface SkeletonProps extends React.HTMLAttributes<HTMLSpanElement> {
   width?: string | number;
   height?: string | number;

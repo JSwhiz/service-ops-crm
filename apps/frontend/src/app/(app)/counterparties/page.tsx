@@ -14,8 +14,9 @@ import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './counterparties.module.css';
-import { ButtonLink } from '@/shared/ui/foundation';
-import { ChevronDownIcon, PlusIcon, SearchIcon } from '@/shared/ui/icons/icons';
+import { Alert, ButtonLink, EmptyState, LoadingState, StatusBadge } from '@/shared/ui/foundation';
+import { PlusIcon } from '@/shared/ui/icons/icons';
+import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 
 const EMPTY: CounterpartyListResponse = {
   items: [],
@@ -39,106 +40,7 @@ const fullDateFormatter = new Intl.DateTimeFormat('ru-RU', {
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Активные' },
   { value: 'archived', label: 'Архив' },
-] as const;
-
-function StatusFilter({
-  value,
-  onChange,
-  onReset,
-}: {
-  value: 'active' | 'archived' | 'all';
-  onChange: (value: 'active' | 'archived' | 'all') => void;
-  onReset: () => void;
-}): React.JSX.Element {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const selectedOption = STATUS_OPTIONS.find((option) => option.value === value);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div className={styles.addFilterRoot} ref={rootRef}>
-      {selectedOption ? (
-        <div className={styles.filterControl}>
-          <button
-            type="button"
-            className={styles.filterTrigger}
-            aria-haspopup="listbox"
-            aria-expanded={open}
-            onClick={() => setOpen((current) => !current)}
-          >
-            <span className={styles.filterCopy}>
-              <span className={styles.filterLabel}>Статус</span>
-              <strong>{selectedOption.label}</strong>
-            </span>
-            <ChevronDownIcon />
-          </button>
-          <button
-            type="button"
-            className={styles.filterRemove}
-            aria-label="Убрать фильтр статуса"
-            title="Убрать фильтр"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={(event) => {
-              event.currentTarget.blur();
-              onReset();
-            }}
-          >
-            ×
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          className={styles.addFilterButton}
-          aria-haspopup="menu"
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
-        >
-          <PlusIcon />
-          <span>Добавить фильтр</span>
-        </button>
-      )}
-      {open ? (
-        <div className={selectedOption ? styles.filterDropdown : styles.addFilterMenu} role={selectedOption ? 'listbox' : 'menu'} aria-label="Статус контрагента">
-          {!selectedOption ? <div className={styles.filterDropdownLabel}>Статус</div> : null}
-          {STATUS_OPTIONS.map((option) => (
-            <button
-              type="button"
-              role={selectedOption ? 'option' : 'menuitem'}
-              aria-selected={selectedOption ? option.value === value : undefined}
-              className={selectedOption ? styles.filterOption : styles.addFilterOption}
-              data-selected={option.value === value ? 'true' : 'false'}
-              key={option.value}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              {!selectedOption ? <span className={styles.addFilterOptionIcon}><PlusIcon /></span> : null}
-              <span>{option.label}</span>
-              {selectedOption && option.value === value ? <span className={styles.filterCheck} aria-hidden="true">✓</span> : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
+];
 
 export default function CounterpartiesPage(): React.JSX.Element {
   const { user } = useAuth();
@@ -217,56 +119,53 @@ export default function CounterpartiesPage(): React.JSX.Element {
   if (!canAccess) {
     return (
       <div className={`workspace-page counterparty-workspace ${styles.page}`}>
-        <div className={`page-card workspace-surface ${styles.surface} ${styles.emptyState}`}>У вас нет доступа к контрагентам.</div>
+        <EmptyState title="Нет доступа" description="У вас нет доступа к контрагентам." />
       </div>
     );
   }
 
   return (
     <div className={`workspace-page counterparty-workspace ${styles.page}`}>
-      <section className={styles.toolbar} aria-label="Поиск и фильтр контрагентов">
-        <label className={styles.searchField}>
-          <SearchIcon />
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Название, юр. название или контакт"
-            aria-label="Поиск контрагентов"
-          />
-          {search ? (
-            <button type="button" className={styles.searchClear} aria-label="Очистить поиск" onClick={() => setSearch('')}>×</button>
-          ) : null}
-        </label>
-        <div className={styles.toolbarActions}>
-          <StatusFilter
-            value={status}
-            onChange={(value) => replaceQuery({ status: value, page: null })}
-            onReset={() => replaceQuery({ status: null, page: null })}
-          />
-          {canManage ? (
-            <ButtonLink variant="primary" icon={<PlusIcon />} href="/counterparties/new">
-              Создать контрагента
-            </ButtonLink>
-          ) : null}
-        </div>
-      </section>
+      <RegistryToolbar
+        searchValue={search}
+        searchLabel="Поиск контрагентов"
+        searchPlaceholder="Название, юр. название или контакт"
+        onSearchChange={setSearch}
+        activeFilters={status !== 'all' ? [{
+          id: 'status',
+          label: 'Статус',
+          value: status,
+          options: STATUS_OPTIONS,
+          onChange: (value) => replaceQuery({ status: value || null, page: null }),
+          onRemove: () => replaceQuery({ status: null, page: null }),
+        }] : []}
+        availableFilters={status === 'all' ? [{
+          id: 'status',
+          label: 'Статус',
+          options: STATUS_OPTIONS,
+          onAdd: (value) => replaceQuery({ status: value, page: null }),
+        }] : []}
+        actions={canManage ? (
+          <ButtonLink variant="primary" icon={<PlusIcon />} href="/counterparties/new">
+            Создать контрагента
+          </ButtonLink>
+        ) : null}
+      />
 
       {loading ? (
-        <div className={`page-card workspace-surface ${styles.surface} ${styles.loading}`}>Загружаем контрагентов…</div>
+        <LoadingState label="Загружаем контрагентов…" />
       ) : error ? (
-        <div className={`${styles.surface} ${styles.error}`} role="alert">
-          {error}
-        </div>
+        <Alert tone="danger" role="alert">{error}</Alert>
       ) : result.items.length === 0 ? (
-        <div className={`page-card workspace-surface ${styles.surface} ${styles.emptyState}`}>
-          {q || status !== 'all' ? 'По заданным условиям контрагенты не найдены.' : 'Контрагентов пока нет.'}
-        </div>
+        <EmptyState
+          title={q || status !== 'all' ? 'Ничего не найдено' : 'Контрагентов пока нет'}
+          description={q || status !== 'all' ? 'Измените поиск или уберите фильтр.' : undefined}
+        />
       ) : (
         <DataTable
           label="Таблица контрагентов"
-          className={`object-registry-table ${styles.table}`}
-          frameClassName={`page-card workspace-surface data-table-shell ${styles.surface} ${styles.tableShell} ${styles.tableScroll}`}
+          className={styles.table}
+          frameClassName={styles.tableScroll}
         >
             <thead>
               <tr>
@@ -303,10 +202,9 @@ export default function CounterpartiesPage(): React.JSX.Element {
                     )}
                   </td>
                   <td>
-                    <span className={styles.statusPill} data-status={item.status}>
-                      <span className={styles.statusDot} aria-hidden="true" />
+                    <StatusBadge status={item.status}>
                       {item.status === 'active' ? 'Активный' : 'Архив'}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td title={fullDateFormatter.format(new Date(item.updatedAt))}>
                     {shortDateFormatter.format(new Date(item.updatedAt))}
