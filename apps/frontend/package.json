@@ -6,7 +6,7 @@
     "dev": "node ../../scripts/run-with-env.mjs FRONTEND_ENV_FILE ../../.env.frontend.local -- next dev --hostname 0.0.0.0 --port 3000",
     "build": "node ../../scripts/run-with-env.mjs FRONTEND_ENV_FILE ../../.env.frontend.local -- next build",
     "start": "node ../../scripts/run-with-env.mjs FRONTEND_ENV_FILE ../../.env.frontend.local -- next start -H 0.0.0.0 -p 3000",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" && node ../../scripts/audit-css.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "echo \"Formatting handled at repo level\"",
     "clean": "rimraf .next"

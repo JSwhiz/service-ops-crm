@@ -46,6 +46,35 @@ export default tseslint.config(
     },
   },
   {
+    // UI contract (docs/ui/STYLE_SOURCES.md): visuals come from tokens and shared components.
+    files: ['apps/frontend/src/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='select']",
+          message: 'Используйте Select / SelectField из shared/ui/searchable-select вместо нативного <select>.',
+        },
+        {
+          selector: "JSXOpeningElement[name.name='input'] > JSXAttribute[name.name='type'][value.value=/^(date|datetime-local|month)$/]",
+          message: 'Используйте DatePicker из shared/ui/date-picker вместо нативного поля даты.',
+        },
+        {
+          selector: "JSXAttribute[name.name='style'] Literal[value=/#[0-9a-fA-F]{3,8}\\b|rgba?\\(/]",
+          message: 'Цвета берутся из токенов --ui-* (design-tokens.css), не из inline-стилей.',
+        },
+        {
+          selector: "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger)(\\s|$)/]",
+          message: 'Устаревший класс: используйте StatusBadge, Alert, ButtonLink или Button из shared/ui/foundation.',
+        },
+        {
+          selector: "JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger)(\\s|$)/]",
+          message: 'Устаревший класс: используйте StatusBadge, Alert, ButtonLink или Button из shared/ui/foundation.',
+        },
+      ],
+    },
+  },
+  {
     files: ['apps/backend/**/*.ts', 'packages/**/*.ts'],
     rules: {
       'no-console': 'off',
