@@ -22,7 +22,7 @@ import {
   getOneTimeOrderPaymentZeroReasonLabel,
 } from '@/shared/lib/one-time-order-presentation';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
-import { Badge, Button, StatusBadge } from '@/shared/ui/foundation';
+import { Badge, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 const PAYMENT_METHODS: OneTimeOrderPaymentMethod[] = [
   'cash',
@@ -313,11 +313,11 @@ export function OneTimeOrderCompletionPanel({
   };
 
   return (
-    <section id="order-completion" className="page-card order-completion-panel">
-      <div className="section-header">
+    <Surface as="section" padding="md" id="order-completion" className="order-completion-panel">
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Фактические поступления</div>
-          <div className="section-subtitle">
+          <div className="ui-section-title">Фактические поступления</div>
+          <div className="ui-section-subtitle">
             Записывайте полученные деньги по текущему циклу. Согласованная сумма — ориентир, не факт оплаты.
           </div>
         </div>
@@ -330,7 +330,7 @@ export function OneTimeOrderCompletionPanel({
       </div>
 
       {!fullPreviousTotalVisible ? (
-        <div className="page-muted">
+        <div className="ui-text-muted">
           Часть предыдущих поступлений скрыта. Итоговая сумма будет проверена
           сервером.
         </div>
@@ -399,7 +399,7 @@ export function OneTimeOrderCompletionPanel({
           ) : null}
 
           {error ? <div className="form-error">{error}</div> : null}
-          <div className="action-row">
+          <div className="ui-inline">
             <Button
               disabled={isSaving || !canSubmit}
               onClick={() => void submit()}
@@ -416,7 +416,7 @@ export function OneTimeOrderCompletionPanel({
         <div className="order-completion-closed-state">
           <div>
             <strong>Текущий цикл завершен.</strong>
-            <div className="page-muted">
+            <div className="ui-text-muted">
               Для повторной поездки откройте новый цикл. Старые поступления сохранятся.
             </div>
           </div>
@@ -454,7 +454,7 @@ export function OneTimeOrderCompletionPanel({
         completions={completions}
         onCorrectPayment={onCorrectPayment}
       />
-    </section>
+    </Surface>
   );
 }
 
@@ -477,7 +477,7 @@ function PaymentFields({
 }): React.JSX.Element {
   return (
     <div className="order-payment-card">
-      <div className="section-header">
+      <div className="ui-section-header">
         <strong>{title}</strong>
         {canRemove ? (
           <Button onClick={onRemove}>
@@ -486,7 +486,7 @@ function PaymentFields({
         ) : null}
       </div>
 
-      <div className="action-row" role="group" aria-label="Состояние оплаты">
+      <div className="ui-inline" role="group" aria-label="Состояние оплаты">
         <label>
           <input
             type="radio"
@@ -695,13 +695,13 @@ function CompletionHistory({
   return (
     <div className="order-completion-history">
       <div>
-        <div className="section-title">История циклов</div>
-        <div className="section-subtitle">
+        <div className="ui-section-title">История циклов</div>
+        <div className="ui-section-subtitle">
           Исправления сохраняются отдельными записями — история оплат остаётся доступна.
         </div>
       </div>
       {completions.length === 0 ? (
-        <div className="page-muted">
+        <div className="ui-text-muted">
           {item.status === 'completed'
             ? 'Заказ был завершен до введения истории циклов. Точная дата и пользователь завершения отсутствуют.'
             : 'Завершенных циклов пока нет.'}
@@ -710,10 +710,10 @@ function CompletionHistory({
         <div className="record-list local-scroll local-scroll--lg">
           {completions.map((completion) => (
             <div key={completion.id} className="order-completion-cycle">
-              <div className="section-header">
+              <div className="ui-section-header">
                 <div>
                   <strong>Цикл {completion.workCycle}</strong>
-                  <div className="page-muted">
+                  <div className="ui-text-muted">
                     {completion.completionSource === 'legacy_unknown' ||
                     !completion.completedAt ||
                     !completion.completedBy
@@ -763,7 +763,7 @@ function PaymentHistoryRow({
   if (payment.detailsRestricted) {
     return (
       <div className="order-payment-history-row" data-payment-status="restricted">
-        <div className="page-muted">
+        <div className="ui-text-muted">
           Финансовые сведения доступны только получателю и ответственному за
           подотчет.
         </div>
@@ -786,7 +786,7 @@ function PaymentHistoryRow({
       <div className="order-payment-history-main">
         <div>
           <strong>{entryLabel}</strong>
-          <div className="page-muted">
+          <div className="ui-text-muted">
             {isNoPayment
               ? `Причина: ${getOneTimeOrderPaymentZeroReasonLabel(payment.zeroReason!)}`
               : `${
@@ -810,7 +810,7 @@ function PaymentHistoryRow({
             : `${isReversal ? '−' : '+'}${formatMoney(payment.amount)}`}
         </strong>
       </div>
-      <div className="page-muted">
+      <div className="ui-text-muted">
         {isNoPayment
           ? 'Зафиксировано отсутствие фактического поступления; личный подотчёт не создавался'
           : payment.paymentDestination === 'manager_accountability' &&
@@ -823,20 +823,20 @@ function PaymentHistoryRow({
             : 'Сохранено в истории заказа без личного подотчёта'}
       </div>
       {payment.zeroReason && !isNoPayment ? (
-        <div className="page-muted">
+        <div className="ui-text-muted">
           Причина нулевой суммы:{' '}
           {getOneTimeOrderPaymentZeroReasonLabel(payment.zeroReason)}
         </div>
       ) : null}
       {payment.differenceReason ? (
-        <div className="page-muted">Расхождение: {payment.differenceReason}</div>
+        <div className="ui-text-muted">Расхождение: {payment.differenceReason}</div>
       ) : null}
       {payment.comment ? <div>{payment.comment}</div> : null}
       {payment.status === 'reversed' ? (
         <StatusBadge status="rejected">Сторнировано</StatusBadge>
       ) : null}
       {item.capabilities.canCorrectPayments && payment.status === 'active' ? (
-        <div className="action-row">
+        <div className="ui-inline">
           <Button
 
             onClick={() => setIsCorrecting((current) => !current)}
@@ -906,7 +906,7 @@ function PaymentCorrectionForm({
         />
       </label>
       {error ? <div className="form-error">{error}</div> : null}
-      <div className="action-row">
+      <div className="ui-inline">
         <Button
           disabled={isSaving || !isDraftValid(draft) || !reason.trim()}
           onClick={() => {
@@ -963,7 +963,7 @@ function PaymentCorrectionForm({
 function Summary({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (
     <div className="stat-card">
-      <div className="detail-label">{label}</div>
+      <div className="ui-detail-label">{label}</div>
       <div className="stat-card__value">{value}</div>
     </div>
   );

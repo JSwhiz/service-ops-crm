@@ -10,6 +10,7 @@ import {
   getInventoryMovementTypeLabel,
 } from '@/shared/lib/inventory-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
+import { Surface } from '@/shared/ui/foundation';
 
 export function InventoryMovementList({
   items,
@@ -17,15 +18,15 @@ export function InventoryMovementList({
   items: InventoryMovement[];
 }): React.JSX.Element {
   if (items.length === 0) {
-    return <div className="page-card">Движений по текущему фильтру пока нет.</div>;
+    return <Surface padding="md">Движений по текущему фильтру пока нет.</Surface>;
   }
 
   return (
     <div className="record-list local-scroll local-scroll--lg">
       {items.map((item) => (
-        <div
+        <Surface padding="md"
           key={item.id}
-          className="page-card"
+
           style={{ display: 'grid', gap: 12 }}
         >
           <div
@@ -36,15 +37,15 @@ export function InventoryMovementList({
             }}
           >
             <div>
-              <div className="page-muted">Тип движения</div>
+              <div className="ui-text-muted">Тип движения</div>
               <div>{getInventoryMovementTypeLabel(item.movementType)}</div>
             </div>
             <div>
-              <div className="page-muted">Номенклатура</div>
+              <div className="ui-text-muted">Номенклатура</div>
               <div>{item.inventoryItem.name}</div>
             </div>
             <div>
-              <div className="page-muted">Количество</div>
+              <div className="ui-text-muted">Количество</div>
               <div>
                 {formatInventoryQuantity(item.quantity, item.inventoryItem.unit)}
                 {' • '}
@@ -62,7 +63,7 @@ export function InventoryMovementList({
               </div>
             </div>
             <div>
-              <div className="page-muted">Стоимость</div>
+              <div className="ui-text-muted">Стоимость</div>
               <div>
                 {item.unitPriceSnapshot.toLocaleString('ru-RU')} ₽ /{' '}
                 {item.inventoryItem.unit}
@@ -71,11 +72,11 @@ export function InventoryMovementList({
               </div>
             </div>
             <div>
-              <div className="page-muted">Создано</div>
+              <div className="ui-text-muted">Создано</div>
               <div>{new Date(item.createdAt).toLocaleString('ru-RU')}</div>
             </div>
             <div>
-              <div className="page-muted">Статус движения</div>
+              <div className="ui-text-muted">Статус движения</div>
               <div>
                 {item.status === 'pending_approval'
                   ? 'Ожидает согласования'
@@ -96,7 +97,7 @@ export function InventoryMovementList({
             }}
           >
             <div>
-              <div className="page-muted">Объект</div>
+              <div className="ui-text-muted">Объект</div>
               <div>
                 {item.relatedObject ? (
                   item.relatedObject.canOpenObjectCard ? (
@@ -112,7 +113,7 @@ export function InventoryMovementList({
               </div>
             </div>
             <div>
-              <div className="page-muted">Разовый заказ</div>
+              <div className="ui-text-muted">Разовый заказ</div>
               <div>
                 {item.relatedOneTimeOrder ? (
                   item.relatedOneTimeOrder.canOpenOrderCard ? (
@@ -128,11 +129,11 @@ export function InventoryMovementList({
               </div>
             </div>
             <div>
-              <div className="page-muted">Создал</div>
+              <div className="ui-text-muted">Создал</div>
               <div>{getUserDisplayName(item.createdBy)}</div>
             </div>
             <div>
-              <div className="page-muted">Фото и подтверждение</div>
+              <div className="ui-text-muted">Фото и подтверждение</div>
               <div>
                 {item.projection.hasEvidence
                   ? 'Фото или файл приложены'
@@ -153,13 +154,13 @@ export function InventoryMovementList({
 
           {item.comment ? (
             <div>
-              <div className="page-muted">Комментарий</div>
+              <div className="ui-text-muted">Комментарий</div>
               <div>{item.comment}</div>
             </div>
           ) : null}
 
           {item.projection.isSensitive ? (
-            <div className="page-muted">Операция требует дополнительного контроля.</div>
+            <div className="ui-text-muted">Операция требует дополнительного контроля.</div>
           ) : null}
 
           {item.approvalRequest ? (
@@ -174,7 +175,7 @@ export function InventoryMovementList({
             files={item.attachments}
             emptyText="Подтверждающие файлы пока не приложены."
           />
-        </div>
+        </Surface>
       ))}
     </div>
   );

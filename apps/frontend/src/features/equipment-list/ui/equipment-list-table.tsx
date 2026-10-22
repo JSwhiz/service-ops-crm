@@ -94,17 +94,17 @@ export function EquipmentListTable({
   };
 
   if (items.length === 0) {
-    return <div className="page-card workspace-surface workspace-empty">Оборудование пока не заведено.</div>;
+    return <div className="ui-empty-state">Оборудование пока не заведено.</div>;
   }
 
   return (
     <>
       {eligibleItems.length > 0 ? (
-        <form className="page-card workspace-surface" style={{ display: 'grid', gap: 12 }} onSubmit={submitWriteoff}>
-          <div className="section-header">
+        <form className="ui-surface ui-surface--padded" style={{ display: 'grid', gap: 12 }} onSubmit={submitWriteoff}>
+          <div className="ui-section-header">
             <div>
-              <div className="section-title">Пакетное списание оборудования</div>
-              <div className="section-subtitle">Выберите несколько единиц в таблице. На каждую будет создано отдельное согласование.</div>
+              <div className="ui-section-title">Пакетное списание оборудования</div>
+              <div className="ui-section-subtitle">Выберите несколько единиц в таблице. На каждую будет создано отдельное согласование.</div>
             </div>
             <strong>{selectedIds.length} выбрано</strong>
           </div>
@@ -113,23 +113,23 @@ export function EquipmentListTable({
               <textarea value={writeoffReason} onChange={(event) => setWriteoffReason(event.target.value)} rows={2} required disabled={isWritingOff} placeholder="Укажите причину списания" />
             </Field>
             <Stack gap="sm">
-              <div className="page-muted">Подтверждающие фото или файлы (необязательно)</div>
+              <div className="ui-text-muted">Подтверждающие фото или файлы (необязательно)</div>
               <MediaActionPicker disabled={isWritingOff} onPick={async (file) => setEvidenceFiles((current) => [...current, file])} />
               <PendingMediaList files={evidenceFiles} onRemove={(index) => setEvidenceFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} emptyText="Подтверждения пока не добавлены." />
             </Stack>
             {writeoffError ? <Alert tone="warning" role="alert">{writeoffError}</Alert> : null}
             {writeoffSuccess ? <Alert tone="success" role="status">{writeoffSuccess}</Alert> : null}
-            <div className="action-row">
+            <div className="ui-inline">
               <Button variant="primary" type="submit" disabled={isWritingOff || !writeoffReason.trim()}>{isWritingOff ? 'Создаём согласования…' : `Отправить на согласование · ${selectedIds.length}`}</Button>
               <Button disabled={isWritingOff} onClick={() => setSelectedIds([])}>Снять выбор</Button>
             </div>
-          </> : <div className="page-muted">Отметьте единицы оборудования с доступным правом списания.</div>}
+          </> : <div className="ui-text-muted">Отметьте единицы оборудования с доступным правом списания.</div>}
         </form>
       ) : null}
       <DataTable
         label="Таблица оборудования"
         className={styles.table}
-        frameClassName={`page-card workspace-surface data-table-shell ${styles.frame}`}
+        frameClassName={` ${styles.frame}`}
       >
         <thead>
           <tr>
@@ -172,7 +172,7 @@ export function EquipmentListTable({
         {items.map((item) => (
           <div key={item.id} className={styles.mobileRow}>
             {eligibleItems.length && item.capabilities.canWriteoff && item.status !== 'written_off' ? <input aria-label={`Выбрать ${item.catalogItem.name} ${item.inventoryNumber}`} type="checkbox" checked={selectedIds.includes(item.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, item.id] : current.filter((id) => id !== item.id))} disabled={isWritingOff} /> : null}
-            <Link href={`/equipment/${item.id}`} className={`page-card workspace-surface ${styles.mobileCard}`}>
+            <Link href={`/equipment/${item.id}`} className={`ui-surface ui-surface--padded ${styles.mobileCard}`}>
               <span className={styles.mobileHeading}>
                 <span>
                   <strong>{item.catalogItem.name}</strong>

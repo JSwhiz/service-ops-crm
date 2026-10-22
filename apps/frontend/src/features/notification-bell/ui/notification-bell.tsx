@@ -200,7 +200,7 @@ export function NotificationBell(): React.JSX.Element {
             <div className="notification-browser-permission" role="status">Разрешите уведомления для сайта в настройках браузера.</div>
           ) : null}
           <div className="notification-popover__list">
-            {loading ? <div className="page-muted">Загрузка...</div> : items.length === 0 ? <div className="page-muted">Уведомлений пока нет.</div> : items.map((item) => (
+            {loading ? <div className="ui-text-muted">Загрузка...</div> : items.length === 0 ? <div className="ui-text-muted">Уведомлений пока нет.</div> : items.map((item) => (
               <button type="button" key={item.id} className={item.readAt ? 'notification-item' : 'notification-item notification-item--unread'} onClick={() => openNotification(item)}>
                 <strong>{item.title}</strong>
                 {item.body ? <span>{item.body}</span> : null}

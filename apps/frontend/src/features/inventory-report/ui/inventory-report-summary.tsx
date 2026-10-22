@@ -30,7 +30,7 @@ export function InventoryReportSummary({
     <div className="stat-grid">
       {cards.map((card) => (
         <div key={card.label} className="stat-card">
-          <div className="detail-label">{card.label}</div>
+          <div className="ui-detail-label">{card.label}</div>
           <div className="stat-card__value">{card.value}</div>
         </div>
       ))}

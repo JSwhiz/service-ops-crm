@@ -20,7 +20,7 @@ import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Badge, Button, StatusBadge } from '@/shared/ui/foundation';
+import { Badge, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 const CATEGORY_OPTIONS: Array<{
   value: AccountabilityExpenseCategory;
@@ -138,11 +138,11 @@ export function OneTimeOrderAccountabilityPanel({
   };
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 18 }}>
-      <div className="section-header">
+    <Surface padding="md" style={{ display: 'grid', gap: 18 }}>
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Подотчёт по заказу</div>
-          <div className="section-subtitle">
+          <div className="ui-section-title">Подотчёт по заказу</div>
+          <div className="ui-section-subtitle">
             Здесь учитываются деньги менеджера и расходы, оформленные по этому заказу.
           </div>
         </div>
@@ -154,10 +154,10 @@ export function OneTimeOrderAccountabilityPanel({
       </div>
 
       {view.capabilities.canCreateExpense ? (
-        <div className="record-card" style={{ display: 'grid', gap: 14 }}>
+        <Surface padding="sm" style={{ display: 'grid', gap: 14 }}>
           <div>
             <strong>Добавить расход по заказу</strong>
-            <div className="page-muted">
+            <div className="ui-text-muted">
             Выплата станет фактически учтённой после подтверждения расхода. Для отправки на проверку приложите чек или документ.
             </div>
           </div>
@@ -244,7 +244,7 @@ export function OneTimeOrderAccountabilityPanel({
             }
             emptyText="Чек или документ еще не приложен."
           />
-          <div className="action-row">
+          <div className="ui-inline">
             <Button
               disabled={isSaving || (!isEmployeePayout && !completionSelection)}
               onClick={() => void save(false)}
@@ -262,15 +262,15 @@ export function OneTimeOrderAccountabilityPanel({
               Отправить на проверку
             </Button>
           </div>
-        </div>
+        </Surface>
       ) : null}
 
       {view.accounts.length === 0 ? (
-        <div className="page-muted">
+        <div className="ui-text-muted">
           Поступлений и расходов по этому заказу пока нет.
         </div>
       ) : (
-        <div className="page-stack">
+        <div className="ui-stack ui-stack--lg">
           {view.accounts.map((account) => {
             const confirmedExpenses =
               account.summary.totalApprovedExpenses +
@@ -280,8 +280,8 @@ export function OneTimeOrderAccountabilityPanel({
               .reduce((sum, expense) => sum + expense.amount, 0);
 
             return (
-              <div key={account.accountId} className="record-card">
-                <div className="section-header">
+              <Surface padding="sm" key={account.accountId}>
+                <div className="ui-section-header">
                   <strong>{getUserDisplayName(account.user)}</strong>
                   <StatusBadge
                     status={account.accountStatus}
@@ -311,19 +311,19 @@ export function OneTimeOrderAccountabilityPanel({
                     value={formatMoney(account.summary.forecastBalance)}
                   />
                 </div>
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   Текущий остаток учитывает проведённые поступления и подтверждённые расходы. Прогноз дополнительно вычитает расходы, отправленные на проверку.
                 </div>
 
                 {account.fundings.length > 0 ? (
                   <div className="record-list local-scroll local-scroll--sm">
                     {account.fundings.map((funding) => (
-                      <div key={funding.id} className="detail-field">
-                        <div className="detail-value">
+                      <div key={funding.id} className="ui-detail-field">
+                        <div className="ui-detail-value">
                           {funding.entryDirection === 'debit' ? '−' : '+'}
                           {formatMoney(funding.amount)}
                         </div>
-                        <div className="detail-label">
+                        <div className="ui-detail-label">
                           {getAccountabilityFundingTypeLabel(funding.fundingType)} ·{' '}
                           {new Date(funding.issuedAt).toLocaleString('ru-RU')}
                           {funding.comment ? ` · ${funding.comment}` : ''}
@@ -336,16 +336,16 @@ export function OneTimeOrderAccountabilityPanel({
                 {account.expenses.length > 0 ? (
                   <div className="record-list local-scroll local-scroll--sm">
                     {account.expenses.map((expense) => (
-                      <div key={expense.id} className="detail-field">
+                      <div key={expense.id} className="ui-detail-field">
                         <div
-                          className="section-header"
+                          className="ui-section-header"
                           style={{ paddingBottom: 0 }}
                         >
                           <div>
-                            <div className="detail-value">
+                            <div className="ui-detail-value">
                               {formatMoney(expense.amount)}
                             </div>
-                            <div className="detail-label">
+                            <div className="ui-detail-label">
                               {getAccountabilityExpenseCategoryLabel(
                                 expense.expenseCategory,
                               )}
@@ -378,12 +378,12 @@ export function OneTimeOrderAccountabilityPanel({
                     ))}
                   </div>
                 ) : null}
-              </div>
+              </Surface>
             );
           })}
         </div>
       )}
-    </div>
+    </Surface>
   );
 }
 
@@ -396,7 +396,7 @@ function SummaryItem({
 }): React.JSX.Element {
   return (
     <div className="stat-card">
-      <div className="detail-label">{label}</div>
+      <div className="ui-detail-label">{label}</div>
       <div className="stat-card__value">{value}</div>
     </div>
   );

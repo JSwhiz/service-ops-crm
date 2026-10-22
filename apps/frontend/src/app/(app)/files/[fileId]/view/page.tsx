@@ -9,7 +9,7 @@ import {
   retryFilePreview,
 } from '@/entities/file/api/file-client';
 import type { FileView } from '@/entities/file/model/file.types';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 const VIEW_POLL_ATTEMPTS = 40;
 
@@ -148,11 +148,11 @@ export default function FileViewerPage(): React.JSX.Element {
   };
 
   if (error && !view) {
-    return <div className="page-card file-viewer-error">{error}</div>;
+    return <Surface padding="md" className="file-viewer-error">{error}</Surface>;
   }
 
   if (!view) {
-    return <div className="page-card file-viewer-loading">Загрузка файла…</div>;
+    return <Surface padding="md" className="file-viewer-loading">Загрузка файла…</Surface>;
   }
 
   const inlineUrl = view.inlineContentUrl
@@ -171,7 +171,7 @@ export default function FileViewerPage(): React.JSX.Element {
             {view.mimeType} · {formatFileSize(view.sizeBytes)}
           </p>
         </div>
-        <div className="action-row">
+        <div className="ui-inline">
           {view.previewType === 'image' && inlineUrl ? (
             <Button
               onClick={() => setShowOriginalSize((current) => !current)}

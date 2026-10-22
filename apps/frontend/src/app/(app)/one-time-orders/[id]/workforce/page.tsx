@@ -21,7 +21,7 @@ import {
 import { getOneTimeOrderById } from '@/entities/one-time-order/api/one-time-order-client';
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
-import { BackLink, Button, StatusBadge } from '@/shared/ui/foundation';
+import { BackLink, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
@@ -176,11 +176,11 @@ export default function OneTimeOrderWorkforcePage({
   );
 
   if (loading) {
-    return <div className="workspace-page"><PageTitle title="Сотрудники разового заказа" /><div className="page-card">Загрузка...</div></div>;
+    return <div className="ui-page"><PageTitle title="Сотрудники разового заказа" /><Surface padding="md">Загрузка...</Surface></div>;
   }
 
   return (
-    <div className={`workspace-page ${styles.root}`}>
+    <div className={`ui-page ${styles.root}`}>
       <PageTitle title="Команда заказа" />
       <div className={styles.toolbar}>
         <div className={styles.orderContext}>

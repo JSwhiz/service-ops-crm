@@ -1,6 +1,5 @@
 /* Timesheet page and cell editing. */
 
-
 .timesheet-overview__table td:not(.is-object):not(.is-employee):not(.is-summary),
 .timesheet-table td:not(.timesheet-table__sticky-left):not(.timesheet-table__summary) {
   padding: 0;
@@ -348,7 +347,6 @@
   }
 }
 
-
 /* The timesheet is a dense operational surface and intentionally uses more of
  * the viewport than ordinary detail pages. */
 .app-content:has(.timesheet-page) {
@@ -362,7 +360,7 @@
   min-width: 0;
 }
 
-.timesheet-page .page-card,
+.timesheet-page .ui-surface--padded,
 .timesheet-page .timesheet-card,
 .timesheet-page .timesheet-corrections-panel {
   border-color: var(--ui-border);
@@ -370,7 +368,7 @@
   box-shadow: none;
 }
 
-.timesheet-page .page-card:hover,
+.timesheet-page .ui-surface--padded:hover,
 .timesheet-page .timesheet-card:hover {
   border-color: var(--ui-border);
   box-shadow: none;
@@ -391,7 +389,7 @@
   gap: 5px;
 }
 
-.timesheet-page .detail-label {
+.timesheet-page .ui-detail-label {
   color: var(--ui-text-tertiary);
   font-size: 12px;
   font-weight: 700;
@@ -615,14 +613,14 @@
   gap: 16px;
 }
 
-.timesheet-page .section-title {
+.timesheet-page .ui-section-title {
   margin: 0;
   font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
-.timesheet-page .section-subtitle {
+.timesheet-page .ui-section-subtitle {
   margin: 3px 0 0;
   color: var(--ui-text-tertiary);
   font-size: var(--ui-text-xs);

@@ -47,7 +47,7 @@ export function InventoryItemEditor({
   return (
     <form
       id="edit"
-      className="page-card"
+      className="ui-surface ui-surface--padded"
       style={{ display: 'grid', gap: 14 }}
       onSubmit={(event) => {
         event.preventDefault();
@@ -77,10 +77,10 @@ export function InventoryItemEditor({
           .finally(() => setIsSaving(false));
       }}
     >
-      <div className="section-header">
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Редактирование карточки</div>
-          <div className="page-muted">
+          <div className="ui-section-title">Редактирование карточки</div>
+          <div className="ui-text-muted">
             Цена поставки рассчитывается по движениям и здесь не изменяется.
           </div>
         </div>
@@ -90,7 +90,7 @@ export function InventoryItemEditor({
       </div>
 
       <label>
-        <div className="detail-label">Название</div>
+        <div className="ui-detail-label">Название</div>
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -100,9 +100,9 @@ export function InventoryItemEditor({
         />
       </label>
 
-      <div className="detail-grid">
+      <div className="ui-detail-grid">
         <label>
-          <div className="detail-label">Категория</div>
+          <div className="ui-detail-label">Категория</div>
           <input
             value={category}
             onChange={(event) => setCategory(event.target.value)}
@@ -112,7 +112,7 @@ export function InventoryItemEditor({
           />
         </label>
         <label>
-          <div className="detail-label">Единица измерения</div>
+          <div className="ui-detail-label">Единица измерения</div>
           <input
             value={unit}
             onChange={(event) => setUnit(event.target.value)}
@@ -124,7 +124,7 @@ export function InventoryItemEditor({
       </div>
 
       <label>
-        <div className="detail-label">Примечание</div>
+        <div className="ui-detail-label">Примечание</div>
         <textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
@@ -136,7 +136,7 @@ export function InventoryItemEditor({
       {hasVersionConflict ? (
         <Alert tone="warning">
           <strong>Карточка была изменена другим пользователем.</strong>
-          <div className="action-row">
+          <div className="ui-inline">
             <Button
               onClick={() => {
                 setIsSaving(true);
@@ -166,7 +166,7 @@ export function InventoryItemEditor({
 
       {error ? <div className="form-error">{error}</div> : null}
 
-      <div className="action-row">
+      <div className="ui-inline">
         <Button variant="primary" type="submit" disabled={isSaving || hasVersionConflict}>
           {isSaving ? 'Сохраняем...' : 'Сохранить изменения'}
         </Button>

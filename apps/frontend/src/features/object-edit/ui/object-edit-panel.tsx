@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
-import { Alert, Button, Field } from '@/shared/ui/foundation';
+import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
 
 interface ObjectEditPanelProps {
   item: ServiceObject;
@@ -148,7 +148,7 @@ export function ObjectEditPanel({
   };
 
   return (
-    <div className="page-card">
+    <Surface padding="md">
       <div
         style={{
           display: 'flex',
@@ -184,22 +184,22 @@ export function ObjectEditPanel({
           }}
         >
           <div>
-            <div className="page-muted">Название</div>
+            <div className="ui-text-muted">Название</div>
             <div>{item.name}</div>
           </div>
 
           <div>
-            <div className="page-muted">Внутреннее имя</div>
+            <div className="ui-text-muted">Внутреннее имя</div>
             <div>{item.internalName ?? '—'}</div>
           </div>
 
           <div>
-            <div className="page-muted">Статус</div>
+            <div className="ui-text-muted">Статус</div>
             <div>{item.status}</div>
           </div>
 
           <div>
-            <div className="page-muted">Сезон</div>
+            <div className="ui-text-muted">Сезон</div>
             <div>
               {item.seasonMode === 'summer'
                 ? 'Летний'
@@ -210,17 +210,17 @@ export function ObjectEditPanel({
           </div>
 
           <div>
-            <div className="page-muted">Ставка за день</div>
+            <div className="ui-text-muted">Ставка за день</div>
             <div>{item.dailyRate}</div>
           </div>
 
           <div style={{ gridColumn: '1 / -1' }}>
-            <div className="page-muted">Адрес</div>
+            <div className="ui-text-muted">Адрес</div>
             <div>{item.address}</div>
           </div>
 
           <div style={{ gridColumn: '1 / -1' }}>
-            <div className="page-muted">Комментарий</div>
+            <div className="ui-text-muted">Комментарий</div>
             <div>{item.notes?.trim() ? item.notes : '—'}</div>
           </div>
         </div>
@@ -355,6 +355,6 @@ export function ObjectEditPanel({
           </div>
         </form>
       )}
-    </div>
+    </Surface>
   );
 }

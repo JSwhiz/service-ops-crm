@@ -17,7 +17,7 @@ import { InventoryMovementList } from '@/features/inventory-movement-list/ui/inv
 import { InventoryReportSummary } from '@/features/inventory-report/ui/inventory-report-summary';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { Alert } from '@/shared/ui/foundation';
+import { Alert, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -88,19 +88,19 @@ export default function InventoryReportsPage(): React.JSX.Element {
   }, [canAccessInventory, canViewInventoryReports]);
 
   return (
-    <div className="workspace-page inventory-workspace">
+    <div className="ui-page inventory-workspace">
       <PageTitle title="Отчеты по расходникам" />
 
       {!canAccessInventory || !canViewInventoryReports ? (
-        <div className="page-card">У вас нет доступа к inventory-отчетам.</div>
+        <Surface padding="md">У вас нет доступа к inventory-отчетам.</Surface>
       ) : isLoading ? (
-        <div className="page-card">Загрузка...</div>
+        <Surface padding="md">Загрузка...</Surface>
       ) : error ? (
         <Alert tone="danger" role="alert">
           {error}
         </Alert>
       ) : (
-        <div className="page-stack">
+        <div className="ui-stack ui-stack--lg">
           {summary ? <InventoryReportSummary {...summary} /> : null}
           <InventoryItemListTable items={items} />
           <InventoryMovementList items={movements} />

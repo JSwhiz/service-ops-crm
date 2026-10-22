@@ -8,7 +8,7 @@ import {
   getUserDisplayName,
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
-import { ButtonLink, StatusBadge } from '@/shared/ui/foundation';
+import { ButtonLink, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 interface ObjectSummaryCardProps {
   item: ServiceObject;
@@ -36,7 +36,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
   const allowEdit = item.capabilities.canEdit || item.capabilities.canManageCompensationRates === true;
 
   return (
-    <div className="page-card workspace-surface hero-card object-summary">
+    <Surface padding="md" className="hero-card object-summary">
       <div className="object-summary__top">
         <div className="object-summary__identity">
           <div className="object-summary__title-row">
@@ -51,7 +51,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           ) : null}
         </div>
 
-        <div className="action-row object-summary__actions">
+        <div className="ui-inline object-summary__actions">
           {allowEdit ? (
             <ButtonLink href={`/objects/${item.id}/edit`}>Редактировать</ButtonLink>
           ) : null}
@@ -59,14 +59,14 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
         </div>
       </div>
 
-      <div className="detail-grid object-summary__facts">
-        <div className="detail-field">
-          <div className="detail-label">Адрес</div>
-          <div className="detail-value">{item.address || 'Не указан'}</div>
+      <div className="ui-detail-grid object-summary__facts">
+        <div className="ui-detail-field">
+          <div className="ui-detail-label">Адрес</div>
+          <div className="ui-detail-value">{item.address || 'Не указан'}</div>
         </div>
-        <div className="detail-field">
-          <div className="detail-label">Контрагент</div>
-          <div className="detail-value">
+        <div className="ui-detail-field">
+          <div className="ui-detail-label">Контрагент</div>
+          <div className="ui-detail-value">
             {item.counterparty ? (
               item.counterparty.canOpenCounterparty ? (
                 <Link href={`/counterparties/${item.counterparty.id}`}>{item.counterparty.name}</Link>
@@ -77,18 +77,18 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
             ) : null}
           </div>
         </div>
-        <div className="detail-field">
-          <div className="detail-label">Ответственный</div>
-          <div className="detail-value">
+        <div className="ui-detail-field">
+          <div className="ui-detail-label">Ответственный</div>
+          <div className="ui-detail-value">
             {item.responsible ? getUserDisplayName(item.responsible) : 'Не назначен'}
             {item.responsible && getUserSecondaryLabel(item.responsible) ? (
               <span className="identity-secondary">{getUserSecondaryLabel(item.responsible)}</span>
             ) : null}
           </div>
         </div>
-        <div className="detail-field">
-          <div className="detail-label">Сезонность и оплата</div>
-          <div className="detail-value">
+        <div className="ui-detail-field">
+          <div className="ui-detail-label">Сезонность и оплата</div>
+          <div className="ui-detail-value">
             {getSeasonLabel(item.seasonMode)}
             <span className="identity-secondary">
               {item.capabilities.canViewCompensationRates === false ? 'Условия оплаты скрыты' : (() => {
@@ -148,13 +148,13 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
         <div className="object-summary__note">
           {item.instructionSteps.length > 0 ? (
             <>
-              <div className="detail-label">Постоянные инструкции</div>
+              <div className="ui-detail-label">Постоянные инструкции</div>
               <ol>{item.instructionSteps.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}</ol>
             </>
           ) : null}
-          {item.notes ? <><div className="detail-label">Что важно знать об объекте</div><div className="detail-value">{item.notes}</div></> : null}
+          {item.notes ? <><div className="ui-detail-label">Что важно знать об объекте</div><div className="ui-detail-value">{item.notes}</div></> : null}
         </div>
       ) : null}
-    </div>
+    </Surface>
   );
 }

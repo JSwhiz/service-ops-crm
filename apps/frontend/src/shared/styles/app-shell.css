@@ -1130,7 +1130,7 @@
   scrollbar-width: thin;
 }
 
-.app-header .notification-popover__list > .page-muted {
+.app-header .notification-popover__list > .ui-text-muted {
   min-height: 118px;
   display: grid;
   place-items: center;

@@ -39,7 +39,7 @@ export function InventoryItemForm({
 
   return (
     <form
-      className="page-card"
+      className="ui-surface ui-surface--padded"
       style={{ display: 'grid', gap: 16 }}
       onSubmit={(event) => {
         event.preventDefault();

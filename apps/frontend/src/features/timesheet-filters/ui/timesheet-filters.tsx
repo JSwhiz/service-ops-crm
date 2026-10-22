@@ -4,7 +4,7 @@ import React from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Field } from '@/shared/ui/foundation';
+import { Field, Surface } from '@/shared/ui/foundation';
 
 export function TimesheetFilters({
   objects,
@@ -24,8 +24,8 @@ export function TimesheetFilters({
   onMonthChange: (value: number) => void;
 }): React.JSX.Element {
   return (
-    <div
-      className="page-card"
+    <Surface padding="md"
+
       style={{
         display: 'grid',
         gap: 12,
@@ -64,6 +64,6 @@ export function TimesheetFilters({
           max={12}
         />
       </Field>
-    </div>
+    </Surface>
   );
 }

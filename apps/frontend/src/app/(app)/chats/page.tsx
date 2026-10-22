@@ -55,7 +55,7 @@ import { Dialog, useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 import { ChatMessageMenu } from './chat-message-menu';
 import styles from './chat-ui.module.css';
-import { Alert, Button } from '@/shared/ui/foundation';
+import { Alert, Button, Surface } from '@/shared/ui/foundation';
 
 type RealtimePayload = {
   type?: string;
@@ -1812,7 +1812,7 @@ export default function ChatsPage(): React.JSX.Element {
       {reasonDialog}
       <h1 className="chat-page-title">Чаты</h1>
 
-      <div className={`page-stack chat-page-stack ${styles.workspace}`}>
+      <div className={`ui-stack ui-stack--lg chat-page-stack ${styles.workspace}`}>
         {error ? (
           <Alert tone="danger" role="alert">
             {error}
@@ -1820,10 +1820,10 @@ export default function ChatsPage(): React.JSX.Element {
         ) : null}
 
         <div className={layoutClassName}>
-          <aside className="chat-room-panel page-card">
-            <div className="section-header">
+          <Surface as="aside" padding="md" className="chat-room-panel">
+            <div className="ui-section-header">
               <div>
-                <div className="section-title">Чаты</div>
+                <div className="ui-section-title">Чаты</div>
               </div>
               {canCreateDirectChat || canCreateGroupChat ? (
                 <button
@@ -1904,10 +1904,10 @@ export default function ChatsPage(): React.JSX.Element {
                 }}
               >
                 {isSearching ? (
-                  <div className="page-muted">Поиск...</div>
+                  <div className="ui-text-muted">Поиск...</div>
                 ) : searchResults.rooms.length === 0 &&
                   searchResults.messages.length === 0 ? (
-                  <div className="page-muted">Ничего не найдено.</div>
+                  <div className="ui-text-muted">Ничего не найдено.</div>
                 ) : (
                   <>
                     {searchResults.rooms.length > 0 ? (
@@ -1973,9 +1973,9 @@ export default function ChatsPage(): React.JSX.Element {
               hidden={searchQuery.trim().length >= 2}
             >
               {isLoadingRooms ? (
-                <div className="page-muted">Загрузка чатов...</div>
+                <div className="ui-text-muted">Загрузка чатов...</div>
               ) : rooms.length === 0 ? (
-                <div className="page-muted">Доступных чатов пока нет.</div>
+                <div className="ui-text-muted">Доступных чатов пока нет.</div>
               ) : (
                 rooms.map((room) => (
                   <button
@@ -2017,9 +2017,9 @@ export default function ChatsPage(): React.JSX.Element {
               {isArchiveOpen ? (
                 <div className="chat-room-list chat-room-list--archive">
                   {isLoadingArchivedRooms ? (
-                    <div className="page-muted">Загрузка архива...</div>
+                    <div className="ui-text-muted">Загрузка архива...</div>
                   ) : archivedRooms.length === 0 ? (
-                    <div className="page-muted">В архиве пока пусто.</div>
+                    <div className="ui-text-muted">В архиве пока пусто.</div>
                   ) : (
                     archivedRooms.map((room) => (
                       <div
@@ -2053,10 +2053,10 @@ export default function ChatsPage(): React.JSX.Element {
                 </div>
               ) : null}
             </div>
-          </aside>
+          </Surface>
 
-          <section
-            className="chat-main page-card"
+          <Surface as="section" padding="md"
+            className="chat-main"
             onDragEnter={(event) => {
               if (
                 !event.dataTransfer.types.includes('Files') ||
@@ -2130,10 +2130,10 @@ export default function ChatsPage(): React.JSX.Element {
                       aria-label={`Участники: ${activeRoom.participantCount}`}
                       onClick={openParticipantsPanel}
                     >
-                      <span className="section-title">
+                      <span className="ui-section-title">
                         {getRoomDisplayTitle(activeRoom)}
                       </span>
-                      <span className="section-subtitle">
+                      <span className="ui-section-subtitle">
                         {activeRoomTypeLabel ? (
                           <span className="chat-room-type-badge">
                             {activeRoomTypeLabel}
@@ -2272,7 +2272,7 @@ export default function ChatsPage(): React.JSX.Element {
                       </div>
                     ) : null}
                     {isLoadingMessages ? (
-                      <div className="page-muted">Загрузка сообщений...</div>
+                      <div className="ui-text-muted">Загрузка сообщений...</div>
                     ) : messages.length === 0 ? (
                       <div className="chat-empty">
                         Пока нет сообщений. Напишите текст или прикрепите файл.
@@ -2391,7 +2391,7 @@ export default function ChatsPage(): React.JSX.Element {
                                     }
                                     rows={3}
                                   />
-                                  <div className="action-row">
+                                  <div className="ui-inline">
                                     <Button
                                       onClick={() => void handleEdit(message)}
                                     >
@@ -2740,7 +2740,7 @@ export default function ChatsPage(): React.JSX.Element {
             ) : (
               <div className="chat-empty">Выберите чат слева.</div>
             )}
-          </section>
+          </Surface>
         </div>
 
         {(canCreateDirectChat || canCreateGroupChat) && isCreateRoomOpen ? (

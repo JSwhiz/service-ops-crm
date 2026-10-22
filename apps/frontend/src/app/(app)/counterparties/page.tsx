@@ -118,14 +118,14 @@ export default function CounterpartiesPage(): React.JSX.Element {
 
   if (!canAccess) {
     return (
-      <div className={`workspace-page counterparty-workspace ${styles.page}`}>
+      <div className={`ui-page counterparty-workspace ${styles.page}`}>
         <EmptyState title="Нет доступа" description="У вас нет доступа к контрагентам." />
       </div>
     );
   }
 
   return (
-    <div className={`workspace-page counterparty-workspace ${styles.page}`}>
+    <div className={`ui-page counterparty-workspace ${styles.page}`}>
       <RegistryToolbar
         searchValue={search}
         searchLabel="Поиск контрагентов"

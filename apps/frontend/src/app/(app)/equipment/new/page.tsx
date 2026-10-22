@@ -17,7 +17,7 @@ import {
 } from '@/features/equipment-form/ui/equipment-form';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { Alert } from '@/shared/ui/foundation';
+import { Alert, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -72,21 +72,21 @@ export default function EquipmentNewPage(): React.JSX.Element {
   }, [canManageEquipmentCatalog]);
 
   return (
-    <div className="workspace-page equipment-workspace">
+    <div className="ui-page equipment-workspace">
       <PageTitle title="Новое оборудование" />
 
       {!canManageEquipmentCatalog ? (
-        <div className="page-card">
+        <Surface padding="md">
           У вас нет доступа к управлению каталогом оборудования.
-        </div>
+        </Surface>
       ) : isLoading ? (
-        <div className="page-card">Загрузка...</div>
+        <Surface padding="md">Загрузка...</Surface>
       ) : error ? (
         <Alert tone="danger" role="alert">
           {error}
         </Alert>
       ) : (
-        <div className="page-stack">
+        <div className="ui-stack ui-stack--lg">
           <EquipmentCatalogItemForm
             onSubmit={async (payload) => {
               const created = await createEquipmentCatalogItem(payload);

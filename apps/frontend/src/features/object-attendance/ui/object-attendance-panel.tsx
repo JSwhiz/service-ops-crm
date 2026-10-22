@@ -6,7 +6,7 @@ import type { ObjectEmployeeOption } from '@/entities/object/model/object.types'
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Badge, Button } from '@/shared/ui/foundation';
+import { Badge, Button, Surface } from '@/shared/ui/foundation';
 
 interface ObjectAttendancePanelProps {
   employees: ObjectEmployeeOption[];
@@ -153,23 +153,23 @@ export function ObjectAttendancePanel({
   };
 
   return (
-    <div className="page-card">
-      <div className="section-header" style={{ marginBottom: 12 }}>
+    <Surface padding="md">
+      <div className="ui-section-header" style={{ marginBottom: 12 }}>
         <div>
-          <div className="section-title">Кто был сегодня на объекте</div>
-          <div className="section-subtitle">{operationDate}</div>
+          <div className="ui-section-title">Кто был сегодня на объекте</div>
+          <div className="ui-section-subtitle">{operationDate}</div>
         </div>
       </div>
 
       {safeEmployees.length === 0 ? (
-        <div className="page-muted">Для объекта пока не задан состав сотрудников.</div>
+        <div className="ui-text-muted">Для объекта пока не задан состав сотрудников.</div>
       ) : (
         <form onSubmit={handleSubmit}>
           <div className={`record-list ${styles.attendanceList}`}>
             {safeEmployees.map((employee) => (
-              <div
+              <Surface padding="sm"
                 key={employee.id}
-                className="record-card"
+
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'minmax(0, 1fr)',
@@ -193,12 +193,12 @@ export function ObjectAttendancePanel({
                     {employee.activeSubstitutions
                       .filter((item) => item.role === 'replacement')
                       .map((item) => (
-                        <span key={item.id} className="page-muted">Замещает: {item.counterpartEmployeeName}</span>
+                        <span key={item.id} className="ui-text-muted">Замещает: {item.counterpartEmployeeName}</span>
                       ))}
                     {employee.activeSubstitutions
                       .filter((item) => item.role === 'primary')
                       .map((item) => (
-                        <span key={item.id} className="page-muted">Замещается: {item.counterpartEmployeeName}</span>
+                        <span key={item.id} className="ui-text-muted">Замещается: {item.counterpartEmployeeName}</span>
                       ))}
                   </span>
                 </label>
@@ -242,7 +242,7 @@ export function ObjectAttendancePanel({
                     ) : null}
                   </div>
                 ) : null}
-              </div>
+              </Surface>
             ))}
           </div>
 
@@ -255,6 +255,6 @@ export function ObjectAttendancePanel({
           </div>
         </form>
       )}
-    </div>
+    </Surface>
   );
 }

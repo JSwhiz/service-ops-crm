@@ -8,7 +8,7 @@ import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import { EquipmentListTable } from '@/features/equipment-list/ui/equipment-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
-import { Alert, ButtonLink } from '@/shared/ui/foundation';
+import { Alert, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -80,9 +80,9 @@ export default function EquipmentPage(): React.JSX.Element {
   return (
     <>
       {!canAccessEquipment ? (
-        <div className="page-card">У вас нет доступа к equipment-модулю.</div>
+        <Surface padding="md">У вас нет доступа к equipment-модулю.</Surface>
       ) : (
-        <div className="page-stack workspace-page equipment-workspace">
+        <div className="ui-page equipment-workspace">
           <RegistryToolbar
             searchValue={search}
             searchLabel="Поиск по оборудованию"
@@ -97,7 +97,7 @@ export default function EquipmentPage(): React.JSX.Element {
           />
 
           {isLoading ? (
-            <div className="page-card">Загрузка...</div>
+            <Surface padding="md">Загрузка...</Surface>
           ) : error ? (
             <Alert tone="danger" role="alert">
               {error}

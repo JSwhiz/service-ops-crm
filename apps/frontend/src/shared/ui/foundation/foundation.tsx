@@ -361,20 +361,28 @@ export function Stack({ gap = 'md', className, ...props }: StackProps): React.JS
   return <div className={classes('ui-stack', `ui-stack--${gap}`, className)} {...props} />;
 }
 
-export interface SurfaceProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface SurfaceProps extends React.HTMLAttributes<HTMLElement> {
   tone?: SurfaceTone;
+  /** Inner spacing: `md` for sections, `sm` for list items. */
+  padding?: 'none' | 'sm' | 'md';
+  /** Semantic element; the look stays the same. */
+  as?: 'div' | 'section' | 'article' | 'aside' | 'header' | 'li';
 }
 
 export function Surface({
   tone = 'default',
+  padding = 'none',
+  as: Element = 'div',
   className,
   ...props
 }: SurfaceProps): React.JSX.Element {
   return (
-    <div
+    <Element
       className={classes(
         'ui-surface',
         tone !== 'default' && `ui-surface--${tone}`,
+        padding === 'md' && 'ui-surface--padded',
+        padding === 'sm' && 'ui-surface--compact',
         className,
       )}
       {...props}

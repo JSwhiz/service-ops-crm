@@ -26,7 +26,7 @@ import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-selec
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Alert } from '@/shared/ui/foundation';
+import { Alert, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -171,13 +171,13 @@ export default function InventoryMovementsPage(): React.JSX.Element {
   ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
 
   return (
-    <div className="workspace-page inventory-workspace">
+    <div className="ui-page inventory-workspace">
       <PageTitle title="Движения расходников" />
 
       {!canAccessInventory ? (
-        <div className="page-card">У вас нет доступа к inventory-модулю.</div>
+        <Surface padding="md">У вас нет доступа к inventory-модулю.</Surface>
       ) : (
-        <div className="page-stack">
+        <div className="ui-stack ui-stack--lg">
           <InventoryMovementForm
             items={items}
             objectOptions={objectOptions}
@@ -228,7 +228,7 @@ export default function InventoryMovementsPage(): React.JSX.Element {
           <RegistryToolbar showSearch={false} searchValue="" searchLabel="" searchPlaceholder="" onSearchChange={() => undefined} activeFilters={activeFilters} availableFilters={availableFilters} />
 
           {isLoading ? (
-            <div className="page-card">Загрузка...</div>
+            <Surface padding="md">Загрузка...</Surface>
           ) : error ? (
             <Alert tone="danger" role="alert">
               {error}

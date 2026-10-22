@@ -8,7 +8,7 @@ import type {
   EquipmentCatalogItem,
 } from '@/entities/equipment/model/equipment.types';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Alert, Button } from '@/shared/ui/foundation';
+import { Alert, Button, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -29,7 +29,7 @@ export function EquipmentCatalogItemForm({
 
   return (
     <form
-      className="page-card"
+      className="ui-surface ui-surface--padded"
       style={{ display: 'grid', gap: 12 }}
       onSubmit={(event) => {
         event.preventDefault();
@@ -76,18 +76,18 @@ export function EquipmentCatalogManager({
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-      <div className="section-header">
+    <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Типы оборудования</div>
-          <div className="page-muted">
+          <div className="ui-section-title">Типы оборудования</div>
+          <div className="ui-text-muted">
             Пустой тип можно удалить. Тип с заведёнными единицами сохраняется.
           </div>
         </div>
       </div>
 
       {catalog.length === 0 ? (
-        <div className="page-muted">Типы оборудования пока не созданы.</div>
+        <div className="ui-text-muted">Типы оборудования пока не созданы.</div>
       ) : (
         <div className="record-list">
           {catalog.map((item) => {
@@ -95,11 +95,11 @@ export function EquipmentCatalogManager({
             const canDeleteItem = canDelete && item.unitsCount === 0;
 
             return (
-              <div key={item.id} className="record-card">
-                <div className="section-header">
+              <Surface padding="sm" key={item.id}>
+                <div className="ui-section-header">
                   <div>
                     <strong>{item.name}</strong>
-                    <div className="page-muted">
+                    <div className="ui-text-muted">
                       {item.category}
                       {item.brand ? ` · ${item.brand}` : ''}
                       {item.model ? ` · ${item.model}` : ''}
@@ -125,7 +125,7 @@ export function EquipmentCatalogManager({
                   <Alert tone="warning">
                     <strong>Удалить тип «{item.name}»?</strong>
                     <div>Он не используется ни одной единицей оборудования.</div>
-                    <div className="action-row">
+                    <div className="ui-inline">
                       <Button variant="danger"
                         disabled={pendingId === item.id}
                         onClick={() => {
@@ -155,14 +155,14 @@ export function EquipmentCatalogManager({
                     </div>
                   </Alert>
                 ) : null}
-              </div>
+              </Surface>
             );
           })}
         </div>
       )}
 
       {error ? <div className="form-error">{error}</div> : null}
-    </div>
+    </Surface>
   );
 }
 
@@ -188,7 +188,7 @@ export function EquipmentUnitForm({
 
   return (
     <form
-      className="page-card"
+      className="ui-surface ui-surface--padded"
       style={{ display: 'grid', gap: 12 }}
       onSubmit={(event) => {
         event.preventDefault();

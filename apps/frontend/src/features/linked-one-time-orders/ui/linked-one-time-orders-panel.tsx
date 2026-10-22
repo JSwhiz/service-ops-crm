@@ -6,7 +6,7 @@ import React from 'react';
 import type { LinkedOneTimeOrderProjection } from '@/entities/object/model/object-operations.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
-import { Stack } from '@/shared/ui/foundation';
+import { Stack, Surface } from '@/shared/ui/foundation';
 
 export function LinkedOneTimeOrdersPanel({
   items,
@@ -14,11 +14,11 @@ export function LinkedOneTimeOrdersPanel({
   items: LinkedOneTimeOrderProjection[];
 }): React.JSX.Element {
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
+    <Surface padding="md" style={{ display: 'grid', gap: 16 }}>
       <div style={{ fontWeight: 600 }}>Из разового заказа</div>
 
       {items.length === 0 ? (
-        <div className="page-muted">
+        <div className="ui-text-muted">
           Связанных разовых заказов для объекта пока нет.
         </div>
       ) : (
@@ -27,18 +27,18 @@ export function LinkedOneTimeOrdersPanel({
             const header = (
               <Stack gap="xs">
                 <div style={{ fontWeight: 600 }}>{item.title}</div>
-                <div className="page-muted">Заказ #{item.id}</div>
+                <div className="ui-text-muted">Заказ #{item.id}</div>
               </Stack>
             );
 
             return (
-              <div
+              <Surface padding="sm"
                 key={item.id}
                 style={{
                   display: 'grid',
                   gap: 10,
                 }}
-                className="record-card"
+
               >
                 {item.canOpenOrderCard ? (
                   <Link
@@ -59,11 +59,11 @@ export function LinkedOneTimeOrdersPanel({
                   }}
                 >
                   <div>
-                    <div className="page-muted">Статус</div>
+                    <div className="ui-text-muted">Статус</div>
                     <div>{getOneTimeOrderStatusLabel(item.status)}</div>
                   </div>
                   <div>
-                    <div className="page-muted">Дата выполнения</div>
+                    <div className="ui-text-muted">Дата выполнения</div>
                     <div>
                       {item.executionDate
                         ? new Date(item.executionDate).toLocaleDateString('ru-RU')
@@ -71,13 +71,13 @@ export function LinkedOneTimeOrdersPanel({
                     </div>
                   </div>
                   <div>
-                    <div className="page-muted">Финансовая сводка</div>
+                    <div className="ui-text-muted">Финансовая сводка</div>
                     <div>
                       {item.agreedSum !== null ? `${item.agreedSum} ₽` : 'Не указана'}
                     </div>
                   </div>
                   <div>
-                    <div className="page-muted">Менеджер заказа</div>
+                    <div className="ui-text-muted">Менеджер заказа</div>
                     <div>
                       {item.managers.length > 0
                         ? item.managers.map(getUserDisplayName).join(', ')
@@ -93,27 +93,27 @@ export function LinkedOneTimeOrdersPanel({
                     flexWrap: 'wrap',
                   }}
                 >
-                  <span className="page-muted">
+                  <span className="ui-text-muted">
                     Комментарии: {item.summary.commentsCount}
                   </span>
-                  <span className="page-muted">
+                  <span className="ui-text-muted">
                     Отчеты: {item.summary.reportsCount}
                   </span>
-                  <span className="page-muted">
+                  <span className="ui-text-muted">
                     Фото: {item.summary.photosCount}
                   </span>
-                  <span className="page-muted">
+                  <span className="ui-text-muted">
                     Файлы: {item.summary.filesCount}
                   </span>
-                  <span className="page-muted">
+                  <span className="ui-text-muted">
                     Задачи: {item.summary.tasksCount}
                   </span>
                 </div>
-              </div>
+              </Surface>
             );
           })}
         </div>
       )}
-    </div>
+    </Surface>
   );
 }

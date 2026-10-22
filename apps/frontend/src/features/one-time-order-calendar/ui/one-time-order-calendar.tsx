@@ -29,7 +29,7 @@ import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presenta
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Button, ButtonLink } from '@/shared/ui/foundation';
+import { Button, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 import { useConfirm } from '@/shared/ui/overlays';
@@ -361,7 +361,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   };
 
   if (!canView) {
-    return <div className="page-card">У вас нет доступа к календарю разовых заказов.</div>;
+    return <Surface padding="md">У вас нет доступа к календарю разовых заказов.</Surface>;
   }
 
   const today = getTodayDate();
@@ -382,7 +382,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   return (
     <div className="one-time-calendar" ref={calendarRootRef}>
       {confirmDialog}
-      <div className="page-card workspace-surface filter-panel one-time-calendar__toolbar">
+      <Surface padding="md" className="filter-panel one-time-calendar__toolbar">
         <div className="one-time-calendar__month-nav">
           <MonthPeriodPicker
             year={Number(month.slice(0, 4))}
@@ -431,7 +431,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             </Button>
           ) : null}
         </div>
-        <div className="action-row one-time-calendar__actions">
+        <div className="ui-inline one-time-calendar__actions">
           <Button
             disabled={isExporting}
             onClick={() => {
@@ -473,7 +473,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             </ButtonLink>
           ) : null}
         </div>
-      </div>
+      </Surface>
 
       <div className="one-time-calendar__legend" aria-label="Обозначения календаря">
         {AVAILABILITY_OPTIONS.map((option) => (
@@ -484,14 +484,14 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
         <span className="one-time-calendar__legend-warning">Конфликт расписания</span>
       </div>
 
-      {error ? <div className="page-card one-time-calendar__error">{error}</div> : null}
+      {error ? <Surface padding="md" className="one-time-calendar__error">{error}</Surface> : null}
       {isLoading ? (
-        <div className="page-card">Загрузка календаря...</div>
+        <Surface padding="md">Загрузка календаря...</Surface>
       ) : !calendar || calendar.managers.length === 0 ? (
-        <div className="page-card page-muted">Менеджеры за выбранный период не найдены.</div>
+        <Surface padding="md" className="ui-text-muted">Менеджеры за выбранный период не найдены.</Surface>
       ) : (
         <>
-          <div className="page-card workspace-surface data-table-shell one-time-calendar__grid-shell">
+          <Surface padding="md" className="data-table-shell one-time-calendar__grid-shell">
             <table className="one-time-calendar__grid">
               <thead>
                 <tr>
@@ -550,25 +550,25 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                 ))}
               </tbody>
             </table>
-          </div>
+          </Surface>
 
           {mobileManager ? (
             <div className="one-time-calendar__mobile">
               {!managerUserId && calendar.managers.length > 1 ? (
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   На узком экране показан первый менеджер. Выберите нужного в фильтре.
                 </div>
               ) : null}
-              <div className="page-card section-header">
+              <Surface padding="md" className="ui-section-header">
                 <div>
-                  <div className="section-title">
+                  <div className="ui-section-title">
                     {getUserDisplayName(mobileManager.user)}
                   </div>
-                  <div className="section-subtitle">
+                  <div className="ui-section-subtitle">
                     Рабочих дней: {mobileManager.workedDays}
                   </div>
                 </div>
-              </div>
+              </Surface>
               {mobileManager.days.map((day) => (
                 <button
                   key={day.date}
@@ -730,10 +730,10 @@ function DayDetailsModal({
         aria-label="Детали дня"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="section-header">
+        <div className="ui-section-header">
           <div>
-            <div className="section-title">{formatDate(day.date)}</div>
-            <div className="section-subtitle">{getUserDisplayName(manager.user)}</div>
+            <div className="ui-section-title">{formatDate(day.date)}</div>
+            <div className="ui-section-subtitle">{getUserDisplayName(manager.user)}</div>
           </div>
           <Button onClick={onClose}>Закрыть</Button>
         </div>
@@ -749,7 +749,7 @@ function DayDetailsModal({
             </span>
             {day.availability.comment ? <p>{day.availability.comment}</p> : null}
             {canManageAny ? (
-              <div className="action-row">
+              <div className="ui-inline">
                 <Button onClick={() => onEdit(day.availability!)}>
                   Изменить
                 </Button>
@@ -782,7 +782,7 @@ function DayDetailsModal({
                     placeholder="Обязателен при отклонении"
                   />
                 </label>
-                <div className="action-row">
+                <div className="ui-inline">
                   <Button
                     disabled={isSubmitting}
                     onClick={() => onApprove(pending)}
@@ -810,7 +810,7 @@ function DayDetailsModal({
 
         <div className="calendar-modal__section">
           <strong>Заказы: {day.orders.length}</strong>
-          {day.orders.length === 0 ? <span className="page-muted">Нет заказов</span> : null}
+          {day.orders.length === 0 ? <span className="ui-text-muted">Нет заказов</span> : null}
           {day.orders.map((order, index) =>
             order.relatedOrder ? (
               <Link
@@ -843,7 +843,7 @@ function DayDetailsModal({
           )}
         </div>
 
-        <div className="action-row">
+        <div className="ui-inline">
           {canCreateOrder ? (
             <ButtonLink
               icon={<PlusIcon />}
@@ -893,8 +893,8 @@ function AvailabilityModal({
         onSubmit={onSubmit}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="section-header">
-          <div className="section-title">{title}</div>
+        <div className="ui-section-header">
+          <div className="ui-section-title">{title}</div>
           <Button onClick={onClose}>Закрыть</Button>
         </div>
         {error ? <div className="one-time-calendar__error">{error}</div> : null}
@@ -949,7 +949,7 @@ function AvailabilityModal({
             onChange={(event) => onChange({ ...form, comment: event.target.value })}
           />
         </label>
-        <div className="action-row">
+        <div className="ui-inline">
           <Button variant="primary" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Сохранение...' : 'Сохранить'}
           </Button>

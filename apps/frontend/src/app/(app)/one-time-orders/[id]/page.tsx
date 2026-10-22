@@ -95,7 +95,7 @@ import {
 } from '@/shared/lib/one-time-order-presentation';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import styles from './one-time-order-detail.module.css';
-import { Alert, Button, ButtonLink, StatusBadge } from '@/shared/ui/foundation';
+import { Alert, Button, ButtonLink, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -327,15 +327,15 @@ export default function OneTimeOrderDetailPage({
   };
 
   return (
-    <div className="workspace-page order-detail-page">
+    <div className="ui-page order-detail-page">
       {isLoading ? (
-        <div className="page-card workspace-empty">Загрузка...</div>
+        <div className="ui-empty-state">Загрузка...</div>
       ) : error ? (
         <Alert tone="warning" role="alert">
           {error}
         </Alert>
       ) : item ? (
-        <div className="page-stack order-detail-workspace">
+        <div className="ui-stack ui-stack--lg order-detail-workspace">
           <OneTimeOrderSummaryCard
             item={item}
             isEditing={isEditing}
@@ -351,11 +351,11 @@ export default function OneTimeOrderDetailPage({
           />
 
           <div className={styles.content} id="workspace-panel-team" role="tabpanel" aria-labelledby="workspace-tab-team" hidden={activeSection !== 'team'}>
-          <section className="page-card workspace-surface">
-            <div className="section-header">
+          <Surface as="section" padding="md">
+            <div className="ui-section-header">
               <div>
-                <div className="section-title">Сотрудники и оплата за заказ</div>
-                <div className="section-subtitle">
+                <div className="ui-section-title">Сотрудники и оплата за заказ</div>
+                <div className="ui-section-subtitle">
                   Разовый состав и согласованная оплата каждого сотрудника за текущий цикл.
                 </div>
               </div>
@@ -365,7 +365,7 @@ export default function OneTimeOrderDetailPage({
             </div>
 
             {workforce.filter((employee) => employee.isActive).length === 0 ? (
-              <div className="workspace-empty">
+              <div className="ui-empty-state">
                 Состав заказа пока не сформирован.
               </div>
             ) : (
@@ -373,16 +373,16 @@ export default function OneTimeOrderDetailPage({
                 {workforce
                   .filter((employee) => employee.isActive)
                   .map((employee) => (
-                    <div className="record-card" key={employee.employeeId}>
-                      <div className="section-header">
+                    <Surface padding="sm" key={employee.employeeId}>
+                      <div className="ui-section-header">
                         <div>
                           <strong>{employee.fullName}</strong>
-                          <div className="page-muted">
+                          <div className="ui-text-muted">
                             {employee.position ?? 'Должность не указана'}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div className="page-muted">Оплата за заказ</div>
+                          <div className="ui-text-muted">Оплата за заказ</div>
                           <strong>
                             {employee.orderPayment === null
                               ? 'Не указана'
@@ -392,11 +392,11 @@ export default function OneTimeOrderDetailPage({
                           </strong>
                         </div>
                       </div>
-                    </div>
+                    </Surface>
                   ))}
               </div>
             )}
-          </section>
+          </Surface>
           <OneTimeOrderManagersPanel
             item={item}
             searchCandidates={(query) => listOneTimeOrderManagerCandidates(item.id, query)}
@@ -426,11 +426,11 @@ export default function OneTimeOrderDetailPage({
 
           <div className={styles.content} id="workspace-panel-overview" role="tabpanel" aria-labelledby="workspace-tab-overview" hidden={activeSection !== 'overview'}>
           {item.capabilities.canChangeStatus ? (
-            <div className="page-card">
-              <div className="section-header" style={{ marginBottom: 12 }}>
+            <Surface padding="md">
+              <div className="ui-section-header" style={{ marginBottom: 12 }}>
                 <div>
-                  <div className="section-title">Статус заказа</div>
-                  <div className="section-subtitle">
+                  <div className="ui-section-title">Статус заказа</div>
+                  <div className="ui-section-subtitle">
                     Выберите следующий статус заказа.
                   </div>
                 </div>
@@ -438,7 +438,7 @@ export default function OneTimeOrderDetailPage({
                   {getOneTimeOrderStatusLabel(item.status)}
                 </StatusBadge>
               </div>
-              <div className="action-row">
+              <div className="ui-inline">
                 {ONE_TIME_ORDER_STATUS_OPTIONS.filter(
                   (option) =>
                     option.value !== item.status && option.value !== 'completed',
@@ -481,14 +481,14 @@ export default function OneTimeOrderDetailPage({
                   </Button>
                 ))}
               </div>
-            </div>
+            </Surface>
           ) : null}
 
           {item.description ? (
-            <section className="page-card workspace-surface">
-              <h2 className="section-title">Описание заказа</h2>
+            <Surface as="section" padding="md">
+              <h2 className="ui-section-title">Описание заказа</h2>
               <p className={styles.longText}>{item.description}</p>
-            </section>
+            </Surface>
           ) : null}
 
           <OneTimeOrderReviewPanel
@@ -560,19 +560,19 @@ export default function OneTimeOrderDetailPage({
 
           <div className={styles.content} id="workspace-panel-finance" role="tabpanel" aria-labelledby="workspace-tab-finance" hidden={activeSection !== 'finance'}>
           {item.financialNotes || item.expenseNotes || item.plannedPaymentMethod ? (
-            <section className="page-card workspace-surface">
-              <div className="section-header">
+            <Surface as="section" padding="md">
+              <div className="ui-section-header">
                 <div>
-                  <h2 className="section-title">Условия заказа</h2>
-                  <div className="section-subtitle">Договорённости и заметки; это не подтверждение полученных денег.</div>
+                  <h2 className="ui-section-title">Условия заказа</h2>
+                  <div className="ui-section-subtitle">Договорённости и заметки; это не подтверждение полученных денег.</div>
                 </div>
               </div>
-              <div className="detail-grid">
-                {item.plannedPaymentMethod ? <div className="detail-field"><div className="detail-label">Плановый способ оплаты</div><div className="detail-value">{getOneTimeOrderPlannedPaymentMethodLabel(item.plannedPaymentMethod)}</div></div> : null}
-                {item.financialNotes ? <div className="detail-field"><div className="detail-label">Заметка по оплате</div><div className="detail-value one-time-order-long-text">{item.financialNotes}</div></div> : null}
-                {item.expenseNotes ? <div className="detail-field"><div className="detail-label">Заметка о расходах</div><div className="detail-value one-time-order-long-text">{item.expenseNotes}</div></div> : null}
+              <div className="ui-detail-grid">
+                {item.plannedPaymentMethod ? <div className="ui-detail-field"><div className="ui-detail-label">Плановый способ оплаты</div><div className="ui-detail-value">{getOneTimeOrderPlannedPaymentMethodLabel(item.plannedPaymentMethod)}</div></div> : null}
+                {item.financialNotes ? <div className="ui-detail-field"><div className="ui-detail-label">Заметка по оплате</div><div className="ui-detail-value one-time-order-long-text">{item.financialNotes}</div></div> : null}
+                {item.expenseNotes ? <div className="ui-detail-field"><div className="ui-detail-label">Заметка о расходах</div><div className="ui-detail-value one-time-order-long-text">{item.expenseNotes}</div></div> : null}
               </div>
-            </section>
+            </Surface>
           ) : null}
           <OneTimeOrderCompletionPanel
             item={item}
@@ -648,12 +648,12 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
-          <div className="page-card">
-            <div className="section-header" style={{ paddingBottom: 0 }}>
-              <div><div className="section-title">Рабочий чат разовых заказов</div><div className="section-subtitle">Полный мессенджер живет отдельно от комментариев заказа.</div></div>
+          <Surface padding="md">
+            <div className="ui-section-header" style={{ paddingBottom: 0 }}>
+              <div><div className="ui-section-title">Рабочий чат разовых заказов</div><div className="ui-section-subtitle">Полный мессенджер живет отдельно от комментариев заказа.</div></div>
               <Link href="/chats?room=one_time_orders">Открыть чат</Link>
             </div>
-          </div>
+          </Surface>
           </div>
 
           <div className={styles.content} id="workspace-panel-execution" role="tabpanel" aria-labelledby="workspace-tab-execution" hidden={activeSection !== 'execution'}>
@@ -741,7 +741,7 @@ export default function OneTimeOrderDetailPage({
           </div>
         </div>
       ) : (
-        <div className="page-card workspace-empty">Разовый заказ не найден.</div>
+        <div className="ui-empty-state">Разовый заказ не найден.</div>
       )}
       <ConfirmDialog
         open={scheduleConflictPrompt !== null}

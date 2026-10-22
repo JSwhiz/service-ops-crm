@@ -17,7 +17,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { ConfirmDialog } from '@/shared/ui/overlays';
-import { Alert, Badge, Button } from '@/shared/ui/foundation';
+import { Alert, Badge, Button, Surface } from '@/shared/ui/foundation';
 
 export function OneTimeOrderSpecificationPanel({
   orderId,
@@ -84,11 +84,11 @@ export function OneTimeOrderSpecificationPanel({
 
   return (
     <>
-    <section className="page-card page-stack">
-      <div className="section-header">
+    <Surface as="section" padding="md" className="ui-stack ui-stack--lg">
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Техническое задание</div>
-          <div className="section-subtitle">
+          <div className="ui-section-title">Техническое задание</div>
+          <div className="ui-section-subtitle">
             Выполнено {completedCount} из {items.length}
           </div>
         </div>
@@ -96,7 +96,7 @@ export function OneTimeOrderSpecificationPanel({
 
       {canManage ? (
         <form
-          className="detail-grid"
+          className="ui-detail-grid"
           onSubmit={async (event) => {
             event.preventDefault();
             setError(null);
@@ -136,7 +136,7 @@ export function OneTimeOrderSpecificationPanel({
           }}
         >
           <label>
-            <div className="detail-label">Название пункта</div>
+            <div className="ui-detail-label">Название пункта</div>
             <input
               value={title}
               maxLength={500}
@@ -145,14 +145,14 @@ export function OneTimeOrderSpecificationPanel({
             />
           </label>
           <label>
-            <div className="detail-label">Описание</div>
+            <div className="ui-detail-label">Описание</div>
             <input
               value={description}
               maxLength={5000}
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
-          <label className="action-row">
+          <label className="ui-inline">
             <input
               type="checkbox"
               checked={requiresAttachment}
@@ -160,7 +160,7 @@ export function OneTimeOrderSpecificationPanel({
             />
             Требовать вложение
           </label>
-          <div className="action-row">
+          <div className="ui-inline">
             <Button variant="primary" type="submit" disabled={isBusy}>
               {editingId
                 ? items.find((item) => item.id === editingId)?.isCompleted
@@ -179,14 +179,14 @@ export function OneTimeOrderSpecificationPanel({
 
       {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
-      <div className="page-stack">
+      <div className="ui-stack ui-stack--lg">
         {items.length === 0 ? (
-          <div className="page-muted">Пункты ТЗ пока не добавлены.</div>
+          <div className="ui-text-muted">Пункты ТЗ пока не добавлены.</div>
         ) : (
           items.map((item, index) => (
             <article key={item.id} className="detail-section">
-              <div className="section-header">
-                <div className="action-row">
+              <div className="ui-section-header">
+                <div className="ui-inline">
                   <input
                     type="checkbox"
                     checked={item.isCompleted}
@@ -227,7 +227,7 @@ export function OneTimeOrderSpecificationPanel({
                   </div>
                 </div>
                 {canManage ? (
-                  <div className="action-row">
+                  <div className="ui-inline">
                     <Button
                       disabled={index === 0}
                       onClick={() => void moveItem(index, -1)}
@@ -261,7 +261,7 @@ export function OneTimeOrderSpecificationPanel({
 
               {item.description ? <p>{item.description}</p> : null}
               {item.completedBy && item.completedAt ? (
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   Выполнил: {getUserDisplayName(item.completedBy)} ·{' '}
                   {new Date(item.completedAt).toLocaleString('ru-RU')}
                 </div>
@@ -286,7 +286,7 @@ export function OneTimeOrderSpecificationPanel({
           ))
         )}
       </div>
-    </section>
+    </Surface>
     <ConfirmDialog
       open={deleteTarget !== null}
       onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}

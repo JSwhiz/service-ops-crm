@@ -7,7 +7,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Alert, Button, Field } from '@/shared/ui/foundation';
+import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
 
 export function OneTimeOrderDailyReportPanel({
   item,
@@ -27,17 +27,17 @@ export function OneTimeOrderDailyReportPanel({
   }, [item]);
 
   return (
-    <div className="page-card">
+    <Surface padding="md">
       <div style={{ fontWeight: 600, marginBottom: 12 }}>
         Ежедневный отчет заказа
       </div>
 
       {item ? (
-        <div className="page-muted" style={{ marginBottom: 12 }}>
+        <div className="ui-text-muted" style={{ marginBottom: 12 }}>
           Последнее обновление: {getUserDisplayName(item.updatedBy)}
         </div>
       ) : (
-        <div className="page-muted" style={{ marginBottom: 12 }}>
+        <div className="ui-text-muted" style={{ marginBottom: 12 }}>
           Отчет за сегодня еще не создан.
         </div>
       )}
@@ -71,7 +71,7 @@ export function OneTimeOrderDailyReportPanel({
         </Field>
 
         <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
-          <div className="page-muted">Фото и файлы отчета</div>
+          <div className="ui-text-muted">Фото и файлы отчета</div>
           <MediaActionPicker
             disabled={isSubmitting}
             onPick={async (file) => {
@@ -111,6 +111,6 @@ export function OneTimeOrderDailyReportPanel({
           </Button>
         </div>
       </form>
-    </div>
+    </Surface>
   );
 }

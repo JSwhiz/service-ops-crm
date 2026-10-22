@@ -22,7 +22,7 @@ import {
   phoneDraftsValid,
 } from '@/shared/ui/phone-list-field/phone-list-field';
 import styles from '@/features/candidate-registry/ui/candidate-fields.module.css';
-import { Alert, Button, Field } from '@/shared/ui/foundation';
+import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import {
   SearchableSelect,
@@ -62,7 +62,7 @@ export default function NewCandidatePage(): React.JSX.Element {
     return (
       <>
         <PageTitle title="Новый кандидат" />
-        <div className="page-card">Недостаточно прав.</div>
+        <Surface padding="md">Недостаточно прав.</Surface>
       </>
     );
   }
@@ -74,7 +74,7 @@ export default function NewCandidatePage(): React.JSX.Element {
     <>
       <PageTitle title="Новый кандидат" />
       <form
-        className={`page-card ${styles.form}`}
+        className={`ui-surface ui-surface--padded ${styles.form}`}
         onSubmit={(event) => {
           event.preventDefault();
           if (regularReferencesMissing || !candidateManagersValid(managers, candidateType === 'regular')) {
@@ -171,7 +171,7 @@ export default function NewCandidatePage(): React.JSX.Element {
             Этот объект подставляется каждому менеджеру. При необходимости укажите другой объект в его строке.
           </div>
           <section>
-            <h2 className="section-title">
+            <h2 className="ui-section-title">
               Ответственные менеджеры{candidateType === 'regular' ? ' *' : ''}
             </h2>
           <CandidateManagerFields
@@ -197,7 +197,7 @@ export default function NewCandidatePage(): React.JSX.Element {
         </fieldset>
 
         {candidateType === 'reserve' ? (
-          <div className={`page-muted ${styles.full}`}>
+          <div className={`ui-text-muted ${styles.full}`}>
             Для резервного кандидата объект и менеджер можно назначить позже.
           </div>
         ) : null}

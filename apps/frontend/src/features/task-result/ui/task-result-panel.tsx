@@ -13,7 +13,7 @@ import type { TaskCompletionRequirement } from '@/entities/task/model/task.types
 import { getCompletionRequirementLabel } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 import { useConfirm } from '@/shared/ui/overlays';
 
 export function TaskResultPanel({
@@ -70,12 +70,12 @@ export function TaskResultPanel({
   };
 
   return (
-    <div className="page-card task-completion-panel">
+    <Surface padding="md" className="task-completion-panel">
       {confirmDialog}
-      <div className="section-header">
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Моё выполнение</div>
-          <div className="section-subtitle">{getCompletionRequirementLabel(requirement)}</div>
+          <div className="ui-section-title">Моё выполнение</div>
+          <div className="ui-section-subtitle">{getCompletionRequirementLabel(requirement)}</div>
         </div>
         {canUndo ? (
           <Button
@@ -130,6 +130,6 @@ export function TaskResultPanel({
           </Button>
         </form>
       ) : error ? <div className="task-form__error" role="alert">{error}</div> : null}
-    </div>
+    </Surface>
   );
 }

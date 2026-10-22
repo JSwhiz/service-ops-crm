@@ -79,6 +79,7 @@ import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { EntityFilesPanel } from '@/shared/ui/entity-files/entity-files-panel';
 
 import styles from './object-detail-workspace.module.css';
+import { Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -327,7 +328,7 @@ export default function ObjectDetailPage({
   }, [objectId, employeeSearch, item?.capabilities.canManageEmployees]);
 
   return (
-    <div className="workspace-page object-detail-page">
+    <div className="ui-page object-detail-page">
       {coreLoading ? (
         <ObjectPanelLoading title="Карточка объекта" />
       ) : coreError ? (
@@ -352,10 +353,10 @@ export default function ObjectDetailPage({
 
           <WorkspaceSection id="overview" title="Обзор">
             {item.capabilities.canViewOperationalSections ? (
-              <div className={`${styles.quickAction} page-card workspace-surface`}>
-                <div className="section-title">Рабочий чат</div>
+              <Surface padding="md" className={`${styles.quickAction}`}>
+                <div className="ui-section-title">Рабочий чат</div>
                 <Link href="/chats?room=objects">Открыть</Link>
-              </div>
+              </Surface>
             ) : null}
 
             {canManageObjectStatus ? (
@@ -561,10 +562,10 @@ export default function ObjectDetailPage({
             </WorkspaceSection>
 
             <WorkspaceSection id="history" title="История">
-              <div className={`${styles.quickAction} page-card workspace-surface`}>
-                <div className="section-title">История изменений</div>
+              <Surface padding="md" className={`${styles.quickAction}`}>
+                <div className="ui-section-title">История изменений</div>
                 <Link href={`/objects/${objectId}/history`}>Открыть</Link>
-              </div>
+              </Surface>
               {feedLoading ? <ObjectPanelLoading title="Лента событий" /> : feedError ? (
                 <ObjectPanelError title="Лента событий" message={feedError} />
               ) : <ObjectFeedList items={feed} />}
@@ -572,7 +573,7 @@ export default function ObjectDetailPage({
           </> : null}
         </div>
       ) : (
-        <div className="page-card workspace-surface workspace-empty">Объект не найден.</div>
+        <div className="ui-empty-state">Объект не найден.</div>
       )}
     </div>
   );

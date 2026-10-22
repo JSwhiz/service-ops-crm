@@ -79,7 +79,7 @@
 }
 
 .fieldLabel,
-.form :global(.detail-label) {
+.form :global(.ui-detail-label) {
   margin: 0;
   color: var(--ui-text-secondary);
   font-size: 12.5px;

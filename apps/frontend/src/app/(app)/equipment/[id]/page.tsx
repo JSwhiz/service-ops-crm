@@ -23,7 +23,7 @@ import {
   getEquipmentStatusLabel,
 } from '@/shared/lib/equipment-presentation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { Alert, Button, StatusBadge } from '@/shared/ui/foundation';
+import { Alert, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -132,21 +132,21 @@ export default function EquipmentDetailPage({
   }, [params]);
 
   return (
-    <div className="workspace-page equipment-workspace">
+    <div className="ui-page equipment-workspace">
       <PageTitle
         title={unit ? `${unit.catalogItem.name} · ${unit.inventoryNumber}` : 'Оборудование'}
       />
 
       {isLoading ? (
-        <div className="page-card">Загрузка...</div>
+        <Surface padding="md">Загрузка...</Surface>
       ) : error ? (
         <Alert tone="danger" role="alert">
           {error}
         </Alert>
       ) : unit ? (
-        <div className="page-stack">
-          <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
-            <div className="section-header">
+        <div className="ui-stack ui-stack--lg">
+          <Surface padding="md" className="hero-card" style={{ display: 'grid', gap: 18 }}>
+            <div className="ui-section-header">
               <div>
                 <div className="hero-title">{unit.catalogItem.name}</div>
                 <div className="hero-meta">
@@ -159,22 +159,22 @@ export default function EquipmentDetailPage({
               </StatusBadge>
             </div>
 
-            <div className="detail-grid">
-              <div className="detail-field">
-                <div className="detail-label">Категория</div>
-                <div className="detail-value">{unit.catalogItem.category}</div>
+            <div className="ui-detail-grid">
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Категория</div>
+                <div className="ui-detail-value">{unit.catalogItem.category}</div>
               </div>
-              <div className="detail-field">
-                <div className="detail-label">Инвентарный номер</div>
-                <div className="detail-value">{unit.inventoryNumber}</div>
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Инвентарный номер</div>
+                <div className="ui-detail-value">{unit.inventoryNumber}</div>
               </div>
-              <div className="detail-field">
-                <div className="detail-label">Серийный номер</div>
-                <div className="detail-value">{unit.serialNumber ?? '—'}</div>
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Серийный номер</div>
+                <div className="ui-detail-value">{unit.serialNumber ?? '—'}</div>
               </div>
-              <div className="detail-field">
-                <div className="detail-label">Текущая привязка</div>
-                <div className="detail-value">
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Текущая привязка</div>
+                <div className="ui-detail-value">
                   {unit.currentObject
                     ? unit.currentObject.name
                     : unit.currentOneTimeOrder
@@ -184,19 +184,19 @@ export default function EquipmentDetailPage({
               </div>
             </div>
             {unit.notes ? (
-              <div className="detail-field">
-                <div className="detail-label">Заметки</div>
-                <div className="detail-value">{unit.notes}</div>
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Заметки</div>
+                <div className="ui-detail-value">{unit.notes}</div>
               </div>
             ) : null}
-          </div>
+          </Surface>
 
           {unit.capabilities.canDelete ? (
-            <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-              <div className="section-header">
+            <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
+              <div className="ui-section-header">
                 <div>
-                  <div className="section-title">Удаление карточки</div>
-                  <div className="page-muted">
+                  <div className="ui-section-title">Удаление карточки</div>
+                  <div className="ui-text-muted">
                     Доступно только для ошибочно заведённого оборудования без истории операций.
                   </div>
                 </div>
@@ -209,7 +209,7 @@ export default function EquipmentDetailPage({
               </div>
 
               {!unit.deletionState.canDelete && unit.deletionState.blockerCodes.length > 0 ? (
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   {unit.deletionState.blockerCodes
                     .map((code) => getDeleteBlockerLabel(code))
                     .join(' ')}
@@ -220,7 +220,7 @@ export default function EquipmentDetailPage({
                 <Alert tone="warning">
                   <strong>Удалить «{unit.catalogItem.name} · {unit.inventoryNumber}»?</strong>
                   <div>Карточка будет удалена безвозвратно, так как по ней ещё не было операций.</div>
-                  <div className="action-row">
+                  <div className="ui-inline">
                     <Button variant="danger"
                       disabled={isDeleting}
                       onClick={() => {
@@ -252,7 +252,7 @@ export default function EquipmentDetailPage({
               ) : null}
 
               {deleteError ? <div className="form-error">{deleteError}</div> : null}
-            </div>
+            </Surface>
           ) : null}
 
           <EquipmentMovementPanel
@@ -278,7 +278,7 @@ export default function EquipmentDetailPage({
           />
         </div>
       ) : (
-        <div className="page-card">Оборудование не найдено.</div>
+        <Surface padding="md">Оборудование не найдено.</Surface>
       )}
     </div>
   );

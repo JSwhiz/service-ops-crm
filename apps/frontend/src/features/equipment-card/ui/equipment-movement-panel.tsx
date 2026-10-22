@@ -20,7 +20,7 @@ import {
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Button, Stack, StatusBadge } from '@/shared/ui/foundation';
+import { Button, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 export function EquipmentMovementPanel({
@@ -61,7 +61,7 @@ export function EquipmentMovementPanel({
     <Stack gap="lg">
       {canSubmit && allowedTypes.length ? (
         <form
-          className="page-card"
+          className="ui-surface ui-surface--padded"
           style={{ display: 'grid', gap: 12 }}
           onSubmit={(event) => {
             event.preventDefault();
@@ -85,10 +85,10 @@ export function EquipmentMovementPanel({
             });
           }}
         >
-          <div className="section-header">
+          <div className="ui-section-header">
             <div>
-              <div className="section-title">Операция с оборудованием</div>
-              <div className="section-subtitle">
+              <div className="ui-section-title">Операция с оборудованием</div>
+              <div className="ui-section-subtitle">
                 Выдача, возврат, ремонт или списание unit.
               </div>
             </div>
@@ -102,7 +102,7 @@ export function EquipmentMovementPanel({
           ) : null}
           <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={2} placeholder="Комментарий" />
           <div style={{ display: 'grid', gap: 8 }}>
-            <div className="page-muted">
+            <div className="ui-text-muted">
               Фото/файлы к операции сохраняются через общий storage слой.
             </div>
             <MediaActionPicker
@@ -120,7 +120,7 @@ export function EquipmentMovementPanel({
               }
             />
           </div>
-          <div className="action-row">
+          <div className="ui-inline">
             <Button type="submit" variant="primary" pending={isSaving} disabled={(movementType === 'issue_to_object' && !toObjectId) || (movementType === 'issue_to_one_time_order' && !toOneTimeOrderId)}>
               {isSaving ? 'Сохраняем...' : 'Записать операцию'}
             </Button>
@@ -130,12 +130,12 @@ export function EquipmentMovementPanel({
 
       <div className="record-list local-scroll local-scroll--lg">
         {movements.length === 0 ? (
-          <div className="page-card">История пока пуста.</div>
+          <Surface padding="md">История пока пуста.</Surface>
         ) : (
           movements.map((movement) => (
-            <div key={movement.id} className="record-card" style={{ display: 'grid', gap: 8 }}>
+            <Surface padding="sm" key={movement.id} style={{ display: 'grid', gap: 8 }}>
               <strong>{getEquipmentMovementLabel(movement.movementType)}</strong>
-              <div className="page-muted">
+              <div className="ui-text-muted">
                 {movement.fromStatus ? (
                   <StatusBadge status={movement.fromStatus}>
                     {getEquipmentStatusLabel(movement.fromStatus)}
@@ -148,11 +148,11 @@ export function EquipmentMovementPanel({
                   {getEquipmentStatusLabel(movement.toStatus)}
                 </StatusBadge>
               </div>
-              <div className="page-muted">
+              <div className="ui-text-muted">
                 {new Date(movement.createdAt).toLocaleString('ru-RU')} ·{' '}
                 {getUserDisplayName(movement.createdBy)}
               </div>
-              <div className="page-muted">
+              <div className="ui-text-muted">
                 {movement.status === 'pending_approval'
                   ? 'Ожидает согласования'
                   : movement.status === 'rejected'
@@ -172,7 +172,7 @@ export function EquipmentMovementPanel({
                 </Link>
               ) : null}
               <AttachmentPreviewList files={movement.attachments} emptyText="Файлы не приложены." />
-            </div>
+            </Surface>
           ))
         )}
       </div>

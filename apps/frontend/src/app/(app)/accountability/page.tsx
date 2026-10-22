@@ -34,7 +34,7 @@ import {
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
-import { Alert, Button, Stack, StatusBadge } from '@/shared/ui/foundation';
+import { Alert, Button, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -258,11 +258,11 @@ export default function AccountabilityPage(): React.JSX.Element {
   }, [canReviewAccountability, selectedUserId]);
 
   const externalReceiptForm = canRecordExternalReceipt && ownView ? (
-    <section className="page-card workspace-surface" style={{ display: 'grid', gap: 16 }}>
-      <div className="section-header">
+    <Surface as="section" padding="md" style={{ display: 'grid', gap: 16 }}>
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Сообщить о поступлении</div>
-          <div className="section-subtitle">
+          <div className="ui-section-title">Сообщить о поступлении</div>
+          <div className="ui-section-subtitle">
             Деньги, полученные вне разовых заказов, сразу войдут в ваш остаток. Укажите источник и обязательный комментарий.
           </div>
         </div>
@@ -281,12 +281,12 @@ export default function AccountabilityPage(): React.JSX.Element {
           <textarea rows={3} value={externalComment} onChange={(event) => setExternalComment(event.target.value)} maxLength={500} placeholder="Укажите основание поступления" />
         </label>
         <label className="accountability-full-field">
-          <span>Подтверждающий файл <span className="page-muted">(необязательно)</span></span>
+          <span>Подтверждающий файл <span className="ui-text-muted">(необязательно)</span></span>
           <input className="accountability-file-input" type="file" multiple onChange={(event) => setExternalFiles(Array.from(event.target.files ?? []))} />
         </label>
       </div>
       {pendingReceiptAttachments ? (
-        <div className="page-card page-card--subtle accountability-receipt-retry">
+        <Surface padding="md" tone="subtle" className="accountability-receipt-retry">
           <span>Поступление уже учтено, но файл не прикреплён.</span>
           <Button disabled={isRecordingExternal} onClick={() => void (async () => {
             if (!pendingReceiptAttachments) return;
@@ -299,9 +299,9 @@ export default function AccountabilityPage(): React.JSX.Element {
               setActionError('Поступление уже учтено, но файл не прикреплён. Повторите прикрепление.');
             } finally { setIsRecordingExternal(false); }
           })()}>Повторить прикрепление</Button>
-        </div>
+        </Surface>
       ) : null}
-      <div className="action-row accountability-receipt-actions">
+      <div className="ui-inline accountability-receipt-actions">
         <Button disabled={isRecordingExternal || pendingReceiptAttachments !== null || !Number.isFinite(Number(externalAmount)) || Number(externalAmount) <= 0 || !externalSource.trim() || !externalComment.trim() || ownView.account.status === 'closing_requested'} onClick={() => void (async () => {
           setActionError(null);
           setIsRecordingExternal(true);
@@ -323,14 +323,14 @@ export default function AccountabilityPage(): React.JSX.Element {
           } finally { setIsRecordingExternal(false); }
         })()}>{isRecordingExternal ? 'Сохраняем...' : 'Зафиксировать поступление'}</Button>
       </div>
-    </section>
+    </Surface>
   ) : null;
 
   if (!canAccessAccountability) {
     return (
       <>
         <PageTitle title="Подотчет" />
-        <div className="page-card">У вас нет доступа к модулю подотчета.</div>
+        <Surface padding="md">У вас нет доступа к модулю подотчета.</Surface>
       </>
     );
   }
@@ -339,7 +339,7 @@ export default function AccountabilityPage(): React.JSX.Element {
     <>
       <PageTitle title="Подотчет" />
 
-      <div className="page-stack workspace-page accountability-workspace">
+      <div className="ui-page accountability-workspace">
         {actionError ? (
           <Alert tone="danger" role="alert">
             {actionError}
@@ -357,7 +357,7 @@ export default function AccountabilityPage(): React.JSX.Element {
 
         {canOpenOwnLedger ? (
         <section
-          className="page-stack accountability-workspace-panel"
+          className="ui-stack ui-stack--lg accountability-workspace-panel"
           role={workspaceSections.length > 1 ? 'tabpanel' : 'region'}
           id="workspace-panel-mine"
           aria-labelledby={workspaceSections.length > 1 ? 'workspace-tab-mine' : undefined}
@@ -365,7 +365,7 @@ export default function AccountabilityPage(): React.JSX.Element {
           hidden={activeWorkspaceSection !== 'mine'}
         >
         {ownLoading ? (
-          <div className="page-card">Загрузка вашего подотчета...</div>
+          <Surface padding="md">Загрузка вашего подотчета...</Surface>
         ) : ownError ? (
           <Alert tone="danger" role="alert">
             {ownError}
@@ -483,18 +483,18 @@ export default function AccountabilityPage(): React.JSX.Element {
         ) : null}
         {canReviewAccountability ? (
         <section
-          className="page-stack accountability-workspace-panel"
+          className="ui-stack ui-stack--lg accountability-workspace-panel"
           role={workspaceSections.length > 1 ? 'tabpanel' : 'region'}
           id="workspace-panel-accounts"
           aria-labelledby={workspaceSections.length > 1 ? 'workspace-tab-accounts' : undefined}
           aria-label={workspaceSections.length > 1 ? undefined : 'Счета сотрудников'}
           hidden={activeWorkspaceSection !== 'accounts'}
         >
-          <div className="page-card workspace-surface accountability-review" style={{ display: 'grid', gap: 18 }}>
-            <div className="section-header">
+          <Surface padding="md" className="accountability-review" style={{ display: 'grid', gap: 18 }}>
+            <div className="ui-section-header">
               <div>
-                <div className="section-title">Сверка и выдача денег</div>
-                <div className="section-subtitle">
+                <div className="ui-section-title">Сверка и выдача денег</div>
+                <div className="ui-section-subtitle">
                   Просматривайте остатки сотрудников и выдавайте средства из одного места.
                 </div>
               </div>
@@ -502,7 +502,7 @@ export default function AccountabilityPage(): React.JSX.Element {
 
             <div className="field-grid">
               <Stack gap="sm">
-                <span className="detail-label">Пользователь</span>
+                <span className="ui-detail-label">Пользователь</span>
                 <SearchableSelect
                   label="Пользователь"
                   value={selectedUserId}
@@ -549,24 +549,24 @@ export default function AccountabilityPage(): React.JSX.Element {
             </div>
 
             {selectedUser ? (
-              <div className="detail-grid">
-                <div className="detail-field">
-                  <div className="detail-label">Выбранный пользователь</div>
-                  <div className="detail-value">
+              <div className="ui-detail-grid">
+                <div className="ui-detail-field">
+                  <div className="ui-detail-label">Выбранный пользователь</div>
+                  <div className="ui-detail-value">
                     {getUserDisplayName(selectedUser)}
                   </div>
                 </div>
-                <div className="detail-field">
-                  <div className="detail-label">Статус контура</div>
-                  <div className="detail-value">
+                <div className="ui-detail-field">
+                  <div className="ui-detail-label">Статус контура</div>
+                  <div className="ui-detail-value">
                     {reviewView
                       ? getAccountabilityAccountStatusLabel(reviewView.account.status)
                       : '—'}
                   </div>
                 </div>
-                <div className="detail-field">
-                  <div className="detail-label">Текущий остаток</div>
-                  <div className="detail-value">
+                <div className="ui-detail-field">
+                  <div className="ui-detail-label">Текущий остаток</div>
+                  <div className="ui-detail-value">
                     {reviewView ? formatMoney(reviewView.summary.currentBalance) : '—'}
                   </div>
                 </div>
@@ -574,7 +574,7 @@ export default function AccountabilityPage(): React.JSX.Element {
             ) : null}
 
             {canIssueAccountabilityFunds ? (
-              <div className="action-row">
+              <div className="ui-inline">
                 <Button
                   disabled={
                     isIssuingFunding ||
@@ -614,13 +614,13 @@ export default function AccountabilityPage(): React.JSX.Element {
               </div>
             ) : null}
 
-            <details className="page-card page-card--subtle accountability-account-directory">
-              <summary className="section-title">
-                Все подотчётные счета <span className="page-muted">({accountItems.length})</span>
+            <details className="ui-surface ui-surface--padded ui-surface--subtle accountability-account-directory">
+              <summary className="ui-section-title">
+                Все подотчётные счета <span className="ui-text-muted">({accountItems.length})</span>
               </summary>
 
               {accountItems.length === 0 ? (
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   Пока нет пользователей с открытым или ранее использованным подотчетом.
                 </div>
               ) : (
@@ -629,7 +629,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                     <button
                       key={item.accountId}
                       type="button"
-                      className="record-card"
+                      className="ui-surface ui-surface--compact"
                       style={{
                         display: 'grid',
                         gap: 8,
@@ -643,33 +643,33 @@ export default function AccountabilityPage(): React.JSX.Element {
                         setSelectedUserId(item.user.id);
                       }}
                     >
-                      <div className="section-header" style={{ paddingBottom: 0 }}>
+                      <div className="ui-section-header" style={{ paddingBottom: 0 }}>
                         <strong>{getUserDisplayName(item.user)}</strong>
                         <StatusBadge status={item.status}>
                           {getAccountabilityAccountStatusLabel(item.status)}
                         </StatusBadge>
                       </div>
                       {getUserSecondaryLabel(item.user) ? (
-                        <div className="page-muted">
+                        <div className="ui-text-muted">
                           {getUserSecondaryLabel(item.user)}
                         </div>
                       ) : null}
-                      <div className="detail-grid">
-                        <div className="detail-field">
-                          <div className="detail-label">Остаток</div>
-                          <div className="detail-value">
+                      <div className="ui-detail-grid">
+                        <div className="ui-detail-field">
+                          <div className="ui-detail-label">Остаток</div>
+                          <div className="ui-detail-value">
                             {formatMoney(item.summary.currentBalance)}
                           </div>
                         </div>
-                        <div className="detail-field">
-                          <div className="detail-label">Пополнено</div>
-                          <div className="detail-value">
+                        <div className="ui-detail-field">
+                          <div className="ui-detail-label">Пополнено</div>
+                          <div className="ui-detail-value">
                             {formatMoney(item.summary.totalFunding)}
                           </div>
                         </div>
-                        <div className="detail-field">
-                          <div className="detail-label">На проверке</div>
-                          <div className="detail-value">
+                        <div className="ui-detail-field">
+                          <div className="ui-detail-label">На проверке</div>
+                          <div className="ui-detail-value">
                             {item.summary.submittedExpensesCount}
                           </div>
                         </div>
@@ -679,10 +679,10 @@ export default function AccountabilityPage(): React.JSX.Element {
                 </div>
               )}
             </details>
-          </div>
+          </Surface>
         {canReviewAccountability ? (
           reviewLoading ? (
-            <div className="page-card">Загрузка review-экрана...</div>
+            <Surface padding="md">Загрузка review-экрана...</Surface>
           ) : reviewError ? (
             <Alert tone="danger" role="alert">
               {reviewError}

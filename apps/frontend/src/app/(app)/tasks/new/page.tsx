@@ -12,6 +12,7 @@ import { listSystemUsers } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { TaskForm } from '@/features/task-form/ui/task-form';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { Surface } from '@/shared/ui/foundation';
 
 export default function NewTaskPage(): React.JSX.Element {
   const router = useRouter();
@@ -61,12 +62,12 @@ export default function NewTaskPage(): React.JSX.Element {
   }, [targets]);
 
   return (
-    <div className="page-stack workspace-page task-detail-page">
+    <div className="ui-page task-detail-page">
       <PageTitle title="Создать задачу" />
-      {isLoading ? <div className="page-card">Загрузка…</div> : error ? (
-        <div className="page-card task-error" role="alert">{error}</div>
+      {isLoading ? <Surface padding="md">Загрузка…</Surface> : error ? (
+        <Surface padding="md" className="task-error" role="alert">{error}</Surface>
       ) : (
-        <div className="page-card">
+        <Surface padding="md">
           <TaskForm
             objects={objects}
             orders={orders}
@@ -81,7 +82,7 @@ export default function NewTaskPage(): React.JSX.Element {
               router.push(`/tasks/${created.id}`);
             }}
           />
-        </div>
+        </Surface>
       )}
     </div>
   );

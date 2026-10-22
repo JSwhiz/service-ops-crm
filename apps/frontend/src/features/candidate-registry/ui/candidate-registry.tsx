@@ -42,7 +42,7 @@ import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import styles from './candidate-fields.module.css';
-import { Alert, Badge, ButtonLink } from '@/shared/ui/foundation';
+import { Alert, Badge, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const EMPTY: CandidateListResponse = {
@@ -327,9 +327,9 @@ export function CandidateRegistry({
   }, [result.items]);
 
   if (!canAccess)
-    return <div className="page-card">У вас нет доступа к кандидатам.</div>;
+    return <Surface padding="md">У вас нет доступа к кандидатам.</Surface>;
   return (
-    <div className="candidate-registry page-stack workspace-page">
+    <div className="candidate-registry ui-page">
       <RegistryToolbar
         searchValue={search}
         searchLabel="Поиск по кандидатам"
@@ -346,7 +346,7 @@ export function CandidateRegistry({
         }
       />
       {loading ? (
-        <div className="page-card workspace-surface workspace-empty">
+        <div className="ui-empty-state">
           Загрузка...
         </div>
       ) : error ? (
@@ -354,7 +354,7 @@ export function CandidateRegistry({
           {error}
         </Alert>
       ) : result.items.length === 0 ? (
-        <div className="page-card workspace-surface workspace-empty">
+        <div className="ui-empty-state">
           Кандидаты не найдены.
         </div>
       ) : (
@@ -362,7 +362,7 @@ export function CandidateRegistry({
           <DataTable
             label="Таблица кандидатов"
             className="data-table candidate-table"
-            frameClassName="page-card workspace-surface data-table-shell candidate-table-wrap"
+            frameClassName="candidate-table-wrap"
           >
             <thead>
               <tr>
@@ -385,7 +385,7 @@ export function CandidateRegistry({
                       <Badge className={styles.archivedBadge}>В архиве</Badge>
                     ) : null}
                     {candidatePhones(item).length ? (
-                      <div className={`page-muted ${styles.phonePreview}`}>
+                      <div className={`ui-text-muted ${styles.phonePreview}`}>
                         <span>{candidatePhones(item)[0]}</span>
                         {candidatePhones(item).length > 1 ? (
                           <span className={styles.phoneCount}>
@@ -394,12 +394,12 @@ export function CandidateRegistry({
                         ) : null}
                       </div>
                     ) : (
-                      <div className="page-muted">Телефон не указан</div>
+                      <div className="ui-text-muted">Телефон не указан</div>
                     )}
                   </td>
                   <td>
                     <div>{candidateTypeLabel(item.candidateType)}</div>
-                    <div className="page-muted">
+                    <div className="ui-text-muted">
                       {candidateStatusLabel(item.status)}
                     </div>
                   </td>
@@ -407,14 +407,14 @@ export function CandidateRegistry({
                     {item.object ? (
                       <>
                         <div>{item.object.name}</div>
-                        <div className="page-muted">
+                        <div className="ui-text-muted">
                           {[item.object.internalName, item.object.address]
                             .filter(Boolean)
                             .join(' · ')}
                         </div>
                       </>
                     ) : (
-                      <span className="page-muted">Не назначен</span>
+                      <span className="ui-text-muted">Не назначен</span>
                     )}
                   </td>
                   <td>
@@ -425,14 +425,14 @@ export function CandidateRegistry({
                             {assignment.manager.fullName ||
                               assignment.manager.login}
                           </span>
-                          <span className="page-muted">
+                          <span className="ui-text-muted">
                             {assignment.object?.name ??
                               'Без объекта рассмотрения'}
                           </span>
                         </div>
                       ))
                     ) : (
-                      <span className="page-muted">Не назначены</span>
+                      <span className="ui-text-muted">Не назначены</span>
                     )}
                   </td>
                   <td>
@@ -443,7 +443,7 @@ export function CandidateRegistry({
                             ? `${item.latestFeedback.text.slice(0, 120)}…`
                             : item.latestFeedback.text}
                         </div>
-                        <div className="page-muted">
+                        <div className="ui-text-muted">
                           {item.latestFeedback.author.fullName} ·{' '}
                           {new Date(
                             item.latestFeedback.createdAt,
@@ -451,7 +451,7 @@ export function CandidateRegistry({
                         </div>
                       </>
                     ) : (
-                      <span className="page-muted">Пока нет</span>
+                      <span className="ui-text-muted">Пока нет</span>
                     )}
                   </td>
                   <td>
@@ -461,7 +461,7 @@ export function CandidateRegistry({
                             key={assignment.id}
                             className={styles.assignment}
                           >
-                            <span className="page-muted">
+                            <span className="ui-text-muted">
                               {assignment.manager.fullName ||
                                 assignment.manager.login}
                             </span>
@@ -497,9 +497,9 @@ export function CandidateRegistry({
               <Link
                 key={item.id}
                 href={`/candidates/${item.id}`}
-                className="page-card candidate-mobile-card"
+                className="ui-surface ui-surface--padded candidate-mobile-card"
               >
-                <div className="section-header">
+                <div className="ui-section-header">
                   <strong>{item.fullName}</strong>
                   <span>{candidateStatusLabel(item.status)}</span>
                 </div>
@@ -538,7 +538,7 @@ export function CandidateRegistry({
                     : 'Менеджеры не назначены'}
                 </div>
                 {item.latestFeedback ? (
-                  <div className="page-muted">
+                  <div className="ui-text-muted">
                     {item.latestFeedback.text.length > 90
                       ? `${item.latestFeedback.text.slice(0, 90)}…`
                       : item.latestFeedback.text}

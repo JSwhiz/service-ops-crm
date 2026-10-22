@@ -5,6 +5,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 
 import styles from './object-feed-list.module.css';
+import { Surface } from '@/shared/ui/foundation';
 
 interface ObjectFeedListProps {
   items: ObjectFeedItem[];
@@ -14,14 +15,14 @@ export function ObjectFeedList({
   items,
 }: ObjectFeedListProps): React.JSX.Element {
   return (
-    <div className={`page-card ${styles.card}`}>
-      <div className={`section-header ${styles.header}`}>
-        <div className="section-title">Лента объекта</div>
+    <Surface padding="md" className={`${styles.card}`}>
+      <div className={`ui-section-header ${styles.header}`}>
+        <div className="ui-section-title">Лента объекта</div>
       </div>
 
       <div className={`record-list local-scroll ${styles.list}`}>
         {items.length === 0 ? (
-          <div className="page-muted">Событий пока нет.</div>
+          <div className="ui-text-muted">Событий пока нет.</div>
         ) : (
           items.map((item) => (
             <article
@@ -42,6 +43,6 @@ export function ObjectFeedList({
           ))
         )}
       </div>
-    </div>
+    </Surface>
   );
 }

@@ -14,7 +14,7 @@ import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
 import { CloseIcon } from '@/shared/ui/icons/icons';
 import styles from './object-team-panel.module.css';
-import { Button, IconButton } from '@/shared/ui/foundation';
+import { Button, IconButton, Surface } from '@/shared/ui/foundation';
 
 interface ObjectTeamPanelProps {
   title: string;
@@ -111,7 +111,7 @@ export function ObjectTeamPanel({
   };
 
   return (
-    <div className={`page-card ${styles.panel}`}>
+    <Surface padding="md" className={`${styles.panel}`}>
       <div className={styles.header}>
         <div className={styles.title}>{title}</div>
         {replaceOnly ? (
@@ -208,6 +208,6 @@ export function ObjectTeamPanel({
       </div> : null}
 
       {error ? <div className={styles.error}>{error}</div> : null}
-    </div>
+    </Surface>
   );
 }

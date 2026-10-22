@@ -21,7 +21,7 @@ import type {
 import type { TimesheetCellMutation } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/timesheet-corrections-panel';
 import { TimesheetOverviewGrid } from '@/features/timesheet-overview/ui/timesheet-overview-grid';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import {
   SearchableSelect,
@@ -199,7 +199,7 @@ export default function TimesheetPage(): React.JSX.Element {
 
   return (
     <div className="timesheet-page">
-      <section className="page-card timesheet-overview-filters" aria-label="Фильтры табеля">
+      <Surface as="section" padding="md" className="timesheet-overview-filters" aria-label="Фильтры табеля">
         <MonthPeriodPicker
           year={year}
           month={month}
@@ -245,10 +245,10 @@ export default function TimesheetPage(): React.JSX.Element {
           <DownloadIcon />
           {isExporting ? 'Готовим Excel…' : 'Скачать Excel'}
         </Button>
-      </section>
+      </Surface>
 
-      {loading ? <div className="page-card">Загрузка табеля...</div> : null}
-      {error ? <div className="page-card page-error">{error}</div> : null}
+      {loading ? <Surface padding="md">Загрузка табеля...</Surface> : null}
+      {error ? <Surface padding="md" className="page-error">{error}</Surface> : null}
       {!loading && !error && overview ? (
         <TimesheetOverviewGrid
           overview={overview}
@@ -262,14 +262,14 @@ export default function TimesheetPage(): React.JSX.Element {
         <section className="timesheet-object-detail">
           <div className="timesheet-object-detail__heading">
             <div>
-              <h2 className="section-title">Детализация объекта</h2>
-              <p className="section-subtitle">
+              <h2 className="ui-section-title">Детализация объекта</h2>
+              <p className="ui-section-subtitle">
                 Выборка открыта из табеля. Редактирование остаётся в основной таблице выше.
               </p>
             </div>
           </div>
-          {detailLoading ? <div className="page-card">Загрузка детализации...</div> : null}
-          {detailError ? <div className="page-card page-error">{detailError}</div> : null}
+          {detailLoading ? <Surface padding="md">Загрузка детализации...</Surface> : null}
+          {detailError ? <Surface padding="md" className="page-error">{detailError}</Surface> : null}
           {!detailLoading && objectTimesheet ? (
             <>
               <div className="timesheet-object-inspector" aria-label="Сводка выбранного объекта">

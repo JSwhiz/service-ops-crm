@@ -12,7 +12,7 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 interface ObjectArrivalPanelProps {
   item: ObjectArrivalPhoto | null;
@@ -71,10 +71,10 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
   };
 
   return (
-    <div className={`page-card ${styles.workPanel}`}>
+    <Surface padding="md" className={`${styles.workPanel}`}>
       <div className={styles.panelHeader}>
         <div>
-          <div className="section-title">Фото прибытия</div>
+          <div className="ui-section-title">Фото прибытия</div>
           {item?.photoType ? <div className={styles.panelMeta}>{getMediaCategoryLabel(item.photoType)}</div> : null}
         </div>
         <span className={styles.panelState} data-ready={item ? 'true' : 'false'}>
@@ -147,6 +147,6 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
           </Button>
         </div>
       </form>
-    </div>
+    </Surface>
   );
 }

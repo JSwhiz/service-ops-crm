@@ -27,7 +27,7 @@ export function OneTimeOrderListTable({
   const closePreview = useCallback(() => setPreviewItem(null), []);
 
   if (items.length === 0) {
-    return <div className="page-card workspace-surface workspace-empty">Разовые заказы не найдены.</div>;
+    return <div className="ui-empty-state">Разовые заказы не найдены.</div>;
   }
 
   return (
@@ -35,7 +35,7 @@ export function OneTimeOrderListTable({
       <DataTable
         label="Таблица разовых заказов"
         className="one-time-order-registry-table"
-        frameClassName="page-card workspace-surface data-table-shell one-time-order-table-scroll"
+        frameClassName="one-time-order-table-scroll"
       >
         <thead>
           <tr>

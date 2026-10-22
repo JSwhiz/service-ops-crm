@@ -487,11 +487,11 @@
   height: 20px;
   flex: 0 0 auto;
 }
-.workspace :global(.chat-room-panel.page-card),
-.workspace :global(.chat-main.page-card) {
+.workspace :global(.chat-room-panel.ui-surface--padded),
+.workspace :global(.chat-main.ui-surface--padded) {
   margin: 0;
 }
-.workspace :global(.chat-room-panel .section-header) {
+.workspace :global(.chat-room-panel .ui-section-header) {
   flex-wrap: nowrap;
   min-height: 68px;
   margin: 0;
@@ -642,7 +642,7 @@
   gap: 8px;
   min-height: 68px;
 }
-.workspace :global(.chat-header .section-subtitle) {
+.workspace :global(.chat-header .ui-section-subtitle) {
   margin-bottom: 0;
 }
 .workspace .roomIdentity {
@@ -666,7 +666,7 @@
 .workspace .roomIdentity > span {
   max-width: 100%;
 }
-.workspace .roomIdentity :global(.section-subtitle) {
+.workspace .roomIdentity :global(.ui-section-subtitle) {
   font-size: 12px;
   font-weight: 400;
 }
@@ -674,7 +674,7 @@
 .workspace :global(.chat-header__main > div) {
   min-width: 0;
 }
-.workspace :global(.chat-header .section-title) {
+.workspace :global(.chat-header .ui-section-title) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -896,7 +896,7 @@
     opacity: 1;
   }
   .workspace :global(.chat-header),
-  .workspace :global(.chat-room-panel .section-header) {
+  .workspace :global(.chat-room-panel .ui-section-header) {
     min-height: 64px;
   }
   .messageMenu button {

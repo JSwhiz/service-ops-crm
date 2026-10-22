@@ -14,11 +14,11 @@ export function InventoryItemListTable({
   items: InventoryItem[];
 }): React.JSX.Element {
   if (items.length === 0) {
-    return <div className="page-card workspace-surface workspace-empty">Номенклатура пока не заведена.</div>;
+    return <div className="ui-empty-state">Номенклатура пока не заведена.</div>;
   }
 
   return (
-    <DataTable label="Таблица номенклатуры" className="data-table" frameClassName="page-card workspace-surface data-table-shell">
+    <DataTable label="Таблица номенклатуры" className="data-table">
         <thead>
           <tr>
             <th scope="col">Номенклатура</th>

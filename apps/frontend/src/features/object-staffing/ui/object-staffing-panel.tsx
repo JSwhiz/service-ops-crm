@@ -18,7 +18,7 @@ import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-selec
 
 import styles from './object-staffing-panel.module.css';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 interface ObjectStaffingPanelProps {
   object: ServiceObject;
@@ -400,20 +400,20 @@ export function ObjectStaffingPanel({
   };
 
   return (
-    <div className="page-card">
-      <div className="section-header" style={{ marginBottom: 14 }}>
-        <div className="section-title">Сотрудники объекта</div>
+    <Surface padding="md">
+      <div className="ui-section-header" style={{ marginBottom: 14 }}>
+        <div className="ui-section-title">Сотрудники объекта</div>
       </div>
 
       {canViewRateOptions ? (
         <section aria-label="Варианты оплаты команды">
           <div className={styles.rateCatalogHeader}>
-            <div><h3>Варианты оплаты команды</h3><p className="page-muted">Именные ставки и тарифы для подмены. Управлять вариантами и назначать их сотрудникам могут только пользователи с соответствующим правом.</p></div>
+            <div><h3>Варианты оплаты команды</h3><p className="ui-text-muted">Именные ставки и тарифы для подмены. Управлять вариантами и назначать их сотрудникам могут только пользователи с соответствующим правом.</p></div>
             {canManageRatePolicy ? <Button onClick={() => beginRateOptionEdit()}>Добавить вариант</Button> : null}
           </div>
           {rateOptionsError ? <div className={`${sharedStyles.error} ${styles.feedbackError}`}>{rateOptionsError}</div> : null}
           <div className={styles.rateCatalog}>
-            {rateOptions.length === 0 ? <div className="page-muted">Варианты оплаты пока не созданы.</div> : rateOptions.map((rate) => <div className={styles.rateOption} key={rate.id}>
+            {rateOptions.length === 0 ? <div className="ui-text-muted">Варианты оплаты пока не созданы.</div> : rateOptions.map((rate) => <div className={styles.rateOption} key={rate.id}>
               <div><strong>{rate.name}</strong><span>{rate.category === 'substitution' ? 'Подмена' : 'Стандартный вариант'} · {rate.ratePolicyType === 'monthly_fixed' ? 'Оклад' : 'За выход'} · {rate.baseAmount.toLocaleString('ru-RU')} ₽ · {rate.isActive ? 'Активен' : 'Отключен'}</span>{rate.scheduleWeekdays.length ? <small>{rate.scheduleWeekdays.join(', ')}</small> : rate.scheduleCode ? <small>График {rate.scheduleCode}</small> : null}</div>
               {canManageRatePolicy ? <div className={styles.rateOptionActions}><Button onClick={() => beginRateOptionEdit(rate)}>Изменить</Button><Button onClick={() => void toggleRateOption(rate)}>{rate.isActive ? 'Отключить' : 'Включить'}</Button></div> : null}
             </div>)}
@@ -424,7 +424,7 @@ export function ObjectStaffingPanel({
       {canManageRatePolicy && rateEditor !== false ? (
         <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setRateEditor(false); }}>
           <form className={styles.modal} onSubmit={saveRateOption}>
-            <div className="section-header"><div><div className="section-title">{rateEditor ? 'Изменить вариант оплаты' : 'Новый вариант оплаты'}</div><div className="section-subtitle">Изменение тарифа не меняет ранее сохранённые начисления.</div></div><Button onClick={() => setRateEditor(false)}>Закрыть</Button></div>
+            <div className="ui-section-header"><div><div className="ui-section-title">{rateEditor ? 'Изменить вариант оплаты' : 'Новый вариант оплаты'}</div><div className="ui-section-subtitle">Изменение тарифа не меняет ранее сохранённые начисления.</div></div><Button onClick={() => setRateEditor(false)}>Закрыть</Button></div>
             <div className={styles.ratePolicyGrid}>
               <label><span>Название варианта</span><input value={rateOptionForm.name} required maxLength={120} onChange={(event) => setRateOptionForm((current) => ({ ...current, name: event.target.value }))} /></label>
               <RateSelect label="Назначение" value={rateOptionForm.category} options={[{ value: 'standard', label: 'Обычная ставка' }, { value: 'substitution', label: 'Подмена' }]} disabled={isSavingRateOption} onChange={(value) => setRateOptionForm((current) => ({ ...current, category: value as 'standard' | 'substitution' }))} />
@@ -436,7 +436,7 @@ export function ObjectStaffingPanel({
               <label className={styles.fullWidth}><span>Примечание</span><textarea value={rateOptionForm.notes} rows={2} onChange={(event) => setRateOptionForm((current) => ({ ...current, notes: event.target.value }))} /></label>
             </div>
             {rateOptionsError ? <div className={sharedStyles.error}>{rateOptionsError}</div> : null}
-            <div className="action-row"><Button variant="primary" type="submit" disabled={isSavingRateOption || (rateOptionForm.scheduleMode === 'weekdays' && rateOptionForm.scheduleWeekdays.length === 0) || (requiresCycleStartDate(rateOptionForm.scheduleMode, rateOptionForm.scheduleCode) && !rateOptionForm.scheduleCycleStartDate)}>{isSavingRateOption ? 'Сохраняем…' : 'Сохранить вариант'}</Button><Button onClick={() => setRateEditor(false)}>Отмена</Button></div>
+            <div className="ui-inline"><Button variant="primary" type="submit" disabled={isSavingRateOption || (rateOptionForm.scheduleMode === 'weekdays' && rateOptionForm.scheduleWeekdays.length === 0) || (requiresCycleStartDate(rateOptionForm.scheduleMode, rateOptionForm.scheduleCode) && !rateOptionForm.scheduleCycleStartDate)}>{isSavingRateOption ? 'Сохраняем…' : 'Сохранить вариант'}</Button><Button onClick={() => setRateEditor(false)}>Отмена</Button></div>
           </form>
         </div>
       ) : null}
@@ -455,7 +455,7 @@ export function ObjectStaffingPanel({
       <div className={styles.sectionHeading}>На объекте <span>{assigned.length}</span></div>
 
       {assigned.length === 0 ? (
-        <div className="page-muted" style={{ marginBottom: 16 }}>
+        <div className="ui-text-muted" style={{ marginBottom: 16 }}>
           Сотрудники пока не добавлены.
         </div>
       ) : (
@@ -479,14 +479,14 @@ export function ObjectStaffingPanel({
                   {employee.activeSubstitutions
                     .filter((item) => item.role === 'primary')
                     .map((item) => (
-                      <span key={item.id} className="page-muted">
+                      <span key={item.id} className="ui-text-muted">
                         Замещается: {item.counterpartEmployeeName}
                       </span>
                     ))}
                   {employee.activeSubstitutions
                     .filter((item) => item.role === 'replacement')
                     .map((item) => (
-                      <span key={item.id} className="page-muted">
+                      <span key={item.id} className="ui-text-muted">
                         Замещает: {item.counterpartEmployeeName}
                       </span>
                     ))}
@@ -503,14 +503,14 @@ export function ObjectStaffingPanel({
                     </Button>
                   ) : null}
                 </div>
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   {employee.position ?? 'Должность не указана'} · базовая ставка
                   сотрудника:{' '}
                   {employee.baseDailyRate === null
                     ? 'не указана'
                     : `${employee.baseDailyRate.toLocaleString('ru-RU')} ₽/день`}
                 </div>
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   График:{' '}
                   {employee.workScheduleCode === 'custom'
                     ? employee.workScheduleCustom
@@ -548,10 +548,10 @@ export function ObjectStaffingPanel({
             className={`${styles.modal} ${styles.modalWide}`}
             onSubmit={submitRatePolicy}
           >
-            <div className="section-header">
+            <div className="ui-section-header">
               <div>
-                <div className="section-title">Настроить расчет</div>
-                <div className="section-subtitle">
+                <div className="ui-section-title">Настроить расчет</div>
+                <div className="ui-section-subtitle">
                   {editingRateEmployee.fullName} · ставка хранится на назначении
                   сотрудника к объекту.
                 </div>
@@ -736,7 +736,7 @@ export function ObjectStaffingPanel({
               <div className={sharedStyles.error}>{rateError}</div>
             ) : null}
 
-            <div className="action-row">
+            <div className="ui-inline">
               <Button variant="primary" type="submit" disabled={isSavingRate || (rateForm.scheduleMode === 'weekdays' && rateForm.scheduleWeekdays.length === 0) || (requiresCycleStartDate(rateForm.scheduleMode, rateForm.scheduleCode) && !rateForm.scheduleCycleStartDate)}>
                 {isSavingRate ? 'Сохраняем...' : 'Сохранить расчет'}
               </Button>
@@ -753,19 +753,19 @@ export function ObjectStaffingPanel({
           <div className={styles.sectionHeading}>Подмены сегодня <span>{visibleSubstitutions.length}</span></div>
           <div className="record-list" style={{ marginBottom: 16 }}>
             {visibleSubstitutions.map((substitution) => (
-              <div key={substitution.id} className="record-card">
+              <Surface padding="sm" key={substitution.id}>
                 <div>
                   <strong>{substitution.primaryEmployeeName}</strong> →{' '}
                   <strong>{substitution.counterpartEmployeeName}</strong>
                 </div>
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   {new Date(substitution.startDate).toLocaleString('ru-RU')} —{' '}
                   {substitution.endDate
                     ? new Date(substitution.endDate).toLocaleString('ru-RU')
                     : 'без даты окончания'}
                 </div>
-                {substitution.comment ? <div className="page-muted">{substitution.comment}</div> : null}
-              </div>
+                {substitution.comment ? <div className="ui-text-muted">{substitution.comment}</div> : null}
+              </Surface>
             ))}
           </div>
         </>
@@ -782,9 +782,9 @@ export function ObjectStaffingPanel({
           ) : null}
 
           {isSearching ? (
-            <div className="page-muted">Поиск...</div>
+            <div className="ui-text-muted">Поиск...</div>
           ) : addableEmployees.length === 0 ? (
-            <div className="page-muted">Подходящих сотрудников не найдено.</div>
+            <div className="ui-text-muted">Подходящих сотрудников не найдено.</div>
           ) : (
             <div className={styles.directoryGrid}>
               {addableEmployees.map((employee) => (
@@ -822,6 +822,6 @@ export function ObjectStaffingPanel({
           )}
         </>
       ) : null}
-    </div>
+    </Surface>
   );
 }

@@ -22,14 +22,14 @@ export function TaskListTable({
   emptyText?: string;
 }): React.JSX.Element {
   if (items.length === 0) {
-    return <div className={embedded ? 'page-muted' : 'page-card workspace-surface workspace-empty'}>{emptyText}</div>;
+    return <div className={embedded ? 'ui-text-muted' : 'ui-empty-state'}>{emptyText}</div>;
   }
 
   return (
     <DataTable
       label="Таблица задач"
       className="task-table"
-      frameClassName={embedded ? 'task-table-scroll' : 'page-card workspace-surface data-table-shell task-table-scroll'}
+      frameClassName={embedded ? 'task-table-scroll' : 'task-table-scroll'}
     >
         <thead>
           <tr>

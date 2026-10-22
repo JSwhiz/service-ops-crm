@@ -218,7 +218,7 @@ export function AttachmentPreviewList({
   compactMetadata?: boolean;
 }): React.JSX.Element {
   if (files.length === 0) {
-    return <div className="page-muted">{emptyText}</div>;
+    return <div className="ui-text-muted">{emptyText}</div>;
   }
 
   const imageFiles = files.filter(

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
-import { Field } from '@/shared/ui/foundation';
+import { Field, Surface } from '@/shared/ui/foundation';
 
 interface ObjectFiltersProps {
   search: string;
@@ -18,8 +18,8 @@ export function ObjectFilters({
   onStatusChange,
 }: ObjectFiltersProps): React.JSX.Element {
   return (
-    <div
-      className="page-card"
+    <Surface padding="md"
+
       style={{
         display: 'grid',
         gap: 12,
@@ -50,6 +50,6 @@ export function ObjectFilters({
           viewportAware
         />
       </div>
-    </div>
+    </Surface>
   );
 }

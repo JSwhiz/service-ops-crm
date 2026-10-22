@@ -13,7 +13,7 @@ import { INVENTORY_MOVEMENT_TYPE_OPTIONS } from '@/shared/lib/inventory-presenta
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Alert, Button, Field, Stack } from '@/shared/ui/foundation';
+import { Alert, Button, Field, Stack, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -143,7 +143,7 @@ export function InventoryMovementForm({
 
   return (
     <form
-      className="page-card"
+      className="ui-surface ui-surface--padded"
       style={{ display: 'grid', gap: 16 }}
       onSubmit={(event) => {
         event.preventDefault();
@@ -215,12 +215,12 @@ export function InventoryMovementForm({
             {issueLines.map((line, index) => {
               const selectedLineItem = items.find((item) => item.id === line.inventoryItemId);
               return (
-                <div key={line.key} className="record-card" style={{ display: 'grid', gap: 10 }}>
-                  <div className="section-header">
+                <Surface padding="sm" key={line.key} style={{ display: 'grid', gap: 10 }}>
+                  <div className="ui-section-header">
                     <strong>Позиция {index + 1}{line.movementId ? ' · движение создано, ожидает подтверждения' : ''}</strong>
                     {!line.movementId && issueLines.length > 1 ? <Button disabled={isSaving} onClick={() => setIssueLines((current) => current.filter((entry) => entry.key !== line.key))}>Убрать</Button> : null}
                   </div>
-                  {line.movementId ? <div className="page-muted">Операция уже записана. Повторная отправка не создаст дубликат.</div> : (
+                  {line.movementId ? <div className="ui-text-muted">Операция уже записана. Повторная отправка не создаст дубликат.</div> : (
                     <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
                       <Field label="Номенклатура">
                         <Select value={line.inventoryItemId} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, inventoryItemId: event.target.value } : entry))} required disabled={isSaving}>
@@ -230,14 +230,14 @@ export function InventoryMovementForm({
                       <Field label="Количество">
                         <input type="number" min="0.001" step="0.001" value={line.quantity} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, quantity: event.target.value } : entry))} required disabled={isSaving || Boolean(line.movementId)} />
                       </Field>
-                      <div><div className="page-muted">Цена</div><div>{selectedLineItem?.currentUnitPrice == null ? 'Не указана' : `${selectedLineItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedLineItem.unit}`}</div></div>
+                      <div><div className="ui-text-muted">Цена</div><div>{selectedLineItem?.currentUnitPrice == null ? 'Не указана' : `${selectedLineItem.currentUnitPrice.toLocaleString('ru-RU')} ₽ / ${selectedLineItem.unit}`}</div></div>
                     </div>
                   )}
-                </div>
+                </Surface>
               );
             })}
             {items.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? <Button onClick={addIssueLine} disabled={isSaving}>+ Добавить позицию</Button> : null}
-            <div className="page-muted">Каждая позиция будет проведена отдельным движением с собственной проверкой остатка и историей.</div>
+            <div className="ui-text-muted">Каждая позиция будет проведена отдельным движением с собственной проверкой остатка и историей.</div>
           </div>
         ) : <Field label="Номенклатура">
    <Select
@@ -306,7 +306,7 @@ export function InventoryMovementForm({
           </Field>
         ) : (
           <div>
-            <div className="page-muted">
+            <div className="ui-text-muted">
               Максимальная цена применённых приходов
             </div>
             <div>

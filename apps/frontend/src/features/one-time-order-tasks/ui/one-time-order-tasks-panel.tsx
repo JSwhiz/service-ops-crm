@@ -12,7 +12,7 @@ import { TASK_PRIORITY_OPTIONS } from '@/shared/lib/task-presentation';
 import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Button, Field, Stack } from '@/shared/ui/foundation';
+import { Button, Field, Stack, Surface } from '@/shared/ui/foundation';
 
 export function OneTimeOrderTasksPanel({
   items,
@@ -62,20 +62,20 @@ export function OneTimeOrderTasksPanel({
 
   return (
     <Stack gap="lg">
-      <div className="page-card">
-        <div className="section-header" style={{ marginBottom: 12 }}>
+      <Surface padding="md">
+        <div className="ui-section-header" style={{ marginBottom: 12 }}>
           <div>
-            <div className="section-title">Связанные задачи</div>
-            <div className="section-subtitle">
+            <div className="ui-section-title">Связанные задачи</div>
+            <div className="ui-section-subtitle">
               Задачи заказа также доступны в общем реестре задач.
             </div>
           </div>
         </div>
         <TaskListTable items={items} embedded />
-      </div>
+      </Surface>
 
       {canCreateTask ? (
-        <div className="action-row">
+        <div className="ui-inline">
           <Button onClick={() => setIsCreating((value) => !value)}>
             {isCreating ? 'Скрыть форму' : 'Добавить задачу'}
           </Button>
@@ -84,7 +84,7 @@ export function OneTimeOrderTasksPanel({
 
       {canCreateTask && isCreating ? (
         <form
-          className="page-card"
+          className="ui-surface ui-surface--padded"
           onSubmit={async (event) => {
             event.preventDefault();
 
@@ -110,10 +110,10 @@ export function OneTimeOrderTasksPanel({
             }
           }}
         >
-          <div className="section-header" style={{ marginBottom: 12 }}>
+          <div className="ui-section-header" style={{ marginBottom: 12 }}>
             <div>
-              <div className="section-title">Новая задача</div>
-              <div className="section-subtitle">
+              <div className="ui-section-title">Новая задача</div>
+              <div className="ui-section-subtitle">
                 Задача будет связана с этим заказом и, при выборе, с объектом.
               </div>
             </div>
@@ -126,7 +126,7 @@ export function OneTimeOrderTasksPanel({
               gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             }}
           >
-            <div className="page-muted" style={{ gridColumn: '1 / -1' }}>
+            <div className="ui-text-muted" style={{ gridColumn: '1 / -1' }}>
               Связи: текущий разовый заказ
               {linkedObject && linkToObject
                 ? ` + объект «${linkedObject.name}»`
@@ -192,7 +192,7 @@ export function OneTimeOrderTasksPanel({
             <div style={{ gridColumn: '1 / -1' }}>
               <div style={{ marginBottom: 8 }}>Исполнители</div>
               {assigneeOptions.length === 0 ? (
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   Для этого заказа нет доступных исполнителей.
                 </div>
               ) : (

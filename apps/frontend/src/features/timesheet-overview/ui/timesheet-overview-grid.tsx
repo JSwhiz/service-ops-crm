@@ -9,6 +9,7 @@ import {
   type TimesheetCellMutation,
 } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { isTimesheetDateEditable } from '@/shared/lib/timesheet-edit-window';
+import { Surface } from '@/shared/ui/foundation';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -58,7 +59,7 @@ export function TimesheetOverviewGrid({
       </div>
 
       {overview.rows.length === 0 ? (
-        <div className="page-card">За выбранный период начислений нет.</div>
+        <Surface padding="md">За выбранный период начислений нет.</Surface>
       ) : (
         <>
           <div className="timesheet-overview__desktop">

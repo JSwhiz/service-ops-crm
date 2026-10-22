@@ -8,7 +8,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 interface ObjectCommentsPanelProps {
   items: ObjectComment[];
@@ -37,9 +37,9 @@ export function ObjectCommentsPanel({ items, onCreate }: ObjectCommentsPanelProp
   };
 
   return (
-    <div className={`page-card ${styles.workPanel}`}>
+    <Surface padding="md" className={`${styles.workPanel}`}>
       <div className={styles.panelHeader}>
-        <div className="section-title">Комментарии</div>
+        <div className="ui-section-title">Комментарии</div>
         <span className={styles.panelMeta}>{items.length}</span>
       </div>
 
@@ -88,7 +88,7 @@ export function ObjectCommentsPanel({ items, onCreate }: ObjectCommentsPanelProp
       ) : (
         <div className="record-list local-scroll">
           {items.map((item) => (
-            <div key={item.id} className="record-card">
+            <Surface padding="sm" key={item.id}>
               <div className={styles.panelMeta}>{getUserDisplayName(item.createdBy)}</div>
               {item.content ? <div>{item.content}</div> : null}
               {item.attachments.length > 0 ? (
@@ -96,10 +96,10 @@ export function ObjectCommentsPanel({ items, onCreate }: ObjectCommentsPanelProp
                   <AttachmentPreviewList files={item.attachments} />
                 </div>
               ) : null}
-            </div>
+            </Surface>
           ))}
         </div>
       )}
-    </div>
+    </Surface>
   );
 }

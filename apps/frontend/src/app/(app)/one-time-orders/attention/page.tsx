@@ -13,7 +13,7 @@ import { DataTable } from '@/shared/ui/data-table/data-table';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
-import { Alert, Badge, ButtonLink, StatusBadge } from '@/shared/ui/foundation';
+import { Alert, Badge, ButtonLink, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 const EMPTY: OneTimeOrderAttentionResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 0 };
 
@@ -63,18 +63,18 @@ export default function OneTimeOrderAttentionPage(): React.JSX.Element {
   }, [page, pageSize]);
 
   return (
-    <div className="page-stack workspace-page one-time-order-registry">
+    <div className="ui-page one-time-order-registry">
       <PageTitle title="Разовые заказы" />
-      <div className="page-card workspace-surface section-header registry-header">
-        <div><div className="section-title">Операционный приоритет</div><div className="page-muted">Просроченные → сегодня → ближайшие → без даты. Доступно: {result.total}</div></div>
+      <Surface padding="md" className="ui-section-header registry-header">
+        <div><div className="ui-section-title">Операционный приоритет</div><div className="ui-text-muted">Просроченные → сегодня → ближайшие → без даты. Доступно: {result.total}</div></div>
         <ButtonLink href="/one-time-orders">Снять фильтр</ButtonLink>
-      </div>
-      <div className="page-card workspace-surface filter-panel">
+      </Surface>
+      <Surface padding="md" className="filter-panel">
         <StatusBadge status="attention">Горящие ×</StatusBadge>
-        <span className="page-muted">Выборка строится на backend до пагинации и учитывает права текущего пользователя.</span>
-      </div>
-      {loading ? <div className="page-card workspace-surface workspace-empty">Загрузка…</div> : error ? <Alert tone="warning">{error}</Alert> : result.items.length === 0 ? <div className="page-card workspace-surface workspace-empty">Горящих разовых заказов нет.</div> : (
-        <DataTable label="Таблица горящих разовых заказов" className="data-table" frameClassName="page-card workspace-surface data-table-shell table-scroll">
+        <span className="ui-text-muted">Выборка строится на backend до пагинации и учитывает права текущего пользователя.</span>
+      </Surface>
+      {loading ? <div className="ui-empty-state">Загрузка…</div> : error ? <Alert tone="warning">{error}</Alert> : result.items.length === 0 ? <div className="ui-empty-state">Горящих разовых заказов нет.</div> : (
+        <DataTable label="Таблица горящих разовых заказов" className="data-table" frameClassName="table-scroll">
             <thead><tr><th scope="col">Приоритет</th><th scope="col">Заказ</th><th scope="col">Дата</th><th scope="col">Статус</th><th scope="col">Объект / адрес</th><th scope="col">Менеджеры</th><th scope="col" aria-label="Действие" /></tr></thead>
             <tbody>{result.items.map((item) => <tr key={item.id}>
               <td><Badge>{urgency(item.executionStartDate)}</Badge></td>

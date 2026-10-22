@@ -9,7 +9,7 @@ import {
   getTaskPriorityLabel,
   getTaskStatusLabel,
 } from '@/shared/lib/task-presentation';
-import { StatusBadge } from '@/shared/ui/foundation';
+import { StatusBadge, Surface } from '@/shared/ui/foundation';
 
 export function TaskSummaryCard({
   item,
@@ -19,8 +19,8 @@ export function TaskSummaryCard({
   autoCloseSeconds: number | null;
 }): React.JSX.Element {
   return (
-    <div className="page-card hero-card task-summary">
-      <div className="section-header">
+    <Surface padding="md" className="hero-card task-summary">
+      <div className="ui-section-header">
         <div>
           <div className="hero-title">{item.title}</div>
           <div className="hero-meta">Создал(а): {getUserDisplayName(item.createdBy)}</div>
@@ -36,14 +36,14 @@ export function TaskSummaryCard({
       </div>
       <div className="task-progress__label">Выполнено {item.completionProgress.completed} из {item.completionProgress.total}</div>
 
-      <div className="detail-grid">
+      <div className="ui-detail-grid">
         <Field label="Приоритет" value={getTaskPriorityLabel(item.priority)} />
         <Field label="Срок" value={formatTaskDeadline(item.dueAt, item.dueTimeSpecified)} />
         <Field label="Подтверждение" value={item.requiresConfirmation ? 'Требуется' : 'Не требуется'} />
         <Field label="Отчёт" value={getCompletionRequirementLabel(item.completionRequirement)} />
-        <div className="detail-field">
-          <div className="detail-label">Связи</div>
-          <div className="detail-value task-links">
+        <div className="ui-detail-field">
+          <div className="ui-detail-label">Связи</div>
+          <div className="ui-detail-value task-links">
             {item.object ? <Link href={`/objects/${item.object.id}`}>{item.object.name}</Link> : null}
             {item.oneTimeOrder ? <Link href={`/one-time-orders/${item.oneTimeOrder.id}`}>{item.oneTimeOrder.title}</Link> : null}
             {!item.object && !item.oneTimeOrder ? 'Без привязки' : null}
@@ -67,7 +67,7 @@ export function TaskSummaryCard({
       {item.status === 'cancelled' && item.cancellationReason ? (
         <div className="task-alert task-alert--danger">Причина отмены: {item.cancellationReason}</div>
       ) : null}
-    </div>
+    </Surface>
   );
 }
 
@@ -78,5 +78,5 @@ function formatCountdown(seconds: number): string {
 }
 
 function Field({ label, value }: { label: string; value: string }): React.JSX.Element {
-  return <div className="detail-field"><div className="detail-label">{label}</div><div className="detail-value">{value}</div></div>;
+  return <div className="ui-detail-field"><div className="ui-detail-label">{label}</div><div className="ui-detail-value">{value}</div></div>;
 }

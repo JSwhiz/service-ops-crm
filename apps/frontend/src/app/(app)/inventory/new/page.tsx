@@ -7,6 +7,7 @@ import { createInventoryItem } from '@/entities/inventory/api/inventory-client';
 import { InventoryItemForm } from '@/features/inventory-item-form/ui/inventory-item-form';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { Surface } from '@/shared/ui/foundation';
 
 export default function InventoryNewPage(): React.JSX.Element {
   const { user } = useAuth();
@@ -15,13 +16,13 @@ export default function InventoryNewPage(): React.JSX.Element {
     user?.capabilities?.canManageInventoryCatalog ?? false;
 
   return (
-    <div className="workspace-page inventory-workspace">
+    <div className="ui-page inventory-workspace">
       <PageTitle title="Новая номенклатура" />
 
       {!canManageInventoryCatalog ? (
-        <div className="page-card">
+        <Surface padding="md">
           У вас нет доступа к управлению каталогом расходников.
-        </div>
+        </Surface>
       ) : (
         <InventoryItemForm
           submitLabel="Создать позицию"

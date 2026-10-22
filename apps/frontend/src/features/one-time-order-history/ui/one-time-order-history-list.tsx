@@ -5,6 +5,7 @@ import {
   getUserDisplayName,
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
+import { Surface } from '@/shared/ui/foundation';
 
 const ACTION_LABELS: Record<string, string> = {
   'one_time_order.created': 'Заказ создан',
@@ -120,22 +121,22 @@ export function OneTimeOrderHistoryList({
   items: OneTimeOrderHistoryItem[];
 }): React.JSX.Element {
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-      <div className="section-header">
+    <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">История</div>
-          <div className="section-subtitle">Изменения заказа и связанных действий.</div>
+          <div className="ui-section-title">История</div>
+          <div className="ui-section-subtitle">Изменения заказа и связанных действий.</div>
         </div>
       </div>
 
       {items.length === 0 ? (
-        <div className="page-muted">История по заказу пока пуста.</div>
+        <div className="ui-text-muted">История по заказу пока пуста.</div>
       ) : (
         <div className="record-list local-scroll">
           {items.map((item) => (
-            <div key={item.id} className="record-card">
+            <Surface padding="sm" key={item.id}>
               <div style={{ fontWeight: 600 }}>{getActionLabel(item.action)}</div>
-              <div className="page-muted" style={{ marginTop: 4 }}>
+              <div className="ui-text-muted" style={{ marginTop: 4 }}>
                 {item.actor
                   ? [
                       getUserDisplayName(item.actor),
@@ -147,11 +148,11 @@ export function OneTimeOrderHistoryList({
                 · {new Date(item.createdAt).toLocaleString('ru-RU')}
               </div>
               {getReadableChanges(item).length > 0 ? (
-                <div className="detail-grid" style={{ marginTop: 10 }}>
+                <div className="ui-detail-grid" style={{ marginTop: 10 }}>
                   {getReadableChanges(item).map((change) => (
-                    <div className="detail-field" key={change.label}>
-                      <div className="detail-label">{change.label}</div>
-                      <div className="detail-value">
+                    <div className="ui-detail-field" key={change.label}>
+                      <div className="ui-detail-label">{change.label}</div>
+                      <div className="ui-detail-value">
                         {change.before !== undefined ? `${change.before} → ` : ''}
                         {change.after}
                       </div>
@@ -159,10 +160,10 @@ export function OneTimeOrderHistoryList({
                   ))}
                 </div>
               ) : null}
-            </div>
+            </Surface>
           ))}
         </div>
       )}
-    </div>
+    </Surface>
   );
 }

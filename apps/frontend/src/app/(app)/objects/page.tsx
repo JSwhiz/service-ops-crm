@@ -273,7 +273,7 @@ export default function ObjectsPage(): React.JSX.Element {
   ];
 
   return (
-    <div className={`workspace-page object-registry ${styles.page}`}>
+    <div className={`ui-page object-registry ${styles.page}`}>
       <RegistryToolbar
         searchValue={searchInput}
         searchLabel="Поиск по объектам"
@@ -291,7 +291,7 @@ export default function ObjectsPage(): React.JSX.Element {
       />
 
       {isLoading ? (
-        <div className="page-card workspace-surface workspace-empty" aria-live="polite">Загрузка списка объектов...</div>
+        <div className="ui-empty-state" aria-live="polite">Загрузка списка объектов...</div>
       ) : error ? (
         <Alert tone="warning">{error}</Alert>
       ) : (

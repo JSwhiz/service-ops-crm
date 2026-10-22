@@ -6,7 +6,7 @@ import type { AccountabilityExpenseItem } from '@/entities/accountability/model/
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Button, Stack } from '@/shared/ui/foundation';
+import { Button, Stack, Surface } from '@/shared/ui/foundation';
 
 export function AccountabilityExpenseForm({
   initialExpense,
@@ -80,13 +80,13 @@ export function AccountabilityExpenseForm({
   };
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div className="section-header">
+    <Surface padding="md" style={{ display: 'grid', gap: 16 }}>
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">
+          <div className="ui-section-title">
             {initialExpense ? 'Редактирование расхода' : 'Новый расход'}
           </div>
-          <div className="section-subtitle">
+          <div className="ui-section-subtitle">
             Черновик можно сохранить без отправки на проверку.
           </div>
         </div>
@@ -119,7 +119,7 @@ export function AccountabilityExpenseForm({
 
       {initialExpense?.attachments.length ? (
         <Stack gap="sm">
-          <div className="page-muted">Уже прикрепленные вложения</div>
+          <div className="ui-text-muted">Уже прикрепленные вложения</div>
           <AttachmentPreviewList
             files={initialExpense.attachments}
             emptyText="Вложений пока нет."
@@ -128,7 +128,7 @@ export function AccountabilityExpenseForm({
       ) : null}
 
       <Stack gap="sm">
-        <div className="page-muted">Фото и документы расхода</div>
+        <div className="ui-text-muted">Фото и документы расхода</div>
         <MediaActionPicker
           disabled={isSubmitting}
           onPick={async (file) => {
@@ -146,7 +146,7 @@ export function AccountabilityExpenseForm({
         />
       </Stack>
 
-      <div className="action-row">
+      <div className="ui-inline">
         <Button
           disabled={isSubmitting}
           onClick={() => {
@@ -169,6 +169,6 @@ export function AccountabilityExpenseForm({
           </Button>
         ) : null}
       </div>
-    </div>
+    </Surface>
   );
 }

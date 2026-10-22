@@ -17,13 +17,13 @@ import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
-import { ButtonLink } from '@/shared/ui/foundation';
+import { ButtonLink, Surface } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 
 const EMPTY_RESULT: TaskListResponse = { items: [], page: 1, limit: 20, total: 0, totalPages: 1 };
 
 export default function TasksPage(): React.JSX.Element {
-  return <Suspense fallback={<div className="page-card">Загрузка…</div>}><TasksRegistry /></Suspense>;
+  return <Suspense fallback={<Surface padding="md">Загрузка…</Surface>}><TasksRegistry /></Suspense>;
 }
 
 function TasksRegistry(): React.JSX.Element {
@@ -145,7 +145,7 @@ function TasksRegistry(): React.JSX.Element {
   ].filter((filter): filter is NonNullable<typeof filter> => filter !== null);
 
   return (
-    <div className="page-stack workspace-page task-registry">
+    <div className="ui-page task-registry">
       <RegistryToolbar
         searchValue={filters.q}
         searchLabel="Поиск по задачам"
@@ -155,8 +155,8 @@ function TasksRegistry(): React.JSX.Element {
         availableFilters={availableFilters}
         actions={<ButtonLink variant="primary" icon={<PlusIcon />} href="/tasks/new">Создать задачу</ButtonLink>}
       />
-      {isLoading ? <div className="page-card">Загрузка…</div> : error ? (
-        <div className="page-card task-error" role="alert">{error}</div>
+      {isLoading ? <Surface padding="md">Загрузка…</Surface> : error ? (
+        <Surface padding="md" className="task-error" role="alert">{error}</Surface>
       ) : <TaskListTable items={result.items} />}
       {!isLoading && !error ? <TablePagination page={result.page} totalPages={result.totalPages} label="Страницы задач"
         summary={result.total > 0 ? `Показано ${(result.page - 1) * result.limit + 1}–${Math.min(result.page * result.limit, result.total)} из ${result.total}` : 'Задачи не найдены'}

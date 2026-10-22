@@ -3,7 +3,7 @@ import React from 'react';
 
 import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-order.types';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
-import { Button, EntityHeader, StatusBadge } from '@/shared/ui/foundation';
+import { Button, EntityHeader, StatusBadge, Surface } from '@/shared/ui/foundation';
 import styles from './one-time-order-summary-card.module.css';
 
 export function OneTimeOrderSummaryCard({
@@ -42,13 +42,13 @@ export function OneTimeOrderSummaryCard({
   ];
 
   return (
-    <section className={`page-card workspace-surface hero-card ${styles.summary}`}>
+    <Surface as="section" padding="md" className={`hero-card ${styles.summary}`}>
       <EntityHeader
         title={item.title}
         status={status}
         metadata={item.executionAddress || 'Адрес выполнения не указан'}
         actions={(
-          <div className="action-row one-time-order-summary__actions">
+          <div className="ui-inline one-time-order-summary__actions">
             {onComplete && item.capabilities.canComplete ? (
               <Button variant="primary" onClick={onComplete}>Завершить работу</Button>
             ) : null}
@@ -61,14 +61,14 @@ export function OneTimeOrderSummaryCard({
           </div>
         )}
       />
-      <div className={`detail-grid ${styles.facts}`}>
+      <div className={`ui-detail-grid ${styles.facts}`}>
         {facts.map((fact) => (
-          <div className="detail-field" key={fact.label}>
-            <div className="detail-label">{fact.label}</div>
-            <div className={`detail-value ${styles.factValue}`}>{fact.value}</div>
+          <div className="ui-detail-field" key={fact.label}>
+            <div className="ui-detail-label">{fact.label}</div>
+            <div className={`ui-detail-value ${styles.factValue}`}>{fact.value}</div>
           </div>
         ))}
       </div>
-    </section>
+    </Surface>
   );
 }

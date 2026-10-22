@@ -1,8 +1,9 @@
 import React from 'react';
+import { Surface } from '@/shared/ui/foundation';
 
 export function TimesheetLegend(): React.JSX.Element {
   return (
-    <div className="page-card">
+    <Surface padding="md">
       <div style={{ fontWeight: 600, marginBottom: 12 }}>Как работает табель</div>
 
       <div
@@ -55,6 +56,6 @@ export function TimesheetLegend(): React.JSX.Element {
           корректировка снимается.
         </div>
       </div>
-    </div>
+    </Surface>
   );
 }

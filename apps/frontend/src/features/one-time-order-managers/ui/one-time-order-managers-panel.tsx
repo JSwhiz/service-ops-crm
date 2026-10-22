@@ -10,7 +10,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
-import { Button, Stack } from '@/shared/ui/foundation';
+import { Button, Stack, Surface } from '@/shared/ui/foundation';
 
 export function OneTimeOrderManagersPanel({
   item,
@@ -29,17 +29,17 @@ export function OneTimeOrderManagersPanel({
   const assignedUserIds = new Set(item.managers.map((manager) => manager.userId));
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
+    <Surface padding="md" style={{ display: 'grid', gap: 16 }}>
       <div>
         <div style={{ fontWeight: 600, marginBottom: 8 }}>Менеджеры заказа</div>
         {item.managers.length === 0 ? (
-          <div className="page-muted">Менеджеры пока не назначены.</div>
+          <div className="ui-text-muted">Менеджеры пока не назначены.</div>
         ) : (
           <Stack gap="sm">
             {item.managers.map((manager) => (
-              <div
+              <Surface padding="sm"
                 key={manager.userId}
-                className="record-card"
+
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -49,7 +49,7 @@ export function OneTimeOrderManagersPanel({
               >
                 <div>
                   <div>{getUserDisplayName(manager)}</div>
-                  <div className="page-muted">
+                  <div className="ui-text-muted">
                     {getUserRoleLabel(manager.roleCode)}
                   </div>
                 </div>
@@ -61,7 +61,7 @@ export function OneTimeOrderManagersPanel({
                     Снять
                   </Button>
                 ) : null}
-              </div>
+              </Surface>
             ))}
           </Stack>
         )}
@@ -110,6 +110,6 @@ export function OneTimeOrderManagersPanel({
           {error ? <div className="form-error">{error}</div> : null}
         </Stack>
       ) : null}
-    </div>
+    </Surface>
   );
 }

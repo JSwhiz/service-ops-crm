@@ -117,11 +117,11 @@
   flex: 0 0 auto;
 }
 
-.statusHeader :global(.section-title) {
+.statusHeader :global(.ui-section-title) {
   margin: 0;
 }
 
-.categoryField :global(.detail-label) {
+.categoryField :global(.ui-detail-label) {
   color: var(--ui-text);
   font-size: 13px;
   font-weight: 740;
@@ -235,7 +235,7 @@
   scroll-snap-stop: always;
 }
 
-.attendanceList > :global(.record-card) {
+.attendanceList > :global(.ui-surface--compact) {
   gap: 6px;
   padding: 8px 10px;
 }

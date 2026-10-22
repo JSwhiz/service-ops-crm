@@ -7,6 +7,7 @@ import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 
 import { AttachmentPreviewList } from '../media-entry/attachment-preview-list';
 import { MediaActionPicker } from '../media-entry/media-action-picker';
+import { Surface } from '@/shared/ui/foundation';
 
 export function EntityFilesPanel({
   title,
@@ -24,9 +25,9 @@ export function EntityFilesPanel({
   iconOnlyMediaActions?: boolean;
 }): React.JSX.Element {
   return (
-    <div className={`page-card ${styles.workPanel}`}>
+    <Surface padding="md" className={`${styles.workPanel}`}>
       <div className={styles.panelHeader}>
-        <div className="section-title">{title}</div>
+        <div className="ui-section-title">{title}</div>
         <span className={styles.panelMeta}>{files.length}</span>
       </div>
 
@@ -39,6 +40,6 @@ export function EntityFilesPanel({
           <AttachmentPreviewList files={files} emptyText={emptyText} />
         </div>
       )}
-    </div>
+    </Surface>
   );
 }

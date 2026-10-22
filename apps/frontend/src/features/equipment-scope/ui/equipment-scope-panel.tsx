@@ -6,7 +6,7 @@ import React from 'react';
 import type { EquipmentUnit } from '@/entities/equipment/model/equipment.types';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getEquipmentStatusLabel } from '@/shared/lib/equipment-presentation';
-import { StatusBadge } from '@/shared/ui/foundation';
+import { StatusBadge, Surface } from '@/shared/ui/foundation';
 
 export function EquipmentScopePanel({
   title,
@@ -18,9 +18,9 @@ export function EquipmentScopePanel({
   className?: string;
 }): React.JSX.Element {
   return (
-    <div className={`page-card ${styles.workPanel} ${className ?? ''}`}>
+    <Surface padding="md" className={`${styles.workPanel} ${className ?? ''}`}>
       <div className={styles.panelHeader}>
-        <div className="section-title">{title}</div>
+        <div className="ui-section-title">{title}</div>
         {units.length > 0 ? <span className={styles.panelMeta}>{units.length}</span> : null}
       </div>
 
@@ -29,7 +29,7 @@ export function EquipmentScopePanel({
       ) : (
         <div className="record-list local-scroll local-scroll--sm">
           {units.map((unit) => (
-            <div key={unit.id} className="record-card">
+            <Surface padding="sm" key={unit.id}>
               {unit.capabilities.canCreateMovement ? (
                 <Link href={`/equipment/${unit.id}`}>
                   {unit.catalogItem.name} · {unit.inventoryNumber}
@@ -43,10 +43,10 @@ export function EquipmentScopePanel({
                 </StatusBadge>
                 {unit.notes ? ` · ${unit.notes}` : ''}
               </div>
-            </div>
+            </Surface>
           ))}
         </div>
       )}
-    </div>
+    </Surface>
   );
 }

@@ -195,7 +195,7 @@ export function SearchableSelect({
 
   return (
     <div className="searchable-select" ref={rootRef}>
-      {hideLabel ? null : <span className="detail-label">{label}</span>}
+      {hideLabel ? null : <span className="ui-detail-label">{label}</span>}
       <button
         {...triggerProps}
         ref={triggerRef}
@@ -208,7 +208,7 @@ export function SearchableSelect({
         disabled={disabled || loading}
         onClick={() => setIsOpen((current) => !current)}
       >
-        <span className={selected ? undefined : 'page-muted'}>
+        <span className={selected ? undefined : 'ui-text-muted'}>
           {loading ? 'Загрузка...' : selected?.label ?? placeholder}
         </span>
         <svg className="searchable-select__chevron" viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

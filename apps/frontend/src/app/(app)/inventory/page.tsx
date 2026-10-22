@@ -9,7 +9,7 @@ import { useAuth } from '@/shared/auth/use-auth';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
-import { Alert, ButtonLink } from '@/shared/ui/foundation';
+import { Alert, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -123,9 +123,9 @@ export default function InventoryPage(): React.JSX.Element {
   return (
     <>
       {!canAccessInventory ? (
-        <div className="page-card">У вас нет доступа к inventory-модулю.</div>
+        <Surface padding="md">У вас нет доступа к inventory-модулю.</Surface>
       ) : (
-        <div className="page-stack workspace-page inventory-workspace">
+        <div className="ui-page inventory-workspace">
           <RegistryToolbar
               searchValue={search}
               searchLabel="Поиск по расходникам"
@@ -153,7 +153,7 @@ export default function InventoryPage(): React.JSX.Element {
           />
 
           {isLoading ? (
-            <div className="page-card">Загрузка...</div>
+            <Surface padding="md">Загрузка...</Surface>
           ) : error ? (
             <Alert tone="danger" role="alert">
               {error}

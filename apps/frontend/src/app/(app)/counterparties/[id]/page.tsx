@@ -29,7 +29,7 @@ import {
 
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import styles from '../counterparties.module.css';
-import { Button, StatusBadge } from '@/shared/ui/foundation';
+import { Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 function toObjectOption(object: ServiceObject): SearchableSelectOption {
   return {
@@ -211,16 +211,16 @@ export default function CounterpartyPage({
 
   if (loading) {
     return (
-      <div className={`workspace-page counterparty-workspace page-stack ${styles.page}`}>
+      <div className={`ui-page counterparty-workspace ui-stack ui-stack--lg ${styles.page}`}>
         <PageTitle title="Контрагент" />
-        <div className={`page-card workspace-surface ${styles.surface} ${styles.loading}`}>Загружаем карточку…</div>
+        <Surface padding="md" className={`${styles.surface} ${styles.loading}`}>Загружаем карточку…</Surface>
       </div>
     );
   }
 
   if (!item) {
     return (
-      <div className={`workspace-page counterparty-workspace page-stack ${styles.page}`}>
+      <div className={`ui-page counterparty-workspace ui-stack ui-stack--lg ${styles.page}`}>
         <PageTitle title="Контрагент" />
         <div className={`${styles.surface} ${styles.error}`} role="alert">
           {error ?? 'Контрагент не найден.'}
@@ -230,8 +230,8 @@ export default function CounterpartyPage({
   }
 
   return (
-    <div className={`workspace-page counterparty-workspace ${styles.page} ${styles.detailPage}`}>
-      <section className={`page-card workspace-surface hero-card ${styles.counterpartyHero}`}>
+    <div className={`ui-page counterparty-workspace ${styles.page} ${styles.detailPage}`}>
+      <Surface as="section" padding="md" className={`hero-card ${styles.counterpartyHero}`}>
         <div className={styles.summaryTop}>
           <div className={styles.summaryIdentity}>
             <div className={styles.summaryTitleRow}>
@@ -251,13 +251,13 @@ export default function CounterpartyPage({
             </Button>
           </div>
         </div>
-        <div className={`detail-grid ${styles.summaryFacts}`}>
-          <div className="detail-field"><div className="detail-label">Основной контакт</div><div className="detail-value">{item.contactName || 'Не указан'}</div></div>
-          <div className="detail-field"><div className="detail-label">Телефон</div><div className="detail-value">{item.contactPhone || 'Не указан'}</div></div>
-          <div className="detail-field"><div className="detail-label">Связанные объекты</div><div className="detail-value">{item.objectCount}</div></div>
+        <div className={`ui-detail-grid ${styles.summaryFacts}`}>
+          <div className="ui-detail-field"><div className="ui-detail-label">Основной контакт</div><div className="ui-detail-value">{item.contactName || 'Не указан'}</div></div>
+          <div className="ui-detail-field"><div className="ui-detail-label">Телефон</div><div className="ui-detail-value">{item.contactPhone || 'Не указан'}</div></div>
+          <div className="ui-detail-field"><div className="ui-detail-label">Связанные объекты</div><div className="ui-detail-value">{item.objectCount}</div></div>
         </div>
-        {item.notes ? <div className={`object-summary__note ${styles.summaryNote}`}><div className="detail-label">Комментарий</div><div className="detail-value">{item.notes}</div></div> : null}
-      </section>
+        {item.notes ? <div className={`object-summary__note ${styles.summaryNote}`}><div className="ui-detail-label">Комментарий</div><div className="ui-detail-value">{item.notes}</div></div> : null}
+      </Surface>
 
       <WorkspaceTabs
         items={[{ value: 'overview', label: 'Обзор' }, { value: 'history', label: 'История' }]}
@@ -274,7 +274,7 @@ export default function CounterpartyPage({
       ) : null}
 
       {activeTab === 'overview' ? <>
-      <section className={`page-card workspace-surface ${styles.surface} ${styles.statusSection}`}>
+      <Surface as="section" padding="md" className={`${styles.surface} ${styles.statusSection}`}>
         <div className={styles.statusHeader}>
           <h2 className={styles.sectionTitle}>Статус контрагента</h2>
           <div className={styles.statusActions}>
@@ -291,9 +291,9 @@ export default function CounterpartyPage({
             ) : null}
           </div>
         </div>
-      </section>
+      </Surface>
 
-      {editing ? <section className={`page-card workspace-surface ${styles.surface} ${styles.section} ${styles.detailSurface}`}>
+      {editing ? <Surface as="section" padding="md" className={`${styles.surface} ${styles.section} ${styles.detailSurface}`}>
         <div className={styles.sectionHeader}>
           <div>
             <h2 className={styles.sectionTitle}>Редактирование контрагента</h2>
@@ -399,9 +399,9 @@ export default function CounterpartyPage({
           </form>
         ) : null}
 
-      </section> : null}
+      </Surface> : null}
 
-      <section className={`page-card workspace-surface ${styles.surface} ${styles.section} ${styles.detailSurface}`}>
+      <Surface as="section" padding="md" className={`${styles.surface} ${styles.section} ${styles.detailSurface}`}>
         <div className={styles.sectionHeader}>
           <div>
             <h2 className={styles.sectionTitle}>Связанные объекты</h2>
@@ -495,9 +495,9 @@ export default function CounterpartyPage({
             ))}
           </div>
         )}
-      </section>
+      </Surface>
 
-      <section className={`page-card workspace-surface ${styles.surface} ${styles.section} ${styles.detailSurface}`}>
+      <Surface as="section" padding="md" className={`${styles.surface} ${styles.section} ${styles.detailSurface}`}>
         <div className={styles.sectionHeader}>
           <div>
             <h2 className={styles.sectionTitle}>Движения расходников по объектам</h2>
@@ -531,9 +531,9 @@ export default function CounterpartyPage({
               onPageChange={setInventoryMovementsPage} />
           </>
         )}
-      </section>
+      </Surface>
       </> : (
-        <section className={`page-card workspace-surface ${styles.surface} ${styles.section} ${styles.detailSurface}`}>
+        <Surface as="section" padding="md" className={`${styles.surface} ${styles.section} ${styles.detailSurface}`}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>История изменений</h2>
             <span className={styles.muted}>{history.length}</span>
@@ -555,7 +555,7 @@ export default function CounterpartyPage({
               ))}
             </div>
           )}
-        </section>
+        </Surface>
       )}
 
       <ConfirmDialog

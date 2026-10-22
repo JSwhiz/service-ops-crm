@@ -7,6 +7,7 @@ import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
 import { Select } from '@/shared/ui/searchable-select/select';
+import { Surface } from '@/shared/ui/foundation';
 
 export interface TaskFilterValue {
   q: string;
@@ -31,7 +32,7 @@ export function TaskFilters({
   onChange: (next: Partial<TaskFilterValue>) => void;
 }): React.JSX.Element {
   return (
-    <div className="page-card workspace-surface filter-panel task-filters">
+    <Surface padding="md" className="filter-panel task-filters">
       <label className="task-field task-field--search">
         <span>Поиск</span>
         <input
@@ -105,6 +106,6 @@ export function TaskFilters({
         />
         Только просроченные
       </label>
-    </div>
+    </Surface>
   );
 }

@@ -63,7 +63,7 @@ export default function EditObjectPage({
 
   if (isLoading) {
     return (
-      <div className={`workspace-page ${styles.page}`}>
+      <div className={`ui-page ${styles.page}`}>
         <PageTitle title="Редактирование объекта" />
         <div className={styles.notice}>Загрузка объекта...</div>
       </div>
@@ -72,7 +72,7 @@ export default function EditObjectPage({
 
   if (loadError) {
     return (
-      <div className={`workspace-page ${styles.page}`}>
+      <div className={`ui-page ${styles.page}`}>
         <PageTitle title="Редактирование объекта" />
         <div className={styles.surfaceCompact}>
           <div className={styles.error}>{loadError}</div>
@@ -86,7 +86,7 @@ export default function EditObjectPage({
 
   if (!item) {
     return (
-      <div className={`workspace-page ${styles.page}`}>
+      <div className={`ui-page ${styles.page}`}>
         <PageTitle title="Редактирование объекта" />
         <div className={styles.notice}>Объект не найден.</div>
       </div>
@@ -99,7 +99,7 @@ export default function EditObjectPage({
 
   if (!allowEditObject && !canManageCompensationRates) {
     return (
-      <div className={`workspace-page ${styles.page}`}>
+      <div className={`ui-page ${styles.page}`}>
         <PageTitle title="Редактирование объекта" />
         <div className={styles.surfaceCompact}>
           <div className={styles.error}>У вас нет прав на редактирование карточки объекта.</div>
@@ -112,7 +112,7 @@ export default function EditObjectPage({
   }
 
   return (
-    <div className={`workspace-page ${styles.page}`}>
+    <div className={`ui-page ${styles.page}`}>
       <PageTitle title={`Редактирование: ${item.name}`} />
 
       <ObjectEditForm

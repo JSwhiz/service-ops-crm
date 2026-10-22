@@ -13,7 +13,7 @@ import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { ReasonDialog } from '@/shared/ui/overlays';
-import { Alert, Button, Field, Stack } from '@/shared/ui/foundation';
+import { Alert, Button, Field, Stack, Surface } from '@/shared/ui/foundation';
 
 export function OneTimeOrderPhotosPanel({
   items,
@@ -45,11 +45,11 @@ export function OneTimeOrderPhotosPanel({
 
   return (
     <>
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div className="section-header">
+    <Surface padding="md" style={{ display: 'grid', gap: 16 }}>
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Фото заказа</div>
-          <div className="section-subtitle">
+          <div className="ui-section-title">Фото заказа</div>
+          <div className="ui-section-subtitle">
             До/после, отчетные и прочие фото через общий storage.
           </div>
         </div>
@@ -103,7 +103,7 @@ export function OneTimeOrderPhotosPanel({
           </Field>
 
           <Stack gap="sm">
-            <div className="page-muted">Фото</div>
+            <div className="ui-text-muted">Фото</div>
             <MediaActionPicker
               disabled={isSubmitting}
               allowGenericFile={false}
@@ -134,13 +134,13 @@ export function OneTimeOrderPhotosPanel({
       ) : null}
 
       {activeItems.length === 0 ? (
-        <div className="page-muted">Фотографии заказа пока не загружены.</div>
+        <div className="ui-text-muted">Фотографии заказа пока не загружены.</div>
       ) : (
         <div className="record-list local-scroll">
           {activeItems.map((item) => (
-            <article
+            <Surface as="article" padding="sm"
               key={item.id}
-              className="record-card"
+
               style={{ display: 'grid', gap: 10 }}
             >
               <div
@@ -154,11 +154,11 @@ export function OneTimeOrderPhotosPanel({
                 <div style={{ fontWeight: 600 }}>
                   {getMediaCategoryLabel(item.category)}
                 </div>
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   {new Date(item.createdAt).toLocaleString('ru-RU')}
                 </div>
               </div>
-              <div className="page-muted">
+              <div className="ui-text-muted">
                 {getUserDisplayName(item.createdBy)}
               </div>
               {item.comment ? <div>{item.comment}</div> : null}
@@ -167,7 +167,7 @@ export function OneTimeOrderPhotosPanel({
                 emptyText="Фотографии в записи не найдены."
               />
               {item.capabilities.canDelete ? (
-                <div className="action-row">
+                <div className="ui-inline">
                   <Button
                     disabled={busyPhotoId === item.id}
                     onClick={() => { setPhotoToDelete(item.id); setDeleteReason(''); }}
@@ -176,7 +176,7 @@ export function OneTimeOrderPhotosPanel({
                   </Button>
                 </div>
               ) : null}
-            </article>
+            </Surface>
           ))}
         </div>
       )}
@@ -188,15 +188,15 @@ export function OneTimeOrderPhotosPanel({
           </summary>
           <div className="record-list local-scroll" style={{ marginTop: 12 }}>
             {deletedItems.map((item) => (
-              <article
+              <Surface as="article" padding="sm"
                 key={item.id}
-                className="record-card"
+
                 style={{ display: 'grid', gap: 8 }}
               >
                 <div style={{ fontWeight: 600 }}>
                   {getMediaCategoryLabel(item.category)}
                 </div>
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   Удалено{' '}
                   {item.deletedAt
                     ? new Date(item.deletedAt).toLocaleString('ru-RU')
@@ -209,7 +209,7 @@ export function OneTimeOrderPhotosPanel({
                   <div>Причина: {item.deleteReason}</div>
                 ) : null}
                 {item.capabilities.canRestore ? (
-                  <div className="action-row">
+                  <div className="ui-inline">
                     <Button
                       disabled={busyPhotoId === item.id}
                       onClick={async () => {
@@ -230,12 +230,12 @@ export function OneTimeOrderPhotosPanel({
                     </Button>
                   </div>
                 ) : null}
-              </article>
+              </Surface>
             ))}
           </div>
         </details>
       ) : null}
-    </div>
+    </Surface>
     <ReasonDialog
       open={photoToDelete !== null}
       onOpenChange={(open) => { if (!open) setPhotoToDelete(null); }}

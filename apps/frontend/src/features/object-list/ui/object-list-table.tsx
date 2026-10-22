@@ -105,7 +105,7 @@ export function ObjectListTable({
   const [previewItem, setPreviewItem] = useState<ServiceObject | null>(null);
 
   if (!items.length) {
-    return <div className="page-card workspace-surface workspace-empty">Объекты не найдены.</div>;
+    return <div className="ui-empty-state">Объекты не найдены.</div>;
   }
 
   return (
@@ -113,7 +113,7 @@ export function ObjectListTable({
       <DataTable
         label="Таблица объектов"
         className={`object-registry-table ${styles.table}`}
-        frameClassName={`page-card workspace-surface data-table-shell object-table-scroll ${styles.desktopTable}`}
+        frameClassName={`object-table-scroll ${styles.desktopTable}`}
       >
           <thead>
             <tr>

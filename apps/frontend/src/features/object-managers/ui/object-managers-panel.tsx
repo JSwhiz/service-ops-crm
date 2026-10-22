@@ -8,7 +8,7 @@ import {
   getUserDisplayName,
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
-import { Button, Stack } from '@/shared/ui/foundation';
+import { Button, Stack, Surface } from '@/shared/ui/foundation';
 
 interface ObjectManagersPanelProps {
   responsibles: ObjectAssignedUser[];
@@ -35,8 +35,8 @@ export function ObjectManagersPanel({
   const managerIds = new Set(managers.map((item) => item.userId));
 
   return (
-    <div
-      className="page-card"
+    <Surface padding="md"
+
       style={{
         display: 'grid',
         gap: 24,
@@ -59,7 +59,7 @@ export function ObjectManagersPanel({
           </div>
 
           {responsibles.length === 0 ? (
-            <div className="page-muted" style={{ marginBottom: 12 }}>
+            <div className="ui-text-muted" style={{ marginBottom: 12 }}>
               Ответственные пока не назначены.
             </div>
           ) : (
@@ -94,7 +94,7 @@ export function ObjectManagersPanel({
           </div>
 
           {responsibleCandidates.length === 0 ? (
-            <div className="page-muted">Подходящих кандидатов нет.</div>
+            <div className="ui-text-muted">Подходящих кандидатов нет.</div>
           ) : (
             <Stack gap="sm">
               {responsibleCandidates.map((user) => (
@@ -120,7 +120,7 @@ export function ObjectManagersPanel({
                   </span>
 
                   {responsibleIds.has(user.id) ? (
-                    <span className="page-muted">Уже назначен</span>
+                    <span className="ui-text-muted">Уже назначен</span>
                   ) : (
                     <Button
                       onClick={() => void onAddResponsible(user.id)}
@@ -140,7 +140,7 @@ export function ObjectManagersPanel({
           </div>
 
           {managers.length === 0 ? (
-            <div className="page-muted" style={{ marginBottom: 12 }}>
+            <div className="ui-text-muted" style={{ marginBottom: 12 }}>
               Менеджеры пока не назначены.
             </div>
           ) : (
@@ -175,7 +175,7 @@ export function ObjectManagersPanel({
           </div>
 
           {managerCandidates.length === 0 ? (
-            <div className="page-muted">Подходящих кандидатов нет.</div>
+            <div className="ui-text-muted">Подходящих кандидатов нет.</div>
           ) : (
             <Stack gap="sm">
               {managerCandidates.map((user) => (
@@ -201,7 +201,7 @@ export function ObjectManagersPanel({
                   </span>
 
                   {managerIds.has(user.id) ? (
-                    <span className="page-muted">Уже назначен</span>
+                    <span className="ui-text-muted">Уже назначен</span>
                   ) : (
                     <Button
                       onClick={() => void onAddManager(user.id)}
@@ -215,6 +215,6 @@ export function ObjectManagersPanel({
           )}
         </section>
       </div>
-    </div>
+    </Surface>
   );
 }

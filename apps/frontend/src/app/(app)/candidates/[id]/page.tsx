@@ -841,7 +841,7 @@ export default function CandidatePage({
         }
         busy={saving}
         footer={
-          <div className="action-row">
+          <div className="ui-inline">
             <Button
               variant="ghost"
               disabled={saving}

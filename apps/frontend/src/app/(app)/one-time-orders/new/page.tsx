@@ -27,7 +27,7 @@ import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
-import { Alert } from '@/shared/ui/foundation';
+import { Alert, Surface } from '@/shared/ui/foundation';
 import { useConfirm } from '@/shared/ui/overlays';
 import { ScheduleConflictList } from '@/entities/one-time-order/ui/schedule-conflicts';
 
@@ -179,16 +179,16 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
   }, [canCreateOneTimeOrder, copyFromId, searchParams]);
 
   return (
-    <div className="page-stack workspace-page order-detail-page">
+    <div className="ui-page order-detail-page">
       {confirmDialog}
       <PageTitle
         title={copyFromId ? 'Скопировать разовый заказ' : 'Создать разовый заказ'}
       />
 
       {!canCreateOneTimeOrder ? (
-        <div className="page-card">У вас нет права создавать разовые заказы.</div>
+        <Surface padding="md">У вас нет права создавать разовые заказы.</Surface>
       ) : isLoading ? (
-        <div className="page-card">Загрузка...</div>
+        <Surface padding="md">Загрузка...</Surface>
       ) : error ? (
         <Alert tone="danger" role="alert">
           {error}

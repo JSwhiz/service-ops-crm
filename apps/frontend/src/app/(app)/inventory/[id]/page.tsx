@@ -31,7 +31,7 @@ import {
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Alert, Button, StatusBadge } from '@/shared/ui/foundation';
+import { Alert, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -286,26 +286,26 @@ export default function InventoryItemDetailPage({
   };
 
   return (
-    <div className="workspace-page inventory-workspace">
+    <div className="ui-page inventory-workspace">
       <PageTitle title={item ? item.name : 'Карточка расходника'} />
 
       {isLoading ? (
-        <div className="page-card">Загрузка...</div>
+        <Surface padding="md">Загрузка...</Surface>
       ) : error ? (
         <Alert tone="danger" role="alert">
           {error}
         </Alert>
       ) : item ? (
-        <div className="page-stack">
-          <div className="page-card hero-card" style={{ display: 'grid', gap: 18 }}>
-            <div className="section-header">
+        <div className="ui-stack ui-stack--lg">
+          <Surface padding="md" className="hero-card" style={{ display: 'grid', gap: 18 }}>
+            <div className="ui-section-header">
               <div>
                 <div className="hero-title">{item.name}</div>
                 <div className="hero-meta">
                   {item.category} · {item.unit} · версия {item.version}
                 </div>
               </div>
-              <div className="action-row">
+              <div className="ui-inline">
                 <StatusBadge
                   status={item.isActive ? 'active' : 'archived'}
                 >
@@ -321,42 +321,42 @@ export default function InventoryItemDetailPage({
               </div>
             </div>
 
-            <div className="detail-grid">
-              <div className="detail-field">
-                <div className="detail-label">Текущий остаток</div>
-                <div className="detail-value">
+            <div className="ui-detail-grid">
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Текущий остаток</div>
+                <div className="ui-detail-value">
                   {formatInventoryQuantity(item.currentStock, item.unit)}
                 </div>
               </div>
-              <div className="detail-field">
-                <div className="detail-label">Максимальная цена поставки</div>
-                <div className="detail-value">
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Максимальная цена поставки</div>
+                <div className="ui-detail-value">
                   {item.currentUnitPrice === null
                     ? 'Нет применённых приходов'
                     : `${item.currentUnitPrice.toLocaleString('ru-RU')} ₽`}
                 </div>
               </div>
-              <div className="detail-field">
-                <div className="detail-label">Оценка остатка</div>
-                <div className="detail-value">
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Оценка остатка</div>
+                <div className="ui-detail-value">
                   {item.currentEstimatedTotalValue.toLocaleString('ru-RU')} ₽
                 </div>
               </div>
-              <div className="detail-field">
-                <div className="detail-label">Создал</div>
-                <div className="detail-value">
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Создал</div>
+                <div className="ui-detail-value">
                   {getUserDisplayName(item.createdBy)}
                 </div>
               </div>
-              <div className="detail-field">
-                <div className="detail-label">Создано</div>
-                <div className="detail-value">
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Создано</div>
+                <div className="ui-detail-value">
                   {new Date(item.createdAt).toLocaleString('ru-RU')}
                 </div>
               </div>
-              <div className="detail-field">
-                <div className="detail-label">Изменено</div>
-                <div className="detail-value">
+              <div className="ui-detail-field">
+                <div className="ui-detail-label">Изменено</div>
+                <div className="ui-detail-value">
                   {new Date(item.updatedAt).toLocaleString('ru-RU')}
                 </div>
               </div>
@@ -389,11 +389,11 @@ export default function InventoryItemDetailPage({
               </div>
             </div>
 
-            <div className="detail-field">
-              <div className="detail-label">Примечание</div>
-              <div className="detail-value">{item.notes || 'Не указано'}</div>
+            <div className="ui-detail-field">
+              <div className="ui-detail-label">Примечание</div>
+              <div className="ui-detail-value">{item.notes || 'Не указано'}</div>
             </div>
-          </div>
+          </Surface>
 
           {isEditing && item.isActive && item.capabilities.canEditCatalog ? (
             <InventoryItemEditor
@@ -408,11 +408,11 @@ export default function InventoryItemDetailPage({
           ) : null}
 
           {item.capabilities.canEditCatalog || item.capabilities.canDelete ? (
-            <div className="page-card" style={{ display: 'grid', gap: 12 }}>
-              <div className="section-header">
+            <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
+              <div className="ui-section-header">
                 <div>
-                  <div className="section-title">Управление карточкой</div>
-                  <div className="page-muted">
+                  <div className="ui-section-title">Управление карточкой</div>
+                  <div className="ui-text-muted">
                     {item.isActive
                       ? 'Удаление доступно только при нулевом остатке и без незавершённых операций.'
                       : item.deletedAt
@@ -459,7 +459,7 @@ export default function InventoryItemDetailPage({
                   {item.deletionState.blockerCodes.map((code) => (
                     <div key={code}>{getDeleteBlockerLabel(code)}</div>
                   ))}
-                  <div className="action-row">
+                  <div className="ui-inline">
                     <Button variant="danger"
                       disabled={!item.deletionState.canDelete || isItemActionPending}
                       onClick={() => void handleDelete()}
@@ -477,7 +477,7 @@ export default function InventoryItemDetailPage({
               ) : null}
 
               {item.isActive && item.deletionState.blockerCodes.length > 0 ? (
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   Удаление сейчас недоступно: {' '}
                   {item.deletionState.blockerCodes
                     .map((code) => getDeleteBlockerLabel(code))
@@ -498,7 +498,7 @@ export default function InventoryItemDetailPage({
                   </Button>
                 </div>
               ) : null}
-            </div>
+            </Surface>
           ) : null}
 
           {item.isActive && item.capabilities.canCreateMovement ? (
@@ -536,16 +536,16 @@ export default function InventoryItemDetailPage({
 
           {canViewMovementHistory ? (
             <>
-              <div className="page-card" style={{ display: 'grid', gap: 14 }}>
-                <div className="section-header">
+              <Surface padding="md" style={{ display: 'grid', gap: 14 }}>
+                <div className="ui-section-header">
                   <div>
-                    <div className="section-title">История движений</div>
-                    <div className="page-muted">Найдено записей: {movementTotal}</div>
+                    <div className="ui-section-title">История движений</div>
+                    <div className="ui-text-muted">Найдено записей: {movementTotal}</div>
                   </div>
                 </div>
-                <div className="detail-grid">
+                <div className="ui-detail-grid">
                   <label>
-                    <div className="detail-label">Тип</div>
+                    <div className="ui-detail-label">Тип</div>
                     <Select
                       value={movementType}
                       onChange={(event) => {
@@ -562,7 +562,7 @@ export default function InventoryItemDetailPage({
                     </Select>
                   </label>
                   <label>
-                    <div className="detail-label">Статус</div>
+                    <div className="ui-detail-label">Статус</div>
                     <Select
                       value={movementStatus}
                       onChange={(event) => {
@@ -578,7 +578,7 @@ export default function InventoryItemDetailPage({
                     </Select>
                   </label>
                   <label>
-                    <div className="detail-label">Объект</div>
+                    <div className="ui-detail-label">Объект</div>
                     <Select
                       value={selectedObjectId}
                       onChange={(event) => {
@@ -595,7 +595,7 @@ export default function InventoryItemDetailPage({
                     </Select>
                   </label>
                   <label>
-                    <div className="detail-label">Разовый заказ</div>
+                    <div className="ui-detail-label">Разовый заказ</div>
                     <Select
                       value={selectedOrderId}
                       onChange={(event) => {
@@ -612,26 +612,26 @@ export default function InventoryItemDetailPage({
                     </Select>
                   </label>
                   <label>
-                    <div className="detail-label">С даты</div>
+                    <div className="ui-detail-label">С даты</div>
                     <DatePicker value={dateFrom} onChange={(nextValue) => {
                         setDateFrom(nextValue);
                         setMovementPage(1);
                       }} />
                   </label>
                   <label>
-                    <div className="detail-label">По дату</div>
+                    <div className="ui-detail-label">По дату</div>
                     <DatePicker value={dateTo} onChange={(nextValue) => {
                         setDateTo(nextValue);
                         setMovementPage(1);
                       }} />
                   </label>
                 </div>
-              </div>
+              </Surface>
 
               {isMovementsLoading ? (
-                <div className="page-card">Загрузка истории...</div>
+                <Surface padding="md">Загрузка истории...</Surface>
               ) : movementError ? (
-                <div className="page-card form-error">{movementError}</div>
+                <Surface padding="md" className="form-error">{movementError}</Surface>
               ) : (
                 <InventoryMovementList items={movements} />
               )}
@@ -643,7 +643,7 @@ export default function InventoryItemDetailPage({
           ) : null}
         </div>
       ) : (
-        <div className="page-card">Расходник не найден.</div>
+        <Surface padding="md">Расходник не найден.</Surface>
       )}
     </div>
   );

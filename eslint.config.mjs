@@ -64,12 +64,12 @@ export default tseslint.config(
           message: 'Цвета берутся из токенов --ui-* (design-tokens.css), не из inline-стилей.',
         },
         {
-          selector: "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger|button-quiet|quiet-button)(\\s|$)/]",
-          message: 'Устаревший класс: используйте StatusBadge, Alert, ButtonLink или Button из shared/ui/foundation.',
+          selector: "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger|button-quiet|quiet-button|page-card|record-card|workspace-page|workspace-surface|workspace-empty|page-stack|page-muted|section-title|section-subtitle|section-header|detail-label|detail-value|detail-field|detail-grid|action-row)(\\s|$)/]",
+          message: 'Устаревший класс: используйте компоненты и классы ui-* из shared/ui/foundation (см. docs/ui/STYLE_SOURCES.md).',
         },
         {
-          selector: "JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger|button-quiet|quiet-button)(\\s|$)/]",
-          message: 'Устаревший класс: используйте StatusBadge, Alert, ButtonLink или Button из shared/ui/foundation.',
+          selector: "JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger|button-quiet|quiet-button|page-card|record-card|workspace-page|workspace-surface|workspace-empty|page-stack|page-muted|section-title|section-subtitle|section-header|detail-label|detail-value|detail-field|detail-grid|action-row)(\\s|$)/]",
+          message: 'Устаревший класс: используйте компоненты и классы ui-* из shared/ui/foundation (см. docs/ui/STYLE_SOURCES.md).',
         },
       ],
       'no-restricted-properties': [

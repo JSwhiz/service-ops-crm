@@ -17,7 +17,7 @@ import {
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Alert, Button, Field } from '@/shared/ui/foundation';
+import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
 
 type OneTimeOrderFormPayload = {
   title: string;
@@ -211,7 +211,7 @@ export function OneTimeOrderForm({
   };
 
   return (
-    <form className="page-card one-time-order-form" onSubmit={handleSubmit}>
+    <form className="ui-surface ui-surface--padded one-time-order-form" onSubmit={handleSubmit}>
       <div
         className="one-time-order-form__fields"
         style={{
@@ -429,19 +429,19 @@ export function OneTimeOrderForm({
           <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 10 }}>
             <div>
               <div style={{ marginBottom: 4 }}>Менеджеры заказа</div>
-              <div className="page-muted">
+              <div className="ui-text-muted">
                 Добавляйте менеджеров поиском — полный список не загружается.
               </div>
             </div>
 
             {selectedManagers.length === 0 ? (
-              <div className="page-muted">Менеджеры пока не выбраны.</div>
+              <div className="ui-text-muted">Менеджеры пока не выбраны.</div>
             ) : (
               <div className="record-list">
                 {selectedManagers.map((user) => (
-                  <div
+                  <Surface padding="sm"
                     key={user.id}
-                    className="record-card"
+
                     style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -452,7 +452,7 @@ export function OneTimeOrderForm({
                     <div>
                       <div>{getUserDisplayName(user)}</div>
                       {getUserSecondaryLabel(user) ? (
-                        <div className="page-muted">
+                        <div className="ui-text-muted">
                           {getUserSecondaryLabel(user)}
                         </div>
                       ) : null}
@@ -463,7 +463,7 @@ export function OneTimeOrderForm({
                     >
                       Убрать
                     </Button>
-                  </div>
+                  </Surface>
                 ))}
               </div>
             )}
@@ -487,10 +487,10 @@ export function OneTimeOrderForm({
 
         {includeSpecificationItems ? (
           <div style={{ gridColumn: '1 / -1' }}>
-            <div className="section-header" style={{ marginBottom: 10 }}>
+            <div className="ui-section-header" style={{ marginBottom: 10 }}>
               <div>
-                <div className="section-title">Техническое задание копии</div>
-                <div className="section-subtitle">
+                <div className="ui-section-title">Техническое задание копии</div>
+                <div className="ui-section-subtitle">
                   Выполнение и вложения исходного заказа не копируются.
                 </div>
               </div>
@@ -539,7 +539,7 @@ export function OneTimeOrderForm({
                       }
                     />
                   </Field>
-                  <div className="action-row">
+                  <div className="ui-inline">
                     <label>
                       <input
                         type="checkbox"

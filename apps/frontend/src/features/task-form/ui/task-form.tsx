@@ -300,7 +300,7 @@ export function TaskForm({
             />
           ) : null}
         </div>
-        <div className="page-muted">
+        <div className="ui-text-muted">
           Для каждой задачи нужно указать дату; точное время — по желанию.
         </div>
       </fieldset>
@@ -358,7 +358,7 @@ export function TaskForm({
           />
           Все активные пользователи системы
         </label>
-        <div className="section-subtitle">
+        <div className="ui-section-subtitle">
           {form.visibilityType === 'all_users'
             ? 'Задачу увидят все активные пользователи и руководство.'
             : form.visibilityType === 'target_participants'
@@ -395,7 +395,7 @@ export function TaskForm({
           {error}
         </div>
       ) : null}
-      <div className="action-row">
+      <div className="ui-inline">
         <Button variant="primary" type="submit" disabled={isSubmitting}>
           {isSubmitting
             ? 'Сохраняем…'
@@ -433,7 +433,7 @@ function UserChecklist({
   return (
     <fieldset className="task-form__section">
       <legend>{title}</legend>
-      {hint ? <div className="section-subtitle">{hint}</div> : null}
+      {hint ? <div className="ui-section-subtitle">{hint}</div> : null}
       <input
         type="search"
         value={search}
@@ -443,7 +443,7 @@ function UserChecklist({
       />
       <div className="task-user-grid local-scroll local-scroll--sm">
         {users.length === 0 ? (
-          <div className="page-muted">Пользователи не найдены.</div>
+          <div className="ui-text-muted">Пользователи не найдены.</div>
         ) : (
           users.map((user) => (
             <label key={user.id} className="task-user-option">

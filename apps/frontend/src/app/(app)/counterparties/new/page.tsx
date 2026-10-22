@@ -7,7 +7,7 @@ import { createCounterparty } from '@/entities/counterparty/api/counterparty-cli
 import { useAuth } from '@/shared/auth/use-auth';
 
 import styles from '../counterparties.module.css';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 export default function NewCounterpartyPage(): React.JSX.Element {
   const router = useRouter();
@@ -24,14 +24,14 @@ export default function NewCounterpartyPage(): React.JSX.Element {
 
   if (!(user?.capabilities?.canManageCounterparties ?? false)) {
     return (
-      <div className={`workspace-page counterparty-workspace ${styles.page}`}>
-        <div className={`page-card workspace-surface ${styles.surface} ${styles.emptyState}`}>Недостаточно прав.</div>
+      <div className={`ui-page counterparty-workspace ${styles.page}`}>
+        <Surface padding="md" className={`${styles.surface} ${styles.emptyState}`}>Недостаточно прав.</Surface>
       </div>
     );
   }
 
   return (
-    <div className={`workspace-page counterparty-workspace ${styles.page} ${styles.createPage}`}>
+    <div className={`ui-page counterparty-workspace ${styles.page} ${styles.createPage}`}>
       <form
         className={styles.createForm}
         onSubmit={(event) => {

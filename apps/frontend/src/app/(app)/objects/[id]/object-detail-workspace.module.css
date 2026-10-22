@@ -118,7 +118,7 @@
   align-items: start;
 }
 
-.todayGrid > :global(.page-card) {
+.todayGrid > :global(.ui-surface--padded) {
   height: auto;
   margin-top: 0;
   padding: 14px;
@@ -133,9 +133,9 @@
   align-items: start;
 }
 
-.workspace .section > :global(.page-card),
-.workspace .todayGrid > :global(.page-card),
-.workspace .twoColumn > :global(.page-card) {
+.workspace .section > :global(.ui-surface--padded),
+.workspace .todayGrid > :global(.ui-surface--padded),
+.workspace .twoColumn > :global(.ui-surface--padded) {
   margin-top: 0;
   padding: 0;
   border: 0;
@@ -144,39 +144,39 @@
   box-shadow: none;
 }
 
-.workspace .section > :global(.page-card:hover),
-.workspace .todayGrid > :global(.page-card:hover),
-.workspace .twoColumn > :global(.page-card:hover) {
+.workspace .section > :global(.ui-surface--padded:hover),
+.workspace .todayGrid > :global(.ui-surface--padded:hover),
+.workspace .twoColumn > :global(.ui-surface--padded:hover) {
   border: 0;
   background: transparent;
   box-shadow: none;
   transform: none;
 }
 
-.workspace .section > :global(.page-card).equipmentPanel {
+.workspace .section > :global(.ui-surface--padded).equipmentPanel {
   padding: 14px;
   border: 0;
   border-radius: 10px;
   background: var(--ui-surface-subtle);
 }
 
-.workspace .section > :global(.page-card).equipmentPanel:hover {
+.workspace .section > :global(.ui-surface--padded).equipmentPanel:hover {
   background: var(--ui-surface-subtle);
   box-shadow: none;
   transform: none;
 }
 
-.workspace .todayGrid > :global(.page-card) {
+.workspace .todayGrid > :global(.ui-surface--padded) {
   padding: 14px;
   border-radius: 10px;
   background: var(--ui-surface-subtle);
 }
 
-.workspace .todayGrid > :global(.page-card:hover) {
+.workspace .todayGrid > :global(.ui-surface--padded:hover) {
   background: var(--ui-surface-subtle);
 }
 
-.workspace .section > :global(.page-card:has(textarea)) {
+.workspace .section > :global(.ui-surface--padded:has(textarea)) {
   padding: 14px;
   border-radius: 10px;
   background: var(--ui-surface-subtle);
@@ -194,7 +194,7 @@
   border-bottom: 1px solid var(--ui-border) !important;
 }
 
-.quickAction :global(.section-title) {
+.quickAction :global(.ui-section-title) {
   font-size: 15px;
 }
 
@@ -203,7 +203,7 @@
   border-bottom: 1px solid var(--ui-border) !important;
 }
 
-.workspace :global(.object-status-control__header .section-title) {
+.workspace :global(.object-status-control__header .ui-section-title) {
   font-size: 15px;
 }
 
@@ -211,24 +211,24 @@
   margin-top: 8px;
 }
 
-.workspace .twoColumn > :global(.page-card) {
+.workspace .twoColumn > :global(.ui-surface--padded) {
   min-width: 0;
 }
 
-.workspace .twoColumn > :global(.page-card) :global(.title) {
+.workspace .twoColumn > :global(.ui-surface--padded) :global(.title) {
   margin: 0;
 }
 
-.workspace .todayGrid > :global(.page-card:not(:last-child)) {
+.workspace .todayGrid > :global(.ui-surface--padded:not(:last-child)) {
   border-right: 1px solid var(--ui-border);
   padding-right: 18px;
 }
 
-.workspace .todayGrid > :global(.page-card:not(:first-child)) {
+.workspace .todayGrid > :global(.ui-surface--padded:not(:first-child)) {
   padding-left: 2px;
 }
 
-.workspace .section > :global(.page-card) + :global(.page-card) {
+.workspace .section > :global(.ui-surface--padded) + :global(.ui-surface--padded) {
   border-top: 1px solid var(--ui-border);
   padding-top: 14px;
 }
@@ -327,7 +327,7 @@
   accent-color: var(--ui-text-secondary);
 }
 
-.section > :global(.page-card) :global(.section-header) > a {
+.section > :global(.ui-surface--padded) :global(.ui-section-header) > a {
   min-height: 34px;
   display: inline-flex;
   align-items: center;
@@ -344,20 +344,20 @@
   transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-.section > :global(.page-card) :global(.section-header) > a:hover {
+.section > :global(.ui-surface--padded) :global(.ui-section-header) > a:hover {
   border-color: var(--ui-border-strong);
   background: var(--ui-surface-subtle);
   color: var(--ui-text);
 }
 
-.section > :global(.page-card) :global(.section-header) > a:focus-visible {
+.section > :global(.ui-surface--padded) :global(.ui-section-header) > a:focus-visible {
   outline: 2px solid rgba(15, 49, 201, 0.22);
   outline-offset: 2px;
   border-color: var(--ui-border-strong);
 }
 
-.workspace :global(.page-card),
-.workspace :global(.workspace-surface) {
+.workspace :global(.ui-surface--padded),
+.workspace :global(.ui-surface--padded) {
   border-color: var(--ui-border);
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface);
@@ -365,20 +365,20 @@
   animation: none;
 }
 
-.workspace :global(.page-card) {
+.workspace :global(.ui-surface--padded) {
   padding: 16px;
 }
 
-.workspace :global(.section-title) {
+.workspace :global(.ui-section-title) {
   color: var(--ui-text);
 }
 
-.workspace :global(.section-subtitle),
-.workspace :global(.page-muted) {
+.workspace :global(.ui-section-subtitle),
+.workspace :global(.ui-text-muted) {
   color: var(--ui-text-secondary);
 }
 
-.workspace :global(.detail-label),
+.workspace :global(.ui-detail-label),
 .workspace :global(label) {
   color: var(--ui-text-secondary);
 }
@@ -389,7 +389,7 @@
   opacity: 1;
 }
 
-.workspace :global(.record-card) {
+.workspace :global(.ui-surface--compact) {
   border: 0;
   border-bottom: 1px solid var(--ui-border);
   border-radius: 0;
@@ -397,7 +397,7 @@
   box-shadow: none;
 }
 
-.workspace :global(.record-card:hover) {
+.workspace :global(.ui-surface--compact:hover) {
   background: var(--ui-surface-subtle);
   box-shadow: none;
   transform: none;
@@ -528,24 +528,24 @@
   background: transparent;
 }
 
-.workspace :global(.object-summary__facts .detail-field) {
+.workspace :global(.object-summary__facts .ui-detail-field) {
   min-width: 0;
   padding: 13px 0 2px;
   border: 0;
 }
 
-.workspace :global(.object-summary__facts .detail-field > .detail-value a) {
+.workspace :global(.object-summary__facts .ui-detail-field > .ui-detail-value a) {
   color: inherit;
   text-decoration: none;
   text-underline-offset: 3px;
 }
 
-.workspace :global(.object-summary__facts .detail-field > .detail-value a:hover) {
+.workspace :global(.object-summary__facts .ui-detail-field > .ui-detail-value a:hover) {
   color: var(--ui-accent);
   text-decoration: underline;
 }
 
-.workspace :global(.object-summary .detail-label) {
+.workspace :global(.object-summary .ui-detail-label) {
   margin: 0 0 5px;
   color: var(--ui-text-tertiary);
   font-size: 12px;
@@ -554,7 +554,7 @@
   text-transform: none;
 }
 
-.workspace :global(.object-summary .detail-value) {
+.workspace :global(.object-summary .ui-detail-value) {
   color: var(--ui-text);
   font-size: 14px;
   font-weight: 650;
@@ -632,7 +632,7 @@
   gap: 6px;
 }
 
-.workspace :global(.searchable-select .detail-label) {
+.workspace :global(.searchable-select .ui-detail-label) {
   margin: 0;
   color: var(--ui-text-secondary);
   font-size: 12px;
@@ -693,16 +693,16 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .workspace :global(.hero-card .object-summary__facts .detail-field) {
+  .workspace :global(.hero-card .object-summary__facts .ui-detail-field) {
     border-bottom: 0;
   }
 
-  .workspace .todayGrid > :global(.page-card:not(:last-child)) {
+  .workspace .todayGrid > :global(.ui-surface--padded:not(:last-child)) {
     border-right: 0;
     padding-right: 0;
   }
 
-  .workspace .todayGrid > :global(.page-card:not(:first-child)) {
+  .workspace .todayGrid > :global(.ui-surface--padded:not(:first-child)) {
     border-top: 1px solid var(--ui-border);
     padding-top: 14px;
     padding-left: 0;
@@ -747,7 +747,7 @@
     grid-template-columns: 1fr;
   }
 
-  .workspace :global(.hero-card .object-summary__facts .detail-field) {
+  .workspace :global(.hero-card .object-summary__facts .ui-detail-field) {
     border-right: 0;
   }
 
@@ -761,7 +761,7 @@
     gap: 9px;
   }
 
-  .workspace :global(.object-summary__facts .detail-field) {
+  .workspace :global(.object-summary__facts .ui-detail-field) {
     padding-block: 10px 4px;
   }
 }

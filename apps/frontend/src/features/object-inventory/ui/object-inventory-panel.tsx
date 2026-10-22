@@ -14,7 +14,7 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
-import { Button, Stack } from '@/shared/ui/foundation';
+import { Button, Stack, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -62,9 +62,9 @@ export function ObjectInventoryPanel({
   };
 
   return (
-    <div className={`page-card ${styles.workPanel}`}>
+    <Surface padding="md" className={`${styles.workPanel}`}>
       <div className={styles.panelHeader}>
-        <div className="section-title">Списание расходников</div>
+        <div className="ui-section-title">Списание расходников</div>
         <span className={styles.panelMeta}>{movements.length} операций</span>
       </div>
 
@@ -122,7 +122,7 @@ export function ObjectInventoryPanel({
                 item.id === line.inventoryItemId || !issueLines.some((other) => other.key !== line.key && other.inventoryItemId === item.id),
               );
               return (
-                <div key={line.key} className="record-card" style={{ display: 'grid', gap: 10 }}>
+                <Surface padding="sm" key={line.key} style={{ display: 'grid', gap: 10 }}>
                   <div className={styles.panelHeader}>
                     <strong>Позиция {index + 1}{line.movementId ? ' · уже списана, ожидает фото' : ''}</strong>
                     {!line.movementId && issueLines.length > 1 ? (
@@ -161,7 +161,7 @@ export function ObjectInventoryPanel({
                   ) : (
                     <div className={styles.emptyState}>Списание создано. Фото можно повторно приложить кнопкой ниже, не создавая новое движение.</div>
                   )}
-                </div>
+                </Surface>
               );
             })}
           </Stack>
@@ -218,14 +218,14 @@ export function ObjectInventoryPanel({
           <div className={styles.emptyState}>Списаний пока нет.</div>
         ) : (
           movements.map((movement) => (
-            <div key={movement.id} className="record-card" style={{ display: 'grid', gap: 8 }}>
+            <Surface padding="sm" key={movement.id} style={{ display: 'grid', gap: 8 }}>
               <div style={{ fontWeight: 600 }}>{movement.inventoryItem.name}</div>
-              <div className="page-muted">
+              <div className="ui-text-muted">
                 {formatInventoryQuantity(movement.quantity, movement.inventoryItem.unit)} •{' '}
                 {movement.unitPriceSnapshot.toLocaleString('ru-RU')} ₽ / {movement.inventoryItem.unit} •{' '}
                 {movement.totalAmountSnapshot.toLocaleString('ru-RU')} ₽
               </div>
-                <div className="page-muted">
+                <div className="ui-text-muted">
                 {getUserDisplayName(movement.createdBy)} · {new Date(movement.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
               </div>
               <div>
@@ -260,10 +260,10 @@ export function ObjectInventoryPanel({
                   <AttachmentPreviewList files={movement.attachments} />
                 </div>
               ) : null}
-            </div>
+            </Surface>
           ))
         )}
       </div>
-    </div>
+    </Surface>
   );
 }

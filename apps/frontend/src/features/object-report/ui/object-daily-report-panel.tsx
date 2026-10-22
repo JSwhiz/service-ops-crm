@@ -7,7 +7,7 @@ import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 interface ObjectDailyReportPanelProps {
   item: ObjectDailyReport | null;
@@ -40,9 +40,9 @@ export function ObjectDailyReportPanel({ item, onSave }: ObjectDailyReportPanelP
   };
 
   return (
-    <div className={`page-card ${styles.workPanel}`}>
+    <Surface padding="md" className={`${styles.workPanel}`}>
       <div className={styles.panelHeader}>
-        <div className="section-title">Ежедневный отчёт</div>
+        <div className="ui-section-title">Ежедневный отчёт</div>
         <span className={styles.panelState} data-ready={item ? 'true' : 'false'}>
           {item ? 'Заполнен' : 'Не заполнен'}
         </span>
@@ -92,6 +92,6 @@ export function ObjectDailyReportPanel({ item, onSave }: ObjectDailyReportPanelP
           </Button>
         </div>
       </form>
-    </div>
+    </Surface>
   );
 }

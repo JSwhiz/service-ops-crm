@@ -41,7 +41,7 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 export default function TaskDetailPage({
   params,
@@ -195,12 +195,12 @@ export default function TaskDetailPage({
     }
   };
 
-  if (isLoading) return <div className="page-card">Загрузка…</div>;
+  if (isLoading) return <Surface padding="md">Загрузка…</Surface>;
   if (!item)
     return (
-      <div className="page-card task-error">
+      <Surface padding="md" className="task-error">
         {error ?? 'Задача не найдена.'}
-      </div>
+      </Surface>
     );
 
   const activeAssignees = item.assignees.filter(
@@ -208,12 +208,12 @@ export default function TaskDetailPage({
   );
 
   return (
-    <div className="page-stack workspace-page task-detail-page">
+    <div className="ui-page task-detail-page">
       {confirmDialog}
       {reasonDialog}
-      <div className="page-card workspace-surface task-page-heading registry-header">
+      <Surface padding="md" className="task-page-heading registry-header">
         <PageTitle title="Карточка задачи" />
-        <div className="action-row">
+        <div className="ui-inline">
           {item.capabilities.canEdit ? (
             <Button
               disabled={isActionBusy}
@@ -279,7 +279,7 @@ export default function TaskDetailPage({
             </Button>
           ) : null}
         </div>
-      </div>
+      </Surface>
 
       {error ? (
         <div className="task-alert task-alert--danger" role="alert">
@@ -289,11 +289,11 @@ export default function TaskDetailPage({
       <TaskSummaryCard item={item} autoCloseSeconds={autoCloseSeconds} />
 
       <div className="task-detail-grid">
-        <section className="page-card">
-          <div className="section-header">
+        <Surface as="section" padding="md">
+          <div className="ui-section-header">
             <div>
-              <div className="section-title">Исполнители</div>
-              <div className="section-subtitle">
+              <div className="ui-section-title">Исполнители</div>
+              <div className="ui-section-subtitle">
                 Результат фиксируется отдельно для каждого пользователя.
               </div>
             </div>
@@ -304,14 +304,14 @@ export default function TaskDetailPage({
           </div>
           <div className="record-list task-assignee-list">
             {item.assignees.map((assignee) => (
-              <article
-                className={`record-card ${!assignee.isActive ? 'task-assignee--inactive' : ''}`}
+              <Surface as="article" padding="sm"
+                className={`${!assignee.isActive ? 'task-assignee--inactive' : ''}`}
                 key={assignee.id}
               >
-                <div className="section-header">
+                <div className="ui-section-header">
                   <div>
                     <strong>{getUserDisplayName(assignee)}</strong>
-                    <div className="section-subtitle">
+                    <div className="ui-section-subtitle">
                       {!assignee.isActive
                         ? 'Удалён из текущего состава'
                         : assignee.isCompleted && assignee.completedAt
@@ -354,7 +354,7 @@ export default function TaskDetailPage({
                     />
                   </div>
                 ) : null}
-              </article>
+              </Surface>
             ))}
           </div>
 
@@ -397,7 +397,7 @@ export default function TaskDetailPage({
               </Button>
             </div>
           ) : null}
-        </section>
+        </Surface>
 
         <TaskResultPanel
           taskId={taskId}
@@ -409,11 +409,11 @@ export default function TaskDetailPage({
       </div>
 
       {item.capabilities.canViewHistory ? (
-        <section className="page-card">
-          <div className="section-header">
+        <Surface as="section" padding="md">
+          <div className="ui-section-header">
             <div>
-              <div className="section-title">История результатов</div>
-              <div className="section-subtitle">
+              <div className="ui-section-title">История результатов</div>
+              <div className="ui-section-subtitle">
                 Все завершённые, отменённые и аннулированные попытки по циклам.
               </div>
             </div>
@@ -421,14 +421,14 @@ export default function TaskDetailPage({
           </div>
           <div className="record-list local-scroll local-scroll--lg">
             {completions.items.length === 0 ? (
-              <div className="page-muted">Результатов пока нет.</div>
+              <div className="ui-text-muted">Результатов пока нет.</div>
             ) : (
               completions.items.map((completion) => (
-                <article className="record-card" key={completion.id}>
-                  <div className="section-header">
+                <Surface as="article" padding="sm" key={completion.id}>
+                  <div className="ui-section-header">
                     <div>
                       <strong>{getUserDisplayName(completion.assignee)}</strong>
-                      <div className="section-subtitle">
+                      <div className="ui-section-subtitle">
                         Цикл {completion.workCycle} · попытка{' '}
                         {completion.attemptNumber} ·{' '}
                         {getCompletionStatusLabel(completion.status)}
@@ -444,7 +444,7 @@ export default function TaskDetailPage({
                     {completion.completionText || 'Комментарий не указан.'}
                   </div>
                   {completion.cancellationReason ? (
-                    <div className="section-subtitle">
+                    <div className="ui-section-subtitle">
                       Причина: {completion.cancellationReason}
                     </div>
                   ) : null}
@@ -452,22 +452,22 @@ export default function TaskDetailPage({
                     files={completion.attachments}
                     emptyText="Файлы не приложены."
                   />
-                </article>
+                </Surface>
               ))
             )}
           </div>
           {completions.totalPages > 0 ? <TablePagination page={completions.page} totalPages={completions.totalPages} pending={isActionBusy}
             label="Страницы отчётов о выполнении" summary={completions.total > 0 ? `Показано ${(completions.page - 1) * completions.limit + 1}–${Math.min(completions.page * completions.limit, completions.total)} из ${completions.total}` : 'Отчётов пока нет'}
             onPageChange={(page) => void loadCompletionPage(page)} /> : null}
-        </section>
+        </Surface>
       ) : null}
 
       {item.capabilities.canViewHistory ? (
-        <section className="page-card">
-          <div className="section-title">История</div>
+        <Surface as="section" padding="md">
+          <div className="ui-section-title">История</div>
           <div className="task-history local-scroll local-scroll--lg">
             {history.length === 0 ? (
-              <div className="page-muted">История пока пуста.</div>
+              <div className="ui-text-muted">История пока пуста.</div>
             ) : (
               history.map((event) => (
                 <article key={event.id} className="task-history__item">
@@ -480,7 +480,7 @@ export default function TaskDetailPage({
               ))
             )}
           </div>
-        </section>
+        </Surface>
       ) : null}
 
       {isEditing ? (
@@ -491,8 +491,8 @@ export default function TaskDetailPage({
             aria-modal="true"
             aria-label="Редактировать задачу"
           >
-            <div className="section-header">
-              <div className="section-title">Редактировать задачу</div>
+            <div className="ui-section-header">
+              <div className="ui-section-title">Редактировать задачу</div>
               <Button onClick={() => setIsEditing(false)}>
                 Закрыть
               </Button>

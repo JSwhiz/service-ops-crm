@@ -57,7 +57,7 @@ export default function ObjectHistoryPage({
   }, [params]);
 
   return (
-    <div className={`workspace-page object-history-page ${styles.page}`}>
+    <div className={`ui-page object-history-page ${styles.page}`}>
       <header className={styles.historyHeader}>
         <div className={styles.historyHeading}>
           <span className={styles.historyEyebrow}>История изменений</span>

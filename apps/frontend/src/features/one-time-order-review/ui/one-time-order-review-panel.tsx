@@ -46,11 +46,11 @@ export function OneTimeOrderReviewPanel({
 
   return (
     <>
-    <section id="review" ref={sectionRef} className="page-card one-time-order-review-section">
-      <div className="section-header">
+    <section id="review" ref={sectionRef} className="ui-surface ui-surface--padded one-time-order-review-section">
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Отзыв</div>
-          <div className="section-subtitle">
+          <div className="ui-section-title">Отзыв</div>
+          <div className="ui-section-subtitle">
             {item.reviewUpdatedBy
               ? getUserDisplayName(item.reviewUpdatedBy)
               : ''}
@@ -63,7 +63,7 @@ export function OneTimeOrderReviewPanel({
 
       {item.capabilities.canEditReview && isEditing ? (
         <form
-          className="page-stack"
+          className="ui-stack ui-stack--lg"
           onSubmit={async (event) => {
             event.preventDefault();
             setError(null);
@@ -89,7 +89,7 @@ export function OneTimeOrderReviewPanel({
           }}
         >
           <label>
-            <div className="detail-label">Текст отзыва</div>
+            <div className="ui-detail-label">Текст отзыва</div>
             <textarea
               ref={textareaRef}
               value={text}
@@ -99,7 +99,7 @@ export function OneTimeOrderReviewPanel({
             />
           </label>
           {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
-          <div className="action-row">
+          <div className="ui-inline">
             <Button variant="primary" type="submit" disabled={isSaving || !text.trim()}>
               {isSaving ? 'Сохраняем...' : 'Сохранить отзыв'}
             </Button>
@@ -120,7 +120,7 @@ export function OneTimeOrderReviewPanel({
           </div>
         </form>
       ) : (
-        <div className="action-row" style={{ justifyContent: 'space-between' }}>
+        <div className="ui-inline" style={{ justifyContent: 'space-between' }}>
           <div>{item.reviewText ?? 'Отзыв пока не заполнен.'}</div>
           {item.capabilities.canEditReview ? (
             <Button onClick={() => setIsEditing(true)}>

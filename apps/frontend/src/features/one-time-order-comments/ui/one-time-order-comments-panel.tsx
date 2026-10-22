@@ -7,7 +7,7 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Button } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 export function OneTimeOrderCommentsPanel({
   items,
@@ -27,11 +27,11 @@ export function OneTimeOrderCommentsPanel({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
-    <div className="page-card" style={{ display: 'grid', gap: 16 }}>
-      <div className="section-header">
+    <Surface padding="md" style={{ display: 'grid', gap: 16 }}>
+      <div className="ui-section-header">
         <div>
-          <div className="section-title">Комментарии</div>
-          <div className="section-subtitle">
+          <div className="ui-section-title">Комментарии</div>
+          <div className="ui-section-subtitle">
             Обсуждение заказа без смешения с чатами.
           </div>
         </div>
@@ -68,7 +68,7 @@ export function OneTimeOrderCommentsPanel({
             placeholder="Добавить комментарий по заказу"
           />
           <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
-            <div className="page-muted">Медиа и файлы комментария</div>
+            <div className="ui-text-muted">Медиа и файлы комментария</div>
             <MediaActionPicker
               disabled={isSubmitting}
               onPick={async (file) => {
@@ -99,13 +99,13 @@ export function OneTimeOrderCommentsPanel({
       ) : null}
 
       {items.length === 0 ? (
-        <div className="page-muted">Комментариев пока нет.</div>
+        <div className="ui-text-muted">Комментариев пока нет.</div>
       ) : (
         <div className="record-list local-scroll">
           {items.map((item) => (
-            <article
+            <Surface as="article" padding="sm"
               key={item.id}
-              className="record-card"
+
             >
               <div
                 style={{
@@ -118,7 +118,7 @@ export function OneTimeOrderCommentsPanel({
                 <div style={{ fontWeight: 600 }}>
                   {getUserDisplayName(item.createdBy)}
                 </div>
-                <div className="page-muted">
+                <div className="ui-text-muted">
                   {new Date(item.createdAt).toLocaleString('ru-RU')}
                 </div>
               </div>
@@ -131,10 +131,10 @@ export function OneTimeOrderCommentsPanel({
                   emptyText="Вложений у комментария нет."
                 />
               </div>
-            </article>
+            </Surface>
           ))}
         </div>
       )}
-    </div>
+    </Surface>
   );
 }

@@ -364,7 +364,7 @@ export default function NewObjectPage(): React.JSX.Element {
   };
 
   return (
-    <div className={`workspace-page object-create-page ${styles.page}`}>
+    <div className={`ui-page object-create-page ${styles.page}`}>
       <form className={styles.form} onSubmit={handleSubmit}>
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
