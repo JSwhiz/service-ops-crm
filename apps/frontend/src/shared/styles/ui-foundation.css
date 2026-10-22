@@ -629,3 +629,10 @@ a.ui-button--primary:hover {
 @media (prefers-reduced-motion: reduce) {
   .ui-loading-state__spinner { animation: none; }
 }
+
+.ui-plain-list {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding-left: var(--ui-space-5);
+}

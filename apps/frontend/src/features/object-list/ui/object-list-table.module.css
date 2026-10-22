@@ -23,57 +23,6 @@
   letter-spacing: 0.015em;
 }
 
-.sortButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-}
-
-.sortIndicator {
-  position: relative;
-  width: 9px;
-  height: 13px;
-  flex: 0 0 9px;
-  color: var(--ui-text-disabled);
-  opacity: 0;
-  transition: color 120ms ease, opacity 120ms ease;
-}
-
-.sortChevron {
-  position: absolute;
-  left: 2px;
-  width: 5px;
-  height: 5px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-}
-
-.sortChevron[data-part='up'] {
-  top: 1px;
-  transform: rotate(225deg);
-}
-
-.sortChevron[data-part='down'] {
-  bottom: 1px;
-  transform: rotate(45deg);
-}
-
-.sortButton:hover .sortIndicator,
-.sortButton[data-active='true'] .sortIndicator {
-  color: var(--ui-accent);
-  opacity: 0.8;
-}
-
-.sortIndicator[data-direction='asc'] .sortChevron[data-part='down'],
-.sortIndicator[data-direction='desc'] .sortChevron[data-part='up'] {
-  opacity: 0;
-}
-
-.sortButton[data-active='true'] .sortIndicator {
-  opacity: 1;
-}
-
 .table th:nth-child(1) { width: 24%; }
 .table th:nth-child(2) { width: 11%; }
 .table th:nth-child(3) { width: 16%; }

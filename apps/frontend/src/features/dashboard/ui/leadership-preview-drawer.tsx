@@ -6,7 +6,9 @@ import React, { useEffect, useRef } from 'react';
 import type { LeadershipDashboardResponse } from '@/entities/dashboard/model/dashboard.types';
 import type { TaskItem } from '@/entities/task/model/task.types';
 
+import { CloseIcon } from '@/shared/ui/icons/icons';
 import styles from './leadership-preview-drawer.module.css';
+import { IconButton } from '@/shared/ui/foundation';
 
 type DashboardObject = LeadershipDashboardResponse['objects']['items'][number];
 type DashboardOrder = LeadershipDashboardResponse['orders']['items'][number];
@@ -126,7 +128,7 @@ export function LeadershipPreviewDrawer({ target, onClose }: Props): React.JSX.E
             <h2>{title}</h2>
             {target.kind === 'summary' && target.item.subtitle ? <p>{target.item.subtitle}</p> : null}
           </div>
-          <button className={styles.close} type="button" onClick={onClose} aria-label="Закрыть превью">×</button>
+          <IconButton aria-label="Закрыть превью" title="Закрыть" onClick={onClose}><CloseIcon size={18} /></IconButton>
         </header>
 
         <div className={styles.body}>

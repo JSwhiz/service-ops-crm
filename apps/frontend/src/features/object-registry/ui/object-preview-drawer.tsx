@@ -20,8 +20,9 @@ import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 
+import { CloseIcon } from '@/shared/ui/icons/icons';
 import styles from './object-preview-drawer.module.css';
-import { Button } from '@/shared/ui/foundation';
+import { Button, IconButton } from '@/shared/ui/foundation';
 
 function moscowBusinessDate(): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -198,7 +199,7 @@ export function ObjectPreviewDrawer({
             <h2 className={styles.title}>{item.name}</h2>
             <div className={styles.meta}>{[item.internalName, item.address].filter(Boolean).join(' · ')}</div>
           </div>
-          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Закрыть превью">×</button>
+          <IconButton aria-label="Закрыть превью" title="Закрыть" onClick={onClose}><CloseIcon size={18} /></IconButton>
         </header>
 
         <div className={styles.statusRow}>

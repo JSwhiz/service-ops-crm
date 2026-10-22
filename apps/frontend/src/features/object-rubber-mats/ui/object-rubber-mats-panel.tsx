@@ -20,6 +20,7 @@ import {
 import styles from './object-rubber-mats-panel.module.css';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Button } from '@/shared/ui/foundation';
+import { useReasonPrompt } from '@/shared/ui/overlays';
 
 const conditionLabels = { good: 'В работе', worn: 'Изношен', damaged: 'Повреждён', retired: 'Списан' } as const;
 
@@ -29,6 +30,7 @@ function displayError(error: unknown): string {
 
 export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React.JSX.Element {
   const [items, setItems] = useState<RubberMatItem[]>([]);
+  const [askReason, reasonDialog] = useReasonPrompt();
   const [objects, setObjects] = useState<ServiceObject[]>([]);
   const [available, setAvailable] = useState<RubberMatItem[]>([]);
   const [history, setHistory] = useState<Record<string, RubberMatEvent[]>>({});
@@ -78,6 +80,7 @@ export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React
 
   return (
     <div className={styles.panel}>
+      {reasonDialog}
       <div className={styles.intro}>
         <strong>Ковры объекта</strong>
         <span>Здесь отображаются ковры, назначенные именно этому объекту. Новые ковры сначала регистрируются в общем разделе «Ковры», затем выбираются из свободного реестра.</span>
@@ -135,9 +138,14 @@ export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React
                 <Button disabled={busy} onClick={() => {
                   setServiceOpenId(serviceOpenId === mat.id ? null : mat.id);
                 }}>Записать обслуживание</Button>
-                <Button disabled={busy} onClick={() => {
-                  const note = window.prompt('Укажите причину возврата ковра в свободный реестр:');
-                  if (note?.trim()) void run(() => returnRubberMatToStock(objectId, mat.id, note.trim()));
+                <Button disabled={busy} onClick={async () => {
+                  const note = await askReason({
+                    title: 'Вернуть ковёр в свободный реестр?',
+                    reasonLabel: 'Причина возврата',
+                    confirmLabel: 'Вернуть в реестр',
+                    minLength: 2,
+                  });
+                  if (note) void run(() => returnRubberMatToStock(objectId, mat.id, note));
                 }}>Вернуть в реестр</Button>
                 {objects.length ? <>
                   <Select aria-label={`Объект назначения для ковра ${mat.zone}`} value={moveDraft.targetObjectId} disabled={busy} onChange={(event) => setMoveDrafts({ ...moveDrafts, [mat.id]: { ...moveDraft, targetObjectId: event.target.value } })}>
@@ -163,10 +171,10 @@ export function ObjectRubberMatsPanel({ objectId }: { objectId: string }): React
                   });
                 }}>Сохранить запись</Button>
               </div> : null}
-              <button type="button" className={styles.historyButton} onClick={async () => {
+              <Button variant="ghost" size="sm" onClick={async () => {
                 try { setHistory({ ...history, [mat.id]: await getRubberMatHistory(objectId, mat.id) }); }
                 catch (loadError) { setError(displayError(loadError)); }
-              }}>{matHistory ? 'Обновить историю' : 'История ковра'}</button>
+              }}>{matHistory ? 'Обновить историю' : 'История ковра'}</Button>
               {matHistory ? <ol className={styles.history}>{matHistory.map((event) => <li key={event.id}><strong>{event.action === 'serviced' ? 'Обслуживание' : event.action === 'moved' ? 'Перемещение' : event.action === 'retired' ? 'Списание' : event.action === 'registered' ? 'Добавлен в реестр' : event.action === 'assigned' ? 'Назначен на объект' : event.action === 'returned_to_stock' ? 'Возвращён в реестр' : 'Изменение состояния'}</strong><span>{new Date(event.occurredAt).toLocaleString('ru-RU')} · {event.actor.fullName}</span><span>{event.note}</span></li>)}</ol> : null}
             </article>
           })}

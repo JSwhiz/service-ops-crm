@@ -126,7 +126,7 @@ export function ObjectInventoryPanel({
                   <div className={styles.panelHeader}>
                     <strong>Позиция {index + 1}{line.movementId ? ' · уже списана, ожидает фото' : ''}</strong>
                     {!line.movementId && issueLines.length > 1 ? (
-                      <button type="button" className={styles.buttonLike} onClick={() => setIssueLines((current) => current.filter((entry) => entry.key !== line.key))} disabled={isSaving}>Убрать</button>
+                      <Button onClick={() => setIssueLines((current) => current.filter((entry) => entry.key !== line.key))} disabled={isSaving}>Убрать</Button>
                     ) : null}
                   </div>
                   {!line.movementId ? (
@@ -167,7 +167,7 @@ export function ObjectInventoryPanel({
           </Stack>
 
           {availableItems.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? (
-            <button type="button" className={styles.buttonLike} onClick={addLine} disabled={isSaving}>+ Добавить позицию</button>
+            <Button onClick={addLine} disabled={isSaving}>+ Добавить позицию</Button>
           ) : null}
           <div className={styles.emptyState}>Каждая позиция попадёт в журнал отдельным движением с собственным остатком и историей.</div>
 

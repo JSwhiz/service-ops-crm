@@ -218,7 +218,7 @@ export function InventoryMovementForm({
                 <div key={line.key} className="record-card" style={{ display: 'grid', gap: 10 }}>
                   <div className="section-header">
                     <strong>Позиция {index + 1}{line.movementId ? ' · движение создано, ожидает подтверждения' : ''}</strong>
-                    {!line.movementId && issueLines.length > 1 ? <button type="button" className="button-quiet" disabled={isSaving} onClick={() => setIssueLines((current) => current.filter((entry) => entry.key !== line.key))}>Убрать</button> : null}
+                    {!line.movementId && issueLines.length > 1 ? <Button disabled={isSaving} onClick={() => setIssueLines((current) => current.filter((entry) => entry.key !== line.key))}>Убрать</Button> : null}
                   </div>
                   {line.movementId ? <div className="page-muted">Операция уже записана. Повторная отправка не создаст дубликат.</div> : (
                     <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
@@ -236,7 +236,7 @@ export function InventoryMovementForm({
                 </div>
               );
             })}
-            {items.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? <button type="button" className="button-quiet" onClick={addIssueLine} disabled={isSaving}>+ Добавить позицию</button> : null}
+            {items.some((item) => !issueLines.some((line) => line.inventoryItemId === item.id)) ? <Button onClick={addIssueLine} disabled={isSaving}>+ Добавить позицию</Button> : null}
             <div className="page-muted">Каждая позиция будет проведена отдельным движением с собственной проверкой остатка и историей.</div>
           </div>
         ) : <Field label="Номенклатура">

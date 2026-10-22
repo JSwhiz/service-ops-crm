@@ -27,8 +27,9 @@ import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
-import { getOneTimeOrderConflictTypeLabel } from '@/shared/lib/one-time-order-presentation';
 import { Alert } from '@/shared/ui/foundation';
+import { useConfirm } from '@/shared/ui/overlays';
+import { ScheduleConflictList } from '@/entities/one-time-order/ui/schedule-conflicts';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -50,6 +51,7 @@ function toObjectOption(object: ServiceObject): SearchableSelectOption {
 }
 
 export default function NewOneTimeOrderPage(): React.JSX.Element {
+  const [confirm, confirmDialog] = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -178,6 +180,7 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
 
   return (
     <div className="page-stack workspace-page order-detail-page">
+      {confirmDialog}
       <PageTitle
         title={copyFromId ? 'Скопировать разовый заказ' : 'Создать разовый заказ'}
       />
@@ -235,20 +238,11 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
                 managerUserIds: payload.managerUserIds,
               });
               if (result.hasConflicts) {
-                const details = result.conflicts
-                  .filter(
-                    (conflict) =>
-                      conflict.type !== 'pending_availability_request',
-                  )
-                  .slice(0, 8)
-                  .map(
-                    (conflict) =>
-                      `${conflict.date} · ${conflict.user.fullName} · ${getOneTimeOrderConflictTypeLabel(conflict.type)}`,
-                  )
-                  .join('\n');
-                const confirmed = window.confirm(
-                  `Найдены конфликты расписания:\n${details}\n\nСохранить заказ с конфликтами?`,
-                );
+                const confirmed = await confirm({
+                  title: 'Есть конфликты расписания',
+                  consequence: <ScheduleConflictList conflicts={result.conflicts} />,
+                  confirmLabel: 'Сохранить с конфликтами',
+                });
                 if (!confirmed) return;
                 conflictFingerprint = result.conflictFingerprint;
               }

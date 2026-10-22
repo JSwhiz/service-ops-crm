@@ -14,6 +14,7 @@ import { getCompletionRequirementLabel } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { Button } from '@/shared/ui/foundation';
+import { useConfirm } from '@/shared/ui/overlays';
 
 export function TaskResultPanel({
   taskId,
@@ -29,6 +30,7 @@ export function TaskResultPanel({
   onChanged: () => Promise<void>;
 }): React.JSX.Element | null {
   const [text, setText] = useState('');
+  const [confirm, confirmDialog] = useConfirm();
   const [draftId, setDraftId] = useState<string | null>(null);
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [isBusy, setIsBusy] = useState(false);
@@ -69,6 +71,7 @@ export function TaskResultPanel({
 
   return (
     <div className="page-card task-completion-panel">
+      {confirmDialog}
       <div className="section-header">
         <div>
           <div className="section-title">Моё выполнение</div>
@@ -77,8 +80,12 @@ export function TaskResultPanel({
         {canUndo ? (
           <Button
             disabled={isBusy}
-            onClick={() => {
-              if (!window.confirm('Отменить отметку выполнения? Задача вернётся в работу, если ожидала подтверждения или автозавершения.')) return;
+            onClick={async () => {
+              if (!(await confirm({
+                title: 'Отменить отметку выполнения?',
+                consequence: 'Задача вернётся в работу, если ожидала подтверждения или автозавершения.',
+                confirmLabel: 'Отменить выполнение',
+              }))) return;
               setIsBusy(true);
               void undoTaskCompletion(taskId).then(onChanged).catch(() => setError('Не удалось отменить выполнение.')).finally(() => setIsBusy(false));
             }}

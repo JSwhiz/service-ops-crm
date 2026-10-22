@@ -121,7 +121,7 @@ export function EquipmentListTable({
             {writeoffSuccess ? <Alert tone="success" role="status">{writeoffSuccess}</Alert> : null}
             <div className="action-row">
               <Button variant="primary" type="submit" disabled={isWritingOff || !writeoffReason.trim()}>{isWritingOff ? 'Создаём согласования…' : `Отправить на согласование · ${selectedIds.length}`}</Button>
-              <button type="button" className="button-quiet" disabled={isWritingOff} onClick={() => setSelectedIds([])}>Снять выбор</button>
+              <Button disabled={isWritingOff} onClick={() => setSelectedIds([])}>Снять выбор</Button>
             </div>
           </> : <div className="page-muted">Отметьте единицы оборудования с доступным правом списания.</div>}
         </form>

@@ -20,15 +20,16 @@ import type {
 import { ApiError } from '@/shared/api/fetcher';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
-  getOneTimeOrderConflictTypeLabel,
   getOneTimeOrderPlannedPaymentMethodLabel,
   getOneTimeOrderStatusLabel,
   ONE_TIME_ORDER_STATUS_OPTIONS,
 } from '@/shared/lib/one-time-order-presentation';
-import { ConfirmDialog } from '@/shared/ui/overlays';
+import { ConfirmDialog, useConfirm } from '@/shared/ui/overlays';
 
+import { CloseIcon } from '@/shared/ui/icons/icons';
 import styles from './one-time-order-preview-drawer.module.css';
-import { Button } from '@/shared/ui/foundation';
+import { Button, IconButton } from '@/shared/ui/foundation';
+import { ScheduleConflictList } from '@/entities/one-time-order/ui/schedule-conflicts';
 
 function formatExecutionDates(start: string | null, end: string | null): string {
   if (!start) return 'Даты не указаны';
@@ -72,19 +73,6 @@ function getReviewFailureMessage(error: unknown, action: string): string {
   return `Не удалось ${action} отзыв. Проверьте данные и попробуйте ещё раз.`;
 }
 
-function confirmScheduleConflicts(
-  conflicts: Array<{ date: string; type: string; user: { fullName: string } }>,
-): boolean {
-  const details = conflicts
-    .filter((conflict) => conflict.type !== 'pending_availability_request')
-    .slice(0, 8)
-    .map((conflict) =>
-      `${conflict.date} · ${conflict.user.fullName} · ${getOneTimeOrderConflictTypeLabel(conflict.type)}`,
-    )
-    .join('\n');
-  return window.confirm(`Найдены конфликты расписания:\n${details}\n\nПродолжить?`);
-}
-
 export function OneTimeOrderPreviewDrawer({
   item,
   onClose,
@@ -93,6 +81,7 @@ export function OneTimeOrderPreviewDrawer({
   onClose: () => void;
 }): React.JSX.Element | null {
   const [details, setDetails] = useState<OneTimeOrderItem | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -272,7 +261,11 @@ export function OneTimeOrderPreviewDrawer({
           excludeOrderId: order.id,
         });
         if (result.hasConflicts) {
-          const confirmed = confirmScheduleConflicts(result.conflicts);
+          const confirmed = await confirm({
+            title: 'Есть конфликты расписания',
+            consequence: <ScheduleConflictList conflicts={result.conflicts} />,
+            confirmLabel: 'Изменить статус',
+          });
           if (!confirmed) return;
           conflictFingerprint = result.conflictFingerprint;
         }
@@ -290,6 +283,8 @@ export function OneTimeOrderPreviewDrawer({
   };
 
   return (
+    <>
+    {confirmDialog}
     <div className={styles.backdrop} role="presentation" onMouseDown={close}>
       <aside
         className={styles.drawer}
@@ -304,7 +299,7 @@ export function OneTimeOrderPreviewDrawer({
             <h2 className={styles.title}>{item.title}</h2>
             <span className={styles.address}>{item.executionAddress || 'Адрес не указан'}</span>
           </div>
-          <button className={styles.closeButton} type="button" onClick={close} aria-label="Закрыть быстрый просмотр">×</button>
+          <IconButton aria-label="Закрыть быстрый просмотр" title="Закрыть" onClick={close}><CloseIcon size={18} /></IconButton>
         </header>
 
         <div className={styles.statusRow}>
@@ -493,6 +488,7 @@ export function OneTimeOrderPreviewDrawer({
         onConfirm={() => void clearReview()}
       />
     </div>
+    </>
   );
 }
 

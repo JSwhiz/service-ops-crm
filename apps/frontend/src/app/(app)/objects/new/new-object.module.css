@@ -71,7 +71,6 @@
 }
 
 .field,
-.compactSelect,
 .managerSelect {
   position: relative;
   display: grid;
@@ -209,41 +208,6 @@
 .selectPopover[data-placement='top'] {
   top: auto;
   bottom: calc(100% + 5px);
-}
-
-.selectOption {
-  width: 100%;
-  min-height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 0;
-  border-radius: 6px;
-  padding: 8px 9px;
-  background: transparent;
-  box-shadow: none;
-  color: var(--ui-text);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 520;
-  text-align: left;
-  cursor: pointer;
-  transform: none;
-}
-
-.selectOption svg {
-  width: 15px;
-  height: 15px;
-  flex: 0 0 15px;
-  color: var(--ui-text-secondary);
-}
-
-.selectOption:hover,
-.selectOption[data-selected='true'] {
-  background: var(--ui-surface-muted);
-  box-shadow: none;
-  transform: none;
 }
 
 .managerPopover {
@@ -410,56 +374,6 @@
   gap: 8px;
   padding: 12px 0 2px;
   border-top: 0;
-}
-
-.form button.cancelButton {
-  appearance: none;
-  min-height: var(--ui-control-md);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--ui-radius-md);
-  padding: 8px 14px;
-  box-shadow: none;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 680;
-  line-height: 1.2;
-  cursor: pointer;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
-}
-
-.form button.cancelButton {
-  border: 1px solid var(--ui-border-strong);
-  background: var(--ui-surface);
-  color: var(--ui-text);
-}
-
-.form button.cancelButton:hover:not(:disabled) {
-  border-color: var(--ui-border-strong);
-  background: var(--ui-surface-subtle);
-  box-shadow: none;
-  transform: none;
-}
-
-.form button.cancelButton:active:not(:disabled) {
-  box-shadow: none;
-  transform: none;
-}
-
-.form button.cancelButton:focus-visible {
-  outline: 2px solid rgba(15, 49, 201, 0.22);
-  outline-offset: 2px;
-  box-shadow: none;
-}
-
-.form button.cancelButton:disabled {
-  cursor: not-allowed;
-  border-color: var(--ui-border);
-  background: var(--ui-surface-muted);
-  color: var(--ui-text-disabled);
-  box-shadow: none;
-  opacity: 1;
 }
 
 .form :global(.searchable-select) {

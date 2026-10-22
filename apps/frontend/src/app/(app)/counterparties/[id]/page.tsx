@@ -27,6 +27,7 @@ import {
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
 
+import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import styles from '../counterparties.module.css';
 import { Button, StatusBadge } from '@/shared/ui/foundation';
 
@@ -258,10 +259,13 @@ export default function CounterpartyPage({
         {item.notes ? <div className={`object-summary__note ${styles.summaryNote}`}><div className="detail-label">Комментарий</div><div className="detail-value">{item.notes}</div></div> : null}
       </section>
 
-      <nav className={styles.navigation} aria-label="Разделы контрагента" role="tablist">
-        <button type="button" role="tab" aria-selected={activeTab === 'overview'} className={activeTab === 'overview' ? styles.navigationActive : undefined} onClick={() => { setActiveTab('overview'); setEditing(false); }}>Обзор</button>
-        <button type="button" role="tab" aria-selected={activeTab === 'history'} className={activeTab === 'history' ? styles.navigationActive : undefined} onClick={() => { setActiveTab('history'); setEditing(false); }}>История</button>
-      </nav>
+      <WorkspaceTabs
+        items={[{ value: 'overview', label: 'Обзор' }, { value: 'history', label: 'История' }]}
+        value={activeTab}
+        onChange={(value) => { setActiveTab(value as 'overview' | 'history'); setEditing(false); }}
+        label="Разделы контрагента"
+        idPrefix="counterparty"
+      />
 
       {error ? (
         <div className={`${styles.surface} ${styles.error}`} role="alert">
@@ -277,12 +281,12 @@ export default function CounterpartyPage({
             <StatusBadge status={item.status}>{item.status === 'active' ? 'Активный' : 'Архив'}</StatusBadge>
             {item.capabilities.canManage ? (
               item.status === 'active' ? (
-                <button type="button" className={styles.statusAction} disabled={saving} onClick={() => { setArchiveError(null); setArchiveDialogOpen(true); }}>
+                <Button disabled={saving} onClick={() => { setArchiveError(null); setArchiveDialogOpen(true); }}>
                   <MediaActionIcon name="archive" />
                   В архив
-                </button>
+                </Button>
               ) : (
-                <button type="button" className={styles.statusAction} disabled={saving} onClick={() => void mutate(() => setCounterpartyArchived(item.id, false))}>Восстановить</button>
+                <Button disabled={saving} onClick={() => void mutate(() => setCounterpartyArchived(item.id, false))}>Восстановить</Button>
               )
             ) : null}
           </div>

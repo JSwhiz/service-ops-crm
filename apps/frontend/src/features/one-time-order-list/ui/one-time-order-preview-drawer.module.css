@@ -34,7 +34,6 @@
 .title { margin: 5px 0 0; color: var(--ui-text); font-size: 22px; line-height: 1.25; overflow-wrap: anywhere; }
 .address { display: block; margin-top: 7px; color: var(--ui-text-tertiary); font-size: 13px; line-height: 1.45; }
 
-.closeButton,
 .secondaryAction,
 .primaryAction {
   box-sizing: border-box;
@@ -50,17 +49,6 @@
   line-height: 1.2;
   text-decoration: none;
   transform: none !important;
-}
-
-.closeButton {
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid var(--ui-border) !important;
-  background: var(--ui-surface) !important;
-  color: var(--ui-text-secondary) !important;
-  font-size: 21px;
 }
 
 .statusRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; }
@@ -129,10 +117,8 @@
 .footer > * { flex: 1; min-height: 40px; padding: 0 12px; }
 .secondaryAction { border: 1px solid var(--ui-border) !important; background: var(--ui-surface) !important; color: var(--ui-text-secondary) !important; }
 .primaryAction { border: 1px solid var(--ui-text-secondary) !important; background: var(--ui-text-secondary) !important; color: var(--ui-text-inverse) !important; }
-.closeButton:hover:not(:disabled),
 .secondaryAction:hover { border-color: var(--ui-border) !important; background: var(--ui-surface-subtle) !important; color: var(--ui-text) !important; }
 .primaryAction:hover { border-color: var(--ui-text) !important; background: var(--ui-text) !important; }
-.closeButton:focus-visible,
 .secondaryAction:focus-visible,
 .primaryAction:focus-visible { outline: 2px solid rgba(15, 49, 201, .22); outline-offset: 2px; }
 .secondaryAction:disabled { cursor: not-allowed; opacity: .52; }

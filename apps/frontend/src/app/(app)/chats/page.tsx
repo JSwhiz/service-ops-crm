@@ -51,7 +51,7 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { ChatIcon } from './chat-icon';
 import { ChatExplorer } from './chat-explorer';
-import { Dialog } from '@/shared/ui/overlays';
+import { Dialog, useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 import { ChatMessageMenu } from './chat-message-menu';
 import styles from './chat-ui.module.css';
@@ -344,6 +344,8 @@ export default function ChatsPage(): React.JSX.Element {
   const searchParams = useSearchParams();
   const requestedRoomCode = searchParams.get('room') as ChatRoomCode | null;
   const { user } = useAuth();
+  const [confirm, confirmDialog] = useConfirm();
+  const [askReason, reasonDialog] = useReasonPrompt();
   const canManageChats = user?.capabilities?.canManageChats ?? false;
   const canCreateDirectChat = user?.capabilities?.canCreateDirectChat ?? false;
   const canCreateGroupChat = user?.capabilities?.canCreateGroupChat ?? false;
@@ -1546,7 +1548,12 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
-    if (!window.confirm('Покинуть групповой чат?')) {
+    if (!(await confirm({
+      title: 'Покинуть групповой чат?',
+      consequence: 'Чат пропадёт из списка. Вернуться можно по приглашению администратора.',
+      confirmLabel: 'Покинуть',
+      tone: 'danger',
+    }))) {
       return;
     }
 
@@ -1565,7 +1572,12 @@ export default function ChatsPage(): React.JSX.Element {
       return;
     }
 
-    const reason = window.prompt('Причина закрытия чата для всех', '');
+    const reason = await askReason({
+      title: 'Закрыть чат для всех?',
+      description: 'Участники больше не смогут писать в этот чат.',
+      reasonLabel: 'Причина закрытия',
+      confirmLabel: 'Закрыть чат',
+    });
 
     if (reason === null) {
       return;
@@ -1615,7 +1627,12 @@ export default function ChatsPage(): React.JSX.Element {
       ? 'Удалить сообщение для всех участников чата?'
       : 'Удалить чужое сообщение для всех участников как администратор?';
 
-    if (!window.confirm(confirmation)) {
+    if (!(await confirm({
+      title: 'Удалить сообщение?',
+      consequence: confirmation,
+      confirmLabel: 'Удалить',
+      tone: 'danger',
+    }))) {
       return;
     }
 
@@ -1791,6 +1808,8 @@ export default function ChatsPage(): React.JSX.Element {
 
   return (
     <>
+      {confirmDialog}
+      {reasonDialog}
       <h1 className="chat-page-title">Чаты</h1>
 
       <div className={`page-stack chat-page-stack ${styles.workspace}`}>
@@ -2022,13 +2041,12 @@ export default function ChatsPage(): React.JSX.Element {
                             <span>{formatDateTime(room.lastMessageAt)}</span>
                           </span>
                         </button>
-                        <button
-                          type="button"
-                          className="quiet-button"
+                        <Button variant="ghost" size="sm"
+
                           onClick={() => void handleUnhideRoom(room.id)}
                         >
                           Вернуть
-                        </button>
+                        </Button>
                       </div>
                     ))
                   )}
@@ -2636,13 +2654,12 @@ export default function ChatsPage(): React.JSX.Element {
                             {replyingTo.text || 'Сообщение без текста'}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          className="quiet-button"
+                        <Button variant="ghost" size="sm"
+
                           onClick={() => setReplyingTo(null)}
                         >
                           Отменить
-                        </button>
+                        </Button>
                       </div>
                     ) : null}
                     {files.length > 0 ? (

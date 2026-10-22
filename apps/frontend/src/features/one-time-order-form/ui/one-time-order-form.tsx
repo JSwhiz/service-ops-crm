@@ -457,13 +457,12 @@ export function OneTimeOrderForm({
                         </div>
                       ) : null}
                     </div>
-                    <button
-                      type="button"
-                      className="button-quiet"
+                    <Button
+
                       onClick={() => removeManager(user.id)}
                     >
                       Убрать
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -560,9 +559,8 @@ export function OneTimeOrderForm({
                       />{' '}
                       Требуется вложение
                     </label>
-                    <button
-                      type="button"
-                      className="button-quiet"
+                    <Button
+
                       onClick={() =>
                         setSpecificationItems((items) =>
                           items.filter((_current, itemIndex) => itemIndex !== index),
@@ -570,7 +568,7 @@ export function OneTimeOrderForm({
                       }
                     >
                       Убрать
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}

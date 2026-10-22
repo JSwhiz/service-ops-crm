@@ -22,105 +22,10 @@ import {
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
 
+import { SelectField } from '@/shared/ui/searchable-select/select-field';
 import styles from './new-object.module.css';
 import { Button } from '@/shared/ui/foundation';
 import { CheckIcon, ChevronDownIcon } from '@/shared/ui/icons/icons';
-
-interface CompactSelectOption {
-  value: string;
-  label: string;
-}
-
-interface CompactSelectProps {
-  label: string;
-  value: string;
-  options: CompactSelectOption[];
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}
-
-function CompactSelect({
-  label,
-  value,
-  options,
-  onChange,
-  disabled = false,
-}: CompactSelectProps): React.JSX.Element {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const { placement, availableHeight } = usePopoverPlacement(open, triggerRef, popoverRef, 230);
-  const selected = options.find((option) => option.value === value) ?? options[0];
-
-  useEffect(() => {
-    if (!open) return;
-
-    const onPointerDown = (event: MouseEvent): void => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div className={styles.compactSelect} ref={rootRef}>
-      <span className={styles.fieldLabel}>{label}</span>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={styles.selectTrigger}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span>{selected?.label ?? 'Выберите значение'}</span>
-        <ChevronDownIcon />
-      </button>
-
-      {open ? (
-        <div
-          ref={popoverRef}
-          className={styles.selectPopover}
-          role="listbox"
-          aria-label={label}
-          data-placement={placement}
-          style={{ '--anchored-popover-max-height': `${availableHeight}px` } as React.CSSProperties}
-        >
-          {options.map((option) => {
-            const isSelected = option.value === value;
-            return (
-              <button
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                className={styles.selectOption}
-                data-selected={isSelected ? 'true' : 'false'}
-                key={option.value}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-              >
-                <span>{option.label}</span>
-                {isSelected ? <CheckIcon /> : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 interface ManagerMultiSelectProps {
   options: SystemUserOption[];
@@ -266,13 +171,13 @@ function ManagerMultiSelect({
   );
 }
 
-const STATUS_OPTIONS: CompactSelectOption[] = [
+const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'active', label: 'Активный' },
   { value: 'frozen', label: 'Заморожен' },
   { value: 'archived', label: 'Архив' },
 ];
 
-const SEASON_OPTIONS: CompactSelectOption[] = [
+const SEASON_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'Без сезонности' },
   { value: 'summer', label: 'Летний' },
   { value: 'winter', label: 'Зимний' },
@@ -539,16 +444,20 @@ export default function NewObjectPage(): React.JSX.Element {
           </div>
 
           <div className={styles.conditionsGrid}>
-            <CompactSelect
+            <SelectField
               label="Статус"
+              clearable={false}
+              searchable={false}
               value={form.status}
               options={STATUS_OPTIONS}
               onChange={(value) => setForm((prev) => ({ ...prev, status: value }))}
               disabled={isSubmitting}
             />
 
-            <CompactSelect
+            <SelectField
               label="Сезон"
+              clearable={false}
+              searchable={false}
               value={form.seasonMode}
               options={SEASON_OPTIONS}
               onChange={(value) => setForm((prev) => ({ ...prev, seasonMode: value }))}
@@ -612,8 +521,10 @@ export default function NewObjectPage(): React.JSX.Element {
               <span>Лето: мыть окна</span>
             </label>
             <div className={`${styles.field} ${styles.fullWidth}`}>
-              <CompactSelect
+              <SelectField
                 label="Зима: трактор"
+                clearable={false}
+                searchable={false}
                 value={form.winterTractorMode}
                 options={[
                   { value: 'none', label: 'Не нужен' },
@@ -670,14 +581,13 @@ export default function NewObjectPage(): React.JSX.Element {
         {error ? <div className={styles.formError}>{error}</div> : null}
 
         <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.cancelButton}
+          <Button variant="ghost"
+
             onClick={() => router.push('/objects')}
             disabled={isSubmitting}
           >
             Отмена
-          </button>
+          </Button>
           <Button variant="primary"
             type="submit"
             disabled={isSubmitting || isUsersLoading || !allowCreateObject || !responsibleUserId || invalidScheduleProfiles.length > 0}

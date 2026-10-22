@@ -355,15 +355,14 @@ export function OneTimeOrderCompletionPanel({
           ))}
 
           {!isExplicitNoPayment ? (
-            <button
-              type="button"
-              className="button-quiet"
+            <Button
+
               onClick={() =>
                 setPayments((current) => [...current, createPaymentDraft()])
               }
             >
               Добавить еще получателя
-            </button>
+            </Button>
           ) : null}
 
           <label className="order-completion-wide-field">
@@ -481,9 +480,9 @@ function PaymentFields({
       <div className="section-header">
         <strong>{title}</strong>
         {canRemove ? (
-          <button type="button" className="button-quiet" onClick={onRemove}>
+          <Button onClick={onRemove}>
             Убрать
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -838,13 +837,12 @@ function PaymentHistoryRow({
       ) : null}
       {item.capabilities.canCorrectPayments && payment.status === 'active' ? (
         <div className="action-row">
-          <button
-            type="button"
-            className="button-quiet"
+          <Button
+
             onClick={() => setIsCorrecting((current) => !current)}
           >
             Исправить поступление
-          </button>
+          </Button>
         </div>
       ) : null}
       {isCorrecting ? (
@@ -954,9 +952,9 @@ function PaymentCorrectionForm({
         >
           {isSaving ? 'Сохраняем...' : 'Сохранить исправление'}
         </Button>
-        <button type="button" className="button-quiet" onClick={onCancel}>
+        <Button onClick={onCancel}>
           Отмена
-        </button>
+        </Button>
       </div>
     </div>
   );

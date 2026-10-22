@@ -488,15 +488,14 @@ export default function InventoryItemDetailPage({
               {itemActionError ? (
                 <div className="form-error">
                   {itemActionError}{' '}
-                  <button
-                    type="button"
-                    className="button-quiet"
+                  <Button
+
                     onClick={() => {
                       void getInventoryItemById(item.id).then(setItem);
                     }}
                   >
                     Загрузить актуальные данные
-                  </button>
+                  </Button>
                 </div>
               ) : null}
             </div>

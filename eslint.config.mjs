@@ -64,13 +64,19 @@ export default tseslint.config(
           message: 'Цвета берутся из токенов --ui-* (design-tokens.css), не из inline-стилей.',
         },
         {
-          selector: "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger)(\\s|$)/]",
+          selector: "JSXAttribute[name.name='className'] Literal[value=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger|button-quiet|quiet-button)(\\s|$)/]",
           message: 'Устаревший класс: используйте StatusBadge, Alert, ButtonLink или Button из shared/ui/foundation.',
         },
         {
-          selector: "JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger)(\\s|$)/]",
+          selector: "JSXAttribute[name.name='className'] TemplateElement[value.raw=/(^|\\s)(status-pill|inline-notice|button-link|button-secondary|button-danger|button-quiet|quiet-button)(\\s|$)/]",
           message: 'Устаревший класс: используйте StatusBadge, Alert, ButtonLink или Button из shared/ui/foundation.',
         },
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'window', property: 'confirm', message: 'Используйте ConfirmDialog или useConfirm из shared/ui/overlays.' },
+        { object: 'window', property: 'prompt', message: 'Используйте ReasonDialog или useReasonPrompt из shared/ui/overlays.' },
+        { object: 'window', property: 'alert', message: 'Используйте Alert или уведомление в интерфейсе.' },
       ],
     },
   },

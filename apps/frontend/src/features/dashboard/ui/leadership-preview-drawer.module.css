@@ -48,30 +48,6 @@
   letter-spacing: -.02em;
 }
 
-.close {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--ui-radius-md);
-  background: transparent;
-  color: var(--ui-text-tertiary);
-  font: inherit;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.close:hover,
-.close:focus-visible {
-  outline: 0;
-  border-color: var(--ui-border);
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-}
-
 .body {
   min-height: 0;
   flex: 1;

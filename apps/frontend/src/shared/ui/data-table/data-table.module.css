@@ -83,3 +83,70 @@
   white-space: nowrap;
   clip-path: inset(50%);
 }
+
+/* Sortable column header */
+.sortButton {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.sortButton:hover {
+  color: var(--ui-text);
+}
+
+.sortButton:focus-visible {
+  outline: 0;
+  border-radius: var(--ui-radius-xs);
+  box-shadow: var(--ui-focus-ring);
+}
+
+.sortIndicator {
+  position: relative;
+  width: 9px;
+  height: 13px;
+  flex: 0 0 9px;
+  color: var(--ui-text-disabled);
+  opacity: 0;
+  transition: color 120ms ease, opacity 120ms ease;
+}
+
+.sortChevron {
+  position: absolute;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+}
+
+.sortChevron[data-part='up'] {
+  top: 1px;
+  transform: rotate(225deg);
+}
+
+.sortChevron[data-part='down'] {
+  bottom: 1px;
+  transform: rotate(45deg);
+}
+
+.sortButton:hover .sortIndicator,
+.sortButton[data-active='true'] .sortIndicator {
+  color: var(--ui-accent);
+  opacity: 1;
+}
+
+.sortIndicator[data-direction='asc'] .sortChevron[data-part='down'],
+.sortIndicator[data-direction='desc'] .sortChevron[data-part='up'] {
+  opacity: 0;
+}

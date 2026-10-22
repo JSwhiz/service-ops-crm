@@ -14,6 +14,7 @@ import { DataTable } from '@/shared/ui/data-table/data-table';
 
 import styles from './object-list-table.module.css';
 import { Button } from '@/shared/ui/foundation';
+import { SortableHeader } from '@/shared/ui/data-table/sortable-header';
 
 interface ObjectListTableProps {
   items: ServiceObject[];
@@ -94,15 +95,6 @@ function renderTodaySignal(signal: ObjectRegistrySignal): React.JSX.Element {
   );
 }
 
-function getAriaSort(
-  field: ObjectSortField,
-  sortBy: ObjectSortField,
-  sortDirection: 'asc' | 'desc',
-): 'ascending' | 'descending' | 'none' {
-  if (field !== sortBy) return 'none';
-  return sortDirection === 'asc' ? 'ascending' : 'descending';
-}
-
 export function ObjectListTable({
   items,
   signals,
@@ -116,30 +108,6 @@ export function ObjectListTable({
     return <div className="page-card workspace-surface workspace-empty">Объекты не найдены.</div>;
   }
 
-  const renderSortButton = (field: ObjectSortField, label: string): React.JSX.Element => {
-    const active = sortBy === field;
-    return (
-      <button
-        type="button"
-        className={`${styles.sortButton} object-table-sort`}
-        data-active={active ? 'true' : 'false'}
-        onClick={() => onSort(field)}
-        aria-label={`Сортировать: ${label}`}
-        title={`Сортировать по колонке «${label}»`}
-      >
-        <span>{label}</span>
-        <span
-          className={styles.sortIndicator}
-          data-direction={active ? sortDirection : 'none'}
-          aria-hidden="true"
-        >
-          <span className={styles.sortChevron} data-part="up" />
-          <span className={styles.sortChevron} data-part="down" />
-        </span>
-      </button>
-    );
-  };
-
   return (
     <>
       <DataTable
@@ -149,13 +117,13 @@ export function ObjectListTable({
       >
           <thead>
             <tr>
-              <th scope="col" aria-sort={getAriaSort('name', sortBy, sortDirection)}>{renderSortButton('name', 'Объект')}</th>
-              <th scope="col" aria-sort={getAriaSort('status', sortBy, sortDirection)}>{renderSortButton('status', 'Статус')}</th>
+              <SortableHeader field="name" label="Объект" sortBy={sortBy} sortDirection={sortDirection} onSort={onSort} />
+              <SortableHeader field="status" label="Статус" sortBy={sortBy} sortDirection={sortDirection} onSort={onSort} />
               <th scope="col">Ответственный</th>
               <th scope="col">Команда</th>
               <th scope="col">Сегодня</th>
               <th scope="col">Менеджеры</th>
-              <th scope="col" aria-sort={getAriaSort('updatedAt', sortBy, sortDirection)}>{renderSortButton('updatedAt', 'Обновлён')}</th>
+              <SortableHeader field="updatedAt" label="Обновлён" sortBy={sortBy} sortDirection={sortDirection} onSort={onSort} />
               <th scope="col" aria-label="Открыть полную карточку" />
             </tr>
           </thead>

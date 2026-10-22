@@ -32,6 +32,7 @@ import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Button, ButtonLink } from '@/shared/ui/foundation';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import { useConfirm } from '@/shared/ui/overlays';
 
 const AVAILABILITY_OPTIONS: Array<{
   value: OneTimeOrderAvailabilityType;
@@ -123,6 +124,7 @@ function getErrorMessage(error: unknown): string {
 
 export function OneTimeOrderCalendar(): React.JSX.Element {
   const { user } = useAuth();
+  const [confirm, confirmDialog] = useConfirm();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -337,7 +339,12 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
   const cancelAvailability = async (
     availability: OneTimeOrderCalendarAvailability,
   ): Promise<void> => {
-    if (!window.confirm(`Отменить запись «${availabilityLabel(availability.entryType)}»?`)) {
+    if (!(await confirm({
+      title: `Отменить запись «${availabilityLabel(availability.entryType)}»?`,
+      consequence: 'Запись пропадёт из календаря менеджера.',
+      confirmLabel: 'Отменить запись',
+      tone: 'danger',
+    }))) {
       return;
     }
     setIsSubmitting(true);
@@ -374,6 +381,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
 
   return (
     <div className="one-time-calendar" ref={calendarRootRef}>
+      {confirmDialog}
       <div className="page-card workspace-surface filter-panel one-time-calendar__toolbar">
         <div className="one-time-calendar__month-nav">
           <MonthPeriodPicker
@@ -415,13 +423,12 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
           !canApprove &&
           user?.id &&
           managerUserId !== user.id ? (
-            <button
-              type="button"
-              className="button-quiet"
+            <Button
+
               onClick={() => replaceQuery(month, user.id)}
             >
               Мой календарь
-            </button>
+            </Button>
           ) : null}
         </div>
         <div className="action-row one-time-calendar__actions">

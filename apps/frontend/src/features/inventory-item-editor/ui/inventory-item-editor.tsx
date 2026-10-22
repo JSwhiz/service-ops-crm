@@ -84,9 +84,9 @@ export function InventoryItemEditor({
             Цена поставки рассчитывается по движениям и здесь не изменяется.
           </div>
         </div>
-        <button type="button" className="button-quiet" onClick={onClose}>
+        <Button onClick={onClose}>
           Закрыть
-        </button>
+        </Button>
       </div>
 
       <label>

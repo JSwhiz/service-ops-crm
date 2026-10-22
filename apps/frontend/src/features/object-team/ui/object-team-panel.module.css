@@ -40,39 +40,6 @@
   margin-left: 4px;
 }
 
-.replaceButton {
-  display: flex;
-  width: 44px;
-  height: 44px;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  color: var(--ui-text-secondary);
-  background: var(--ui-surface-muted);
-  border: 0;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.replaceButton:hover:not(:disabled) {
-  background: var(--ui-surface-muted);
-}
-
-.replaceButton:focus-visible {
-  outline: 2px solid var(--ui-focus-border);
-  outline-offset: 2px;
-}
-
-.replaceButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.replaceButton svg {
-  width: 28px;
-  height: 28px;
-}
-
 .replacementOverlay {
   position: fixed;
   z-index: 1000;
@@ -117,26 +84,6 @@
   color: var(--ui-text-secondary);
   font-size: 13px;
   line-height: 1.45;
-}
-
-.dialogClose {
-  display: flex;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  color: var(--ui-text-secondary);
-  background: var(--ui-surface-muted);
-  border: 0;
-  border-radius: 9px;
-  cursor: pointer;
-}
-
-.dialogClose svg {
-  width: 19px;
-  height: 19px;
 }
 
 .replacementDialog > input {

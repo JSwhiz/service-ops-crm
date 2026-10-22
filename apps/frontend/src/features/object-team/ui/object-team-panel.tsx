@@ -12,8 +12,9 @@ import {
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
+import { CloseIcon } from '@/shared/ui/icons/icons';
 import styles from './object-team-panel.module.css';
-import { Button } from '@/shared/ui/foundation';
+import { Button, IconButton } from '@/shared/ui/foundation';
 
 interface ObjectTeamPanelProps {
   title: string;
@@ -115,9 +116,7 @@ export function ObjectTeamPanel({
         <div className={styles.title}>{title}</div>
         {replaceOnly ? (
           <div className={styles.replacementControl}>
-            <button
-              className={styles.replaceButton}
-              type="button"
+            <Button size="sm"
               disabled={isSubmitting || options.length === 0}
               aria-label={currentItems.length ? 'Заменить ответственного' : 'Назначить ответственного'}
               aria-expanded={isReplacementOpen}
@@ -125,7 +124,7 @@ export function ObjectTeamPanel({
               onClick={() => setIsReplacementOpen((open) => !open)}
             >
               <MediaActionIcon name="replace" />
-            </button>
+            </Button>
             {isReplacementOpen && typeof document !== 'undefined' ? createPortal(
               <div className={styles.replacementOverlay} onMouseDown={(event) => { if (event.target === event.currentTarget) setIsReplacementOpen(false); }}>
                 <section className={styles.replacementDialog} role="dialog" aria-modal="true" aria-labelledby="replace-responsible-title">
@@ -134,7 +133,7 @@ export function ObjectTeamPanel({
                       <h2 id="replace-responsible-title">Заменить ответственного</h2>
                       <p>Выберите сотрудника, который будет отвечать за объект</p>
                     </div>
-                    <button className={styles.dialogClose} type="button" aria-label="Закрыть" onClick={() => setIsReplacementOpen(false)}><MediaActionIcon name="close" /></button>
+                    <IconButton aria-label="Закрыть" title="Закрыть" onClick={() => setIsReplacementOpen(false)}><CloseIcon size={18} /></IconButton>
                   </header>
                 <input
                   autoFocus

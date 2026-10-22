@@ -43,25 +43,12 @@
   line-height: 1.45;
 }
 
-.closeButton,
 .actionButton,
 .primaryAction {
   appearance: none;
   border-radius: 8px !important;
   box-shadow: none !important;
   transform: none !important;
-}
-
-.closeButton {
-  flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid var(--ui-border) !important;
-  background: var(--ui-surface) !important;
-  color: var(--ui-text-secondary) !important;
-  font-size: 20px;
-  line-height: 1;
 }
 
 .statusRow,
@@ -193,8 +180,7 @@
   color: var(--ui-text-inverse) !important;
 }
 
-.actionButton:hover:not(:disabled),
-.closeButton:hover:not(:disabled) {
+.actionButton:hover:not(:disabled) {
   background: var(--ui-surface-subtle) !important;
   border-color: var(--ui-border) !important;
   box-shadow: none !important;
@@ -210,15 +196,13 @@
 }
 
 .actionButton:focus-visible,
-.closeButton:focus-visible,
 .primaryAction:focus-visible {
   outline: 2px solid rgba(15, 49, 201, .22);
   outline-offset: 2px;
   box-shadow: none !important;
 }
 
-.actionButton:disabled,
-.closeButton:disabled {
+.actionButton:disabled {
   cursor: not-allowed;
   opacity: .52;
 }

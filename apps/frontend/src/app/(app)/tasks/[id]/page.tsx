@@ -40,6 +40,7 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Select } from '@/shared/ui/searchable-select/select';
+import { useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
 import { Button } from '@/shared/ui/foundation';
 
 export default function TaskDetailPage({
@@ -68,6 +69,8 @@ export default function TaskDetailPage({
   const [autoCloseSeconds, setAutoCloseSeconds] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionBusy, setIsActionBusy] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
+  const [askReason, reasonDialog] = useReasonPrompt();
   const [error, setError] = useState<string | null>(null);
 
   const loadTask = async (id: string): Promise<void> => {
@@ -192,11 +195,6 @@ export default function TaskDetailPage({
     }
   };
 
-  const askReason = (label: string): string | null => {
-    const reason = window.prompt(label)?.trim() ?? '';
-    return reason.length >= 3 ? reason : null;
-  };
-
   if (isLoading) return <div className="page-card">Загрузка…</div>;
   if (!item)
     return (
@@ -211,6 +209,8 @@ export default function TaskDetailPage({
 
   return (
     <div className="page-stack workspace-page task-detail-page">
+      {confirmDialog}
+      {reasonDialog}
       <div className="page-card workspace-surface task-page-heading registry-header">
         <PageTitle title="Карточка задачи" />
         <div className="action-row">
@@ -239,31 +239,44 @@ export default function TaskDetailPage({
             </Button>
           ) : null}
           {item.capabilities.canReturnToWork ? (
-            <ReasonAction
-              label="Вернуть в работу"
+            <Button
               disabled={isActionBusy}
-              askReason={askReason}
-              onRun={(reason) =>
-                runAction(() => returnTaskToWork(taskId, reason))
-              }
-            />
+              onClick={async () => {
+                const reason = await askReason({ title: 'Вернуть задачу в работу?', reasonLabel: 'Причина', confirmLabel: 'Вернуть в работу', minLength: 3 });
+                if (reason) void runAction(() => returnTaskToWork(taskId, reason));
+              }}
+            >
+              Вернуть в работу
+            </Button>
           ) : null}
           {item.capabilities.canReopen ? (
-            <ReasonAction
-              label="Переоткрыть"
+            <Button
               disabled={isActionBusy}
-              askReason={askReason}
-              onRun={(reason) => runAction(() => reopenTask(taskId, reason))}
-            />
+              onClick={async () => {
+                const reason = await askReason({ title: 'Переоткрыть задачу?', reasonLabel: 'Причина', confirmLabel: 'Переоткрыть', minLength: 3 });
+                if (reason) void runAction(() => reopenTask(taskId, reason));
+              }}
+            >
+              Переоткрыть
+            </Button>
           ) : null}
           {item.capabilities.canCancel ? (
-            <ReasonAction
-              label="Отменить задачу"
-              dangerous
+            <Button
+              variant="danger"
               disabled={isActionBusy}
-              askReason={askReason}
-              onRun={(reason) => runAction(() => cancelTask(taskId, reason))}
-            />
+              onClick={async () => {
+                const reason = await askReason({
+                  title: 'Отменить задачу?',
+                  description: 'Исполнители больше не увидят её в работе. Отмену можно будет переоткрыть.',
+                  reasonLabel: 'Причина отмены',
+                  confirmLabel: 'Отменить задачу',
+                  minLength: 3,
+                });
+                if (reason) void runAction(() => cancelTask(taskId, reason));
+              }}
+            >
+              Отменить задачу
+            </Button>
           ) : null}
         </div>
       </div>
@@ -312,15 +325,17 @@ export default function TaskDetailPage({
                     <Button
                       disabled={isActionBusy}
                       onClick={() => {
-                        if (
-                          window.confirm(
-                            `Удалить исполнителя ${getUserDisplayName(assignee)}?`,
-                          )
-                        ) {
+                        void confirm({
+                          title: 'Удалить исполнителя?',
+                          consequence: `${getUserDisplayName(assignee)} больше не будет исполнителем этой задачи.`,
+                          confirmLabel: 'Удалить',
+                          tone: 'danger',
+                        }).then((confirmed) => {
+                          if (!confirmed) return;
                           void runAction(() =>
                             removeTaskAssignee(taskId, assignee.id),
                           );
-                        }
+                        });
                       }}
                     >
                       Удалить
@@ -504,9 +519,11 @@ export default function TaskDetailPage({
                     caught.message.includes('resetCompletions');
                   if (
                     !requiresReset ||
-                    !window.confirm(
-                      'Изменение содержания вернёт задачу в работу и снимет отметки выполнения. Старые результаты сохранятся в истории. Продолжить?',
-                    )
+                    !(await confirm({
+                      title: 'Вернуть задачу в работу?',
+                      consequence: 'Изменение содержания вернёт задачу в работу и снимет отметки выполнения. Старые результаты сохранятся в истории.',
+                      confirmLabel: 'Сохранить и вернуть в работу',
+                    }))
                   )
                     throw caught;
                   await updateTask(taskId, {
@@ -522,35 +539,6 @@ export default function TaskDetailPage({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function ReasonAction({
-  label,
-  dangerous = false,
-  disabled,
-  askReason,
-  onRun,
-}: {
-  label: string;
-  dangerous?: boolean;
-  disabled: boolean;
-  askReason: (label: string) => string | null;
-  onRun: (reason: string) => Promise<void>;
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      className={dangerous ? 'task-danger-button' : undefined}
-      disabled={disabled}
-      onClick={() => {
-        if (dangerous && !window.confirm('Отменить задачу?')) return;
-        const reason = askReason('Укажите причину (минимум 3 символа)');
-        if (reason) void onRun(reason);
-      }}
-    >
-      {label}
-    </button>
   );
 }
 

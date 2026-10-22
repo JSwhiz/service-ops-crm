@@ -10,6 +10,7 @@ import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presenta
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { OneTimeOrderPreviewDrawer } from './one-time-order-preview-drawer';
 import { StatusBadge } from '@/shared/ui/foundation';
+import { SortableHeader } from '@/shared/ui/data-table/sortable-header';
 
 export function OneTimeOrderListTable({
   items,
@@ -29,25 +30,6 @@ export function OneTimeOrderListTable({
     return <div className="page-card workspace-surface workspace-empty">Разовые заказы не найдены.</div>;
   }
 
-  const sortButton = (
-    field: OneTimeOrderSortField,
-    label: string,
-  ): React.JSX.Element => (
-    <button
-      type="button"
-      className="one-time-order-table-sort"
-      onClick={() => onSort(field)}
-    >
-      {label}
-      {sortBy === field ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}
-    </button>
-  );
-
-  const ariaSort = (field: OneTimeOrderSortField): 'ascending' | 'descending' | 'none' => {
-    if (sortBy !== field) return 'none';
-    return sortDirection === 'asc' ? 'ascending' : 'descending';
-  };
-
   return (
     <>
       <DataTable
@@ -57,10 +39,10 @@ export function OneTimeOrderListTable({
       >
         <thead>
           <tr>
-            <th scope="col" aria-sort={ariaSort('title')}>{sortButton('title', 'Заказ')}</th>
-            <th scope="col" aria-sort={ariaSort('executionStartDate')}>{sortButton('executionStartDate', 'Даты')}</th>
+            <SortableHeader field="title" label="Заказ" sortBy={sortBy} sortDirection={sortDirection} onSort={onSort} />
+            <SortableHeader field="executionStartDate" label="Даты" sortBy={sortBy} sortDirection={sortDirection} onSort={onSort} />
             <th scope="col">Адрес</th>
-            <th scope="col" aria-sort={ariaSort('status')}>{sortButton('status', 'Статус')}</th>
+            <SortableHeader field="status" label="Статус" sortBy={sortBy} sortDirection={sortDirection} onSort={onSort} />
             <th scope="col">Менеджеры</th>
             <th scope="col">Объект</th>
             <th scope="col">ТЗ</th>
