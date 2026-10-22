@@ -273,3 +273,12 @@ EntitySummary, QueueRow, ApprovalDetail, Ledger, MatrixInspector и ChatMessage 
 - `Select` (`shared/ui/searchable-select/select`) — drop-in for native `<select>` with `<option>` children; renders the system dropdown. Native selects are no longer used in app code. `SelectField` lives next to it for label + error rhythm.
 - `DatePicker` — header switches days → months → years; no native selects inside.
 - `PhoneListField` — several phone numbers with the first as main; used by employee and candidate forms.
+
+## Additions 2026-10-22
+
+- `Surface` gains `padding` (`none` | `sm` | `md`) and `as` (`div` | `section` | `article` | `aside` | `header` | `li`); replaces `page-card` and `record-card`.
+- Layout utilities in ui-foundation (`ui-page`, `ui-inline`, `ui-section-*`, `ui-detail-*`, `ui-text-muted`) replace the legacy kit; declared with `:where()` so section styles win.
+- `LoadingState`, `BackLink`, `FactStrip`, `StatusBadge`, `Stack`, `ButtonLink`, `IconButton bordered`.
+- `useConfirm()` / `useReasonPrompt()` (shared/ui/overlays): promise-based dialogs instead of `window.confirm/prompt`.
+- `SortableHeader` (shared/ui/data-table) and `RegistryDateRange` (shared/ui/registry-filters).
+- Section styles live in modules: `entities/{task,one-time-order,timesheet}/ui/*-ui.module.css`, feature and page modules; `globals.css` keeps tag defaults and classes queried from the DOM.
