@@ -35,10 +35,21 @@ const FIELD_LABELS: Record<string, string> = {
   present: 'Отметка о выходе',
   reason: 'Причина',
   comment: 'Комментарий',
+  automaticSeasons: 'Автоматическое переключение сезонов',
+  summerStartsOn: 'Лето начинается',
+  winterStartsOn: 'Зима начинается',
 };
 
 function getActionLabel(actionCode: string): string {
   switch (actionCode) {
+    case 'object.contact.created':
+      return 'Добавлен контакт';
+    case 'object.contact.updated':
+      return 'Контакт изменён';
+    case 'object.contact.deleted':
+      return 'Контакт удалён';
+    case 'object.planning.updated':
+      return 'Настройки бюджета и сезонов изменены';
     case 'object.created':
       return 'Объект создан';
     case 'object.updated':

@@ -53,3 +53,10 @@ export function getUserSecondaryLabel(user?: DisplayUserLike | null): string | n
 
   return `@${login}`;
 }
+
+// CRM user names are stored as «Фамилия Имя Отчество».
+// Keep the general display name unchanged outside dashboard greetings.
+export function getUserGreetingName(user?: DisplayUserLike | null): string {
+  const parts = user?.fullName?.trim().split(/\s+/).filter(Boolean) ?? [];
+  return parts[1] ?? parts[0] ?? getUserDisplayName(user);
+}

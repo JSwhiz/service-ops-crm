@@ -43,6 +43,7 @@ import {
   LEADERSHIP_OBJECT_ROLE_CODES,
 } from './utils/object-access.util';
 import { buildObjectCapabilities } from './utils/object-capabilities.util';
+import { annualSeason, baseCompensation, moscowDateKey } from './utils/object-season.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -75,6 +76,7 @@ interface ObjectView {
   address: string;
   status: string;
   seasonMode: string | null;
+  baseCompensationProfile: Prisma.JsonValue | null;
   summerWindowCleaning: boolean;
   engineeringRequired: boolean;
   winterTractorMode: 'none' | 'with_removal' | 'without_removal';
@@ -150,6 +152,7 @@ function formatDateOnly(value: Date | string | null | undefined): string | null 
 }
 
 const OBJECT_COMPENSATION_UPDATE_FIELDS = new Set([
+  'seasonMode',
   'paymentType', 'dailyRate', 'monthlySalary',
   'paymentScheduleCode', 'paymentScheduleWeekdays',
   'paymentScheduleCycleStartDate',
@@ -343,7 +346,7 @@ export class ObjectsService {
     const visibleOperationalObject = await this.prisma.object.findFirst({
       where: {
         id,
-        ...this.buildOperationalVisibilityWhere(currentUser),
+        ...(currentUser.permissionCodes?.includes('objects.hr_reports_view') ? { deletedAt: null } : this.buildOperationalVisibilityWhere(currentUser)),
       },
       select: {
         id: true,
@@ -479,6 +482,10 @@ export class ObjectsService {
           address: payload.address,
           status: payload.status ?? 'active',
           seasonMode: payload.seasonMode ?? null,
+          baseCompensationProfile: {
+            paymentType: payload.paymentType ?? ((payload.monthlySalary ?? 0) > 0 ? 'monthly' : 'daily'), dailyRate: payload.dailyRate ?? 0, monthlySalary: payload.monthlySalary ?? 0,
+            ...defaultScheduleProfile, paymentScheduleCycleStartDate: formatDateOnly(defaultScheduleProfile.paymentScheduleCycleStartDate),
+          },
           summerWindowCleaning: payload.summerWindowCleaning ?? false,
           engineeringRequired: payload.engineeringRequired ?? false,
           winterTractorMode: payload.winterTractorMode ?? 'none',
@@ -667,7 +674,14 @@ export class ObjectsService {
     ) {
       throw new ForbiddenException('This role may only edit object compensation profiles');
     }
-    const nextSeasonMode = payload.seasonMode !== undefined ? payload.seasonMode : existing.seasonMode;
+    const policy = await this.prisma.objectPlanningSettings.findUnique({ where: { objectId: id } });
+    const nextSeasonMode = policy?.automaticSeasons && policy.summerStartsOn && policy.winterStartsOn
+      ? annualSeason(policy.summerStartsOn, policy.winterStartsOn)
+      : payload.seasonMode !== undefined ? payload.seasonMode : existing.seasonMode;
+    const existingBase = baseCompensation(existing);
+    if (policy?.automaticSeasons && payload.seasonMode !== undefined && payload.seasonMode !== nextSeasonMode) {
+      throw new BadRequestException('Для ручного выбора сезона сначала отключите автоматическое переключение в разделе «Бюджет и сезоны».');
+    }
     const nextSummerPaymentType = payload.summerPaymentType ?? existing.summerPaymentType;
     const nextSummerDailyRate = payload.summerDailyRate ?? existing.summerDailyRate;
     const nextSummerMonthlySalary = payload.summerMonthlySalary ?? existing.summerMonthlySalary;
@@ -677,11 +691,11 @@ export class ObjectsService {
     const defaultScheduleProfile = {
       paymentScheduleCode: payload.paymentScheduleCode !== undefined
         ? payload.paymentScheduleCode
-        : existing.paymentScheduleCode,
-      paymentScheduleWeekdays: payload.paymentScheduleWeekdays ?? existing.paymentScheduleWeekdays,
+        : existingBase.paymentScheduleCode,
+      paymentScheduleWeekdays: payload.paymentScheduleWeekdays ?? existingBase.paymentScheduleWeekdays,
       paymentScheduleCycleStartDate: payload.paymentScheduleCycleStartDate !== undefined
         ? parseDateOnly(payload.paymentScheduleCycleStartDate)
-        : existing.paymentScheduleCycleStartDate,
+        : existingBase.paymentScheduleCycleStartDate,
     };
     const summerScheduleProfile = {
       paymentScheduleCode: payload.summerScheduleCode !== undefined
@@ -723,13 +737,13 @@ export class ObjectsService {
       payload.summerPaymentType !== undefined || payload.summerDailyRate !== undefined || payload.summerMonthlySalary !== undefined || payload.summerScheduleCode !== undefined || payload.summerScheduleWeekdays !== undefined || payload.summerScheduleCycleStartDate !== undefined ||
       payload.winterPaymentType !== undefined || payload.winterDailyRate !== undefined || payload.winterMonthlySalary !== undefined || payload.winterScheduleCode !== undefined || payload.winterScheduleWeekdays !== undefined || payload.winterScheduleCycleStartDate !== undefined;
     const canWriteRates = canEditObjectDailyRate(roleCodes);
-    const seasonModeChanged = payload.seasonMode !== undefined && payload.seasonMode !== existing.seasonMode;
+    const seasonModeChanged = nextSeasonMode !== existing.seasonMode;
     const shouldActivateRateProfile = canWriteRates && (rateFieldsSubmitted || seasonModeChanged);
     const activeSeasonRates = nextSeasonMode === 'summer'
       ? { paymentType: nextSummerPaymentType, dailyRate: nextSummerDailyRate, monthlySalary: nextSummerMonthlySalary }
       : nextSeasonMode === 'winter'
         ? { paymentType: nextWinterPaymentType, dailyRate: nextWinterDailyRate, monthlySalary: nextWinterMonthlySalary }
-        : null;
+        : { paymentType: payload.paymentType ?? existingBase.paymentType, dailyRate: payload.dailyRate ?? existingBase.dailyRate, monthlySalary: payload.monthlySalary ?? existingBase.monthlySalary };
 
     if (
       rateFieldsSubmitted &&
@@ -888,6 +902,12 @@ export class ObjectsService {
     }
 
     const updated = (await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${id} FOR UPDATE`;
+      const locked = await tx.object.findUniqueOrThrow({ where: { id }, select: { updatedAt: true } });
+      const currentPolicy = await tx.objectPlanningSettings.findUnique({ where: { objectId: id } });
+      if (locked.updatedAt.getTime() !== existing.updatedAt.getTime() || (currentPolicy?.version ?? 0) !== (policy?.version ?? 0)) {
+        throw new ConflictException('Объект или настройки сезонов изменены. Обновите данные перед сохранением.');
+      }
       await tx.object.update({
         where: { id },
         data: {
@@ -897,9 +917,15 @@ export class ObjectsService {
             : {}),
           ...(payload.address !== undefined ? { address: payload.address } : {}),
           ...(payload.status !== undefined ? { status: payload.status } : {}),
-          ...(payload.seasonMode !== undefined
-            ? { seasonMode: payload.seasonMode }
+          ...(payload.seasonMode !== undefined || policy?.automaticSeasons
+            ? { seasonMode: nextSeasonMode }
             : {}),
+          ...(canWriteRates && (rateFieldsSubmitted || !existing.baseCompensationProfile) ? { baseCompensationProfile: {
+            paymentType: payload.paymentType ?? existingBase.paymentType,
+            dailyRate: payload.dailyRate ?? existingBase.dailyRate,
+            monthlySalary: payload.monthlySalary ?? existingBase.monthlySalary,
+            ...defaultScheduleProfile, paymentScheduleCycleStartDate: formatDateOnly(defaultScheduleProfile.paymentScheduleCycleStartDate),
+          } } : {}),
           ...(payload.summerWindowCleaning !== undefined ? { summerWindowCleaning: payload.summerWindowCleaning } : {}),
           ...(payload.engineeringRequired !== undefined ? { engineeringRequired: payload.engineeringRequired } : {}),
           ...(payload.winterTractorMode !== undefined ? { winterTractorMode: payload.winterTractorMode } : {}),
@@ -1029,6 +1055,14 @@ export class ObjectsService {
         },
       });
 
+      if (shouldActivateRateProfile) {
+        await this.auditService.writeAuditEvent({ entityType: 'object', entityId: id, actorUserId: currentUser.id, action: 'object.compensation.profile_saved', newValues: {
+          effectiveOn: moscowDateKey(), seasonMode: nextSeasonMode, baseProfile: updatedObject.baseCompensationProfile,
+          paymentType: updatedObject.paymentType, dailyRate: updatedObject.dailyRate, monthlySalary: updatedObject.monthlySalary,
+          summerDailyRate: updatedObject.summerDailyRate, summerMonthlySalary: updatedObject.summerMonthlySalary,
+          winterDailyRate: updatedObject.winterDailyRate, winterMonthlySalary: updatedObject.winterMonthlySalary,
+        } }, tx);
+      }
       if (Object.keys(changes).length > 0) {
         const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(
           [...LEADERSHIP_OBJECT_ROLE_CODES],
@@ -1583,6 +1617,8 @@ export class ObjectsService {
       'summerScheduleCode', 'summerScheduleWeekdays', 'summerScheduleCycleStartDate',
       'winterPaymentType', 'winterDailyRate', 'winterMonthlySalary',
       'winterScheduleCode', 'winterScheduleWeekdays', 'winterScheduleCycleStartDate',
+      'baseProfile', 'baseCompensationProfile', 'ratePolicySnapshot', 'dailyRateSnapshot',
+      'monthlyBudget', 'planAmount', 'actualAmount', 'excessAmount', 'amount',
     ]);
     const sanitized = Object.fromEntries(
       Object.entries(payload).filter(([field]) => !rateFields.has(field)),
@@ -1859,6 +1895,7 @@ export class ObjectsService {
       address: item.address,
       status: item.status,
       seasonMode: item.seasonMode,
+      baseCompensationProfile: capabilities.canViewCompensationRates ? item.baseCompensationProfile : null,
       summerWindowCleaning: item.summerWindowCleaning,
       engineeringRequired: item.engineeringRequired,
       winterTractorMode: item.winterTractorMode,

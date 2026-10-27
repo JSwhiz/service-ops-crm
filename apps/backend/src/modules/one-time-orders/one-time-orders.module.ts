@@ -8,6 +8,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { TasksModule } from '../tasks/tasks.module';
 
 import { OneTimeOrderAttentionController } from './one-time-order-attention.controller';
+import { OneTimeOrderOperationsController } from './one-time-order-operations.controller';
+import { OneTimeOrderOperationsService } from './one-time-order-operations.service';
 import { OneTimeOrderAttentionService } from './one-time-order-attention.service';
 import { OneTimeOrderWorkforceController } from './one-time-order-workforce.controller';
 import { OneTimeOrderWorkforceDirectoryController } from './one-time-order-workforce-directory.controller';
@@ -22,12 +24,14 @@ import { OneTimeManagerAvailabilityService } from './one-time-manager-availabili
 @Module({
   imports: [PrismaModule, AuditModule, TasksModule, EquipmentModule, ChatsModule, NotificationsModule],
   controllers: [
+    OneTimeOrderOperationsController,
     OneTimeOrderAttentionController,
     OneTimeOrderWorkforceController,
     OneTimeOrderWorkforceDirectoryController,
     OneTimeOrdersController,
   ],
   providers: [
+    OneTimeOrderOperationsService,
     OneTimeOrdersService,
     OneTimeOrderAttentionService,
     OneTimeOrderWorkforceService,

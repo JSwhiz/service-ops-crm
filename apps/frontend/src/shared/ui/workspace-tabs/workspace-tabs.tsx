@@ -26,7 +26,6 @@ export function WorkspaceTabs({
   const focusTab = (index: number): void => {
     const next = (index + items.length) % items.length;
     refs.current[next]?.focus();
-    onChange(items[next]!.value);
   };
 
   return (

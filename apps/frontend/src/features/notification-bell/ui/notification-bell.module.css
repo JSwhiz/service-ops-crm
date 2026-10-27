@@ -1,0 +1,11 @@
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+
+.row > button:first-child {
+  flex: 1;
+  min-width: 0;
+}

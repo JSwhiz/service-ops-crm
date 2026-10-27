@@ -105,6 +105,10 @@ export async function hideChatRoom(roomId: string): Promise<{ success: true }> {
   });
 }
 
+export async function removeChatParticipant(roomId: string, userId: string): Promise<ChatRoom> {
+  return fetcher<ChatRoom>(`/chats/rooms/${roomId}/participants/${userId}`, { method: 'DELETE' });
+}
+
 export async function unhideChatRoom(roomId: string): Promise<ChatRoom> {
   return fetcher<ChatRoom>(`/chats/rooms/${roomId}/unhide`, {
     method: 'POST',

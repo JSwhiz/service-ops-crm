@@ -1,4 +1,6 @@
 import { fetcher } from '@/shared/api/fetcher';
+export const correctInventoryMovement = (id: string, reason: string): Promise<{ mode: 'cancelled' | 'reversed' }> => fetcher(`/inventory/movements/${id}/correct`, { method: 'POST', body: JSON.stringify({ reason }) });
+import { sortObjectOptions } from '@/entities/object/lib/sort-object-options';
 
 import type {
   CreateInventoryItemPayload,
@@ -169,9 +171,10 @@ export async function createObjectInventoryIssue(
 export async function listInventoryObjectReferenceOptions(): Promise<
   InventoryObjectReference[]
 > {
-  return fetcher<InventoryObjectReference[]>('/inventory/reference/objects', {
+  const items = await fetcher<InventoryObjectReference[]>('/inventory/reference/objects', {
     method: 'GET',
   });
+  return sortObjectOptions(items);
 }
 
 export async function listInventoryOneTimeOrderReferenceOptions(): Promise<

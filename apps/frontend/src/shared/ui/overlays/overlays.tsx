@@ -79,6 +79,7 @@ function OverlayFrame({
         document.activeElement instanceof HTMLElement
           ? document.activeElement
           : null;
+      dialog.dataset.motion = triggerRef.current?.matches(':focus-visible') ? 'instant' : 'pointer';
       dialog.showModal();
 
       const initialTarget =

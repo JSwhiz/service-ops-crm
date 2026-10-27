@@ -1,41 +1,3 @@
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: flex;
-  justify-content: flex-end;
-  background: rgba(43, 36, 31, 0.22);
-  backdrop-filter: blur(2px);
-}
-
-.drawer {
-  width: min(480px, calc(100vw - 24px));
-  height: 100%;
-  overflow-y: auto;
-  background: var(--ui-surface);
-  border-left: 1px solid var(--ui-border);
-  box-shadow: -18px 0 44px rgba(55, 43, 35, 0.12);
-  padding: 20px;
-}
-
-.header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--ui-border);
-}
-
-.titleWrap { min-width: 0; }
-
-.title {
-  margin: 0;
-  font-size: 20px;
-  line-height: 1.25;
-  color: var(--ui-text);
-}
-
 .meta {
   margin-top: 6px;
   color: var(--ui-text-tertiary);
@@ -51,29 +13,8 @@
   transform: none !important;
 }
 
-.statusRow,
 .peopleRow,
-.summaryGrid,
-.actionGrid {
-  display: grid;
-  gap: 10px;
-}
-
-.statusRow { margin-top: 16px; grid-template-columns: auto 1fr; align-items: center; }
-
-.status {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 9px;
-  border: 1px solid var(--ui-border);
-  border-radius: 999px;
-  background: var(--ui-surface-hover);
-  color: var(--ui-text-secondary);
-  font-size: 12px;
-  font-weight: 650;
-}
+.summaryGrid { display: grid; gap: 10px; }
 
 .section {
   padding: 18px 0;
@@ -104,30 +45,6 @@
 .summaryValue { margin-top: 6px; color: var(--ui-text); font-size: 14px; font-weight: 650; }
 .summaryValue[data-state="attention"] { color: var(--ui-danger); }
 
-.attendanceList {
-  display: grid;
-  gap: 7px;
-  max-height: 210px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.attendanceItem {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  border-radius: 7px;
-  background: var(--ui-surface-subtle);
-  color: var(--ui-text);
-  font-size: 13px;
-}
-
-.attendanceItem input {
-  margin: 0;
-  accent-color: var(--ui-text-secondary);
-}
-
 .textarea {
   width: 100%;
   min-height: 86px;
@@ -152,8 +69,6 @@
   border-color: var(--ui-border-strong);
   box-shadow: none;
 }
-
-.actionGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; }
 
 .actionButton,
 .primaryAction {
@@ -227,6 +142,5 @@
 .error { color: var(--ui-danger); }
 
 @media (max-width: 720px) {
-  .drawer { width: 100%; padding: 16px; }
-  .summaryGrid, .actionGrid { grid-template-columns: 1fr; }
+  .summaryGrid { grid-template-columns: 1fr; }
 }

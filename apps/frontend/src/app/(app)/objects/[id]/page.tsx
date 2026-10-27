@@ -49,6 +49,7 @@ import type {
 } from '@/entities/object/model/object.types';
 import {
   listFilesByEntity,
+  uploadFileBatch,
   uploadFileToEntity,
 } from '@/entities/file/api/file-client';
 import type { AttachedFile } from '@/entities/file/model/file.types';
@@ -63,11 +64,14 @@ import { LinkedOneTimeOrdersPanel } from '@/features/linked-one-time-orders/ui/l
 import { ObjectArrivalPanel } from '@/features/object-arrival/ui/object-arrival-panel';
 import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-attendance-panel';
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
+import { ObjectContactsPanel } from '@/features/object-contacts/ui/object-contacts-panel';
+import { ObjectPlanningPanel } from '@/features/object-planning/ui/object-planning-panel';
 import { ObjectRubberMatsPanel } from '@/features/object-rubber-mats/ui/object-rubber-mats-panel';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
 import { ObjectInventoryPanel } from '@/features/object-inventory/ui/object-inventory-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
+import { ObjectReportsPanel } from '@/features/object-report/ui/object-reports-panel';
 import { ObjectStaffingPanel } from '@/features/object-staffing/ui/object-staffing-panel';
 import {
   ObjectPanelError,
@@ -124,6 +128,15 @@ export default function ObjectDetailPage({
   const [item, setItem] = useState<ServiceObject | null>(null);
   const [coreLoading, setCoreLoading] = useState(true);
   const [coreError, setCoreError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Sections arrive after the initial document; resolve a deep link only
+    // once their anchors exist (including links from budget notifications).
+    if (!coreLoading && window.location.hash) {
+      const anchor = document.getElementById(window.location.hash.slice(1));
+      if (anchor) window.location.replace(window.location.hash);
+    }
+  }, [coreLoading, objectId]);
 
   const [responsibleCandidates, setResponsibleCandidates] = useState<SystemUserOption[]>([]);
   const [managerCandidates, setManagerCandidates] = useState<SystemUserOption[]>([]);
@@ -262,7 +275,7 @@ export default function ObjectDetailPage({
     try {
       const response = await getTodayObjectAttendance(id);
       if (!cancelled) {
-        setAttendanceEmployeeIds(response.employeeIds ?? []);
+        setAttendanceEmployeeIds(response.submittedAt ? response.employeeIds ?? [] : response.suggestedEmployeeIds ?? response.employeeIds ?? []);
         setAttendanceEmployeeFacts(response.employeeFacts ?? []);
         setAttendanceEmployees(Array.isArray(response.employees) ? response.employees : []);
       }
@@ -293,7 +306,7 @@ export default function ObjectDetailPage({
             loadTasks(resolved.id, cancelled),
             ...(core.capabilities.canOperateAttendance === false ? [] : [loadAttendance(resolved.id, cancelled)]),
           ]
-        : [];
+        : core.capabilities.canViewReportsHistory ? [loadReport(resolved.id, cancelled)] : [];
       await Promise.all([...employeeLoads, ...operationalLoads]);
     })();
     return () => { cancelled = true; };
@@ -328,7 +341,7 @@ export default function ObjectDetailPage({
   }, [objectId, employeeSearch, item?.capabilities.canManageEmployees]);
 
   return (
-    <div className="ui-page object-detail-page">
+    <div className={`ui-page object-detail-page ${styles.fullWidth}`}>
       {coreLoading ? (
         <ObjectPanelLoading title="Карточка объекта" />
       ) : coreError ? (
@@ -341,6 +354,12 @@ export default function ObjectDetailPage({
             <a href="#overview">Обзор</a>
             {item.capabilities.canViewOperationalSections ? <a href="#today">Сегодня</a> : null}
             <a href="#team">Команда</a>
+            <a href="#contacts">Контакты</a>
+            <a href="#planning">Бюджет и сезоны</a>
+            {item.capabilities.canViewReportsHistory ? <a href="#reports">Отчёты</a> : null}
+            {!item.capabilities.canViewOperationalSections && item.capabilities.canViewReportsHistory ? <>
+              <a href="#history">История</a>
+            </> : null}
             {item.capabilities.canViewOperationalSections ? <>
               <a href="#tasks">Задачи</a>
               <a href="#inventory">Склад</a>
@@ -431,9 +450,11 @@ export default function ObjectDetailPage({
                   <ObjectPanelError title="Ежедневный отчет" message={reportError} />
                 ) : (
                   <ObjectDailyReportPanel item={report} onSave={async (payload) => {
-                    const saved = await upsertTodayDailyReport(objectId, { content: payload.content });
-                    await Promise.all(payload.files.map((file) => uploadFileToEntity({ entityType: 'object_daily_report', entityId: saved.id, file })));
+                    const saved = await upsertTodayDailyReport(objectId, { content: payload.content, expectedRevision: report?.revision ?? 0 });
+                    setReport(saved);
+                    const uploads = await uploadFileBatch({ entityType: 'object_daily_report', entityId: saved.id, files: payload.files });
                     await Promise.all([loadReport(objectId), loadFeed(objectId)]);
+                    if (uploads.some((result) => result.status === 'rejected')) throw new Error('Текст отчёта сохранён. Не все вложения загрузились — повторите сохранение: уже загруженные файлы не продублируются.');
                   }} />
                 )}
 
@@ -441,6 +462,8 @@ export default function ObjectDetailPage({
                   <ObjectPanelError title="Кто был сегодня на объекте" message={attendanceError} />
                 ) : (
                   <ObjectAttendancePanel
+                    objectId={objectId}
+                    onSubstitutionSaved={async () => { await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }}
                     employees={attendanceEmployees}
                     initialEmployeeIds={attendanceEmployeeIds}
                     initialEmployeeFacts={attendanceEmployeeFacts}
@@ -502,6 +525,18 @@ export default function ObjectDetailPage({
             )}
           </WorkspaceSection>
 
+          <WorkspaceSection id="contacts" title="Контакты">
+            <ObjectContactsPanel objectId={objectId} canEdit={item.capabilities.canEdit} />
+          </WorkspaceSection>
+          {item.capabilities.canViewReportsHistory ? <WorkspaceSection id="reports" title="Ежедневные отчёты"><ObjectReportsPanel objectId={objectId} /></WorkspaceSection> : null}
+          {!item.capabilities.canViewOperationalSections && item.capabilities.canViewReportsHistory ? <>
+            <WorkspaceSection id="history" title="История">
+              <Link href={`/objects/${objectId}/history`}>Открыть историю объекта</Link>
+            </WorkspaceSection>
+          </> : null}
+          <WorkspaceSection id="planning" title="Бюджет и сезоны">
+            <ObjectPlanningPanel objectId={objectId} item={item} onChanged={() => { void getObjectById(objectId).then(setItem).catch(() => {}); }} />
+          </WorkspaceSection>
           {item.capabilities.canViewOperationalSections ? <>
             <WorkspaceSection id="tasks" title="Задачи">
               {tasksLoading ? <ObjectPanelLoading title="Задачи объекта" /> : tasksError ? (

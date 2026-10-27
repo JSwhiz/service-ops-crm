@@ -8,6 +8,10 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import type { ObjectPlanningService } from '../objects/object-planning.service';
+import { ModuleRef } from '@nestjs/core';
+import { isInventoryPhotoDay } from '../inventory/utils/inventory-photo.util';
+import { inventoryTransaction } from '../inventory/utils/inventory-transaction.util';
 
 import { AuditService } from '../audit/audit.service';
 import {
@@ -86,6 +90,7 @@ export class FilesService {
     private readonly storageService: StorageService,
     private readonly auditService: AuditService,
     private readonly filePreviewService: FilePreviewService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async upload(
@@ -96,6 +101,20 @@ export class FilesService {
     const entityType = this.parseEntityType(body.entityType);
     this.assertValidFieldCode(entityType, body.fieldCode ?? null);
     await this.assertEntityWritable(currentUser, entityType, body.entityId);
+
+    // The client reuses this ID after an uncertain response or a partial batch.
+    const uploadId = body.uploadId ?? randomUUID();
+    const previous = await this.prisma.file.findUnique({
+      where: { id: uploadId }, include: { attachments: true },
+    });
+    if (previous) {
+      if (previous.deletedAt || previous.uploadedByUserId !== currentUser.id ||
+        !previous.attachments.some((entry) => entry.entityType === entityType &&
+          entry.entityId === body.entityId)) {
+        throw new ConflictException('Upload ID already used');
+      }
+      return mapSafeFileResponse(previous);
+    }
 
     const originalName = Array.from(body.originalName ?? file.originalname)
       .map((character) => {
@@ -117,9 +136,25 @@ export class FilesService {
       contentLength: file.size,
     });
 
-    const uploadResult = await this.prisma.$transaction(async (tx) => {
+    const uploadResult = await inventoryTransaction(this.prisma, async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${uploadId}, 0))::text`;
+      const existing = await tx.file.findUnique({ where: { id: uploadId }, include: { attachments: true } });
+      if (existing) {
+        if (existing.deletedAt || existing.uploadedByUserId !== currentUser.id ||
+          !existing.attachments.some((entry) => entry.entityType === entityType && entry.entityId === body.entityId)) {
+          throw new ConflictException('Upload ID already used');
+        }
+        return { file: existing, cancelledApprovalRequestIds: [] as string[] };
+      }
+      if (entityType === 'inventory_movement') {
+        await tx.$queryRaw`SELECT "id" FROM "inventory_movements" WHERE "id" = ${body.entityId} FOR UPDATE`;
+        // Recheck after storage I/O and the movement lock: a correction or the
+        // Moscow date boundary may have made this target unwritable.
+        await this.assertEntityWritable(currentUser, entityType, body.entityId);
+      }
       const storedFile = await tx.file.create({
         data: {
+          id: uploadId,
           bucket: storageResult.bucket,
           objectKey: storageResult.objectKey,
           originalName,
@@ -141,7 +176,7 @@ export class FilesService {
 
       let cancelledApprovalRequestIds: string[] = [];
 
-      if (entityType === 'inventory_movement') {
+      if (entityType === 'inventory_movement' && verifiedMimeType.startsWith('image/')) {
         const pendingApprovalRequests = await tx.approvalRequest.findMany({
           where: {
             approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
@@ -160,9 +195,6 @@ export class FilesService {
           },
           data: {
             requiresApprovalBridge: false,
-            approvalBridgeType: null,
-            approvalBridgeResolvedAt: null,
-            approvalBridgeResolvedByUserId: null,
           },
         });
 
@@ -185,6 +217,23 @@ export class FilesService {
             },
           });
         }
+        const movement = await tx.inventoryMovement.findUniqueOrThrow({ where: { id: body.entityId } });
+        const objectId = movement.relatedObjectId ?? (movement.relatedOneTimeOrderId
+          ? (await tx.oneTimeOrder.findUnique({ where: { id: movement.relatedOneTimeOrderId }, select: { linkedObjectId: true } }))?.linkedObjectId
+          : null);
+        if (objectId) await this.moduleRef.get<ObjectPlanningService>('ObjectPlanningService', { strict: false }).evaluateBudget(objectId, new Date(), tx);
+      }
+
+      await this.auditService.writeAuditEvent({
+        entityType, entityId: body.entityId, actorUserId: currentUser.id,
+        action: 'file.attached', newValues: { fileId: storedFile.id, originalName, mimeType: verifiedMimeType },
+      }, tx);
+      for (const approvalRequestId of cancelledApprovalRequestIds) {
+        await this.auditService.writeAuditEvent({
+          entityType: 'approval_request', entityId: approvalRequestId,
+          actorUserId: currentUser.id, action: 'approval.request.cancelled',
+          newValues: { sourceEntityId: body.entityId, decisionComment: 'Evidence attached to inventory movement' },
+        }, tx);
       }
 
       const createdFile = await tx.file.findUnique({
@@ -206,21 +255,6 @@ export class FilesService {
 
     if (!uploadResult.file) {
       throw new NotFoundException('Stored file not found after upload');
-    }
-
-    for (const approvalRequestId of uploadResult.cancelledApprovalRequestIds) {
-      await this.auditService.writeAuditEvent({
-        entityType: 'approval_request',
-        entityId: approvalRequestId,
-        actorUserId: currentUser.id,
-        action: 'approval.request.cancelled',
-        newValues: {
-          approvalType: INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
-          sourceEntityType: INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
-          sourceEntityId: body.entityId,
-          decisionComment: 'Evidence attached to inventory movement',
-        },
-      });
     }
 
     await this.filePreviewService.ensurePreview(uploadResult.file).catch((error) => {
@@ -678,6 +712,10 @@ export class FilesService {
       case 'object_arrival_photo':
         return this.canAccessObjectScopedEntity(currentUser, 'objectArrivalPhoto', entityId);
       case 'object_daily_report':
+        if (this.getPermissionCodes(currentUser).includes('objects.hr_reports_view')) {
+          const report = await this.prisma.objectDailyReport.findUnique({ where: { id: entityId }, select: { objectId: true } });
+          return !!report && this.canReadObject(currentUser, report.objectId);
+        }
         return this.canAccessObjectScopedEntity(currentUser, 'objectDailyReport', entityId);
       case 'object_comment':
         return this.canAccessObjectScopedEntity(currentUser, 'objectComment', entityId);
@@ -937,20 +975,12 @@ export class FilesService {
       return this.canAccessTask(currentUser, completion.taskAssignee.task.id);
     }
 
-    const attachmentCount = await this.prisma.fileAttachment.count({
-      where: {
-        entityType: 'task_assignee_completion',
-        entityId: completionId,
-      },
-    });
-
     return (
       completion.status === 'draft' &&
       completion.workCycle === completion.taskAssignee.task.workCycle &&
       completion.taskAssignee.isActive &&
       completion.taskAssignee.userId === currentUser.id &&
-      completion.taskAssignee.task.status === 'in_progress' &&
-      attachmentCount < 10
+      completion.taskAssignee.task.status === 'in_progress'
     );
   }
 
@@ -966,6 +996,8 @@ export class FilesService {
       select: {
         id: true,
         createdByUserId: true,
+        createdAt: true,
+        status: true,
         relatedObject: {
           select: {
             id: true,
@@ -976,6 +1008,7 @@ export class FilesService {
               },
               select: {
                 userId: true,
+                assignmentRoleCode: true,
               },
             },
           },
@@ -1005,9 +1038,15 @@ export class FilesService {
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (mode === 'write') {
+      if (['cancelled', 'rejected'].includes(movement.status) || !isInventoryPhotoDay(movement.createdAt)) return false;
       return (
         canCreateInventoryMovement(roleCodes) ||
-        movement.createdByUserId === currentUser.id
+        (movement.createdByUserId === currentUser.id &&
+          isInventoryPhotoDay(movement.createdAt) &&
+          (!!movement.relatedObject?.assignments.some((assignment) =>
+            assignment.userId === currentUser.id && assignment.assignmentRoleCode === 'manager') ||
+            !!movement.relatedOneTimeOrder?.assignments.some((assignment) =>
+              assignment.userId === currentUser.id && assignment.assignmentRoleCode === 'one_time_manager')))
       );
     }
 

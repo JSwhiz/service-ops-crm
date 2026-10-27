@@ -61,6 +61,7 @@ export class ObjectAttendanceSubmissionService {
           gte: dayRange.start,
           lt: dayRange.end,
         },
+        payload: { path: ['operationDate'], equals: getMoscowDateKey() },
       },
       include: {
         actor: true,

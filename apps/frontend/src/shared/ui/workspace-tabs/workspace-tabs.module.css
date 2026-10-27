@@ -27,13 +27,19 @@
   font-size: 14px;
   font-weight: 650;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.root button:hover,
 .root button:hover,
 .root button.active { background: var(--ui-accent-subtle); color: var(--ui-text); }
 .root button:focus-visible { outline: 2px solid var(--ui-focus-border); outline-offset: 1px; }
 
 @media (max-width: 640px) {
   .root { top: 56px; }
+}
+
+@media (pointer: coarse) {
+  .root button {
+    min-height: 44px;
+  }
 }

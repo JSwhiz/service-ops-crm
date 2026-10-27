@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 
 import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import {
@@ -17,7 +17,8 @@ import { getUserDisplayName } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { ConfirmDialog } from '@/shared/ui/overlays';
-import { Alert, Badge, Button, Surface } from '@/shared/ui/foundation';
+import { Alert, Badge, Button, EmptyState, Field, LoadingState, Surface } from '@/shared/ui/foundation';
+import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 export function OneTimeOrderSpecificationPanel({
   orderId,
@@ -31,6 +32,10 @@ export function OneTimeOrderSpecificationPanel({
   const [description, setDescription] = useState('');
   const [requiresAttachment, setRequiresAttachment] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const formId = useId();
+  const titleInput = useRef<HTMLInputElement>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<OneTimeOrderSpecificationItem | null>(null);
@@ -41,8 +46,14 @@ export function OneTimeOrderSpecificationPanel({
   };
 
   useEffect(() => {
-    void load().catch(() => setError('Не удалось загрузить техническое задание.'));
+    void load()
+      .catch(() => setError('Не удалось загрузить техническое задание.'))
+      .finally(() => setIsLoading(false));
   }, [orderId]);
+
+  useEffect(() => {
+    if (isFormOpen) titleInput.current?.focus();
+  }, [isFormOpen, editingId]);
 
   const completedCount = items.filter((item) => item.isCompleted).length;
 
@@ -51,6 +62,7 @@ export function OneTimeOrderSpecificationPanel({
     setDescription('');
     setRequiresAttachment(false);
     setEditingId(null);
+    setIsFormOpen(false);
   };
 
   const moveItem = async (index: number, direction: -1 | 1): Promise<void> => {
@@ -87,16 +99,103 @@ export function OneTimeOrderSpecificationPanel({
     <Surface as="section" padding="md" className="ui-stack ui-stack--lg">
       <div className="ui-section-header">
         <div>
-          <div className="ui-section-title">Техническое задание</div>
+          <h2 className="ui-section-title">Техническое задание</h2>
           <div className="ui-section-subtitle">
-            Выполнено {completedCount} из {items.length}
+            {isLoading ? 'Загрузка пунктов…' : `Выполнено ${completedCount} из ${items.length}`}
           </div>
         </div>
+        {canManage ? (
+          <Button
+            id={`${formId}-trigger`}
+            aria-expanded={isFormOpen}
+            aria-controls={formId}
+            disabled={isBusy || isLoading || isFormOpen}
+            onClick={() => setIsFormOpen(true)}
+          >
+            Добавить пункт
+          </Button>
+        ) : null}
       </div>
 
-      {canManage ? (
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
+
+      {isLoading ? <LoadingState label="Загрузка технического задания…" /> : null}
+
+      {!isLoading && items.length === 0 && !error ? (
+        <EmptyState
+          title="Пунктов ТЗ пока нет"
+          description={canManage ? 'Добавьте первый пункт: укажите работу и необходимость вложения.' : 'Пункты появятся здесь после добавления технического задания.'}
+        />
+      ) : null}
+
+      {items.length > 0 ? <div className="ui-stack ui-stack--lg">
+        {items.map((item, index) => (
+          <article key={item.id} className={`ui-stack ui-stack--sm ${orderStyles.specificationItem}`}>
+            <div className="ui-section-header">
+              <div className="ui-inline">
+                <input
+                  type="checkbox"
+                  checked={item.isCompleted}
+                  disabled={!canManage || isBusy}
+                  aria-label={`Выполнение: ${item.title}`}
+                  onChange={async () => {
+                    setIsBusy(true);
+                    setError(null);
+                    try {
+                      if (item.isCompleted) {
+                        await reopenOneTimeOrderSpecificationItem(orderId, item.id);
+                      } else {
+                        await completeOneTimeOrderSpecificationItem(orderId, item.id);
+                      }
+                      await load();
+                    } catch {
+                      setError(item.requiresAttachment && !item.isCompleted
+                        ? 'Для выполнения пункта нужно вложение.'
+                        : 'Не удалось изменить состояние пункта.');
+                    } finally {
+                      setIsBusy(false);
+                    }
+                  }}
+                />
+                <h3 className={orderStyles.specificationTitle}>{item.title}</h3>
+                {item.requiresAttachment ? <Badge>Нужно вложение</Badge> : null}
+              </div>
+              {canManage ? (
+                <div className="ui-inline">
+                  <Button size="sm" disabled={index === 0} aria-label={`Переместить выше: ${item.title}`} onClick={() => void moveItem(index, -1)}>Выше</Button>
+                  <Button size="sm" disabled={index === items.length - 1} aria-label={`Переместить ниже: ${item.title}`} onClick={() => void moveItem(index, 1)}>Ниже</Button>
+                  <Button size="sm" onClick={() => {
+                    setEditingId(item.id);
+                    setTitle(item.title);
+                    setDescription(item.description ?? '');
+                    setRequiresAttachment(item.requiresAttachment);
+                    setIsFormOpen(true);
+                  }}>Изменить</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(item)}>Удалить</Button>
+                </div>
+              ) : null}
+            </div>
+            {item.description ? <p className={orderStyles.orderLongText}>{item.description}</p> : null}
+            {item.completedBy && item.completedAt ? (
+              <div className="ui-text-muted">
+                Выполнил: {getUserDisplayName(item.completedBy)} · {new Date(item.completedAt).toLocaleString('ru-RU')}
+              </div>
+            ) : null}
+            {canManage ? (
+              <MediaActionPicker onPick={async (file) => {
+                await uploadFileToEntity({ entityType: 'one_time_order_specification_item', entityId: item.id, file });
+                await load();
+              }} />
+            ) : null}
+            {item.attachments.length > 0 ? <AttachmentPreviewList files={item.attachments} /> : null}
+          </article>
+        ))}
+      </div> : null}
+
+      {canManage && isFormOpen ? (
         <form
-          className="ui-detail-grid"
+          id={formId}
+          className={`ui-stack ui-stack--lg ${orderStyles.specificationForm}`}
           onSubmit={async (event) => {
             event.preventDefault();
             setError(null);
@@ -135,23 +234,24 @@ export function OneTimeOrderSpecificationPanel({
             }
           }}
         >
-          <label>
-            <div className="ui-detail-label">Название пункта</div>
+          <h3 className="ui-section-title">{editingId ? 'Редактирование пункта' : 'Новый пункт ТЗ'}</h3>
+          <Field label="Название пункта" required>
             <input
+              ref={titleInput}
               value={title}
               maxLength={500}
               onChange={(event) => setTitle(event.target.value)}
               required
             />
-          </label>
-          <label>
-            <div className="ui-detail-label">Описание</div>
-            <input
+          </Field>
+          <Field label="Описание">
+            <textarea
               value={description}
               maxLength={5000}
+              rows={3}
               onChange={(event) => setDescription(event.target.value)}
             />
-          </label>
+          </Field>
           <label className="ui-inline">
             <input
               type="checkbox"
@@ -161,131 +261,23 @@ export function OneTimeOrderSpecificationPanel({
             Требовать вложение
           </label>
           <div className="ui-inline">
-            <Button variant="primary" type="submit" disabled={isBusy}>
+            <Button variant="primary" type="submit" pending={isBusy} pendingLabel="Сохраняем…">
               {editingId
                 ? items.find((item) => item.id === editingId)?.isCompleted
                   ? 'Сохранить и переоткрыть'
                   : 'Сохранить пункт'
-                : 'Добавить пункт'}
+                : 'Сохранить пункт'}
             </Button>
-            {editingId ? (
-              <Button onClick={resetForm}>
-                Отмена
-              </Button>
-            ) : null}
+            <Button variant="ghost" disabled={isBusy} onClick={() => {
+              resetForm();
+              window.requestAnimationFrame(() => document.getElementById(`${formId}-trigger`)?.focus());
+            }}>
+              Отмена
+            </Button>
           </div>
         </form>
       ) : null}
 
-      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
-
-      <div className="ui-stack ui-stack--lg">
-        {items.length === 0 ? (
-          <div className="ui-text-muted">Пункты ТЗ пока не добавлены.</div>
-        ) : (
-          items.map((item, index) => (
-            <article key={item.id} className="detail-section">
-              <div className="ui-section-header">
-                <div className="ui-inline">
-                  <input
-                    type="checkbox"
-                    checked={item.isCompleted}
-                    disabled={!canManage || isBusy}
-                    aria-label={`Выполнение: ${item.title}`}
-                    onChange={async () => {
-                      setIsBusy(true);
-                      setError(null);
-                      try {
-                        if (item.isCompleted) {
-                          await reopenOneTimeOrderSpecificationItem(
-                            orderId,
-                            item.id,
-                          );
-                        } else {
-                          await completeOneTimeOrderSpecificationItem(
-                            orderId,
-                            item.id,
-                          );
-                        }
-                        await load();
-                      } catch {
-                        setError(
-                          item.requiresAttachment && !item.isCompleted
-                            ? 'Для выполнения пункта нужно вложение.'
-                            : 'Не удалось изменить состояние пункта.',
-                        );
-                      } finally {
-                        setIsBusy(false);
-                      }
-                    }}
-                  />
-                  <div>
-                    <strong>{item.title}</strong>
-                    {item.requiresAttachment ? (
-                      <Badge>Нужно вложение</Badge>
-                    ) : null}
-                  </div>
-                </div>
-                {canManage ? (
-                  <div className="ui-inline">
-                    <Button
-                      disabled={index === 0}
-                      onClick={() => void moveItem(index, -1)}
-                    >
-                      Выше
-                    </Button>
-                    <Button
-                      disabled={index === items.length - 1}
-                      onClick={() => void moveItem(index, 1)}
-                    >
-                      Ниже
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setEditingId(item.id);
-                        setTitle(item.title);
-                        setDescription(item.description ?? '');
-                        setRequiresAttachment(item.requiresAttachment);
-                      }}
-                    >
-                      Изменить
-                    </Button>
-                    <Button variant="danger"
-                      onClick={() => setDeleteTarget(item)}
-                    >
-                      Удалить
-                    </Button>
-                  </div>
-                ) : null}
-              </div>
-
-              {item.description ? <p>{item.description}</p> : null}
-              {item.completedBy && item.completedAt ? (
-                <div className="ui-text-muted">
-                  Выполнил: {getUserDisplayName(item.completedBy)} ·{' '}
-                  {new Date(item.completedAt).toLocaleString('ru-RU')}
-                </div>
-              ) : null}
-              {canManage ? (
-                <MediaActionPicker
-                  onPick={async (file) => {
-                    await uploadFileToEntity({
-                      entityType: 'one_time_order_specification_item',
-                      entityId: item.id,
-                      file,
-                    });
-                    await load();
-                  }}
-                />
-              ) : null}
-              <AttachmentPreviewList
-                files={item.attachments}
-                emptyText="Вложений нет."
-              />
-            </article>
-          ))
-        )}
-      </div>
     </Surface>
     <ConfirmDialog
       open={deleteTarget !== null}

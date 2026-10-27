@@ -10,7 +10,7 @@ import type {
 } from '@/entities/dashboard/model/dashboard.types';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { getUserDisplayName } from '@/shared/lib/display-name';
+import { getUserGreetingName } from '@/shared/lib/display-name';
 
 import {
   DashboardEmpty,
@@ -33,7 +33,6 @@ function greeting(): string {
   const hour = moscowHour();
   return hour < 6 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
 }
-function firstName(value: string): string { return value.trim().split(/\s+/)[0] || value; }
 function formatDate(value: string | null): string {
   if (!value) return 'Без срока';
   return new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: 'short' }).format(new Date(value));
@@ -71,7 +70,7 @@ export function OperationManagerDashboard(): React.JSX.Element {
     return () => { cancelled = true; };
   }, [user]);
 
-  const name = user ? firstName(getUserDisplayName(user)) : '';
+  const name = user ? getUserGreetingName(user) : '';
   const attention = data?.attention.items ?? [];
 
   const openAttention = (item: OperationManagerAttentionItem): void => {

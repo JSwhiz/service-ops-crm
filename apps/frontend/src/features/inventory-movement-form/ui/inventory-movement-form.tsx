@@ -208,7 +208,7 @@ export function InventoryMovementForm({
         style={{
           display: 'grid',
           gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
         }}
       >
         {supportsMultipleItems ? (
@@ -222,7 +222,7 @@ export function InventoryMovementForm({
                     {!line.movementId && issueLines.length > 1 ? <Button disabled={isSaving} onClick={() => setIssueLines((current) => current.filter((entry) => entry.key !== line.key))}>Убрать</Button> : null}
                   </div>
                   {line.movementId ? <div className="ui-text-muted">Операция уже записана. Повторная отправка не создаст дубликат.</div> : (
-                    <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+                    <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))' }}>
                       <Field label="Номенклатура">
                         <Select value={line.inventoryItemId} onChange={(event) => setIssueLines((current) => current.map((entry) => entry.key === line.key ? { ...entry, inventoryItemId: event.target.value } : entry))} required disabled={isSaving}>
                           {items.filter((item) => item.id === line.inventoryItemId || !issueLines.some((other) => other.key !== line.key && other.inventoryItemId === item.id)).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.category}</option>)}
@@ -341,7 +341,7 @@ export function InventoryMovementForm({
           style={{
             display: 'grid',
             gap: 12,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
           }}
         >
           {movementType === 'return' || movementType === 'writeoff' ? (

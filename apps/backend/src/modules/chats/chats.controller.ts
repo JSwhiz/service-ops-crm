@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -112,6 +113,15 @@ export class ChatsController {
     @Body() body: AddChatParticipantsDto,
   ): Promise<ChatRoomResponseDto> {
     return this.chatsService.addParticipants(user, roomId, body);
+  }
+
+  @Delete('rooms/:roomId/participants/:userId')
+  removeParticipant(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('roomId') roomId: string,
+    @Param('userId') userId: string,
+  ): Promise<ChatRoomResponseDto> {
+    return this.chatsService.removeParticipant(user, roomId, userId);
   }
 
   @Post('rooms/:roomId/hide')

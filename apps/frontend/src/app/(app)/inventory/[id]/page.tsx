@@ -87,6 +87,7 @@ export default function InventoryItemDetailPage({
   const [isItemActionPending, setIsItemActionPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [movementError, setMovementError] = useState<string | null>(null);
+  const [referencesError, setReferencesError] = useState(false);
   const [itemActionError, setItemActionError] = useState<string | null>(null);
   const canCreateMovement =
     (item?.isActive ?? false) && (item?.capabilities.canCreateMovement ?? false);
@@ -141,12 +142,14 @@ export default function InventoryItemDetailPage({
 
   useEffect(() => {
     if (!canCreateMovement) {
+      setReferencesError(false);
       setObjectOptions([]);
       setOneTimeOrderOptions([]);
       return;
     }
 
     let cancelled = false;
+    setReferencesError(false);
     void Promise.all([
       listInventoryObjectReferenceOptions(),
       listInventoryOneTimeOrderReferenceOptions(),
@@ -159,6 +162,7 @@ export default function InventoryItemDetailPage({
       })
       .catch(() => {
         if (!cancelled) {
+          setReferencesError(true);
           setObjectOptions([]);
           setOneTimeOrderOptions([]);
         }
@@ -486,6 +490,8 @@ export default function InventoryItemDetailPage({
             </Surface>
           ) : null}
 
+          {referencesError ? <Alert tone="warning" role="alert">Списки объектов и заказов не загрузились. Обновите страницу перед выбором назначения движения.</Alert> : null}
+
           {item.isActive && item.capabilities.canCreateMovement ? (
             <InventoryMovementForm
               items={[item]}
@@ -616,7 +622,7 @@ export default function InventoryItemDetailPage({
               {isMovementsLoading ? (
                 <Surface padding="md">Загрузка истории...</Surface>
               ) : movementError ? (
-                <Surface padding="md" className="form-error">{movementError}</Surface>
+                <Alert tone="danger" role="alert">{movementError}</Alert>
               ) : (
                 <InventoryMovementList items={movements} />
               )}

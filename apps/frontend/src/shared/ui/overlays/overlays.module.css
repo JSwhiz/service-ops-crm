@@ -13,6 +13,23 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
+.overlay[data-motion='pointer'][open] {
+  opacity: 1;
+  transition: opacity var(--ui-duration-normal) var(--ui-ease-standard);
+}
+
+@starting-style {
+  .overlay[data-motion='pointer'][open] {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay[data-motion='pointer'][open] {
+    transition: none;
+  }
+}
+
 .overlay::backdrop {
   background: color-mix(in srgb, var(--ui-text) 36%, transparent);
 }

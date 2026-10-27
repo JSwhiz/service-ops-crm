@@ -134,6 +134,7 @@ export function AppSidebar({ expanded, onToggle }: AppSidebarProps): React.JSX.E
           <NavLink href="/tasks" label="Задачи" icon={<Icon name="tasks" />} />
           <NavLink href="/timesheet" label="Табель" icon={<Icon name="timesheet" />} />
           <NavLink href="/user-absences" label="Календарь" icon={<Icon name="calendar" />} />
+          <NavLink href="/visit-plans" label="План на день" icon={<Icon name="tasks" />} />
           <NavLink href="/user-substitutions" label="Замещения" icon={<Icon name="substitutions" />} />
           {canAccessCandidates ? <NavLink href="/candidates" label="Кандидаты" icon={<Icon name="candidates" />} /> : null}
           {canAccessEmployeesHr ? <NavLink href="/employees" label="Сотрудники" icon={<Icon name="employees" />} /> : null}

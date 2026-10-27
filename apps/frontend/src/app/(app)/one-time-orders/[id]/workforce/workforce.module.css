@@ -5,6 +5,7 @@
   max-width: none;
   margin: 0;
   gap: 12px;
+  container: order-workforce / inline-size;
 }
 
 .toolbar,
@@ -21,6 +22,7 @@
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .orderContext {
@@ -30,10 +32,9 @@
 }
 
 .orderContext > strong {
-  overflow: hidden;
+  min-width: 0;
   color: var(--ui-text);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .status {
@@ -42,7 +43,7 @@
   gap: 7px;
   color: var(--ui-text-secondary);
   font-size: var(--ui-text-sm);
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .status i {
@@ -174,6 +175,10 @@
 .row:last-child { border-bottom: 0; }
 
 .copy { min-width: 0; }
+.copy,
+.head > div,
+.historyList article { overflow-wrap: anywhere; }
+.head > div { min-width: 0; }
 .copy > strong { display: block; color: var(--ui-text); font-size: var(--ui-text-md); }
 .copy > span { display: block; margin-top: 2px; color: var(--ui-text-tertiary); font-size: var(--ui-text-sm); }
 
@@ -244,7 +249,7 @@
 
 .attendanceRow:last-of-type { border-bottom: 0; }
 .checkbox { width: 17px; height: 17px; accent-color: var(--ui-accent); }
-.value { color: var(--ui-text-secondary); font-size: var(--ui-text-sm); font-variant-numeric: tabular-nums; }
+.value { min-width: 0; overflow-wrap: anywhere; text-align: right; color: var(--ui-text-secondary); font-size: var(--ui-text-sm); font-variant-numeric: tabular-nums; }
 .savedMark { color: var(--ui-success); font-size: var(--ui-text-xs); font-weight: 700; }
 .savedBy { color: var(--ui-text-tertiary); font-size: var(--ui-text-xs); }
 .formActions { justify-content: flex-start; padding-top: 2px; }
@@ -272,7 +277,7 @@
 .table th,
 .table td { border-bottom: 1px solid var(--ui-border); padding: 9px 8px; text-align: right; white-space: nowrap; }
 .table th:first-child,
-.table td:first-child { position: sticky; left: 0; z-index: 1; text-align: left; background: var(--ui-surface); }
+.table td:first-child { position: sticky; left: 0; z-index: 1; min-width: 160px; max-width: 240px; white-space: normal; overflow-wrap: anywhere; text-align: left; background: var(--ui-surface); }
 .table thead th { color: var(--ui-text-secondary); font-weight: 650; background: var(--ui-surface-subtle); }
 .table thead th:first-child { background: var(--ui-surface-subtle); }
 .total { color: var(--ui-text); font-weight: 720; }
@@ -284,12 +289,12 @@
 .missingDates span { border: 1px solid var(--ui-warning-border, var(--ui-border)); border-radius: 999px; padding: 5px 10px; background: var(--ui-warning-subtle); color: var(--ui-text-secondary); font-size: var(--ui-text-xs); }
 .error { border: 1px solid var(--ui-danger); border-radius: var(--ui-radius-md); padding: 12px 14px; background: var(--ui-danger-subtle); color: var(--ui-danger); }
 
-@media (max-width: 1100px) {
+@container order-workforce (max-width: 1100px) {
   .grid { grid-template-columns: minmax(0, 1fr); }
   .row { grid-template-columns: minmax(0, 1fr) minmax(250px, 340px); }
 }
 
-@media (max-width: 760px) {
+@container order-workforce (max-width: 760px) {
   .toolbar { align-items: flex-start; flex-direction: column; }
   .status { white-space: normal; }
   .grid { gap: 10px; }

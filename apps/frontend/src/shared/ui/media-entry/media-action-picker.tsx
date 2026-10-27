@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
 import styles from './media-action-picker.module.css';
+import { Alert, Button, IconButton } from '@/shared/ui/foundation';
 
 export function MediaActionPicker({
   onPick,
@@ -11,14 +12,28 @@ export function MediaActionPicker({
   allowGenericFile = true,
   genericFileAccept,
   iconOnly = false,
+  onBusyChange,
 }: {
   onPick: (file: File) => Promise<void>;
   disabled?: boolean;
   allowGenericFile?: boolean;
   genericFileAccept?: string;
   iconOnly?: boolean;
+  onBusyChange?: (busy: boolean) => void;
 }): React.JSX.Element {
   const [isBusy, setIsBusy] = useState(false);
+  const [failedFiles, setFailedFiles] = useState<File[]>([]);
+  const processFiles = async (files: File[]): Promise<void> => {
+    setIsBusy(true);
+    onBusyChange?.(true);
+    const failed: File[] = [];
+    try {
+      for (const file of files) {
+        try { await onPick(file); } catch { failed.push(file); }
+      }
+      setFailedFiles(failed);
+    } finally { setIsBusy(false); onBusyChange?.(false); }
+  };
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -26,20 +41,15 @@ export function MediaActionPicker({
   const handleFile = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ): Promise<void> => {
-    const file = event.target.files?.[0] ?? null;
+    const files = Array.from(event.target.files ?? []);
 
     event.target.value = '';
 
-    if (!file) {
+    if (files.length === 0) {
       return;
     }
 
-    setIsBusy(true);
-    try {
-      await onPick(file);
-    } finally {
-      setIsBusy(false);
-    }
+    await processFiles(files);
   };
 
   const isDisabled = disabled || isBusy;
@@ -57,6 +67,7 @@ export function MediaActionPicker({
       <input
         ref={galleryInputRef}
         type="file"
+        multiple
         accept="image/*"
         style={{ display: 'none' }}
         onChange={(event) => void handleFile(event)}
@@ -64,46 +75,20 @@ export function MediaActionPicker({
       <input
         ref={fileInputRef}
         type="file"
+        multiple
         accept={genericFileAccept}
         style={{ display: 'none' }}
         onChange={(event) => void handleFile(event)}
       />
 
-      <button
-        className={iconOnly ? styles.iconButton : undefined}
-        type="button"
-        disabled={isDisabled}
-        onClick={() => cameraInputRef.current?.click()}
-        aria-label="Сделать фото"
-        title="Сделать фото"
-      >
-        {iconOnly ? <MediaActionIcon name="camera" /> : isBusy ? 'Загружаем…' : 'Сделать фото'}
-      </button>
-
-      <button
-        className={iconOnly ? styles.iconButton : undefined}
-        type="button"
-        disabled={isDisabled}
-        onClick={() => galleryInputRef.current?.click()}
-        aria-label="Выбрать из галереи"
-        title="Выбрать из галереи"
-      >
-        {iconOnly ? <MediaActionIcon name="gallery" /> : 'Выбрать из галереи'}
-      </button>
-
-      {allowGenericFile ? (
-        <button
-          className={iconOnly ? styles.iconButton : undefined}
-          type="button"
-          disabled={isDisabled}
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="Выбрать файл"
-          title="Выбрать файл"
-        >
-          {iconOnly ? <MediaActionIcon name="file" /> : 'Выбрать файл'}
-        </button>
-      ) : null}
+      {[
+        { name: 'camera' as const, label: 'Сделать фото', input: cameraInputRef },
+        { name: 'gallery' as const, label: 'Выбрать из галереи', input: galleryInputRef },
+        ...(allowGenericFile ? [{ name: 'file' as const, label: 'Выбрать файл', input: fileInputRef }] : []),
+      ].map((action) => iconOnly ? <IconButton key={action.name} disabled={isDisabled} aria-label={action.label} title={action.label} onClick={() => action.input.current?.click()}><MediaActionIcon name={action.name} /></IconButton>
+        : <Button key={action.name} disabled={isDisabled} icon={<MediaActionIcon name={action.name} />} onClick={() => action.input.current?.click()}>{action.label}</Button>)}
       {isBusy ? <span className={styles.visuallyHidden} role="status">Загружаем файл…</span> : null}
+      {failedFiles.length > 0 ? <Alert tone="danger">Не удалось добавить {failedFiles.length} файл(ов): {failedFiles.map((file) => file.name).join(', ')}. Остальные сохранены. <Button disabled={isDisabled} onClick={() => void processFiles(failedFiles)}>Повторить неудачные</Button></Alert> : null}
     </div>
   );
 }

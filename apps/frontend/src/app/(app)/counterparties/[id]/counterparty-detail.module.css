@@ -1,0 +1,200 @@
+.page {
+  min-width: 0;
+  color: var(--ui-text);
+}
+
+.counterpartyHero,
+.section {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-4);
+}
+
+.surface,
+.detailSurface {
+  min-width: 0;
+}
+
+.summaryTop,
+.summaryTitleRow,
+.summaryActions,
+.sectionHeader,
+.recordIdentity,
+.recordActions,
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  flex-wrap: wrap;
+}
+
+.summaryTop,
+.sectionHeader {
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--ui-space-4);
+}
+
+.summaryIdentity {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--ui-text-2xl);
+  font-weight: 700;
+  line-height: var(--ui-leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.summaryActions,
+.recordActions,
+.formActions {
+  justify-content: flex-end;
+}
+
+.summaryLegalName,
+.muted {
+  margin-top: var(--ui-space-1);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  line-height: var(--ui-leading-normal);
+  overflow-wrap: anywhere;
+}
+
+.summaryLegalName span {
+  margin-right: var(--ui-space-2);
+}
+
+.summaryLegalName strong {
+  font-weight: 400;
+}
+
+.summaryNote {
+  display: grid;
+  gap: var(--ui-space-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--ui-text-lg);
+  font-weight: 600;
+}
+
+.inlineForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+}
+
+.fullRow {
+  grid-column: 1 / -1;
+}
+
+.formActions {
+  padding-top: var(--ui-space-4);
+  border-top: 1px solid var(--ui-border);
+}
+
+.objectLinkForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--ui-space-3);
+  align-items: end;
+}
+
+.objectLinkAction {
+  display: flex;
+}
+
+.recordList {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.recordCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, auto);
+  align-items: center;
+  gap: var(--ui-space-4);
+  padding-block: var(--ui-space-3);
+}
+
+.recordCard + .recordCard {
+  border-top: 1px solid var(--ui-border);
+}
+
+.recordMain {
+  min-width: 0;
+}
+
+.recordLink {
+  color: var(--ui-text);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.recordLink:hover {
+  color: var(--ui-accent);
+  text-decoration: underline;
+}
+
+.movementsTable {
+  min-width: 860px;
+}
+
+.movementsTable th,
+.movementsTable td {
+  padding: var(--ui-space-3);
+}
+
+.movementsTable td {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+
+.movementsTable .quantityColumn,
+.movementsTable .movementQuantity {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.movementQuantity[data-direction='out'] {
+  color: var(--ui-danger);
+}
+
+.movementQuantity[data-direction='in'] {
+  color: var(--ui-success);
+}
+
+@media (max-width: 1000px) {
+  .recordCard {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ui-space-2);
+  }
+}
+
+@media (max-width: 640px) {
+  .title {
+    font-size: var(--ui-text-xl);
+  }
+
+  .summaryIdentity {
+    flex-basis: 100%;
+  }
+
+  .summaryActions {
+    justify-content: flex-start;
+  }
+
+  .inlineForm,
+  .objectLinkForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

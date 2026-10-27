@@ -12,6 +12,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../apps/frontend/src');
 const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -38,11 +39,41 @@ const prefixes = new Set([
 const usedGlobally = (name) => new RegExp(`(?<![\\w-])${escape(name)}(?![\\w-])`).test(allText)
   || [...prefixes].some((prefix) => name.startsWith(prefix));
 
-const report = { globals: {}, modules: {}, brokenComments: [] };
+const report = { globals: {}, modules: {}, brokenComments: [], missingModuleClasses: {}, undefinedTokens: {} };
+const definedTokens = new Set(cssFiles.flatMap((file) =>
+  [...stripComments(fs.readFileSync(file, 'utf8')).matchAll(/(--ui-[\w-]+)\s*:/g)].map((match) => match[1]),
+));
+
+// Orphan rules alone do not catch markup that asks for a missing CSS-module
+// export. Resolve each import independently (several modules share a basename).
+for (const [file, source] of sources) {
+  const syntax = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  for (const match of source.matchAll(/import\s+(\w+)\s+from\s+['"]([^'"]+\.module\.css)['"]/g)) {
+    const [, id, specifier] = match;
+    const cssFile = specifier.startsWith('@/')
+      ? path.resolve(root, specifier.slice(2))
+      : path.resolve(path.dirname(file), specifier);
+    if (!fs.existsSync(cssFile)) continue;
+    const localNames = new Set(selectorsOf(fs.readFileSync(cssFile, 'utf8'))
+      .flatMap((selector) => [...classesOf(selector.replace(/:global\([^)]*\)/g, ''))]));
+    const reads = [];
+    const visit = (node) => {
+      if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === id) reads.push(node.name.text);
+      if (ts.isElementAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === id && node.argumentExpression && ts.isStringLiteral(node.argumentExpression)) reads.push(node.argumentExpression.text);
+      ts.forEachChild(node, visit);
+    };
+    visit(syntax);
+    const missing = [...new Set(reads.filter((name) => !localNames.has(name)))];
+    if (missing.length) report.missingModuleClasses[path.relative(root, file)] = missing;
+  }
+}
 
 for (const file of cssFiles) {
   const css = fs.readFileSync(file, 'utf8');
   const rel = path.relative(root, file);
+  const missingTokens = [...new Set([...stripComments(css).matchAll(/var\((--ui-[\w-]+)\s*\)/g)]
+    .map((match) => match[1]).filter((name) => !definedTokens.has(name)))];
+  if (missingTokens.length) report.undefinedTokens[rel] = missingTokens;
   for (const comment of css.matchAll(/\/\*([\s\S]*?)\*\//g)) {
     if (comment[1].includes('{')) report.brokenComments.push(`${rel}:${css.slice(0, comment.index).split('\n').length}`);
   }
@@ -76,7 +107,8 @@ for (const file of cssFiles) {
   if (dead.length || deadGlobal.length) report.modules[rel] = { dead, deadGlobalRefs: deadGlobal };
 }
 
-const problems = Object.keys(report.globals).length + Object.keys(report.modules).length + report.brokenComments.length;
+const problems = Object.keys(report.globals).length + Object.keys(report.modules).length + report.brokenComments.length
+  + Object.keys(report.missingModuleClasses).length + Object.keys(report.undefinedTokens).length;
 if (process.argv.includes('--json')) {
   console.log(JSON.stringify(report, null, 2));
 } else if (problems) {
@@ -86,7 +118,9 @@ if (process.argv.includes('--json')) {
     if (item.deadGlobalRefs.length) console.log(`${file}: :global() refers to unused classes: ${item.deadGlobalRefs.join(', ')}`);
   }
   for (const location of report.brokenComments) console.log(`${location}: comment contains "{" — a rule may be commented out`);
+  for (const [file, names] of Object.entries(report.missingModuleClasses)) console.log(`${file}: missing CSS-module classes: ${names.join(', ')}`);
+  for (const [file, names] of Object.entries(report.undefinedTokens)) console.log(`${file}: undefined UI tokens without fallback: ${names.join(', ')}`);
 } else {
-  console.log(`CSS audit: ${cssFiles.length} files, no unused classes.`);
+  console.log(`CSS audit: ${cssFiles.length} files, no orphan or missing classes, no undefined UI tokens.`);
 }
 process.exit(problems ? 1 : 0);

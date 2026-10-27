@@ -128,7 +128,11 @@ export function AccountabilityExpenseForm({
       ) : null}
 
       <Stack gap="sm">
-        <div className="ui-text-muted">Фото и документы расхода</div>
+        <div className="ui-text-muted">
+          {initialExpense?.expenseCategory === 'employee_payout'
+            ? 'Фото и чек выплаты — по желанию'
+            : 'Фото и документы расхода'}
+        </div>
         <MediaActionPicker
           disabled={isSubmitting}
           onPick={async (file) => {

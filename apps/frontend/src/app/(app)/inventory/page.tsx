@@ -163,10 +163,10 @@ export default function InventoryPage(): React.JSX.Element {
             <InventoryItemListTable items={items} />
           )}
 
-          <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы расходников"
+          {!isLoading && !error ? <TablePagination page={page} totalPages={totalPages} pending={isLoading} label="Страницы расходников"
             summary={total > 0 ? `Показано ${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} из ${total}` : 'Расходники не найдены'}
             onPageChange={(nextPage) => setPage(nextPage)}
-            pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} />
+            pageSize={pageSize} pageSizeOptions={pageSizeOptions} onPageSizeChange={setPageSize} /> : null}
         </div>
       )}
     </>

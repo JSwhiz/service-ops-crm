@@ -16,6 +16,8 @@ import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { Button, Stack, Surface } from '@/shared/ui/foundation';
+import { useReasonPrompt } from '@/shared/ui/overlays';
+import { correctInventoryMovement } from '@/entities/inventory/api/inventory-client';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -45,25 +47,33 @@ export function ObjectInventoryPanel({
   onRefresh: () => Promise<void>;
 }): React.JSX.Element {
   const [issueLines, setIssueLines] = useState<Array<{ key: string; inventoryItemId: string; quantity: string; movementId?: string }>>([
-    { key: 'initial', inventoryItemId: availableItems[0]?.id ?? '', quantity: '1' },
+    { key: 'initial', inventoryItemId: '', quantity: '1' },
   ]);
   const [comment, setComment] = useState('');
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [promptReason, reasonDialog] = useReasonPrompt();
+  const correct = async (movement: InventoryMovement): Promise<void> => {
+    const reason = await promptReason({ title: 'Исправить выдачу?', description: 'Неподтверждённая выдача будет отменена. Для подтверждённой создаётся возврат с исходной стоимостью; история сохраняется.', confirmLabel: 'Исправить', reasonLabel: 'Причина', minLength: 2 });
+    if (!reason) return;
+    setIsSaving(true); setError(null);
+    try { await correctInventoryMovement(movement.id, reason); await onRefresh(); }
+    catch (caught) { setError(getErrorMessage(caught, 'Не удалось исправить выдачу.')); }
+    finally { setIsSaving(false); }
+  };
 
   const addLine = (): void => {
-    const selectedIds = new Set(issueLines.map((line) => line.inventoryItemId));
-    const nextItem = availableItems.find((item) => !selectedIds.has(item.id));
     setIssueLines((current) => [...current, {
       key: `${Date.now()}-${current.length}`,
-      inventoryItemId: nextItem?.id ?? '',
+      inventoryItemId: '',
       quantity: '1',
     }]);
   };
 
   return (
     <Surface padding="md" className={`${styles.workPanel}`}>
+      {reasonDialog}
       <div className={styles.panelHeader}>
         <div className="ui-section-title">Списание расходников</div>
         <span className={styles.panelMeta}>{movements.length} операций</span>
@@ -103,7 +113,7 @@ export function ObjectInventoryPanel({
                 setComment('');
                 setEvidenceFiles([]);
                 setIssueLines((current) => current.length > 0 ? current : [
-                  { key: `${Date.now()}-next`, inventoryItemId: availableItems[0]?.id ?? '', quantity: '1' },
+                  { key: `${Date.now()}-next`, inventoryItemId: '', quantity: '1' },
                 ]);
                 await onRefresh();
               } catch (submitError) {
@@ -256,6 +266,8 @@ export function ObjectInventoryPanel({
                 </Link>
               ) : null}
               {movement.comment ? <div>{movement.comment}</div> : null}
+              {canIssueInventoryToObject && ['issue_to_object', 'issue_to_one_time_order'].includes(movement.movementType) && movement.status === 'applied' ? <Button disabled={isSaving} onClick={() => void correct(movement)}>Исправить выдачу</Button> : null}
+              {canIssueInventoryToObject && !['cancelled', 'rejected'].includes(movement.status) && new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(new Date(movement.createdAt)) === new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(new Date()) ? <MediaActionPicker disabled={isSaving} allowGenericFile={false} onPick={async (file) => { await onAttachEvidence(movement.id, [file]); await onRefresh(); }} /> : null}
               {movement.attachments.length > 0 ? (
                 <div className={styles.savedPhotosViewport}>
                   <AttachmentPreviewList files={movement.attachments} />

@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useId, useMemo, useState } from 'react';
 
 import type { ObjectAssignedUser } from '@/entities/object/model/object.types';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
@@ -12,9 +11,9 @@ import {
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 
-import { CloseIcon } from '@/shared/ui/icons/icons';
+import { Dialog } from '@/shared/ui/overlays';
 import styles from './object-team-panel.module.css';
-import { Button, IconButton, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, Surface } from '@/shared/ui/foundation';
 
 interface ObjectTeamPanelProps {
   title: string;
@@ -47,7 +46,7 @@ export function ObjectTeamPanel({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isReplacementOpen, setIsReplacementOpen] = useState(false);
-  const [replacementQuery, setReplacementQuery] = useState('');
+  const replacementFormId = useId();
   const currentIds = useMemo(() => new Set(currentItems.map((item) => item.userId)), [currentItems]);
 
   const options = availableUsers
@@ -58,25 +57,9 @@ export function ObjectTeamPanel({
       description: getUserSecondaryLabel(user) || undefined,
       searchText: `${user.fullName} ${user.login}`,
     }));
-  const replacementOptions = options.filter((option) =>
-    `${option.label} ${option.searchText ?? ''}`
-      .toLocaleLowerCase('ru')
-      .includes(replacementQuery.trim().toLocaleLowerCase('ru')),
-  );
-
-  useEffect(() => {
-    if (!isReplacementOpen) return;
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setIsReplacementOpen(false);
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isReplacementOpen]);
 
   const handleAdd = (userId: string): void => {
-    if (!userId) return;
+    if (!userId || isSubmitting) return;
     setSelectedUserId(userId);
     setError(null);
     setIsSubmitting(true);
@@ -84,7 +67,6 @@ export function ObjectTeamPanel({
       .then(() => {
         setSelectedUserId('');
         setIsReplacementOpen(false);
-        setReplacementQuery('');
       })
       .catch((caughtError) => {
         setError(
@@ -113,49 +95,31 @@ export function ObjectTeamPanel({
   return (
     <Surface padding="md" className={`${styles.panel}`}>
       <div className={styles.header}>
-        <div className={styles.title}>{title}</div>
+        <h3 className="ui-section-title">{title}</h3>
         {replaceOnly ? (
-          <div className={styles.replacementControl}>
-            <IconButton bordered
+          <>
+            <Button
               disabled={isSubmitting || options.length === 0}
-              aria-label={currentItems.length ? 'Заменить ответственного' : 'Назначить ответственного'}
-              aria-expanded={isReplacementOpen}
-              title={currentItems.length ? 'Заменить ответственного' : 'Назначить ответственного'}
-              onClick={() => setIsReplacementOpen((open) => !open)}
+              aria-haspopup="dialog"
+              icon={<MediaActionIcon name="replace" />}
+              onClick={() => { setError(null); setSelectedUserId(''); setIsReplacementOpen(true); }}
             >
-              <MediaActionIcon name="replace" />
-            </IconButton>
-            {isReplacementOpen && typeof document !== 'undefined' ? createPortal(
-              <div className={styles.replacementOverlay} onMouseDown={(event) => { if (event.target === event.currentTarget) setIsReplacementOpen(false); }}>
-                <section className={styles.replacementDialog} role="dialog" aria-modal="true" aria-labelledby="replace-responsible-title">
-                  <header className={styles.dialogHeader}>
-                    <div>
-                      <h2 id="replace-responsible-title">Заменить ответственного</h2>
-                      <p>Выберите сотрудника, который будет отвечать за объект</p>
-                    </div>
-                    <IconButton aria-label="Закрыть" title="Закрыть" onClick={() => setIsReplacementOpen(false)}><CloseIcon size={18} /></IconButton>
-                  </header>
-                <input
-                  autoFocus
-                  type="search"
-                  value={replacementQuery}
-                  aria-label="Поиск ответственного"
-                  placeholder="Поиск по ФИО или логину"
-                  onChange={(event) => setReplacementQuery(event.target.value)}
-                />
-                <div className={styles.replacementOptions} role="listbox" aria-label="Кандидаты на роль ответственного">
-                  {replacementOptions.length ? replacementOptions.map((option) => (
-                    <button key={option.value} type="button" role="option" aria-selected={false} onClick={() => handleAdd(option.value)} disabled={isSubmitting}>
-                      <strong>{option.label}</strong>
-                      {option.description ? <span>{option.description}</span> : null}
-                    </button>
-                  )) : <div className={styles.empty}>{emptyAvailableText}</div>}
-                </div>
-                </section>
-              </div>,
-              document.body,
-            ) : null}
-          </div>
+              {currentItems.length ? 'Сменить' : 'Назначить'}
+            </Button>
+            <Dialog
+              open={isReplacementOpen}
+              onOpenChange={setIsReplacementOpen}
+              title="Сменить ответственного"
+              description="Выберите пользователя, который будет отвечать за объект."
+              busy={isSubmitting}
+              footer={<div className="ui-inline"><Button disabled={isSubmitting} onClick={() => setIsReplacementOpen(false)}>Отмена</Button><Button form={replacementFormId} type="submit" variant="primary" pending={isSubmitting} pendingLabel="Сохранение…" disabled={!selectedUserId}>Сохранить</Button></div>}
+            >
+              <form id={replacementFormId} className="ui-stack ui-stack--lg" onSubmit={(event) => { event.preventDefault(); handleAdd(selectedUserId); }}>
+                <SearchableSelect label="Новый ответственный" value={selectedUserId} options={options} placeholder="Выберите пользователя" searchPlaceholder="ФИО или логин" emptyText={emptyAvailableText} clearable={false} viewportAware onChange={setSelectedUserId} disabled={isSubmitting} />
+                {error ? <Alert tone="danger">{error}</Alert> : null}
+              </form>
+            </Dialog>
+          </>
         ) : <span className={styles.count}>{currentItems.length}</span>}
       </div>
 
@@ -207,7 +171,8 @@ export function ObjectTeamPanel({
         )}
       </div> : null}
 
-      {error ? <div className={styles.error}>{error}</div> : null}
+      {replaceOnly && options.length === 0 ? <p className="ui-text-muted">{emptyAvailableText}</p> : null}
+      {error && !isReplacementOpen ? <Alert tone="danger">{error}</Alert> : null}
     </Surface>
   );
 }

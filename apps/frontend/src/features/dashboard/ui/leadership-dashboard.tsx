@@ -11,7 +11,7 @@ import type {
 } from '@/entities/dashboard/model/dashboard.types';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { getUserDisplayName } from '@/shared/lib/display-name';
+import { getUserGreetingName } from '@/shared/lib/display-name';
 
 import interactionStyles from './leadership-dashboard-interactions.module.css';
 import styles from './leadership-dashboard.module.css';
@@ -39,10 +39,6 @@ function greeting(): string {
   if (hour < 12) return 'Доброе утро';
   if (hour < 18) return 'Добрый день';
   return 'Добрый вечер';
-}
-
-function firstName(value: string): string {
-  return value.trim().split(/\s+/)[0] || value;
 }
 
 function formatDate(value: string | null): string {
@@ -185,7 +181,7 @@ export function LeadershipDashboard(): React.JSX.Element {
     : source?.tasks.items ?? [];
   const attentionTotal = source?.attention.total ?? 0;
   const taskTotal = source?.tasks.totalRelevant ?? 0;
-  const displayName = user ? firstName(getUserDisplayName(user)) : '';
+  const displayName = user ? getUserGreetingName(user) : '';
 
   const openAttentionPreview = (item: LeadershipAttentionItem): void => {
     if (item.kind === 'task' && item.taskId) {

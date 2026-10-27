@@ -20,7 +20,7 @@ import {
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
-import { Button, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Button, Field, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 
 export function EquipmentMovementPanel({
@@ -100,7 +100,9 @@ export function EquipmentMovementPanel({
           {movementType === 'issue_to_one_time_order' ? (
             <SearchableSelect label="Заказ" value={toOneTimeOrderId} onChange={setToOneTimeOrderId} required viewportAware disabled={isSaving} placeholder="Выберите заказ" options={orders.map((order) => ({ value: order.id, label: order.title }))} />
           ) : null}
-          <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={2} placeholder="Комментарий" />
+          <Field label="Комментарий">
+            <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={2} placeholder="Комментарий" />
+          </Field>
           <div style={{ display: 'grid', gap: 8 }}>
             <div className="ui-text-muted">
               Фото/файлы к операции сохраняются через общий storage слой.

@@ -1091,6 +1091,13 @@ export class OneTimeOrdersService {
       )
       .map((assignment) => assignment.userId);
     const updated = await this.prisma.$transaction(async (tx) => {
+      await this.lockOneTimeOrder(tx, id);
+      if (nextValues.agreedSum !== undefined) {
+        const components = await tx.oneTimeOrderServiceLine.findMany({ where: { oneTimeOrderId: id } });
+        if (components.length > 0 && components.reduce((sum, line) => sum + line.amount, 0) !== nextValues.agreedSum) {
+          throw new ConflictException('Agreed total must reconcile with explicit cleaning and drycleaning components');
+        }
+      }
       const conflictResult =
         hasDateRangeUpdate && existing.status !== 'cancelled'
           ? await this.checkScheduleConflicts(tx, currentUser, {

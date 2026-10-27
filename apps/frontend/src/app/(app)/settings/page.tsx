@@ -1,17 +1,13 @@
 import React from 'react';
 
 import { PageTitle } from '@/shared/ui/page-title/page-title';
-import { Surface } from '@/shared/ui/foundation';
+import { ButtonLink, EmptyState } from '@/shared/ui/foundation';
 
 export default function SettingsPage(): React.JSX.Element {
   return (
-    <>
+    <div className="ui-page">
       <PageTitle title="Настройки" />
-      <Surface padding="md">
-        <p className="ui-text-muted">
-          Здесь позже будут настройки пользователя, доступа и системной конфигурации.
-        </p>
-      </Surface>
-    </>
+      <EmptyState title="Настройки пока недоступны" description="Рабочие разделы доступны в боковом меню." action={<ButtonLink href="/dashboard">На рабочий стол</ButtonLink>} />
+    </div>
   );
 }

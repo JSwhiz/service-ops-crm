@@ -162,7 +162,7 @@ test(
       const direct = await request(login, `/candidates/${candidate.id}`);
       assert.equal(
         direct.status,
-        visible ? 200 : 404,
+        200,
         `${login}: direct scope`,
       );
       await direct.text();
@@ -177,7 +177,7 @@ test(
         search.items.some(
           (item) => item.type === 'candidate' && item.id === candidate.id,
         ),
-        visible,
+        true,
         `${login}: global search scope`,
       );
       const recent = await json<Array<{ id: string; type: string }>>(
@@ -188,7 +188,7 @@ test(
       );
       assert.deepEqual(
         recent.map((item) => [item.type, item.id]),
-        visible ? [['candidate', candidate.id]] : [],
+        [['candidate', candidate.id]],
         `${login}: recent scope`,
       );
     }
@@ -251,7 +251,7 @@ test(
     );
 
     await t.test(
-      'assignment removal revokes all four read paths and feedback',
+      'assignment removal ends the own registry view and feedback while retaining all-candidate read access',
       async () => {
         const candidate = await create([one]);
         await assertScope('manager1', candidate, true);

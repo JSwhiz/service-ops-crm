@@ -18,7 +18,7 @@ import type { OneTimeOrderListResponse } from '@/entities/one-time-order/model/o
 import { listTasks } from '@/entities/task/api/task-client';
 import type { TaskItem, TaskListResponse } from '@/entities/task/model/task.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { getUserDisplayName } from '@/shared/lib/display-name';
+import { getUserGreetingName } from '@/shared/lib/display-name';
 
 import styles from './dashboard-workspace.module.css';
 
@@ -34,7 +34,6 @@ function moscowHour(): number {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Moscow', hour: '2-digit', hour12: false }).format(new Date()));
 }
 function greeting(): string { const h = moscowHour(); return h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер'; }
-function firstName(value: string): string { return value.trim().split(/\s+/)[0] || value; }
 function dateKey(value: Date): string { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value); }
 function formatDate(value: string | null): string { return value ? new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: 'short' }).format(new Date(value)) : 'Без срока'; }
 function money(value: number): string { return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value) + ' ₽'; }
@@ -95,7 +94,7 @@ export function DashboardWorkspace(): React.JSX.Element {
   const objectPreview = useMemo(() => [...problemObjects, ...activeObjects.filter((item) => item.responsible)].slice(0,4), [activeObjects, problemObjects]);
   const orders = useMemo(() => data.orders.items.filter((item) => !['completed','cancelled'].includes(item.status)).slice(0,4), [data.orders.items]);
   const attentionCount = data.approvals.length + data.tasks.items.filter((item) => item.isOverdue && item.status !== 'completed').length;
-  const name = user ? firstName(getUserDisplayName(user)) : '';
+  const name = user ? getUserGreetingName(user) : '';
 
   return <div className={styles.root}>
     <section className={styles.intro}>

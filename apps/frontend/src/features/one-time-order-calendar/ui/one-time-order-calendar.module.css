@@ -16,9 +16,16 @@
   min-width: 0;
 }
 
+.oneTimeCalendar > *,
+.oneTimeCalendarToolbar > *,
+.oneTimeCalendarMonthNav > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .oneTimeCalendarToolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(210px, 280px) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 280px) minmax(0, 2fr);
   gap: 14px;
   align-items: end;
 }
@@ -91,6 +98,8 @@
 }
 
 .oneTimeCalendarGridShell {
+  min-width: 0;
+  max-width: 100%;
   max-height: calc(100vh - 300px);
   min-height: 360px;
   overflow: auto;
@@ -203,6 +212,7 @@
 .oneTimeCalendarWorkedCell strong,
 .oneTimeCalendarWorkedCell span {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .oneTimeCalendarManagerCell span,
@@ -256,7 +266,7 @@
 .oneTimeCalendarMobileDay {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(130px, 0.7fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   text-align: left;
@@ -274,7 +284,9 @@
 .oneTimeCalendarMobileDate,
 .oneTimeCalendarMobileSummary {
   display: grid;
+  min-width: 0;
   gap: 3px;
+  overflow-wrap: anywhere;
 }
 
 .oneTimeCalendarMobileDate span,
@@ -297,6 +309,8 @@
 .calendarModal {
   width: min(680px, 100%);
   max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  min-width: 0;
   display: grid;
   gap: 14px;
   overflow-y: auto;
@@ -305,6 +319,12 @@
   background: var(--ui-surface);
   padding: 18px;
   box-shadow: var(--ui-shadow-md);
+  overflow-wrap: anywhere;
+}
+
+.calendarModal > *,
+.calendarModalDateGrid > * {
+  min-width: 0;
 }
 
 .calendarModalForm {
@@ -363,9 +383,13 @@
   gap: 12px;
 }
 
+.calendarModalDateGrid [role='dialog'] {
+  max-width: 100%;
+}
+
 @media (max-width: 1180px) {
   .oneTimeCalendarToolbar {
-    grid-template-columns: 1fr 280px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
   }
 
   .oneTimeCalendarActions {
@@ -373,10 +397,16 @@
   }
 }
 
+@media (max-width: 900px) {
+  .oneTimeCalendarToolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 700px) {
   .oneTimeCalendarToolbar,
   .calendarModalDateGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .oneTimeCalendarMonthNav,
@@ -409,19 +439,9 @@
     width: 100%;
     min-height: 100vh;
     max-height: 100vh;
+    min-height: 100dvh;
+    max-height: 100dvh;
     border: 0;
     border-radius: 0;
-  }
-}
-
-@media (max-width: 900px) {
-  .oneTimeCalendarToolbar {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 640px) {
-  .oneTimeCalendarToolbar {
-    grid-template-columns: minmax(0, 1fr);
   }
 }

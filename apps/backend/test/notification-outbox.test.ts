@@ -52,7 +52,11 @@ test('notification outbox publishes a user-addressed realtime event then marks i
   };
   const prisma = {
     $transaction: async (work: (client: typeof tx) => Promise<unknown>) => work(tx),
-    notification: { findUnique: async () => notification },
+    notification: { findFirst: async ({ where }: { where: { id: string; dismissedAt: null } }) => {
+      assert.equal(where.id, notification.id);
+      assert.equal(where.dismissedAt, null);
+      return notification;
+    } },
     notificationOutbox: {
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         updates.push({ id: where.id, data });

@@ -1,4 +1,9 @@
 .root{width:100%;max-width:none;margin:0;display:grid;gap:16px;min-width:0}
+.root > * { min-width: 0; }
+.editorActions, .agendaActions { flex-wrap: wrap; }
+.agendaRow, .editorHeading { overflow-wrap: anywhere; }
+.editorGrid > * { min-width: 0; }
+.root :global(.ui-button) { min-width: 0; overflow-wrap: anywhere; }
 .toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:14px 16px;border:1px solid var(--ui-border);border-radius:var(--ui-radius-md,8px);background:var(--ui-surface)}
 .periodControls,.filters{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;min-width:0}
 .periodControls h2{min-width:190px;margin:0;text-align:center;color:var(--ui-text);font-size:16px;font-weight:650;text-transform:capitalize}
@@ -28,3 +33,12 @@
 .agenda{padding:16px}.agenda h2{margin-bottom:10px}.agendaRow{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-top:1px solid var(--ui-border)}.agendaRow>div:first-child{min-width:0;display:grid;gap:4px}.agendaRow strong{color:var(--ui-text);font-size:13px}.agendaRow span,.agendaRow p{margin:0;color:var(--ui-text-secondary);font-size:13px}.agendaRow p{color:var(--ui-text-tertiary);white-space:pre-wrap}.agendaActions{display:flex;align-items:center;gap:6px}.agendaEmpty{margin:0;padding:8px 0;color:var(--ui-text-tertiary);font-size:13px}
 @media(max-width:1000px){.toolbar{grid-template-columns:minmax(0,1fr);align-items:start}.editorGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.filters{justify-content:flex-start}.personHeader,.personCell{width:165px;min-width:165px;max-width:165px}}
 @media(max-width:680px){.root{gap:12px}.toolbar{padding:12px}.periodControls{justify-content:space-between}.periodControls h2{min-width:0;flex:1}.filters{display:grid;grid-template-columns:1fr 1fr;align-items:end}.filters>div{min-width:0}.filters>button{grid-column:1/-1}.editor{padding:12px}.editorHeading{align-items:flex-start;flex-direction:column;gap:4px}.editorGrid{grid-template-columns:1fr}.editorActions>*{flex:1}.personHeader,.personCell{width:145px;min-width:145px;max-width:145px;padding:6px 8px}.dayHeader,.dayCell{width:38px;min-width:38px}.dayCell{height:48px}.event{min-height:28px;font-size:8px}.agenda{padding:12px}.agendaRow{align-items:flex-start;flex-direction:column}.agendaActions{width:100%}.agendaActions>*{flex:1}}
+
+@media (max-width: 680px) {
+  .filters { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .event, .editorActions button, .agendaActions button { min-height: 44px; }
+  .addDay { opacity: 1; }
+}

@@ -27,6 +27,7 @@ import { ListInventoryMovementsQueryDto } from './dto/list-inventory-movements-q
 import { UpdateInventoryItemDto } from './dto/update-inventory-item.dto';
 import { RestoreInventoryItemDto } from './dto/restore-inventory-item.dto';
 import { InventoryService } from './inventory.service';
+import { CorrectInventoryMovementDto } from './dto/correct-inventory-movement.dto';
 import { canViewInventoryReports } from './utils/inventory-access.util';
 
 interface CurrentAuthUser {
@@ -42,6 +43,11 @@ interface CurrentAuthUser {
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
+
+  @Post('movements/:id/correct')
+  correctMovement(@CurrentUser() user: CurrentAuthUser, @Param('id') id: string, @Body() payload: CorrectInventoryMovementDto) {
+    return this.inventoryService.correctMovement(user, id, payload.reason);
+  }
 
   @Get('items')
   listItems(

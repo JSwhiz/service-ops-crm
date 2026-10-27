@@ -862,7 +862,7 @@ tbody tr:hover {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--ui-text-primary);
+  color: var(--ui-text);
   text-align: left;
 }
 
@@ -935,7 +935,7 @@ tbody tr:hover {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--ui-text-primary);
+  color: var(--ui-text);
   text-align: left;
 }
 

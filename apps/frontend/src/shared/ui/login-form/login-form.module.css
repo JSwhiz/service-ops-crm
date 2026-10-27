@@ -54,10 +54,9 @@
 }
 
 .field input:focus-visible {
-  outline: var(--ui-focus-ring);
-  outline-offset: 1px;
+  outline: 0;
   border-color: var(--ui-focus-border);
-  box-shadow: none;
+  box-shadow: var(--ui-focus-ring);
 }
 
 .passwordControl {

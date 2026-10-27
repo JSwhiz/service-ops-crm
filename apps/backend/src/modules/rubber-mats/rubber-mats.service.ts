@@ -1,7 +1,5 @@
-import { randomUUID } from 'node:crypto';
-
 import {
-  BadRequestException,
+  GoneException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -126,156 +124,36 @@ export class RubberMatsService {
     return mats.map((mat) => this.present(mat));
   }
 
-  async register(user: RubberMatUser, payload: RegisterRubberMatDto) {
+  async register(user: RubberMatUser, _payload: RegisterRubberMatDto) {
+    void _payload;
     this.assertRegistryManager(user);
-    const id = randomUUID();
-    const mat = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.rubberMat.create({
-        data: {
-          id,
-          objectId: null,
-          zone: null,
-          lengthCm: new Prisma.Decimal(payload.lengthCm),
-          widthCm: new Prisma.Decimal(payload.widthCm),
-          thicknessMm: payload.thicknessMm === undefined ? null : new Prisma.Decimal(payload.thicknessMm),
-          inventoryCode: payload.inventoryCode?.trim() || null,
-          notes: payload.notes?.trim() || null,
-          createdByUserId: user.id,
-          condition: 'good',
-        },
-        select: matSelect,
-      });
-      await tx.rubberMatEvent.create({
-        data: { rubberMatId: id, action: 'registered', toCondition: 'good', note: payload.note.trim(), actorUserId: user.id },
-      });
-      return created;
-    });
-    return this.present(mat);
+    throw new GoneException('Поштучный учёт закрыт. Используйте каталог размеров и количество на объекте');
   }
 
-  async assign(user: RubberMatUser, objectId: string, matId: string, zone: string, note: string) {
-    await this.assertObjectAccess(user, objectId);
-    const existing = await this.prisma.rubberMat.findUnique({ where: { id: matId } });
-    if (!existing) throw new NotFoundException('Ковёр не найден в реестре');
-    if (existing.objectId !== null) throw new BadRequestException('Ковёр уже закреплён за объектом');
-    if (existing.condition === 'retired') throw new BadRequestException('Списанный ковёр нельзя назначить');
-    const trimmedZone = zone.trim();
-    const mat = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.rubberMat.update({ where: { id: matId }, data: { objectId, zone: trimmedZone, installedAt: new Date() }, select: matSelect });
-      await tx.rubberMatEvent.create({
-        data: { rubberMatId: matId, action: 'assigned', toObjectId: objectId, fromCondition: existing.condition, toCondition: existing.condition, toZone: trimmedZone, note: note.trim(), actorUserId: user.id },
-      });
-      return updated;
-    });
-    return this.present(mat);
+  async assign(user: RubberMatUser, objectId: string, _matId: string, _zone: string, _note: string) {
+    void [_matId, _zone, _note];
+    return this.legacyWrite(user, objectId);
   }
-
-  async returnToStock(user: RubberMatUser, objectId: string, matId: string, note: string) {
-    await this.assertObjectAccess(user, objectId);
-    const existing = await this.prisma.rubberMat.findFirst({ where: { id: matId, objectId } });
-    if (!existing) throw new NotFoundException('Ковёр не найден на объекте');
-    if (existing.condition === 'retired') throw new BadRequestException('Списанный ковёр нельзя вернуть в реестр');
-    const mat = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.rubberMat.update({ where: { id: matId }, data: { objectId: null, zone: null, installedAt: null }, select: matSelect });
-      await tx.rubberMatEvent.create({
-        data: { rubberMatId: matId, action: 'returned_to_stock', fromObjectId: objectId, fromCondition: existing.condition, toCondition: existing.condition, fromZone: existing.zone, note: note.trim(), actorUserId: user.id },
-      });
-      return updated;
-    });
-    return this.present(mat);
+  async returnToStock(user: RubberMatUser, objectId: string, _matId: string, _note: string) {
+    void [_matId, _note];
+    return this.legacyWrite(user, objectId);
   }
-
-  async update(user: RubberMatUser, objectId: string, matId: string, payload: UpdateRubberMatDto) {
-    await this.assertObjectAccess(user, objectId);
-    const existing = await this.prisma.rubberMat.findFirst({ where: { id: matId, objectId } });
-    if (!existing) throw new NotFoundException('Резиновый ковёр не найден');
-    if (existing.condition === 'retired') throw new BadRequestException('Списанный ковёр нельзя редактировать');
-    const data: Prisma.RubberMatUpdateInput = {
-      ...(payload.zone === undefined ? {} : { zone: payload.zone.trim() }),
-      ...(payload.lengthCm === undefined ? {} : { lengthCm: new Prisma.Decimal(payload.lengthCm) }),
-      ...(payload.widthCm === undefined ? {} : { widthCm: new Prisma.Decimal(payload.widthCm) }),
-      ...(payload.thicknessMm === undefined ? {} : { thicknessMm: payload.thicknessMm === null ? null : new Prisma.Decimal(payload.thicknessMm) }),
-      ...(payload.condition === undefined ? {} : { condition: payload.condition }),
-      ...(payload.notes === undefined ? {} : { notes: payload.notes?.trim() || null }),
-    };
-    const nextZone = payload.zone?.trim() ?? existing.zone;
-    const nextCondition = payload.condition ?? existing.condition;
-    const action = nextCondition === 'retired' ? 'retired'
-      : nextCondition !== existing.condition ? 'condition_changed' : 'serviced';
-    const mat = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.rubberMat.update({ where: { id: matId }, data, select: matSelect });
-      await tx.rubberMatEvent.create({
-        data: {
-          rubberMatId: matId,
-          action,
-          fromObjectId: objectId,
-          toObjectId: objectId,
-          fromCondition: existing.condition,
-          toCondition: nextCondition,
-          fromZone: existing.zone,
-          toZone: nextZone,
-          note: payload.note.trim(),
-          actorUserId: user.id,
-        },
-      });
-      return updated;
-    });
-    return this.present(mat);
+  async update(user: RubberMatUser, objectId: string, _matId: string, _payload: UpdateRubberMatDto) {
+    void [_matId, _payload];
+    return this.legacyWrite(user, objectId);
   }
-
-  async move(user: RubberMatUser, sourceObjectId: string, matId: string, targetObjectId: string, zone: string, note: string) {
+  async move(user: RubberMatUser, sourceObjectId: string, _matId: string, targetObjectId: string, _zone: string, _note: string) {
+    void [_matId, _zone, _note];
     await this.assertObjectAccess(user, sourceObjectId);
-    await this.assertObjectAccess(user, targetObjectId);
-    const existing = await this.prisma.rubberMat.findFirst({ where: { id: matId, objectId: sourceObjectId } });
-    if (!existing) throw new NotFoundException('Резиновый ковёр не найден на исходном объекте');
-    if (existing.condition === 'retired') throw new BadRequestException('Списанный ковёр нельзя перемещать');
-    const trimmedZone = zone.trim();
-    const trimmedNote = note.trim();
-    const mat = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.rubberMat.update({
-        where: { id: matId },
-        data: { objectId: targetObjectId, zone: trimmedZone },
-        select: matSelect,
-      });
-      await tx.rubberMatEvent.create({
-        data: {
-          rubberMatId: matId,
-          action: 'moved',
-          fromObjectId: sourceObjectId,
-          toObjectId: targetObjectId,
-          fromCondition: existing.condition,
-          toCondition: existing.condition,
-          fromZone: existing.zone,
-          toZone: trimmedZone,
-          note: trimmedNote,
-          actorUserId: user.id,
-        },
-      });
-      return updated;
-    });
-    return this.present(mat);
+    return this.legacyWrite(user, targetObjectId);
   }
-
-  async service(user: RubberMatUser, objectId: string, matId: string, note: string) {
+  async service(user: RubberMatUser, objectId: string, _matId: string, _note: string) {
+    void [_matId, _note];
+    return this.legacyWrite(user, objectId);
+  }
+  private async legacyWrite(user: RubberMatUser, objectId: string) {
     await this.assertObjectAccess(user, objectId);
-    const existing = await this.prisma.rubberMat.findFirst({ where: { id: matId, objectId } });
-    if (!existing) throw new NotFoundException('Резиновый ковёр не найден');
-    if (existing.condition === 'retired') throw new BadRequestException('Списанный ковёр нельзя обслуживать');
-    await this.prisma.rubberMatEvent.create({
-      data: {
-        rubberMatId: matId,
-        action: 'serviced',
-        fromObjectId: objectId,
-        toObjectId: objectId,
-        fromCondition: existing.condition,
-        toCondition: existing.condition,
-        fromZone: existing.zone,
-        toZone: existing.zone,
-        note: note.trim(),
-        actorUserId: user.id,
-      },
-    });
-    return this.getHistory(user, objectId, matId);
+    throw new GoneException('Поштучный учёт закрыт. Используйте количество по размерам');
   }
 
   async getHistory(user: RubberMatUser, objectId: string, matId: string) {
@@ -288,7 +166,7 @@ export class RubberMatsService {
         { toObjectId: objectId },
       ],
     };
-    const exists = await this.prisma.rubberMatEvent.findFirst({ where: objectHistoryScope, select: { id: true } });
+    const exists = await this.prisma.rubberMatEvent.findFirst({ where: { rubberMatId: matId, OR: [{ fromObjectId: objectId }, { toObjectId: objectId }] }, select: { id: true } });
     if (!exists) throw new NotFoundException('История ковра для этого объекта не найдена');
     const events = await this.prisma.rubberMatEvent.findMany({
       where: objectHistoryScope,

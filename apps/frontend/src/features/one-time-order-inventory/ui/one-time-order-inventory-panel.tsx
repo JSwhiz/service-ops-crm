@@ -43,6 +43,7 @@ export function OneTimeOrderInventoryPanel({
                       movement.quantity,
                       movement.inventoryItem.unit,
                     )}
+                    {' · '}{movement.status === 'applied' ? 'Проведено' : movement.status === 'cancelled' ? 'Отменено' : 'Не проведено'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -58,6 +59,9 @@ export function OneTimeOrderInventoryPanel({
               <div className="ui-text-muted">
                 Оформил: {getUserDisplayName(movement.createdBy)}
               </div>
+              {movement.relatedObject ? (
+                <div className="ui-text-muted">Объект: {movement.relatedObject.name}</div>
+              ) : null}
               {movement.comment ? <div>{movement.comment}</div> : null}
               {movement.attachments.length > 0 ? (
                 <AttachmentPreviewList files={movement.attachments} />

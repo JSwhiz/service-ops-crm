@@ -20,7 +20,7 @@ import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Badge, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, Badge, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 const CATEGORY_OPTIONS: Array<{
   value: AccountabilityExpenseCategory;
@@ -75,6 +75,7 @@ export function OneTimeOrderAccountabilityPanel({
   );
   const [files, setFiles] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [completionSelection, setCompletionSelection] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const isEmployeePayout = expenseCategory === 'employee_payout';
@@ -107,12 +108,13 @@ export function OneTimeOrderAccountabilityPanel({
       !expenseDate ||
       (!isEmployeePayout && !completionSelection) ||
       (isEmployeePayout && !employeeId) ||
-      (submitAfterSave && files.length === 0)
+      (submitAfterSave && !isEmployeePayout && files.length === 0)
     ) {
       return;
     }
 
     setIsSaving(true);
+    setSaveError(null);
     try {
       await onCreateExpense({
         amount: normalizedAmount,
@@ -132,6 +134,8 @@ export function OneTimeOrderAccountabilityPanel({
       setDescription('');
       setFiles([]);
       setEmployeeId('');
+    } catch {
+      setSaveError('Не удалось сохранить расход. Проверьте список расходов перед повторной отправкой.');
     } finally {
       setIsSaving(false);
     }
@@ -158,7 +162,9 @@ export function OneTimeOrderAccountabilityPanel({
           <div>
             <strong>Добавить расход по заказу</strong>
             <div className="ui-text-muted">
-            Выплата станет фактически учтённой после подтверждения расхода. Для отправки на проверку приложите чек или документ.
+            {isEmployeePayout
+              ? 'Фото и чек необязательны. Выплата учитывается отдельно от начисления табеля после подтверждения расхода.'
+              : 'Для отправки на проверку приложите чек или документ.'}
             </div>
           </div>
           <div className="field-grid">
@@ -242,8 +248,9 @@ export function OneTimeOrderAccountabilityPanel({
                 current.filter((_, currentIndex) => currentIndex !== index),
               )
             }
-            emptyText="Чек или документ еще не приложен."
+            emptyText={isEmployeePayout ? 'Фото или чек можно добавить по желанию.' : 'Чек или документ еще не приложен.'}
           />
+          {saveError ? <Alert tone="danger" role="alert">{saveError}</Alert> : null}
           <div className="ui-inline">
             <Button
               disabled={isSaving || (!isEmployeePayout && !completionSelection)}
@@ -255,7 +262,7 @@ export function OneTimeOrderAccountabilityPanel({
               disabled={
                 isSaving ||
                 (!isEmployeePayout && !completionSelection) ||
-                files.length === 0
+                (!isEmployeePayout && files.length === 0)
               }
               onClick={() => void save(true)}
             >

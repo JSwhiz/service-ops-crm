@@ -1,0 +1,133 @@
+.summary {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.summary :global(.object-summary__top) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-space-4);
+}
+
+.summary :global(.object-summary__identity) {
+  display: grid;
+  min-width: 0;
+  gap: var(--ui-space-1);
+}
+
+.summary :global(.object-summary__title-row) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.summary :global(.hero-title) {
+  margin: 0;
+  font-size: var(--ui-text-2xl);
+  line-height: var(--ui-leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.summary :global(.object-summary__internal-name) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1) var(--ui-space-2);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+}
+
+.summary .facts:global(.ui-detail-grid) {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+  padding-top: var(--ui-space-4);
+  border: 0;
+  border-top: 1px solid var(--ui-border);
+  border-radius: 0;
+}
+
+.summary .facts :global(.ui-detail-field) {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.instructions {
+  display: grid;
+  min-width: 0;
+  padding-top: var(--ui-space-3);
+  border-top: 1px solid var(--ui-border);
+}
+
+.instructions > summary {
+  width: fit-content;
+  min-height: 32px;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.instructions > summary:focus-visible {
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius-xs);
+}
+
+.instructions :global(.object-summary__season-profile) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+  margin-top: var(--ui-space-3);
+}
+
+.instructions :global(.object-summary__season-profile > div),
+.instructions :global(.object-summary__note) {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.instructions :global(.object-summary__season-profile span) {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+}
+
+.instructions :global(.object-summary__note) {
+  margin-top: var(--ui-space-4);
+  padding: var(--ui-space-3);
+  border-left: 2px solid var(--ui-border-strong);
+  background: var(--ui-surface-subtle);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 1100px) {
+  .summary .facts:global(.ui-detail-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .summary :global(.hero-title) {
+    font-size: var(--ui-text-xl);
+  }
+
+  .summary :global(.object-summary__top) {
+    flex-direction: column;
+  }
+
+  .instructions :global(.object-summary__season-profile) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 400px) {
+  .summary .facts:global(.ui-detail-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

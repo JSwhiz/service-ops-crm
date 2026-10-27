@@ -14,8 +14,11 @@
   font-family: var(--ui-font-sans);
   font-size: var(--ui-text-md);
   font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
+  line-height: var(--ui-leading-tight);
+  white-space: normal;
+  text-align: center;
+  padding-block: var(--ui-space-2);
+  max-width: 100%;
   cursor: pointer;
   transition:
     background-color var(--ui-duration-fast) var(--ui-ease-standard),
@@ -201,6 +204,13 @@
   color: var(--ui-text-secondary);
 }
 
+.ui-field > input:not([type='checkbox']):not([type='radio']),
+.ui-field > textarea {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .ui-page-header,
 .ui-entity-header {
   display: flex;
@@ -364,19 +374,7 @@
   display: block;
   min-height: 12px;
   border-radius: var(--ui-radius-sm);
-  background: linear-gradient(
-    90deg,
-    var(--ui-surface-muted) 0%,
-    var(--ui-surface-subtle) 42%,
-    var(--ui-surface-muted) 84%
-  );
-  background-size: 220% 100%;
-  animation: ui-skeleton-shimmer 1.4s ease-in-out infinite;
-}
-
-@keyframes ui-skeleton-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
+  background: var(--ui-surface-muted);
 }
 
 .ui-tooltip {
@@ -462,14 +460,14 @@ a.ui-button--primary:hover {
   margin-left: -2px;
 }
 
-.ui-button > svg:not([width]),
-.ui-icon-button > svg:not([width]) {
+.ui-button > svg,
+.ui-icon-button > svg {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
 }
 
-.ui-icon-button > svg:not([width]) {
+.ui-icon-button > svg {
   width: 18px;
   height: 18px;
 }
@@ -654,8 +652,12 @@ a.ui-button--primary:hover {
 /* Page body: header, sections and tables stacked with one rhythm. */
 :where(.ui-page) {
   display: grid;
-  gap: var(--ui-space-4);
+  align-content: start;
+  gap: var(--ui-space-6);
   min-width: 0;
+  width: 100%;
+  max-width: var(--ui-content-max);
+  margin-inline: auto;
 }
 
 :where(.ui-page) > :where(*) {
@@ -664,6 +666,9 @@ a.ui-button--primary:hover {
 
 /* Surface paddings: padded for sections, compact for list items. */
 :where(.ui-surface--padded) {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-4);
   padding: var(--ui-space-4);
 }
 
@@ -708,19 +713,19 @@ a.ui-button--primary:hover {
 
 :where(.ui-section-subtitle) {
   margin: var(--ui-space-1) 0 0;
-  color: var(--ui-text-tertiary);
+  color: var(--ui-text-secondary);
   font-size: var(--ui-text-sm);
   line-height: var(--ui-leading-normal);
 }
 
 :where(.ui-text-muted) {
-  color: var(--ui-text-tertiary);
+  color: var(--ui-text-secondary);
 }
 
 /* Label / value pairs. */
 :where(.ui-detail-grid) {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: var(--ui-space-3) var(--ui-space-4);
 }
 
@@ -745,7 +750,23 @@ a.ui-button--primary:hover {
 }
 
 @media (max-width: 760px) {
+  :where(.ui-page) {
+    gap: var(--ui-space-4);
+  }
+
   :where(.ui-surface--padded) {
     padding: var(--ui-space-3);
+  }
+}
+
+@media (pointer: coarse) {
+  .ui-button,
+  .ui-icon-button {
+    min-height: 44px;
+  }
+
+  .ui-icon-button {
+    width: 44px;
+    height: 44px;
   }
 }

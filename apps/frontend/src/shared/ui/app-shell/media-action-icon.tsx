@@ -6,6 +6,8 @@ export function MediaActionIcon({
   name: 'camera' | 'gallery' | 'file' | 'download' | 'edit' | 'trash' | 'check' | 'close' | 'replace' | 'freeze' | 'archive';
 }): React.JSX.Element {
   const common = {
+    width: 18,
+    height: 18,
     viewBox: '0 0 24 24',
     fill: 'none',
     stroke: 'currentColor',

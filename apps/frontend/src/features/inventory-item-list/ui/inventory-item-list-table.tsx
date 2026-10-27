@@ -14,7 +14,7 @@ export function InventoryItemListTable({
   items: InventoryItem[];
 }): React.JSX.Element {
   if (items.length === 0) {
-    return <div className="ui-empty-state">Номенклатура пока не заведена.</div>;
+    return <div className="ui-empty-state">По текущим условиям позиции не найдены.</div>;
   }
 
   return (

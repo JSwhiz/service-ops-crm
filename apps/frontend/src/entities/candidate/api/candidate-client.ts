@@ -22,6 +22,7 @@ function queryString(
 }
 
 export function listCandidates(params: {
+  scope?: 'mine' | 'all';
   q?: string;
   candidateType?: CandidateType;
   status?: CandidateStatus;

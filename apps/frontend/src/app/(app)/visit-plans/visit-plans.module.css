@@ -1,0 +1,41 @@
+.page,
+.page :global(.ui-surface) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.page > *,
+.page :global(.ui-stack) > * {
+  min-width: 0;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--ui-space-4);
+}
+
+.formPanel {
+  width: 100%;
+  max-width: 800px;
+  min-width: 0;
+}
+
+.page :global(.ui-stack) > :global(.ui-button) {
+  justify-self: start;
+}
+
+.report {
+  white-space: pre-wrap;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-height: 44px;
+}
+
+.checkbox input {
+  flex: 0 0 auto;
+}

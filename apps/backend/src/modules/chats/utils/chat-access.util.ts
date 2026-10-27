@@ -21,6 +21,11 @@ export const CHAT_ADMIN_ROLE_CODES = [
 ] as const;
 
 export const CHAT_GLOBAL_CLOSE_PERMISSION_CODE = 'chat.room.close_global';
+export const CHAT_MANAGE_MEMBERS_PERMISSION_CODE = 'chat.room.manage_members';
+
+export function isObjectsChatDenied(roleCodes: string[]): boolean {
+  return roleCodes.includes('operation_manager') && !isChatLeadership(roleCodes);
+}
 
 function hasAnyRole(roleCodes: string[], allowed: readonly string[]): boolean {
   return roleCodes.some((roleCode) => allowed.includes(roleCode as never));
@@ -61,6 +66,8 @@ export function canAccessDefaultChatByRole(
   if (code === 'leadership') {
     return isChatLeadership(roleCodes);
   }
+
+  if (code === 'objects' && isObjectsChatDenied(roleCodes)) return false;
 
   return hasOperationalChatRole(roleCodes);
 }

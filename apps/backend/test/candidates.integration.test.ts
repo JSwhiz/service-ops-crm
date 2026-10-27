@@ -9,9 +9,9 @@ import { createTestApp } from './helpers/create-test-app';
 
 const users = [
   ['founder', 'founder123', true, false],
-  ['stepanova', 'stepanova123', true, false],
+  ['stepanova', 'stepanova123', false, false],
   ['director', 'director123', true, false],
-  ['nikitina', 'nikitina123', true, false],
+  ['nikitina', 'nikitina123', false, false],
   ['deputy1', 'deputy123', true, false],
   ['hr1', 'hr123', true, false],
   ['berendyakov', 'berendyakov123', false, true],
@@ -52,10 +52,11 @@ test('candidate registry, object assignment and scoped immutable feedback flow',
     const capabilities = (
       (await me.json()) as { capabilities: Record<string, boolean> }
     ).capabilities;
-    assert.equal(capabilities.canAccessCandidates, true);
+    const canAccess = login !== 'stepanova' && login !== 'nikitina';
+    assert.equal(capabilities.canAccessCandidates, canAccess);
     assert.equal(capabilities.canManageCandidates, canManage);
     assert.equal(capabilities.canRespondToCandidates, canRespond || canManage);
-    assert.equal((await request(baseUrl, cookie, '/candidates')).status, 200);
+    assert.equal((await request(baseUrl, cookie, '/candidates')).status, canAccess ? 200 : 403);
   }
 
   const hrCookie = cookies.get('hr1')!;

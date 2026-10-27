@@ -1208,6 +1208,28 @@ async function main(): Promise<void> {
     }
   }
 
+  const candidateDenial = await prisma.permission.upsert({
+    where: { code: "candidates.denied" }, update: {},
+    create: { code: "candidates.denied", name: "Персональный запрет доступа к кандидатам" },
+  });
+  for (const [code, name, logins] of [
+    ['objects.hr_reports_view', 'Просмотр отчётов и истории объектов', ['lazutina', 'kireeva']],
+    ['visit_plans.manage', 'Управление дневными планами', ['lebedev', 'gorbacheva']],
+    ['one_time_order.escorts.manage', 'Управление сопровождающими заказа', ['drozdovskiy', 'berendyakov']],
+    ['chat.room.manage_members', 'Управление участниками групп', ['stepanova', 'lebedev']],
+  ] as const) {
+    const permission = await prisma.permission.upsert({ where: { code }, update: {}, create: { code, name } });
+    for (const user of await prisma.user.findMany({ where: { login: { in: [...logins] } }, select: { id: true } })) {
+      await prisma.userPermission.upsert({ where: { userId_permissionId: { userId: user.id, permissionId: permission.id } }, update: {}, create: { userId: user.id, permissionId: permission.id } });
+    }
+  }
+  for (const excluded of await prisma.user.findMany({ where: { login: { in: ["stepanova", "nikitina"] } }, select: { id: true } })) {
+    await prisma.userPermission.upsert({
+      where: { userId_permissionId: { userId: excluded.id, permissionId: candidateDenial.id } },
+      update: {}, create: { userId: excluded.id, permissionId: candidateDenial.id },
+    });
+  }
+
   await prisma.timesheetDayEntry.update({
     where: {
       rowId_dayOfMonth: {

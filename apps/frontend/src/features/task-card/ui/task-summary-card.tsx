@@ -9,7 +9,7 @@ import {
   getTaskPriorityLabel,
   getTaskStatusLabel,
 } from '@/shared/lib/task-presentation';
-import { StatusBadge, Surface } from '@/shared/ui/foundation';
+import { FactStrip, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export function TaskSummaryCard({
@@ -20,15 +20,15 @@ export function TaskSummaryCard({
   autoCloseSeconds: number | null;
 }): React.JSX.Element {
   return (
-    <Surface padding="md" className={`hero-card ${taskStyles.taskSummary}`}>
+    <Surface as="section" padding="md" className={taskStyles.taskSummary} aria-labelledby="task-title">
       <div className="ui-section-header">
         <div>
-          <div className="hero-title">{item.title}</div>
-          <div className="hero-meta">Создал(а): {getUserDisplayName(item.createdBy)}</div>
+          <h1 id="task-title" className={taskStyles.taskTitle}>{item.title}</h1>
+          <div className="ui-section-subtitle">Создал(а): {getUserDisplayName(item.createdBy)}</div>
         </div>
         <div className={taskStyles.taskSummaryStatus}>
           <StatusBadge status={item.status}>{getTaskStatusLabel(item.status)}</StatusBadge>
-          {item.isOverdue ? <span className="task-overdue">Просрочено</span> : null}
+          {item.isOverdue ? <StatusBadge tone="danger">Просрочено</StatusBadge> : null}
         </div>
       </div>
 
@@ -37,31 +37,36 @@ export function TaskSummaryCard({
       </div>
       <div className={taskStyles.taskProgressLabel}>Выполнено {item.completionProgress.completed} из {item.completionProgress.total}</div>
 
-      <div className="ui-detail-grid">
-        <Field label="Приоритет" value={getTaskPriorityLabel(item.priority)} />
-        <Field label="Срок" value={formatTaskDeadline(item.dueAt, item.dueTimeSpecified)} />
-        <Field label="Подтверждение" value={item.requiresConfirmation ? 'Требуется' : 'Не требуется'} />
-        <Field label="Отчёт" value={getCompletionRequirementLabel(item.completionRequirement)} />
-        <div className="ui-detail-field">
-          <div className="ui-detail-label">Связи</div>
-          <div className={`ui-detail-value ${taskStyles.taskLinks}`}>
+      <FactStrip items={[
+        { label: 'Срок', value: formatTaskDeadline(item.dueAt, item.dueTimeSpecified) },
+        { label: 'Приоритет', value: getTaskPriorityLabel(item.priority) },
+        { label: 'Подтверждение', value: item.requiresConfirmation ? 'Требуется' : 'Не требуется' },
+        { label: 'Отчёт', value: getCompletionRequirementLabel(item.completionRequirement) },
+      ]} />
+      <div className={taskStyles.taskContext}>
+        <Stack gap="xs">
+          <span className="ui-detail-label">Связи</span>
+          <div className={taskStyles.taskLinks}>
             {item.object ? <Link href={`/objects/${item.object.id}`}>{item.object.name}</Link> : null}
             {item.oneTimeOrder ? <Link href={`/one-time-orders/${item.oneTimeOrder.id}`}>{item.oneTimeOrder.title}</Link> : null}
             {!item.object && !item.oneTimeOrder ? 'Без привязки' : null}
           </div>
-        </div>
-        <Field
-          label="Видимость"
-          value={{
+        </Stack>
+        <Stack gap="xs">
+          <span className="ui-detail-label">Видимость</span>
+          <span>{{
             all_users: 'Все активные пользователи',
             selected_users: `Выбранные пользователи: ${item.visibleUsers.length}`,
             target_participants: 'Участники связанного объекта или заказа',
             private: 'Только участники задачи',
-          }[item.visibilityType]}
-        />
+          }[item.visibilityType]}</span>
+        </Stack>
       </div>
 
-      {item.description ? <div className={taskStyles.taskDescription}>{item.description}</div> : null}
+      <div className={taskStyles.taskDescription}>
+        <h2 className="ui-section-title">Описание задачи</h2>
+        <p>{item.description || 'Описание не добавлено.'}</p>
+      </div>
       {item.status === 'pending_auto_close' && autoCloseSeconds !== null ? (
         <div className={taskStyles.taskCountdown}>Автоматическое завершение через {formatCountdown(autoCloseSeconds)}</div>
       ) : null}
@@ -76,8 +81,4 @@ function formatCountdown(seconds: number): string {
   const safe = Math.max(0, seconds);
   const minutes = Math.floor(safe / 60);
   return `${String(minutes).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`;
-}
-
-function Field({ label, value }: { label: string; value: string }): React.JSX.Element {
-  return <div className="ui-detail-field"><div className="ui-detail-label">{label}</div><div className="ui-detail-value">{value}</div></div>;
 }

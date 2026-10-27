@@ -149,11 +149,11 @@ export default function FileViewerPage(): React.JSX.Element {
   };
 
   if (error && !view) {
-    return <Surface padding="md" className={viewerStyles.fileViewerError}>{error}</Surface>;
+    return <Surface padding="md" role="alert" className={viewerStyles.fileViewerError}>{error}</Surface>;
   }
 
   if (!view) {
-    return <Surface padding="md" className={viewerStyles.fileViewerLoading}>Загрузка файла…</Surface>;
+    return <Surface padding="md" role="status" aria-busy="true" className={viewerStyles.fileViewerLoading}>Загрузка файла…</Surface>;
   }
 
   const inlineUrl = view.inlineContentUrl

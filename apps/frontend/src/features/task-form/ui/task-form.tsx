@@ -21,6 +21,8 @@ import {
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Button } from '@/shared/ui/foundation';
+import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
+import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export interface TaskFormInitialValue {
@@ -71,7 +73,7 @@ export function TaskForm({
   initialValue?: Partial<TaskFormInitialValue>;
   isEdit?: boolean;
   onTargetsChange: (objectId: string, oneTimeOrderId: string) => void;
-  onSubmit: (payload: CreateTaskPayload) => Promise<void>;
+  onSubmit: (payload: CreateTaskPayload, files: File[]) => Promise<void>;
   onCancel?: () => void;
 }): React.JSX.Element {
   const [form, setForm] = useState<TaskFormInitialValue>({
@@ -82,6 +84,7 @@ export function TaskForm({
   const [visibilitySearch, setVisibilitySearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const filteredUsers = useMemo(() => {
     const query = assigneeSearch.trim().toLocaleLowerCase('ru-RU');
@@ -165,7 +168,7 @@ export function TaskForm({
         completionRequirement: form.completionRequirement,
         dueDate: form.dueDate,
         dueTime: form.dueDate && form.dueTime ? form.dueTime : null,
-      });
+      }, pendingFiles);
     } catch (caught) {
       setError(
         caught instanceof Error && caught.message
@@ -391,6 +394,11 @@ export function TaskForm({
         Требуется подтверждение результата
       </label>
 
+      {!isEdit ? <div className={taskStyles.taskField}>
+        <span>Вложения к задаче</span>
+        <MediaActionPicker disabled={isSubmitting} onPick={async (file) => setPendingFiles((current) => [...current, file])} />
+        <PendingMediaList files={pendingFiles} onRemove={(index) => setPendingFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} emptyText="Вложений пока нет." />
+      </div> : null}
       {error ? (
         <div className={taskStyles.taskFormError} role="alert">
           {error}

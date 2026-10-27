@@ -1118,7 +1118,7 @@
 .app-header .notification-popover__header button:focus-visible {
   outline: 0;
   background: var(--ui-accent-subtle);
-  color: var(--ui-accent-strong);
+  color: var(--ui-accent-pressed);
   box-shadow: none;
   transform: none;
 }

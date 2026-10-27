@@ -21,6 +21,7 @@ export class ChatRoomResponseDto {
   capabilities!: {
     canWrite: boolean;
     canManage: boolean;
+    canManageMembers: boolean;
     canHide: boolean;
     canLeave: boolean;
     canCloseGlobally: boolean;

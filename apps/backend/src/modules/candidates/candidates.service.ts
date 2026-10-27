@@ -64,7 +64,11 @@ export class CandidatesService {
   async list(currentUser: CurrentAuthUser, query: ListCandidatesQueryDto): Promise<CandidateListResponseDto> {
     this.assertView(currentUser);
     const now = new Date();
-    const where: Prisma.CandidateWhereInput = { AND: [this.buildWhere(query, now), buildCandidateAccessWhere(currentUser)] };
+    const scope = query.scope ?? (canManageCandidates(this.permissions(currentUser)) ? 'all' : 'mine');
+    const where: Prisma.CandidateWhereInput = { AND: [
+      this.buildWhere(query, now), buildCandidateAccessWhere(currentUser),
+      ...(scope === 'mine' ? [{ assignments: { some: { managerUserId: currentUser.id, endedAt: null } } }] : []),
+    ] };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.candidate.findMany({
         where,
@@ -105,6 +109,7 @@ export class CandidatesService {
         isActive: true,
         deletedAt: null,
         roles: { some: { role: { code: { in: [...CANDIDATE_MANAGER_ROLE_CODES] } } } },
+        permissions: { none: { permission: { code: 'candidates.denied' } } },
         ...(query.selectedId ? { id: query.selectedId } : {}),
         ...(query.q ? { OR: [{ fullName: { contains: query.q, mode: 'insensitive' } }, { login: { contains: query.q, mode: 'insensitive' } }] } : {}),
       },
@@ -662,6 +667,7 @@ export class CandidatesService {
     const manager = await tx.user.findFirst({
       where: {
         id: managerUserId,
+        permissions: { none: { permission: { code: 'candidates.denied' } } },
         isActive: true,
         deletedAt: null,
         roles: {

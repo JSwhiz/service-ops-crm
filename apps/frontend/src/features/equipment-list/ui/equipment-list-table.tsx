@@ -94,7 +94,7 @@ export function EquipmentListTable({
   };
 
   if (items.length === 0) {
-    return <div className="ui-empty-state">Оборудование пока не заведено.</div>;
+    return <div className="ui-empty-state">По текущим условиям оборудование не найдено.</div>;
   }
 
   return (
@@ -109,7 +109,7 @@ export function EquipmentListTable({
             <strong>{selectedIds.length} выбрано</strong>
           </div>
           {selectedIds.length > 0 ? <>
-            <Field label="Причина списания *">
+            <Field label="Причина списания" required>
               <textarea value={writeoffReason} onChange={(event) => setWriteoffReason(event.target.value)} rows={2} required disabled={isWritingOff} placeholder="Укажите причину списания" />
             </Field>
             <Stack gap="sm">

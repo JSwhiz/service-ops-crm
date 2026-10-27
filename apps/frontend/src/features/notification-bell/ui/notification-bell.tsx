@@ -4,9 +4,13 @@ import { useRouter } from 'next/navigation';
 import React, { useEffect, useRef, useState } from 'react';
 
 import { buildChatRealtimeUrl } from '@/entities/chat/api/chat-client';
-import { getNotificationUnreadCount, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/entities/notification/api/notification-client';
+import { dismissNotification, getNotificationUnreadCount, listNotifications, markAllNotificationsRead, markNotificationRead } from '@/entities/notification/api/notification-client';
 import type { AppNotification } from '@/entities/notification/model/notification.types';
-import { Button } from '@/shared/ui/foundation';
+import { ApiError, fetcher } from '@/shared/api/fetcher';
+import { Alert, Button, IconButton } from '@/shared/ui/foundation';
+import { CloseIcon } from '@/shared/ui/icons/icons';
+
+import styles from './notification-bell.module.css';
 
 function BellIcon(): React.JSX.Element {
   return (
@@ -40,6 +44,10 @@ export function NotificationBell(): React.JSX.Element {
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(false);
   const seenNotificationIds = useRef(new Set<string>());
+  const dismissedIds = useRef(new Set<string>());
+  const [error, setError] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  const openingRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -85,7 +93,7 @@ export function NotificationBell(): React.JSX.Element {
               const browserNotification = new window.Notification(item.title, { body: item.body ?? undefined });
               browserNotification.onclick = () => {
                 window.focus();
-                if (item.targetUrl) router.push(item.targetUrl);
+                openNotification(item);
                 browserNotification.close();
               };
             }
@@ -134,20 +142,53 @@ export function NotificationBell(): React.JSX.Element {
   const toggle = (): void => {
     const next = !open;
     setOpen(next);
-    if (next) { setLoading(true); void listNotifications(1, 15).then((result) => setItems(result.items)).catch(() => setItems([])).finally(() => setLoading(false)); }
+    if (next) { setError(null); setLoading(true); void listNotifications(1, 15).then((result) => setItems(result.items)).catch(() => setError('Не удалось загрузить уведомления.')).finally(() => setLoading(false)); }
   };
 
-  const openNotification = (item: AppNotification): void => {
-    setOpen(false);
-    if (item.targetUrl) router.push(item.targetUrl);
-    if (!item.readAt) {
-      void markNotificationRead(item.id)
-        .then(() => {
-          setCount((value) => Math.max(0, value - 1));
-          setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, readAt: entry.readAt ?? new Date().toISOString() } : entry));
-        })
-        .catch(() => undefined);
-    }
+  function openNotification(item: AppNotification): void {
+    if (dismissedIds.current.has(item.id) || openingRef.current) return;
+    openingRef.current = item.id;
+    setOpeningId(item.id);
+    setError(null);
+    void (async () => {
+      try {
+        if (!item.readAt) {
+          const read = await markNotificationRead(item.id);
+          setItems((current) => current.map((entry) => entry.id === item.id ? read : entry));
+          void getNotificationUnreadCount().then((value) => setCount(value.count)).catch(() => undefined);
+        }
+        const target = item.targetUrl;
+        if (target) {
+          if (!target.startsWith('/') || target.startsWith('//')) throw new Error('Ссылка уведомления недоступна.');
+          const entityPath = /^\/(objects|one-time-orders)\/([^/?#]+)/.exec(target);
+          if (entityPath) await fetcher(`/${entityPath[1]}/${entityPath[2]}`, { method: 'GET' });
+          setOpen(false);
+          router.push(target);
+        }
+      } catch (caught) {
+        setOpen(true);
+        setError(caught instanceof ApiError && (caught.statusCode === 403 || caught.statusCode === 404)
+          ? 'Карточка недоступна: у вас нет доступа или запись удалена.'
+          : 'Не удалось открыть уведомление. Попробуйте ещё раз.');
+      } finally {
+        openingRef.current = null;
+        setOpeningId(null);
+      }
+    })();
+  }
+
+  const dismiss = (item: AppNotification): void => {
+    if (!item.readAt || dismissedIds.current.has(item.id)) return;
+    dismissedIds.current.add(item.id);
+    setItems((current) => current.filter((entry) => entry.id !== item.id));
+    setToasts((current) => current.filter((entry) => entry.id !== item.id));
+    setError(null);
+    void dismissNotification(item.id).catch(() => {
+      dismissedIds.current.delete(item.id);
+      setItems((current) => current.some((entry) => entry.id === item.id) ? current : [...current, item].sort((left, right) => right.createdAt.localeCompare(left.createdAt)));
+      setError('Не удалось скрыть уведомление. Попробуйте ещё раз.');
+      void listNotifications(1, 15).then((result) => setItems(result.items)).catch(() => undefined);
+    });
   };
 
   const requestBrowserPermission = (): void => {
@@ -187,7 +228,7 @@ export function NotificationBell(): React.JSX.Element {
           <div className="notification-popover__header">
             <strong>Уведомления</strong>
             {count > 0 ? (
-              <Button onClick={() => { void markAllNotificationsRead().then(() => { setCount(0); setItems((current) => current.map((item) => ({ ...item, readAt: item.readAt ?? new Date().toISOString() }))); }); }}>
+              <Button onClick={() => { void markAllNotificationsRead().then(async () => { const [unread, list] = await Promise.all([getNotificationUnreadCount(), listNotifications(1, 15)]); setCount(unread.count); setItems(list.items); }).catch(() => setError('Не удалось прочитать уведомления.')); }}>
                 Прочитать все
               </Button>
             ) : null}
@@ -200,12 +241,16 @@ export function NotificationBell(): React.JSX.Element {
             <div className="notification-browser-permission" role="status">Разрешите уведомления для сайта в настройках браузера.</div>
           ) : null}
           <div className="notification-popover__list">
-            {loading ? <div className="ui-text-muted">Загрузка...</div> : items.length === 0 ? <div className="ui-text-muted">Уведомлений пока нет.</div> : items.map((item) => (
-              <button type="button" key={item.id} className={item.readAt ? 'notification-item' : 'notification-item notification-item--unread'} onClick={() => openNotification(item)}>
+            {error ? <Alert tone="warning">{error}</Alert> : null}
+            {loading ? <div className="ui-text-muted">Загрузка...</div> : items.filter((item) => !dismissedIds.current.has(item.id)).length === 0 ? <div className="ui-text-muted">Уведомлений пока нет.</div> : items.filter((item) => !dismissedIds.current.has(item.id)).map((item) => (
+              <div key={item.id} className={styles.row}>
+              <button type="button" className={item.readAt ? 'notification-item' : 'notification-item notification-item--unread'} disabled={Boolean(openingId)} onClick={() => openNotification(item)}>
                 <strong>{item.title}</strong>
                 {item.body ? <span>{item.body}</span> : null}
                 <small>{new Date(item.createdAt).toLocaleString('ru-RU')}</small>
               </button>
+              {item.readAt ? <IconButton aria-label={`Скрыть уведомление: ${item.title}`} onClick={() => dismiss(item)}><CloseIcon /></IconButton> : null}
+              </div>
             ))}
           </div>
         </div>

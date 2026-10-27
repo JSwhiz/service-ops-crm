@@ -9,6 +9,10 @@ export const CANDIDATE_SORT_FIELDS = ['fullName', 'status', 'candidateType', 'cr
 
 export class ListCandidatesQueryDto {
   @IsOptional()
+  @IsIn(['mine', 'all'])
+  scope?: 'mine' | 'all';
+
+  @IsOptional()
   @Transform(optionalTrim)
   @IsString()
   @MaxLength(200)

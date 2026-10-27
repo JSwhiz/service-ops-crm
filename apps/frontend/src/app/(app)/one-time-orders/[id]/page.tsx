@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 
 import {
   createAccountabilityExpense,
@@ -58,6 +57,7 @@ import {
 import type { TaskItem } from '@/entities/task/model/task.types';
 import {
   listFilesByEntity,
+  uploadFileBatch,
   uploadFileToEntity,
 } from '@/entities/file/api/file-client';
 import type { AttachedFile } from '@/entities/file/model/file.types';
@@ -86,6 +86,9 @@ import {
   OneTimeOrderAccountabilityPanel,
 } from '@/features/one-time-order-accountability/ui/one-time-order-accountability-panel';
 import { OneTimeOrderCompletionPanel } from '@/features/one-time-order-completion/ui/one-time-order-completion-panel';
+import { OneTimeOrderEscortsPanel } from '@/features/one-time-order-operations/ui/one-time-order-escorts-panel';
+import { OneTimeOrderServiceLinesPanel } from '@/features/one-time-order-operations/ui/one-time-order-service-lines-panel';
+import { OneTimeOrderDeadlinePanel } from '@/features/one-time-order-operations/ui/one-time-order-deadline-panel';
 import { EquipmentScopePanel } from '@/features/equipment-scope/ui/equipment-scope-panel';
 import {
   ONE_TIME_ORDER_STATUS_OPTIONS,
@@ -95,7 +98,7 @@ import {
 } from '@/shared/lib/one-time-order-presentation';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import styles from './one-time-order-detail.module.css';
-import { Alert, Button, ButtonLink, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, ButtonLink, EmptyState, LoadingState, StatusBadge, Surface } from '@/shared/ui/foundation';
 import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -330,7 +333,7 @@ export default function OneTimeOrderDetailPage({
   return (
     <div className={`ui-page ${orderStyles.orderDetailPage}`}>
       {isLoading ? (
-        <div className="ui-empty-state">Загрузка...</div>
+        <LoadingState label="Загрузка разового заказа…" />
       ) : error ? (
         <Alert tone="warning" role="alert">
           {error}
@@ -351,7 +354,7 @@ export default function OneTimeOrderDetailPage({
             label="Разделы разового заказа"
           />
 
-          <div className={styles.content} id="workspace-panel-team" role="tabpanel" aria-labelledby="workspace-tab-team" hidden={activeSection !== 'team'}>
+          <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-team" role="tabpanel" aria-labelledby="workspace-tab-team" hidden={activeSection !== 'team'}>
           <Surface as="section" padding="md">
             <div className="ui-section-header">
               <div>
@@ -366,15 +369,13 @@ export default function OneTimeOrderDetailPage({
             </div>
 
             {workforce.filter((employee) => employee.isActive).length === 0 ? (
-              <div className="ui-empty-state">
-                Состав заказа пока не сформирован.
-              </div>
+              <EmptyState title="Команда пока не сформирована" description="Откройте команду, чтобы посмотреть состав и доступные действия." />
             ) : (
-              <div className="record-list">
+              <div className="ui-stack ui-stack--sm">
                 {workforce
                   .filter((employee) => employee.isActive)
                   .map((employee) => (
-                    <Surface padding="sm" key={employee.employeeId}>
+                    <div className={orderStyles.specificationItem} key={employee.employeeId}>
                       <div className="ui-section-header">
                         <div>
                           <strong>{employee.fullName}</strong>
@@ -382,7 +383,7 @@ export default function OneTimeOrderDetailPage({
                             {employee.position ?? 'Должность не указана'}
                           </div>
                         </div>
-                        <div style={{ textAlign: 'right' }}>
+                        <div className={orderStyles.orderAmount}>
                           <div className="ui-text-muted">Оплата за заказ</div>
                           <strong>
                             {employee.orderPayment === null
@@ -393,7 +394,7 @@ export default function OneTimeOrderDetailPage({
                           </strong>
                         </div>
                       </div>
-                    </Surface>
+                    </div>
                   ))}
               </div>
             )}
@@ -423,12 +424,14 @@ export default function OneTimeOrderDetailPage({
               setItem(updated); await loadAll(item.id);
             }}
           />
+          <OneTimeOrderEscortsPanel orderId={item.id} workforce={workforce} onChanged={() => loadAll(item.id)} />
           </div>
 
-          <div className={styles.content} id="workspace-panel-overview" role="tabpanel" aria-labelledby="workspace-tab-overview" hidden={activeSection !== 'overview'}>
+          <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-overview" role="tabpanel" aria-labelledby="workspace-tab-overview" hidden={activeSection !== 'overview'}>
+          <OneTimeOrderDeadlinePanel orderId={item.id} onChanged={() => loadAll(item.id)} />
           {item.capabilities.canChangeStatus ? (
             <Surface padding="md">
-              <div className="ui-section-header" style={{ marginBottom: 12 }}>
+              <div className="ui-section-header">
                 <div>
                   <div className="ui-section-title">Статус заказа</div>
                   <div className="ui-section-subtitle">
@@ -559,7 +562,7 @@ export default function OneTimeOrderDetailPage({
           ) : null}
           </div>
 
-          <div className={styles.content} id="workspace-panel-finance" role="tabpanel" aria-labelledby="workspace-tab-finance" hidden={activeSection !== 'finance'}>
+          <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-finance" role="tabpanel" aria-labelledby="workspace-tab-finance" hidden={activeSection !== 'finance'}>
           {item.financialNotes || item.expenseNotes || item.plannedPaymentMethod ? (
             <Surface as="section" padding="md">
               <div className="ui-section-header">
@@ -570,8 +573,8 @@ export default function OneTimeOrderDetailPage({
               </div>
               <div className="ui-detail-grid">
                 {item.plannedPaymentMethod ? <div className="ui-detail-field"><div className="ui-detail-label">Плановый способ оплаты</div><div className="ui-detail-value">{getOneTimeOrderPlannedPaymentMethodLabel(item.plannedPaymentMethod)}</div></div> : null}
-                {item.financialNotes ? <div className="ui-detail-field"><div className="ui-detail-label">Заметка по оплате</div><div className="ui-detail-value one-time-order-long-text">{item.financialNotes}</div></div> : null}
-                {item.expenseNotes ? <div className="ui-detail-field"><div className="ui-detail-label">Заметка о расходах</div><div className="ui-detail-value one-time-order-long-text">{item.expenseNotes}</div></div> : null}
+                {item.financialNotes ? <div className="ui-detail-field"><div className="ui-detail-label">Заметка по оплате</div><div className={`ui-detail-value ${orderStyles.orderLongText}`}>{item.financialNotes}</div></div> : null}
+                {item.expenseNotes ? <div className="ui-detail-field"><div className="ui-detail-label">Заметка о расходах</div><div className={`ui-detail-value ${orderStyles.orderLongText}`}>{item.expenseNotes}</div></div> : null}
               </div>
             </Surface>
           ) : null}
@@ -627,7 +630,7 @@ export default function OneTimeOrderDetailPage({
           ) : null}
           </div>
 
-          <div className={styles.content} id="workspace-panel-discussion" role="tabpanel" aria-labelledby="workspace-tab-discussion" hidden={activeSection !== 'discussion'}>
+          <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-discussion" role="tabpanel" aria-labelledby="workspace-tab-discussion" hidden={activeSection !== 'discussion'}>
           <OneTimeOrderCommentsPanel
             items={comments}
             canCreate={item.capabilities.canComment}
@@ -650,15 +653,24 @@ export default function OneTimeOrderDetailPage({
             }}
           />
           <Surface padding="md">
-            <div className="ui-section-header" style={{ paddingBottom: 0 }}>
+            <div className="ui-section-header">
               <div><div className="ui-section-title">Рабочий чат разовых заказов</div><div className="ui-section-subtitle">Полный мессенджер живет отдельно от комментариев заказа.</div></div>
-              <Link href="/chats?room=one_time_orders">Открыть чат</Link>
+              <ButtonLink variant="ghost" href="/chats?room=one_time_orders">Открыть чат</ButtonLink>
             </div>
           </Surface>
           </div>
 
-          <div className={styles.content} id="workspace-panel-execution" role="tabpanel" aria-labelledby="workspace-tab-execution" hidden={activeSection !== 'execution'}>
+          <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-execution" role="tabpanel" aria-labelledby="workspace-tab-execution" hidden={activeSection !== 'execution'}>
           <OneTimeOrderSpecificationPanel orderId={item.id} canManage={item.capabilities.canManageSpecification} />
+          <section className="ui-stack ui-stack--lg" aria-label="Услуги заказа">
+                <OneTimeOrderServiceLinesPanel orderId={item.id} onChanged={() => loadAll(item.id)} />
+                <div className="ui-section-subtitle">
+                  Услуги относятся к заказу «{item.title}»
+                  {item.linkedObject ? ` · Объект: ${item.linkedObject.name}` : ''}.
+                  {' '}Состав сотрудников и фактические выходы доступны в разделе «Команда».
+                  {' '}Расходники и оборудование — в разделе «Финансы и ресурсы».
+                </div>
+          </section>
           <OneTimeOrderDailyReportPanel
             item={dailyReport}
             onSave={async (payload) => {
@@ -666,17 +678,11 @@ export default function OneTimeOrderDetailPage({
                 content: payload.content,
               });
 
-              await Promise.all(
-                payload.files.map((file) =>
-                  uploadFileToEntity({
-                    entityType: 'one_time_order_daily_report',
-                    entityId: saved.id,
-                    file,
-                  }),
-                ),
-              );
+              setDailyReport(saved);
+              const uploads = await uploadFileBatch({ entityType: 'one_time_order_daily_report', entityId: saved.id, files: payload.files });
 
               await loadAll(item.id);
+              if (uploads.some((result) => result.status === 'rejected')) throw new Error('Текст отчёта сохранён. Не все вложения загрузились — повторите сохранение, уже загруженные файлы не продублируются.');
             }}
           />
           <OneTimeOrderTasksPanel
@@ -690,7 +696,7 @@ export default function OneTimeOrderDetailPage({
           />
           </div>
 
-          <div className={styles.content} id="workspace-panel-materials" role="tabpanel" aria-labelledby="workspace-tab-materials" hidden={activeSection !== 'materials'}>
+          <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-materials" role="tabpanel" aria-labelledby="workspace-tab-materials" hidden={activeSection !== 'materials'}>
           <OneTimeOrderPhotosPanel
             items={photos}
             canCreate={item.capabilities.canUploadPhotos}
@@ -737,12 +743,12 @@ export default function OneTimeOrderDetailPage({
 
           </div>
 
-          <div className={styles.content} id="workspace-panel-history" role="tabpanel" aria-labelledby="workspace-tab-history" hidden={activeSection !== 'history'}>
+          <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-history" role="tabpanel" aria-labelledby="workspace-tab-history" hidden={activeSection !== 'history'}>
             <OneTimeOrderHistoryList items={history} />
           </div>
         </div>
       ) : (
-        <div className="ui-empty-state">Разовый заказ не найден.</div>
+        <EmptyState title="Разовый заказ не найден" description="Вернитесь к списку, чтобы выбрать доступный заказ." action={<ButtonLink href="/one-time-orders">К разовым заказам</ButtonLink>} />
       )}
       <ConfirmDialog
         open={scheduleConflictPrompt !== null}

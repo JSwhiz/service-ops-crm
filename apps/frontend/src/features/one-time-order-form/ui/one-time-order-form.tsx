@@ -17,7 +17,7 @@ import {
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, Field } from '@/shared/ui/foundation';
 import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 type OneTimeOrderFormPayload = {
@@ -213,14 +213,8 @@ export function OneTimeOrderForm({
 
   return (
     <form className={`ui-surface ui-surface--padded ${orderStyles.oneTimeOrderForm}`} onSubmit={handleSubmit}>
-      <div
-        className={orderStyles.oneTimeOrderFormFields}
-        style={{
-          display: 'grid',
-          gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        }}
-      >
+      <h2 className="ui-section-title">Параметры заказа</h2>
+      <div className={orderStyles.oneTimeOrderFormFields}>
         <Field label="Название заказа">
           <input
             value={form.title}
@@ -257,7 +251,7 @@ export function OneTimeOrderForm({
           />
         ) : null}
 
-        <fieldset className={orderStyles.oneTimeOrderDateMode} style={{ gridColumn: '1 / -1' }}>
+        <fieldset className={`${orderStyles.oneTimeOrderDateMode} ${orderStyles.orderWideField}`}>
           <legend>Дата выполнения</legend>
           <div className={orderStyles.oneTimeOrderDateModeOptions}>
             {[
@@ -283,14 +277,7 @@ export function OneTimeOrderForm({
             ))}
           </div>
           {form.dateMode !== 'none' ? (
-            <div
-              style={{
-                display: 'grid',
-                gap: 12,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                marginTop: 12,
-              }}
-            >
+            <div className={orderStyles.oneTimeOrderFormFields}>
               <Field label={form.dateMode === 'range' ? 'Дата начала' : 'Дата'}>
                 <DatePicker value={form.executionStartDate.slice(0, 10)} onChange={(nextValue) => setForm((prev) => ({
                       ...prev,
@@ -380,22 +367,19 @@ export function OneTimeOrderForm({
           </>
         ) : null}
 
-        <label style={{ gridColumn: '1 / -1' }}>
-          <div style={{ marginBottom: 6 }}>Описание</div>
+        <Field label="Описание" className={orderStyles.orderWideField}>
           <textarea
             value={form.description}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, description: event.target.value }))
             }
             rows={4}
-            style={{ width: '100%', padding: 10, resize: 'vertical' }}
           />
-        </label>
+        </Field>
 
         {canEditFinancialFields ? (
           <>
-            <label style={{ gridColumn: '1 / -1' }}>
-              <div style={{ marginBottom: 6 }}>Финансовые заметки</div>
+            <Field label="Финансовые заметки" className={orderStyles.orderWideField}>
               <textarea
                 value={form.financialNotes}
                 onChange={(event) =>
@@ -405,12 +389,10 @@ export function OneTimeOrderForm({
                   }))
                 }
                 rows={3}
-                style={{ width: '100%', padding: 10, resize: 'vertical' }}
               />
-            </label>
+            </Field>
 
-            <label style={{ gridColumn: '1 / -1' }}>
-              <div style={{ marginBottom: 6 }}>Расходные заметки</div>
+            <Field label="Расходные заметки" className={orderStyles.orderWideField}>
               <textarea
                 value={form.expenseNotes}
                 onChange={(event) =>
@@ -420,16 +402,15 @@ export function OneTimeOrderForm({
                   }))
                 }
                 rows={3}
-                style={{ width: '100%', padding: 10, resize: 'vertical' }}
               />
-            </label>
+            </Field>
           </>
         ) : null}
 
         {includeManagers ? (
-          <div style={{ gridColumn: '1 / -1', display: 'grid', gap: 10 }}>
+          <div className={`ui-stack ui-stack--lg ${orderStyles.orderWideField}`}>
             <div>
-              <div style={{ marginBottom: 4 }}>Менеджеры заказа</div>
+              <h3 className="ui-section-title">Менеджеры заказа</h3>
               <div className="ui-text-muted">
                 Добавляйте менеджеров поиском — полный список не загружается.
               </div>
@@ -438,17 +419,10 @@ export function OneTimeOrderForm({
             {selectedManagers.length === 0 ? (
               <div className="ui-text-muted">Менеджеры пока не выбраны.</div>
             ) : (
-              <div className="record-list">
+              <div className="ui-stack ui-stack--sm">
                 {selectedManagers.map((user) => (
-                  <Surface padding="sm"
+                  <div className={`ui-section-header ${orderStyles.specificationItem}`}
                     key={user.id}
-
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      alignItems: 'center',
-                    }}
                   >
                     <div>
                       <div>{getUserDisplayName(user)}</div>
@@ -464,7 +438,7 @@ export function OneTimeOrderForm({
                     >
                       Убрать
                     </Button>
-                  </Surface>
+                  </div>
                 ))}
               </div>
             )}
@@ -487,10 +461,10 @@ export function OneTimeOrderForm({
         ) : null}
 
         {includeSpecificationItems ? (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <div className="ui-section-header" style={{ marginBottom: 10 }}>
+          <div className={`ui-stack ui-stack--lg ${orderStyles.orderWideField}`}>
+            <div className="ui-section-header">
               <div>
-                <div className="ui-section-title">Техническое задание копии</div>
+                <h3 className="ui-section-title">Техническое задание копии</h3>
                 <div className="ui-section-subtitle">
                   Выполнение и вложения исходного заказа не копируются.
                 </div>
@@ -506,9 +480,9 @@ export function OneTimeOrderForm({
                 Добавить пункт
               </Button>
             </div>
-            <div className="record-list">
+            <div className="ui-stack ui-stack--lg">
               {specificationItems.map((item, index) => (
-                <div className="record-item" key={index}>
+                <div className={`ui-stack ui-stack--lg ${orderStyles.specificationItem}`} key={index}>
                   <Field label="Название пункта">
                     <input
                       value={item.title}
@@ -580,9 +554,9 @@ export function OneTimeOrderForm({
 
       {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
-      <div style={{ marginTop: 16 }}>
-        <Button variant="primary" type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Сохраняем...' : submitLabel}
+      <div className="ui-inline">
+        <Button variant="primary" type="submit" pending={isSubmitting} pendingLabel="Сохраняем…">
+          {submitLabel}
         </Button>
       </div>
     </form>

@@ -214,7 +214,7 @@ test('object attendance today returns saved worked hours for controlled UI state
   };
 
   assert.deepEqual(attendanceView.employeeIds, [SEEDED_EMPLOYEE_IDS.ivan]);
-  assert.deepEqual(attendanceView.employeeFacts, [
+  assert.deepEqual(attendanceView.employeeFacts.map(({ employeeId, workedHours, ratePolicyType, rateAmount, rateReason }) => ({ employeeId, workedHours, ratePolicyType, rateAmount, rateReason })), [
     {
       employeeId: SEEDED_EMPLOYEE_IDS.ivan,
       workedHours: 5,

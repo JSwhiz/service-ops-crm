@@ -24,6 +24,7 @@
   align-items: center;
   gap: var(--ui-space-3);
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .badges {
@@ -90,6 +91,7 @@
 
 .sectionHeader {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--ui-space-3);
@@ -166,6 +168,7 @@
   display: grid;
   gap: 2px;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .timelineHead {
@@ -174,12 +177,12 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--ui-space-1) var(--ui-space-3);
+  overflow-wrap: anywhere;
 }
 
 .timelineHead time {
   color: var(--ui-text-tertiary);
   font-size: var(--ui-text-xs);
-  white-space: nowrap;
 }
 
 .timelineItem p {

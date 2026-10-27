@@ -21,7 +21,9 @@ import type {
   EmployeeAttendanceMonth,
   EmployeeDetail,
 } from '@/entities/employee/model/employee.types';
-import { Alert, Badge, Button, Field, Surface } from '@/shared/ui/foundation';
+import { Alert, Badge, Button, Field, IconButton, Surface } from '@/shared/ui/foundation';
+import { ChevronLeftIcon, ChevronRightIcon } from '@/shared/ui/icons/icons';
+import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { ConfirmDialog, Dialog } from '@/shared/ui/overlays';
 import { OverflowMenu, type OverflowMenuItem } from '@/shared/ui/overflow-menu/overflow-menu';
@@ -90,6 +92,7 @@ export function EmployeeScheduleSection({
   const [isAttendanceLoading, setIsAttendanceLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [sideTab, setSideTab] = useState<'substitutions' | 'availability'>('substitutions');
+  const sideTabsId = useId();
   const [availabilityOpen, setAvailabilityOpen] = useState(false);
   const [substitutionOpen, setSubstitutionOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ title: string; consequence: string; label: string; tone: 'neutral' | 'danger'; run: () => Promise<EmployeeDetail> } | null>(null);
@@ -261,13 +264,13 @@ export function EmployeeScheduleSection({
       <div className={styles.scheduleHeader}>
         <div className={styles.monthNav}>
           <h2 id="employee-schedule-title" className={styles.visuallyHidden}>График</h2>
-          <Button size="sm" aria-label="Предыдущий месяц" onClick={() => setCursor((value) => shiftMonth(value, -1))}>‹</Button>
+          <IconButton bordered aria-label="Предыдущий месяц" onClick={() => setCursor((value) => shiftMonth(value, -1))}><ChevronLeftIcon /></IconButton>
           <span className={styles.monthTitle} aria-live="polite">{formatMonth(cursor)}</span>
-          <Button size="sm" aria-label="Следующий месяц" onClick={() => setCursor((value) => shiftMonth(value, 1))}>›</Button>
+          <IconButton bordered aria-label="Следующий месяц" onClick={() => setCursor((value) => shiftMonth(value, 1))}><ChevronRightIcon /></IconButton>
           <Button size="sm" variant="ghost" onClick={() => setCursor(currentMonth())}>Сегодня</Button>
         </div>
         <ul className={styles.legend} aria-label="Итоги месяца">
-          <li><span className={`${styles.swatch} ${styles.swatchWorked}`} aria-hidden="true" />Выходы: <strong>{isAttendanceLoading ? '…' : attendance?.days.length ?? 0}</strong></li>
+          <li><span className={`${styles.swatch} ${styles.swatchWorked}`} aria-hidden="true" />Выходы: <strong>{isAttendanceLoading ? '…' : attendanceError ? '—' : attendance?.days.length ?? 0}</strong></li>
           <li><span className={`${styles.swatch} ${styles.swatchUnavailable}`} aria-hidden="true" />Недоступна: <strong>{countDays('unavailable')}</strong></li>
           <li><span className={`${styles.swatch} ${styles.swatchSubstitution}`} aria-hidden="true" />Подмены: <strong>{countDays('substitution')}</strong></li>
         </ul>
@@ -348,28 +351,32 @@ export function EmployeeScheduleSection({
                 </div>
               </li>
             ))}
-            {!isAttendanceLoading && !monthDays.some((day) => eventsByDay.has(day.key)) ? (
+            {!isAttendanceLoading && !attendanceError && !monthDays.some((day) => eventsByDay.has(day.key)) ? (
               <li className={styles.listEmpty}>В этом месяце событий нет.</li>
             ) : null}
           </ul>
         </div>
 
         <aside className={styles.sidePanel} aria-label="Подмены и недоступность">
-          <div className={styles.segmentedTabs} role="tablist" aria-label="Списки">
-            <Button role="tab" aria-selected={sideTab === 'substitutions'} onClick={() => setSideTab('substitutions')}>
-              Подмены <span className={styles.count}>{substitutions.length}</span>
-            </Button>
-            <Button role="tab" aria-selected={sideTab === 'availability'} onClick={() => setSideTab('availability')}>
-              Недоступность <span className={styles.count}>{windows.length}</span>
-            </Button>
+          <div className={styles.sideTabs}>
+            <WorkspaceTabs
+              idPrefix={sideTabsId}
+              label="Подмены и недоступность"
+              value={sideTab}
+              onChange={(value) => setSideTab(value as typeof sideTab)}
+              items={[
+                { value: 'substitutions', label: `Подмены (${substitutions.length})` },
+                { value: 'availability', label: `Недоступность (${windows.length})` },
+              ]}
+            />
           </div>
           {sideTab === 'substitutions' && needsClosing ? (
             <p className={styles.sideNotice}>Нужно закрыть: {needsClosing}. Срок прошёл, а подмена ещё открыта.</p>
           ) : null}
 
-          <div className={styles.sideList} role="tabpanel">
-            {sideTab === 'substitutions' ? (
-              substitutions.length === 0 ? <p className={styles.listEmpty}>Подмен не было.</p> : (
+          <div className={styles.sideList}>
+            <div role="tabpanel" id={`${sideTabsId}-panel-substitutions`} aria-labelledby={`${sideTabsId}-tab-substitutions`} hidden={sideTab !== 'substitutions'} tabIndex={0}>
+              {substitutions.length === 0 ? <p className={styles.listEmpty}>Подмен не было.</p> : (
                 <ul className={styles.list}>
                   {substitutions.map((substitution) => {
                     const state = substitutionState(substitution, now);
@@ -393,27 +400,30 @@ export function EmployeeScheduleSection({
                     );
                   })}
                 </ul>
-              )
-            ) : windows.length === 0 ? <p className={styles.listEmpty}>Периодов недоступности нет.</p> : (
-              <ul className={styles.list}>
-                {windows.map((windowItem) => (
-                  <li key={windowItem.id} className={styles.sideRow}>
-                    <div className={styles.listMain}>
-                      <span className={styles.sideRowTitle}>
-                        {formatPeriod(windowItem.startDate, windowItem.endDate, windowItem.availabilityMode !== 'full_day')}
-                      </span>
-                      <span className={styles.listMeta}>{windowItem.comment || (windowItem.availabilityMode === 'full_day' ? 'Целые дни' : 'Часть дня')}</span>
-                    </div>
-                    <div className={styles.sideRowAside}>
-                      <Badge className={styles.badge} tone={windowItem.availabilityStatus === 'unavailable' ? 'warning' : 'success'}>
-                        {windowItem.availabilityStatus === 'unavailable' ? 'Недоступна' : 'Доступна'}
-                      </Badge>
-                      <OverflowMenu items={windowActions(windowItem)} triggerLabel="Действия с периодом" />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+              )}
+            </div>
+            <div role="tabpanel" id={`${sideTabsId}-panel-availability`} aria-labelledby={`${sideTabsId}-tab-availability`} hidden={sideTab !== 'availability'} tabIndex={0}>
+              {windows.length === 0 ? <p className={styles.listEmpty}>Периодов недоступности нет.</p> : (
+                <ul className={styles.list}>
+                  {windows.map((windowItem) => (
+                    <li key={windowItem.id} className={styles.sideRow}>
+                      <div className={styles.listMain}>
+                        <span className={styles.sideRowTitle}>
+                          {formatPeriod(windowItem.startDate, windowItem.endDate, windowItem.availabilityMode !== 'full_day')}
+                        </span>
+                        <span className={styles.listMeta}>{windowItem.comment || (windowItem.availabilityMode === 'full_day' ? 'Целые дни' : 'Часть дня')}</span>
+                      </div>
+                      <div className={styles.sideRowAside}>
+                        <Badge className={styles.badge} tone={windowItem.availabilityStatus === 'unavailable' ? 'warning' : 'success'}>
+                          {windowItem.availabilityStatus === 'unavailable' ? 'Недоступна' : 'Доступна'}
+                        </Badge>
+                        <OverflowMenu items={windowActions(windowItem)} triggerLabel="Действия с периодом" />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         </aside>
       </div>

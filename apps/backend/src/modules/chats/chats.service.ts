@@ -45,12 +45,14 @@ import type {
 import {
   CHAT_LEADERSHIP_ROLE_CODES,
   CHAT_OPERATIONAL_ROLE_CODES,
+  CHAT_MANAGE_MEMBERS_PERMISSION_CODE,
   canCloseChatGlobally,
   canCreateDirectChat,
   canCreateGroupChat,
   canManageChats,
   hasOperationalChatRole,
   isChatLeadership,
+  isObjectsChatDenied,
 } from './utils/chat-access.util';
 
 const CHAT_MESSAGE_EDIT_WINDOW_MS = 30 * 60 * 1000;
@@ -590,7 +592,7 @@ export class ChatsService implements OnModuleInit {
     dto: AddChatParticipantsDto,
   ): Promise<ChatRoomResponseDto> {
     const room = await this.getRoomRecord(roomId);
-    await this.assertCanManageRoom(currentUser, room);
+    await this.assertCanManageMembers(currentUser, room);
     this.assertRoomOpen(room);
 
     if (
@@ -605,38 +607,26 @@ export class ChatsService implements OnModuleInit {
     const userIds = this.dedupeUserIds(dto.userIds);
     await this.assertActiveUsersExist(userIds);
 
-    const joinedAt = new Date();
-    await this.prisma.$transaction(
-      userIds.map((userId) =>
-        this.prisma.chatRoomParticipant.upsert({
-          where: {
-            chatRoomId_userId: {
-              chatRoomId: room.id,
-              userId,
-            },
-          },
-          create: {
-            chatRoomId: room.id,
-            userId,
-            roleInRoom: 'member',
-            joinedAt,
-          },
-          update: {
-            roleInRoom: 'member',
-            joinedAt,
-            hiddenAt: null,
-            leftAt: null,
-          },
-        }),
-      ),
-    );
-
-    await this.auditService.writeAuditEvent({
-      entityType: 'chat_room',
-      entityId: room.id,
-      actorUserId: currentUser.id,
-      action: 'chat.room.participants_added',
-      newValues: { userIds },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "chat_rooms" WHERE "id" = ${room.id} FOR UPDATE`;
+      const addedUserIds: string[] = [];
+      for (const userId of userIds) {
+        const existing = await tx.chatRoomParticipant.findUnique({
+          where: { chatRoomId_userId: { chatRoomId: room.id, userId } },
+        });
+        // Repeating Add must not reset a current member's history or admin role.
+        if (existing && !existing.leftAt) continue;
+        await tx.chatRoomParticipant.upsert({
+          where: { chatRoomId_userId: { chatRoomId: room.id, userId } },
+          create: { chatRoomId: room.id, userId, roleInRoom: 'member', joinedAt: new Date() },
+          update: { roleInRoom: 'member', joinedAt: new Date(), lastReadAt: null, hiddenAt: null, leftAt: null },
+        });
+        addedUserIds.push(userId);
+      }
+      if (addedUserIds.length) await this.auditService.writeAuditEvent({
+        entityType: 'chat_room', entityId: room.id, actorUserId: currentUser.id,
+        action: 'chat.room.participants_added', newValues: { userIds: addedUserIds },
+      }, tx);
     });
 
     const updated = await this.getRoomRecord(room.id);
@@ -1639,6 +1629,7 @@ export class ChatsService implements OnModuleInit {
     text: string,
     metadata?: Record<string, unknown>,
     actorUserId?: string | null,
+    systemEventKey?: string,
   ): Promise<void> {
     await this.ensureDefaultRooms();
 
@@ -1652,6 +1643,7 @@ export class ChatsService implements OnModuleInit {
 
     const message = await this.prisma.chatMessage.create({
       data: {
+        ...(systemEventKey ? { systemEventKey } : {}),
         chatRoomId: room.id,
         authorUserId: null,
         messageType: 'system',
@@ -1667,7 +1659,11 @@ export class ChatsService implements OnModuleInit {
           },
         },
       },
+    }).catch((error: unknown) => {
+      if (systemEventKey && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+      throw error;
     });
+    if (!message) return;
 
     await this.updateRoomLastMessage(room.id, text);
 
@@ -1816,7 +1812,7 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
   ): Promise<boolean> {
-    if (room.deletedAt) {
+    if (!currentUser.isActive || room.deletedAt) {
       return false;
     }
 
@@ -1827,8 +1823,9 @@ export class ChatsService implements OnModuleInit {
         return isChatLeadership(roleCodes);
       case 'objects_scope':
         return (
-          hasOperationalChatRole(roleCodes) ||
-          (await this.hasActiveObjectAssignment(currentUser.id))
+          !isObjectsChatDenied(roleCodes) &&
+          (hasOperationalChatRole(roleCodes) ||
+            (await this.hasActiveObjectAssignment(currentUser.id)))
         );
       case 'one_time_orders_scope':
         return (
@@ -1887,6 +1884,37 @@ export class ChatsService implements OnModuleInit {
     });
 
     return participant?.roleInRoom === 'admin' && participant.leftAt === null;
+  }
+
+  private async canManageMembers(currentUser: CurrentAuthUser, room: ChatRoomRecord): Promise<boolean> {
+    if (!currentUser.isActive || room.deletedAt || room.roomType !== 'group' || room.visibilityType !== 'explicit_members') return false;
+    if (!(await this.canAccessRoom(currentUser, room))) return false;
+    return (currentUser.permissionCodes ?? []).includes(CHAT_MANAGE_MEMBERS_PERMISSION_CODE) ||
+      this.canManageRoom(currentUser, room);
+  }
+
+  private async assertCanManageMembers(currentUser: CurrentAuthUser, room: ChatRoomRecord): Promise<void> {
+    if (!(await this.canManageMembers(currentUser, room))) {
+      throw new ForbiddenException('Недостаточно прав для изменения состава чата');
+    }
+  }
+
+  async removeParticipant(currentUser: CurrentAuthUser, roomId: string, userId: string): Promise<ChatRoomResponseDto> {
+    const room = await this.getRoomRecord(roomId);
+    await this.assertCanManageMembers(currentUser, room);
+    this.assertRoomOpen(room);
+    if (userId === currentUser.id) throw new BadRequestException('Для выхода из чата используйте «Покинуть чат»');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "chat_rooms" WHERE "id" = ${room.id} FOR UPDATE`;
+      const target = await tx.chatRoomParticipant.findUnique({ where: { chatRoomId_userId: { chatRoomId: room.id, userId } } });
+      if (!target || target.leftAt) throw new NotFoundException('Участник не найден');
+      await tx.chatRoomParticipant.update({ where: { id: target.id }, data: { leftAt: new Date(), hiddenAt: null } });
+      await this.auditService.writeAuditEvent({ entityType: 'chat_room', entityId: room.id, actorUserId: currentUser.id,
+        action: 'chat.room.participant_removed', oldValues: { userId, roleInRoom: target.roleInRoom }, newValues: { userId, left: true } }, tx);
+    });
+    await this.publishRoomLifecycleEvent(room, 'chat.room_left', [userId]);
+    await this.publishRoomUpdate(room);
+    return this.mapRoom(currentUser, room, await this.ensureParticipantForAccessibleRoom(currentUser, room));
   }
 
   private async ensureParticipantForAccessibleRoom(
@@ -2016,6 +2044,7 @@ export class ChatsService implements OnModuleInit {
       capabilities: {
         canWrite: await this.canWriteRoom(currentUser, room),
         canManage: await this.canManageRoom(currentUser, room),
+        canManageMembers: await this.canManageMembers(currentUser, room),
         canHide:
           this.isDirectOrGroupRoom(room) &&
           !room.deletedAt &&
@@ -2710,9 +2739,11 @@ export class ChatsService implements OnModuleInit {
       }),
     ]);
 
-    return Array.from(
-      new Set([...roleUsers, ...assignedUsers.map((item) => item.userId)]),
-    );
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: [...new Set([...roleUsers, ...assignedUsers.map((item) => item.userId)])] }, isActive: true, deletedAt: null },
+      select: { id: true, roles: { select: { role: { select: { code: true } } } } },
+    });
+    return users.filter((user) => !isObjectsChatDenied(user.roles.map(({ role }) => role.code))).map(({ id }) => id);
   }
 
   private async loadOperationalOrderChatUserIds(): Promise<string[]> {

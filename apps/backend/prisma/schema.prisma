@@ -16,6 +16,14 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
+  visitPlans ManagerVisitPlan[] @relation("ManagerVisitPlanManager")
+  createdVisitPlans ManagerVisitPlan[] @relation("ManagerVisitPlanCreator")
+  createdVisitPlanEntries ManagerVisitPlanEntry[] @relation("ManagerVisitPlanEntryCreator")
+  escortLists OneTimeOrderEscortList[] @relation("OneTimeOrderEscort")
+  createdEscortLists OneTimeOrderEscortList[] @relation("OneTimeOrderEscortCreator")
+  updatedEscortLists OneTimeOrderEscortList[] @relation("OneTimeOrderEscortUpdater")
+  createdOrderServiceLines OneTimeOrderServiceLine[] @relation("OneTimeOrderServiceCreator")
+  updatedOrderServiceLines OneTimeOrderServiceLine[] @relation("OneTimeOrderServiceUpdater")
 
   roles                                      UserRole[]
   permissions                                UserPermission[]
@@ -328,6 +336,7 @@ model ChatRoomParticipant {
 }
 
 model ChatMessage {
+  systemEventKey        String? @unique
   id                     String    @id @default(uuid())
   chatRoomId             String
   authorUserId           String?
@@ -422,12 +431,14 @@ model Counterparty {
 }
 
 model Object {
+  visitPlanEntries ManagerVisitPlanEntry[]
   id                      String    @id @default(uuid())
   name                    String
   internalName            String?
   address                 String
   status                  String
   seasonMode              String?
+  baseCompensationProfile Json?
   summerWindowCleaning    Boolean   @default(false)
   engineeringRequired    Boolean   @default(false)
   winterTractorMode       String    @default("none")
@@ -482,6 +493,10 @@ model Object {
   candidates                Candidate[]
   candidateConsiderations    CandidateManagerAssignment[]
   rubberMats                RubberMat[]
+  contacts                  ObjectContact[]
+  planningSettings          ObjectPlanningSettings?
+  budgetPeriods             ObjectBudgetPeriod[]
+  budgetAlerts              ObjectBudgetAlert[]
   userSubstitutionScopes    UserSubstitutionObject[]
 
   @@index([status])
@@ -489,6 +504,66 @@ model Object {
   @@index([counterpartyId])
   @@index([createdByUserId])
   @@map("objects")
+}
+
+model ObjectContact {
+  id          String @id @default(uuid())
+  objectId    String
+  name        String
+  position    String?
+  phones      String[] @default([])
+  emails      String[] @default([])
+  links       String[] @default([])
+  notes       String?
+  version     Int @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  object      Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@index([objectId])
+  @@map("object_contacts")
+}
+
+model ObjectPlanningSettings {
+  objectId          String @id
+  monthlyBudget     Decimal? @db.Decimal(14, 2)
+  automaticSeasons  Boolean @default(false)
+  summerStartsOn    String?
+  winterStartsOn    String?
+  version           Int @default(1)
+  updatedAt         DateTime @updatedAt
+  object            Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@map("object_planning_settings")
+}
+
+model ObjectBudgetPeriod {
+  objectId      String
+  month         String
+  actualAmount  Decimal @default(0) @db.Decimal(14, 2)
+  excessAmount  Decimal @default(0) @db.Decimal(14, 2)
+  revision      Int @default(0)
+  object        Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@id([objectId, month])
+  @@map("object_budget_periods")
+}
+
+model ObjectBudgetAlert {
+  id              String @id @default(uuid())
+  objectId        String
+  month           String
+  revision        Int
+  planAmount      Decimal @db.Decimal(14, 2)
+  actualAmount    Decimal @db.Decimal(14, 2)
+  excessAmount    Decimal @db.Decimal(14, 2)
+  chatDeliveredAt DateTime?
+  createdAt       DateTime @default(now())
+  object          Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@unique([objectId, month, revision])
+  @@index([chatDeliveredAt])
+  @@map("object_budget_alerts")
 }
 
 model ObjectAssignment {
@@ -513,6 +588,7 @@ model ObjectAssignment {
 }
 
 model Employee {
+  escortListEntries OneTimeOrderEscortEmployee[]
   id                 String    @id @default(uuid())
   fullName           String
   phone              String?
@@ -613,6 +689,8 @@ model EmployeeSubstitution {
   status               String
   reason               String
   comment              String?
+  rateOptionId         String?
+  ratePolicySnapshot   Json?
   createdByUserId      String
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -760,6 +838,7 @@ model Notification {
   targetUrl       String?
   dedupeKey       String?
   readAt          DateTime?
+  dismissedAt     DateTime?
   createdAt       DateTime  @default(now())
 
   recipient      User                @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
@@ -891,16 +970,33 @@ model ObjectDailyReport {
   objectId        String
   reportDate      DateTime
   content         String
+  revision        Int @default(1)
+  submittedRevision Int @default(0)
   updatedByUserId String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   object    Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
   updatedBy User   @relation("ObjectDailyReportUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  publications ObjectDailyReportPublication[]
 
   @@unique([objectId, reportDate])
   @@index([objectId, reportDate])
   @@map("object_daily_reports")
+}
+
+model ObjectDailyReportPublication {
+  id String @id @default(uuid())
+  reportId String
+  revision Int
+  actorUserId String
+  content String
+  createdAt DateTime @default(now())
+  publishedAt DateTime?
+  report ObjectDailyReport @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  @@unique([reportId, revision])
+  @@index([publishedAt, createdAt])
+  @@map("object_daily_report_publications")
 }
 
 model ObjectComment {
@@ -920,6 +1016,10 @@ model ObjectComment {
 }
 
 model OneTimeOrder {
+  deadlineAt DateTime?
+  serviceLinesVersion Int @default(0)
+  escortLists OneTimeOrderEscortList[]
+  serviceLines OneTimeOrderServiceLine[]
   id                    String    @id @default(uuid())
   title                 String
   executionAddress      String
@@ -973,6 +1073,140 @@ model OneTimeOrder {
   @@index([executionStartDate])
   @@index([executionEndDate])
   @@map("one_time_orders")
+}
+
+model ManagerVisitPlan {
+  id String @id @default(uuid())
+  managerUserId String
+  planDate DateTime @db.Date
+  createdByUserId String
+  version Int @default(1)
+  report String?
+  reportDueAt DateTime?
+  reportClosedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  manager User @relation("ManagerVisitPlanManager", fields: [managerUserId], references: [id], onDelete: Restrict)
+  createdBy User @relation("ManagerVisitPlanCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  entries ManagerVisitPlanEntry[]
+  @@unique([managerUserId, planDate])
+  @@index([reportDueAt, reportClosedAt])
+  @@map("manager_visit_plans")
+}
+
+model ManagerVisitPlanEntry {
+  id String @id @default(uuid())
+  planId String
+  objectId String?
+  clientName String?
+  isUnplanned Boolean @default(false)
+  visitedAt DateTime?
+  visitReport String?
+  createdByUserId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  plan ManagerVisitPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  object Object? @relation(fields: [objectId], references: [id], onDelete: Restrict)
+  createdBy User @relation("ManagerVisitPlanEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  @@index([planId, createdAt])
+  @@index([objectId])
+  @@map("manager_visit_plan_entries")
+}
+
+model OneTimeOrderEscortList {
+  id String @id @default(uuid())
+  oneTimeOrderId String
+  escortUserId String
+  operationDate DateTime @db.Date
+  version Int @default(1)
+  createdByUserId String
+  updatedByUserId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
+  escort User @relation("OneTimeOrderEscort", fields: [escortUserId], references: [id], onDelete: Restrict)
+  createdBy User @relation("OneTimeOrderEscortCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy User @relation("OneTimeOrderEscortUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  employees OneTimeOrderEscortEmployee[]
+  @@unique([oneTimeOrderId, escortUserId, operationDate])
+  @@map("one_time_order_escort_lists")
+}
+
+model OneTimeOrderEscortEmployee {
+  listId String
+  employeeId String
+  list OneTimeOrderEscortList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  @@id([listId, employeeId])
+  @@index([employeeId])
+  @@map("one_time_order_escort_employees")
+}
+
+model OneTimeOrderServiceLine {
+  id String @id @default(uuid())
+  oneTimeOrderId String
+  serviceCode String
+  amount Int
+  createdByUserId String
+  updatedByUserId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Restrict)
+  createdBy User @relation("OneTimeOrderServiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy User @relation("OneTimeOrderServiceUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  @@unique([oneTimeOrderId, serviceCode])
+  @@map("one_time_order_service_lines")
+}
+
+model RubberMatSize {
+  id String @id @default(uuid())
+  lengthCm Decimal @db.Decimal(10, 2)
+  widthCm Decimal @db.Decimal(10, 2)
+  replacementCost Decimal? @db.Decimal(14, 2)
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([lengthCm, widthCm])
+}
+
+model RubberMatSizeChange {
+  id String @id @default(uuid())
+  sizeId String
+  version Int
+  beforeCost Decimal? @db.Decimal(14, 2)
+  afterCost Decimal? @db.Decimal(14, 2)
+  actorUserId String?
+  source String @default("user")
+  occurredAt DateTime @default(now())
+  @@unique([sizeId, version])
+}
+
+model ObjectRubberMatQuantity {
+  objectId String
+  sizeId String
+  quantity Int
+  version Int @default(1)
+  updatedAt DateTime @updatedAt
+  @@id([objectId, sizeId])
+}
+
+model ObjectRubberMatQuantityChange {
+  id String @id @default(uuid())
+  objectId String
+  sizeId String
+  version Int
+  beforeQuantity Int
+  afterQuantity Int
+  replacementCostSnapshot Decimal? @db.Decimal(14, 2)
+  actorUserId String?
+  source String @default("user")
+  occurredAt DateTime @default(now())
+  @@unique([objectId, sizeId, version])
+}
+
+model RubberMatAggregateMigration {
+  id String @id
+  completedAt DateTime @default(now())
 }
 
 model OneTimeOrderCompletion {

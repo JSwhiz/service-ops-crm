@@ -40,7 +40,7 @@ export function InventoryItemForm({
   return (
     <form
       className="ui-surface ui-surface--padded"
-      style={{ display: 'grid', gap: 16 }}
+      style={{ display: 'grid', gap: 16, width: '100%', maxWidth: 800, minWidth: 0 }}
       onSubmit={(event) => {
         event.preventDefault();
         setIsSaving(true);
@@ -67,7 +67,7 @@ export function InventoryItemForm({
     >
       <div style={{ fontWeight: 600 }}>{submitLabel}</div>
 
-      <Field label="Название">
+      <Field label="Название" required>
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -80,10 +80,10 @@ export function InventoryItemForm({
         style={{
           display: 'grid',
           gap: 12,
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
         }}
       >
-        <Field label="Категория">
+        <Field label="Категория" required>
           <input
             value={category}
             onChange={(event) => setCategory(event.target.value)}
@@ -92,7 +92,7 @@ export function InventoryItemForm({
           />
         </Field>
 
-        <Field label="Единица измерения">
+        <Field label="Единица измерения" required>
           <input
             value={unit}
             onChange={(event) => setUnit(event.target.value)}

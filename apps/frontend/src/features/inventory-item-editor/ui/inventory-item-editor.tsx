@@ -8,7 +8,7 @@ import {
 } from '@/entities/inventory/api/inventory-client';
 import type { InventoryItem } from '@/entities/inventory/model/inventory.types';
 import { ApiError } from '@/shared/api/fetcher';
-import { Alert, Button } from '@/shared/ui/foundation';
+import { Alert, Button, Field } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) {
@@ -48,7 +48,7 @@ export function InventoryItemEditor({
     <form
       id="edit"
       className="ui-surface ui-surface--padded"
-      style={{ display: 'grid', gap: 14 }}
+      style={{ display: 'grid', gap: 14, width: '100%', maxWidth: 800, minWidth: 0 }}
       onSubmit={(event) => {
         event.preventDefault();
         setIsSaving(true);
@@ -89,8 +89,7 @@ export function InventoryItemEditor({
         </Button>
       </div>
 
-      <label>
-        <div className="ui-detail-label">Название</div>
+      <Field label="Название" required>
         <input
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -98,11 +97,10 @@ export function InventoryItemEditor({
           minLength={2}
           maxLength={200}
         />
-      </label>
+      </Field>
 
       <div className="ui-detail-grid">
-        <label>
-          <div className="ui-detail-label">Категория</div>
+        <Field label="Категория" required>
           <input
             value={category}
             onChange={(event) => setCategory(event.target.value)}
@@ -110,9 +108,8 @@ export function InventoryItemEditor({
             minLength={2}
             maxLength={100}
           />
-        </label>
-        <label>
-          <div className="ui-detail-label">Единица измерения</div>
+        </Field>
+        <Field label="Единица измерения" required>
           <input
             value={unit}
             onChange={(event) => setUnit(event.target.value)}
@@ -120,18 +117,17 @@ export function InventoryItemEditor({
             minLength={1}
             maxLength={50}
           />
-        </label>
+        </Field>
       </div>
 
-      <label>
-        <div className="ui-detail-label">Примечание</div>
+      <Field label="Примечание">
         <textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           rows={4}
           maxLength={4000}
         />
-      </label>
+      </Field>
 
       {hasVersionConflict ? (
         <Alert tone="warning">
@@ -164,7 +160,7 @@ export function InventoryItemEditor({
         </Alert>
       ) : null}
 
-      {error ? <div className="form-error">{error}</div> : null}
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
 
       <div className="ui-inline">
         <Button variant="primary" type="submit" disabled={isSaving || hasVersionConflict}>

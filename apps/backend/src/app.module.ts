@@ -55,6 +55,7 @@ import { TimesheetsModule } from './modules/timesheets/timesheets.module';
 import { UserAbsencesModule } from './modules/user-absences/user-absences.module';
 import { UsersAccessModule } from './modules/users-access/users-access.module';
 import { UserSubstitutionsModule } from './modules/user-substitutions/user-substitutions.module';
+import { VisitPlansModule } from './modules/visit-plans/visit-plans.module';
 
 const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
 
@@ -73,6 +74,7 @@ const backendEnvFilePath = process.env.APP_ENV_FILE ?? '.env.backend.local';
     UsersAccessModule,
     UserSubstitutionsModule,
     UserAbsencesModule,
+    VisitPlansModule,
     AccountabilityModule,
     ApprovalsModule,
     AuthModule,

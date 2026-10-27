@@ -31,4 +31,9 @@ export class NotificationsController {
   markRead(@CurrentUser() user: { id: string }, @Param('id') id: string): Promise<NotificationResponseDto> {
     return this.notificationsService.markRead(user.id, id);
   }
+
+  @Post(':id/dismiss')
+  dismiss(@CurrentUser() user: { id: string }, @Param('id') id: string): Promise<{ id: string; dismissed: true }> {
+    return this.notificationsService.dismiss(user.id, id);
+  }
 }

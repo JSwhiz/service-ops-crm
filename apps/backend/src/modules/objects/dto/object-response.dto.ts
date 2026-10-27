@@ -5,6 +5,7 @@ export class ObjectResponseDto {
   address!: string;
   status!: string;
   seasonMode!: string | null;
+  baseCompensationProfile?: unknown;
   summerWindowCleaning!: boolean;
   engineeringRequired!: boolean;
   winterTractorMode!: 'none' | 'with_removal' | 'without_removal';
@@ -75,6 +76,7 @@ export class ObjectResponseDto {
     canCreateTask: boolean;
     canViewBasicProfile: boolean;
     canViewOperationalSections: boolean;
+    canViewReportsHistory: boolean;
     canManageEmployees: boolean;
     canViewEmployees: boolean;
     canOperateAttendance: boolean;

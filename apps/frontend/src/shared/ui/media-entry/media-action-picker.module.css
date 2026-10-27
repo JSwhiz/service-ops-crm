@@ -1,40 +1,8 @@
 .actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ui-space-2);
   flex-wrap: wrap;
-}
-
-.iconButton {
-  width: 38px;
-  min-width: 38px;
-  min-height: 38px;
-  display: inline-grid;
-  place-items: center;
-  padding: 8px !important;
-  border: 0 !important;
-  border-radius: 8px !important;
-  background: transparent !important;
-  color: var(--ui-text-secondary) !important;
-}
-
-.iconButton:hover:not(:disabled) {
-  background: var(--ui-surface-muted) !important;
-  color: var(--ui-text) !important;
-}
-
-.iconButton:focus-visible {
-  outline: 2px solid var(--ui-focus-border);
-  outline-offset: 1px;
-}
-
-.iconButton:disabled {
-  opacity: 0.45;
-}
-
-.iconButton svg {
-  width: 20px;
-  height: 20px;
 }
 
 .visuallyHidden {

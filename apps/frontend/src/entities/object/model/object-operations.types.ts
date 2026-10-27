@@ -55,6 +55,8 @@ export interface ObjectArrivalPhoto {
 }
 
 export interface ObjectDailyReport {
+  revision: number;
+  submittedRevision: number;
   id: string;
   objectId: string;
   reportDate: string;

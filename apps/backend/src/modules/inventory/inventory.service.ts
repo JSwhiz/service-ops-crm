@@ -8,6 +8,8 @@ import {
 import { Prisma } from '@prisma/client';
 
 import { AuditService } from '../audit/audit.service';
+import { ObjectPlanningService } from '../objects/object-planning.service';
+import { inventoryTransaction } from './utils/inventory-transaction.util';
 import {
   INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
   INVENTORY_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
@@ -25,6 +27,8 @@ import { hasDelegatedObjectAction } from '../user-substitutions/object-delegatio
 import {
   buildOneTimeOrderAccessWhere,
   canViewOneTimeOrderByScope,
+  hasActiveOneTimeOrderAssignment,
+  hasOneTimeOrderManagementAccess,
 } from '../one-time-orders/utils/one-time-order-access.util';
 
 import { CreateObjectInventoryIssueDto } from './dto/create-object-inventory-issue.dto';
@@ -164,7 +168,62 @@ export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly objectPlanning: ObjectPlanningService,
   ) {}
+
+  async correctMovement(user: CurrentAuthUser, id: string, reason: string) {
+    return inventoryTransaction(this.prisma, async (tx) => {
+      // Same item-first lock order as creation prevents stock/correction races.
+      const reference = await tx.inventoryMovement.findUnique({ where: { id }, select: { inventoryItemId: true } });
+      if (!reference) throw new NotFoundException('Движение не найдено');
+      await tx.$queryRaw`SELECT id FROM inventory_items WHERE id = ${reference.inventoryItemId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM inventory_movements WHERE id = ${id} FOR UPDATE`;
+      const source = await tx.inventoryMovement.findUniqueOrThrow({ where: { id }, include: {
+        relatedObject: { include: { assignments: { where: { isActive: true } } } },
+        relatedOneTimeOrder: { include: { assignments: { where: { isActive: true } } } },
+      } });
+      const roles = user.roleCodes?.length ? user.roleCodes : [user.roleCode];
+      const scoped = source.relatedObject && this.canIssueToSpecificObject(user, source.relatedObject);
+      const orderScoped = source.relatedOneTimeOrder && (
+        hasOneTimeOrderManagementAccess(roles, user.permissionCodes) ||
+        source.relatedOneTimeOrder.createdByUserId === user.id ||
+        hasActiveOneTimeOrderAssignment(source.relatedOneTimeOrder, user.id)
+      ) && !['completed', 'cancelled'].includes(source.relatedOneTimeOrder.status);
+      if (!user.isActive || (!canCreateInventoryMovement(roles) && !scoped && !orderScoped)) throw new ForbiddenException('Нет права исправлять движение');
+      if (!['issue_to_object', 'issue_to_one_time_order'].includes(source.movementType)) throw new BadRequestException('Исправление доступно для выдачи на объект или заказ');
+      if (source.relatedObject && source.relatedObject.status !== 'active' && !roles.some((role) => ['founder', 'director'].includes(role))) throw new ForbiddenException('Объект недоступен для изменений');
+      const prior = await tx.auditEvent.findFirst({ where: { entityType: 'inventory_movement', entityId: id, action: 'inventory.movement.reversed' } });
+      if (prior) return { id, mode: 'reversed' as const, compensatingMovementId: (prior.newValues as { compensatingMovementId: string }).compensatingMovementId };
+      if (source.status === 'cancelled') return { id, mode: 'cancelled' as const };
+      if (!['applied', 'pending_approval'].includes(source.status)) throw new BadRequestException('Движение уже завершено');
+      const unconfirmed = source.status === 'pending_approval' || (source.requiresApprovalBridge && !source.approvalBridgeResolvedAt);
+      if (unconfirmed) {
+        await tx.inventoryMovement.update({ where: { id }, data: { status: 'cancelled' } });
+        await tx.approvalRequest.updateMany({ where: { sourceEntityType: 'inventory_movement', sourceEntityId: id, status: 'pending' }, data: { status: 'cancelled', cancelledByUserId: user.id, cancelledAt: new Date(), decisionComment: reason } });
+        await this.auditService.writeAuditEvent({ entityType: 'inventory_movement', entityId: id, actorUserId: user.id, action: 'inventory.movement.cancelled', newValues: { reason } }, tx);
+        await this.updateObjectBudget(tx, source);
+        return { id, mode: 'cancelled' as const };
+      }
+      const reverse = await tx.inventoryMovement.create({ data: {
+        inventoryItemId: source.inventoryItemId, movementType: 'return', status: 'applied',
+        quantity: source.quantity, unitPriceSnapshot: source.unitPriceSnapshot, totalAmountSnapshot: source.totalAmountSnapshot,
+        createdByUserId: user.id, relatedObjectId: source.relatedObjectId, relatedOneTimeOrderId: source.relatedOneTimeOrderId,
+        comment: `Сторно выдачи: ${reason}`, evidenceRequired: false,
+      } });
+      await this.auditService.writeAuditEvent({ entityType: 'inventory_movement', entityId: id, actorUserId: user.id, action: 'inventory.movement.reversed', newValues: { reason, compensatingMovementId: reverse.id } }, tx);
+      await this.updateObjectBudget(tx, reverse);
+      return { id, mode: 'reversed' as const, compensatingMovementId: reverse.id };
+    });
+  }
+
+  private async updateObjectBudget(tx: Prisma.TransactionClient, movement: {
+    relatedObjectId: string | null; relatedOneTimeOrderId: string | null;
+  }): Promise<void> {
+    const objectId = movement.relatedObjectId ?? (movement.relatedOneTimeOrderId
+      ? (await tx.oneTimeOrder.findUnique({ where: { id: movement.relatedOneTimeOrderId }, select: { linkedObjectId: true } }))?.linkedObjectId
+      : null);
+    if (objectId) await this.objectPlanning.evaluateBudget(objectId, new Date(), tx);
+  }
 
   async listCounterpartyMovementsScoped(
     currentUser: CurrentAuthUser,
@@ -1321,6 +1380,7 @@ export class InventoryService {
           );
         }
 
+        await this.updateObjectBudget(tx, createdMovement);
         return {
           createdMovement,
         };
@@ -1484,6 +1544,9 @@ export class InventoryService {
     if (resolved.count !== 1) {
       throw new ConflictException('Inventory exception is already resolved');
     }
+
+    const budgetMovement = await tx.inventoryMovement.findUniqueOrThrow({ where: { id: movement.id } });
+    await this.updateObjectBudget(tx, budgetMovement);
 
     await this.auditService.writeAuditEvent(
       {

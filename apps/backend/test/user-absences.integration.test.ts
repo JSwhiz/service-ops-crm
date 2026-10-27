@@ -16,7 +16,7 @@ function isoDate(offsetDays: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-test('user calendar scopes self, leadership, HR and private reasons and audits changes', async (t) => {
+test('user calendar shares free/busy, keeps reasons private and enforces own writes or personal grants', async (t) => {
   const { app, baseUrl } = await createTestApp();
   const [founderCookie, managerCookie, kireevaCookie, otherHrCookie, deputyDirectorCookie, corporateDirectorCookie] = await Promise.all([
     loginAndGetCookieHeader({ baseUrl, login: 'founder', password: 'founder123' }),
@@ -67,7 +67,9 @@ test('user calendar scopes self, leadership, HR and private reasons and audits c
   const founderForeignRead = await fetch(`${baseUrl}/api/v1/user-absences?userId=${manager.id}`, {
     headers: { Cookie: founderCookie },
   });
-  assert.equal(founderForeignRead.status, 403);
+  assert.equal(founderForeignRead.status, 200);
+  const founderList = (await founderForeignRead.json()) as AbsenceList;
+  assert.equal(founderList.items.find((item) => item.id === created.id)?.comment, null);
 
   const ownListResponse = await fetch(
     `${baseUrl}/api/v1/user-absences?from=${startDate}&to=${endDate}`,
@@ -75,18 +77,17 @@ test('user calendar scopes self, leadership, HR and private reasons and audits c
   );
   assert.equal(ownListResponse.status, 200);
   const ownList = (await ownListResponse.json()) as AbsenceList;
-  assert.equal(ownList.capabilities.canViewAll, false);
+  assert.equal(ownList.capabilities.canViewAll, true);
   assert.equal(ownList.capabilities.canManage, true);
   assert.equal(ownList.capabilities.canManageAll, false);
   assert.ok(ownList.items.some((item) => item.id === created.id));
-  assert.ok(ownList.items.every((item) => item.userId === manager.id));
   assert.equal(ownList.items.find((item) => item.id === created.id)?.comment, 'Integration fixture');
 
   const forbiddenRead = await fetch(
     `${baseUrl}/api/v1/user-absences?userId=${founder.id}`,
     { headers: { Cookie: managerCookie } },
   );
-  assert.equal(forbiddenRead.status, 403);
+  assert.equal(forbiddenRead.status, 200);
 
   const forbiddenCreate = await fetch(`${baseUrl}/api/v1/user-absences`, {
     method: 'POST',
@@ -98,12 +99,13 @@ test('user calendar scopes self, leadership, HR and private reasons and audits c
   const otherHrList = await fetch(`${baseUrl}/api/v1/user-absences?userId=${manager.id}`, {
     headers: { Cookie: otherHrCookie },
   });
-  assert.equal(otherHrList.status, 403);
+  assert.equal(otherHrList.status, 200);
+  assert.equal(((await otherHrList.json()) as AbsenceList).items.find((item) => item.id === created.id)?.comment, null);
   const otherHrOwn = await fetch(`${baseUrl}/api/v1/user-absences`, {
     headers: { Cookie: otherHrCookie },
   });
   assert.equal(otherHrOwn.status, 200);
-  assert.equal(((await otherHrOwn.json()) as AbsenceList).capabilities.canViewAll, false);
+  assert.equal(((await otherHrOwn.json()) as AbsenceList).capabilities.canViewAll, true);
 
   const kireevaList = await fetch(`${baseUrl}/api/v1/user-absences?userId=${manager.id}&from=${startDate}&to=${endDate}`, {
     headers: { Cookie: kireevaCookie },
@@ -128,8 +130,22 @@ test('user calendar scopes self, leadership, HR and private reasons and audits c
     const directorListResponse = await fetch(`${baseUrl}/api/v1/user-absences?userId=${manager.id}&from=${startDate}&to=${endDate}`, {
       headers: { Cookie: cookie },
     });
-    assert.equal(directorListResponse.status, 403);
+    assert.equal(directorListResponse.status, 200);
+    assert.equal(((await directorListResponse.json()) as AbsenceList).items.find((item) => item.id === created.id)?.comment, null);
+    const update = await fetch(`${baseUrl}/api/v1/user-absences/${created.id}`, {
+      method: 'PATCH', headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ startDate: isoDate(21) }),
+    });
+    assert.equal(update.status, 404);
+    const remove = await fetch(`${baseUrl}/api/v1/user-absences/${created.id}`, { method: 'DELETE', headers: { Cookie: cookie } });
+    assert.equal(remove.status, 404);
   }
+
+  const directory = await fetch(`${baseUrl}/api/v1/user-absences/users`, { headers: { Cookie: managerCookie } });
+  assert.equal(directory.status, 200);
+  const directoryUsers = (await directory.json()) as Array<{ id: string; login: string; fullName: string }>;
+  assert.ok(directoryUsers.some((entry) => entry.id === founder.id));
+  assert.ok(directoryUsers.some((entry) => entry.id === manager.id));
 
   const selfCreateResponse = await fetch(`${baseUrl}/api/v1/user-absences`, {
     method: 'POST',

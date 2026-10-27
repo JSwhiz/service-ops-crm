@@ -4,27 +4,27 @@ export const CANDIDATE_PERMISSION_CODES = {
   view: 'candidates.view',
   manage: 'candidates.manage',
   respond: 'candidates.respond',
+  denied: 'candidates.denied',
 } as const;
 
 function hasPermission(permissionCodes: string[], permissionCode: string): boolean {
   return permissionCodes.includes(permissionCode);
 }
 export function canViewCandidates(permissionCodes: string[]): boolean {
-  return hasPermission(permissionCodes, CANDIDATE_PERMISSION_CODES.view);
+  return !hasPermission(permissionCodes, CANDIDATE_PERMISSION_CODES.denied) && hasPermission(permissionCodes, CANDIDATE_PERMISSION_CODES.view);
 }
 
 export function canManageCandidates(permissionCodes: string[]): boolean {
-  return hasPermission(permissionCodes, CANDIDATE_PERMISSION_CODES.manage);
+  return canViewCandidates(permissionCodes) && hasPermission(permissionCodes, CANDIDATE_PERMISSION_CODES.manage);
 }
 
 export function canRespondToCandidates(permissionCodes: string[]): boolean {
-  return hasPermission(permissionCodes, CANDIDATE_PERMISSION_CODES.respond) || canManageCandidates(permissionCodes);
+  return canViewCandidates(permissionCodes) && (hasPermission(permissionCodes, CANDIDATE_PERMISSION_CODES.respond) || canManageCandidates(permissionCodes));
 }
 
 // Keep registry, direct links, global search and recent-search resolution on one scope.
 export function buildCandidateAccessWhere(user: { id: string; permissionCodes?: string[] }): Prisma.CandidateWhereInput {
-  if (canManageCandidates(user.permissionCodes ?? [])) return {};
-  return { assignments: { some: { managerUserId: user.id, endedAt: null } } };
+  return canViewCandidates(user.permissionCodes ?? []) ? {} : { id: { in: [] } };
 }
 
 export function buildCandidateGlobalCapabilities(permissionCodes: string[]) {

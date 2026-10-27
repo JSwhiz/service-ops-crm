@@ -34,13 +34,16 @@ import {
   type TaskFormInitialValue,
 } from '@/features/task-form/ui/task-form';
 import { TaskResultPanel } from '@/features/task-result/ui/task-result-panel';
+import { listFilesByEntity, uploadFileToEntity } from '@/entities/file/api/file-client';
+import type { AttachedFile } from '@/entities/file/model/file.types';
+import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { formatTaskHistoryEvent } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
-import { BackLink, Button, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Button, EmptyState, Field, LoadingState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export default function TaskDetailPage({
@@ -50,6 +53,7 @@ export default function TaskDetailPage({
 }): React.JSX.Element {
   const [taskId, setTaskId] = useState('');
   const [item, setItem] = useState<TaskItem | null>(null);
+  const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [history, setHistory] = useState<TaskHistoryEvent[]>([]);
   const [completions, setCompletions] = useState<TaskCompletionListResponse>({
     items: [],
@@ -76,6 +80,7 @@ export default function TaskDetailPage({
   const loadTask = async (id: string): Promise<void> => {
     const next = await getTaskById(id);
     setItem(next);
+    setAttachments(await listFilesByEntity('task', id));
     setAutoCloseSeconds(next.autoCloseRemainingSeconds);
 
     if (next.capabilities.canViewHistory) {
@@ -195,7 +200,7 @@ export default function TaskDetailPage({
     }
   };
 
-  if (isLoading) return <Surface padding="md">Загрузка…</Surface>;
+  if (isLoading) return <LoadingState label="Загружаем задачу…" />;
   if (!item)
     return (
       <Surface padding="md" className={taskStyles.taskError}>
@@ -206,9 +211,13 @@ export default function TaskDetailPage({
   const activeAssignees = item.assignees.filter(
     (assignee) => assignee.isActive,
   );
+  const currentCompletionIds = new Set(
+    item.assignees.flatMap((assignee) => assignee.currentCompletion ? [assignee.currentCompletion.id] : []),
+  );
+  const previousCompletions = completions.items.filter((completion) => !currentCompletionIds.has(completion.id));
 
   return (
-    <div className={`ui-page ${taskStyles.taskDetailPage}`}>
+    <Stack gap="xl" className={`ui-page ${taskStyles.taskDetailPage}`}>
       {confirmDialog}
       {reasonDialog}
       <div className={taskStyles.taskPageHeading}>
@@ -224,6 +233,7 @@ export default function TaskDetailPage({
           ) : null}
           {item.capabilities.canConfirm ? (
             <Button
+              variant="primary"
               disabled={isActionBusy}
               onClick={() => void runAction(() => confirmTask(taskId))}
             >
@@ -232,6 +242,7 @@ export default function TaskDetailPage({
           ) : null}
           {item.capabilities.canCompleteNow ? (
             <Button
+              variant={item.capabilities.canConfirm ? 'default' : 'primary'}
               disabled={isActionBusy}
               onClick={() => void runAction(() => completeTaskNow(taskId))}
             >
@@ -282,17 +293,23 @@ export default function TaskDetailPage({
       </div>
 
       {error ? (
-        <div className={`${taskStyles.taskAlert} ${taskStyles.taskAlertDanger}`} role="alert">
-          {error}
-        </div>
+        <Alert tone="danger">{error}</Alert>
       ) : null}
       <TaskSummaryCard item={item} autoCloseSeconds={autoCloseSeconds} />
+      <Surface padding="md">
+        <h2 className="ui-section-title">Вложения к задаче</h2>
+        <AttachmentPreviewList files={attachments} emptyText="Вложений пока нет." />
+        {item.capabilities.canEdit ? <MediaActionPicker disabled={isActionBusy} onPick={async (file) => {
+          await uploadFileToEntity({ entityType: 'task', entityId: taskId, file });
+          setAttachments(await listFilesByEntity('task', taskId));
+        }} /> : null}
+      </Surface>
 
       <div className={taskStyles.taskDetailGrid}>
         <Surface as="section" padding="md">
           <div className="ui-section-header">
             <div>
-              <div className="ui-section-title">Исполнители</div>
+              <h2 className="ui-section-title">Исполнители и результаты</h2>
               <div className="ui-section-subtitle">
                 Результат фиксируется отдельно для каждого пользователя.
               </div>
@@ -302,15 +319,19 @@ export default function TaskDetailPage({
               {item.completionProgress.total}
             </strong>
           </div>
-          <div className={`record-list ${taskStyles.taskAssigneeList}`}>
+          <div className={taskStyles.taskAssigneeList}>
+            {item.assignees.length === 0 ? <EmptyState title="Исполнителей пока нет" /> : null}
             {item.assignees.map((assignee) => (
-              <Surface as="article" padding="sm"
-                className={!assignee.isActive ? taskStyles.taskAssigneeInactive : undefined}
+              <article
+                className={`${taskStyles.taskAssigneeRow} ${!assignee.isActive ? taskStyles.taskAssigneeInactive : ''}`}
                 key={assignee.id}
               >
                 <div className="ui-section-header">
                   <div>
                     <strong>{getUserDisplayName(assignee)}</strong>
+                    <StatusBadge tone={!assignee.isActive ? 'neutral' : assignee.isCompleted ? 'success' : 'info'}>
+                      {!assignee.isActive ? 'Не в составе' : assignee.isCompleted ? 'Выполнено' : 'В работе'}
+                    </StatusBadge>
                     <div className="ui-section-subtitle">
                       {!assignee.isActive
                         ? 'Удалён из текущего состава'
@@ -354,37 +375,39 @@ export default function TaskDetailPage({
                     />
                   </div>
                 ) : null}
-              </Surface>
+              </article>
             ))}
           </div>
 
           {item.capabilities.canManageAssignees ? (
             <div className={taskStyles.taskAddAssignee}>
-              <Select
-                value={newAssigneeId}
-                onFocus={() => {
-                  if (candidateUsers.length === 0)
-                    void loadCandidates(
-                      item.objectId ?? '',
-                      item.oneTimeOrderId ?? '',
-                    );
-                }}
-                onChange={(event) => setNewAssigneeId(event.target.value)}
-              >
-                <option value="">Добавить исполнителя…</option>
-                {candidateUsers
-                  .filter(
-                    (user) =>
-                      !activeAssignees.some(
-                        (assignee) => assignee.id === user.id,
-                      ),
-                  )
-                  .map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {getUserDisplayName(user)}
-                    </option>
-                  ))}
-              </Select>
+              <Field label="Добавить исполнителя">
+                <Select
+                  value={newAssigneeId}
+                  onFocus={() => {
+                    if (candidateUsers.length === 0)
+                      void loadCandidates(
+                        item.objectId ?? '',
+                        item.oneTimeOrderId ?? '',
+                      );
+                  }}
+                  onChange={(event) => setNewAssigneeId(event.target.value)}
+                >
+                  <option value="">Добавить исполнителя…</option>
+                  {candidateUsers
+                    .filter(
+                      (user) =>
+                        !activeAssignees.some(
+                          (assignee) => assignee.id === user.id,
+                        ),
+                    )
+                    .map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {getUserDisplayName(user)}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
               <Button
                 disabled={!newAssigneeId || isActionBusy}
                 onClick={() => {
@@ -409,22 +432,15 @@ export default function TaskDetailPage({
       </div>
 
       {item.capabilities.canViewHistory ? (
-        <Surface as="section" padding="md">
-          <div className="ui-section-header">
-            <div>
-              <div className="ui-section-title">История результатов</div>
-              <div className="ui-section-subtitle">
-                Все завершённые, отменённые и аннулированные попытки по циклам.
-              </div>
-            </div>
-            <strong>{completions.total}</strong>
-          </div>
-          <div className="record-list local-scroll local-scroll--lg">
-            {completions.items.length === 0 ? (
-              <div className="ui-text-muted">Результатов пока нет.</div>
+        <details className={`ui-surface ui-surface--padded ${taskStyles.taskPreviousAttempts}`}>
+          <summary>Предыдущие попытки выполнения</summary>
+          <p className="ui-section-subtitle">Результаты прошлых попыток и циклов. Текущие результаты показаны у исполнителей выше.</p>
+          <Stack gap="lg">
+            {previousCompletions.length === 0 ? (
+              <EmptyState title={completions.total === 0 ? 'Результатов пока нет' : 'На этой странице нет предыдущих попыток'} description={completions.total > 0 ? 'Текущие результаты показаны выше. Другие попытки могут быть на следующих страницах.' : undefined} />
             ) : (
-              completions.items.map((completion) => (
-                <Surface as="article" padding="sm" key={completion.id}>
+              previousCompletions.map((completion) => (
+                <article className={taskStyles.taskAttempt} key={completion.id}>
                   <div className="ui-section-header">
                     <div>
                       <strong>{getUserDisplayName(completion.assignee)}</strong>
@@ -434,13 +450,13 @@ export default function TaskDetailPage({
                         {getCompletionStatusLabel(completion.status)}
                       </div>
                     </div>
-                    <time>
+                    <time dateTime={completion.cancelledAt ?? completion.submittedAt}>
                       {formatDateTime(
                         completion.cancelledAt ?? completion.submittedAt,
                       )}
                     </time>
                   </div>
-                  <div>
+                  <div className={taskStyles.taskResultText}>
                     {completion.completionText || 'Комментарий не указан.'}
                   </div>
                   {completion.cancellationReason ? (
@@ -452,22 +468,22 @@ export default function TaskDetailPage({
                     files={completion.attachments}
                     emptyText="Файлы не приложены."
                   />
-                </Surface>
+                </article>
               ))
             )}
-          </div>
+          </Stack>
           {completions.totalPages > 0 ? <TablePagination page={completions.page} totalPages={completions.totalPages} pending={isActionBusy}
-            label="Страницы отчётов о выполнении" summary={completions.total > 0 ? `Показано ${(completions.page - 1) * completions.limit + 1}–${Math.min(completions.page * completions.limit, completions.total)} из ${completions.total}` : 'Отчётов пока нет'}
+            label="Страницы отчётов о выполнении" summary={`Страница ${completions.page} из ${completions.totalPages} · всего отчётов, включая текущие: ${completions.total}`}
             onPageChange={(page) => void loadCompletionPage(page)} /> : null}
-        </Surface>
+        </details>
       ) : null}
 
       {item.capabilities.canViewHistory ? (
         <Surface as="section" padding="md">
-          <div className="ui-section-title">История</div>
+          <h2 className="ui-section-title">История задачи</h2>
           <div className={`${taskStyles.taskHistory} local-scroll local-scroll--lg`}>
             {history.length === 0 ? (
-              <div className="ui-text-muted">История пока пуста.</div>
+              <EmptyState title="История пока пуста" />
             ) : (
               history.map((event) => (
                 <article key={event.id} className={taskStyles.taskHistoryItem}>
@@ -538,7 +554,7 @@ export default function TaskDetailPage({
           </div>
         </div>
       ) : null}
-    </div>
+    </Stack>
   );
 }
 

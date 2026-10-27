@@ -3,18 +3,9 @@
 .createForm h2 { margin: 0; color: var(--ui-text); font-size: 17px; }
 .formGrid input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--ui-border); border-radius: 9px; background: var(--ui-surface); padding: 8px 10px; color: var(--ui-text); font: inherit; }
 .formGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.formActions { display: flex; justify-content: flex-end; gap: 8px; }
 .tableFrame { width: 100%; }
 .tableFrame td:first-child strong, .tableFrame td:nth-child(2) a { display: block; color: var(--ui-text); font-weight: 700; text-decoration: none; }
 .tableFrame td:nth-child(2) a:hover { text-decoration: underline; }
 .tableFrame td small { display: block; margin-top: 3px; overflow: hidden; color: var(--ui-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
-.condition { display: inline-flex; align-items: center; min-height: 26px; border: 1px solid transparent; border-radius: 7px; padding: 0 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.good { border-color:var(--ui-border); background: var(--ui-success-subtle); color: var(--ui-success); }
-.worn { border-color: var(--ui-warning-border); background: var(--ui-warning-subtle); color: var(--ui-warning); }
-.damaged, .retired { border-color:var(--ui-danger-border); background: var(--ui-danger-subtle); color:var(--ui-danger); }
-.openLink { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; color:var(--ui-text-disabled); font-size: 24px; text-decoration: none; }
-.openLink:hover { background: var(--ui-surface-muted); color: var(--ui-accent); }
-.empty { height: 80px; color: var(--ui-text-tertiary); text-align: center !important; }
-.error { margin: 0; border: 1px solid var(--ui-danger-border); border-radius: 9px; background: var(--ui-danger-subtle); padding: 10px 12px; color: var(--ui-danger); }
 @media (max-width: 900px) { .formGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 620px) { .formGrid { grid-template-columns: minmax(0, 1fr); } .tableFrame table { min-width: 800px; } }

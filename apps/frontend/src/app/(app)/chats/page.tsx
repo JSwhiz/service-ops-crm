@@ -28,6 +28,7 @@ import {
   listChatRooms,
   markChatRoomRead,
   renameChatRoom,
+  removeChatParticipant,
   searchChats,
   sendChatMessage,
   toggleChatMessageHeart,
@@ -55,7 +56,7 @@ import { Dialog, useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 import { ChatMessageMenu } from './chat-message-menu';
 import styles from './chat-ui.module.css';
-import { Alert, Button, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, ButtonLink, Surface } from '@/shared/ui/foundation';
 
 type RealtimePayload = {
   type?: string;
@@ -376,6 +377,7 @@ export default function ChatsPage(): React.JSX.Element {
   );
   const [renameTitle, setRenameTitle] = useState('');
   const [addParticipantIds, setAddParticipantIds] = useState<string[]>([]);
+  const [memberActionPending, setMemberActionPending] = useState(false);
   const [text, setText] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -1471,12 +1473,12 @@ export default function ChatsPage(): React.JSX.Element {
   ): Promise<void> => {
     event.preventDefault();
 
-    if (!activeRoom || addParticipantIds.length === 0) {
+    if (!activeRoom?.capabilities.canManageMembers || memberActionPending || addParticipantIds.length === 0) {
       return;
     }
 
     setError(null);
-
+    setMemberActionPending(true);
     try {
       await addChatParticipants(activeRoom.id, { userIds: addParticipantIds });
       setAddParticipantIds([]);
@@ -1486,6 +1488,25 @@ export default function ChatsPage(): React.JSX.Element {
       }
     } catch (addError) {
       setError(getErrorMessage(addError, 'Не удалось добавить участников.'));
+    } finally {
+      setMemberActionPending(false);
+    }
+  };
+
+  const handleRemoveParticipant = async (participant: ChatRoomParticipant): Promise<void> => {
+    if (!activeRoom?.capabilities.canManageMembers || memberActionPending) return;
+    setMemberActionPending(true);
+    setError(null);
+    try {
+      const confirmed = await confirm({ title: 'Удалить участника?', consequence: `${getUserDisplayName(participant.user)} потеряет доступ к чату.`, confirmLabel: 'Удалить', tone: 'danger' });
+      if (!confirmed) return;
+      await removeChatParticipant(activeRoom.id, participant.user.id);
+      await refreshRoomLists();
+      await loadRoomParticipants(activeRoom.id);
+    } catch (removeError) {
+      setError(getErrorMessage(removeError, 'Не удалось удалить участника.'));
+    } finally {
+      setMemberActionPending(false);
     }
   };
 
@@ -1821,7 +1842,7 @@ export default function ChatsPage(): React.JSX.Element {
 
         <div className={layoutClassName}>
           <Surface as="aside" padding="md" className="chat-room-panel">
-            <div className="ui-section-header">
+            <div className={`ui-section-header ${styles.roomListHeader}`}>
               <div>
                 <div className="ui-section-title">Чаты</div>
               </div>
@@ -2447,6 +2468,9 @@ export default function ChatsPage(): React.JSX.Element {
                                       {message.text}
                                     </p>
                                   ) : null}
+                                  {message.messageType === 'system' && typeof message.metadata?.budgetAlertId === 'string' && typeof message.metadata?.objectId === 'string' ? (
+                                    <ButtonLink variant="ghost" size="sm" href={`/objects/${encodeURIComponent(message.metadata.objectId)}#planning`}>Открыть бюджет объекта</ButtonLink>
+                                  ) : null}
                                   {!message.isDeleted &&
                                   message.attachments.length > 0 ? (
                                     <AttachmentPreviewList
@@ -2992,11 +3016,14 @@ export default function ChatsPage(): React.JSX.Element {
                       <small className={styles.personRole}>
                         {getParticipantRoleLabel(participant.roleInRoom)}
                       </small>
+                      {activeRoom.capabilities.canManageMembers && participant.user.id !== user?.id ? (
+                        <Button size="sm" variant="ghost" disabled={memberActionPending} onClick={() => void handleRemoveParticipant(participant)}>Удалить</Button>
+                      ) : null}
                     </div>
                   ))}
               </div>
             )}
-            {activeRoom.capabilities.canManage &&
+            {activeRoom.capabilities.canManageMembers &&
             activeRoom.roomType === 'group' ? (
               <form
                 className={styles.dialogForm}
@@ -3011,7 +3038,7 @@ export default function ChatsPage(): React.JSX.Element {
                 />
                 <Button variant="primary"
                   type="submit"
-                  disabled={!addParticipantIds.length}
+                  disabled={memberActionPending || !addParticipantIds.length}
                 >
                   Добавить выбранных
                 </Button>

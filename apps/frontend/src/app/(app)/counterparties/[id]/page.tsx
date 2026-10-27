@@ -18,7 +18,7 @@ import type { CounterpartyCard, CounterpartyHistoryItem } from '@/entities/count
 import type { CounterpartyInventoryMovement } from '@/entities/counterparty/model/counterparty.types';
 import { getObjectById, listObjectsPage } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
+import { DataTable } from '@/shared/ui/data-table/data-table';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 import { ConfirmDialog } from '@/shared/ui/overlays';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
@@ -28,9 +28,9 @@ import {
 } from '@/shared/ui/searchable-select/searchable-select';
 
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
-import styles from '../counterparties.module.css';
+import styles from './counterparty-detail.module.css';
 import { CounterpartyHistory } from './counterparty-history';
-import { Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Badge, Button, EmptyState, FactStrip, Field, LoadingState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 function toObjectOption(object: ServiceObject): SearchableSelectOption {
   return {
@@ -227,8 +227,8 @@ export default function CounterpartyPage({
   if (loading) {
     return (
       <div className={`ui-page counterparty-workspace ui-stack ui-stack--lg ${styles.page}`}>
-        <PageTitle title="Контрагент" />
-        <Surface padding="md" className={`${styles.surface} ${styles.loading}`}>Загружаем карточку…</Surface>
+        <BackLink href="/counterparties">Контрагенты</BackLink>
+        <LoadingState label="Загружаем карточку…" />
       </div>
     );
   }
@@ -236,42 +236,53 @@ export default function CounterpartyPage({
   if (!item) {
     return (
       <div className={`ui-page counterparty-workspace ui-stack ui-stack--lg ${styles.page}`}>
-        <PageTitle title="Контрагент" />
-        <div className={`${styles.surface} ${styles.error}`} role="alert">
+        <BackLink href="/counterparties">Контрагенты</BackLink>
+        <Alert tone="danger">
           {error ?? 'Контрагент не найден.'}
-        </div>
+        </Alert>
       </div>
     );
   }
 
   return (
-    <div className={`ui-page counterparty-workspace ${styles.page} ${styles.detailPage}`}>
-      <Surface as="section" padding="md" className={`hero-card ${styles.counterpartyHero}`}>
+    <Stack gap="lg" className={`ui-page ${styles.page}`}>
+      <BackLink href="/counterparties">Контрагенты</BackLink>
+      <Surface as="section" padding="md" className={styles.counterpartyHero}>
         <div className={styles.summaryTop}>
           <div className={styles.summaryIdentity}>
             <div className={styles.summaryTitleRow}>
-              <h1 className="hero-title">{item.name}</h1>
+              <h1 className={styles.title}>{item.name}</h1>
               <StatusBadge status={item.status}>{item.status === 'active' ? 'Активный' : 'Архив'}</StatusBadge>
             </div>
             {item.legalName ? <div className={styles.summaryLegalName}><span>Юридическое название</span><strong>{item.legalName}</strong></div> : null}
           </div>
           <div className={styles.summaryActions}>
             {item.capabilities.canManage ? (
-              <Button onClick={() => setEditing((current) => !current)}>
+              <Button variant="primary" onClick={() => setEditing((current) => !current)}>
                 {editing ? 'Отменить' : 'Редактировать'}
               </Button>
             ) : null}
             <Button variant="ghost" onClick={() => { setEditing(false); setActiveTab('history'); }}>
               История
             </Button>
+            {item.capabilities.canManage ? (
+              item.status === 'active' ? (
+                <Button variant="ghost" disabled={saving} onClick={() => { setArchiveError(null); setArchiveDialogOpen(true); }}>
+                  <MediaActionIcon name="archive" />
+                  В архив
+                </Button>
+              ) : (
+                <Button disabled={saving} onClick={() => void mutate(() => setCounterpartyArchived(item.id, false))}>Восстановить</Button>
+              )
+            ) : null}
           </div>
         </div>
-        <div className={`ui-detail-grid ${styles.summaryFacts}`}>
-          <div className="ui-detail-field"><div className="ui-detail-label">Основной контакт</div><div className="ui-detail-value">{item.contactName || 'Не указан'}</div></div>
-          <div className="ui-detail-field"><div className="ui-detail-label">Телефон</div><div className="ui-detail-value">{item.contactPhone || 'Не указан'}</div></div>
-          <div className="ui-detail-field"><div className="ui-detail-label">Связанные объекты</div><div className="ui-detail-value">{item.objectCount}</div></div>
-        </div>
-        {item.notes ? <div className={`object-summary__note ${styles.summaryNote}`}><div className="ui-detail-label">Комментарий</div><div className="ui-detail-value">{item.notes}</div></div> : null}
+        <FactStrip items={[
+          { label: 'Основной контакт', value: item.contactName || 'Не указан' },
+          { label: 'Телефон', value: item.contactPhone || 'Не указан' },
+          { label: 'Связанные объекты', value: item.objectCount },
+        ]} />
+        {item.notes ? <div className={styles.summaryNote}><div className="ui-detail-label">Комментарий</div><div>{item.notes}</div></div> : null}
       </Surface>
 
       <WorkspaceTabs
@@ -283,31 +294,10 @@ export default function CounterpartyPage({
       />
 
       {error ? (
-        <div className={`${styles.surface} ${styles.error}`} role="alert">
-          {error}
-        </div>
+        <Alert tone="danger">{error}</Alert>
       ) : null}
 
       {activeTab === 'overview' ? <>
-      <Surface as="section" padding="md" className={`${styles.surface} ${styles.statusSection}`}>
-        <div className={styles.statusHeader}>
-          <h2 className={styles.sectionTitle}>Статус контрагента</h2>
-          <div className={styles.statusActions}>
-            <StatusBadge status={item.status}>{item.status === 'active' ? 'Активный' : 'Архив'}</StatusBadge>
-            {item.capabilities.canManage ? (
-              item.status === 'active' ? (
-                <Button disabled={saving} onClick={() => { setArchiveError(null); setArchiveDialogOpen(true); }}>
-                  <MediaActionIcon name="archive" />
-                  В архив
-                </Button>
-              ) : (
-                <Button disabled={saving} onClick={() => void mutate(() => setCounterpartyArchived(item.id, false))}>Восстановить</Button>
-              )
-            ) : null}
-          </div>
-        </div>
-      </Surface>
-
       {editing ? <Surface as="section" padding="md" className={`${styles.surface} ${styles.section} ${styles.detailSurface}`}>
         <div className={styles.sectionHeader}>
           <div>
@@ -331,8 +321,7 @@ export default function CounterpartyPage({
               ).then(() => setEditing(false));
             }}
           >
-            <label>
-              <span>Название *</span>
+            <Field label="Название" required>
               <input
                 required
                 minLength={2}
@@ -345,9 +334,8 @@ export default function CounterpartyPage({
                   }))
                 }
               />
-            </label>
-            <label>
-              <span>Юридическое название</span>
+            </Field>
+            <Field label="Юридическое название">
               <input
                 placeholder="Полное название организации"
                 value={form.legalName}
@@ -358,9 +346,8 @@ export default function CounterpartyPage({
                   }))
                 }
               />
-            </label>
-            <label>
-              <span>Основной контакт</span>
+            </Field>
+            <Field label="Основной контакт">
               <input
                 placeholder="ФИО контактного лица"
                 value={form.contactName}
@@ -371,9 +358,8 @@ export default function CounterpartyPage({
                   }))
                 }
               />
-            </label>
-            <label>
-              <span>Телефон</span>
+            </Field>
+            <Field label="Телефон">
               <input
                 type="tel"
                 placeholder="+7 (___) ___-__-__"
@@ -385,9 +371,8 @@ export default function CounterpartyPage({
                   }))
                 }
               />
-            </label>
-            <label className={styles.fullRow}>
-              <span>Комментарий</span>
+            </Field>
+            <Field label="Комментарий" className={styles.fullRow}>
               <textarea
                 rows={4}
                 placeholder="Условия сотрудничества, важные договорённости…"
@@ -399,7 +384,7 @@ export default function CounterpartyPage({
                   }))
                 }
               />
-            </label>
+            </Field>
             <div className={`${styles.formActions} ${styles.fullRow}`}>
               <Button onClick={() => { sync(item); setEditing(false); }}>
                 Отмена
@@ -471,22 +456,23 @@ export default function CounterpartyPage({
         ) : null}
 
         {item.objects.length === 0 ? (
-          <div className={styles.emptyState}>Связанных объектов пока нет.</div>
+          <EmptyState title="Связанных объектов пока нет" />
         ) : (
-          <div className={styles.recordList}>
+          <ul className={styles.recordList}>
             {item.objects.map((object) => (
-              <div key={object.id} className={styles.recordCard}>
+              <li key={object.id} className={styles.recordCard}>
                 <div className={styles.recordMain}>
-                  <Link className={styles.recordLink} href={`/objects/${object.id}`}>{object.name}</Link>
+                  <div className={styles.recordIdentity}>
+                    <Link className={styles.recordLink} href={`/objects/${object.id}`}>{object.name}</Link>
+                    {item.masterObject?.id === object.id ? <Badge tone="success">Мастер-объект</Badge> : null}
+                  </div>
                   <div className={styles.muted}>
                     {[object.internalName, object.address]
                       .filter(Boolean)
                       .join(' · ')}
                   </div>
                 </div>
-                {item.masterObject?.id === object.id ? (
-                  <span className={styles.masterBadge}>Мастер-объект</span>
-                ) : null}
+                <div className={styles.recordActions}>
                 {item.capabilities.canLinkObjects && item.status === 'active' ? (
                   item.masterObject?.id === object.id ? (
                     <Button variant="ghost" disabled={saving} onClick={() => void mutate(() => clearCounterpartyMasterObject(item.id))}>Снять мастер-объект</Button>
@@ -506,9 +492,10 @@ export default function CounterpartyPage({
                     Отвязать
                   </Button>
                 ) : null}
-              </div>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </Surface>
 
@@ -519,28 +506,38 @@ export default function CounterpartyPage({
             <div className={styles.muted}>Показываются движения только по объектам, доступным вам. У каждой записи указан фактический объект.</div>
           </div>
         </div>
-        {inventoryMovementsLoading ? <div className={styles.emptyState}>Загружаем движения…</div> : inventoryMovements.length === 0 ? (
-          <div className={styles.emptyState}>Движений расходников по доступным объектам пока нет.</div>
+        {inventoryMovementsLoading ? <LoadingState label="Загружаем движения…" /> : inventoryMovements.length === 0 ? (
+          <EmptyState title="Движений расходников пока нет" description="Здесь появятся движения по доступным вам объектам." />
         ) : (
           <>
-            <div className={styles.movementList}>
+            <DataTable label="Движения расходников по объектам контрагента" className={styles.movementsTable}>
+              <thead><tr>
+                <th scope="col">Расходник / операция</th>
+                <th scope="col" className={styles.quantityColumn}>Количество</th>
+                <th scope="col">Фактический объект</th>
+                <th scope="col">Состояние</th>
+                <th scope="col">Дата / автор</th>
+              </tr></thead>
+              <tbody>
               {inventoryMovements.map((movement) => (
-                <article key={movement.id} className={styles.movementRow}>
-                  <div className={styles.recordMain}>
+                <tr key={movement.id}>
+                  <td>
                     <strong>{movement.inventoryItem.name}</strong>
-                    <span className={styles.muted}>{movementTypeLabel(movement.movementType)} · {movementStatusLabel(movement.status)}</span>
-                  </div>
-                  <div className={styles.movementQuantity} data-direction={movement.signedQuantity < 0 ? 'out' : 'in'}>
+                    <div className={styles.muted}>{movementTypeLabel(movement.movementType)}</div>
+                  </td>
+                  <td className={styles.movementQuantity} data-direction={movement.signedQuantity < 0 ? 'out' : 'in'}>
                     {movement.signedQuantity > 0 ? '+' : ''}{movement.signedQuantity} {movement.inventoryItem.unit}
-                  </div>
-                  <div className={styles.recordMain}>
+                  </td>
+                  <td>
                     {movement.relatedObject?.canOpenObjectCard ? <Link className={styles.recordLink} href={`/objects/${movement.relatedObject.id}`}>{movement.relatedObject.name}</Link> : <strong>{movement.relatedObject?.name ?? 'Объект не указан'}</strong>}
-                    <span className={styles.muted}>{movement.createdBy.fullName} · {formatMovementDate(movement.createdAt)}</span>
-                    {movement.comment ? <span className={styles.muted}>{movement.comment}</span> : null}
-                  </div>
-                </article>
+                    {movement.comment ? <div className={styles.muted}>{movement.comment}</div> : null}
+                  </td>
+                  <td><StatusBadge status={movement.status}>{movementStatusLabel(movement.status)}</StatusBadge></td>
+                  <td><time dateTime={movement.createdAt}>{formatMovementDate(movement.createdAt)}</time><div className={styles.muted}>{movement.createdBy.fullName}</div></td>
+                </tr>
               ))}
-            </div>
+              </tbody>
+            </DataTable>
             <TablePagination page={inventoryMovementsPage} totalPages={inventoryMovementsTotalPages} pending={inventoryMovementsLoading} label="Страницы движений контрагента"
               summary={inventoryMovementsTotal > 0 ? `Показано ${(inventoryMovementsPage - 1) * 10 + 1}–${Math.min(inventoryMovementsPage * 10, inventoryMovementsTotal)} из ${inventoryMovementsTotal}` : 'Движения не найдены'}
               onPageChange={setInventoryMovementsPage} />
@@ -554,9 +551,9 @@ export default function CounterpartyPage({
             <span className={styles.muted}>{history.length}</span>
           </div>
           {historyLoading ? (
-            <div className={styles.emptyState}>Загружаем историю…</div>
+            <LoadingState label="Загружаем историю…" />
           ) : history.length === 0 ? (
-            <div className={styles.emptyState}>История изменений пока пуста.</div>
+            <EmptyState title="История изменений пока пуста" />
           ) : (
             <CounterpartyHistory items={history} objectNames={historyObjectNames} />
           )}
@@ -589,6 +586,6 @@ export default function CounterpartyPage({
             .finally(() => setSaving(false));
         }}
       />
-    </div>
+    </Stack>
   );
 }

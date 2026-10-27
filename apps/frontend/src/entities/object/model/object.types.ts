@@ -57,6 +57,11 @@ export interface ServiceObject {
   address: string;
   status: string;
   seasonMode: string | null;
+  baseCompensationProfile?: {
+    paymentType: 'daily' | 'monthly'; dailyRate: number; monthlySalary: number;
+    paymentScheduleCode: string | null; paymentScheduleWeekdays: string[];
+    paymentScheduleCycleStartDate: string | null;
+  } | null;
   summerWindowCleaning: boolean;
   engineeringRequired: boolean;
   winterTractorMode: 'none' | 'with_removal' | 'without_removal';
@@ -117,6 +122,7 @@ export interface ServiceObject {
     canCreateTask: boolean;
     canViewBasicProfile: boolean;
     canViewOperationalSections: boolean;
+    canViewReportsHistory?: boolean;
     canManageEmployees: boolean;
     canViewEmployees?: boolean;
     canOperateAttendance?: boolean;

@@ -43,6 +43,7 @@ export class CandidateReminderService implements OnModuleInit, OnModuleDestroy {
     const candidates = await this.prisma.candidateManagerAssignment.findMany({
       where: {
         endedAt: null,
+        manager: { permissions: { none: { permission: { code: 'candidates.denied' } } } },
         firstRespondedAt: null,
         reminderSentAt: null,
         responseDueAt: { lte: now },

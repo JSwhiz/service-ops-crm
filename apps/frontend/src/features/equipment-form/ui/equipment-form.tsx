@@ -31,7 +31,7 @@ export function EquipmentCatalogItemForm({
 
   return (
     <form
-      className="ui-surface ui-surface--padded ui-stack ui-stack--md"
+      className={`ui-surface ui-surface--padded ui-stack ui-stack--md ${styles.form}`}
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
@@ -166,7 +166,7 @@ export function EquipmentCatalogManager({
         </div>
       )}
 
-      {error ? <div className="form-error">{error}</div> : null}
+      {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
     </Surface>
   );
 }
@@ -193,7 +193,7 @@ export function EquipmentUnitForm({
 
   return (
     <form
-      className="ui-surface ui-surface--padded"
+      className={`ui-surface ui-surface--padded ${styles.form}`}
       style={{ display: 'grid', gap: 12 }}
       onSubmit={(event) => {
         event.preventDefault();
@@ -212,16 +212,24 @@ export function EquipmentUnitForm({
       }}
     >
       <strong>Новая единица оборудования</strong>
-      <Select value={catalogItemId} onChange={(event) => setCatalogItemId(event.target.value)} required>
-        {catalog.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.category} · {item.name}
-          </option>
-        ))}
-      </Select>
-      <input value={inventoryNumber} onChange={(event) => setInventoryNumber(event.target.value)} placeholder="Инвентарный номер" required />
-      <input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} placeholder="Серийный номер" />
-      <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Заметки" rows={2} />
+      <Field label="Тип оборудования" required>
+        <Select value={catalogItemId} onChange={(event) => setCatalogItemId(event.target.value)} required>
+          {catalog.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.category} · {item.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Инвентарный номер" required>
+        <input value={inventoryNumber} onChange={(event) => setInventoryNumber(event.target.value)} placeholder="Инвентарный номер" required />
+      </Field>
+      <Field label="Серийный номер">
+        <input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} placeholder="Серийный номер" />
+      </Field>
+      <Field label="Заметки">
+        <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Заметки" rows={2} />
+      </Field>
       {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
       <Button variant="primary" type="submit" disabled={isSaving || catalog.length === 0}>
         {isSaving ? 'Создаем...' : 'Создать единицу'}

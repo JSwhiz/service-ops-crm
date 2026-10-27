@@ -5,3 +5,4 @@ export function listNotifications(page = 1, limit = 20): Promise<NotificationLis
 export function getNotificationUnreadCount(): Promise<{ count: number }> { return fetcher('/notifications/unread-count'); }
 export function markNotificationRead(id: string): Promise<AppNotification> { return fetcher(`/notifications/${id}/read`, { method: 'POST' }); }
 export function markAllNotificationsRead(): Promise<{ updated: number }> { return fetcher('/notifications/read-all', { method: 'POST' }); }
+export function dismissNotification(id: string): Promise<{ id: string; dismissed: true }> { return fetcher(`/notifications/${id}/dismiss`, { method: 'POST' }); }

@@ -7,8 +7,11 @@ import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Badge, Button, Surface } from '@/shared/ui/foundation';
+import { ObjectSubstitutionPanel } from './object-substitution-panel';
 
 interface ObjectAttendancePanelProps {
+  objectId?: string;
+  onSubstitutionSaved?: () => Promise<void>;
   employees: ObjectEmployeeOption[];
   initialEmployeeIds: string[];
   initialEmployeeFacts: Array<{
@@ -36,6 +39,8 @@ interface ObjectAttendancePanelProps {
 }
 
 export function ObjectAttendancePanel({
+  objectId,
+  onSubstitutionSaved,
   employees,
   initialEmployeeIds,
   initialEmployeeFacts,
@@ -135,7 +140,7 @@ export function ObjectAttendancePanel({
           const specialRate = specialRateById[employeeId];
           return {
             employeeId,
-            workedHours: Number(workedHoursById[employeeId] || getDefaultWorkedHours(employeeId)) || 8,
+            workedHours: Number(workedHoursById[employeeId] || getDefaultWorkedHours(employeeId)),
             ...(specialRate?.type && (canEditRates || specialRate.type === 'side_job') ? { ratePolicyType: specialRate.type, rateAmount: Number(specialRate.amount), rateReason: specialRate.reason.trim() } : {}),
             ...(canEditRates && !specialRate?.type && (initialFactsById.get(employeeId)?.ratePolicyType === 'complex_shift' || initialFactsById.get(employeeId)?.ratePolicyType === 'side_job') ? { clearRateOverride: true as const } : {}),
           };
@@ -161,6 +166,7 @@ export function ObjectAttendancePanel({
         </div>
       </div>
 
+      {objectId && onSubstitutionSaved ? <ObjectSubstitutionPanel key={objectId} objectId={objectId} employees={safeEmployees} operationDate={operationDate} onSaved={onSubstitutionSaved} /> : null}
       {safeEmployees.length === 0 ? (
         <div className="ui-text-muted">Для объекта пока не задан состав сотрудников.</div>
       ) : (

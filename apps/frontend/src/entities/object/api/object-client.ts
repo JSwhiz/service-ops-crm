@@ -1,4 +1,5 @@
 import { fetcher } from '@/shared/api/fetcher';
+import { sortObjectOptions } from '../lib/sort-object-options';
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
 
 import type {
@@ -122,7 +123,8 @@ function buildObjectsQuery(params?: ListObjectsParams): string {
 }
 
 export async function listObjects(params?: ListObjectsParams): Promise<ServiceObject[]> {
-  return fetcher<ServiceObject[]>(`/objects${buildObjectsQuery(params)}`, { method: 'GET' });
+  const items = await fetcher<ServiceObject[]>(`/objects${buildObjectsQuery(params)}`, { method: 'GET' });
+  return sortObjectOptions(items);
 }
 
 export async function listObjectsPage(params: ListObjectsPageParams): Promise<ObjectListPage> {

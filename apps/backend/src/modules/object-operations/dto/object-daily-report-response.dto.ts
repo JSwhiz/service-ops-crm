@@ -1,6 +1,8 @@
 import { FileResponseDto } from '../../files/dto/file-response.dto';
 
 export class ObjectDailyReportResponseDto {
+  revision!: number;
+  submittedRevision!: number;
   id!: string;
   objectId!: string;
   reportDate!: string;

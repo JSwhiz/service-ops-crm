@@ -36,6 +36,8 @@ import { UpdateObjectCompensationRateDto } from './dto/update-object-compensatio
 import { UpdateObjectCompensationDefaultsDto } from './dto/update-object-compensation-defaults.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
+import { CreateObjectSubstitutionDto } from './dto/create-object-substitution.dto';
+import { SubmitDailyReportDto } from './dto/submit-daily-report.dto';
 import { ObjectAttendanceSubmissionService } from './object-attendance-submission.service';
 import { ObjectOperationsService } from './object-operations.service';
 
@@ -83,6 +85,16 @@ export class ObjectOperationsController {
     @Param('id') objectId: string,
   ): Promise<ObjectDailyReportResponseDto | null> {
     return this.objectOperationsService.getTodayDailyReport(user, objectId);
+  }
+
+  @Get('daily-reports')
+  listDailyReports(@CurrentUser() user: CurrentAuthUser, @Param('id') objectId: string, @Query('date') date?: string): Promise<ObjectDailyReportResponseDto[]> {
+    return this.objectOperationsService.listDailyReports(user, objectId, date);
+  }
+
+  @Post('daily-report/today/submit')
+  submitDailyReport(@CurrentUser() user: CurrentAuthUser, @Param('id') objectId: string, @Body() payload: SubmitDailyReportDto): Promise<ObjectDailyReportResponseDto> {
+    return this.objectOperationsService.submitTodayDailyReport(user, objectId, payload.expectedRevision);
   }
 
   @Put('daily-report/today')
@@ -180,6 +192,11 @@ export class ObjectOperationsController {
       objectId,
       query,
     );
+  }
+
+  @Post('substitutions')
+  createSubstitution(@CurrentUser() user: CurrentAuthUser, @Param('id') objectId: string, @Body() payload: CreateObjectSubstitutionDto): Promise<{ id: string }> {
+    return this.objectOperationsService.createSubstitution(user, objectId, payload);
   }
 
   @Post('employees')
@@ -287,13 +304,6 @@ export class ObjectOperationsController {
       objectId,
       payload,
     );
-
-    await this.objectAttendanceSubmissionService.markSubmitted({
-      objectId,
-      actorUserId: user.id,
-      operationDate: payload.operationDate,
-      employeeCount: payload.employeeIds.length,
-    });
 
     return result;
   }

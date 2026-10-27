@@ -9,6 +9,7 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { ButtonLink, StatusBadge, Surface } from '@/shared/ui/foundation';
+import styles from './object-summary-card.module.css';
 
 interface ObjectSummaryCardProps {
   item: ServiceObject;
@@ -36,11 +37,11 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
   const allowEdit = item.capabilities.canEdit || item.capabilities.canManageCompensationRates === true;
 
   return (
-    <Surface padding="md" className="hero-card object-summary">
+    <Surface padding="md" className={`hero-card object-summary ${styles.summary}`}>
       <div className="object-summary__top">
         <div className="object-summary__identity">
           <div className="object-summary__title-row">
-            <div className="hero-title">{item.name}</div>
+            <h1 className="hero-title">{item.name}</h1>
             <StatusBadge status={item.status}>{getStatusLabel(item.status)}</StatusBadge>
           </div>
           {item.internalName ? (
@@ -59,7 +60,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
         </div>
       </div>
 
-      <div className="ui-detail-grid object-summary__facts">
+      <div className={`ui-detail-grid object-summary__facts ${styles.facts}`}>
         <div className="ui-detail-field">
           <div className="ui-detail-label">Адрес</div>
           <div className="ui-detail-value">{item.address || 'Не указан'}</div>
@@ -118,6 +119,8 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
         </div>
       </div>
 
+      <details className={styles.instructions}>
+        <summary>Инструкции и особенности объекта</summary>
       <div className="object-summary__season-profile">
         <div>
           <span>Лето</span>
@@ -155,6 +158,7 @@ export function ObjectSummaryCard({ item }: ObjectSummaryCardProps): React.JSX.E
           {item.notes ? <><div className="ui-detail-label">Что важно знать об объекте</div><div className="ui-detail-value">{item.notes}</div></> : null}
         </div>
       ) : null}
+      </details>
     </Surface>
   );
 }

@@ -11,8 +11,10 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   canViewObjectBasicProfile,
+  canViewObjectByScope,
   canViewObjectCompensationRates,
 } from '../objects/utils/object-access.util';
+import { normalizeRatePolicy } from '../timesheets/utils/timesheet-rate-policy.util';
 
 import { EmployeeAssignmentHistoryService } from './employee-assignment-history.service';
 import { EmployeeScheduleService } from './employee-schedule.service';
@@ -792,6 +794,25 @@ export class EmployeesService {
     payload: CreateEmployeeSubstitutionDto,
   ): Promise<EmployeeResponseDto> {
     this.assertEditAccess(currentUser);
+    await this.createSubstitution(currentUser, employeeId, payload);
+    return this.getEmployeeById(currentUser, employeeId);
+  }
+
+  async addObjectSubstitution(currentUser: CurrentAuthUser, objectId: string, employeeId: string, payload: CreateEmployeeSubstitutionDto): Promise<{ id: string }> {
+    const object = await this.prisma.object.findFirst({
+      where: { id: objectId, deletedAt: null },
+      include: { assignments: { where: { isActive: true } } },
+    });
+    if (!object) throw new NotFoundException('Object not found');
+    if (!canViewObjectByScope({ currentUserId: currentUser.id, roleCodes: currentUser.roleCodes?.length ? currentUser.roleCodes : [currentUser.roleCode], ownScopeOnly: true, object })) {
+      throw new ForbiddenException('Подмены доступны только в пределах ваших объектов');
+    }
+    const created = await this.createSubstitution(currentUser, employeeId, { ...payload, objectId, status: 'planned' }, true);
+    return { id: created.id };
+  }
+
+  private async createSubstitution(currentUser: CurrentAuthUser, employeeId: string, payload: CreateEmployeeSubstitutionDto, requireAssignment = false) {
+    if (payload.rateOptionId && !payload.objectId) throw new BadRequestException('Для варианта ставки укажите объект подмены');
 
     if (employeeId === payload.substituteEmployeeId) {
       throw new BadRequestException('Employee substitution requires different employees');
@@ -833,11 +854,25 @@ export class EmployeesService {
     }
 
     const status = payload.status ?? EMPLOYEE_SUBSTITUTION_STATUSES[0];
-    await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
       // Lock both people so two parallel requests cannot double-book them.
       await tx.$queryRaw`
         SELECT "id" FROM "employees" WHERE "id" IN (${employee.id}, ${substituteEmployee.id}) ORDER BY "id" FOR UPDATE
       `;
+      if (requireAssignment && !await tx.objectEmployeeAssignment.findFirst({ where: { objectId: payload.objectId, employeeId, isActive: true, employee: { deletedAt: null, employmentStatus: 'active' } } })) {
+        throw new ForbiddenException('Заменяемый сотрудник не назначен на этот объект');
+      }
+      const option = payload.rateOptionId ? await tx.objectCompensationRate.findFirst({ where: { id: payload.rateOptionId, objectId: payload.objectId, isActive: true, category: 'substitution' } }) : null;
+      if (payload.rateOptionId && !option) throw new BadRequestException('Выберите действующий вариант ставки подмены этого объекта');
+      const ratePolicy = option ? normalizeRatePolicy({
+        ratePolicyType: option.ratePolicyType,
+        ratePolicyBaseAmount: option.baseAmount,
+        ratePolicyScheduleCode: option.scheduleCode,
+        ratePolicyWeekdays: option.scheduleWeekdays,
+        ratePolicyScheduleCycleStartDate: option.scheduleCycleStartDate,
+        ratePolicyStandardShiftHours: option.standardShiftHours,
+        ratePolicyNotes: option.notes,
+      }, option.baseAmount) : null;
       if (status === 'planned' || status === 'active') {
         await this.scheduleService.assertSubstitutionIsFree({
           employeeId: employee.id,
@@ -853,6 +888,8 @@ export class EmployeesService {
           employeeId: employee.id,
           substituteEmployeeId: substituteEmployee.id,
           objectId: payload.objectId ?? null,
+          rateOptionId: option?.id ?? null,
+          ratePolicySnapshot: ratePolicy ? ratePolicy as unknown as Prisma.InputJsonObject : Prisma.DbNull,
           startDate,
           endDate,
           status,
@@ -873,11 +910,11 @@ export class EmployeesService {
           startDate: created.startDate.toISOString(),
           endDate: created.endDate?.toISOString() ?? null,
           status: created.status,
+          rateOptionId: option?.id ?? null,
         },
       }, tx);
+      return created;
     });
-
-    return this.getEmployeeById(currentUser, employeeId);
   }
 
   async assignEmployeeToObject(

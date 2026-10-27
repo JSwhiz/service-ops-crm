@@ -22,6 +22,8 @@ import { Select } from '@/shared/ui/searchable-select/select';
 import { Button } from '@/shared/ui/foundation';
 
 interface ObjectEditFormProps {
+  mode?: 'full' | 'compensation';
+  onCancel?: () => void;
   item: ServiceObject;
   canEditObject: boolean;
   canManageCompensationRates: boolean;
@@ -30,12 +32,15 @@ interface ObjectEditFormProps {
 }
 
 export function ObjectEditForm({
+  mode = 'full',
+  onCancel,
   item,
   canEditObject,
   canManageCompensationRates,
   canLinkCounterparty,
   onSubmit,
 }: ObjectEditFormProps): React.JSX.Element {
+  const baseProfile = item.baseCompensationProfile ?? item;
   const [form, setForm] = useState({
     name: item.name,
     internalName: item.internalName ?? '',
@@ -46,12 +51,12 @@ export function ObjectEditForm({
     engineeringRequired: item.engineeringRequired,
     winterTractorMode: item.winterTractorMode,
     instructionStepsText: item.instructionSteps.join('\n'),
-    paymentType: item.paymentType ?? 'monthly',
-    monthlySalary: String(item.monthlySalary ?? 0),
-    dailyRate: String(item.dailyRate ?? 0),
-    paymentScheduleCode: item.paymentScheduleCode ?? '5/2',
-    paymentScheduleWeekdays: item.paymentScheduleWeekdays ?? [],
-    paymentScheduleCycleStartDate: item.paymentScheduleCycleStartDate?.slice(0, 10) ?? '',
+    paymentType: baseProfile.paymentType ?? 'monthly',
+    monthlySalary: String(baseProfile.monthlySalary ?? 0),
+    dailyRate: String(baseProfile.dailyRate ?? 0),
+    paymentScheduleCode: baseProfile.paymentScheduleCode ?? '5/2',
+    paymentScheduleWeekdays: baseProfile.paymentScheduleWeekdays ?? [],
+    paymentScheduleCycleStartDate: baseProfile.paymentScheduleCycleStartDate?.slice(0, 10) ?? '',
     summerPaymentType: item.summerPaymentType ?? item.paymentType ?? 'monthly',
     summerMonthlySalary: String(item.summerMonthlySalary ?? item.monthlySalary ?? 0),
     summerDailyRate: String(item.summerDailyRate ?? item.dailyRate ?? 0),
@@ -85,12 +90,12 @@ export function ObjectEditForm({
       engineeringRequired: item.engineeringRequired,
       winterTractorMode: item.winterTractorMode,
       instructionStepsText: item.instructionSteps.join('\n'),
-      paymentType: item.paymentType ?? 'monthly',
-      monthlySalary: String(item.monthlySalary ?? 0),
-      dailyRate: String(item.dailyRate ?? 0),
-      paymentScheduleCode: item.paymentScheduleCode ?? '5/2',
-      paymentScheduleWeekdays: item.paymentScheduleWeekdays ?? [],
-      paymentScheduleCycleStartDate: item.paymentScheduleCycleStartDate?.slice(0, 10) ?? '',
+      paymentType: baseProfile.paymentType ?? 'monthly',
+      monthlySalary: String(baseProfile.monthlySalary ?? 0),
+      dailyRate: String(baseProfile.dailyRate ?? 0),
+      paymentScheduleCode: baseProfile.paymentScheduleCode ?? '5/2',
+      paymentScheduleWeekdays: baseProfile.paymentScheduleWeekdays ?? [],
+      paymentScheduleCycleStartDate: baseProfile.paymentScheduleCycleStartDate?.slice(0, 10) ?? '',
       summerPaymentType: item.summerPaymentType ?? item.paymentType ?? 'monthly',
       summerMonthlySalary: String(item.summerMonthlySalary ?? item.monthlySalary ?? 0),
       summerDailyRate: String(item.summerDailyRate ?? item.dailyRate ?? 0),
@@ -106,12 +111,12 @@ export function ObjectEditForm({
       notes: item.notes ?? '',
       counterpartyId: item.counterparty?.id ?? '',
     });
-  }, [item]);
+  }, [item, baseProfile]);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!canEditObject) {
+    if (!canEditObject || mode === 'compensation') {
       setResponsibleCandidates([]);
       setCandidatesError(null);
       setIsCandidatesLoading(false);
@@ -139,7 +144,7 @@ export function ObjectEditForm({
 
     void loadCandidates();
     return () => { cancelled = true; };
-  }, [item.id, canEditObject]);
+  }, [item.id, canEditObject, mode]);
 
   const compensationProfiles: ObjectCompensationProfilesValue = {
     paymentType: form.paymentType,
@@ -165,10 +170,11 @@ export function ObjectEditForm({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    if (isSubmitting) return;
     setError(null);
     setSuccess(null);
 
-    if (canEditObject && !form.responsibleUserId) {
+    if (mode === 'full' && canEditObject && !form.responsibleUserId) {
       setError('Выберите ответственного за объект.');
       return;
     }
@@ -180,7 +186,7 @@ export function ObjectEditForm({
 
     setIsSubmitting(true);
     try {
-      const payload: UpdateObjectPayload = canEditObject ? {
+      const payload: UpdateObjectPayload = canEditObject && mode === 'full' ? {
         name: form.name.trim(),
         internalName: form.internalName.trim(),
         address: form.address.trim(),
@@ -195,6 +201,8 @@ export function ObjectEditForm({
           ? { counterpartyId: form.counterpartyId || null }
           : {}),
       } : {};
+
+      if (mode === 'compensation' && canEditObject) payload.seasonMode = form.seasonMode || null;
 
       if (canManageCompensationRates) {
         payload.paymentType = form.paymentType as 'monthly' | 'daily';
@@ -231,11 +239,12 @@ export function ObjectEditForm({
   };
 
   return (
-    <form className={styles.surface} onSubmit={handleSubmit}>
+    <form className={`${styles.surface} ${styles.editForm}`} onSubmit={handleSubmit}>
       <div>
-        <h2 className={styles.title}>Данные объекта</h2>
+        <h2 className={styles.title}>{mode === 'compensation' ? 'Ставки и графики объекта' : 'Данные объекта'}</h2>
       </div>
 
+      {mode === 'full' ? <>
       <section className={styles.formGrid} aria-label="Сезонные параметры">
         <div className={styles.field}>
           <span className={styles.fieldLabel}>Летний профиль</span>
@@ -257,6 +266,7 @@ export function ObjectEditForm({
           <span><input type="checkbox" checked={form.engineeringRequired} onChange={(event) => setForm((prev) => ({ ...prev, engineeringRequired: event.target.checked }))} disabled={!canEditObject || isSubmitting} /> Инженерка</span>
         </label>
       </section>
+      </> : null}
 
       <section aria-label="Условия оплаты">
         <ObjectCompensationProfiles
@@ -269,6 +279,7 @@ export function ObjectEditForm({
         ) : null}
       </section>
 
+      {mode === 'full' ? <>
       <section className={styles.formGrid} aria-label="Инструкции для объекта">
         <label className={`${styles.field} ${styles.fullWidth}`}>
           <span className={styles.fieldLabel}>Постоянные инструкции — один шаг на строку</span>
@@ -366,7 +377,10 @@ export function ObjectEditForm({
           )}
         </div> : null}
 
-        <div className={styles.field}>
+      </div>
+      </> : null}
+
+      {mode === 'full' || canEditObject ? <div className={styles.field}>
           <SearchableSelect
             label="Сезон"
             value={form.seasonMode}
@@ -381,8 +395,9 @@ export function ObjectEditForm({
             disabled={!canEditObject || isSubmitting}
             onChange={(seasonMode) => setForm((prev) => ({ ...prev, seasonMode }))}
           />
-        </div>
+        </div> : null}
 
+      {mode === 'full' ? <div className={styles.formGrid}>
         <label className={`${styles.field} ${styles.fullWidth}`}>
           <span className={styles.fieldLabel}>Комментарий</span>
           <textarea
@@ -391,15 +406,16 @@ export function ObjectEditForm({
             disabled={!canEditObject || isSubmitting}
           />
         </label>
-      </div>
+      </div> : null}
 
       {error ? <div className={styles.error}>{error}</div> : null}
       {success ? <div className={styles.success}>{success}</div> : null}
 
       <div className={styles.actions}>
-        <Button variant="primary" type="submit" disabled={isSubmitting || (canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canManageCompensationRates && invalidScheduleProfiles.length > 0) || (!canEditObject && !canManageCompensationRates)}>
-          {isSubmitting ? 'Сохраняем...' : canEditObject ? 'Сохранить изменения' : 'Сохранить тарифы'}
+        <Button variant="primary" type="submit" pending={isSubmitting} pendingLabel="Сохранение…" disabled={(mode === 'full' && canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canManageCompensationRates && invalidScheduleProfiles.length > 0) || (!canEditObject && !canManageCompensationRates)}>
+          {mode === 'compensation' ? 'Сохранить тарифы' : 'Сохранить изменения'}
         </Button>
+        {onCancel ? <Button disabled={isSubmitting} onClick={onCancel}>Отмена</Button> : null}
       </div>
     </form>
   );

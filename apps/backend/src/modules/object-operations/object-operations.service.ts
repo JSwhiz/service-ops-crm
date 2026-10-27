@@ -17,6 +17,8 @@ import { InventoryMovementResponseDto } from '../inventory/dto/inventory-movemen
 import { ObjectInventoryResponseDto } from '../inventory/dto/object-inventory-response.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ObjectPlanningService } from '../objects/object-planning.service';
+import { annualSeason, baseCompensation, moscowDateKey, seasonalCompensation } from '../objects/utils/object-season.util';
 import {
   buildOneTimeOrderAccessWhere,
   canViewOneTimeOrderByScope,
@@ -43,6 +45,7 @@ import {
 import { getScheduleConfigurationError } from '../timesheets/utils/russian-production-calendar.util';
 
 import { AddObjectEmployeeDto } from './dto/add-object-employee.dto';
+import { CreateObjectSubstitutionDto } from './dto/create-object-substitution.dto';
 import { CreateObjectCompensationRateDto } from './dto/create-object-compensation-rate.dto';
 import { CreateArrivalPhotoDto } from './dto/create-arrival-photo.dto';
 import { CreateObjectCommentDto } from './dto/create-object-comment.dto';
@@ -61,6 +64,8 @@ import { UpdateObjectCompensationRateDto } from './dto/update-object-compensatio
 import { UpdateObjectCompensationDefaultsDto } from './dto/update-object-compensation-defaults.dto';
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
+import { ObjectDailyReportPublicationService } from './object-daily-report-publication.service';
+import { moscowDayWindow } from '../objects/utils/object-season.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -73,16 +78,11 @@ interface CurrentAuthUser {
 }
 
 function startOfToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return new Date(`${moscowDateKey()}T00:00:00`);
 }
 
 function todayAsBusinessDate(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return moscowDateKey();
 }
 
 interface ObjectEmployeeAvailabilityView {
@@ -161,6 +161,8 @@ export class ObjectOperationsService {
     private readonly equipmentService: EquipmentService,
     private readonly timesheetsService: TimesheetsService,
     private readonly notificationsService: NotificationsService,
+    private readonly planningService: ObjectPlanningService,
+    private readonly reportPublications: ObjectDailyReportPublicationService,
   ) {}
 
   async getTodayArrivalPhoto(
@@ -233,15 +235,11 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
     objectId: string,
   ): Promise<ObjectDailyReportResponseDto | null> {
-    await this.assertObjectVisible(currentUser, objectId);
+    await this.assertReportsReadable(currentUser, objectId);
 
-    const item = await this.prisma.objectDailyReport.findUnique({
-      where: {
-        objectId_reportDate: {
-          objectId,
-          reportDate: startOfToday(),
-        },
-      },
+    const item = await this.prisma.objectDailyReport.findFirst({
+      where: { objectId, reportDate: moscowDayWindow() },
+      orderBy: { updatedAt: 'desc' },
       include: {
         updatedBy: true,
       },
@@ -259,6 +257,23 @@ export class ObjectOperationsService {
     return this.mapDailyReport(item, attachmentsMap.get(item.id) ?? []);
   }
 
+  async listDailyReports(currentUser: CurrentAuthUser, objectId: string, date?: string): Promise<ObjectDailyReportResponseDto[]> {
+    await this.assertReportsReadable(currentUser, objectId);
+    if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date)) {
+      throw new BadRequestException('Укажите дату в формате ГГГГ-ММ-ДД');
+    }
+    const items = await this.prisma.objectDailyReport.findMany({
+      where: { objectId, ...(date ? { reportDate: {
+        gte: new Date(`${date}T00:00:00+03:00`),
+        lt: new Date(new Date(`${date}T00:00:00+03:00`).getTime() + 86400000),
+      } } : {}) },
+      include: { updatedBy: true },
+      orderBy: [{ reportDate: 'desc' }, { id: 'desc' }],
+    });
+    const attachments = await this.listAttachmentsByEntityIds('object_daily_report', items.map((item) => item.id));
+    return items.map((item) => this.mapDailyReport(item, attachments.get(item.id) ?? []));
+  }
+
   async upsertTodayDailyReport(
     currentUser: CurrentAuthUser,
     objectId: string,
@@ -266,29 +281,16 @@ export class ObjectOperationsService {
   ): Promise<ObjectDailyReportResponseDto> {
     await this.assertObjectWritable(currentUser, objectId);
 
-    const item = await this.prisma.objectDailyReport.upsert({
-      where: {
-        objectId_reportDate: {
-          objectId,
-          reportDate: startOfToday(),
-        },
-      },
-      update: {
-        content: payload.content,
-        updatedByUserId: currentUser.id,
-      },
-      create: {
-        objectId,
-        reportDate: startOfToday(),
-        content: payload.content,
-        updatedByUserId: currentUser.id,
-      },
-      include: {
-        updatedBy: true,
-      },
-    });
+    const item = await this.reportPublications.saveDraft(objectId, currentUser.id, payload.content, payload.expectedRevision);
 
     return this.mapDailyReport(item, []);
+  }
+
+  async submitTodayDailyReport(currentUser: CurrentAuthUser, objectId: string, expectedRevision: number): Promise<ObjectDailyReportResponseDto> {
+    await this.assertObjectWritable(currentUser, objectId);
+    const item = await this.reportPublications.submit(objectId, currentUser.id, expectedRevision);
+    const attachments = await this.listAttachmentsByEntityIds('object_daily_report', [item.id]);
+    return this.mapDailyReport(item, attachments.get(item.id) ?? []);
   }
 
   async listComments(
@@ -341,12 +343,19 @@ export class ObjectOperationsService {
     objectId: string,
     query: ListObjectFeedQueryDto,
   ): Promise<ObjectFeedItemDto[]> {
-    await this.assertObjectVisible(currentUser, objectId);
+    let reportsOnly = false;
+    try {
+      await this.assertObjectVisible(currentUser, objectId);
+    } catch (error) {
+      if (!(error instanceof ForbiddenException)) throw error;
+      await this.assertReportsReadable(currentUser, objectId);
+      reportsOnly = true;
+    }
 
     const limit = Math.max(1, Math.min(Number(query.limit || 20), 100));
 
     const [arrivals, reports, comments] = await Promise.all([
-      this.prisma.objectArrivalPhoto.findMany({
+      reportsOnly ? [] : this.prisma.objectArrivalPhoto.findMany({
         where: { objectId },
         include: { createdBy: true },
         orderBy: { updatedAt: 'desc' },
@@ -358,7 +367,7 @@ export class ObjectOperationsService {
         orderBy: { updatedAt: 'desc' },
         take: limit,
       }),
-      this.prisma.objectComment.findMany({
+      reportsOnly ? [] : this.prisma.objectComment.findMany({
         where: { objectId },
         include: { createdBy: true },
         orderBy: { createdAt: 'desc' },
@@ -708,7 +717,13 @@ export class ObjectOperationsService {
     objectId: string,
     query: ListEmployeeDirectoryQueryDto,
   ): Promise<ObjectEmployeeOptionDto[]> {
-    await this.assertEmployeeAssignmentWritable(currentUser, objectId);
+    // Object managers may select an existing employee for substitution without HR edit grants.
+    try {
+      await this.assertObjectVisible(currentUser, objectId, true);
+    } catch (error) {
+      if (!(error instanceof ForbiddenException)) throw error;
+      await this.assertEmployeeAssignmentWritable(currentUser, objectId);
+    }
     const canViewRates = await this.canViewCompensationRatesOnObject(currentUser, objectId);
 
     const dayRange = this.getBusinessDayRange(startOfToday());
@@ -777,6 +792,11 @@ export class ObjectOperationsService {
       });
       return canViewRates ? mapped : { ...mapped, baseDailyRate: null, ratePolicy: null };
     });
+  }
+
+  async createSubstitution(currentUser: CurrentAuthUser, objectId: string, payload: CreateObjectSubstitutionDto): Promise<{ id: string }> {
+    await this.assertObjectVisible(currentUser, objectId, true);
+    return this.employeesService.addObjectSubstitution(currentUser, objectId, payload.employeeId, payload);
   }
 
   async addEmployeeToObject(
@@ -997,6 +1017,7 @@ export class ObjectOperationsService {
       where: { id: objectId, deletedAt: null },
       select: {
         seasonMode: true,
+        baseCompensationProfile: true,
         paymentType: true, dailyRate: true, monthlySalary: true,
         paymentScheduleCode: true, paymentScheduleWeekdays: true,
         paymentScheduleCycleStartDate: true,
@@ -1007,14 +1028,15 @@ export class ObjectOperationsService {
       },
     });
     if (!existing) throw new NotFoundException('Object not found');
+    const baseProfile = baseCompensation(existing);
     const profiles = [
       {
         label: 'Базовый график',
-        code: payload.paymentScheduleCode !== undefined ? payload.paymentScheduleCode : existing.paymentScheduleCode,
-        weekdays: payload.paymentScheduleWeekdays ?? existing.paymentScheduleWeekdays,
+        code: payload.paymentScheduleCode !== undefined ? payload.paymentScheduleCode : baseProfile.paymentScheduleCode,
+        weekdays: payload.paymentScheduleWeekdays ?? baseProfile.paymentScheduleWeekdays,
         cycleStartDate: payload.paymentScheduleCycleStartDate !== undefined
           ? payload.paymentScheduleCycleStartDate
-          : existing.paymentScheduleCycleStartDate,
+          : baseProfile.paymentScheduleCycleStartDate,
       },
       {
         label: 'Летний график',
@@ -1073,10 +1095,21 @@ export class ObjectOperationsService {
         : existing.winterScheduleCycleStartDate;
     }
     await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.object.update({
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+      let updated = await tx.object.update({
         where: { id: objectId },
-        data: updateData,
+        data: { ...updateData, baseCompensationProfile: {
+          paymentType: payload.paymentType ?? baseProfile.paymentType,
+          dailyRate: payload.dailyRate ?? baseProfile.dailyRate,
+          monthlySalary: payload.monthlySalary ?? baseProfile.monthlySalary,
+          paymentScheduleCode: profiles[0].code,
+          paymentScheduleWeekdays: profiles[0].weekdays,
+          paymentScheduleCycleStartDate: profiles[0].cycleStartDate ? new Date(profiles[0].cycleStartDate).toISOString().slice(0, 10) : null,
+        } },
       });
+      const policy = await tx.objectPlanningSettings.findUnique({ where: { objectId } });
+      const season = policy?.automaticSeasons && policy.summerStartsOn && policy.winterStartsOn ? annualSeason(policy.summerStartsOn, policy.winterStartsOn) : updated.seasonMode;
+      updated = await tx.object.update({ where: { id: objectId }, data: { seasonMode: season, ...seasonalCompensation(updated, season) } });
       await tx.auditEvent.create({
         data: {
           entityType: 'object',
@@ -1086,6 +1119,8 @@ export class ObjectOperationsService {
           oldValues: existing as unknown as Prisma.InputJsonObject,
           newValues: {
             paymentType: updated.paymentType,
+            effectiveOn: moscowDateKey(),
+            baseProfile: updated.baseCompensationProfile,
             dailyRate: updated.dailyRate,
             monthlySalary: updated.monthlySalary,
             paymentScheduleCode: updated.paymentScheduleCode,
@@ -1215,6 +1250,10 @@ export class ObjectOperationsService {
         },
         select: {
           employeeId: true,
+          employee: { select: { fullName: true } },
+          createdAt: true,
+          updatedAt: true,
+          createdBy: { select: { id: true, fullName: true, login: true } },
           workedHours: true,
           dailyRateSnapshot: true,
           ratePolicySnapshot: true,
@@ -1223,14 +1262,54 @@ export class ObjectOperationsService {
       this.listAttendanceEmployees(objectId, operationDate),
     ]);
 
+    const todaySubmission = await this.prisma.objectAuditLog.findFirst({
+      where: { objectId, actionCode: 'attendance.submitted', payload: { path: ['operationDate'], equals: todayAsBusinessDate() } },
+    });
+    let suggestedEmployeeIds: string[] = [];
+    let prefillSourceDate: string | null = null;
+    if (!facts.length && !todaySubmission) {
+      // Read the last explicitly saved set, including an intentionally empty set.
+      const previous = await this.prisma.objectAuditLog.findFirst({
+        where: { objectId, actionCode: 'attendance.submitted', payload: { path: ['operationDate'], lt: todayAsBusinessDate() } },
+        orderBy: { createdAt: 'desc' },
+      });
+      const snapshot = previous?.payload as { operationDate?: string; employeeIds?: string[]; employeeCount?: number } | undefined;
+      if (snapshot?.operationDate && snapshot.operationDate < todayAsBusinessDate()) {
+        prefillSourceDate = snapshot.operationDate;
+        if (Array.isArray(snapshot.employeeIds)) suggestedEmployeeIds = snapshot.employeeIds;
+        else if (snapshot.employeeCount !== 0) {
+          const saved = await this.prisma.objectAttendanceFact.findMany({ where: { objectId, operationDate: this.parseBusinessDate(snapshot.operationDate) }, select: { employeeId: true } });
+          suggestedEmployeeIds = saved.map((item) => item.employeeId);
+        }
+      } else if (!previous) {
+        const lastFact = await this.prisma.objectAttendanceFact.findFirst({
+          where: { objectId, operationDate: { lt: operationDate } }, orderBy: { operationDate: 'desc' },
+        });
+        if (lastFact) {
+          prefillSourceDate = lastFact.operationDate.toISOString().slice(0, 10);
+          const lastFacts = await this.prisma.objectAttendanceFact.findMany({ where: { objectId, operationDate: lastFact.operationDate }, select: { employeeId: true } });
+          suggestedEmployeeIds = lastFacts.map((item) => item.employeeId);
+        }
+      }
+      const eligible = new Set(employees.filter((item) => !item.availability.isUnavailable).map((item) => item.id));
+      suggestedEmployeeIds = suggestedEmployeeIds.filter((id) => eligible.has(id));
+    }
+
     return {
       operationDate: todayAsBusinessDate(),
+      suggestedEmployeeIds,
+      prefillSourceDate,
       employeeIds: facts.map((item) => item.employeeId),
       employeeFacts: facts.map((item) => ({
         employeeId: item.employeeId,
+        employeeName: item.employee.fullName,
+        createdAt: item.createdAt.toISOString(),
+        updatedAt: item.updatedAt.toISOString(),
+        createdBy: item.createdBy,
         workedHours: item.workedHours,
         ratePolicyType: parseRatePolicySnapshot(item.ratePolicySnapshot)?.ratePolicyType ?? null,
         rateAmount: parseRatePolicySnapshot(item.ratePolicySnapshot)?.baseAmount ?? item.dailyRateSnapshot,
+        dailyRateSnapshot: item.dailyRateSnapshot,
         rateReason: parseRatePolicySnapshot(item.ratePolicySnapshot)?.notes ?? null,
       })),
       employees,
@@ -1243,6 +1322,7 @@ export class ObjectOperationsService {
     payload: UpsertObjectAttendanceDto,
   ): Promise<{ success: true }> {
     await this.assertObjectVisible(currentUser, objectId, true);
+    await this.planningService.applySeason(objectId);
 
     const inputFacts = payload.employeeFacts ?? [];
     if (new Set(inputFacts.map((fact) => fact.employeeId)).size !== inputFacts.length || inputFacts.some((fact) => !payload.employeeIds.includes(fact.employeeId))) {
@@ -1453,6 +1533,7 @@ export class ObjectOperationsService {
             const previous = previousFacts.find((fact) => fact.employeeId === employeeId);
             const inputFact = inputFacts.find((fact) => fact.employeeId === employeeId);
             const savedPolicy = parseRatePolicySnapshot(previous?.ratePolicySnapshot);
+            const substitutionPolicy = parseRatePolicySnapshot(activeSubstitutions.find((item) => item.substituteEmployeeId === employeeId)?.ratePolicySnapshot);
             const ratePolicy = pinRatePolicyProductionCalendar(inputFact?.ratePolicyType
               ? normalizeRatePolicy({ ratePolicyType: inputFact.ratePolicyType, ratePolicyBaseAmount: inputFact.rateAmount, ratePolicyNotes: inputFact.rateReason }, inputFact.rateAmount ?? 0)
               : inputFact?.clearRateOverride
@@ -1461,7 +1542,7 @@ export class ObjectOperationsService {
                   : buildObjectDefaultRatePolicy({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: assignment?.ratePolicyScheduleCode ?? object.paymentScheduleCode, scheduleWeekdays: assignment?.ratePolicyWeekdays ?? object.paymentScheduleWeekdays, scheduleCycleStartDate: assignment?.ratePolicyScheduleCycleStartDate ?? object.paymentScheduleCycleStartDate })
                 : savedPolicy ?? (previous
               ? normalizeRatePolicy({ ratePolicyType: 'per_attendance', ratePolicyBaseAmount: previous.dailyRateSnapshot }, previous.dailyRateSnapshot)
-              : assignment?.ratePolicyUpdatedAt
+              : substitutionPolicy ?? (assignment?.ratePolicyUpdatedAt
               ? normalizeRatePolicy(
                   assignment,
                   this.getObjectMonthlySalaryDailyFallback({
@@ -1485,7 +1566,7 @@ export class ObjectOperationsService {
                   scheduleCycleStartDate: assignment?.ratePolicyUpdatedAt
                     ? assignment.ratePolicyScheduleCycleStartDate
                     : object.paymentScheduleCycleStartDate,
-                })), targetYear);
+                }))), targetYear);
             const workedHours = workedHoursByEmployeeId.has(employeeId) ? workedHoursByEmployeeId.get(employeeId) ?? null : previous?.workedHours ?? null;
             const dailyRateSnapshot =
               ratePolicy.ratePolicyType === 'monthly_fixed'
@@ -1566,6 +1647,10 @@ export class ObjectOperationsService {
       const nextFacts = await tx.objectAttendanceFact.findMany({ where: { objectId, operationDate: normalizedDate } });
       const snapshot = (facts: typeof nextFacts) => facts.map((fact) => ({ employeeId: fact.employeeId, dailyRateSnapshot: fact.dailyRateSnapshot, workedHours: fact.workedHours, ratePolicySnapshot: fact.ratePolicySnapshot }));
       await tx.auditEvent.create({ data: { entityType: 'object_attendance', entityId: objectId, actorUserId: currentUser.id, action: 'object.attendance.updated', oldValues: snapshot(previousFacts) as Prisma.InputJsonValue, newValues: snapshot(nextFacts) as Prisma.InputJsonValue, metadata: { operationDate: payload.operationDate, comment: payload.comment?.trim() || null } } });
+      await tx.objectAuditLog.create({ data: {
+        objectId, actorUserId: currentUser.id, actionCode: 'attendance.submitted',
+        payload: { operationDate: payload.operationDate.slice(0, 10), employeeCount: payload.employeeIds.length, employeeIds: payload.employeeIds },
+      } });
 
       if (sideJobNotificationFacts.length > 0) {
         const recipients = await this.notificationsService.listActiveUserIdsByRoles(
@@ -1606,6 +1691,7 @@ export class ObjectOperationsService {
           isActive: true,
           employee: {
             deletedAt: null,
+            employmentStatus: 'active',
           },
         },
         include: {
@@ -1935,6 +2021,8 @@ export class ObjectOperationsService {
     }>;
     substitutionsAsReplacement: Array<{
       id: string;
+      ratePolicySnapshot?: unknown;
+      rateOptionId?: string | null;
       startDate: Date;
       endDate: Date | null;
       status: string;
@@ -1973,7 +2061,7 @@ export class ObjectOperationsService {
         comment: item.comment,
       })),
     ].sort((left, right) => (left.startDate < right.startDate ? 1 : -1));
-    const ratePolicy = params.ratePolicy?.ratePolicyUpdatedAt
+    const ratePolicy = parseRatePolicySnapshot(params.substitutionsAsReplacement[0]?.ratePolicySnapshot) ?? (params.ratePolicy?.ratePolicyUpdatedAt
       ? normalizeRatePolicy(
           params.ratePolicy,
           params.ratePolicyFallbackAmount ??
@@ -1997,7 +2085,7 @@ export class ObjectOperationsService {
                 ? params.ratePolicy.ratePolicyWeekdays
                 : params.objectScheduleWeekdays ?? [],
           })
-        : null;
+        : null);
 
     return {
       id: params.employeeId,
@@ -2013,7 +2101,7 @@ export class ObjectOperationsService {
             ...ratePolicy,
             scheduleWeekdays: ratePolicy.scheduleWeekdays ?? [],
             scheduleCycleStartDate: ratePolicy.scheduleCycleStartDate ?? null,
-            rateOptionId: params.ratePolicy?.rateOptionId ?? null,
+            rateOptionId: params.substitutionsAsReplacement[0]?.rateOptionId ?? params.ratePolicy?.rateOptionId ?? null,
             label: getRatePolicyLabel(ratePolicy),
             updatedAt: params.ratePolicy?.ratePolicyUpdatedAt?.toISOString() ?? null,
           }
@@ -2069,6 +2157,15 @@ export class ObjectOperationsService {
     ) {
       throw new ForbiddenException('Access to object operations denied');
     }
+  }
+
+  private async assertReportsReadable(currentUser: CurrentAuthUser, objectId: string): Promise<void> {
+    if (currentUser.permissionCodes?.includes('objects.hr_reports_view')) {
+      const exists = await this.prisma.object.findFirst({ where: { id: objectId, deletedAt: null }, select: { id: true } });
+      if (!exists) throw new NotFoundException('Object not found');
+      return;
+    }
+    await this.assertObjectVisible(currentUser, objectId);
   }
 
   private async canViewCompensationRatesOnObject(
@@ -2234,6 +2331,8 @@ export class ObjectOperationsService {
   }
 
   private mapDailyReport(item: {
+    revision: number;
+    submittedRevision: number;
     id: string;
     objectId: string;
     reportDate: Date;
@@ -2247,6 +2346,8 @@ export class ObjectOperationsService {
     };
   }, attachments: FileResponseDto[]): ObjectDailyReportResponseDto {
     return {
+      revision: item.revision,
+      submittedRevision: item.submittedRevision,
       id: item.id,
       objectId: item.objectId,
       reportDate: item.reportDate.toISOString(),

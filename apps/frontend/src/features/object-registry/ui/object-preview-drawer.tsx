@@ -1,292 +1,143 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useEffect, useMemo, useState } from 'react';
-
+import React, { useEffect, useState } from 'react';
 import { getObjectEquipment } from '@/entities/equipment/api/equipment-client';
 import { getObjectInventory } from '@/entities/inventory/api/inventory-client';
-import {
-  createObjectComment,
-  getTodayArrivalPhoto,
-  getTodayDailyReport,
-  getTodayObjectAttendance,
-  upsertObjectAttendance,
-  upsertTodayDailyReport,
-  type ObjectAttendanceToday,
-} from '@/entities/object/api/object-operations-client';
+import { createObjectComment, getTodayArrivalPhoto, getTodayDailyReport, getTodayObjectAttendance, listObjectDailyReports, upsertObjectAttendance, upsertTodayDailyReport, type ObjectAttendanceToday } from '@/entities/object/api/object-operations-client';
 import type { ObjectArrivalPhoto, ObjectDailyReport } from '@/entities/object/model/object-operations.types';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
+import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-attendance-panel';
+import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
 import { getUserDisplayName } from '@/shared/lib/display-name';
-
-import { CloseIcon } from '@/shared/ui/icons/icons';
+import { uploadFileBatch } from '@/entities/file/api/file-client';
+import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
+import { Button } from '@/shared/ui/foundation';
+import { Drawer } from '@/shared/ui/overlays';
 import styles from './object-preview-drawer.module.css';
-import { Button, IconButton } from '@/shared/ui/foundation';
 
-function moscowBusinessDate(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Moscow',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date());
+function stamp(date: string): string { return new Date(date).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }); }
+
+export function ObjectPreviewDrawer({ item, onClose }: { item: ServiceObject | null; onClose: () => void }): React.JSX.Element | null {
+  return item ? <ObjectPreviewContent key={item.id} item={item} onClose={onClose} /> : null;
 }
 
-function statusLabel(status: string): string {
-  if (status === 'active') return 'Активный';
-  if (status === 'frozen') return 'Заморожен';
-  if (status === 'archived') return 'Архив';
-  return status;
-}
-
-export function ObjectPreviewDrawer({
-  item,
-  onClose,
-}: {
-  item: ServiceObject | null;
-  onClose: () => void;
-}): React.JSX.Element | null {
+function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose: () => void }): React.JSX.Element {
   const [attendance, setAttendance] = useState<ObjectAttendanceToday | null>(null);
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
   const [report, setReport] = useState<ObjectDailyReport | null>(null);
-  const [reportDraft, setReportDraft] = useState('');
+  const [reports, setReports] = useState<ObjectDailyReport[]>([]);
   const [arrival, setArrival] = useState<ObjectArrivalPhoto | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [equipmentCount, setEquipmentCount] = useState<number | null>(null);
   const [inventoryMovementCount, setInventoryMovementCount] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [savingAttendance, setSavingAttendance] = useState(false);
-  const [savingReport, setSavingReport] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [savingComment, setSavingComment] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [readErrors, setReadErrors] = useState<string[]>([]);
+  const canOperate = item.capabilities.canViewOperationalSections;
+  const canReadReports = canOperate || !!item.capabilities.canViewReportsHistory;
+  const canAttend = canOperate && item.capabilities.canOperateAttendance !== false;
 
   useEffect(() => {
-    if (!item || !item.capabilities.canViewOperationalSections) {
-      setAttendance(null);
-      setSelectedEmployeeIds([]);
-      setReport(null);
-      setReportDraft('');
-      setArrival(null);
-      setTasks([]);
-      setEquipmentCount(null);
-      setInventoryMovementCount(null);
-      return;
-    }
-
     let cancelled = false;
-    setLoading(true);
-    setMessage(null);
-
+    const errors: string[] = [];
+    const read = async <T,>(request: Promise<T>, label: string, fallback: T): Promise<T> => request.catch(() => { errors.push(label); return fallback; });
     void Promise.all([
-      getTodayObjectAttendance(item.id).catch(() => null),
-      getTodayDailyReport(item.id).catch(() => null),
-      getTodayArrivalPhoto(item.id).catch(() => null),
-      listTasksByObject(item.id).catch(() => []),
-      getObjectEquipment(item.id).catch(() => null),
-      getObjectInventory(item.id).catch(() => null),
-    ]).then(([nextAttendance, nextReport, nextArrival, nextTasks, equipment, inventory]) => {
+      canAttend ? read<ObjectAttendanceToday | null>(getTodayObjectAttendance(item.id), 'Присутствие', null) : null,
+      canOperate ? read<ObjectDailyReport | null>(getTodayDailyReport(item.id), 'Отчёт', null) : null,
+      canOperate ? read<ObjectArrivalPhoto | null>(getTodayArrivalPhoto(item.id), 'Фото прибытия', null) : null,
+      canOperate ? read(listTasksByObject(item.id), 'Задачи', []) : [],
+      canOperate ? getObjectEquipment(item.id).catch(() => { errors.push('Оборудование'); return null; }) : null,
+      canOperate ? getObjectInventory(item.id).catch(() => { errors.push('Расходники'); return null; }) : null,
+      !canOperate && canReadReports ? read(listObjectDailyReports(item.id), 'История отчётов', []) : [],
+    ]).then(([nextAttendance, nextReport, nextArrival, nextTasks, equipment, inventory, history]) => {
       if (cancelled) return;
-      setAttendance(nextAttendance);
-      setSelectedEmployeeIds(nextAttendance?.employeeIds ?? []);
-      setReport(nextReport);
-      setReportDraft(nextReport?.content ?? '');
-      setArrival(nextArrival);
-      setTasks(nextTasks);
-      setEquipmentCount(equipment?.units.length ?? null);
-      setInventoryMovementCount(inventory?.movements.length ?? null);
-      setLoading(false);
+      setAttendance(nextAttendance); setReport(nextReport); setArrival(nextArrival); setTasks(nextTasks);
+      setEquipmentCount(equipment?.units.length ?? null); setInventoryMovementCount(inventory?.movements.length ?? null);
+      setReports(history); setReadErrors(errors); setLoading(false);
     });
-
     return () => { cancelled = true; };
-  }, [item]);
+  }, [item.id, canOperate, canReadReports, canAttend]);
 
-  useEffect(() => {
-    if (!item) return;
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [item, onClose]);
-
-  const openTasks = useMemo(
-    () => tasks.filter((task) => !['completed', 'cancelled'].includes(task.status)),
-    [tasks],
-  );
-  const overdueTasks = useMemo(() => openTasks.filter((task) => task.isOverdue), [openTasks]);
-
-  if (!item) return null;
-
-  const saveAttendance = async (): Promise<void> => {
-    if (!attendance) return;
-    setSavingAttendance(true);
-    setMessage(null);
-
-    const existingHours = new Map(
-      attendance.employeeFacts.map((fact) => [fact.employeeId, fact.workedHours] as const),
-    );
-    const employeeById = new Map(attendance.employees.map((employee) => [employee.id, employee] as const));
-
-    try {
-      await upsertObjectAttendance(item.id, {
-        operationDate: moscowBusinessDate(),
-        employeeIds: selectedEmployeeIds,
-        employeeFacts: selectedEmployeeIds.map((employeeId) => ({
-          employeeId,
-          workedHours:
-            existingHours.get(employeeId)
-            ?? employeeById.get(employeeId)?.ratePolicy?.standardShiftHours
-            ?? 8,
-        })),
-      });
-      const refreshed = await getTodayObjectAttendance(item.id);
-      setAttendance(refreshed);
-      setSelectedEmployeeIds(refreshed.employeeIds);
-      setMessage('Присутствие сохранено.');
-    } catch {
-      setMessage('Не удалось сохранить присутствие.');
-    } finally {
-      setSavingAttendance(false);
-    }
-  };
-
-  const saveReport = async (): Promise<void> => {
-    const content = reportDraft.trim();
-    if (!content) return;
-    setSavingReport(true);
-    setMessage(null);
-    try {
-      const next = await upsertTodayDailyReport(item.id, { content });
-      setReport(next);
-      setReportDraft(next.content);
-      setMessage('Дневной отчёт сохранён.');
-    } catch {
-      setMessage('Не удалось сохранить дневной отчёт.');
-    } finally {
-      setSavingReport(false);
-    }
-  };
-
+  const refreshAttendance = async (): Promise<void> => { setAttendance(await getTodayObjectAttendance(item.id)); };
   const saveComment = async (): Promise<void> => {
-    const content = commentDraft.trim();
-    if (!content) return;
-    setSavingComment(true);
-    setMessage(null);
-    try {
-      await createObjectComment(item.id, { content });
-      setCommentDraft('');
-      setMessage('Комментарий добавлен.');
-    } catch {
-      setMessage('Не удалось добавить комментарий.');
-    } finally {
-      setSavingComment(false);
-    }
+    if (!commentDraft.trim()) return;
+    setSavingComment(true); setMessage(null);
+    try { await createObjectComment(item.id, { content: commentDraft.trim() }); setCommentDraft(''); setMessage('Комментарий добавлен.'); }
+    catch { setMessage('Не удалось добавить комментарий.'); }
+    finally { setSavingComment(false); }
   };
+  const openTasks = tasks.filter((task) => !['completed', 'cancelled'].includes(task.status));
+  const overdueTasks = openTasks.filter((task) => task.isOverdue);
+  const initialIds = attendance?.employeeIds.length ? attendance.employeeIds : attendance?.suggestedEmployeeIds ?? [];
 
-  return (
-    <div className={styles.backdrop} role="presentation" onMouseDown={onClose}>
-      <aside
-        className={styles.drawer}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Объект ${item.name}`}
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className={styles.header}>
-          <div className={styles.titleWrap}>
-            <h2 className={styles.title}>{item.name}</h2>
-            <div className={styles.meta}>{[item.internalName, item.address].filter(Boolean).join(' · ')}</div>
-          </div>
-          <IconButton aria-label="Закрыть превью" title="Закрыть" onClick={onClose}><CloseIcon size={18} /></IconButton>
-        </header>
-
-        <div className={styles.statusRow}>
-          <span className={styles.status}>{statusLabel(item.status)}</span>
-          <span className={styles.meta}>Обновлён {new Date(item.updatedAt).toLocaleDateString('ru-RU')}</span>
+  return <Drawer open onOpenChange={(open) => { if (!open) onClose(); }} title={item.name}
+    description={[item.internalName, item.address].filter(Boolean).join(' · ')}
+    footer={<div className={styles.footer}><Link className={styles.primaryAction} href={`/objects/${item.id}`}>Открыть объект</Link>
+      {item.capabilities.canEdit || item.capabilities.canManageCompensationRates ? <Link className={styles.actionButton} href={`/objects/${item.id}/edit`}>Редактировать</Link> : null}</div>}>
+    <section className={styles.section}>
+      <h3 className={styles.sectionTitle}>Ответственные</h3>
+      <div className={styles.peopleRow}><span className={styles.label}>Ответственный</span><span className={styles.value}>{item.responsible ? getUserDisplayName(item.responsible) : 'Не назначен'}</span></div>
+      <div className={styles.peopleRow}><span className={styles.label}>Менеджеры</span><span className={styles.value}>{item.managers.length ? item.managers.map(getUserDisplayName).join(', ') : 'Не назначены'}</span></div>
+    </section>
+    {loading ? <div role="status">Загрузка…</div> : null}
+    {readErrors.length ? <div className={styles.error} role="alert">Не удалось загрузить: {readErrors.join(', ')}. Откройте карточку для повторной загрузки.</div> : null}
+    {canOperate ? <>
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Сегодня</h3>
+        <div className={styles.summaryGrid}>
+          <div className={styles.summaryItem}><div className={styles.summaryLabel}>Присутствие</div><div className={styles.summaryValue}>{attendance?.submittedAt ? `${attendance.employeeIds.length} отмечено` : 'Не подтверждено'}</div></div>
+          <div className={styles.summaryItem}><div className={styles.summaryLabel}>Дневной отчёт</div><div className={styles.summaryValue}>{report ? report.submittedRevision === report.revision && report.submittedRevision > 0 ? 'Отправлен' : 'Черновик' : 'Нет'}</div></div>
+          <div className={styles.summaryItem}><div className={styles.summaryLabel}>Фото прибытия</div><div className={styles.summaryValue}>{arrival ? 'Есть' : 'Нет'}</div></div>
+          <div className={styles.summaryItem}><div className={styles.summaryLabel}>Задачи</div><div className={styles.summaryValue}>{openTasks.length} открыто · {overdueTasks.length} просрочено</div></div>
         </div>
-
-        <section className={styles.section}>
-          <h3 className={styles.sectionTitle}>Ответственные</h3>
-          <div className={styles.peopleRow}><span className={styles.label}>Ответственный</span><span className={styles.value}>{item.responsible ? getUserDisplayName(item.responsible) : 'Не назначен'}</span></div>
-          <div className={styles.peopleRow}><span className={styles.label}>Менеджеры</span><span className={styles.value}>{item.managers.length ? item.managers.map(getUserDisplayName).join(', ') : 'Не назначены'}</span></div>
-          <div className={styles.peopleRow}><span className={styles.label}>Команда</span><span className={styles.value}>{item.employees.length} сотрудников</span></div>
-        </section>
-
-        {item.capabilities.canViewOperationalSections ? <>
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>Сегодня</h3>
-            <div className={styles.summaryGrid}>
-              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Присутствие</div><div className={styles.summaryValue} data-state={attendance?.submittedAt ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : attendance?.submittedAt ? `${attendance.employeeIds.length} отмечено` : 'Не отмечено'}</div></div>
-              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Дневной отчёт</div><div className={styles.summaryValue} data-state={report ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : report ? 'Есть' : 'Нет'}</div></div>
-              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Фото прибытия</div><div className={styles.summaryValue} data-state={arrival ? 'ok' : 'attention'}>{loading ? 'Загрузка…' : arrival ? 'Есть' : 'Нет'}</div></div>
-              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Задачи</div><div className={styles.summaryValue} data-state={overdueTasks.length ? 'attention' : 'ok'}>{loading ? 'Загрузка…' : `${openTasks.length} открыто${overdueTasks.length ? ` · ${overdueTasks.length} просрочено` : ''}`}</div></div>
-            </div>
-          </section>
-
-          {attendance ? (
-            <section className={styles.section}>
-              <h3 className={styles.sectionTitle}>Быстро отметить присутствие</h3>
-              <div className={styles.attendanceList}>
-                {attendance.employees.map((employee) => {
-                  const selected = selectedEmployeeIds.includes(employee.id);
-                  const blocked = employee.availability.isUnavailable && !selected;
-                  return (
-                    <label key={employee.id} className={styles.attendanceItem} title={blocked ? 'Сотрудник недоступен сегодня' : undefined}>
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        disabled={blocked}
-                        onChange={(event) => setSelectedEmployeeIds((current) => event.target.checked
-                          ? [...new Set([...current, employee.id])]
-                          : current.filter((id) => id !== employee.id))}
-                      />
-                      <span>{employee.fullName}</span>
-                    </label>
-                  );
-                })}
-              </div>
-              <div className={styles.actionGrid}>
-                <Button disabled={savingAttendance} onClick={() => void saveAttendance()}>{savingAttendance ? 'Сохраняю…' : 'Сохранить присутствие'}</Button>
-              </div>
-            </section>
-          ) : null}
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>Дневной отчёт</h3>
-            <textarea className={styles.textarea} value={reportDraft} onChange={(event) => setReportDraft(event.target.value)} placeholder="Кратко зафиксируйте состояние объекта за сегодня" />
-            <div className={styles.actionGrid}>
-              <Button disabled={savingReport || !reportDraft.trim()} onClick={() => void saveReport()}>{savingReport ? 'Сохраняю…' : report ? 'Обновить отчёт' : 'Сохранить отчёт'}</Button>
-            </div>
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>Оперативный комментарий</h3>
-            <textarea className={styles.textarea} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Добавить комментарий к объекту" />
-            <div className={styles.actionGrid}>
-              <Button disabled={savingComment || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</Button>
-            </div>
-          </section>
-
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>Ресурсы</h3>
-            <div className={styles.summaryGrid}>
-              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Оборудование</div><div className={styles.summaryValue}>{equipmentCount === null ? '—' : `${equipmentCount} ед.`}</div></div>
-              <div className={styles.summaryItem}><div className={styles.summaryLabel}>Движения расходников</div><div className={styles.summaryValue}>{inventoryMovementCount === null ? '—' : inventoryMovementCount}</div></div>
-            </div>
-          </section>
-        </> : (
-          <div className={styles.notice}>Операционные данные скрыты текущими правами доступа.</div>
-        )}
-
-        {message ? <div className={`${styles.notice} ${message.startsWith('Не удалось') ? styles.error : ''}`} aria-live="polite">{message}</div> : null}
-
-        <footer className={styles.footer}>
-          <Link className={styles.primaryAction} href={`/objects/${item.id}`}>Открыть объект</Link>
-          {item.capabilities.canEdit || item.capabilities.canManageCompensationRates ? <Link className={styles.actionButton} href={`/objects/${item.id}/edit`}>Редактировать</Link> : null}
-        </footer>
-      </aside>
-    </div>
-  );
+        <Link href={`/objects/${item.id}#today`}>Все действия раздела «Сегодня»</Link>
+      </section>
+      {attendance ? <section className={styles.section}>
+        {attendance.submittedAt ? <div className={styles.meta}>Сохранено: {attendance.submittedBy?.fullName ?? 'Менеджер'} · {stamp(attendance.submittedAt)}</div> : null}
+        {attendance.prefillSourceDate ? <div className={styles.notice}>Предложен доступный состав за {attendance.prefillSourceDate}. Выходы появятся только после сохранения.</div> : null}
+        {attendance.employeeFacts.map((fact) => <div key={fact.employeeId} className={styles.meta}>{fact.employeeName ?? attendance.employees.find((employee) => employee.id === fact.employeeId)?.fullName ?? 'Сотрудник'} · {fact.workedHours ?? '—'} ч · {fact.rateAmount.toLocaleString('ru-RU')} ₽{fact.rateReason ? ` · ${fact.rateReason}` : ''}{fact.createdBy ? ` · ${fact.createdBy.fullName}` : ''}{fact.updatedAt ? ` · ${stamp(fact.updatedAt)}` : ''}</div>)}
+        <ObjectAttendancePanel objectId={item.id} onSubstitutionSaved={refreshAttendance} employees={attendance.employees} initialEmployeeIds={initialIds} initialEmployeeFacts={attendance.employeeFacts}
+          canEditRates={item.capabilities.canEditDailyRate} canAddExtraShift={item.capabilities.canAddExtraShift ?? false} operationDate={attendance.operationDate}
+          onSave={async (payload) => { await upsertObjectAttendance(item.id, payload); await refreshAttendance(); }} />
+      </section> : null}
+      {!loading && !readErrors.includes('Отчёт') ? <section className={styles.section}><ObjectDailyReportPanel item={report} onSave={async (payload) => {
+        const saved = await upsertTodayDailyReport(item.id, { content: payload.content, expectedRevision: report?.revision ?? 0 });
+        setReport(saved);
+        const uploads = await uploadFileBatch({ entityType: 'object_daily_report', entityId: saved.id, files: payload.files });
+        if (uploads.some((result) => result.status === 'rejected')) throw new Error('Отчёт сохранён, не все файлы загрузились. Повторите сохранение: загруженные файлы не продублируются.');
+        setReport(await getTodayDailyReport(item.id));
+      }} /></section> : null}
+      <section className={styles.section}>
+        <h3 className={styles.sectionTitle}>Фото прибытия</h3>
+        {arrival ? <><div className={styles.meta}>{arrival.createdBy.fullName} · {stamp(arrival.updatedAt)}</div>
+          {arrival.comment ? <p>{arrival.comment}</p> : null}
+          {arrival.photoType ? <div>{arrival.photoType}</div> : null}
+          <AttachmentPreviewList files={arrival.attachments} emptyText="Вложений нет" />
+          {arrival.photoUrl ? <a href={arrival.photoUrl} target="_blank" rel="noreferrer">Открыть фото прибытия</a> : null}</> : <div>Фото не добавлено</div>}
+        <Link href={`/objects/${item.id}#today`}>Добавить или изменить фото</Link>
+      </section>
+      <section className={styles.section}><h3 className={styles.sectionTitle}>Задачи</h3>
+        {openTasks.map((task) => <div key={task.id}><Link href={`/tasks/${task.id}`}>{task.title}</Link>{task.isOverdue ? ' · Просрочена' : ''}</div>)}
+        <Link href={`/objects/${item.id}#tasks`}>Все задачи объекта</Link>
+      </section>
+      <section className={styles.section}><h3 className={styles.sectionTitle}>Оперативный комментарий</h3>
+        <label><span className={styles.label}>Комментарий</span><textarea className={styles.textarea} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} /></label>
+        <Button disabled={savingComment || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</Button>
+      </section>
+      <section className={styles.section}><h3 className={styles.sectionTitle}>Ресурсы</h3>
+        <div>Оборудование: {equipmentCount ?? '—'} · Движения расходников: {inventoryMovementCount ?? '—'}</div>
+        <Link href={`/objects/${item.id}#equipment`}>Оборудование</Link>{' · '}<Link href={`/objects/${item.id}#inventory`}>Расходники</Link>
+      </section>
+    </> : canReadReports ? <section className={styles.section}><h3 className={styles.sectionTitle}>Ежедневные отчёты</h3>
+      {reports.map((entry) => <article key={entry.id}><h4>{new Date(entry.reportDate).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' })}</h4><p>{entry.content}</p>
+        <div className={styles.meta}>{entry.updatedBy.fullName} · {stamp(entry.updatedAt)}</div><AttachmentPreviewList files={entry.attachments} emptyText="Вложений нет" /></article>)}
+      {!loading && !reports.length && !readErrors.length ? <div>Отчётов пока нет.</div> : null}
+      <Link href={`/objects/${item.id}#history`}>История объекта</Link>
+    </section> : <div className={styles.notice}>Операционные данные скрыты текущими правами доступа.</div>}
+    {message ? <div className={styles.notice} role="status">{message}</div> : null}
+  </Drawer>;
 }

@@ -1,0 +1,16 @@
+.dateField {
+  width: min(100%, 280px);
+}
+
+.content {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--ui-leading-relaxed);
+}
+
+@media (max-width: 760px) {
+  .dateField {
+    width: 100%;
+  }
+}

@@ -956,7 +956,10 @@ export class AccountabilityService {
         lockedExpense.accountabilityAccount.status,
       );
 
-      if (lockedExpense.oneTimeOrderId) {
+      if (
+        lockedExpense.oneTimeOrderId &&
+        lockedExpense.expenseCategory !== 'employee_payout'
+      ) {
         const attachmentCount = await tx.fileAttachment.count({
           where: {
             entityType: EXPENSE_ATTACHMENTS_ENTITY_TYPE,

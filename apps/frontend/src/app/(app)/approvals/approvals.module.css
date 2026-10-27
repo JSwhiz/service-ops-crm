@@ -4,6 +4,11 @@
   gap: var(--ui-space-6);
   color: var(--ui-text);
   font-family: var(--ui-font-sans);
+  overflow-wrap: anywhere;
+}
+
+.page > * {
+  min-width: 0;
 }
 
 .filters {
@@ -139,6 +144,7 @@
 
 .queueRowTop {
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .queueTitle {
@@ -258,6 +264,7 @@
   font-size: var(--ui-text-md);
   line-height: var(--ui-leading-relaxed);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .relatedLink {

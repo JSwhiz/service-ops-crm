@@ -22,16 +22,24 @@ export interface UpsertArrivalPhotoPayload {
 
 export interface UpsertDailyReportPayload {
   content: string;
+  expectedRevision?: number;
 }
 
 export interface ObjectAttendanceToday {
   operationDate: string;
   employeeIds: string[];
+  suggestedEmployeeIds?: string[];
+  prefillSourceDate?: string | null;
   employeeFacts: Array<{
     employeeId: string;
+    employeeName?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    createdBy?: { id: string; fullName: string; login: string } | null;
     workedHours: number | null;
     ratePolicyType: string | null;
     rateAmount: number;
+    dailyRateSnapshot?: number;
     rateReason: string | null;
   }>;
   employees: ObjectEmployeeOption[];
@@ -161,6 +169,20 @@ export async function getTodayDailyReport(
       method: 'GET',
     },
   );
+}
+
+export async function listObjectDailyReports(objectId: string, date?: string): Promise<ObjectDailyReport[]> {
+  return fetcher<ObjectDailyReport[]>(`/objects/${objectId}/daily-reports${date ? `?date=${encodeURIComponent(date)}` : ''}`, { method: 'GET' });
+}
+
+export async function submitTodayDailyReport(objectId: string, expectedRevision: number): Promise<ObjectDailyReport> {
+  return fetcher<ObjectDailyReport>(`/objects/${objectId}/daily-report/today/submit`, { method: 'POST', body: JSON.stringify({ expectedRevision }) });
+}
+
+export async function createObjectSubstitution(objectId: string, payload: {
+  employeeId: string; substituteEmployeeId: string; rateOptionId?: string; startDate: string; endDate?: string; reason: string;
+}): Promise<{ id: string }> {
+  return fetcher<{ id: string }>(`/objects/${objectId}/substitutions`, { method: 'POST', body: JSON.stringify(payload) });
 }
 
 export async function upsertTodayDailyReport(

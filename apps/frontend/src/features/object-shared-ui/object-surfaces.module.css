@@ -6,6 +6,12 @@
   gap: 14px;
 }
 
+.editForm {
+  width: 100%;
+  max-width: 1040px;
+  justify-self: start;
+}
+
 .surface {
   display: grid;
   gap: 16px;

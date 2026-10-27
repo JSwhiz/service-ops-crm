@@ -8,11 +8,13 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { ObjectRegistrySignalsService } from './object-registry-signals.service';
 import { ObjectsController } from './objects.controller';
 import { ObjectsService } from './objects.service';
+import { ObjectPlanningService } from './object-planning.service';
+import { ObjectPlanningController } from './object-planning.controller';
 
 @Module({
   imports: [PrismaModule, AuditModule, ChatsModule, NotificationsModule],
-  controllers: [ObjectsController],
-  providers: [ObjectsService, ObjectRegistrySignalsService],
-  exports: [ObjectsService],
+  controllers: [ObjectsController, ObjectPlanningController],
+  providers: [ObjectsService, ObjectRegistrySignalsService, ObjectPlanningService, { provide: 'ObjectPlanningService', useExisting: ObjectPlanningService }],
+  exports: [ObjectsService, ObjectPlanningService],
 })
 export class ObjectsModule {}

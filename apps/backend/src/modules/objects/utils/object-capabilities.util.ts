@@ -34,6 +34,7 @@ export function buildObjectCapabilities(params: {
   canCreateTask: boolean;
   canViewBasicProfile: boolean;
   canViewOperationalSections: boolean;
+  canViewReportsHistory: boolean;
   canManageEmployees: boolean;
   canViewEmployees: boolean;
   canOperateAttendance: boolean;
@@ -68,6 +69,7 @@ export function buildObjectCapabilities(params: {
     canViewBasicProfile:
       hasOperationalScope || hasHrObjectView(params.permissionCodes),
     canViewOperationalSections: hasOperationalScope,
+    canViewReportsHistory: hasOperationalScope || params.permissionCodes.includes('objects.hr_reports_view'),
     canManageEmployees: canManageEmployeeAssignments(params.permissionCodes),
     canViewEmployees: hasOwnOperationalScope || hasHrObjectView(params.permissionCodes),
     canOperateAttendance: hasOwnOperationalScope,

@@ -98,6 +98,7 @@ export function CandidateRegistry({
   const [, setClock] = useState(0);
   const canAccess = user?.capabilities?.canAccessCandidates ?? false;
   const canManage = user?.capabilities?.canManageCandidates ?? false;
+  const scope = searchParams.get('scope') === 'all' ? 'all' : searchParams.get('scope') === 'mine' ? 'mine' : canManage ? 'all' : 'mine';
 
   const replaceQuery = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -158,6 +159,7 @@ export function CandidateRegistry({
     setLoading(true);
     setError(null);
     void listCandidates({
+      scope,
       q: q || undefined,
       candidateType: type || undefined,
       status: status || undefined,
@@ -177,9 +179,15 @@ export function CandidateRegistry({
       .finally(() => {
         if (sequence === sequenceRef.current) setLoading(false);
       });
-  }, [archiveState, canAccess, managerUserId, page, pageSize, q, slaState, status, type]);
+  }, [archiveState, canAccess, managerUserId, page, pageSize, q, scope, slaState, status, type]);
 
   const activeRegistryFilters = [
+    {
+      id: 'scope', label: 'Кандидаты', value: scope,
+      options: [{ value: 'mine', label: 'Мои' }, { value: 'all', label: 'Все' }],
+      onChange: (value: string) => replaceQuery({ scope: value, page: null }),
+      onRemove: () => replaceQuery({ scope: null, page: null }),
+    },
     !fixedType && type
       ? {
           id: 'type',

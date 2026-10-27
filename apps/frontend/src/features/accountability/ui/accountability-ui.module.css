@@ -62,11 +62,13 @@
 .accountabilityAccountPanel select:focus,
 .accountabilityAccountPanel textarea:focus {
   border-color: var(--ui-focus-border);
-  outline: var(--ui-focus-ring);
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: 2px;
+  box-shadow: var(--ui-focus-ring);
 }
 
 .accountabilityWorkspace .accountabilityReview :global(.field-grid) {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   align-items: end;
 }
 
@@ -170,7 +172,7 @@
 }
 
 .accountabilityAccountPanel :global(.ui-detail-grid) {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
 }
 
 .accountabilityAccountPanel .accountabilityLedgerFilters {
@@ -186,7 +188,7 @@
 
 .accountabilityAccountPanel .accountabilityLedgerFilters > :global(.field-grid) {
   grid-column: 1 / -1;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
 }
 
 .accountabilityAccountPanel :global(.ui-surface--compact) {
@@ -203,7 +205,14 @@
 
 .accountabilityAccountPanel :global(.ui-inline) > button,
 .accountabilityWorkspace :global(.ui-inline) > button {
-  min-height: 38px;
+  min-height: var(--ui-control-md);
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .accountabilityAccountPanel :global(.ui-inline) > button,
+  .accountabilityWorkspace :global(.ui-inline) > button {
+    min-height: 44px;
+  }
 }
 
 @media (max-width: 640px) {

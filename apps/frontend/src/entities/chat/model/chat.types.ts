@@ -17,6 +17,7 @@ export interface ChatRoom {
   capabilities: {
     canWrite: boolean;
     canManage: boolean;
+    canManageMembers: boolean;
     canHide: boolean;
     canLeave: boolean;
     canCloseGlobally: boolean;

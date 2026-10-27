@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 
 import {
   assignEmployeeToObject,
@@ -234,6 +234,7 @@ function AssignDialog({
   item: EmployeeDetail;
   onSaved: (employee: EmployeeDetail) => void;
 }): React.JSX.Element {
+  const formId = useId();
   const [objectId, setObjectId] = useState('');
   const [startDate, setStartDate] = useState(todayKey);
   const [objects, setObjects] = useState<Map<string, EmployeeObjectReference>>(new Map());
@@ -263,37 +264,46 @@ function AssignDialog({
         <div className={styles.dialogActions}>
           <Button variant="ghost" disabled={pending} onClick={close}>Отмена</Button>
           <Button
+            type="submit"
+            form={formId}
             variant="primary"
             pending={pending}
             pendingLabel="Назначение…"
-            onClick={async () => {
-              if (!objectId) { setObjectError('Выберите объект.'); return; }
-              setPending(true);
-              setError(null);
-              try {
-                const [year, month, day] = startDate.split('-').map(Number);
-                onSaved(await assignEmployeeToObject(item.id, {
-                  objectId,
-                  startDate: new Date(year!, month! - 1, day!).toISOString(),
-                }));
-                close();
-              } catch (caught) {
-                setError(errorMessage(caught, 'Не удалось назначить сотрудника на объект.'));
-              } finally {
-                setPending(false);
-              }
-            }}
           >
             Назначить
           </Button>
         </div>
       }
     >
-      <div className={styles.dialogForm}>
+      <form
+        id={formId}
+        className={styles.dialogForm}
+        noValidate
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (pending) return;
+          if (!objectId) { setObjectError('Выберите объект.'); return; }
+          setPending(true);
+          setError(null);
+          try {
+            const [year, month, day] = startDate.split('-').map(Number);
+            onSaved(await assignEmployeeToObject(item.id, {
+              objectId,
+              startDate: new Date(year!, month! - 1, day!).toISOString(),
+            }));
+            close();
+          } catch (caught) {
+            setError(errorMessage(caught, 'Не удалось назначить сотрудника на объект.'));
+          } finally {
+            setPending(false);
+          }
+        }}
+      >
         {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
         <SelectField
           label="Объект"
           required
+          disabled={pending}
           error={objectError ?? undefined}
           value={objectId}
           options={[]}
@@ -311,7 +321,7 @@ function AssignDialog({
           onChange={(value) => { setObjectId(value); setObjectError(null); }}
         />
         <Field label="Дата начала" required description="С этой даты сотрудник появится в составе объекта и в отметках выхода.">
-          <DatePicker value={startDate} clearable={false} onChange={(value) => setStartDate(value || todayKey())} />
+          <DatePicker value={startDate} disabled={pending} clearable={false} onChange={(value) => setStartDate(value || todayKey())} />
         </Field>
         {selected && pay !== undefined ? (
           pay === null ? null : pay.amount ? (
@@ -324,7 +334,7 @@ function AssignDialog({
             </Alert>
           )
         ) : null}
-      </div>
+      </form>
     </Dialog>
   );
 }

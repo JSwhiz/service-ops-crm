@@ -7,7 +7,9 @@
 }
 
 .table td {
-  white-space: nowrap;
+  max-width: 320px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .name {
@@ -69,6 +71,7 @@
 
 .mobileHeading {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;

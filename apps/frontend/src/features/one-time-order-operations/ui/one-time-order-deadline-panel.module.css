@@ -1,0 +1,18 @@
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+
+.field {
+  flex: 0 1 320px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Keep the picker inside this compact field on narrow order cards. */
+.field [role='dialog'] {
+  max-width: 100%;
+}

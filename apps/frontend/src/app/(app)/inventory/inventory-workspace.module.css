@@ -5,6 +5,26 @@
 .inventoryWorkspace,
 .equipmentWorkspace {
   min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.inventoryWorkspace > *,
+.equipmentWorkspace > * {
+  min-width: 0;
+}
+
+.inventoryWorkspace :global(.field-grid),
+.inventoryWorkspace :global(.ui-detail-grid),
+.equipmentWorkspace :global(.field-grid),
+.equipmentWorkspace :global(.ui-detail-grid) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.inventoryWorkspace :global(.field-grid) > *,
+.inventoryWorkspace :global(.ui-detail-grid) > *,
+.equipmentWorkspace :global(.field-grid) > *,
+.equipmentWorkspace :global(.ui-detail-grid) > * {
+  min-width: 0;
 }
 
 .inventoryWorkspace :global(.ui-surface--padded),
@@ -22,7 +42,7 @@
 
 .inventoryWorkspace :global(.filter-panel),
 .equipmentWorkspace :global(.filter-panel) {
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   align-items: end;
   padding: 16px;
 }
@@ -62,7 +82,9 @@
 .equipmentWorkspace select:focus,
 .equipmentWorkspace textarea:focus {
   border-color: var(--ui-focus-border);
-  outline: var(--ui-focus-ring);
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: 2px;
+  box-shadow: var(--ui-focus-ring);
 }
 
 .inventoryWorkspace :global(.data-table-shell),
@@ -75,5 +97,12 @@
 
 .inventoryWorkspace :global(.ui-inline) > button,
 .equipmentWorkspace :global(.ui-inline) > button {
-  min-height: 38px;
+  min-height: var(--ui-control-md);
+}
+
+@media (max-width: 760px), (pointer: coarse) {
+  .inventoryWorkspace :global(.ui-inline) > button,
+  .equipmentWorkspace :global(.ui-inline) > button {
+    min-height: 44px;
+  }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 
 import {
   createTaskCompletionDraft,
@@ -13,7 +13,7 @@ import type { TaskCompletionRequirement } from '@/entities/task/model/task.types
 import { getCompletionRequirementLabel } from '@/shared/lib/task-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
-import { Button, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, Field, Surface } from '@/shared/ui/foundation';
 import { useConfirm } from '@/shared/ui/overlays';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
@@ -33,6 +33,8 @@ export function TaskResultPanel({
   const [text, setText] = useState('');
   const [confirm, confirmDialog] = useConfirm();
   const [draftId, setDraftId] = useState<string | null>(null);
+  const draftRef = useRef<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,8 +46,9 @@ export function TaskResultPanel({
   if (!canComplete && !canUndo) return null;
 
   const ensureDraft = async (): Promise<string> => {
-    if (draftId) return draftId;
+    if (draftRef.current) return draftRef.current;
     const draft = await createTaskCompletionDraft(taskId);
+    draftRef.current = draft.id;
     setDraftId(draft.id);
     return draft.id;
   };
@@ -61,6 +64,7 @@ export function TaskResultPanel({
       });
       setText('');
       setDraftId(null);
+      draftRef.current = null;
       setFiles([]);
       await onChanged();
     } catch (caught) {
@@ -71,11 +75,11 @@ export function TaskResultPanel({
   };
 
   return (
-    <Surface padding="md" className={taskStyles.taskCompletionPanel}>
+    <Surface as="section" padding="md" className={taskStyles.taskCompletionPanel}>
       {confirmDialog}
       <div className="ui-section-header">
         <div>
-          <div className="ui-section-title">Моё выполнение</div>
+          <h2 className="ui-section-title">Моё выполнение</h2>
           <div className="ui-section-subtitle">{getCompletionRequirementLabel(requirement)}</div>
         </div>
         {canUndo ? (
@@ -97,8 +101,7 @@ export function TaskResultPanel({
       </div>
       {canComplete ? (
         <form onSubmit={(event) => void submit(event)}>
-          <label className={taskStyles.taskField}>
-            <span>Комментарий</span>
+          <Field label="Комментарий к результату" required={requirement === 'comment_required'}>
             <textarea
               rows={4}
               value={text}
@@ -106,9 +109,10 @@ export function TaskResultPanel({
               placeholder="Кратко опишите результат"
               required={requirement === 'comment_required'}
             />
-          </label>
+          </Field>
           <MediaActionPicker
             disabled={isBusy}
+            onBusyChange={setIsUploading}
             onPick={async (file) => {
               setError(null);
               try {
@@ -118,19 +122,20 @@ export function TaskResultPanel({
                   entityId: completionId,
                   file,
                 });
-                setFiles((current) => [...current, uploaded]);
-              } catch {
+                setFiles((current) => current.some((entry) => entry.id === uploaded.id) ? current : [...current, uploaded]);
+              } catch (caught) {
                 setError('Не удалось прикрепить файл.');
+                throw caught;
               }
             }}
           />
           {files.length > 0 ? <AttachmentPreviewList files={files} /> : null}
-          {error ? <div className={taskStyles.taskFormError} role="alert">{error}</div> : null}
-          <Button variant="primary" type="submit" disabled={isBusy || lacksRequiredResult}>
+          {error ? <Alert tone="danger">{error}</Alert> : null}
+          <Button variant="primary" type="submit" disabled={isBusy || isUploading || lacksRequiredResult}>
             {isBusy ? 'Отправляем…' : 'Отметить выполненной'}
           </Button>
         </form>
-      ) : error ? <div className={taskStyles.taskFormError} role="alert">{error}</div> : null}
+      ) : error ? <Alert tone="danger">{error}</Alert> : null}
     </Surface>
   );
 }

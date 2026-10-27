@@ -1,8 +1,11 @@
-import { IsDateString, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 import { EMPLOYEE_SUBSTITUTION_STATUSES } from '../constants/employee-hr.constants';
 
 export class CreateEmployeeSubstitutionDto {
+  @IsOptional()
+  @IsUUID('4')
+  rateOptionId?: string;
   @IsString()
   substituteEmployeeId!: string;
 

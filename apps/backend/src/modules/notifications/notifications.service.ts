@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -18,6 +19,10 @@ import {
 } from './dto/notification-response.dto';
 
 type NotificationDatabase = Pick<Prisma.TransactionClient, 'notification' | 'notificationOutbox' | 'user'>;
+
+function notificationVisibility(recipientUserId: string): Prisma.NotificationWhereInput {
+  return { recipientUserId, dismissedAt: null, OR: [{ entityType: null }, { entityType: { not: 'candidate' } }, { recipient: { permissions: { none: { permission: { code: 'candidates.denied' } } } } }] };
+}
 
 @Injectable()
 export class NotificationsService implements OnModuleInit, OnModuleDestroy {
@@ -130,8 +135,10 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   ): Promise<Notification[]> {
     const recipientUserIds = [...new Set(params.recipientUserIds.filter(Boolean))];
     const notifications: Notification[] = [];
+    const denied = params.entityType === 'candidate' ? new Set((await (database ?? this.prisma).user.findMany({ where: { id: { in: recipientUserIds }, permissions: { some: { permission: { code: 'candidates.denied' } } } }, select: { id: true } })).map((user) => user.id)) : new Set<string>();
 
     for (const recipientUserId of recipientUserIds) {
+      if (denied.has(recipientUserId)) continue;
       notifications.push(await this.create({
         recipientUserId,
         type: params.type,
@@ -148,7 +155,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async list(recipientUserId: string, query: ListNotificationsQueryDto): Promise<NotificationListResponseDto> {
-    const where = { recipientUserId };
+    const where = notificationVisibility(recipientUserId);
     const [items, total] = await this.prisma.$transaction([
       this.prisma.notification.findMany({
         where,
@@ -171,18 +178,18 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   async unreadCount(recipientUserId: string): Promise<{ count: number }> {
     return {
       count: await this.prisma.notification.count({
-        where: { recipientUserId, readAt: null },
+        where: { ...notificationVisibility(recipientUserId), readAt: null },
       }),
     };
   }
 
   async markRead(recipientUserId: string, notificationId: string): Promise<NotificationResponseDto> {
     const result = await this.prisma.notification.updateMany({
-      where: { id: notificationId, recipientUserId, readAt: null },
+      where: { ...notificationVisibility(recipientUserId), id: notificationId, readAt: null },
       data: { readAt: new Date() },
     });
     const notification = await this.prisma.notification.findFirst({
-      where: { id: notificationId, recipientUserId },
+      where: { ...notificationVisibility(recipientUserId), id: notificationId },
     });
     if (!notification) throw new NotFoundException('Notification not found');
     if (result.count === 0 && !notification.readAt) {
@@ -193,10 +200,23 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
 
   async markAllRead(recipientUserId: string): Promise<{ updated: number }> {
     const result = await this.prisma.notification.updateMany({
-      where: { recipientUserId, readAt: null },
+      where: { ...notificationVisibility(recipientUserId), readAt: null },
       data: { readAt: new Date() },
     });
     return { updated: result.count };
+  }
+
+  async dismiss(recipientUserId: string, notificationId: string): Promise<{ id: string; dismissed: true }> {
+    const result = await this.prisma.notification.updateMany({
+      where: { ...notificationVisibility(recipientUserId), id: notificationId, readAt: { not: null } },
+      data: { dismissedAt: new Date() },
+    });
+    if (result.count === 0) {
+      const notification = await this.prisma.notification.findFirst({ where: { recipientUserId, id: notificationId } });
+      if (!notification) throw new NotFoundException('Уведомление не найдено');
+      if (!notification.dismissedAt) throw new BadRequestException('Скрыть можно только прочитанное уведомление');
+    }
+    return { id: notificationId, dismissed: true };
   }
 
   private map(notification: Notification): NotificationResponseDto {
@@ -207,7 +227,11 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       body: notification.body,
       entityType: notification.entityType,
       entityId: notification.entityId,
-      targetUrl: notification.targetUrl,
+      targetUrl: notification.targetUrl ?? (notification.entityId && notification.entityType === 'object'
+        ? `/objects/${encodeURIComponent(notification.entityId)}`
+        : notification.entityId && notification.entityType === 'one_time_order'
+          ? `/one-time-orders/${encodeURIComponent(notification.entityId)}`
+          : null),
       readAt: notification.readAt?.toISOString() ?? null,
       createdAt: notification.createdAt.toISOString(),
     };
@@ -246,8 +270,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
 
       for (const record of pending) {
         try {
-          const notification = await this.prisma.notification.findUnique({
-            where: { id: record.notificationId },
+          const notification = await this.prisma.notification.findFirst({
+            where: { ...notificationVisibility(record.recipientUserId), id: record.notificationId },
           });
           if (notification) {
             await this.redisService.getClient().publish(

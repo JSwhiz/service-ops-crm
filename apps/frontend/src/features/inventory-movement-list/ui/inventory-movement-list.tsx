@@ -27,13 +27,13 @@ export function InventoryMovementList({
         <Surface padding="md"
           key={item.id}
 
-          style={{ display: 'grid', gap: 12 }}
+          style={{ display: 'grid', gap: 12, minWidth: 0, overflowWrap: 'anywhere' }}
         >
           <div
             style={{
               display: 'grid',
               gap: 12,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
             }}
           >
             <div>
@@ -93,7 +93,7 @@ export function InventoryMovementList({
             style={{
               display: 'grid',
               gap: 12,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
             }}
           >
             <div>

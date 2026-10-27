@@ -67,18 +67,15 @@ export class UserAbsencesService {
   ) {}
 
   async list(user: CurrentAuthUser, query: ListUserAbsencesQueryDto): Promise<UserAbsenceListResponseDto> {
+    if (!user.isActive) throw new ForbiddenException('Активный пользователь обязателен');
     if (query.from && query.to) ensureRange(query.from, query.to);
-    const canViewAll = hasPermission(user, USER_ABSENCE_VIEW_ALL_PERMISSION);
+    const canViewAll = true;
     const canManageAll = hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION);
     const canViewPrivateReasons = hasPermission(
       user,
       USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION,
     );
-    if (query.userId && query.userId !== user.id && !canViewAll) {
-      throw new ForbiddenException('Недостаточно прав для просмотра отсутствий другого пользователя');
-    }
-
-    const requestedUserId = canViewAll ? query.userId : user.id;
+    const requestedUserId = query.userId;
     const rows = await this.prisma.$queryRaw<UserAbsenceRow[]>(Prisma.sql`
       SELECT
         ua."id", ua."userId", u."login", u."fullName", ua."absenceType",
@@ -113,9 +110,6 @@ export class UserAbsencesService {
 
   async listManageableUsers(user: CurrentAuthUser): Promise<Array<{ id: string; login: string; fullName: string }>> {
     if (!user.isActive) throw new ForbiddenException('Активный пользователь обязателен');
-    if (!hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION)) {
-      return [{ id: user.id, login: user.login, fullName: user.fullName }];
-    }
     return this.prisma.user.findMany({
       where: { isActive: true, deletedAt: null },
       select: { id: true, login: true, fullName: true },
@@ -125,6 +119,9 @@ export class UserAbsencesService {
 
   async create(user: CurrentAuthUser, payload: CreateUserAbsenceDto): Promise<UserAbsenceResponseDto> {
     this.assertCanManageTarget(user, payload.userId);
+    if (payload.userId !== user.id && payload.comment?.trim() && !this.canViewPrivateReasons(user)) {
+      throw new ForbiddenException('Недостаточно прав для записи приватной причины');
+    }
     ensureRange(payload.startDate, payload.endDate);
     const id = randomUUID();
     const comment = payload.comment?.trim() || null;
