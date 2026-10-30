@@ -395,7 +395,14 @@ test('object creation and editing enforce one active responsible assignment', as
       }),
     });
 
-  assert.equal((await createWith()).status, 400);
+  const defaultResponsibleResponse = await createWith();
+  assert.equal(defaultResponsibleResponse.status, 201);
+  const withDefaultResponsible = await defaultResponsibleResponse.json() as {
+    id: string; responsible: { id: string } | null; responsibles: Array<{ userId: string }>;
+  };
+  createdObjectIds.push(withDefaultResponsible.id);
+  assert.equal(withDefaultResponsible.responsible?.id, founder.id);
+  assert.equal(withDefaultResponsible.responsibles.length, 1);
   assert.equal((await createWith(randomUUID())).status, 400);
   assert.equal((await createWith(inactiveUserId)).status, 400);
   assert.equal((await createWith(deletedUserId)).status, 400);
