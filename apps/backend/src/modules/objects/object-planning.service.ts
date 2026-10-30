@@ -334,7 +334,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
         tx,
       );
     });
-    await this.applySeason(objectId);
+    await this.applySeason(objectId, new Date(), payload.automaticSeasons === false);
     await this.evaluateBudget(objectId);
     // The alert is persisted before delivery. A transport failure must not turn
     // an already saved configuration into an apparent failed save.
@@ -513,23 +513,23 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
       });
     }
   }
-  async applySeason(objectId: string, now = new Date()) {
+  async applySeason(objectId: string, now = new Date(), restoreDefault = false) {
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
       const settings = await tx.objectPlanningSettings.findUnique({
         where: { objectId },
       });
       if (
-        !settings?.automaticSeasons ||
+        !restoreDefault && (!settings?.automaticSeasons ||
         !settings.summerStartsOn ||
-        !settings.winterStartsOn
+        !settings.winterStartsOn)
       )
         return;
       const object = await tx.object.findUnique({ where: { id: objectId } });
-      if (!object || object.deletedAt || object.status !== "active") return;
-      const season = annualSeason(
-        settings.summerStartsOn,
-        settings.winterStartsOn,
+      if (!object || object.deletedAt || (!restoreDefault && object.status !== "active")) return;
+      const season = !settings?.automaticSeasons ? null : annualSeason(
+        settings!.summerStartsOn!,
+        settings!.winterStartsOn!,
         now,
       );
       if (object.seasonMode === season) return;

@@ -1,0 +1,32 @@
+.editor {
+  display: grid;
+  gap: var(--ui-space-6);
+  max-width: 800px;
+  min-width: 0;
+}
+.section {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.section + .section {
+  border-top: 1px solid var(--ui-border);
+  padding-top: var(--ui-space-6);
+}
+.grid, .months {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.months {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.addBudget {
+  max-width: 360px;
+}
+@media (max-width: 640px) {
+  .grid, .months {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

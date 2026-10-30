@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import { getObjectEquipment } from '@/entities/equipment/api/equipment-client';
 import type { EquipmentScope } from '@/entities/equipment/model/equipment.types';
@@ -66,6 +66,10 @@ import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-at
 import { ObjectSummaryCard } from '@/features/object-card/ui/object-summary-card';
 import { ObjectContactsPanel } from '@/features/object-contacts/ui/object-contacts-panel';
 import { ObjectPlanningPanel } from '@/features/object-planning/ui/object-planning-panel';
+import { ObjectSchedulingPanel } from '@/features/object-scheduling/ui/object-scheduling-panel';
+import { TodayShiftsPanel } from '@/features/object-scheduling/ui/today-shifts-panel';
+import type { ShiftDayState } from '@/features/object-scheduling/model/shift-day-state';
+import { ObjectSetupPanel } from '@/features/object-setup/ui/object-setup-panel';
 import { ObjectRubberMatsPanel } from '@/features/object-rubber-mats/ui/object-rubber-mats-panel';
 import { ObjectCommentsPanel } from '@/features/object-comments/ui/object-comments-panel';
 import { ObjectFeedList } from '@/features/object-feed/ui/object-feed-list';
@@ -156,6 +160,16 @@ export default function ObjectDetailPage({
   const [attendanceEmployees, setAttendanceEmployees] = useState<ObjectEmployeeOption[]>([]);
   const [attendanceLoading, setAttendanceLoading] = useState(true);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
+  const [shiftDayState, setShiftDayState] = useState<(ShiftDayState & { objectId: string }) | null>(null);
+  const onShiftDayStateChange = useCallback((state: ShiftDayState): void => {
+    setShiftDayState({ ...state, objectId });
+  }, [objectId]);
+  const currentShiftDay = shiftDayState?.objectId === objectId ? shiftDayState : null;
+  const legacyAttendanceReadOnlyReason = currentShiftDay?.owned
+    ? 'Посещаемость за сегодня ведётся по подтверждённым сменам. Состав ниже показан только для чтения. Изменяйте или отменяйте выходы в блоке «Смены сегодня»; повторное дневное сохранение недоступно.'
+    : !currentShiftDay?.checked || currentShiftDay.pending
+      ? 'Проверяем сменные факты за сегодня. Дневная форма станет доступна после проверки, если за день нет подтверждённых смен. При ошибке обновите блок «Смены сегодня».'
+      : undefined;
 
   const [arrival, setArrival] = useState<ObjectArrivalPhoto | null>(null);
   const [arrivalLoading, setArrivalLoading] = useState(true);
@@ -371,6 +385,7 @@ export default function ObjectDetailPage({
           </nav>
 
           <WorkspaceSection id="overview" title="Обзор">
+            <ObjectSetupPanel key={objectId} objectId={objectId} />
             {item.capabilities.canViewOperationalSections ? (
               <Surface padding="md" className={`${styles.quickAction}`}>
                 <div className="ui-section-title">Рабочий чат</div>
@@ -431,6 +446,7 @@ export default function ObjectDetailPage({
 
           {item.capabilities.canViewOperationalSections ? (
             <WorkspaceSection id="today" title="Сегодня">
+              {item.capabilities.canOperateAttendance === false ? null : <TodayShiftsPanel key={objectId} objectId={objectId} employees={assignedEmployees} onDayStateChange={onShiftDayStateChange} onChanged={async () => { await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }} />}
               <div className={styles.todayGrid}>
                 {arrivalLoading ? <ObjectPanelLoading title="Фото прибытия сегодня" /> : arrivalError ? (
                   <ObjectPanelError title="Фото прибытия сегодня" message={arrivalError} />
@@ -465,8 +481,9 @@ export default function ObjectDetailPage({
                     objectId={objectId}
                     onSubstitutionSaved={async () => { await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }}
                     employees={attendanceEmployees}
-                    initialEmployeeIds={attendanceEmployeeIds}
+                    initialEmployeeIds={currentShiftDay?.owned ? [...new Set([...attendanceEmployeeFacts.map((fact) => fact.employeeId), ...currentShiftDay.confirmedEmployeeIds])] : attendanceEmployeeIds}
                     initialEmployeeFacts={attendanceEmployeeFacts}
+                    readOnlyReason={legacyAttendanceReadOnlyReason}
                     canEditRates={item.capabilities.canEditDailyRate}
                     canAddExtraShift={item.capabilities.canAddExtraShift ?? false}
                     operationDate={todayAsBusinessDate()}
@@ -491,6 +508,7 @@ export default function ObjectDetailPage({
           ) : null}
 
           <WorkspaceSection id="team" title="Команда">
+            {item.capabilities.canViewOperationalSections ? <ObjectSchedulingPanel key={objectId} objectId={objectId} canSelectEmployees={item.capabilities.canManageEmployees} employees={assignedEmployees} onChanged={() => { void loadAssignedEmployees(objectId); }} /> : null}
             {item.capabilities.canViewEmployees === false ? null : assignedEmployeesLoading ? <ObjectPanelLoading title="Состав сотрудников объекта" /> : assignedEmployeesError ? (
               <ObjectPanelError title="Состав сотрудников объекта" message={assignedEmployeesError} />
             ) : (

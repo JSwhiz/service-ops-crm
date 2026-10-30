@@ -46,7 +46,6 @@ export function ObjectEditForm({
     internalName: item.internalName ?? '',
     address: item.address,
     responsibleUserId: item.responsible?.id ?? '',
-    seasonMode: item.seasonMode ?? '',
     summerWindowCleaning: item.summerWindowCleaning,
     engineeringRequired: item.engineeringRequired,
     winterTractorMode: item.winterTractorMode,
@@ -85,7 +84,6 @@ export function ObjectEditForm({
       internalName: item.internalName ?? '',
       address: item.address,
       responsibleUserId: item.responsible?.id ?? '',
-      seasonMode: item.seasonMode ?? '',
       summerWindowCleaning: item.summerWindowCleaning,
       engineeringRequired: item.engineeringRequired,
       winterTractorMode: item.winterTractorMode,
@@ -190,7 +188,6 @@ export function ObjectEditForm({
         name: form.name.trim(),
         internalName: form.internalName.trim(),
         address: form.address.trim(),
-        seasonMode: form.seasonMode || null,
         summerWindowCleaning: form.summerWindowCleaning,
         engineeringRequired: form.engineeringRequired,
         winterTractorMode: form.winterTractorMode,
@@ -201,8 +198,6 @@ export function ObjectEditForm({
           ? { counterpartyId: form.counterpartyId || null }
           : {}),
       } : {};
-
-      if (mode === 'compensation' && canEditObject) payload.seasonMode = form.seasonMode || null;
 
       if (canManageCompensationRates) {
         payload.paymentType = form.paymentType as 'monthly' | 'daily';
@@ -303,7 +298,6 @@ export function ObjectEditForm({
           <input
             value={form.internalName}
             onChange={(event) => setForm((prev) => ({ ...prev, internalName: event.target.value }))}
-            required={canEditObject}
             disabled={!canEditObject || isSubmitting}
           />
         </label>
@@ -379,23 +373,6 @@ export function ObjectEditForm({
 
       </div>
       </> : null}
-
-      {mode === 'full' || canEditObject ? <div className={styles.field}>
-          <SearchableSelect
-            label="Сезон"
-            value={form.seasonMode}
-            options={[
-              { value: '', label: 'Без сезонности' },
-              { value: 'summer', label: 'Летний' },
-              { value: 'winter', label: 'Зимний' },
-            ]}
-            searchable={false}
-            clearable={false}
-            viewportAware
-            disabled={!canEditObject || isSubmitting}
-            onChange={(seasonMode) => setForm((prev) => ({ ...prev, seasonMode }))}
-          />
-        </div> : null}
 
       {mode === 'full' ? <div className={styles.formGrid}>
         <label className={`${styles.field} ${styles.fullWidth}`}>

@@ -7,10 +7,10 @@ import { getObjectPlanning, saveObjectPlanning, type ObjectPlanning, type Planni
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectEditForm } from '@/features/object-edit/ui/object-edit-form';
 import { getErrorMessage } from '@/shared/lib/error-message';
-import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Alert, Button, FactStrip, Field, LoadingState, Stack, Surface } from '@/shared/ui/foundation';
 import { Dialog } from '@/shared/ui/overlays';
-import { Select } from '@/shared/ui/searchable-select/select';
+import { SeasonFields } from './season-fields';
+import { seasonPlanningPayload } from '../model/season-planning';
 
 const money = (amount: number) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(amount);
 const annualDate = (value: string | null) => value
@@ -108,11 +108,12 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
           {data.capabilities.canEditSeasons ? <Button disabled={editing !== null} onClick={() => { apply(data); setEditing('seasons'); }}>Настроить сезоны</Button> : null}
         </div>
         <FactStrip items={[
-          { label: 'Текущий сезон', value: data.activeSeason === 'summer' ? 'Лето' : data.activeSeason === 'winter' ? 'Зима' : 'Без сезонности' },
-          { label: 'Переключение', value: data.automaticSeasons ? 'Ежегодно по датам' : 'Вручную' },
+          { label: 'Текущие условия', value: data.activeSeason === 'summer' ? 'Лето' : data.activeSeason === 'winter' ? 'Зима' : data.automaticSeasons ? 'Не определены' : 'Базовые' },
+          { label: 'Сезонность', value: data.automaticSeasons ? 'Включена · ежегодно по датам' : 'Выключена' },
           { label: 'Начало лета', value: annualDate(data.summerStartsOn) },
           { label: 'Начало зимы', value: annualDate(data.winterStartsOn) },
         ]} />
+        {!data.automaticSeasons && (data.activeSeason === 'summer' || data.activeSeason === 'winter') ? <Alert tone="info">Сохранён прежний ручной {data.activeSeason === 'summer' ? 'летний' : 'зимний'} профиль. Сейчас действуют показанные условия. Сохранение выключенной сезонности переключит объект на базовый профиль; включение потребует явно заданных ежегодных границ. Просмотр ничего не меняет.</Alert> : null}
         {item.capabilities.canViewCompensationRates !== false ? <>
           <div className="ui-section-header">
             <h4 className="ui-section-title">Условия оплаты</h4>
@@ -129,7 +130,7 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
       {editing === 'rates' && item.capabilities.canManageCompensationRates ? <ObjectEditForm
         mode="compensation"
         item={item}
-        canEditObject={item.capabilities.canEdit && !data.automaticSeasons}
+        canEditObject={item.capabilities.canEdit}
         canManageCompensationRates
         canLinkCounterparty={false}
         onCancel={closeEditor}
@@ -143,14 +144,15 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
         <form id={formId} className="ui-stack ui-stack--lg" onSubmit={(event) => {
           event.preventDefault();
           if (editing === 'budget') void save({ monthlyBudget: budget.trim() === '' ? null : Number(budget) });
-          else if (editing === 'seasons') void save({ automaticSeasons: automatic, ...(summer ? { summerStartsOn: summer.slice(5) } : {}), ...(winter ? { winterStartsOn: winter.slice(5) } : {}) });
+          else if (editing === 'seasons') {
+            try { void save(seasonPlanningPayload(automatic, summer, winter)); }
+            catch (caught) { setError(getErrorMessage(caught, 'Проверьте ежегодные границы сезонов.')); }
+          }
         }}>
           {editing === 'budget' ? <Field label="План на месяц, ₽" description="Пустое поле отключает контроль бюджета. Ноль означает нулевой бюджет.">
             <input type="number" min="0" step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} disabled={pending} />
           </Field> : <>
-            <Field label="Переключение сезонов"><Select value={automatic ? 'automatic' : 'manual'} onChange={(event) => setAutomatic(event.target.value === 'automatic')} disabled={pending}><option value="manual">Вручную</option><option value="automatic">Ежегодно по датам</option></Select></Field>
-            <Field label="Начало лета"><DatePicker value={summer} onChange={setSummer} required={automatic} disabled={pending} /></Field>
-            <Field label="Начало зимы"><DatePicker value={winter} onChange={setWinter} required={automatic} disabled={pending} /></Field>
+            <SeasonFields automatic={automatic} summer={summer} winter={winter} onAutomaticChange={setAutomatic} onSummerChange={setSummer} onWinterChange={setWinter} disabled={pending} />
           </>}
           {error ? <Alert tone="danger">{error}</Alert> : null}
         </form>

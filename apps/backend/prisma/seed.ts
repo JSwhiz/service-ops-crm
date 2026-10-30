@@ -1217,6 +1217,7 @@ async function main(): Promise<void> {
     ['visit_plans.manage', 'Управление дневными планами', ['lebedev', 'gorbacheva']],
     ['one_time_order.escorts.manage', 'Управление сопровождающими заказа', ['drozdovskiy', 'berendyakov']],
     ['chat.room.manage_members', 'Управление участниками групп', ['stepanova', 'lebedev']],
+    ['object.coefficient_edit', 'Изменение коэффициента объекта', ['lebedev', 'gerasimov']],
   ] as const) {
     const permission = await prisma.permission.upsert({ where: { code }, update: {}, create: { code, name } });
     for (const user of await prisma.user.findMany({ where: { login: { in: [...logins] } }, select: { id: true } })) {

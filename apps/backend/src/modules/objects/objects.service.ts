@@ -25,6 +25,8 @@ import { getScheduleConfigurationError } from '../timesheets/utils/russian-produ
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
 import { CreateObjectDto } from './dto/create-object.dto';
+import { ObjectSetupService } from './object-setup.service';
+import { ObjectSchedulingService } from '../object-scheduling/object-scheduling.service';
 import { ListObjectsQueryDto } from './dto/list-objects-query.dto';
 import { ObjectAuditLogResponseDto } from './dto/object-audit-log-response.dto';
 import { ObjectListResponseDto } from './dto/object-list-response.dto';
@@ -43,7 +45,7 @@ import {
   LEADERSHIP_OBJECT_ROLE_CODES,
 } from './utils/object-access.util';
 import { buildObjectCapabilities } from './utils/object-capabilities.util';
-import { annualSeason, baseCompensation, moscowDateKey } from './utils/object-season.util';
+import { annualSeason, baseCompensation, moscowDateKey, validAnnualDate } from './utils/object-season.util';
 
 interface CurrentAuthUser {
   id: string;
@@ -197,6 +199,8 @@ export class ObjectsService {
     private readonly auditService: AuditService,
     private readonly chatsService: ChatsService,
     private readonly notificationsService: NotificationsService,
+    private readonly objectSetup: ObjectSetupService,
+    private readonly scheduling: ObjectSchedulingService,
   ) {}
 
   async listObjects(
@@ -394,8 +398,31 @@ export class ObjectsService {
       throw new ForbiddenException('Object creation denied');
     }
 
+    const planning = payload.planning;
+    if (planning) {
+      if (!canEditObjectDailyRate(roleCodes)) {
+        throw new ForbiddenException('Изменение сезонов недоступно');
+      }
+      if (planning.automaticSeasons && (!planning.summerStartsOn || !planning.winterStartsOn)) {
+        throw new BadRequestException('Укажите даты начала лета и зимы');
+      }
+      if ((planning.summerStartsOn && !validAnnualDate(planning.summerStartsOn)) ||
+          (planning.winterStartsOn && !validAnnualDate(planning.winterStartsOn)) ||
+          (planning.summerStartsOn && planning.summerStartsOn === planning.winterStartsOn)) {
+        throw new BadRequestException('Укажите разные корректные даты начала сезонов');
+      }
+    }
+    const initialSeason = planning
+      ? planning.automaticSeasons
+        ? annualSeason(planning.summerStartsOn!, planning.winterStartsOn!)
+        : null
+      : payload.seasonMode ?? null;
+    if (planning && payload.seasonMode != null && payload.seasonMode !== initialSeason) {
+      throw new BadRequestException('При сезонности активный сезон определяется автоматически');
+    }
+
     const responsibleUser = await this.getAssignableResponsibleUser(
-      payload.responsibleUserId,
+      payload.responsibleUserId ?? currentUser.id,
     );
 
     if (payload.counterpartyId) {
@@ -468,7 +495,7 @@ export class ObjectsService {
       if (error) throw new BadRequestException(`${label}: ${error}`);
     }
     const activeScheduleProfile = resolveActiveScheduleProfile(
-      payload.seasonMode ?? null,
+      initialSeason,
       defaultScheduleProfile,
       summerScheduleProfile,
       winterScheduleProfile,
@@ -481,7 +508,7 @@ export class ObjectsService {
           internalName: payload.internalName ?? null,
           address: payload.address,
           status: payload.status ?? 'active',
-          seasonMode: payload.seasonMode ?? null,
+          seasonMode: initialSeason,
           baseCompensationProfile: {
             paymentType: payload.paymentType ?? ((payload.monthlySalary ?? 0) > 0 ? 'monthly' : 'daily'), dailyRate: payload.dailyRate ?? 0, monthlySalary: payload.monthlySalary ?? 0,
             ...defaultScheduleProfile, paymentScheduleCycleStartDate: formatDateOnly(defaultScheduleProfile.paymentScheduleCycleStartDate),
@@ -490,19 +517,19 @@ export class ObjectsService {
           engineeringRequired: payload.engineeringRequired ?? false,
           winterTractorMode: payload.winterTractorMode ?? 'none',
           instructionSteps: (payload.instructionSteps ?? []).map((step) => step.trim()).filter(Boolean),
-          paymentType: payload.seasonMode === 'summer'
+          paymentType: initialSeason === 'summer'
             ? payload.summerPaymentType ?? payload.paymentType ?? 'daily'
-            : payload.seasonMode === 'winter'
+            : initialSeason === 'winter'
               ? payload.winterPaymentType ?? payload.paymentType ?? 'daily'
               : payload.paymentType ?? ((payload.monthlySalary ?? 0) > 0 ? 'monthly' : 'daily'),
-          dailyRate: payload.seasonMode === 'summer'
+          dailyRate: initialSeason === 'summer'
             ? payload.summerDailyRate ?? payload.dailyRate ?? 0
-            : payload.seasonMode === 'winter'
+            : initialSeason === 'winter'
               ? payload.winterDailyRate ?? payload.dailyRate ?? 0
               : payload.dailyRate ?? 0,
-          monthlySalary: payload.seasonMode === 'summer'
+          monthlySalary: initialSeason === 'summer'
             ? payload.summerMonthlySalary ?? payload.monthlySalary ?? 0
-            : payload.seasonMode === 'winter'
+            : initialSeason === 'winter'
               ? payload.winterMonthlySalary ?? payload.monthlySalary ?? 0
               : payload.monthlySalary ?? 0,
           paymentScheduleCode: activeScheduleProfile.paymentScheduleCode,
@@ -567,6 +594,50 @@ export class ObjectsService {
             isActive: true,
           },
         });
+      }
+
+      if (planning) {
+        await tx.objectPlanningSettings.create({ data: {
+          objectId: object.id,
+          automaticSeasons: planning.automaticSeasons,
+          summerStartsOn: planning.summerStartsOn ?? null,
+          winterStartsOn: planning.winterStartsOn ?? null,
+        } });
+      }
+      await this.objectSetup.createInTransaction(tx, currentUser, object.id, payload.setup);
+      const initialContours = payload.payContours?.length
+        ? await this.scheduling.createContoursInTransaction(tx, currentUser, object.id, payload.payContours)
+        : [];
+      const contourIds = new Map<string, string>(initialContours.map((contour) => [contour.code, contour.id]));
+      if (payload.staffingPositions?.length) {
+        const positions = payload.staffingPositions.map((position) => ({
+          ...position,
+          groups: position.groups.map((group) => ({
+            ...group,
+            timeRanges: group.timeRanges.map((range) => {
+              if (!range.contourId?.startsWith('draft:')) return range;
+              const id = contourIds.get(range.contourId.slice(6));
+              if (!id) throw new BadRequestException('Условия оплаты позиции не найдены в создаваемом объекте');
+              return { ...range, contourId: id };
+            }),
+          })),
+        }));
+        await this.scheduling.createPositionsInTransaction(tx, currentUser, object.id, positions);
+      }
+      if (payload.contacts?.length) {
+        await tx.objectContact.createMany({
+          data: payload.contacts.map((contact) => ({
+            objectId: object.id,
+            name: contact.name.trim(),
+            position: contact.position?.trim() || null,
+            phones: contact.phones ?? [], emails: contact.emails ?? [],
+            links: contact.links ?? [], notes: contact.notes?.trim() || null,
+          })),
+        });
+        await tx.objectAuditLog.create({ data: {
+          objectId: object.id, actorUserId: currentUser.id,
+          actionCode: 'object.contacts.created', payload: { count: payload.contacts.length },
+        } });
       }
 
       const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(

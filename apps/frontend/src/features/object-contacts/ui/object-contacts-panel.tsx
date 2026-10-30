@@ -10,20 +10,19 @@ import {
   Alert,
   Button,
   EmptyState,
-  Field,
   LoadingState,
   Stack,
   Surface,
 } from "@/shared/ui/foundation";
 import { useConfirm } from "@/shared/ui/overlays";
 import {
-  PhoneListField,
   phoneDrafts,
   phoneDraftValues,
   type PhoneDraft,
 } from "@/shared/ui/phone-list-field/phone-list-field";
 import { getErrorMessage } from "@/shared/lib/error-message";
 import styles from "@/features/object-shared-ui/object-surfaces.module.css";
+import { ContactEditor } from './contact-editor';
 
 export function ObjectContactsPanel({
   objectId,
@@ -171,57 +170,11 @@ export function ObjectContactsPanel({
           }}
           className={styles.formGrid}
         >
-          <Field label="Имя или название" required>
-            <input
-              value={name}
-              maxLength={160}
-              onChange={(event) => setName(event.target.value)}
-              disabled={pending}
-            />
-          </Field>
-          <Field label="Должность / роль">
-            <input
-              value={position}
-              maxLength={160}
-              onChange={(event) => setPosition(event.target.value)}
-              disabled={pending}
-            />
-          </Field>
           <div className={styles.fullWidth}>
-            <PhoneListField
-              phones={phones}
-              onChange={setPhones}
-              disabled={pending}
-            />
+            <ContactEditor value={{ key: editing === 'new' ? 'new' : editing.id, name, position, phones, emails, links, notes }} disabled={pending} onChange={(next) => {
+              setName(next.name); setPosition(next.position); setPhones(next.phones); setEmails(next.emails); setLinks(next.links); setNotes(next.notes);
+            }} />
           </div>
-          <Field
-            label="Электронная почта"
-            description="Каждый адрес с новой строки"
-          >
-            <textarea
-              value={emails}
-              onChange={(event) => setEmails(event.target.value)}
-              disabled={pending}
-            />
-          </Field>
-          <Field
-            label="Ссылки на соцсети и сайты"
-            description="Каждая ссылка с https:// с новой строки"
-          >
-            <textarea
-              value={links}
-              onChange={(event) => setLinks(event.target.value)}
-              disabled={pending}
-            />
-          </Field>
-          <Field label="Примечание">
-            <textarea
-              value={notes}
-              maxLength={4000}
-              onChange={(event) => setNotes(event.target.value)}
-              disabled={pending}
-            />
-          </Field>
           <div className={`ui-inline ${styles.fullWidth}`}>
             <Button type="submit" variant="primary" pending={pending}>
               Сохранить контакт

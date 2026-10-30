@@ -5,6 +5,20 @@ import React, { useEffect, useRef, useState } from 'react';
 
 import { listCounterpartyReferences } from '@/entities/counterparty/api/counterparty-client';
 import { createObject } from '@/entities/object/api/object-client';
+import { listEmployees } from '@/entities/employee/api/employee-client';
+import { PositionsEditor } from '@/features/object-scheduling/ui/positions-editor';
+import { previewNewObjectSchedule } from '@/entities/object/api/object-scheduling-client';
+import { PayContourEditor } from '@/features/object-scheduling/ui/pay-contour-editor';
+import { contourPayload, newContourDraft, type ContourDraft } from '@/features/object-scheduling/model/contour-draft';
+import { positionPayload, type PositionDraft } from '@/features/object-scheduling/model/schedule-draft';
+import { ObjectSetupEditor } from '@/features/object-setup/ui/object-setup-editor';
+import { setupDraft, setupPayload } from '@/features/object-setup/model/setup-draft';
+import type { SetupCapabilities } from '@/entities/object/model/object-setup.types';
+import { ContactEditor, contactPayload, newContactDraft, type ContactDraft } from '@/features/object-contacts/ui/contact-editor';
+import { SeasonFields } from '@/features/object-planning/ui/season-fields';
+import { seasonPlanningPayload } from '@/features/object-planning/model/season-planning';
+import { useConfirm } from '@/shared/ui/overlays';
+import { Alert } from '@/shared/ui/foundation';
 import {
   listSystemUsers,
   type SystemUserOption,
@@ -178,12 +192,6 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'archived', label: 'Архив' },
 ];
 
-const SEASON_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: 'Без сезонности' },
-  { value: 'summer', label: 'Летний' },
-  { value: 'winter', label: 'Зимний' },
-];
-
 export default function NewObjectPage(): React.JSX.Element {
   const router = useRouter();
   const { user } = useAuth();
@@ -193,7 +201,6 @@ export default function NewObjectPage(): React.JSX.Element {
     internalName: '',
     address: '',
     status: 'active',
-    seasonMode: '',
     summerWindowCleaning: false,
     engineeringRequired: false,
     winterTractorMode: 'none' as 'none' | 'with_removal' | 'without_removal',
@@ -228,10 +235,34 @@ export default function NewObjectPage(): React.JSX.Element {
   const [usersError, setUsersError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [setup, setSetup] = useState(setupDraft);
+  const [positions, setPositions] = useState<PositionDraft[]>([]);
+  const [payContours, setPayContours] = useState<ContourDraft[]>([]);
+  const [contacts, setContacts] = useState<ContactDraft[]>([]);
+  const [automaticSeasons, setAutomaticSeasons] = useState(false);
+  const [summerStartsOn, setSummerStartsOn] = useState('');
+  const [winterStartsOn, setWinterStartsOn] = useState('');
+  const [confirm, confirmDialog] = useConfirm();
+  const initialForm = useRef(form);
+  const dirty = JSON.stringify(form) !== JSON.stringify(initialForm.current) || JSON.stringify(setup) !== JSON.stringify(setupDraft()) || !!positions.length || !!payContours.length || !!contacts.length || automaticSeasons || !!responsibleUserId || !!managerUserIds.length || !!counterpartyId;
+  useEffect(() => {
+    if (!dirty) return;
+    const onUnload = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', onUnload);
+    return () => window.removeEventListener('beforeunload', onUnload);
+  }, [dirty]);
 
   const allowCreateObject = user?.capabilities?.canCreateObject ?? false;
   const allowLinkCounterparty =
     user?.capabilities?.canLinkCounterpartyObjects ?? false;
+  const allowEmployees = !!user?.capabilities?.canAccessEmployeesHr && !!user?.capabilities?.canManageEmployeeAssignments;
+  const roles = user?.roleCodes?.length ? user.roleCodes : [user?.roleCode];
+  const setupCapabilities: SetupCapabilities = {
+    canEditCore: allowCreateObject, canViewContractAmount: allowCreateObject, canEditContractAmount: allowCreateObject,
+    canViewBudgets: allowCreateObject, canEditBudgets: roles.some((role) => role === 'founder' || role === 'director'),
+    // Object-scoped coefficient capability is returned after creation; do not infer it from identity.
+    canViewCoefficient: false, canEditCoefficient: false,
+  };
 
   const compensationProfiles: ObjectCompensationProfilesValue = {
     paymentType: form.paymentType,
@@ -299,15 +330,11 @@ export default function NewObjectPage(): React.JSX.Element {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    if (isSubmitting) return;
     setError(null);
 
     if (!allowCreateObject) {
       setError('У вашей роли нет прав на создание объектов.');
-      return;
-    }
-
-    if (!responsibleUserId) {
-      setError('Выберите ответственного за объект.');
       return;
     }
 
@@ -320,11 +347,16 @@ export default function NewObjectPage(): React.JSX.Element {
 
     try {
       await createObject({
+        planning: seasonPlanningPayload(automaticSeasons, summerStartsOn, winterStartsOn),
+        payContours: payContours.map(contourPayload),
+        contacts: contacts.map(contactPayload),
+        setup: setupPayload(setup, setupCapabilities),
+        staffingPositions: positions.map(positionPayload),
         name: form.name.trim(),
-        internalName: form.internalName.trim(),
+        internalName: form.internalName.trim() || undefined,
         address: form.address.trim(),
         status: form.status,
-        seasonMode: form.seasonMode || null,
+        seasonMode: null,
         summerWindowCleaning: form.summerWindowCleaning,
         engineeringRequired: form.engineeringRequired,
         winterTractorMode: form.winterTractorMode,
@@ -350,7 +382,7 @@ export default function NewObjectPage(): React.JSX.Element {
         notes: form.notes.trim() || undefined,
         counterpartyId: allowLinkCounterparty ? counterpartyId || null : null,
         managerUserIds,
-        responsibleUserId,
+        responsibleUserId: responsibleUserId || undefined,
       });
       router.push('/objects');
     } catch (caughtError) {
@@ -366,6 +398,7 @@ export default function NewObjectPage(): React.JSX.Element {
 
   return (
     <div className={`ui-page object-create-page ${styles.page}`}>
+      {confirmDialog}
       <PageTitle title="Новый объект" />
       <form className={styles.form} onSubmit={handleSubmit}>
         <section className={styles.section}>
@@ -392,7 +425,6 @@ export default function NewObjectPage(): React.JSX.Element {
                 onChange={(event) => setForm((prev) => ({ ...prev, internalName: event.target.value }))}
                 placeholder="Короткое рабочее название"
                 disabled={isSubmitting}
-                required
               />
             </label>
 
@@ -441,6 +473,13 @@ export default function NewObjectPage(): React.JSX.Element {
         </section>
 
         <section className={styles.section}>
+          <ObjectSetupEditor value={setup} onChange={setSetup} capabilities={setupCapabilities} disabled={isSubmitting}
+            selectedSalesUser={responsibleOptions.find((option) => option.value === setup.salesResponsibleUserId)}
+            searchUsers={async (q) => (await listSystemUsers({ purpose: 'object_responsible', q, limit: 20 })).map((candidate) => ({ value: candidate.id, label: getUserDisplayName(candidate), description: getUserSecondaryLabel(candidate) ?? undefined }))} />
+          <p className={styles.helperText}>Коэффициент и дополнительные персональные права доступны после создания в настройках объекта.</p>
+        </section>
+
+        <section className={styles.section}>
           <div className={styles.sectionHeader}>
             <h2>Условия и оплата</h2>
           </div>
@@ -456,19 +495,12 @@ export default function NewObjectPage(): React.JSX.Element {
               disabled={isSubmitting}
             />
 
-            <SelectField
-              label="Сезон"
-              clearable={false}
-              searchable={false}
-              value={form.seasonMode}
-              options={SEASON_OPTIONS}
-              onChange={(value) => setForm((prev) => ({ ...prev, seasonMode: value }))}
-              disabled={isSubmitting}
-            />
+            <div className={styles.fullWidth}><SeasonFields automatic={automaticSeasons} summer={summerStartsOn} winter={winterStartsOn} onAutomaticChange={setAutomaticSeasons} onSummerChange={setSummerStartsOn} onWinterChange={setWinterStartsOn} disabled={isSubmitting} /></div>
 
             <div className={`${styles.fullWidth}`}>
               <ObjectCompensationProfiles
                 value={compensationProfiles}
+                showSeasonalProfiles={automaticSeasons}
                 disabled={isSubmitting}
                 onChange={(nextValue) => setForm((previous) => ({ ...previous, ...nextValue }))}
               />
@@ -493,10 +525,10 @@ export default function NewObjectPage(): React.JSX.Element {
                 label="Ответственный"
                 value={responsibleUserId}
                 options={responsibleOptions}
-                placeholder="Выберите ответственного"
+                placeholder="Создатель объекта"
                 searchPlaceholder="ФИО или логин"
                 emptyText="Подходящие пользователи не найдены"
-                clearable={false}
+                clearable
                 viewportAware
                 onChange={setResponsibleUserId}
                 disabled={isSubmitting}
@@ -510,6 +542,41 @@ export default function NewObjectPage(): React.JSX.Element {
               />
             </div>
           )}
+        </section>
+
+        <section className={styles.section}>
+          <h2 className="ui-section-title">Контакты объекта</h2>
+          <p className={styles.helperText}>Необязательно. Контактные лица не являются сотрудниками или системными пользователями.</p>
+          {contacts.map((contact) => <div key={contact.key} className={styles.section}>
+            <ContactEditor value={contact} disabled={isSubmitting} onChange={(next) => setContacts((previous) => previous.map((item) => item.key === contact.key ? next : item))} />
+            <div><Button disabled={isSubmitting} onClick={() => setContacts((previous) => previous.filter((item) => item.key !== contact.key))}>Убрать контакт из черновика</Button></div>
+          </div>)}
+          <div><Button disabled={isSubmitting} onClick={() => setContacts((previous) => [...previous, newContactDraft()])}>Добавить контакт</Button></div>
+        </section>
+
+        <section className={styles.section}>
+          <h2 className="ui-section-title">Отдельные условия оплаты</h2>
+          <p className={styles.helperText}>Необязательно. Для дневной и ночной работы можно явно задать разные контуры. Каждый контур оплачивается сотруднику один раз в день; разные контуры суммируются. Они применимы к оплате за выход, не к месячной модели.</p>
+          {payContours.map((contour) => <div key={contour.code} className={styles.section}>
+            <PayContourEditor value={contour} disabled={isSubmitting} onChange={(next) => setPayContours((previous) => previous.map((item) => item.code === contour.code ? next : item))} />
+            <div><Button disabled={isSubmitting || positions.some((position) => position.groups.some((group) => group.intervals.some((interval) => interval.contourId === `draft:${contour.code}`)))} onClick={() => setPayContours((previous) => previous.filter((item) => item.code !== contour.code))}>Убрать условия</Button></div>
+            {positions.some((position) => position.groups.some((group) => group.intervals.some((interval) => interval.contourId === `draft:${contour.code}`))) ? <p className={styles.helperText}>Чтобы убрать условия, сначала выберите другие в интервалах графика.</p> : null}
+          </div>)}
+          <div><Button disabled={isSubmitting} onClick={() => setPayContours((previous) => [...previous, newContourDraft()])}>Добавить условия оплаты</Button></div>
+        </section>
+
+        <section className={styles.section}>
+          <PositionsEditor value={positions} onChange={setPositions} disabled={isSubmitting}
+            contours={payContours.map((contour) => ({ value: `draft:${contour.code}`, label: contour.name || 'Новые условия оплаты' }))} canSelectPayConditions={allowCreateObject}
+            onPreview={(position, from, to) => previewNewObjectSchedule({ from, to, draft: positionPayload(position) })}
+            canAssignEmployees={allowEmployees}
+            employeeAccessMessage="Кадровый реестр недоступен. Создайте объект без сотрудников; доступный состав можно выбрать позднее в «Команде»."
+            searchEmployees={async (search) => {
+              if (!allowEmployees) return [];
+              const response = await listEmployees({ search, page: 1, limit: 20, archiveState: 'active' });
+              return response.items.map((employee) => ({ value: employee.id, label: employee.fullName, description: employee.position ?? undefined }));
+            }} />
+          {positions.length ? <Alert tone="info">Сведения, контуры и позиции сохраняются вместе. Предпросмотр не создаёт объект, присутствие или начисление.</Alert> : null}
         </section>
 
         <section className={styles.section}>
@@ -580,19 +647,19 @@ export default function NewObjectPage(): React.JSX.Element {
           />
         </section>
 
-        {error ? <div className={styles.formError}>{error}</div> : null}
+        {error ? <Alert tone="danger" className={styles.formError}>{error}</Alert> : null}
 
         <div className={styles.actions}>
           <Button variant="ghost"
 
-            onClick={() => router.push('/objects')}
+            onClick={async () => { if (!dirty || await confirm({ title: 'Отменить создание объекта?', consequence: 'Несохранённые сведения, контакты и графики будут потеряны.', confirmLabel: 'Отменить создание' })) router.push('/objects'); }}
             disabled={isSubmitting}
           >
             Отмена
           </Button>
           <Button variant="primary"
             type="submit"
-            disabled={isSubmitting || isUsersLoading || !allowCreateObject || !responsibleUserId || invalidScheduleProfiles.length > 0}
+            disabled={isSubmitting || isUsersLoading || !allowCreateObject || invalidScheduleProfiles.length > 0}
           >
             {isSubmitting ? 'Создаём…' : 'Создать объект'}
           </Button>

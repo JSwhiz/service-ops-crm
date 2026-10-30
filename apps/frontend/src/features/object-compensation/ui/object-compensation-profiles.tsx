@@ -6,6 +6,7 @@ import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-selec
 
 import styles from './object-compensation-profiles.module.css';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
+import { Alert } from '@/shared/ui/foundation';
 
 export interface ObjectCompensationProfilesValue {
   paymentType: 'monthly' | 'daily';
@@ -32,6 +33,7 @@ interface ObjectCompensationProfilesProps {
   value: ObjectCompensationProfilesValue;
   onChange: (value: ObjectCompensationProfilesValue) => void;
   disabled?: boolean;
+  showSeasonalProfiles?: boolean;
 }
 
 const PAYMENT_OPTIONS = [
@@ -39,7 +41,7 @@ const PAYMENT_OPTIONS = [
   { value: 'daily', label: 'Ставка за фактический выход' },
 ];
 
-const SCHEDULE_OPTIONS = ['1/6', '2/5', '3/4', '4/3', '5/2', '6/1', '7/0'].map((code) => ({
+const SCHEDULE_OPTIONS = ['5/2', '1/6', '2/5', '3/4', '4/3', '6/1', '7/0'].map((code) => ({
   value: code,
   label: code,
 }));
@@ -114,6 +116,7 @@ export function ObjectCompensationProfiles({
   value,
   onChange,
   disabled = false,
+  showSeasonalProfiles = true,
 }: ObjectCompensationProfilesProps): React.JSX.Element {
   const invalidProfiles = new Set(getInvalidObjectScheduleProfiles(value));
 
@@ -139,15 +142,17 @@ export function ObjectCompensationProfiles({
       <div className={styles.intro}>
         <h3 id="object-compensation-title">Условия оплаты объекта</h3>
         <p>
-          Сумма за выход и оклад хранятся отдельно. При месячной модели график
-          участвует в расчёте начислений. Для каждого тарифа выберите один режим:
+          Сумма за выход и оклад хранятся отдельно. График здесь задаёт норму
+          месячного начисления, а плановые смены и сотрудников задают позиции ниже. Для каждого тарифа выберите один режим:
           стандартный график или конкретные дни недели. Сохранённая история
           табеля не пересчитывается.
         </p>
       </div>
 
+      {!showSeasonalProfiles && [...invalidProfiles].some((title) => title !== 'По умолчанию') ? <Alert tone="warning">В сезонных тарифах остался незавершённый график. Включите сезонность и проверьте его перед сохранением. Введённые значения сохранены в черновике.</Alert> : null}
+
       <div className={styles.profileGrid}>
-        {PROFILES.map((profile) => {
+        {PROFILES.filter((profile) => showSeasonalProfiles || profile.id === 'default').map((profile) => {
           const paymentType = value[profile.typeKey] as 'monthly' | 'daily';
           const weekdays = value[profile.weekdaysKey] as string[];
           const scheduleCode = value[profile.scheduleCodeKey] as string;
@@ -198,7 +203,7 @@ export function ObjectCompensationProfiles({
               </label>
 
               <fieldset className={styles.scheduleField}>
-                <legend>График работы</legend>
+                <legend>Норма месячного начисления</legend>
                 <div className={styles.scheduleModes} role="radiogroup" aria-label={`Режим графика: ${profile.title}`}>
                   <label className={styles.scheduleMode}>
                     <input

@@ -470,6 +470,10 @@ model Object {
   deletedAt               DateTime?
 
   attendanceFacts           ObjectAttendanceFact[]
+  setup                     ObjectSetup?
+  staffPositions            ObjectStaffPosition[]
+  payContours               ObjectPayContour[]
+  shiftAttendance           ObjectShiftAttendance[]
   createdBy                 User                              @relation("ObjectCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   counterparty              Counterparty?                     @relation(fields: [counterpartyId], references: [id], onDelete: SetNull)
   masterForCounterparty     Counterparty?                     @relation("CounterpartyMasterObject", fields: [masterForCounterpartyId], references: [id], onDelete: Restrict)
@@ -616,6 +620,7 @@ model Employee {
   deletedAt          DateTime?
 
   attendanceFacts            ObjectAttendanceFact[]
+  shiftAttendance            ObjectShiftAttendance[]
   objectAssignments          ObjectEmployeeAssignment[]
   objectAssignmentHistory    EmployeeObjectAssignmentHistory[]
   availabilityWindows        EmployeeAvailabilityWindow[]
@@ -2070,6 +2075,7 @@ model ObjectAttendanceFact {
   workedHours            Float?
   ratePolicySnapshot     Json?
   calculationExplanation String?
+  source                 String   @default("legacy")
   createdByUserId        String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
@@ -2082,6 +2088,102 @@ model ObjectAttendanceFact {
   @@index([objectId, operationDate])
   @@index([employeeId, operationDate])
   @@map("object_attendance_facts")
+}
+
+model ObjectSetup {
+  objectId  String   @id
+  version   Int      @default(1)
+  data      Json
+  updatedAt DateTime @updatedAt
+  object    Object   @relation(fields: [objectId], references: [id], onDelete: Cascade)
+
+  @@map("object_setup")
+}
+
+model ObjectStaffPosition {
+  id        String @id @default(uuid())
+  objectId  String
+  clientKey String
+  version   Int @default(1)
+  object    Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  revisions ObjectScheduleVersion[]
+
+  @@unique([objectId, clientKey])
+  @@map("object_staff_positions")
+}
+
+/// Immutable dated planning snapshot. Groups contain typed, server-validated
+/// employee references and assignment intervals; they never create HR staffing.
+model ObjectScheduleVersion {
+  id              String @id @default(uuid())
+  positionId      String
+  version         Int
+  effectiveFrom   DateTime @db.Date
+  name            String
+  headcount       Int?
+  requiredPerShift Int @default(1)
+  archived        Boolean @default(false)
+  template        Json
+  groups          Json
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  position        ObjectStaffPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  attendance      ObjectShiftAttendance[]
+
+  @@unique([positionId, version])
+  @@index([positionId, effectiveFrom, version])
+  @@map("object_schedule_versions")
+}
+
+model ObjectPayContour {
+  id            String @id @default(uuid())
+  objectId      String
+  code          String
+  name          String
+  dailyRate     Int
+  summerDailyRate Int?
+  winterDailyRate Int?
+  version       Int @default(1)
+  isActive      Boolean @default(true)
+  effectiveFrom DateTime @db.Date
+  updatedAt     DateTime @updatedAt
+  object        Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  attendance    ObjectShiftAttendance[]
+
+  @@unique([objectId, code])
+  @@map("object_pay_contours")
+}
+
+model ObjectShiftAttendance {
+  id                    String @id @default(uuid())
+  objectId              String
+  employeeId            String
+  operationDate         DateTime @db.Date
+  revisionId            String
+  groupKey              String
+  timeRangeKey          String
+  requestKey            String
+  contourId             String?
+  status                String @default("confirmed")
+  version               Int @default(1)
+  startsAt              DateTime
+  endsAt                DateTime
+  dailyRateSnapshot     Int
+  ratePolicySnapshot    Json
+  createdByUserId       String
+  createdAt             DateTime @default(now())
+  cancelledByUserId     String?
+  cancelledAt           DateTime?
+  cancelReason          String?
+  object                Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  employee              Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  revision              ObjectScheduleVersion @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  contour               ObjectPayContour? @relation(fields: [contourId], references: [id], onDelete: Restrict)
+
+  @@unique([objectId, requestKey])
+  @@unique([revisionId, groupKey, timeRangeKey, employeeId, operationDate], map: "object_shift_attendance_revisionId_groupKey_timeRangeKey_emp_ke")
+  @@index([objectId, employeeId, operationDate, status], map: "object_shift_attendance_objectId_employeeId_operationDate_sta_i")
+  @@map("object_shift_attendance")
 }
 
 model AuthSession {

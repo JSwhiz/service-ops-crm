@@ -10,11 +10,14 @@ import { ObjectsController } from './objects.controller';
 import { ObjectsService } from './objects.service';
 import { ObjectPlanningService } from './object-planning.service';
 import { ObjectPlanningController } from './object-planning.controller';
+import { ObjectSetupController } from './object-setup.controller';
+import { ObjectSetupService } from './object-setup.service';
+import { ObjectSchedulingModule } from '../object-scheduling/object-scheduling.module';
 
 @Module({
-  imports: [PrismaModule, AuditModule, ChatsModule, NotificationsModule],
-  controllers: [ObjectsController, ObjectPlanningController],
-  providers: [ObjectsService, ObjectRegistrySignalsService, ObjectPlanningService, { provide: 'ObjectPlanningService', useExisting: ObjectPlanningService }],
-  exports: [ObjectsService, ObjectPlanningService],
+  imports: [PrismaModule, AuditModule, ChatsModule, NotificationsModule, ObjectSchedulingModule],
+  controllers: [ObjectsController, ObjectPlanningController, ObjectSetupController],
+  providers: [ObjectsService, ObjectSetupService, ObjectRegistrySignalsService, ObjectPlanningService, { provide: 'ObjectPlanningService', useExisting: ObjectPlanningService }],
+  exports: [ObjectsService, ObjectPlanningService, ObjectSetupService],
 })
 export class ObjectsModule {}

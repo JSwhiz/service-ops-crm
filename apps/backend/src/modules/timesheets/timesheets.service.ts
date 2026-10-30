@@ -65,13 +65,40 @@ export class TimesheetsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** The attendance caller holds the object lock; fact and monetary day commit together. */
-  async syncAttendanceDay(tx: Prisma.TransactionClient, params: { objectId: string; timesheetMonthId: string; year: number; month: number; dayOfMonth: number; actorUserId: string; previousFactEmployeeIds: string[] }): Promise<void> {
-    const rows = await tx.timesheetEmployeeRow.findMany({ where: { timesheetMonthId: params.timesheetMonthId }, include: { entries: true } });
+  async syncAttendanceDay(tx: Prisma.TransactionClient, params: { objectId: string; timesheetMonthId: string; year: number; month: number; dayOfMonth: number; actorUserId: string; previousFactEmployeeIds: string[]; employeeIds?: string[]; reconcileMonthly?: boolean }): Promise<void> {
+    const rows = await tx.timesheetEmployeeRow.findMany({ where: { timesheetMonthId: params.timesheetMonthId, ...(params.employeeIds ? {employeeId: {in: params.employeeIds}} : {}) }, include: { entries: true } });
     const facts = await tx.objectAttendanceFact.findMany({ where: { objectId: params.objectId, operationDate: this.getMonthRange(params.year, params.month) } });
     for (const row of rows) {
       const employeeFacts = facts.filter((fact) => fact.employeeId === row.employeeId);
       const todayFact = employeeFacts.find((fact) => new Date(fact.operationDate).getDate() === params.dayOfMonth);
       const stored = row.entries.find((entry) => entry.dayOfMonth === params.dayOfMonth);
+      const affectedPolicy = parseRatePolicySnapshot(todayFact?.ratePolicySnapshot ?? stored?.ratePolicySnapshot);
+      if (params.reconcileMonthly && affectedPolicy?.ratePolicyType === 'monthly_fixed') {
+        // Attendance changes alter the capped monthly allocation. Reconcile the
+        // affected immutable policy cohort; never price old days at a current rate.
+        const policyKey = JSON.stringify(affectedPolicy);
+        const cohort = employeeFacts.filter(fact => JSON.stringify(parseRatePolicySnapshot(fact.ratePolicySnapshot)) === policyKey);
+        const factByDay = new Map(cohort.map(fact => [new Date(fact.operationDate).getDate(), fact]));
+        const calculated = calculateTimesheetAutoValues({year: params.year, month: params.month, daysInMonth: this.getDaysInMonth(params.year, params.month), policy: affectedPolicy, facts: this.groupAttendanceFactsByEmployee(cohort).get(row.employeeId) ?? []});
+        const affectedDays = new Set([...factByDay.keys(), ...row.entries.filter(entry => JSON.stringify(parseRatePolicySnapshot(entry.ratePolicySnapshot)) === policyKey).map(entry => entry.dayOfMonth), params.dayOfMonth]);
+        for (const dayOfMonth of affectedDays) {
+          const fact = factByDay.get(dayOfMonth);
+          const entry = row.entries.find(item => item.dayOfMonth === dayOfMonth);
+          if (!fact && !entry) continue;
+          const value = calculated.get(dayOfMonth);
+          const autoValue = value?.autoValue ?? 0;
+          const finalValue = entry?.isChangedManually ? entry.manualValue ?? entry.dayValue : autoValue;
+          const data = {
+            autoValue, dayValue: finalValue, difference: finalValue - autoValue,
+            workedHours: fact?.workedHours ?? null,
+            ratePolicySnapshot: (fact?.ratePolicySnapshot ?? entry?.ratePolicySnapshot ?? affectedPolicy) as Prisma.InputJsonValue,
+            calculationExplanation: value?.calculationExplanation ?? 'Факт выхода снят; ручная корректировка сохранена, если была',
+            updatedByUserId: params.actorUserId,
+          };
+          await tx.timesheetDayEntry.upsert({where: {rowId_dayOfMonth: {rowId: row.id, dayOfMonth}}, update: data, create: {rowId: row.id, dayOfMonth, ...data, createdByUserId: params.actorUserId}});
+        }
+        continue;
+      }
       if (params.previousFactEmployeeIds.includes(row.employeeId) && stored && todayFact && stored.workedHours === todayFact.workedHours && JSON.stringify(stored.ratePolicySnapshot) === JSON.stringify(todayFact.ratePolicySnapshot)) continue;
       const policy = parseRatePolicySnapshot(todayFact?.ratePolicySnapshot);
       const calculated = todayFact && policy ? calculateTimesheetAutoValues({ year: params.year, month: params.month, daysInMonth: this.getDaysInMonth(params.year, params.month), policy, facts: this.groupAttendanceFactsByEmployee(employeeFacts).get(row.employeeId) ?? [] }).get(params.dayOfMonth) : undefined;

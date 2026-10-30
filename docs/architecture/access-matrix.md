@@ -1,5 +1,7 @@
 # Access Matrix
 
+Уточнение новой разработки 2026-10-28: договорная сумма объекта видна только четырём leadership-ролям, включая API и историю. Управление плановыми позициями/группами наследует действующий объектный operational scope, но создание/смена их денежных условий требует существующего права управления ставками. Операционное подтверждение смены не разрешает менять её цену или ручной итог дня. Для коэффициента вводится узкая capability `object.coefficient_edit`, выдаваемая только согласованным аккаунтам Лебедева и Герасимова; runtime не вычисляет право по свободному ФИО. Существующее редактирование бюджета и ручная корректировка табеля сохраняют собственные ограничения. Подробности и статус — [контракт](../product/object-setup-contract-2026-10-28.md), [план](../product/object-creation-workgroup-2026-10-28.md).
+
 ## Назначение документа
 
 Этот документ фиксирует каноническую матрицу доступа на текущем этапе.
@@ -88,10 +90,11 @@
 | Manage default, summer and winter object compensation profiles | yes | yes | yes | yes | yes | no | no |
 | Create/edit named employee rate options, including substitution rates | yes | yes | yes | yes | yes | no | no |
 | Assign employee rate option or individual compensation | yes | yes | yes | yes | yes | no | no |
+| Select an existing active pay condition for an object staffing position | yes | yes | yes | yes | yes | scoped, writable object | scoped, writable object |
 | Record a manually priced extra shift for an employee on the assigned object | yes | yes | yes | yes | yes | no | yes, assigned object only; amount and reason required; management notified |
 | Edit/clear a historical attendance rate override | founder | no by default | director | no by default | no | no | no |
 
-`deputy_director` receives this explicit narrow rate-management grant but remains outside the leadership circle. It does not grant object-core edit, budget edit, approval authority, or manual historical timesheet correction. Managers can view rates but cannot manage or reassign them; their only exception is recording a new object-scoped extra shift with amount and reason. It is stored through the existing attendance/timesheet snapshot flow and audited; prior facts are not rewritten.
+`deputy_director` receives this explicit narrow rate-management grant but remains outside the leadership circle. It does not grant object-core edit, budget edit, approval authority, or manual historical timesheet correction. Managers can view rates but cannot create conditions, edit amounts or arbitrarily reassign individual employee rates. Clarification 2026-10-29 (OQ-149): a scoped manager may select any existing active condition of that object in a staffing position through `selectPayConditions`, separately from `manageRates`. Recording a new object-scoped extra shift with amount and reason remains a separate existing exception. Changes are audited; prior facts are not rewritten.
 
 Дополнительные финансовые действия могут выдаваться capability-моделью.
 

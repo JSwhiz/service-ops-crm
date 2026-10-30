@@ -27,7 +27,6 @@ interface FormState {
   internalName: string;
   address: string;
   status: string;
-  seasonMode: string;
   dailyRate: string;
   notes: string;
 }
@@ -38,7 +37,6 @@ function buildInitialForm(item: ServiceObject): FormState {
     internalName: item.internalName ?? '',
     address: item.address,
     status: item.status,
-    seasonMode: item.seasonMode ?? '',
     dailyRate: String(item.dailyRate),
     notes: item.notes ?? '',
   };
@@ -119,7 +117,6 @@ export function ObjectEditPanel({
       payload.name = form.name.trim();
       payload.internalName = form.internalName.trim();
       payload.address = form.address.trim();
-      payload.seasonMode = form.seasonMode || null;
       payload.notes = form.notes.trim();
     }
 
@@ -285,28 +282,6 @@ export function ObjectEditPanel({
                 clearable={false}
                 viewportAware
                 disabled={!allowStatusEdit || isSubmitting}
-              />
-            </div>
-
-            <div>
-              <SearchableSelect
-                label="Сезон"
-                value={form.seasonMode}
-                onChange={(seasonMode) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    seasonMode,
-                  }))
-                }
-                options={[
-                  { value: '', label: 'Без сезонности' },
-                  { value: 'summer', label: 'Летний' },
-                  { value: 'winter', label: 'Зимний' },
-                ]}
-                searchable={false}
-                clearable={false}
-                viewportAware
-                disabled={!allowBaseFieldsEdit || isSubmitting}
               />
             </div>
 

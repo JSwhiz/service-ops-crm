@@ -1,6 +1,9 @@
 import { fetcher } from '@/shared/api/fetcher';
 import { sortObjectOptions } from '../lib/sort-object-options';
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
+import type { ObjectSetupData } from '../model/object-setup.types';
+import type { CreatePositionInput } from '../model/object-scheduling.types';
+import type { ContactInput } from './object-planning-client';
 
 import type {
   ObjectAuditLogItem,
@@ -44,7 +47,7 @@ export interface ObjectRegistrySignal {
 
 export interface CreateObjectPayload {
   name: string;
-  internalName: string;
+  internalName?: string;
   address: string;
   status: string;
   seasonMode: string | null;
@@ -73,7 +76,12 @@ export interface CreateObjectPayload {
   notes?: string;
   counterpartyId?: string | null;
   managerUserIds?: string[];
-  responsibleUserId: string;
+  responsibleUserId?: string;
+  setup?: Partial<ObjectSetupData>;
+  staffingPositions?: CreatePositionInput[];
+  contacts?: ContactInput[];
+  payContours?: { code: string; name: string; dailyRate: number; summerDailyRate?: number | null; winterDailyRate?: number | null }[];
+  planning?: { automaticSeasons: boolean; summerStartsOn?: string; winterStartsOn?: string };
 }
 
 export interface UpdateObjectPayload {

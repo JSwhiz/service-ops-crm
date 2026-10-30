@@ -488,11 +488,9 @@ test(
           }),
         );
         await planner.applySeason(object.id, new Date("2028-04-01T00:00:00Z"));
-        assert.equal(
-          (await prisma.object.findUniqueOrThrow({ where: { id: object.id } }))
-            .seasonMode,
-          "winter",
-        );
+        const withoutSeasons = await prisma.object.findUniqueOrThrow({ where: { id: object.id } });
+        assert.equal(withoutSeasons.seasonMode, null);
+        assert.equal(withoutSeasons.dailyRate, 1100);
       },
     );
   },

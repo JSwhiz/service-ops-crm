@@ -209,8 +209,14 @@ export function DatePicker({
           tabIndex={-1}
           aria-hidden="true"
           required
+          disabled={disabled}
           value={value}
           onChange={() => undefined}
+          onInvalid={(event) => {
+            // Keep native submit blocking without moving accessibility focus to the shim.
+            event.preventDefault();
+            triggerRef.current?.focus();
+          }}
           onFocus={() => triggerRef.current?.focus()}
         />
       ) : null}

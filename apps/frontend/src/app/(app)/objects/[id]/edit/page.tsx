@@ -10,6 +10,7 @@ import {
 } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { ObjectEditForm } from '@/features/object-edit/ui/object-edit-form';
+import { ObjectSetupPanel } from '@/features/object-setup/ui/object-setup-panel';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { ObjectStatusPanel } from '@/features/object-status/ui/object-status-panel';
 import { useAuth } from '@/shared/auth/use-auth';
@@ -127,6 +128,8 @@ export default function EditObjectPage({
           setItem(updated);
         }}
       />
+
+      <ObjectSetupPanel key={objectId} objectId={objectId} />
 
       {allowEditObject ? <ObjectStatusPanel
         currentStatus={item.status}

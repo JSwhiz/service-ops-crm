@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -1517,6 +1518,9 @@ export class ObjectOperationsService {
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
       const previousFacts = await tx.objectAttendanceFact.findMany({ where: { objectId, operationDate: normalizedDate } });
+      if (previousFacts.some((fact) => fact.source === 'shifts')) {
+        throw new ConflictException({ code: 'SHIFT_ATTENDANCE_CONFLICT', message: 'Эта дата содержит сменные факты. Измените или отмените их через график смен' });
+      }
       await tx.objectAttendanceFact.deleteMany({
         where: {
           objectId,

@@ -1,4 +1,7 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { ObjectSetupDto } from './object-setup.dto';
+import { SaveObjectContactDto } from './object-planning.dto';
+import { CreateContourDto, CreatePositionDto } from '../../object-scheduling/scheduling.dto';
 import {
   ArrayUnique,
   ArrayMaxSize,
@@ -9,20 +12,44 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   IsUUID,
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
+export class InitialObjectPlanningDto {
+  @IsBoolean()
+  automaticSeasons!: boolean;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2}-\d{2}$/)
+  summerStartsOn?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2}-\d{2}$/)
+  winterStartsOn?: string;
+}
+
 export class CreateObjectDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InitialObjectPlanningDto)
+  planning?: InitialObjectPlanningDto;
+
   @IsString()
   @MinLength(2)
   name!: string;
 
+  @Transform(({ value }) => value === '' ? null : value)
+  @IsOptional()
   @IsString()
-  @MinLength(2)
-  internalName!: string;
+  @MaxLength(200)
+  internalName?: string | null;
 
   @IsString()
   @MinLength(3)
@@ -118,6 +145,33 @@ export class CreateObjectDto {
   @IsUUID('4', { each: true })
   managerUserIds?: string[];
 
+  @IsOptional()
   @IsUUID('4')
-  responsibleUserId!: string;
+  responsibleUserId?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ObjectSetupDto)
+  setup?: ObjectSetupDto;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => CreatePositionDto)
+  staffingPositions?: CreatePositionDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => CreateContourDto)
+  payContours?: CreateContourDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => SaveObjectContactDto)
+  contacts?: SaveObjectContactDto[];
 }

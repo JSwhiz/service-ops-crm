@@ -6,7 +6,7 @@ import type { ObjectEmployeeOption } from '@/entities/object/model/object.types'
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
 import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
 import { Select } from '@/shared/ui/searchable-select/select';
-import { Badge, Button, Surface } from '@/shared/ui/foundation';
+import { Alert, Badge, Button, Surface } from '@/shared/ui/foundation';
 import { ObjectSubstitutionPanel } from './object-substitution-panel';
 
 interface ObjectAttendancePanelProps {
@@ -23,6 +23,7 @@ interface ObjectAttendancePanelProps {
   }>;
   canEditRates: boolean;
   canAddExtraShift?: boolean;
+  readOnlyReason?: string;
   operationDate: string;
   onSave: (payload: {
     operationDate: string;
@@ -46,6 +47,7 @@ export function ObjectAttendancePanel({
   initialEmployeeFacts,
   canEditRates,
   canAddExtraShift = false,
+  readOnlyReason,
   operationDate,
   onSave,
 }: ObjectAttendancePanelProps): React.JSX.Element {
@@ -129,6 +131,7 @@ export function ObjectAttendancePanel({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
+    if (readOnlyReason || isSubmitting) return;
     setError(null);
     setIsSubmitting(true);
 
@@ -166,6 +169,8 @@ export function ObjectAttendancePanel({
         </div>
       </div>
 
+      {readOnlyReason ? <Alert tone="info">{readOnlyReason}</Alert> : null}
+
       {objectId && onSubstitutionSaved ? <ObjectSubstitutionPanel key={objectId} objectId={objectId} employees={safeEmployees} operationDate={operationDate} onSaved={onSubstitutionSaved} /> : null}
       {safeEmployees.length === 0 ? (
         <div className="ui-text-muted">Для объекта пока не задан состав сотрудников.</div>
@@ -191,7 +196,7 @@ export function ObjectAttendancePanel({
                     type="checkbox"
                     checked={selectedIds.includes(employee.id)}
                     onChange={() => toggleEmployee(employee.id)}
-                    disabled={employee.availability.isUnavailable && !selectedIds.includes(employee.id)}
+                    disabled={!!readOnlyReason || isSubmitting || (employee.availability.isUnavailable && !selectedIds.includes(employee.id))}
                   />
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span>{employee.fullName}</span>
@@ -211,7 +216,7 @@ export function ObjectAttendancePanel({
                 {employee.availability.isUnavailable ? (
                   <div style={{ color: 'var(--ui-text-secondary)', fontSize: 12 }}>{getAvailabilityLabel(employee.availability)}</div>
                 ) : null}
-                {selectedIds.includes(employee.id) ? (
+                {selectedIds.includes(employee.id) && !readOnlyReason ? (
                   <div style={{ display: 'grid', gridTemplateColumns: canEditRates ? 'repeat(auto-fit, minmax(180px, 1fr))' : 'minmax(160px, 1fr)', alignItems: 'end', gap: 8 }}>
                     <label className="attendance-hours-control">
                       <span>Часы</span>
@@ -221,13 +226,14 @@ export function ObjectAttendancePanel({
                         max="24"
                         step="0.5"
                         value={workedHoursById[employee.id] ?? getDefaultWorkedHours(employee.id)}
+                        disabled={!!readOnlyReason || isSubmitting}
                         onChange={(event) => setWorkedHoursById((current) => ({ ...current, [employee.id]: event.target.value }))}
                       />
                     </label>
                     {canEditRates || canAddExtraShift ? (
                       <label className="attendance-hours-control">
                         <span>{canEditRates ? 'Особая ставка на этот выход' : 'Дополнительный выход'}</span>
-                        <Select value={specialRateById[employee.id]?.type ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { type: event.target.value as '' | 'complex_shift' | 'side_job', amount: current[employee.id]?.amount ?? '', reason: current[employee.id]?.reason ?? '' } }))}>
+                        <Select disabled={!!readOnlyReason || isSubmitting} value={specialRateById[employee.id]?.type ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { type: event.target.value as '' | 'complex_shift' | 'side_job', amount: current[employee.id]?.amount ?? '', reason: current[employee.id]?.reason ?? '' } }))}>
                           <option value="">Обычная ставка объекта</option>
                           {canEditRates ? <option value="complex_shift">Сложный выход</option> : null}
                           {canAddExtraShift ? <option value="side_job">Дополнительный выход</option> : null}
@@ -238,11 +244,11 @@ export function ObjectAttendancePanel({
                       <>
                         <label className="attendance-hours-control">
                           <span>Сумма за выход, ₽</span>
-                        <input type="number" min="0" step="1" value={specialRateById[employee.id]?.amount ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), amount: event.target.value } }))} required />
+                        <input type="number" min="0" step="1" disabled={!!readOnlyReason || isSubmitting} value={specialRateById[employee.id]?.amount ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), amount: event.target.value } }))} required />
                         </label>
                         <label className="attendance-hours-control" style={{ gridColumn: '1 / -1' }}>
                           <span>Основание</span>
-                          <input type="text" maxLength={1000} value={specialRateById[employee.id]?.reason ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), reason: event.target.value } }))} required />
+                          <input type="text" maxLength={1000} disabled={!!readOnlyReason || isSubmitting} value={specialRateById[employee.id]?.reason ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), reason: event.target.value } }))} required />
                         </label>
                       </>
                     ) : null}
@@ -255,7 +261,7 @@ export function ObjectAttendancePanel({
           {error ? <div className={styles.error} style={{ marginTop: 12 }}>{error}</div> : null}
 
           <div style={{ marginTop: 12 }}>
-            <Button variant="primary" type="submit" disabled={isSubmitting}>
+            <Button variant="primary" type="submit" disabled={isSubmitting || !!readOnlyReason}>
               {isSubmitting ? 'Сохраняем...' : 'Сохранить'}
             </Button>
           </div>
