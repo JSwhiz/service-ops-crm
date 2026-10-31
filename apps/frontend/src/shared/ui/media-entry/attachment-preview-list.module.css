@@ -1,0 +1,42 @@
+.compactList { min-width: 0; container-type: inline-size; }
+.compactImageShell { min-width: 0; height: auto; display: grid; align-content: start; gap: 4px; }
+.compactImage {
+  height: 108px;
+  min-height: 0;
+  aspect-ratio: auto;
+  border-radius: var(--ui-radius-md);
+  box-shadow: none;
+}
+.compactImage img { height: 108px; }
+.compactList :global(.attachment-image-grid) {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: 744px;
+  gap: var(--ui-space-2);
+}
+@container (max-width: 480px) {
+  .compactList :global(.attachment-image-grid) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.expandButton { min-width: 44px; min-height: 44px; justify-self: start; }
+.fileState {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px var(--ui-space-2);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+}
+.pendingRemovalImage { opacity: 0.48; }
+.compactFilename {
+  display: block;
+  overflow: hidden;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  line-height: var(--ui-leading-normal);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.legacyAction { min-width: 0; }

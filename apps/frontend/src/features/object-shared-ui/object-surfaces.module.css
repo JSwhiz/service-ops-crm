@@ -141,9 +141,7 @@
   box-shadow: 0 1px 2px rgba(63, 48, 39, 0.05);
 }
 
-.pendingFilesViewport,
-.savedPhotosViewport,
-.attendanceList {
+.pendingFilesViewport {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -158,105 +156,9 @@
   max-height: 244px;
 }
 
-.savedPhotosViewport {
-  min-height: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  scroll-padding-inline: 2px;
-}
-
-.pendingFilesViewport :global(.pending-media-item),
-.savedPhotosViewport :global(.attachment-image-card-shell) {
+.pendingFilesViewport :global(.pending-media-item) {
   scroll-snap-align: start;
   scroll-snap-stop: always;
-}
-
-.savedPhotosViewport :global(.attachment-image-grid) {
-  width: 100%;
-  grid-template-columns: unset;
-  grid-auto-flow: column;
-  grid-auto-columns: calc((100% - 24px) / 4);
-  gap: 8px;
-}
-
-.savedPhotosViewport :global(.attachment-image-card-shell) {
-  aspect-ratio: 1;
-  min-width: 0;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
-.savedPhotosViewport :global(.attachment-image-card) {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  aspect-ratio: 1;
-}
-
-.savedPhotosViewport :global(.attachment-image-card img) {
-  width: 100%;
-  height: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-}
-
-.savedPhotosViewport :global(.attachment-download-link) {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  padding: 7px;
-}
-
-.savedPhotosViewport :global(.attachment-download-link svg) {
-  width: 28px;
-  height: 28px;
-}
-
-.savedPhotosViewport :global(.attachment-preview-stack) {
-  min-width: 0;
-}
-
-.savedPhotosViewport :global(.attachment-file-list) {
-  max-height: 212px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scroll-snap-type: y mandatory;
-}
-
-.savedPhotosViewport :global(.attachment-file-card) {
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
-.attendanceList {
-  max-height: 284px;
-}
-
-.attendanceList > * {
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
-.attendanceList > :global(.ui-surface--compact) {
-  gap: 6px;
-  padding: 8px 10px;
-}
-
-.attendanceList :global(.attendance-hours-control) {
-  max-width: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 0 30px;
-}
-
-.attendanceList :global(.attendance-hours-control input) {
-  width: 88px;
-  min-height: 32px;
 }
 
 @media (max-width: 760px) {
@@ -477,39 +379,11 @@
   opacity: 0.52;
 }
 
-.recordList {
-  display: grid;
-  gap: 8px;
-}
-
-.recordCard {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--ui-border);
-  border-radius: 8px;
-  background: var(--ui-surface);
-}
-
 .recordTitle {
   color: var(--ui-text);
   font-size: 13px;
   font-weight: 700;
 }
-.auditHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.auditTime {
-  flex: 0 0 auto;
-  color: var(--ui-text-tertiary);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
 .auditChanges {
   display: grid;
   gap: 6px;
@@ -559,6 +433,15 @@
   font-size: 12px;
   cursor: pointer;
   user-select: none;
+}
+
+.auditPayload {
+  margin: var(--ui-space-2) 0 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
 }
 
 .error,

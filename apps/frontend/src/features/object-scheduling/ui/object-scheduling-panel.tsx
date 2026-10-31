@@ -69,7 +69,7 @@ export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees,
   };
   return <Surface padding="md">
     {dialog}
-    <div className={styles.editor}>
+    <div className={styles.content}>
       <div className="ui-section-header"><h3 className="ui-section-title">Штатные позиции и графики</h3>
         {data?.capabilities.managePositions && !draft ? <Button onClick={() => start(null)}>Добавить позицию</Button> : null}
       </div>

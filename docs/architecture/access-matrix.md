@@ -138,6 +138,19 @@
 - закрытие задачи требует подтверждения.
 - `deputy_director` имеет широкий operational task access: может создавать задачи и выбирать назначаемых не только в объектах, где назначен manager.
 
+### 7.1. Разовые заказы: каталог и состав ТЗ
+
+| Action | leadership circle | deputy_director | assigned `one_time_manager` | other scoped users | Employee without CRM User |
+| --- | --- | --- | --- | --- | --- |
+| Read active catalog/templates | yes | no | no | no | no |
+| Create/edit/archive catalog items and templates | yes | no | no | no | no |
+| Compose/change order specification snapshot (including custom points) | yes | no | no | no | no |
+| Execute assigned order specification points | only if actively assigned as `one_time_manager` | no | no unless actively assigned as `one_time_manager` | yes, while assignment and order are active | no |
+| Read item comments/files | order read access | no | by order scope | by order scope | no |
+| Add comments/files or detach an attachment | only if actively assigned as `one_time_manager` | no | no unless actively assigned as `one_time_manager` | yes, while assignment and order are active | no |
+
+The order's specification text is a snapshot. Catalog/template changes never rewrite existing order points. Structural edits (add/remove/edit/reorder) are leadership-only from order creation onward. Execution, comments, and optional attachments (including unlinking a file from this item) are allowed only to the active assigned `one_time_manager` while the order is open. Detaching never deletes the stored file binary. Closed orders and removed assignments are read-only for these actions; a leadership-authorized order reopen is required before execution changes can resume. This does not make `Employee` a `User` or grant CRM access.
+
 ---
 
 ## 8. Inventory exception rule

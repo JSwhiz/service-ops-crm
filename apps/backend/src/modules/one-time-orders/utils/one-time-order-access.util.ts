@@ -131,7 +131,10 @@ export function canCreateOneTimeOrder(
   roleCodes: string[],
   permissionCodes?: string[],
 ): boolean {
-  return hasOneTimeOrderManagementAccess(roleCodes, permissionCodes);
+  return (
+    hasOneTimeOrderManagementAccess(roleCodes, permissionCodes) ||
+    hasAnyRole(roleCodes, ['manager', 'senior_manager'])
+  );
 }
 
 export function canManageOneTimeOrderManagers(

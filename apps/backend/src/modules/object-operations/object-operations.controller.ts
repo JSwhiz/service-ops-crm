@@ -1,14 +1,19 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -40,6 +45,8 @@ import { CreateObjectSubstitutionDto } from './dto/create-object-substitution.dt
 import { SubmitDailyReportDto } from './dto/submit-daily-report.dto';
 import { ObjectAttendanceSubmissionService } from './object-attendance-submission.service';
 import { ObjectOperationsService } from './object-operations.service';
+import { CorrectDailyReportAttachmentsDto } from './dto/correct-daily-report-attachments.dto';
+import { FilesService } from '../files/files.service';
 
 interface CurrentAuthUser {
   id: string;
@@ -50,12 +57,15 @@ interface CurrentAuthUser {
   isActive: boolean;
 }
 
+interface UploadedReportFile { originalname: string; mimetype: string; size: number; buffer: Buffer }
+
 @UseGuards(JwtAuthGuard)
 @Controller('objects/:id')
 export class ObjectOperationsController {
   constructor(
     private readonly objectOperationsService: ObjectOperationsService,
     private readonly objectAttendanceSubmissionService: ObjectAttendanceSubmissionService,
+    private readonly filesService: FilesService,
   ) {}
 
   @Get('arrival-photo/today')
@@ -108,6 +118,29 @@ export class ObjectOperationsController {
       objectId,
       payload,
     );
+  }
+
+  @Post('daily-reports/:reportId/attachments')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  stageDailyReportAttachment(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Param('reportId') reportId: string,
+    @Body('requestId') requestId: string,
+    @UploadedFile() file: UploadedReportFile | undefined,
+  ) {
+    if (!file) throw new BadRequestException('File is required');
+    return this.filesService.stageDailyReportAttachment(user, objectId, reportId, requestId, file);
+  }
+
+  @Patch('daily-reports/:reportId/attachments')
+  correctDailyReportAttachments(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') objectId: string,
+    @Param('reportId') reportId: string,
+    @Body() payload: CorrectDailyReportAttachmentsDto,
+  ) {
+    return this.objectOperationsService.correctDailyReportAttachments(user, objectId, reportId, payload);
   }
 
   @Get('comments')

@@ -1,6 +1,7 @@
 import React from 'react';
 
 import type { OneTimeOrderHistoryItem } from '@/entities/one-time-order/model/one-time-order.types';
+import { ActivityTimeline } from '@/shared/ui/activity-timeline/activity-timeline';
 import {
   getUserDisplayName,
   getUserSecondaryLabel,
@@ -27,10 +28,14 @@ const ACTION_LABELS: Record<string, string> = {
   'one_time_order.photo_deleted': 'Файл или фото удалён',
   'one_time_order.photo_restored': 'Файл или фото восстановлен',
   'one_time_order.specification_item_created': 'Добавлен пункт задания',
+  'one_time_order.specification_catalog_applied': 'Добавлены пункты из каталога ТЗ',
   'one_time_order.specification_item_updated': 'Пункт задания изменён',
   'one_time_order.specification_item_deleted': 'Пункт задания удалён',
   'one_time_order.specification_item_completed': 'Пункт задания выполнен',
   'one_time_order.specification_item_reopened': 'Пункт задания возвращён в работу',
+  'one_time_order.specification_item_comment_created': 'Добавлен комментарий к пункту ТЗ',
+  'one_time_order.specification_item_attachment_attached': 'Добавлено вложение к пункту ТЗ',
+  'one_time_order.specification_item_attachment_detached': 'Вложение отвязано от пункта ТЗ',
   'one_time_order.specification_reordered': 'Изменён порядок пунктов задания',
 };
 
@@ -55,9 +60,14 @@ const FIELD_LABELS: Record<string, string> = {
   operationDate: 'Дата выхода',
   reason: 'Причина',
   comment: 'Комментарий',
+  addedCount: 'Добавлено пунктов',
+  items: 'Пункты',
+  templates: 'Шаблоны',
+  specificationItemTitle: 'Пункт ТЗ',
+  originalName: 'Файл',
 };
 
-function getActionLabel(action: string): string {
+export function getOneTimeOrderHistoryActionLabel(action: string): string {
   if (ACTION_LABELS[action]) return ACTION_LABELS[action];
   if (action.startsWith('task.')) return 'Связанная задача обновлена';
   return 'Изменение по заказу';
@@ -100,13 +110,25 @@ function getReadableChanges(item: OneTimeOrderHistoryItem): Array<{
 }> {
   const oldValues = item.oldValues ?? {};
   const newValues = item.newValues ?? {};
+  const isSpecificationItem = item.action.startsWith('one_time_order.specification_item_');
+  const isSpecificationEdit = item.action === 'one_time_order.specification_item_updated';
   const keys = new Set([...Object.keys(oldValues), ...Object.keys(newValues)]);
   return [...keys].flatMap((key) => {
-    const label = FIELD_LABELS[key];
+    const label = isSpecificationItem && key === 'title' ? 'Пункт ТЗ' : FIELD_LABELS[key];
     if (!label) return [];
     const hadOld = Object.prototype.hasOwnProperty.call(oldValues, key);
     const hasNew = Object.prototype.hasOwnProperty.call(newValues, key);
     if (!hadOld && !hasNew) return [];
+    // Execution/attachment events carry context, not a deletion or rename of
+    // the item itself. Keep the recorded data intact and describe that context.
+    if (isSpecificationItem && !isSpecificationEdit) {
+      const value = hasNew ? newValues[key] : oldValues[key];
+      if (key === 'description' && !value) return [];
+      return [{ label, after: formatAuditValue(key, value) }];
+    }
+    if (isSpecificationItem && hadOld && hasNew && oldValues[key] === newValues[key]) {
+      return key === 'title' ? [{ label, after: formatAuditValue(key, newValues[key]) }] : [];
+    }
     return [{
       label,
       ...(hadOld ? { before: formatAuditValue(key, oldValues[key]) } : {}),
@@ -117,8 +139,10 @@ function getReadableChanges(item: OneTimeOrderHistoryItem): Array<{
 
 export function OneTimeOrderHistoryList({
   items,
+  emptyText = 'История по заказу пока пуста.',
 }: {
   items: OneTimeOrderHistoryItem[];
+  emptyText?: string;
 }): React.JSX.Element {
   return (
     <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
@@ -130,39 +154,20 @@ export function OneTimeOrderHistoryList({
       </div>
 
       {items.length === 0 ? (
-        <div className="ui-text-muted">История по заказу пока пуста.</div>
+        <div className="ui-text-muted">{emptyText}</div>
       ) : (
-        <div className="record-list local-scroll">
-          {items.map((item) => (
-            <Surface padding="sm" key={item.id}>
-              <div style={{ fontWeight: 600 }}>{getActionLabel(item.action)}</div>
-              <div className="ui-text-muted" style={{ marginTop: 4 }}>
-                {item.actor
-                  ? [
-                      getUserDisplayName(item.actor),
-                      getUserSecondaryLabel(item.actor),
-                    ]
-                      .filter(Boolean)
-                      .join(' ')
-                  : 'Системное событие'}{' '}
-                · {new Date(item.createdAt).toLocaleString('ru-RU')}
-              </div>
-              {getReadableChanges(item).length > 0 ? (
-                <div className="ui-detail-grid" style={{ marginTop: 10 }}>
-                  {getReadableChanges(item).map((change) => (
-                    <div className="ui-detail-field" key={change.label}>
-                      <div className="ui-detail-label">{change.label}</div>
-                      <div className="ui-detail-value">
-                        {change.before !== undefined ? `${change.before} → ` : ''}
-                        {change.after}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </Surface>
-          ))}
-        </div>
+        <ActivityTimeline entries={items.map((item) => ({
+          id: item.id,
+          title: getOneTimeOrderHistoryActionLabel(item.action),
+          occurredAt: item.createdAt,
+          actor: item.actor ? [getUserDisplayName(item.actor), getUserSecondaryLabel(item.actor)].filter(Boolean).join(' ') : 'Системное событие',
+          children: getReadableChanges(item).length ? <div className="ui-detail-grid">
+            {getReadableChanges(item).map((change, index) => <div className="ui-detail-field" key={`${change.label}-${index}`}>
+              <div className="ui-detail-label">{change.label}</div>
+              <div className="ui-detail-value">{change.before !== undefined ? `${change.before} → ` : ''}{change.after}</div>
+            </div>)}
+          </div> : null,
+        }))} />
       )}
     </Surface>
   );

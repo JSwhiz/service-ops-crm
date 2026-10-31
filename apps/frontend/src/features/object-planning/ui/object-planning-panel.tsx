@@ -5,12 +5,15 @@ import React, { useCallback, useEffect, useId, useState } from 'react';
 import { updateObject } from '@/entities/object/api/object-client';
 import { getObjectPlanning, saveObjectPlanning, type ObjectPlanning, type PlanningInput } from '@/entities/object/api/object-planning-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
+import { getPayContours } from '@/entities/object/api/object-scheduling-client';
+import type { PayContour } from '@/entities/object/model/object-scheduling.types';
 import { ObjectEditForm } from '@/features/object-edit/ui/object-edit-form';
 import { getErrorMessage } from '@/shared/lib/error-message';
 import { Alert, Button, FactStrip, Field, LoadingState, Stack, Surface } from '@/shared/ui/foundation';
 import { Dialog } from '@/shared/ui/overlays';
 import { SeasonFields } from './season-fields';
 import { seasonPlanningPayload } from '../model/season-planning';
+import { contourDisplayRate, nextSeasonBoundary } from '../model/season-summary';
 
 const money = (amount: number) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(amount);
 const annualDate = (value: string | null) => value
@@ -31,6 +34,9 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
   const [pending, setPending] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [editing, setEditing] = useState<'budget' | 'seasons' | 'rates' | null>(null);
+  const [contours, setContours] = useState<PayContour[] | null>(null);
+  const [contourError, setContourError] = useState<string | null>(null);
+  const [contourRetry, setContourRetry] = useState(0);
   const formId = useId();
 
   const apply = useCallback((value: ObjectPlanning) => {
@@ -51,6 +57,23 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
       .finally(() => { if (active) setLoaded(true); });
     return () => { active = false; };
   }, [objectId, apply]);
+
+  useEffect(() => {
+    if (item.capabilities.canViewCompensationRates === false) return;
+    let active = true;
+    let request = 0;
+    const reload = () => {
+      const current = ++request;
+      setContourError(null);
+      void getPayContours(objectId).then((response) => { if (active && current === request) setContours(response.contours); })
+        .catch((caught: unknown) => { if (active && current === request) setContourError(getErrorMessage(caught, 'Не удалось загрузить готовые условия оплаты.')); });
+    };
+    const onSectionChange = () => { if (window.location.hash === '#planning') reload(); };
+    setContours(null);
+    reload();
+    window.addEventListener('hashchange', onSectionChange);
+    return () => { active = false; window.removeEventListener('hashchange', onSectionChange); };
+  }, [objectId, item.capabilities.canViewCompensationRates, contourRetry]);
 
   const save = async (payload: Omit<PlanningInput, 'expectedVersion'>) => {
     if (!data || pending) return;
@@ -78,6 +101,16 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
     { key: 'summer', label: 'Лето', type: item.summerPaymentType, daily: item.summerDailyRate, monthly: item.summerMonthlySalary },
     { key: 'winter', label: 'Зима', type: item.winterPaymentType, daily: item.winterDailyRate, monthly: item.winterMonthlySalary },
   ];
+  const activeContours = contours?.filter((contour) => contour.isActive) ?? [];
+  const legacyManualSeason = !data?.automaticSeasons && (data?.activeSeason === 'summer' || data?.activeSeason === 'winter');
+  const visibleProfiles = data?.automaticSeasons || legacyManualSeason ? profiles : profiles.slice(0, 1);
+  const nextBoundary = data?.automaticSeasons ? nextSeasonBoundary(data.summerStartsOn, data.winterStartsOn) : null;
+  const profileFacts = (values: typeof profiles) => values.map((profile) => ({ key: profile.key, label: profile.label, value: <>
+    <span>{profile.type === 'monthly' ? 'Оплата за месяц' : profile.type === 'daily' ? 'Оплата за выход' : 'Модель не задана'}</span>
+    <span>{profile.type === 'monthly'
+      ? profile.monthly === null ? 'Сумма не задана' : `${money(profile.monthly)} / месяц`
+      : profile.type === 'daily' ? profile.daily === null ? 'Ставка не задана' : `${money(profile.daily)} / выход` : '—'}</span>
+  </> }));
 
   return <Stack gap="xl">
     {error && !modalOpen ? <Alert tone="danger" action={<Button disabled={pending} onClick={() => {
@@ -104,26 +137,53 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
 
       <Surface padding="md" as="section">
         <div className="ui-section-header">
-          <h3 className="ui-section-title">Сезоны и ставки</h3>
+          <h3 className="ui-section-title">Сезонность и условия оплаты</h3>
           {data.capabilities.canEditSeasons ? <Button disabled={editing !== null} onClick={() => { apply(data); setEditing('seasons'); }}>Настроить сезоны</Button> : null}
         </div>
         <FactStrip items={[
           { label: 'Текущие условия', value: data.activeSeason === 'summer' ? 'Лето' : data.activeSeason === 'winter' ? 'Зима' : data.automaticSeasons ? 'Не определены' : 'Базовые' },
           { label: 'Сезонность', value: data.automaticSeasons ? 'Включена · ежегодно по датам' : 'Выключена' },
-          { label: 'Начало лета', value: annualDate(data.summerStartsOn) },
-          { label: 'Начало зимы', value: annualDate(data.winterStartsOn) },
+          ...(data.automaticSeasons ? [
+            { label: 'Начало лета', value: annualDate(data.summerStartsOn) },
+            { label: 'Начало зимы', value: annualDate(data.winterStartsOn) },
+          ] : []),
         ]} />
+        {nextBoundary ? <p className="ui-section-subtitle">Следующее переключение: {nextBoundary.season === 'summer' ? 'лето' : 'зима'} · {new Date(`${nextBoundary.date}T12:00:00Z`).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' })}.</p> : null}
         {!data.automaticSeasons && (data.activeSeason === 'summer' || data.activeSeason === 'winter') ? <Alert tone="info">Сохранён прежний ручной {data.activeSeason === 'summer' ? 'летний' : 'зимний'} профиль. Сейчас действуют показанные условия. Сохранение выключенной сезонности переключит объект на базовый профиль; включение потребует явно заданных ежегодных границ. Просмотр ничего не меняет.</Alert> : null}
         {item.capabilities.canViewCompensationRates !== false ? <>
           <div className="ui-section-header">
-            <h4 className="ui-section-title">Условия оплаты</h4>
+            <h4 className="ui-section-title">Базовые ставки объекта</h4>
             {item.capabilities.canManageCompensationRates ? <Button disabled={editing !== null} onClick={() => setEditing('rates')}>Изменить ставки</Button> : null}
           </div>
-          <FactStrip items={profiles.map((profile) => ({ key: profile.key, label: profile.label, value: <>
-            <span>{profile.type === 'monthly' ? 'Оплата за месяц' : profile.type === 'daily' ? 'Оплата за выход' : 'Модель не задана'}</span>
-            <span>{profile.daily === null ? 'За выход: не задано' : `${money(profile.daily)} / выход`}</span>
-            <span>{profile.monthly === null ? 'За месяц: не задано' : `${money(profile.monthly)} / месяц`}</span>
-          </> }))} />
+          <p className="ui-section-subtitle">Базовые ставки не заменяют выбранные условия штатной позиции или индивидуальные условия сотрудника. Применяемая ставка фиксируется при подтверждении выхода.</p>
+          <FactStrip items={profileFacts(visibleProfiles)} />
+          {!data.automaticSeasons && !legacyManualSeason ? <details>
+            <summary>Сохранённые сезонные настройки · сейчас не применяются</summary>
+            <p className="ui-text-muted">Начало лета: {annualDate(data.summerStartsOn)}. Начало зимы: {annualDate(data.winterStartsOn)}.</p>
+            <FactStrip items={profileFacts(profiles.slice(1))} />
+          </details> : null}
+          <div className="ui-section-header">
+            <h4 className="ui-section-title">Готовые условия штатных позиций</h4>
+            <a href="#team">Перейти к команде</a>
+          </div>
+          {contourError ? <Alert tone="danger" action={<Button onClick={() => setContourRetry((value) => value + 1)}>Повторить</Button>}>{contourError}</Alert>
+            : contours === null ? <LoadingState label="Загрузка условий оплаты" />
+              : activeContours.length ? <div className="ui-stack ui-stack--lg">{activeContours.map((contour) => {
+                const currentRate = contourDisplayRate(contour, data.activeSeason);
+                return <div key={contour.id}>
+                  <h4 className="ui-section-title">{contour.name}</h4>
+                  <FactStrip items={[
+                    { label: 'Текущая ставка за выход', value: money(currentRate) },
+                    { label: 'По умолчанию', value: money(contour.dailyRate) },
+                    ...(data.automaticSeasons ? [
+                      { label: 'Лето', value: contour.summerDailyRate === null ? 'По умолчанию' : money(contour.summerDailyRate) },
+                      { label: 'Зима', value: contour.winterDailyRate === null ? 'По умолчанию' : money(contour.winterDailyRate) },
+                    ] : []),
+                  ]} />
+                  <p className="ui-section-subtitle">Действуют с {new Date(`${contour.effectiveFrom.slice(0, 10)}T12:00:00Z`).toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' })}. Назначение условия на позицию — в разделе «Команда».</p>
+                </div>;
+              })}</div> : <p className="ui-text-muted">Отдельные условия не заведены. Используются действующие условия сотрудника и объекта.</p>}
+          <p className="ui-section-subtitle">Один контур — один оплачиваемый выход сотрудника за дату; отдельные дневной и ночной контуры могут суммироваться. План графика сам по себе не создаёт начисление. Индивидуальные исключения и ранее сохранённые суммы здесь не пересчитываются.</p>
         </> : null}
         <p className="ui-section-subtitle">Часовой пояс — Москва. Предыдущий сезон заканчивается накануне начала следующего. Новые ставки действуют со дня сохранения; сохранённые начисления остаются прежними.</p>
       </Surface>

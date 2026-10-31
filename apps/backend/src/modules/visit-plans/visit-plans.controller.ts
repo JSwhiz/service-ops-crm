@@ -19,6 +19,7 @@ import {
   SaveVisitPlanReportDto,
   SaveVisitPlanDeadlineDto,
   VisitPlanVersionDto,
+  VisitPlanObjectOptionsQueryDto,
   VisitPlanQueryDto,
 } from "./dto/visit-plan.dto";
 import { VisitPlansService, VisitPlanUser } from "./visit-plans.service";
@@ -31,6 +32,14 @@ export class VisitPlansController {
   @Get("managers")
   managers(@CurrentUser() user: VisitPlanUser) {
     return this.plans.listManagers(user);
+  }
+
+  @Get("object-options")
+  objectOptions(
+    @CurrentUser() user: VisitPlanUser,
+    @Query() query: VisitPlanObjectOptionsQueryDto,
+  ) {
+    return this.plans.listObjectOptions(user, query);
   }
 
   @Get()

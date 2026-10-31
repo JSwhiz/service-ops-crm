@@ -1,4 +1,6 @@
 import { fetcher } from '@/shared/api/fetcher';
+import { historyPageQueryString } from '@/shared/api/history-page';
+import type { HistoryPageQuery, HistoryPageResponse } from '@/shared/api/history-page';
 
 import type {
   CounterpartyCard,
@@ -44,9 +46,23 @@ export function listCounterpartyHistory(
   return fetcher(`/counterparties/${id}/history`);
 }
 
+export function listCounterpartyHistoryPage(
+  id: string,
+  params: HistoryPageQuery,
+): Promise<HistoryPageResponse<CounterpartyHistoryItem>> {
+  return fetcher(`/counterparties/${id}/history-page${historyPageQueryString(params)}`);
+}
+
 export function listCounterpartyInventoryMovements(
   id: string,
-  params: { page?: number; limit?: number } = {},
+  params: {
+    page?: number;
+    limit?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    objectId?: string;
+    movementType?: string;
+  } = {},
 ): Promise<CounterpartyInventoryMovementList> {
   return fetcher(`/counterparties/${id}/inventory-movements${queryString(params)}`);
 }

@@ -25,6 +25,7 @@ import {
 } from '@/entities/user/api/user-client';
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { isLeadershipCircle } from '@/shared/lib/access';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import type { SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { Alert, Surface } from '@/shared/ui/foundation';
@@ -58,6 +59,7 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
   const { user } = useAuth();
   const canCreateOneTimeOrder =
     user?.capabilities?.canCreateOneTimeOrder ?? false;
+  const canComposeSpecification = isLeadershipCircle(user?.roleCodes ?? []);
   const copyFromId = searchParams.get('copyFrom');
 
   const [initialLinkedObjectOption, setInitialLinkedObjectOption] =
@@ -89,7 +91,7 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
       try {
         const [copySource, sourceSpecification] = await Promise.all([
           copyFromId ? getOneTimeOrderById(copyFromId) : Promise.resolve(null),
-          copyFromId
+          copyFromId && canComposeSpecification
             ? listOneTimeOrderSpecificationItems(copyFromId)
             : Promise.resolve([]),
         ]);
@@ -212,7 +214,8 @@ export default function NewOneTimeOrderPage(): React.JSX.Element {
             listOneTimeOrderManagerCandidates(undefined, query)
           }
           initialValue={initialValue}
-          includeSpecificationItems={Boolean(copyFromId)}
+          includeSpecificationItems={Boolean(copyFromId && canComposeSpecification)}
+          canComposeSpecification={canComposeSpecification}
           initialSpecificationItems={copySpecificationItems.map((item) => ({
             title: item.title,
             description: item.description,

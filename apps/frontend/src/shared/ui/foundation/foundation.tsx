@@ -258,20 +258,21 @@ export interface IconButtonProps
   bordered?: boolean;
 }
 
-export function IconButton({
+export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton({
   className,
   type = 'button',
   bordered = false,
   ...props
-}: IconButtonProps): React.JSX.Element {
+}, ref): React.JSX.Element {
   return (
     <button
+      ref={ref}
       type={type}
       className={classes('ui-icon-button', bordered && 'ui-icon-button--bordered', className)}
       {...props}
     />
   );
-}
+});
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   tone?: BadgeTone;

@@ -51,6 +51,7 @@ model User {
   createdOneTimeOrderSpecificationItems      OneTimeOrderSpecificationItem[]   @relation("OneTimeOrderSpecificationCreatedBy")
   completedOneTimeOrderSpecificationItems    OneTimeOrderSpecificationItem[]   @relation("OneTimeOrderSpecificationCompletedBy")
   deletedOneTimeOrderSpecificationItems      OneTimeOrderSpecificationItem[]   @relation("OneTimeOrderSpecificationDeletedBy")
+  authoredOneTimeOrderSpecificationComments  OneTimeOrderSpecificationComment[] @relation("OneTimeOrderSpecificationCommentAuthor")
   createdInventoryItems                      InventoryItem[]                   @relation("InventoryItemCreatedBy")
   deletedInventoryItems                      InventoryItem[]                   @relation("InventoryItemDeletedBy")
   createdInventoryMovements                  InventoryMovement[]               @relation("InventoryMovementCreatedBy")
@@ -76,6 +77,8 @@ model User {
   createdOneTimeOrderComments                OneTimeOrderComment[]             @relation("OneTimeOrderCommentCreatedBy")
   createdArrivalPhotos                       ObjectArrivalPhoto[]              @relation("ObjectArrivalPhotoCreatedBy")
   updatedDailyReports                        ObjectDailyReport[]               @relation("ObjectDailyReportUpdatedBy")
+  stagedDailyReportAttachments               ObjectDailyReportAttachmentStage[]
+  dailyReportAttachmentRequests               ObjectDailyReportAttachmentRequest[]
   updatedOneTimeOrderDailyReports            OneTimeOrderDailyReport[]         @relation("OneTimeOrderDailyReportUpdatedBy")
   createdOneTimeOrderPhotos                  OneTimeOrderPhoto[]               @relation("OneTimeOrderPhotoCreatedBy")
   deletedOneTimeOrderPhotos                  OneTimeOrderPhoto[]               @relation("OneTimeOrderPhotoDeletedBy")
@@ -480,6 +483,7 @@ model Object {
   assignments               ObjectAssignment[]
   arrivalPhotos             ObjectArrivalPhoto[]
   dailyReports              ObjectDailyReport[]
+  dailyReportAttachmentStages ObjectDailyReportAttachmentStage[]
   comments                  ObjectComment[]
   tasks                     Task[]
   employeeAssignments       ObjectEmployeeAssignment[]
@@ -984,6 +988,8 @@ model ObjectDailyReport {
   object    Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
   updatedBy User   @relation("ObjectDailyReportUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: Restrict)
   publications ObjectDailyReportPublication[]
+  attachmentStages ObjectDailyReportAttachmentStage[]
+  attachmentRequests ObjectDailyReportAttachmentRequest[]
 
   @@unique([objectId, reportDate])
   @@index([objectId, reportDate])
@@ -998,10 +1004,48 @@ model ObjectDailyReportPublication {
   content String
   createdAt DateTime @default(now())
   publishedAt DateTime?
+  attachmentSnapshot Json?
+  attachmentDiff Json?
+  correctionReason String?
+  deliveryPayload Json?
   report ObjectDailyReport @relation(fields: [reportId], references: [id], onDelete: Restrict)
   @@unique([reportId, revision])
   @@index([publishedAt, createdAt])
   @@map("object_daily_report_publications")
+}
+
+model ObjectDailyReportAttachmentStage {
+  id String @id @default(uuid())
+  reportId String
+  objectId String
+  fileId String @unique
+  actorUserId String
+  requestId String
+  payloadHash String
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  report ObjectDailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  object Object @relation(fields: [objectId], references: [id], onDelete: Cascade)
+  file File @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  @@unique([reportId, actorUserId, requestId])
+  @@index([objectId, reportId])
+  @@map("object_daily_report_attachment_stages")
+}
+
+model ObjectDailyReportAttachmentRequest {
+  id String @id @default(uuid())
+  reportId String
+  actorUserId String
+  requestId String
+  payloadHash String
+  response Json
+  createdAt DateTime @default(now())
+  report ObjectDailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  @@unique([reportId, actorUserId, requestId])
+  @@index([reportId, createdAt])
+  @@map("object_daily_report_attachment_requests")
 }
 
 model ObjectComment {
@@ -1048,6 +1092,8 @@ model OneTimeOrder {
   completedAt           DateTime?
   completedByUserId     String?
   createdByUserId       String
+  creationRequestId     String?
+  creationRequestFingerprint String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -1065,6 +1111,7 @@ model OneTimeOrder {
   equipmentMovementsTo   EquipmentMovement[]             @relation("EquipmentMovementToOneTimeOrder")
   tasks                  Task[]
   specificationItems     OneTimeOrderSpecificationItem[]
+  specificationApplyRequests OneTimeOrderSpecificationApplyRequest[]
   completions            OneTimeOrderCompletion[]
   completionPayments     OneTimeOrderCompletionPayment[]
   accountabilityFundings AccountabilityFunding[]
@@ -1073,6 +1120,7 @@ model OneTimeOrder {
   @@index([linkedObjectId])
   @@index([status])
   @@index([createdByUserId])
+  @@unique([createdByUserId, creationRequestId])
   @@index([reviewUpdatedByUserId])
   @@index([completedByUserId])
   @@index([executionStartDate])
@@ -1304,12 +1352,88 @@ model OneTimeOrderSpecificationItem {
   completedBy  User?        @relation("OneTimeOrderSpecificationCompletedBy", fields: [completedByUserId], references: [id], onDelete: SetNull)
   createdBy    User         @relation("OneTimeOrderSpecificationCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
   deletedBy    User?        @relation("OneTimeOrderSpecificationDeletedBy", fields: [deletedByUserId], references: [id], onDelete: SetNull)
+  comments     OneTimeOrderSpecificationComment[]
 
   @@index([oneTimeOrderId, sortOrder])
   @@index([completedByUserId])
   @@index([createdByUserId])
   @@index([deletedByUserId])
   @@map("one_time_order_specification_items")
+}
+
+model OneTimeOrderSpecificationComment {
+  id              String   @id @default(uuid())
+  itemId          String
+  requestId       String
+  content         String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  item      OneTimeOrderSpecificationItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdBy User                         @relation("OneTimeOrderSpecificationCommentAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([itemId, requestId])
+  @@index([itemId, createdAt])
+  @@index([createdByUserId])
+  @@map("one_time_order_specification_comments")
+}
+
+model OneTimeOrderSpecificationApplyRequest {
+  id                 String   @id @default(uuid())
+  oneTimeOrderId     String
+  requestId          String
+  payloadFingerprint String
+  itemIds            Json
+  createdAt          DateTime @default(now())
+
+  oneTimeOrder OneTimeOrder @relation(fields: [oneTimeOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([oneTimeOrderId, requestId])
+  @@index([createdAt])
+  @@map("one_time_order_specification_apply_requests")
+}
+
+model OneTimeOrderSpecificationCatalogItem {
+  id              String   @id @default(uuid())
+  title           String
+  description     String?
+  isArchived      Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  templateLinks   OneTimeOrderSpecificationTemplateItem[]
+
+  @@index([isArchived, sortOrder, title])
+  @@map("one_time_order_specification_catalog_items")
+}
+
+model OneTimeOrderSpecificationTemplate {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  isArchived      Boolean  @default(false)
+  version         Int      @default(1)
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  items           OneTimeOrderSpecificationTemplateItem[]
+
+  @@index([isArchived, name])
+  @@map("one_time_order_specification_templates")
+}
+
+model OneTimeOrderSpecificationTemplateItem {
+  templateId    String
+  catalogItemId String
+  sortOrder     Int
+  template      OneTimeOrderSpecificationTemplate     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  catalogItem   OneTimeOrderSpecificationCatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+
+  @@id([templateId, catalogItemId])
+  @@index([catalogItemId])
+  @@map("one_time_order_specification_template_items")
 }
 
 model OneTimeOrderAssignment {
@@ -1998,6 +2122,7 @@ model File {
   uploadedBy  User?            @relation("FileUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
   attachments FileAttachment[]
   derivatives FileDerivative[]
+  dailyReportAttachmentStage ObjectDailyReportAttachmentStage?
 
   @@index([uploadedByUserId])
   @@map("files")

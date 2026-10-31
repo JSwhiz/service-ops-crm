@@ -21,6 +21,7 @@ export function OneTimeOrderFilesPanel({
       canUpload={canUpload}
       onUpload={onUpload}
       emptyText="Файлы по заказу пока не загружены."
+      compactMediaActions
     />
   );
 }

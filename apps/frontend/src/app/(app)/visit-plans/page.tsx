@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   addVisitPlanEntry,
   createVisitPlan,
+  getVisitPlanObjectOptions,
   getPlanHistory,
   getPlanManagers,
   getVisitPlan,
@@ -13,7 +14,6 @@ import {
   type VisitPlan,
   type VisitPlanDay,
 } from "@/entities/visit-plan/api/visit-plan-client";
-import { listObjectsPage } from "@/entities/object/api/object-client";
 import { ApiError } from "@/shared/api/fetcher";
 import {
   Alert,
@@ -45,6 +45,10 @@ const mutationError = (error: unknown) =>
   error instanceof ApiError && error.statusCode === 409
     ? "План изменился. Обновите данные перед сохранением; введённый текст сохранён в форме."
     : "Не удалось сохранить план. Проверьте данные и права доступа.";
+const visitEntryMutationError = (error: unknown) =>
+  error instanceof ApiError && error.statusCode === 403
+    ? "Объект недоступен в плане выбранного менеджера. Выберите другой объект; текущий выбор сохранён."
+    : mutationError(error);
 
 export default function VisitPlansPage(): React.JSX.Element {
   const [date, setDate] = useState(today);
@@ -133,6 +137,7 @@ export default function VisitPlansPage(): React.JSX.Element {
     setData(null);
     setHistory([]);
     setDate(nextDate);
+    if (nextManager !== managerId) setObjectId("");
     setManagerId(nextManager);
     const url = new URL(window.location.href);
     url.searchParams.set("date", nextDate);
@@ -141,7 +146,10 @@ export default function VisitPlansPage(): React.JSX.Element {
     window.history.pushState(null, "", `${url.pathname}${url.search}`);
   };
 
-  const mutate = async (action: () => Promise<VisitPlan>) => {
+  const mutate = async (
+    action: () => Promise<VisitPlan>,
+    getErrorMessage: (error: unknown) => string = mutationError,
+  ) => {
     if (pending) return;
     setPending(true);
     setError(null);
@@ -150,12 +158,13 @@ export default function VisitPlansPage(): React.JSX.Element {
       setData((current) => (current ? { ...current, plan } : current));
       setHistory(await getPlanHistory(plan.id));
     } catch (failure) {
-      setError(mutationError(failure));
+      setError(getErrorMessage(failure));
     } finally {
       setPending(false);
     }
   };
   const plan = data?.plan;
+  const objectOptionsManagerId = managerId || plan?.manager.id || "";
   return (
     <div className={`ui-page ${styles.page}`}>
       <PageHeader title="План посещений на день" />
@@ -249,14 +258,18 @@ export default function VisitPlansPage(): React.JSX.Element {
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
-                    void mutate(() =>
-                      addVisitPlanEntry(plan.id, {
-                        expectedVersion: plan.version,
-                        ...(entryType === "object"
-                          ? { objectId }
-                          : { clientName }),
-                        isUnplanned,
-                      }),
+                    void mutate(
+                      () =>
+                        addVisitPlanEntry(plan.id, {
+                          expectedVersion: plan.version,
+                          ...(entryType === "object"
+                            ? { objectId }
+                            : { clientName }),
+                          isUnplanned,
+                        }),
+                      entryType === "object"
+                        ? visitEntryMutationError
+                        : mutationError,
                     );
                   }}
                 >
@@ -285,27 +298,38 @@ export default function VisitPlansPage(): React.JSX.Element {
                         />
                       </Field>
                     ) : (
-                      <SearchableSelect
-                        label="Объект"
-                        value={objectId}
-                        disabled={pending}
-                        onChange={setObjectId}
-                      options={[]}
-                      asyncSearch={async (q) =>
-                          (
-                            await listObjectsPage({
+                      <div>
+                        <div
+                          id="visit-plan-object-label"
+                          className="ui-detail-label"
+                        >
+                          Объект
+                        </div>
+                        <SearchableSelect
+                          label="Объект"
+                          hideLabel
+                          value={objectId}
+                          disabled={pending || !objectOptionsManagerId}
+                          onChange={setObjectId}
+                          options={[]}
+                          triggerProps={{
+                            "aria-labelledby": "visit-plan-object-label",
+                          }}
+                          minimumSearchLength={2}
+                          searchPromptText="Введите не менее 2 символов для поиска объектов"
+                          asyncSearch={async (q) => {
+                            if (!objectOptionsManagerId) return [];
+                            const result = await getVisitPlanObjectOptions(
+                              objectOptionsManagerId,
                               q,
-                              page: 1,
-                              limit: 20,
-                              sortBy: "name",
-                              sortDirection: "asc",
-                            })
-                          ).items.map((object) => ({
-                            value: object.id,
-                            label: object.name,
-                          }))
-                        }
-                      />
+                            );
+                            return result.items.map((object) => ({
+                              value: object.id,
+                              label: object.name,
+                            }));
+                          }}
+                        />
+                      </div>
                     )}
                     <label className={styles.checkbox}>
                       <input

@@ -9,6 +9,10 @@
   line-height: var(--ui-leading-relaxed);
 }
 
+.selectedReport {
+  border-left: 3px solid var(--ui-accent);
+}
+
 @media (max-width: 760px) {
   .dateField {
     width: 100%;

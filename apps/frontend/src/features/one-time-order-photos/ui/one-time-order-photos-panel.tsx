@@ -12,8 +12,9 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
-import { ReasonDialog } from '@/shared/ui/overlays';
+import { ReasonDialog, useConfirm } from '@/shared/ui/overlays';
 import { Alert, Button, Field, Stack, Surface } from '@/shared/ui/foundation';
+import { OverflowMenu } from '@/shared/ui/overflow-menu/overflow-menu';
 
 export function OneTimeOrderPhotosPanel({
   items,
@@ -36,6 +37,8 @@ export function OneTimeOrderPhotosPanel({
   const [comment, setComment] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
   const [busyPhotoId, setBusyPhotoId] = useState<string | null>(null);
   const [photoToDelete, setPhotoToDelete] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
@@ -50,12 +53,13 @@ export function OneTimeOrderPhotosPanel({
         <div>
           <div className="ui-section-title">Фото заказа</div>
           <div className="ui-section-subtitle">
-            До/после, отчетные и прочие фото через общий storage.
+            Фото до и после работ, отчётные материалы и другие изображения заказа.
           </div>
         </div>
+        {canCreate && !isFormOpen ? <Button onClick={() => setIsFormOpen(true)}>Добавить фото</Button> : null}
       </div>
 
-      {canCreate ? (
+      {canCreate && isFormOpen ? (
         <form
           onSubmit={async (event) => {
             event.preventDefault();
@@ -76,6 +80,7 @@ export function OneTimeOrderPhotosPanel({
               setComment('');
               setPendingFiles([]);
               setCategory('before');
+              setIsFormOpen(false);
             } catch {
               setError('Не удалось сохранить фото заказа.');
             } finally {
@@ -106,6 +111,8 @@ export function OneTimeOrderPhotosPanel({
             <div className="ui-text-muted">Фото</div>
             <MediaActionPicker
               disabled={isSubmitting}
+              compactMenu
+              compactLabel="Добавить фото к заказу"
               allowGenericFile={false}
               genericFileAccept="image/*"
               onPick={async (file) => {
@@ -129,6 +136,19 @@ export function OneTimeOrderPhotosPanel({
             <Button variant="primary" type="submit" disabled={isSubmitting || pendingFiles.length === 0}>
               {isSubmitting ? 'Сохраняем...' : 'Добавить фото'}
             </Button>
+            <Button type="button" disabled={isSubmitting} onClick={() => void (async () => {
+              const hasDraft = Boolean(comment.trim() || pendingFiles.length || category !== 'before');
+              if (hasDraft && !(await confirm({
+                title: 'Отменить добавление фото?',
+                consequence: 'Выбранные файлы и комментарий будут удалены.',
+                confirmLabel: 'Отменить и удалить',
+                tone: 'danger',
+              }))) return;
+              setComment('');
+              setPendingFiles([]);
+              setCategory('before');
+              setIsFormOpen(false);
+            })()}>Отменить</Button>
           </div>
         </form>
       ) : null}
@@ -157,6 +177,13 @@ export function OneTimeOrderPhotosPanel({
                 <div className="ui-text-muted">
                   {new Date(item.createdAt).toLocaleString('ru-RU')}
                 </div>
+                {item.capabilities.canDelete ? <OverflowMenu triggerLabel="Действия с записью фото" items={[{
+                  key: 'delete-photo-record',
+                  label: `Удалить запись с фото (${item.attachments.length})`,
+                  tone: 'danger',
+                  disabled: busyPhotoId === item.id,
+                  onSelect: () => { setPhotoToDelete(item.id); setDeleteReason(''); },
+                }]} /> : null}
               </div>
               <div className="ui-text-muted">
                 {getUserDisplayName(item.createdBy)}
@@ -166,16 +193,6 @@ export function OneTimeOrderPhotosPanel({
                 files={item.attachments}
                 emptyText="Фотографии в записи не найдены."
               />
-              {item.capabilities.canDelete ? (
-                <div className="ui-inline">
-                  <Button
-                    disabled={busyPhotoId === item.id}
-                    onClick={() => { setPhotoToDelete(item.id); setDeleteReason(''); }}
-                  >
-                    {busyPhotoId === item.id ? 'Удаляем...' : 'Удалить'}
-                  </Button>
-                </div>
-              ) : null}
             </Surface>
           ))}
         </div>
@@ -240,7 +257,7 @@ export function OneTimeOrderPhotosPanel({
       open={photoToDelete !== null}
       onOpenChange={(open) => { if (!open) setPhotoToDelete(null); }}
       title="Удалить фото из заказа?"
-      description="Фото будет перемещено в удалённые материалы. Его можно будет восстановить из этой карточки."
+      description="Запись со всеми её фотографиями будет перемещена в удалённые материалы. Её можно будет восстановить из этой карточки."
       reason={deleteReason}
       onReasonChange={setDeleteReason}
       reasonRequired={false}
@@ -258,6 +275,7 @@ export function OneTimeOrderPhotosPanel({
           .finally(() => setBusyPhotoId(null));
       }}
     />
+      {confirmDialog}
     </>
   );
 }

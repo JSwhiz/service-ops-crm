@@ -44,11 +44,11 @@ export function SchedulePreviewPanel({ draftKey, onPreview, employeeNames }: {
   return <section className={styles.section} aria-label="Предпросмотр расписания" aria-busy={pending}>
     <h3 className="ui-section-title">Предпросмотр расписания</h3>
     <p className="ui-text-muted">Сервер проверяет покрытие по временным интервалам. День и ночь не складываются в одновременную численность. Просмотр не создаёт факт или начисление.</p>
-    <div className={styles.grid}>
+    <div className={`${styles.grid} ${styles.previewDates}`}>
       <Field label="С даты"><DatePicker value={from} onChange={setFrom} disabled={pending} /></Field>
       <Field label="По дату"><DatePicker value={to} onChange={setTo} disabled={pending} /></Field>
     </div>
-    <div><Button pending={pending} onClick={() => { void preview(); }}>Проверить на сервере</Button></div>
+    <div><Button pending={pending} onClick={() => { void preview(); }}>Показать расписание</Button></div>
     {error ? <Alert tone="danger">{error}</Alert> : null}
     {result ? <>
       {result.recommendedGroups !== null ? <p>Рекомендация по числу групп: {result.recommendedGroups}. Назначения не создаются автоматически.</p> : null}

@@ -44,6 +44,14 @@ export function SearchIcon(props: IconProps): React.JSX.Element {
   return <Icon {...props}><circle cx="9" cy="9" r="5.5" /><path d="m13.2 13.2 3.3 3.3" /></Icon>;
 }
 
+export function FitToScreenIcon(props: IconProps): React.JSX.Element {
+  return <Icon {...props}><path d="M7 3.5H3.5V7M13 3.5h3.5V7M16.5 13v3.5H13M7 16.5H3.5V13" /><path d="m3.5 3.5 4 4m9-4-4 4m4 9-4-4m-9 4 4-4" /></Icon>;
+}
+
+export function OneToOneIcon(props: IconProps): React.JSX.Element {
+	return <Icon {...props}><path d="M4 7.5 6 6v8M14 6v8" /><circle cx="10" cy="7" r=".7" fill="currentColor" stroke="none" /><circle cx="10" cy="13" r=".7" fill="currentColor" stroke="none" /></Icon>;
+}
+
 export function ChevronDownIcon(props: IconProps): React.JSX.Element {
   return <Icon {...props}><path d="m6 8 4 4 4-4" /></Icon>;
 }

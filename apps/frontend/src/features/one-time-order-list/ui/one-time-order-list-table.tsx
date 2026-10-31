@@ -48,7 +48,6 @@ export function OneTimeOrderListTable({
             <th scope="col">Объект</th>
             <th scope="col">ТЗ</th>
             <th scope="col">Задачи</th>
-            <th scope="col">Отзыв</th>
             <th scope="col" aria-label="Быстрый просмотр" />
           </tr>
         </thead>
@@ -76,11 +75,10 @@ export function OneTimeOrderListTable({
                   }
                 }}
               >
-                <td data-label="Заказ">
-                  <Link href={href} onClick={(event) => event.stopPropagation()}><strong>{item.title}</strong></Link>
-                  <span className={orderStyles.oneTimeOrderTableMeta}>
-                    {item.contact.name}
-                    {item.contact.phone ? ` · ${item.contact.phone}` : ''}
+                <td data-label="Заказ" className={orderStyles.oneTimeOrderRegistryIdentity}>
+                  <Link href={href} title={item.title} onClick={(event) => event.stopPropagation()}><strong>{item.title}</strong></Link>
+                  <span className={orderStyles.oneTimeOrderTableMeta} title={[item.contact.name, item.contact.phone].filter(Boolean).join(' · ')}>
+                    {item.contact.name}{item.contact.phone ? ` · ${item.contact.phone}` : ''}
                   </span>
                 </td>
                 <td data-label="Даты">
@@ -102,7 +100,7 @@ export function OneTimeOrderListTable({
                     </span>
                   ) : null}
                 </td>
-                <td data-label="Адрес">{item.executionAddress}</td>
+                <td data-label="Адрес" className={orderStyles.oneTimeOrderRegistryAddress} title={item.executionAddress}>{item.executionAddress || '—'}</td>
                 <td data-label="Статус">
                   <StatusBadge status={item.status}>
                     {getOneTimeOrderStatusLabel(item.status)}
@@ -125,22 +123,13 @@ export function OneTimeOrderListTable({
                   )}
                 </td>
                 <td data-label="ТЗ">
-                  <span
+                  {item.specificationProgress.total === 0 ? '—' : <span
                     className={orderStyles.oneTimeOrderSpecificationProgress}
-                    data-complete={item.specificationProgress.total > 0 && item.specificationProgress.completed >= item.specificationProgress.total}
+                    data-complete={item.specificationProgress.completed >= item.specificationProgress.total}
                     title={`Выполнено пунктов ТЗ: ${item.specificationProgress.completed} из ${item.specificationProgress.total}`}
-                  >
-                    <strong>{item.specificationProgress.completed}</strong>
-                    <span aria-hidden="true">/</span>
-                    {item.specificationProgress.total}
-                  </span>
+                  >{item.specificationProgress.completed} / {item.specificationProgress.total}</span>}
                 </td>
                 <td data-label="Задачи">{item.accessibleTaskCount}</td>
-                <td data-label="Отзыв">
-                  <span className={orderStyles.oneTimeOrderReviewPreview} title={item.reviewPreview ?? undefined}>
-                    {item.reviewPreview || '—'}
-                  </span>
-                </td>
                 <td data-label="">
                   <div className={orderStyles.oneTimeOrderTableActions}>
                     <Link

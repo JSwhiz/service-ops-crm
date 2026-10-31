@@ -29,7 +29,7 @@ export function OneTimeOrderDailyReportPanel({
 
   return (
     <Stack gap="xl">
-    <Surface as="section" padding="md" className="ui-stack ui-stack--lg">
+    <Surface as="section" padding="md" id="one-time-order-daily-report" className="ui-stack ui-stack--lg">
       <div className="ui-section-header">
         <div>
           <h2 className="ui-section-title">Дневной отчёт</h2>
@@ -79,6 +79,7 @@ export function OneTimeOrderDailyReportPanel({
         <Stack gap="sm">
           <div className="ui-text-muted">Фото и файлы отчёта</div>
           <MediaActionPicker
+            compactMenu
             disabled={isSubmitting}
             onPick={async (file) => {
               setPendingFiles((prev) => [...prev, file]);

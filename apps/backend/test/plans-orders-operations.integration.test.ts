@@ -53,6 +53,52 @@ test('plans and order operations preserve personal ACL, history, explicit totals
   await t.test('planned and unplanned visits use optimistic versions and preserve actor history', async () => {
     const input = { expectedVersion: plan.version, objectId, isUnplanned: false };
     assert.equal((await api(`/visit-plans/${plan.id}/entries`, 'manager1', 'POST', input)).status, 403);
+    const { objectId: unassignedObjectId } = await createCoreTestObject(prisma);
+    const unassigned = await prisma.object.findUniqueOrThrow({
+      where: { id: unassignedObjectId },
+      include: { assignments: { where: { isActive: true } } },
+    });
+    assert.notEqual(unassigned.createdByUserId, users.manager1!.id);
+    assert.equal(unassigned.assignments.some(({ userId }) => userId === users.manager1!.id), false);
+    const entriesBeforeDeniedAdd = await prisma.managerVisitPlanEntry.count({ where: { planId: plan.id } });
+    const deniedAdd = await api(`/visit-plans/${plan.id}/entries`, 'lebedev', 'POST', {
+      expectedVersion: plan.version,
+      objectId: unassignedObjectId,
+      isUnplanned: false,
+    });
+    assert.equal(deniedAdd.status, 403, await deniedAdd.clone().text());
+    assert.match(deniedAdd.headers.get('content-type') ?? '', /^application\/json\b/i);
+    const deniedBody = await deniedAdd.json() as {
+      error?: { message?: string; statusCode?: number };
+    };
+    assert.equal(deniedBody.error?.statusCode, 403);
+    assert.equal(deniedBody.error?.message, 'Object is outside manager scope');
+    assert.equal(await prisma.managerVisitPlanEntry.count({ where: { planId: plan.id } }), entriesBeforeDeniedAdd);
+    assert.equal((await prisma.managerVisitPlan.findUniqueOrThrow({ where: { id: plan.id } })).version, plan.version);
+    const pagedManagerObjects: string[] = [];
+    for (let index = 0; index < 21; index += 1) {
+      pagedManagerObjects.push((await createCoreTestObject(prisma, { includeManagerAssignment: true })).objectId);
+    }
+    const lastManagerObject = await prisma.object.findUniqueOrThrow({
+      where: { id: pagedManagerObjects[pagedManagerObjects.length - 1] },
+      select: { id: true, name: true },
+    });
+    const optionsPage = await json<{ items: Array<{ id: string; name: string }>; total: number; totalPages: number }>(
+      await api(`/visit-plans/object-options?managerUserId=${users.manager1!.id}&page=2&limit=10`, 'lebedev'),
+    );
+    assert.equal(optionsPage.items.length, 10);
+    assert.ok(optionsPage.total >= 22);
+    assert.ok(optionsPage.totalPages >= 3);
+    const matchingOption = await json<{ items: Array<{ id: string; name: string }>; total: number }>(
+      await api(`/visit-plans/object-options?managerUserId=${users.manager1!.id}&q=${encodeURIComponent(lastManagerObject.name)}&page=1&limit=10`, 'lebedev'),
+    );
+    assert.equal(matchingOption.total, 1);
+    assert.deepEqual(matchingOption.items, [lastManagerObject]);
+    const foreignScopeOptions = await json<{ items: Array<{ id: string }> }>(
+      await api(`/visit-plans/object-options?managerUserId=${users.manager1!.id}&page=1&limit=100`, 'lebedev'),
+    );
+    assert.equal(foreignScopeOptions.items.some(({ id }) => id === unassignedObjectId), false);
+    assert.equal((await api(`/visit-plans/object-options?managerUserId=${users.manager1!.id}`, 'manager1')).status, 403);
     const concurrent = await Promise.all([api(`/visit-plans/${plan.id}/entries`, 'lebedev', 'POST', input), api(`/visit-plans/${plan.id}/entries`, 'gorbacheva', 'POST', { expectedVersion: plan.version, clientName: 'Must not overwrite', isUnplanned: true })]);
     assert.deepEqual(concurrent.map((result) => result.status).sort(), [201, 409]);
     plan = await json<Plan>(concurrent.find((result) => result.status === 201)!, 201);

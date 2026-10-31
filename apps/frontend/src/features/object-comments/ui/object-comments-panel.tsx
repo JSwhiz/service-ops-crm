@@ -92,9 +92,7 @@ export function ObjectCommentsPanel({ items, onCreate }: ObjectCommentsPanelProp
               <div className={styles.panelMeta}>{getUserDisplayName(item.createdBy)}</div>
               {item.content ? <div>{item.content}</div> : null}
               {item.attachments.length > 0 ? (
-                <div className={styles.savedPhotosViewport}>
-                  <AttachmentPreviewList files={item.attachments} />
-                </div>
+                <AttachmentPreviewList files={item.attachments} />
               ) : null}
             </Surface>
           ))}

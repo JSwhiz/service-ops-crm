@@ -122,12 +122,18 @@ function OverlayFrame({
       aria-modal="true"
       aria-busy={busy || undefined}
       onCancel={(event) => {
+        // React propagates dialog events through nested overlay owners.
+        // Only the dialog that emitted the event may close itself.
+        if (event.target !== event.currentTarget) return;
+        event.stopPropagation();
         event.preventDefault();
         if (!busy) {
           onOpenChange(false);
         }
       }}
-      onClose={() => {
+      onClose={(event) => {
+        if (event.target !== event.currentTarget) return;
+        event.stopPropagation();
         if (open) {
           onOpenChange(false);
         }

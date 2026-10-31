@@ -27,17 +27,6 @@
   background: var(--ui-surface-subtle);
 }
 
-.oneTimeOrderRegistryTable .oneTimeOrderReviewPreview {
-  display: block;
-  max-width: 280px;
-  overflow: hidden;
-  color: var(--ui-text-secondary);
-  font-size: var(--ui-text-sm);
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .orderCompletionPanel {
   display: grid;
   gap: 18px;
@@ -46,7 +35,49 @@
 .orderCompletionSummary {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.orderCompletionStageHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-space-2);
+}
+
+.orderCompletionDisclosure { display: grid; gap: var(--ui-space-3); }
+
+.orderCompletionPrimaryAction {
+  width: max-content;
+  max-width: 100%;
+  justify-self: start;
+}
+
+.orderCompletionHelp {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+}
+
+.orderCompletionHelp summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.orderCompletionHelp summary:focus-visible {
+  border-radius: 4px;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.orderCompletionHelp > div {
+  max-width: 62ch;
+  padding-top: var(--ui-space-2);
+}
+
+.orderCompletionDraftTotal {
+  color: var(--ui-text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .orderCompletionForm,
@@ -66,10 +97,80 @@
   background: var(--ui-surface-subtle);
 }
 
+.orderCompletionCycle { padding: 0; overflow: clip; }
+
+.orderCompletionStageSummary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  list-style: none;
+  cursor: pointer;
+}
+
+.orderCompletionStageSummary::-webkit-details-marker { display: none; }
+
+.orderCompletionStageSummary > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.orderCompletionStageSummary svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: var(--ui-text-secondary);
+  transition: transform var(--ui-duration-fast) var(--ui-ease-standard);
+}
+
+.orderCompletionCycle[open] .orderCompletionStageSummary svg { transform: rotate(180deg); }
+
+.orderCompletionStageBody {
+  display: grid;
+  gap: var(--ui-space-3);
+  padding: 0 var(--ui-space-4) var(--ui-space-4);
+}
+
 .orderPaymentCard label,
 .orderCompletionWideField {
   display: grid;
   gap: 6px;
+}
+
+.orderPaymentModeOptions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.orderPaymentModeOption {
+  display: inline-flex !important;
+  width: fit-content;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.orderPaymentModeOption input[type='radio'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--ui-accent);
+}
+
+.orderPaymentModeOption:focus-within {
+  outline: 2px solid color-mix(in srgb, var(--ui-accent) 28%, transparent);
+  outline-offset: 2px;
+}
+
+.orderAddPayment {
+  width: max-content;
+  max-width: 100%;
+  justify-self: start;
 }
 
 .orderCompletionWideField {
@@ -136,6 +237,13 @@
   min-width: 0;
   grid-template-columns: minmax(0, 1fr);
   container: one-time-orders / inline-size;
+}
+
+.quickFilters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
 }
 
 .oneTimeOrderRegistry > * {
@@ -286,6 +394,32 @@
   white-space: nowrap;
 }
 
+.oneTimeOrderRegistry .oneTimeOrderRegistryIdentity,
+.oneTimeOrderRegistry .oneTimeOrderRegistryAddress {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryIdentity > a,
+.oneTimeOrderRegistry .oneTimeOrderRegistryIdentity > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow: hidden;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryIdentity > a {
+  -webkit-line-clamp: 2;
+}
+
+.oneTimeOrderRegistry .oneTimeOrderRegistryAddress {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 .oneTimeOrderExecutionDate {
   color: var(--ui-text);
   font-variant-numeric: tabular-nums;
@@ -296,11 +430,99 @@
   display: grid;
   min-width: 0;
   gap: var(--ui-space-4);
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .orderWideField {
   grid-column: 1 / -1;
+}
+
+.orderOptionalNotes {
+  grid-column: 1 / -1;
+  border-block: 1px solid var(--ui-border);
+  padding-block: var(--ui-space-2);
+}
+
+.orderOptionalNotesSummary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.orderOptionalNotesContent {
+  display: grid;
+  gap: var(--ui-space-4);
+  margin-top: var(--ui-space-3);
+}
+
+.orderOptionalNotesState {
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-sm);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .oneTimeOrderFormFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orderWideField {
+    grid-column: auto;
+  }
+
+  .orderOptionalNotes {
+    grid-column: auto;
+  }
+}
+
+.orderFormGroupHeading {
+  margin: var(--ui-space-2) 0 0;
+  border-bottom: 1px solid var(--ui-border);
+  padding-bottom: var(--ui-space-2);
+  color: var(--ui-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.orderTeamOverview {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.orderTeamMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3) var(--ui-space-6);
+}
+
+.orderTeamMetrics > :global(.ui-detail-field) {
+  min-width: 8rem;
+}
+
+.orderTeamEmployeeList {
+  display: grid;
+  gap: var(--ui-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+}
+
+.orderTeamEmployee {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: var(--ui-space-3);
+}
+
+.orderTeamFormerSummary {
+  width: fit-content;
+  cursor: pointer;
 }
 
 .orderDetailContent {
@@ -317,10 +539,31 @@
   padding-top: var(--ui-space-3);
 }
 
+.specificationHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.specificationIdentity {
+  min-width: 0;
+}
+
+.specificationActions {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
 .specificationTitle {
   margin: 0;
   font-size: var(--ui-text-md);
   font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.catalogOptionText {
+  flex: 1 1 0;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
@@ -338,6 +581,10 @@
 @media (max-width: 760px) {
   .orderDetailContent {
     gap: var(--ui-space-4);
+  }
+
+  .orderCompletionPrimaryAction {
+    min-height: 44px;
   }
 }
 
@@ -450,8 +697,8 @@
   .oneTimeOrderRegistryTable th:nth-child(5) { width: 14%; }
   .oneTimeOrderRegistryTable th:nth-child(6) { width: 9%; }
   .oneTimeOrderRegistryTable th:nth-child(7) { width: 7%; }
-  .oneTimeOrderRegistryTable th:nth-child(9) { width: 10%; }
-  .oneTimeOrderRegistryTable th:nth-child(10) { width: 4%; }
+  .oneTimeOrderRegistryTable th:nth-child(8) { width: 8%; }
+  .oneTimeOrderRegistryTable th:nth-child(9) { width: 4%; }
 }
 
 @container (max-width: 1100px) {
@@ -466,8 +713,8 @@
   .oneTimeOrderRegistryTable th:nth-child(4) { width: 12%; }
   .oneTimeOrderRegistryTable th:nth-child(5) { width: 17%; }
   .oneTimeOrderRegistryTable th:nth-child(7) { width: 8%; }
-  .oneTimeOrderRegistryTable th:nth-child(9) { width: 10%; }
-  .oneTimeOrderRegistryTable th:nth-child(10) { width: 3%; }
+  .oneTimeOrderRegistryTable th:nth-child(8) { width: 10%; }
+  .oneTimeOrderRegistryTable th:nth-child(9) { width: 3%; }
 }
 
 @container (max-width: 980px) {
@@ -477,8 +724,8 @@
   .oneTimeOrderRegistryTable th:nth-child(4) { width: 13%; }
   .oneTimeOrderRegistryTable th:nth-child(5) { width: 17%; }
   .oneTimeOrderRegistryTable th:nth-child(7) { width: 8%; }
-  .oneTimeOrderRegistryTable th:nth-child(9) { width: 9%; }
-  .oneTimeOrderRegistryTable th:nth-child(10) { width: 3%; }
+  .oneTimeOrderRegistryTable th:nth-child(8) { width: 9%; }
+  .oneTimeOrderRegistryTable th:nth-child(9) { width: 3%; }
 }
 
 @container (max-width: 760px) {
@@ -492,8 +739,8 @@
   .oneTimeOrderRegistryTable th:nth-child(3) { width: 18%; }
   .oneTimeOrderRegistryTable th:nth-child(4) { width: 13%; }
   .oneTimeOrderRegistryTable th:nth-child(5) { width: 18%; }
-  .oneTimeOrderRegistryTable th:nth-child(9) { width: 9%; }
-  .oneTimeOrderRegistryTable th:nth-child(10) { width: 3%; }
+  .oneTimeOrderRegistryTable th:nth-child(8) { width: 9%; }
+  .oneTimeOrderRegistryTable th:nth-child(9) { width: 3%; }
 }
 
 .oneTimeOrderTableActions {

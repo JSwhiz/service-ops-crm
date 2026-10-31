@@ -13,6 +13,7 @@ import {
 import type { OneTimeOrderListResponse, OneTimeOrderReviewListResponse } from '@/entities/one-time-order/model/one-time-order.types';
 import { OneTimeOrderListTable } from '@/features/one-time-order-list/ui/one-time-order-list-table';
 import { useAuth } from '@/shared/auth/use-auth';
+import { isLeadershipCircle } from '@/shared/lib/access';
 import { getOneTimeOrderStatusLabel, ONE_TIME_ORDER_STATUS_OPTIONS } from '@/shared/lib/one-time-order-presentation';
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
@@ -22,7 +23,7 @@ import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/registry-filters/registry-toolbar';
 import styles from './one-time-order-registry.module.css';
-import { Alert, ButtonLink, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { CalendarIcon, PlusIcon } from '@/shared/ui/icons/icons';
 import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
@@ -62,6 +63,8 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     rawReviewStatus === 'missing' || rawReviewStatus === 'present'
       ? rawReviewStatus
       : '';
+  const withoutDate = searchParams.get('withoutDate') === 'true';
+  const withoutActiveManager = searchParams.get('withoutActiveManager') === 'true';
   const page = parsePage(searchParams.get('page'));
   const { pageSize, pageSizeOptions, setPageSize } = usePageSizeParam(PAGE_LIMIT);
   const sortBy = parseSortBy(searchParams.get('sortBy'));
@@ -70,6 +73,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   const canViewReviews = user?.capabilities?.canViewAllOneTimeOrderReviews ?? false;
   const reviewOnly = canAccess === false && canViewReviews;
   const canCreate = user?.capabilities?.canCreateOneTimeOrder ?? false;
+  const canManageSpecificationCatalog = isLeadershipCircle(user?.roleCodes ?? []);
   const canViewCalendar = user?.capabilities?.canViewOneTimeOrderCalendar ?? false;
   const [searchInput, setSearchInput] = useState(query);
   const [result, setResult] = useState(EMPTY_RESULT);
@@ -128,7 +132,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
       ? listOneTimeOrderReviews({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, page, limit: pageSize }).then((next) => {
           if (requestSequenceRef.current === requestSequence) setReviews(next);
         })
-      : listOneTimeOrders({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, linkedObjectId: linkedObjectId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, reviewStatus: reviewStatus || undefined, page, limit: pageSize, sortBy, sortDirection }).then((next) => {
+      : listOneTimeOrders({ q: query || undefined, status: status || undefined, managerUserId: managerUserId || undefined, linkedObjectId: linkedObjectId || undefined, dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, reviewStatus: reviewStatus || undefined, withoutDate: withoutDate || undefined, withoutActiveManager: withoutActiveManager || undefined, page, limit: pageSize, sortBy, sortDirection }).then((next) => {
           if (requestSequenceRef.current === requestSequence) setResult(next);
         });
     void request.catch(() => {
@@ -136,7 +140,7 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
     }).finally(() => {
       if (requestSequenceRef.current === requestSequence) setIsLoading(false);
     });
-  }, [canAccess, canViewReviews, dateFrom, dateTo, linkedObjectId, managerUserId, page, pageSize, query, reviewOnly, reviewStatus, sortBy, sortDirection, status]);
+  }, [canAccess, canViewReviews, dateFrom, dateTo, linkedObjectId, managerUserId, page, pageSize, query, reviewOnly, reviewStatus, sortBy, sortDirection, status, withoutActiveManager, withoutDate]);
 
   const total = reviewOnly ? reviews.total : result.total;
   const totalPages = reviewOnly ? reviews.totalPages : result.totalPages;
@@ -192,7 +196,13 @@ export default function OneTimeOrdersPage(): React.JSX.Element {
   ].filter(Boolean) as AvailableRegistryFilter[];
 
   return <div className={`ui-page ${orderStyles.oneTimeOrderRegistry}`}>
-    <RegistryToolbar searchValue={searchInput} searchLabel="Поиск по разовым заказам" searchPlaceholder={reviewOnly ? 'Заказ, менеджер или текст отзыва' : 'Заказ, адрес, контакт, объект, менеджер, отзыв'} onSearchChange={setSearchInput} activeFilters={registryFilters} availableFilters={reviewOnly ? availableRegistryFilters.filter((filter) => filter.id === 'status' || filter.id === 'manager' || filter.id === 'period') : availableRegistryFilters} actions={!reviewOnly ? <>{canViewCalendar ? <ButtonLink icon={<CalendarIcon />} href="/one-time-orders/calendar">Календарь</ButtonLink> : null}{canCreate ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/one-time-orders/new">Создать заказ</ButtonLink> : null}</> : null} />
+    {!reviewOnly ? <div className={orderStyles.quickFilters} aria-label="Быстрые фильтры заказов">
+      <Button variant={withoutDate ? 'primary' : 'ghost'} aria-pressed={withoutDate} onClick={() => replaceQuery({ withoutDate: withoutDate ? null : 'true', page: null })}>Без даты</Button>
+      <Button variant={withoutActiveManager ? 'primary' : 'ghost'} aria-pressed={withoutActiveManager} onClick={() => replaceQuery({ withoutActiveManager: withoutActiveManager ? null : 'true', page: null })}>Без менеджера</Button>
+      <Button variant={status === 'in_progress' ? 'primary' : 'ghost'} aria-pressed={status === 'in_progress'} onClick={() => replaceQuery({ status: status === 'in_progress' ? null : 'in_progress', page: null })}>В работе</Button>
+      {(withoutDate || withoutActiveManager || status) ? <Button variant="ghost" onClick={() => replaceQuery({ withoutDate: null, withoutActiveManager: null, status: null, page: null })}>Сбросить</Button> : null}
+    </div> : null}
+    <RegistryToolbar searchValue={searchInput} searchLabel="Поиск по разовым заказам" searchPlaceholder={reviewOnly ? 'Заказ, менеджер или текст отзыва' : 'Заказ, адрес, контакт, объект, менеджер, отзыв'} onSearchChange={setSearchInput} activeFilters={registryFilters} availableFilters={reviewOnly ? availableRegistryFilters.filter((filter) => filter.id === 'status' || filter.id === 'manager' || filter.id === 'period') : availableRegistryFilters} actions={!reviewOnly ? <>{canManageSpecificationCatalog ? <ButtonLink href="/one-time-orders/specification-catalog">Каталог ТЗ</ButtonLink> : null}{canViewCalendar ? <ButtonLink icon={<CalendarIcon />} href="/one-time-orders/calendar">Календарь</ButtonLink> : null}{canCreate ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/one-time-orders/new">Создать заказ</ButtonLink> : null}</> : null} />
     {isLoading ? <div className="ui-empty-state">Загрузка...</div> : error ? <Alert tone="warning">{error}</Alert> : reviewOnly ? <ReviewTable reviews={reviews} /> : <OneTimeOrderListTable items={result.items} sortBy={sortBy} sortDirection={sortDirection} onSort={(field) => replaceQuery({ sortBy: field, sortDirection: field === sortBy ? (sortDirection === 'asc' ? 'desc' : 'asc') : field === 'title' ? 'asc' : 'desc', page: null })} />}
     {!isLoading && !error ? <TablePagination page={currentPage} totalPages={totalPages} label={reviewOnly ? 'Страницы отзывов' : 'Страницы разовых заказов'}
       summary={total > 0 ? `Показано ${(currentPage - 1) * pageSize + 1}–${Math.min(currentPage * pageSize, total)} из ${total}` : 'Записей не найдено'}

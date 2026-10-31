@@ -13,6 +13,7 @@ import { canManageEmployeeAssignments } from '../employees/utils/employee-hr-acc
 import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { EquipmentService } from '../equipment/equipment.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
+import { FilesService } from '../files/files.service';
 import { CreateObjectInventoryIssueDto } from '../inventory/dto/create-object-inventory-issue.dto';
 import { InventoryMovementResponseDto } from '../inventory/dto/inventory-movement-response.dto';
 import { ObjectInventoryResponseDto } from '../inventory/dto/object-inventory-response.dto';
@@ -57,6 +58,7 @@ import { ObjectAttendanceResponseDto } from './dto/object-attendance-response.dt
 import { ObjectCommentResponseDto } from './dto/object-comment-response.dto';
 import { ObjectCompensationRateResponseDto } from './dto/object-compensation-rate-response.dto';
 import { ObjectDailyReportResponseDto } from './dto/object-daily-report-response.dto';
+import { ObjectDailyReportAttachmentResponseDto } from './dto/object-daily-report-attachment-response.dto';
 import { ObjectEmployeeOptionDto } from './dto/object-employee-option.dto';
 import { ObjectFeedItemDto } from './dto/object-feed-item.dto';
 import { LinkedOneTimeOrderProjectionDto } from './dto/linked-one-time-order-projection.dto';
@@ -66,6 +68,7 @@ import { UpdateObjectCompensationDefaultsDto } from './dto/update-object-compens
 import { UpsertDailyReportDto } from './dto/upsert-daily-report.dto';
 import { UpsertObjectAttendanceDto } from './dto/upsert-object-attendance.dto';
 import { ObjectDailyReportPublicationService } from './object-daily-report-publication.service';
+import { CorrectDailyReportAttachmentsDto } from './dto/correct-daily-report-attachments.dto';
 import { moscowDayWindow } from '../objects/utils/object-season.util';
 
 interface CurrentAuthUser {
@@ -164,6 +167,7 @@ export class ObjectOperationsService {
     private readonly notificationsService: NotificationsService,
     private readonly planningService: ObjectPlanningService,
     private readonly reportPublications: ObjectDailyReportPublicationService,
+    private readonly filesService: FilesService,
   ) {}
 
   async getTodayArrivalPhoto(
@@ -250,12 +254,8 @@ export class ObjectOperationsService {
       return null;
     }
 
-    const attachmentsMap = await this.listAttachmentsByEntityIds(
-      'object_daily_report',
-      [item.id],
-    );
-
-    return this.mapDailyReport(item, attachmentsMap.get(item.id) ?? []);
+    const attachmentsMap = await this.listDailyReportAttachmentsByEntityIds([item.id]);
+    return this.mapDailyReport(item, attachmentsMap.get(item.id) ?? [], await this.canEditDailyReportAttachments(currentUser, item.id));
   }
 
   async listDailyReports(currentUser: CurrentAuthUser, objectId: string, date?: string): Promise<ObjectDailyReportResponseDto[]> {
@@ -271,8 +271,9 @@ export class ObjectOperationsService {
       include: { updatedBy: true },
       orderBy: [{ reportDate: 'desc' }, { id: 'desc' }],
     });
-    const attachments = await this.listAttachmentsByEntityIds('object_daily_report', items.map((item) => item.id));
-    return items.map((item) => this.mapDailyReport(item, attachments.get(item.id) ?? []));
+    const attachments = await this.listDailyReportAttachmentsByEntityIds(items.map((item) => item.id));
+    const canEditAttachments = await this.canEditDailyReportAttachments(currentUser, items[0]?.id ?? '');
+    return items.map((item) => this.mapDailyReport(item, attachments.get(item.id) ?? [], canEditAttachments));
   }
 
   async upsertTodayDailyReport(
@@ -284,14 +285,23 @@ export class ObjectOperationsService {
 
     const item = await this.reportPublications.saveDraft(objectId, currentUser.id, payload.content, payload.expectedRevision);
 
-    return this.mapDailyReport(item, []);
+    const attachments = await this.listDailyReportAttachmentsByEntityIds([item.id]);
+    return this.mapDailyReport(item, attachments.get(item.id) ?? [], await this.canEditDailyReportAttachments(currentUser, item.id));
   }
 
   async submitTodayDailyReport(currentUser: CurrentAuthUser, objectId: string, expectedRevision: number): Promise<ObjectDailyReportResponseDto> {
     await this.assertObjectWritable(currentUser, objectId);
     const item = await this.reportPublications.submit(objectId, currentUser.id, expectedRevision);
-    const attachments = await this.listAttachmentsByEntityIds('object_daily_report', [item.id]);
-    return this.mapDailyReport(item, attachments.get(item.id) ?? []);
+    const attachments = await this.listDailyReportAttachmentsByEntityIds([item.id]);
+    return this.mapDailyReport(item, attachments.get(item.id) ?? [], await this.canEditDailyReportAttachments(currentUser, item.id));
+  }
+
+  async correctDailyReportAttachments(currentUser: CurrentAuthUser, objectId: string, reportId: string, payload: CorrectDailyReportAttachmentsDto) {
+    await this.filesService.assertDailyReportWritable(currentUser, reportId);
+    const object = await this.prisma.object.findFirst({ where: { id: objectId, deletedAt: null }, select: { status: true } });
+    if (!object) throw new NotFoundException('Object not found');
+    if (['frozen', 'archived'].includes(object.status)) throw new ConflictException('Frozen or archived objects cannot be edited');
+    return this.reportPublications.correctAttachments(objectId, reportId, currentUser, payload);
   }
 
   async listComments(
@@ -2348,10 +2358,16 @@ export class ObjectOperationsService {
       login: string;
       fullName: string;
     };
-  }, attachments: FileResponseDto[]): ObjectDailyReportResponseDto {
+  }, attachments: ObjectDailyReportAttachmentResponseDto[], canEditAttachments: boolean): ObjectDailyReportResponseDto {
     return {
       revision: item.revision,
       submittedRevision: item.submittedRevision,
+      publicationState: item.submittedRevision === 0
+        ? 'draft'
+        : item.revision === item.submittedRevision
+          ? 'submitted'
+          : 'draft_after_submission',
+      capabilities: { editAttachments: canEditAttachments },
       id: item.id,
       objectId: item.objectId,
       reportDate: item.reportDate.toISOString(),
@@ -2439,6 +2455,41 @@ export class ObjectOperationsService {
     }
 
     return map;
+  }
+
+  private async listDailyReportAttachmentsByEntityIds(
+    reportIds: string[],
+  ): Promise<Map<string, ObjectDailyReportAttachmentResponseDto[]>> {
+    const map = new Map<string, ObjectDailyReportAttachmentResponseDto[]>();
+    if (reportIds.length === 0) return map;
+
+    const rows = await this.prisma.fileAttachment.findMany({
+      where: {
+        entityType: 'object_daily_report',
+        entityId: { in: reportIds },
+        file: { deletedAt: null },
+      },
+      include: {
+        file: { include: { attachments: { orderBy: { createdAt: 'asc' } } } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    for (const row of rows) {
+      const items = map.get(row.entityId) ?? [];
+      items.push({ ...this.mapFile(row.file as StoredFileView), attachmentId: row.id });
+      map.set(row.entityId, items);
+    }
+    return map;
+  }
+
+  private async canEditDailyReportAttachments(currentUser: CurrentAuthUser, reportId: string): Promise<boolean> {
+    try {
+      await this.filesService.assertDailyReportWritable(currentUser, reportId);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private mapFile(file: StoredFileView): FileResponseDto {

@@ -111,7 +111,8 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
 
         <div className={styles.mediaSection}>
           <MediaActionPicker
-            iconOnly
+            compactMenu
+            compactLabel="Добавить фото прибытия"
             disabled={isSubmitting}
             allowGenericFile={false}
             genericFileAccept="image/*"
@@ -130,8 +131,8 @@ export function ObjectArrivalPanel({ item, onSave }: ObjectArrivalPanelProps): R
             </div>
           ) : null}
           {(item?.attachments.length ?? 0) > 0 ? (
-            <div className={styles.savedPhotosViewport}>
-              <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Фото пока нет." iconDownload />
+            <div>
+              <AttachmentPreviewList files={item?.attachments ?? []} emptyText="Фото пока нет." compact iconDownload />
             </div>
           ) : <div className={styles.emptyState}>Фото пока нет.</div>}
         </div>

@@ -81,6 +81,7 @@ export interface OneTimeOrderCapabilities {
   canCorrectPayments: boolean;
   canManageManagers: boolean;
   canManageSpecification: boolean;
+  canEditSpecification: boolean;
   canUploadPhotos: boolean;
   canDeletePhotos: boolean;
   canRestorePhotos: boolean;
@@ -153,7 +154,15 @@ export function buildOneTimeOrderCapabilities(params: {
       permissionCodes: params.permissionCodes,
     }),
     canManageManagers,
-    canManageSpecification: canEditOperationalFields,
+    // Execution actions on individual specification items belong only to a
+    // user actively assigned as the order's one_time_manager.
+    canManageSpecification: isActiveManager,
+    // Structural changes to a work specification are a leadership-only
+    // contract. Keep canManageSpecification as the existing execution-scope
+    // signal so assigned managers retain R2 completion and attachment flows.
+    canEditSpecification: params.roleCodes.some((role) =>
+      ['founder', 'deputy_founder', 'director', 'corporate_director'].includes(role),
+    ),
     canUploadPhotos: canEditOperationalFields,
     canDeletePhotos: canEditOperationalFields,
     canRestorePhotos: canEditOperationalFields,

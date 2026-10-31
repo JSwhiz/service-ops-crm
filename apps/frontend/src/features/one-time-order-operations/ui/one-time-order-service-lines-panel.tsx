@@ -13,6 +13,7 @@ import {
   Stack,
   Surface,
 } from "@/shared/ui/foundation";
+import { useConfirm } from "@/shared/ui/overlays";
 
 export function OneTimeOrderServiceLinesPanel({
   orderId,
@@ -27,6 +28,8 @@ export function OneTimeOrderServiceLinesPanel({
   const [total, setTotal] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
   const apply = (value: OrderServiceLines) => {
     setData(value);
     setTotal(value.agreedSum === null ? '' : String(value.agreedSum));
@@ -67,10 +70,18 @@ export function OneTimeOrderServiceLinesPanel({
       (value) => Number.isSafeInteger(value) && value >= 0 && value <= 2147483647,
     ) &&
     Number(cleaning) + Number(drycleaning) === Number(total);
+  const isDirty = Boolean(data) && (
+    total !== (data?.agreedSum === null ? '' : String(data?.agreedSum)) ||
+    cleaning !== String(data?.lines.find((row) => row.serviceCode === "cleaning")?.amount ?? '') ||
+    drycleaning !== String(data?.lines.find((row) => row.serviceCode === "drycleaning")?.amount ?? '')
+  );
   return (
     <Surface padding="md">
       <Stack gap="md">
-        <h2 className="ui-section-title">Уборка и химчистка</h2>
+        <div className="ui-section-header">
+          <h2 className="ui-section-title">Уборка и химчистка</h2>
+          {data?.canEdit && !isEditing ? <Button onClick={() => setIsEditing(true)}>Изменить суммы</Button> : null}
+        </div>
         {error ? (
           <Alert tone="danger" role="alert">
             {error}
@@ -101,7 +112,7 @@ export function OneTimeOrderServiceLinesPanel({
                   : "Итог не совпадает с суммой заказа"}
               </div>
             ) : null}
-            {data.canEdit ? (
+            {data.canEdit && isEditing ? (
               <form
                 onSubmit={(event) => {
                   event.preventDefault();
@@ -121,6 +132,7 @@ export function OneTimeOrderServiceLinesPanel({
                   })
                     .then(async (value) => {
                       apply(value);
+                      setIsEditing(false);
                       await onChanged();
                     })
                     .catch(() =>
@@ -166,6 +178,16 @@ export function OneTimeOrderServiceLinesPanel({
                   <Button type="submit" disabled={pending || !valid}>
                     Сохранить составляющие
                   </Button>
+                  <Button type="button" disabled={pending} onClick={() => void confirm({
+                    title: 'Отменить редактирование сумм?',
+                    consequence: isDirty ? 'Введённые суммы будут удалены.' : 'Форма редактирования закроется без сохранения.',
+                    confirmLabel: isDirty ? 'Отменить и удалить изменения' : 'Закрыть форму',
+                    tone: isDirty ? 'danger' : 'neutral',
+                  }).then((accepted) => {
+                    if (!accepted || !data) return;
+                    apply(data);
+                    setIsEditing(false);
+                  })}>Отменить</Button>
                 </Stack>
               </form>
             ) : null}
@@ -174,7 +196,7 @@ export function OneTimeOrderServiceLinesPanel({
           <LoadingState />
         ) : null}
         <Button
-          disabled={pending}
+          disabled={pending || isEditing}
           onClick={() => {
             setError(null);
             void load().catch(() =>
@@ -185,6 +207,7 @@ export function OneTimeOrderServiceLinesPanel({
           Обновить данные
         </Button>
       </Stack>
+      {confirmDialog}
     </Surface>
   );
 }

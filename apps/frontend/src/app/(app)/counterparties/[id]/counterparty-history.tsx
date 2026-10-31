@@ -19,6 +19,21 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = { active: 'Активный', archived: 'Архив' };
+const ACTION_LABELS: Record<string, string> = {
+  'counterparty.created': 'Контрагент создан',
+  'counterparty.updated': 'Данные изменены',
+  'counterparty.archived': 'Перенесён в архив',
+  'counterparty.restored': 'Восстановлен из архива',
+  'counterparty.object_linked': 'Привязан объект',
+  'counterparty.object_unlinked': 'Отвязан объект',
+  'counterparty.object_unlinked_by_relink': 'Объект перенесён к другому контрагенту',
+  'counterparty.master_object_changed': 'Сменён мастер-объект',
+  'counterparty.master_object_cleared': 'Мастер-объект снят',
+};
+
+export function getCounterpartyHistoryActionLabel(action: string): string {
+  return ACTION_LABELS[action] ?? action;
+}
 
 interface EventView {
   title: string;
@@ -127,8 +142,11 @@ function describe(event: CounterpartyHistoryItem, names: ObjectNames): EventView
 
 function dayKey(value: string): string {
   const date = new Date(value);
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString('ru-RU', sameYear ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
+  const yearFormatter = new Intl.DateTimeFormat('ru-RU', { year: 'numeric', timeZone: 'Europe/Moscow' });
+  const sameYear = yearFormatter.format(date) === yearFormatter.format(new Date());
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }), timeZone: 'Europe/Moscow',
+  }).format(date);
 }
 
 export function CounterpartyHistory({
@@ -161,7 +179,7 @@ export function CounterpartyHistory({
                     <div className={styles.head}>
                       <strong>{view.title}</strong>
                       <time dateTime={event.createdAt}>
-                        {new Date(event.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                        {new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' }).format(new Date(event.createdAt))}
                       </time>
                     </div>
                     {view.details.length ? <div className={styles.details}>{view.details}</div> : null}

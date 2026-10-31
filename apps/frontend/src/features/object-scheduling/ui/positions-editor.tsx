@@ -23,7 +23,7 @@ interface PositionsEditorProps {
 
 /** Controlled composition shared by atomic creation and the existing object workspace. */
 export function PositionsEditor({ value, onChange, disabled, canAssignEmployees, employeeAccessMessage, searchEmployees, contours, canSelectPayConditions, onPreview }: PositionsEditorProps): React.JSX.Element {
-  return <div className={styles.editor}>
+  return <div className={styles.content}>
     <div>
       <h2 className="ui-section-title">Штатные позиции и графики</h2>
       <p className="ui-section-subtitle">Дополнительный раздел. Позиции можно добавить сейчас или позднее в «Команде» объекта.</p>

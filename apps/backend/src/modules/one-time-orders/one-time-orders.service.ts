@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash } from "node:crypto";
 
 import {
   BadRequestException,
@@ -7,72 +7,79 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+} from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 
-import { AuditService } from '../audit/audit.service';
+import { AuditHistoryEvent, AuditService } from "../audit/audit.service";
+import { AuditHistoryPage, ListAuditHistoryQueryDto } from "../audit/dto/list-audit-history-query.dto";
 import {
   ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
   ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
-} from '../approvals/constants/approval.constants';
+} from "../approvals/constants/approval.constants";
 import {
   canCorrectAccountabilityReceipt,
   canReviewAccountability,
-} from '../accountability/utils/accountability-access.util';
-import { ChatsService } from '../chats/chats.service';
-import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
-import { EquipmentService } from '../equipment/equipment.service';
-import { SafeFileResponseDto } from '../files/dto/safe-file-response.dto';
-import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
-import { LEADERSHIP_OBJECT_ROLE_CODES } from '../objects/utils/object-access.util';
-import { NotificationsService } from '../notifications/notifications.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { TaskResponseDto } from '../tasks/dto/task-response.dto';
-import { TasksService } from '../tasks/tasks.service';
-import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
+} from "../accountability/utils/accountability-access.util";
+import { ChatsService } from "../chats/chats.service";
+import { EquipmentScopeResponseDto } from "../equipment/dto/equipment-response.dto";
+import { EquipmentService } from "../equipment/equipment.service";
+import { SafeFileResponseDto } from "../files/dto/safe-file-response.dto";
+import { mapSafeFileResponse } from "../files/utils/safe-file-response.mapper";
+import { LEADERSHIP_OBJECT_ROLE_CODES } from "../objects/utils/object-access.util";
+import { NotificationsService } from "../notifications/notifications.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { TaskResponseDto } from "../tasks/dto/task-response.dto";
+import { TasksService } from "../tasks/tasks.service";
+import { buildTaskAccessWhere } from "../tasks/utils/task-access.util";
 
-import { AssignOneTimeOrderManagerDto } from './dto/assign-one-time-order-manager.dto';
-import { ChangeOneTimeOrderStatusDto } from './dto/change-one-time-order-status.dto';
-import { CorrectOneTimeOrderPaymentDto } from './dto/correct-one-time-order-payment.dto';
+import { AssignOneTimeOrderManagerDto } from "./dto/assign-one-time-order-manager.dto";
+import { ChangeOneTimeOrderStatusDto } from "./dto/change-one-time-order-status.dto";
+import { CorrectOneTimeOrderPaymentDto } from "./dto/correct-one-time-order-payment.dto";
 import {
   CompleteOneTimeOrderDto,
   OneTimeOrderCompletionPaymentDto,
-} from './dto/complete-one-time-order.dto';
-import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-comment.dto';
-import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
-import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
-import { CopyOneTimeOrderDto } from './dto/copy-one-time-order.dto';
-import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
-import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dto';
-import { ListOneTimeOrdersQueryDto } from './dto/list-one-time-orders-query.dto';
-import { ListOneTimeOrderReviewsQueryDto } from './dto/list-one-time-order-reviews-query.dto';
-import { ListOneTimeOrderReferencesQueryDto } from './dto/list-one-time-order-references-query.dto';
-import { OneTimeOrderAuditLogResponseDto } from './dto/one-time-order-audit-log-response.dto';
-import { OneTimeOrderCommentResponseDto } from './dto/one-time-order-comment-response.dto';
-import { OneTimeOrderCompletionResponseDto } from './dto/one-time-order-completion-response.dto';
-import { OneTimeOrderConflictResponseDto } from './dto/one-time-order-conflict-response.dto';
-import { OneTimeOrderDailyReportResponseDto } from './dto/one-time-order-daily-report-response.dto';
+} from "./dto/complete-one-time-order.dto";
+import { CreateOneTimeOrderCommentDto } from "./dto/create-one-time-order-comment.dto";
+import { CreateOneTimeOrderPhotoDto } from "./dto/create-one-time-order-photo.dto";
+import { CreateOneTimeOrderDto } from "./dto/create-one-time-order.dto";
+import { CopyOneTimeOrderDto } from "./dto/copy-one-time-order.dto";
+import { CreateOneTimeOrderSpecificationItemDto } from "./dto/create-one-time-order-specification-item.dto";
+import { CreateSpecificationItemCommentDto } from "./dto/create-specification-item-comment.dto";
+import { ApplyOneTimeOrderSpecificationCatalogDto } from "./dto/apply-one-time-order-specification-catalog.dto";
+import { DeleteOneTimeOrderPhotoDto } from "./dto/delete-one-time-order-photo.dto";
+import { ListOneTimeOrdersQueryDto } from "./dto/list-one-time-orders-query.dto";
+import { ListOneTimeOrderReviewsQueryDto } from "./dto/list-one-time-order-reviews-query.dto";
+import { ListOneTimeOrderReferencesQueryDto } from "./dto/list-one-time-order-references-query.dto";
+import { OneTimeOrderAuditLogResponseDto } from "./dto/one-time-order-audit-log-response.dto";
+import { OneTimeOrderCommentResponseDto } from "./dto/one-time-order-comment-response.dto";
+import { OneTimeOrderCompletionResponseDto } from "./dto/one-time-order-completion-response.dto";
+import { OneTimeOrderConflictResponseDto } from "./dto/one-time-order-conflict-response.dto";
+import { OneTimeOrderDailyReportResponseDto } from "./dto/one-time-order-daily-report-response.dto";
 import {
   OneTimeOrderListItemResponseDto,
   OneTimeOrderListResponseDto,
-} from './dto/one-time-order-list-response.dto';
-import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-response.dto';
-import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
-import { OneTimeOrderReviewListResponseDto } from './dto/one-time-order-review-list-response.dto';
-import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
-import { ReorderOneTimeOrderSpecificationItemsDto } from './dto/reorder-one-time-order-specification-items.dto';
-import { UpsertOneTimeOrderDailyReportDto } from './dto/upsert-one-time-order-daily-report.dto';
-import { UpdateOneTimeOrderDto } from './dto/update-one-time-order.dto';
-import { UpdateOneTimeOrderReviewDto } from './dto/update-one-time-order-review.dto';
-import { UpdateOneTimeOrderSpecificationItemDto } from './dto/update-one-time-order-specification-item.dto';
-import { OneTimeOrderConflictService } from './one-time-order-conflict.service';
-import { buildOneTimeOrderCapabilities, canOpenLinkedObjectCard } from './utils/one-time-order-capabilities.util';
+} from "./dto/one-time-order-list-response.dto";
+import { OneTimeOrderPhotoResponseDto } from "./dto/one-time-order-photo-response.dto";
+import { OneTimeOrderResponseDto } from "./dto/one-time-order-response.dto";
+import { OneTimeOrderReviewListResponseDto } from "./dto/one-time-order-review-list-response.dto";
+import { OneTimeOrderSpecificationItemResponseDto } from "./dto/one-time-order-specification-item-response.dto";
+import { SpecificationItemCommentResponseDto } from "./dto/specification-item-comment-response.dto";
+import { ReorderOneTimeOrderSpecificationItemsDto } from "./dto/reorder-one-time-order-specification-items.dto";
+import { UpsertOneTimeOrderDailyReportDto } from "./dto/upsert-one-time-order-daily-report.dto";
+import { UpdateOneTimeOrderDto } from "./dto/update-one-time-order.dto";
+import { UpdateOneTimeOrderReviewDto } from "./dto/update-one-time-order-review.dto";
+import { UpdateOneTimeOrderSpecificationItemDto } from "./dto/update-one-time-order-specification-item.dto";
+import { OneTimeOrderConflictService } from "./one-time-order-conflict.service";
+import {
+  buildOneTimeOrderCapabilities,
+  canOpenLinkedObjectCard,
+} from "./utils/one-time-order-capabilities.util";
 import {
   formatBusinessDate,
   getOneTimeOrderDurationDays,
   normalizeOneTimeOrderDateRange,
   normalizeOneTimeOrderDateRangePatch,
-} from './utils/one-time-order-date-range.util';
+} from "./utils/one-time-order-date-range.util";
 import {
   buildOneTimeOrderAccessWhere,
   canBeOneTimeOrderManager,
@@ -82,7 +89,7 @@ import {
   hasWideOneTimeOrderAccess,
   ONE_TIME_ORDER_MANAGER_ROLE_CODES,
   ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION,
-} from './utils/one-time-order-access.util';
+} from "./utils/one-time-order-access.util";
 
 interface CurrentAuthUser {
   id: string;
@@ -153,17 +160,15 @@ interface OneTimeOrderView {
     login: string;
     fullName: string;
   } | null;
-  linkedObject:
-    | {
-        id: string;
-        name: string;
-        createdByUserId: string;
-        assignments: Array<{
-          userId: string;
-          isActive: boolean;
-        }>;
-      }
-    | null;
+  linkedObject: {
+    id: string;
+    name: string;
+    createdByUserId: string;
+    assignments: Array<{
+      userId: string;
+      isActive: boolean;
+    }>;
+  } | null;
   assignments: OneTimeOrderAssignmentView[];
 }
 
@@ -348,14 +353,76 @@ export class OneTimeOrdersService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
+  private creationFingerprint(
+    payload: CreateOneTimeOrderDto,
+    sourceOneTimeOrderId?: string,
+  ): string {
+    const request = { ...payload };
+    delete request.creationRequestId;
+    delete request.conflictFingerprint;
+    const canonicalize = (value: unknown): unknown => {
+      if (Array.isArray(value)) return value.map(canonicalize);
+      if (value && typeof value === "object") {
+        return Object.fromEntries(
+          Object.entries(value as Record<string, unknown>)
+            .filter(([, item]) => item !== undefined)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([key, item]) => [key, canonicalize(item)]),
+        );
+      }
+      return value;
+    };
+    return createHash("sha256")
+      .update(
+        JSON.stringify({
+          sourceOneTimeOrderId: sourceOneTimeOrderId ?? null,
+          payload: canonicalize(request),
+        }),
+      )
+      .digest("hex");
+  }
+
+  private async findCreationReplay(
+    createdByUserId: string,
+    creationRequestId: string | undefined,
+    fingerprint: string,
+  ): Promise<OneTimeOrderView | null> {
+    if (!creationRequestId) return null;
+    const existing = await this.prisma.oneTimeOrder.findUnique({
+      where: {
+        createdByUserId_creationRequestId: {
+          createdByUserId,
+          creationRequestId,
+        },
+      },
+      include: this.getOrderInclude(),
+    });
+    if (!existing) return null;
+    if (existing.creationRequestFingerprint !== fingerprint) {
+      throw new ConflictException(
+        "Ключ отправки уже использован с другими данными. Обновите форму и повторите создание.",
+      );
+    }
+    return existing as OneTimeOrderView;
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return Boolean(
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2002",
+    );
+  }
+
   async listOrders(
     currentUser: CurrentAuthUser,
     query: ListOneTimeOrdersQueryDto,
   ): Promise<OneTimeOrderListResponseDto> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const sortBy = query.sortBy ?? 'updatedAt';
-    const sortDirection = query.sortDirection ?? 'desc';
+    const sortBy = query.sortBy ?? "updatedAt";
+    const sortDirection = query.sortDirection ?? "desc";
     const search = (query.q ?? query.search)?.trim();
     const clauses: Prisma.OneTimeOrderWhereInput[] = [
       buildOneTimeOrderAccessWhere({
@@ -366,12 +433,30 @@ export class OneTimeOrdersService {
     ];
 
     if (query.status) clauses.push({ status: query.status });
+    if (query.withoutDate) {
+      clauses.push({
+        executionDate: null,
+        executionStartDate: null,
+        executionEndDate: null,
+      });
+    }
+    if (query.withoutActiveManager) {
+      clauses.push({
+        assignments: {
+          none: {
+            assignmentRoleCode: "one_time_manager",
+            isActive: true,
+            user: { isActive: true, deletedAt: null },
+          },
+        },
+      });
+    }
     if (query.managerUserId) {
       clauses.push({
         assignments: {
           some: {
             userId: query.managerUserId,
-            assignmentRoleCode: 'one_time_manager',
+            assignmentRoleCode: "one_time_manager",
             isActive: true,
             user: { isActive: true, deletedAt: null },
           },
@@ -395,44 +480,41 @@ export class OneTimeOrdersService {
         },
       });
     }
-    if (query.reviewStatus === 'missing') {
+    if (query.reviewStatus === "missing") {
       clauses.push({
-        status: 'completed',
+        status: "completed",
         reviewText: null,
         reviewRating: null,
       });
-    } else if (query.reviewStatus === 'present') {
+    } else if (query.reviewStatus === "present") {
       clauses.push({
-        OR: [
-          { reviewText: { not: null } },
-          { reviewRating: { not: null } },
-        ],
+        OR: [{ reviewText: { not: null } }, { reviewRating: { not: null } }],
       });
     }
     if (search) {
       clauses.push({
         OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { executionAddress: { contains: search, mode: 'insensitive' } },
-          { contactName: { contains: search, mode: 'insensitive' } },
-          { contactPhone: { contains: search, mode: 'insensitive' } },
-          { reviewText: { contains: search, mode: 'insensitive' } },
+          { title: { contains: search, mode: "insensitive" } },
+          { executionAddress: { contains: search, mode: "insensitive" } },
+          { contactName: { contains: search, mode: "insensitive" } },
+          { contactPhone: { contains: search, mode: "insensitive" } },
+          { reviewText: { contains: search, mode: "insensitive" } },
           {
             linkedObject: {
-              name: { contains: search, mode: 'insensitive' },
+              name: { contains: search, mode: "insensitive" },
             },
           },
           {
             assignments: {
               some: {
-                assignmentRoleCode: 'one_time_manager',
+                assignmentRoleCode: "one_time_manager",
                 isActive: true,
                 user: {
                   isActive: true,
                   deletedAt: null,
                   OR: [
-                    { fullName: { contains: search, mode: 'insensitive' } },
-                    { login: { contains: search, mode: 'insensitive' } },
+                    { fullName: { contains: search, mode: "insensitive" } },
+                    { login: { contains: search, mode: "insensitive" } },
                   ],
                 },
               },
@@ -445,7 +527,7 @@ export class OneTimeOrdersService {
     const where: Prisma.OneTimeOrderWhereInput = { AND: clauses };
     const orderBy: Prisma.OneTimeOrderOrderByWithRelationInput[] = [
       { [sortBy]: sortDirection },
-      { id: 'desc' },
+      { id: "desc" },
     ];
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.oneTimeOrder.findMany({
@@ -469,7 +551,7 @@ export class OneTimeOrdersService {
       orderIds.length === 0
         ? []
         : await this.prisma.task.groupBy({
-            by: ['oneTimeOrderId'],
+            by: ["oneTimeOrderId"],
             where: {
               AND: [
                 { oneTimeOrderId: { in: orderIds } },
@@ -483,7 +565,9 @@ export class OneTimeOrdersService {
           });
     const taskCountMap = new Map(
       taskCountRows.flatMap((row) =>
-        row.oneTimeOrderId ? [[row.oneTimeOrderId, row._count._all] as const] : [],
+        row.oneTimeOrderId
+          ? [[row.oneTimeOrderId, row._count._all] as const]
+          : [],
       ),
     );
 
@@ -519,7 +603,7 @@ export class OneTimeOrdersService {
         assignments: {
           some: {
             userId: query.managerUserId,
-            assignmentRoleCode: 'one_time_manager',
+            assignmentRoleCode: "one_time_manager",
             isActive: true,
           },
         },
@@ -538,17 +622,17 @@ export class OneTimeOrdersService {
     if (search) {
       clauses.push({
         OR: [
-          { title: { contains: search, mode: 'insensitive' } },
-          { reviewText: { contains: search, mode: 'insensitive' } },
+          { title: { contains: search, mode: "insensitive" } },
+          { reviewText: { contains: search, mode: "insensitive" } },
           {
             assignments: {
               some: {
-                assignmentRoleCode: 'one_time_manager',
+                assignmentRoleCode: "one_time_manager",
                 isActive: true,
                 user: {
                   OR: [
-                    { fullName: { contains: search, mode: 'insensitive' } },
-                    { login: { contains: search, mode: 'insensitive' } },
+                    { fullName: { contains: search, mode: "insensitive" } },
+                    { login: { contains: search, mode: "insensitive" } },
                   ],
                 },
               },
@@ -573,7 +657,7 @@ export class OneTimeOrdersService {
           reviewUpdatedAt: true,
           assignments: {
             where: {
-              assignmentRoleCode: 'one_time_manager',
+              assignmentRoleCode: "one_time_manager",
               isActive: true,
               user: { isActive: true, deletedAt: null },
             },
@@ -582,7 +666,7 @@ export class OneTimeOrdersService {
             },
           },
         },
-        orderBy: [{ reviewUpdatedAt: 'desc' }, { updatedAt: 'desc' }],
+        orderBy: [{ reviewUpdatedAt: "desc" }, { updatedAt: "desc" }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -597,7 +681,9 @@ export class OneTimeOrdersService {
           item.executionStartDate ?? item.executionDate,
         ),
         executionEndDate: formatBusinessDate(
-          item.executionEndDate ?? item.executionStartDate ?? item.executionDate,
+          item.executionEndDate ??
+            item.executionStartDate ??
+            item.executionDate,
         ),
         status: item.status,
         managers: item.assignments.map(({ user }) => ({
@@ -632,10 +718,7 @@ export class OneTimeOrdersService {
           permissionCodes: this.getPermissionCodes(currentUser),
         })
       : {
-          OR: [
-            { reviewText: { not: null } },
-            { reviewRating: { not: null } },
-          ],
+          OR: [{ reviewText: { not: null } }, { reviewRating: { not: null } }],
         };
     const search = query.search?.trim();
     return this.prisma.user.findMany({
@@ -644,7 +727,7 @@ export class OneTimeOrdersService {
         deletedAt: null,
         oneTimeOrderAssignments: {
           some: {
-            assignmentRoleCode: 'one_time_manager',
+            assignmentRoleCode: "one_time_manager",
             isActive: true,
             oneTimeOrder: accessWhere,
           },
@@ -652,8 +735,10 @@ export class OneTimeOrdersService {
         ...(search
           ? {
               OR: [
-                { fullName: { contains: search, mode: 'insensitive' as const } },
-                { login: { contains: search, mode: 'insensitive' as const } },
+                {
+                  fullName: { contains: search, mode: "insensitive" as const },
+                },
+                { login: { contains: search, mode: "insensitive" as const } },
                 ...(query.selectedId ? [{ id: query.selectedId }] : []),
               ],
             }
@@ -662,7 +747,7 @@ export class OneTimeOrdersService {
             : {}),
       },
       select: { id: true, login: true, fullName: true },
-      orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
+      orderBy: [{ fullName: "asc" }, { id: "asc" }],
       take: 30,
     });
   }
@@ -685,7 +770,7 @@ export class OneTimeOrdersService {
         ...(search
           ? {
               OR: [
-                { name: { contains: search, mode: 'insensitive' as const } },
+                { name: { contains: search, mode: "insensitive" as const } },
                 ...(query.selectedId ? [{ id: query.selectedId }] : []),
               ],
             }
@@ -694,7 +779,7 @@ export class OneTimeOrdersService {
             : {}),
       },
       select: { id: true, name: true },
-      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      orderBy: [{ name: "asc" }, { id: "asc" }],
       take: 30,
     });
   }
@@ -716,7 +801,7 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderView | null;
 
     if (!order) {
-      throw new NotFoundException('One-time order not found');
+      throw new NotFoundException("One-time order not found");
     }
 
     return this.mapOrder(order, currentUser);
@@ -727,14 +812,25 @@ export class OneTimeOrdersService {
     payload: CreateOneTimeOrderDto,
   ): Promise<OneTimeOrderResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
+    this.assertSpecificationComposerIfRequested(currentUser, payload);
 
-    if (!canCreateOneTimeOrder(roleCodes, this.getPermissionCodes(currentUser))) {
-      throw new ForbiddenException('One-time order creation denied');
+    if (
+      !canCreateOneTimeOrder(roleCodes, this.getPermissionCodes(currentUser))
+    ) {
+      throw new ForbiddenException("One-time order creation denied");
     }
 
-    if (payload.status === 'completed') {
-      throw new ConflictException('Use the order completion endpoint');
+    if (payload.status === "completed") {
+      throw new ConflictException("Use the order completion endpoint");
     }
+
+    const requestFingerprint = this.creationFingerprint(payload);
+    const replay = await this.findCreationReplay(
+      currentUser.id,
+      payload.creationRequestId,
+      requestFingerprint,
+    );
+    if (replay) return this.mapOrder(replay, currentUser);
 
     await this.ensureLinkedObjectExists(payload.linkedObjectId ?? null);
     const dateRange = normalizeOneTimeOrderDateRange({
@@ -747,78 +843,116 @@ export class OneTimeOrdersService {
     );
     const managerUsers = await this.loadManagerUsers(managerUserIds);
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const conflictResult =
-        (payload.status ?? 'new') === 'cancelled'
-          ? null
-          : await this.checkScheduleConflicts(tx, currentUser, {
-              executionStartDate: dateRange.executionStartDate,
-              executionEndDate: dateRange.executionEndDate,
-              managerUserIds,
-              conflictFingerprint: payload.conflictFingerprint,
-            });
-      const order = await tx.oneTimeOrder.create({
-        data: {
-          title: payload.title.trim(),
-          executionAddress: payload.executionAddress.trim(),
-          linkedObjectId: payload.linkedObjectId ?? null,
-          status: payload.status ?? 'new',
-          description: payload.description?.trim() || null,
-          executionDate: dateRange.executionStartDate,
-          executionStartDate: dateRange.executionStartDate,
-          executionEndDate: dateRange.executionEndDate,
-          contactName: payload.contactName.trim(),
-          contactPhone: payload.contactPhone?.trim() || null,
-          agreedSum: payload.agreedSum ?? null,
-          plannedPaymentMethod: payload.plannedPaymentMethod,
-          financialNotes: payload.financialNotes?.trim() || null,
-          expenseNotes: payload.expenseNotes?.trim() || null,
-          createdByUserId: currentUser.id,
-          assignments: managerUsers.length
-            ? {
-                create: managerUsers.map((user) => ({
-                  userId: user.id,
-                  assignmentRoleCode: 'one_time_manager',
-                  isActive: true,
-                })),
-              }
-            : undefined,
-        },
-        include: this.getOrderInclude(),
+    let created: OneTimeOrderView;
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        const conflictResult =
+          (payload.status ?? "new") === "cancelled"
+            ? null
+            : await this.checkScheduleConflicts(tx, currentUser, {
+                executionStartDate: dateRange.executionStartDate,
+                executionEndDate: dateRange.executionEndDate,
+                managerUserIds,
+                conflictFingerprint: payload.conflictFingerprint,
+              });
+        const specificationItems = await this.resolveSpecificationSnapshot(
+          tx,
+          currentUser,
+          payload,
+        );
+        const order = await tx.oneTimeOrder.create({
+          data: {
+            title: payload.title.trim(),
+            executionAddress: payload.executionAddress.trim(),
+            linkedObjectId: payload.linkedObjectId ?? null,
+            status: payload.status ?? "new",
+            description: payload.description?.trim() || null,
+            executionDate: dateRange.executionStartDate,
+            executionStartDate: dateRange.executionStartDate,
+            executionEndDate: dateRange.executionEndDate,
+            contactName: payload.contactName.trim(),
+            contactPhone: payload.contactPhone?.trim() || null,
+            agreedSum: payload.agreedSum ?? null,
+            plannedPaymentMethod: payload.plannedPaymentMethod,
+            financialNotes: payload.financialNotes?.trim() || null,
+            expenseNotes: payload.expenseNotes?.trim() || null,
+            createdByUserId: currentUser.id,
+            creationRequestId: payload.creationRequestId ?? null,
+            creationRequestFingerprint: payload.creationRequestId
+              ? requestFingerprint
+              : null,
+            assignments: managerUsers.length
+              ? {
+                  create: managerUsers.map((user) => ({
+                    userId: user.id,
+                    assignmentRoleCode: "one_time_manager",
+                    isActive: true,
+                  })),
+                }
+              : undefined,
+            specificationItems: specificationItems.length
+              ? {
+                  create: specificationItems.map((item, sortOrder) => ({
+                    ...item,
+                    sortOrder,
+                    isCompleted: false,
+                    createdByUserId: currentUser.id,
+                  })),
+                }
+              : undefined,
+          },
+          include: this.getOrderInclude(),
+        });
+
+        await this.writeScheduleConflictOverrideAudit(
+          tx,
+          currentUser,
+          order.id,
+          {
+            executionStartDate: dateRange.executionStartDate,
+            executionEndDate: dateRange.executionEndDate,
+            managerUserIds,
+            conflictResult,
+          },
+        );
+
+        await this.writeAuditEvent(tx, {
+          entityType: "one_time_order",
+          entityId: order.id,
+          actorUserId: currentUser.id,
+          action: "one_time_order.created",
+          newValues: {
+            title: order.title,
+            status: order.status,
+            linkedObjectId: order.linkedObjectId,
+            plannedPaymentMethod: order.plannedPaymentMethod,
+            specificationItems,
+          },
+        });
+
+        await this.notifyOrderCreated(
+          tx,
+          order,
+          managerUserIds,
+          currentUser.id,
+        );
+
+        return order as OneTimeOrderView;
       });
-
-      await this.writeScheduleConflictOverrideAudit(tx, currentUser, order.id, {
-        executionStartDate: dateRange.executionStartDate,
-        executionEndDate: dateRange.executionEndDate,
-        managerUserIds,
-        conflictResult,
-      });
-
-      await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
-        entityId: order.id,
-        actorUserId: currentUser.id,
-        action: 'one_time_order.created',
-        newValues: {
-          title: order.title,
-          status: order.status,
-          linkedObjectId: order.linkedObjectId,
-          plannedPaymentMethod: order.plannedPaymentMethod,
-        },
-      });
-
-      await this.notifyOrderCreated(
-        tx,
-        order,
-        managerUserIds,
-        currentUser.id,
-      );
-
-      return order as OneTimeOrderView;
-    });
+    } catch (error) {
+      const racedReplay = this.isUniqueConstraintError(error)
+        ? await this.findCreationReplay(
+            currentUser.id,
+            payload.creationRequestId,
+            requestFingerprint,
+          )
+        : null;
+      if (racedReplay) return this.mapOrder(racedReplay, currentUser);
+      throw error;
+    }
 
     await this.chatsService.createSystemMessage(
-      'one_time_orders',
+      "one_time_orders",
       `Создан разовый заказ: ${created.title}`,
       {
         oneTimeOrderId: created.id,
@@ -828,7 +962,7 @@ export class OneTimeOrdersService {
       currentUser.id,
     );
     await this.chatsService.createSystemMessage(
-      'leadership',
+      "leadership",
       `Создан разовый заказ: ${created.title}`,
       {
         oneTimeOrderId: created.id,
@@ -858,16 +992,28 @@ export class OneTimeOrdersService {
       select: { id: true },
     });
     if (!source) {
-      throw new NotFoundException('One-time order not found');
+      throw new NotFoundException("One-time order not found");
     }
+    this.assertSpecificationComposerIfRequested(currentUser, payload);
     if (
       !canCreateOneTimeOrder(
         this.getRoleCodes(currentUser),
         this.getPermissionCodes(currentUser),
       )
     ) {
-      throw new ForbiddenException('One-time order creation denied');
+      throw new ForbiddenException("One-time order creation denied");
     }
+
+    const requestFingerprint = this.creationFingerprint(
+      payload,
+      sourceOneTimeOrderId,
+    );
+    const replay = await this.findCreationReplay(
+      currentUser.id,
+      payload.creationRequestId,
+      requestFingerprint,
+    );
+    if (replay) return this.mapOrder(replay, currentUser);
 
     await this.ensureLinkedObjectExists(payload.linkedObjectId ?? null);
     const dateRange = normalizeOneTimeOrderDateRange({
@@ -879,92 +1025,112 @@ export class OneTimeOrdersService {
       new Set((payload.managerUserIds ?? []).filter(Boolean)),
     );
     const managerUsers = await this.loadCopyManagerUsers(managerUserIds);
-    const specificationItems = payload.specificationItems
-      .map((item) => ({
-        title: item.title.trim(),
-        description: item.description?.trim() || null,
-        requiresAttachment: item.requiresAttachment ?? false,
-      }))
-      .filter((item) => item.title.length > 0);
+    let created: OneTimeOrderView;
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        const conflictResult = await this.checkScheduleConflicts(
+          tx,
+          currentUser,
+          {
+            executionStartDate: dateRange.executionStartDate,
+            executionEndDate: dateRange.executionEndDate,
+            managerUserIds: managerUsers.map((user) => user.id),
+            conflictFingerprint: payload.conflictFingerprint,
+          },
+        );
+        const specificationItems = await this.resolveSpecificationSnapshot(
+          tx,
+          currentUser,
+          payload,
+        );
+        const order = await tx.oneTimeOrder.create({
+          data: {
+            title: payload.title.trim(),
+            executionAddress: payload.executionAddress.trim(),
+            linkedObjectId: payload.linkedObjectId ?? null,
+            status: "new",
+            description: payload.description?.trim() || null,
+            executionDate: dateRange.executionStartDate,
+            executionStartDate: dateRange.executionStartDate,
+            executionEndDate: dateRange.executionEndDate,
+            contactName: payload.contactName.trim(),
+            contactPhone: payload.contactPhone?.trim() || null,
+            agreedSum: payload.agreedSum ?? null,
+            plannedPaymentMethod: payload.plannedPaymentMethod,
+            financialNotes: payload.financialNotes?.trim() || null,
+            expenseNotes: payload.expenseNotes?.trim() || null,
+            workCycle: 1,
+            createdByUserId: currentUser.id,
+            creationRequestId: payload.creationRequestId ?? null,
+            creationRequestFingerprint: payload.creationRequestId
+              ? requestFingerprint
+              : null,
+            assignments: managerUsers.length
+              ? {
+                  create: managerUsers.map((user) => ({
+                    userId: user.id,
+                    assignmentRoleCode: "one_time_manager",
+                    isActive: true,
+                  })),
+                }
+              : undefined,
+            specificationItems: specificationItems.length
+              ? {
+                  create: specificationItems.map((item, sortOrder) => ({
+                    ...item,
+                    sortOrder,
+                    isCompleted: false,
+                    createdByUserId: currentUser.id,
+                  })),
+                }
+              : undefined,
+          },
+          include: this.getOrderInclude(),
+        });
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const conflictResult = await this.checkScheduleConflicts(
-        tx,
-        currentUser,
-        {
-          executionStartDate: dateRange.executionStartDate,
-          executionEndDate: dateRange.executionEndDate,
-          managerUserIds: managerUsers.map((user) => user.id),
-          conflictFingerprint: payload.conflictFingerprint,
-        },
-      );
-      const order = await tx.oneTimeOrder.create({
-        data: {
-          title: payload.title.trim(),
-          executionAddress: payload.executionAddress.trim(),
-          linkedObjectId: payload.linkedObjectId ?? null,
-          status: 'new',
-          description: payload.description?.trim() || null,
-          executionDate: dateRange.executionStartDate,
-          executionStartDate: dateRange.executionStartDate,
-          executionEndDate: dateRange.executionEndDate,
-          contactName: payload.contactName.trim(),
-          contactPhone: payload.contactPhone?.trim() || null,
-          agreedSum: payload.agreedSum ?? null,
-          plannedPaymentMethod: payload.plannedPaymentMethod,
-          financialNotes: payload.financialNotes?.trim() || null,
-          expenseNotes: payload.expenseNotes?.trim() || null,
-          workCycle: 1,
-          createdByUserId: currentUser.id,
-          assignments: managerUsers.length
-            ? {
-                create: managerUsers.map((user) => ({
-                  userId: user.id,
-                  assignmentRoleCode: 'one_time_manager',
-                  isActive: true,
-                })),
-              }
-            : undefined,
-          specificationItems: specificationItems.length
-            ? {
-                create: specificationItems.map((item, sortOrder) => ({
-                  ...item,
-                  sortOrder,
-                  isCompleted: false,
-                  createdByUserId: currentUser.id,
-                })),
-              }
-            : undefined,
-        },
-        include: this.getOrderInclude(),
+        await this.writeScheduleConflictOverrideAudit(
+          tx,
+          currentUser,
+          order.id,
+          {
+            executionStartDate: dateRange.executionStartDate,
+            executionEndDate: dateRange.executionEndDate,
+            managerUserIds: managerUsers.map((user) => user.id),
+            conflictResult,
+          },
+        );
+        await this.writeAuditEvent(tx, {
+          entityType: "one_time_order",
+          entityId: order.id,
+          actorUserId: currentUser.id,
+          action: "one_time_order.copied",
+          newValues: {
+            title: order.title,
+            status: order.status,
+            sourceOneTimeOrderId,
+            specificationItems,
+          },
+          metadata: { sourceOneTimeOrderId },
+        });
+        await this.notifyOrderCreated(
+          tx,
+          order,
+          managerUsers.map((user) => user.id),
+          currentUser.id,
+        );
+        return order as OneTimeOrderView;
       });
-
-      await this.writeScheduleConflictOverrideAudit(tx, currentUser, order.id, {
-        executionStartDate: dateRange.executionStartDate,
-        executionEndDate: dateRange.executionEndDate,
-        managerUserIds: managerUsers.map((user) => user.id),
-        conflictResult,
-      });
-      await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
-        entityId: order.id,
-        actorUserId: currentUser.id,
-        action: 'one_time_order.copied',
-        newValues: {
-          title: order.title,
-          status: order.status,
-          sourceOneTimeOrderId,
-        },
-        metadata: { sourceOneTimeOrderId },
-      });
-      await this.notifyOrderCreated(
-        tx,
-        order,
-        managerUsers.map((user) => user.id),
-        currentUser.id,
-      );
-      return order as OneTimeOrderView;
-    });
+    } catch (error) {
+      const racedReplay = this.isUniqueConstraintError(error)
+        ? await this.findCreationReplay(
+            currentUser.id,
+            payload.creationRequestId,
+            requestFingerprint,
+          )
+        : null;
+      if (racedReplay) return this.mapOrder(racedReplay, currentUser);
+      throw error;
+    }
 
     const systemMessagePayload = {
       oneTimeOrderId: created.id,
@@ -973,13 +1139,13 @@ export class OneTimeOrdersService {
       sourceOneTimeOrderId,
     };
     await this.chatsService.createSystemMessage(
-      'one_time_orders',
+      "one_time_orders",
       `Создан разовый заказ: ${created.title}`,
       systemMessagePayload,
       currentUser.id,
     );
     await this.chatsService.createSystemMessage(
-      'leadership',
+      "leadership",
       `Создан разовый заказ: ${created.title}`,
       systemMessagePayload,
       currentUser.id,
@@ -1019,11 +1185,11 @@ export class OneTimeOrdersService {
     ].some((value) => value !== undefined);
 
     if (hasOperationalUpdate && !capabilities.canEditOperationalFields) {
-      throw new ForbiddenException('One-time order operational edit denied');
+      throw new ForbiddenException("One-time order operational edit denied");
     }
 
     if (hasFinancialUpdate && !capabilities.canEditFinancialFields) {
-      throw new ForbiddenException('One-time order financial edit denied');
+      throw new ForbiddenException("One-time order financial edit denied");
     }
 
     const isLinkedObjectChanging =
@@ -1031,7 +1197,7 @@ export class OneTimeOrdersService {
       payload.linkedObjectId !== existing.linkedObjectId;
 
     if (isLinkedObjectChanging && !capabilities.canChangeLinkedObject) {
-      throw new ForbiddenException('Linked object relinking denied');
+      throw new ForbiddenException("Linked object relinking denied");
     }
 
     await this.ensureLinkedObjectExists(payload.linkedObjectId ?? undefined);
@@ -1041,33 +1207,42 @@ export class OneTimeOrdersService {
       payload.executionEndDate !== undefined ||
       payload.executionDate !== undefined;
     const dateRange = hasDateRangeUpdate
-      ? normalizeOneTimeOrderDateRangePatch({
-          executionStartDate: payload.executionStartDate,
-          executionEndDate: payload.executionEndDate,
-          executionDate: payload.executionDate,
-        }, {
-          executionStartDate:
-            existing.executionStartDate ?? existing.executionDate,
-          executionEndDate:
-            existing.executionEndDate ??
-            existing.executionStartDate ??
-            existing.executionDate,
-        })
+      ? normalizeOneTimeOrderDateRangePatch(
+          {
+            executionStartDate: payload.executionStartDate,
+            executionEndDate: payload.executionEndDate,
+            executionDate: payload.executionDate,
+          },
+          {
+            executionStartDate:
+              existing.executionStartDate ?? existing.executionDate,
+            executionEndDate:
+              existing.executionEndDate ??
+              existing.executionStartDate ??
+              existing.executionDate,
+          },
+        )
       : null;
 
     const nextValues = {
       title: payload.title?.trim(),
       executionAddress: payload.executionAddress?.trim(),
       linkedObjectId:
-        payload.linkedObjectId === undefined ? undefined : payload.linkedObjectId,
+        payload.linkedObjectId === undefined
+          ? undefined
+          : payload.linkedObjectId,
       description:
-        payload.description === undefined ? undefined : payload.description?.trim() || null,
+        payload.description === undefined
+          ? undefined
+          : payload.description?.trim() || null,
       executionDate: dateRange?.executionStartDate,
       executionStartDate: dateRange?.executionStartDate,
       executionEndDate: dateRange?.executionEndDate,
       contactName: payload.contactName?.trim(),
       contactPhone:
-        payload.contactPhone === undefined ? undefined : payload.contactPhone?.trim() || null,
+        payload.contactPhone === undefined
+          ? undefined
+          : payload.contactPhone?.trim() || null,
       agreedSum: payload.agreedSum,
       plannedPaymentMethod:
         payload.plannedPaymentMethod === undefined
@@ -1086,20 +1261,28 @@ export class OneTimeOrdersService {
     const managerUserIds = existing.assignments
       .filter(
         (assignment) =>
-          assignment.assignmentRoleCode === 'one_time_manager' &&
+          assignment.assignmentRoleCode === "one_time_manager" &&
           assignment.isActive,
       )
       .map((assignment) => assignment.userId);
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockOneTimeOrder(tx, id);
       if (nextValues.agreedSum !== undefined) {
-        const components = await tx.oneTimeOrderServiceLine.findMany({ where: { oneTimeOrderId: id } });
-        if (components.length > 0 && components.reduce((sum, line) => sum + line.amount, 0) !== nextValues.agreedSum) {
-          throw new ConflictException('Agreed total must reconcile with explicit cleaning and drycleaning components');
+        const components = await tx.oneTimeOrderServiceLine.findMany({
+          where: { oneTimeOrderId: id },
+        });
+        if (
+          components.length > 0 &&
+          components.reduce((sum, line) => sum + line.amount, 0) !==
+            nextValues.agreedSum
+        ) {
+          throw new ConflictException(
+            "Agreed total must reconcile with explicit cleaning and drycleaning components",
+          );
         }
       }
       const conflictResult =
-        hasDateRangeUpdate && existing.status !== 'cancelled'
+        hasDateRangeUpdate && existing.status !== "cancelled"
           ? await this.checkScheduleConflicts(tx, currentUser, {
               executionStartDate: dateRange?.executionStartDate ?? null,
               executionEndDate: dateRange?.executionEndDate ?? null,
@@ -1111,7 +1294,9 @@ export class OneTimeOrdersService {
       const order = (await tx.oneTimeOrder.update({
         where: { id },
         data: {
-          ...(nextValues.title !== undefined ? { title: nextValues.title } : {}),
+          ...(nextValues.title !== undefined
+            ? { title: nextValues.title }
+            : {}),
           ...(nextValues.executionAddress !== undefined
             ? { executionAddress: nextValues.executionAddress }
             : {}),
@@ -1163,10 +1348,10 @@ export class OneTimeOrdersService {
 
       if (Object.keys(changes).length > 0) {
         await this.writeAuditEvent(tx, {
-          entityType: 'one_time_order',
+          entityType: "one_time_order",
           entityId: order.id,
           actorUserId: currentUser.id,
-          action: 'one_time_order.updated',
+          action: "one_time_order.updated",
           metadata: { changes },
         });
         await this.notifyOrderChanged(
@@ -1193,7 +1378,7 @@ export class OneTimeOrdersService {
       payload.reviewText === undefined &&
       payload.reviewRating === undefined
     ) {
-      throw new BadRequestException('Review update payload is empty');
+      throw new BadRequestException("Review update payload is empty");
     }
 
     const reviewText =
@@ -1207,7 +1392,7 @@ export class OneTimeOrdersService {
 
     if (reviewText === null && reviewRating === null) {
       throw new BadRequestException(
-        'Review text or rating must be provided; use DELETE to clear review',
+        "Review text or rating must be provided; use DELETE to clear review",
       );
     }
 
@@ -1231,10 +1416,10 @@ export class OneTimeOrdersService {
       })) as OneTimeOrderView;
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.review_updated',
+        action: "one_time_order.review_updated",
         oldValues: {
           reviewText: existing.reviewText,
           reviewRating: existing.reviewRating,
@@ -1274,10 +1459,10 @@ export class OneTimeOrdersService {
       })) as OneTimeOrderView;
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.review_cleared',
+        action: "one_time_order.review_cleared",
         oldValues: {
           reviewText: existing.reviewText,
           reviewRating: existing.reviewRating,
@@ -1303,14 +1488,340 @@ export class OneTimeOrdersService {
         deletedAt: null,
       },
       include: this.getSpecificationItemInclude(),
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     })) as OneTimeOrderSpecificationItemView[];
     const attachments = await this.listAttachmentsByEntityIds(
-      'one_time_order_specification_item',
+      "one_time_order_specification_item",
       items.map((item) => item.id),
     );
 
     return items.map((item) =>
+      this.mapSpecificationItem(item, attachments.get(item.id) ?? []),
+    );
+  }
+
+  async listSpecificationItemComments(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    itemId: string,
+  ): Promise<SpecificationItemCommentResponseDto[]> {
+    await this.getOrderById(currentUser, orderId);
+    const item = await this.prisma.oneTimeOrderSpecificationItem.findFirst({
+      where: { id: itemId, oneTimeOrderId: orderId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!item) throw new NotFoundException("Specification item not found");
+    const comments = await this.prisma.oneTimeOrderSpecificationComment.findMany({
+      where: { itemId },
+      include: { createdBy: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    return comments.map((comment) => ({
+      id: comment.id,
+      itemId: comment.itemId,
+      content: comment.content,
+      createdAt: comment.createdAt.toISOString(),
+      createdBy: {
+        id: comment.createdBy.id,
+        login: comment.createdBy.login,
+        fullName: comment.createdBy.fullName,
+      },
+    }));
+  }
+
+  async createSpecificationItemComment(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    itemId: string,
+    payload: CreateSpecificationItemCommentDto,
+  ): Promise<SpecificationItemCommentResponseDto> {
+    await this.getOrderForSpecificationWrite(currentUser, orderId);
+    const content = payload.content.trim();
+    if (!content) throw new BadRequestException("Comment cannot be empty");
+    const created = await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, orderId);
+      await this.assertSpecificationExecutionWritableTx(tx, currentUser, orderId);
+      const item = await this.getSpecificationItemFromTx(tx, orderId, itemId);
+      const prior = await tx.oneTimeOrderSpecificationComment.findFirst({
+        where: { itemId, requestId: payload.requestId },
+        include: { createdBy: true },
+      });
+      if (prior) {
+        if (prior.itemId !== itemId || prior.content !== content || prior.createdByUserId !== currentUser.id) {
+          throw new ConflictException("Comment request ID was already used with different content");
+        }
+        return prior;
+      }
+      const comment = await tx.oneTimeOrderSpecificationComment.create({
+        data: { itemId, requestId: payload.requestId, content, createdByUserId: currentUser.id },
+        include: { createdBy: true },
+      });
+      await this.writeSpecificationAudit(tx, {
+        oneTimeOrderId: orderId,
+        actorUserId: currentUser.id,
+        action: "one_time_order.specification_item_comment_created",
+        itemId,
+        oldValues: null,
+        newValues: { specificationItemTitle: item.title, commentId: comment.id, requestId: comment.requestId },
+      });
+      return comment;
+    });
+    return {
+      id: created.id,
+      itemId: created.itemId,
+      content: created.content,
+      createdAt: created.createdAt.toISOString(),
+      createdBy: { id: created.createdBy.id, login: created.createdBy.login, fullName: created.createdBy.fullName },
+    };
+  }
+
+  async detachSpecificationItemAttachment(
+    currentUser: CurrentAuthUser,
+    orderId: string,
+    itemId: string,
+    fileId: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    await this.getOrderForSpecificationWrite(currentUser, orderId);
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, orderId);
+      await this.assertSpecificationExecutionWritableTx(tx, currentUser, orderId);
+      const item = await this.getSpecificationItemFromTx(tx, orderId, itemId);
+      const attachment = await tx.fileAttachment.findFirst({
+        where: { fileId, entityType: "one_time_order_specification_item", entityId: itemId },
+        include: { file: { select: { originalName: true } } },
+      });
+      if (!attachment) throw new NotFoundException("Attachment not found on this specification item");
+      await tx.fileAttachment.delete({ where: { id: attachment.id } });
+      await this.writeSpecificationAudit(tx, {
+        oneTimeOrderId: orderId,
+        actorUserId: currentUser.id,
+        action: "one_time_order.specification_item_attachment_detached",
+        itemId,
+        oldValues: { specificationItemTitle: item.title, fileId, originalName: attachment.file.originalName },
+        newValues: null,
+      });
+    });
+    const item = (await this.prisma.oneTimeOrderSpecificationItem.findFirst({
+      where: { id: itemId, oneTimeOrderId: orderId, deletedAt: null },
+      include: this.getSpecificationItemInclude(),
+    })) as OneTimeOrderSpecificationItemView | null;
+    if (!item) throw new NotFoundException("Specification item not found");
+    return this.mapSpecificationItem(item, await this.listSpecificationItemAttachments(itemId));
+  }
+
+  async applySpecificationCatalog(
+    currentUser: CurrentAuthUser,
+    id: string,
+    payload: ApplyOneTimeOrderSpecificationCatalogDto,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto[]> {
+    const order = await this.getOrderForSpecificationStructureWrite(
+      currentUser,
+      id,
+    );
+    if (payload.templateIds.length === 0 && payload.catalogItemIds.length === 0) {
+      throw new BadRequestException("Select at least one template or item");
+    }
+    const reason = payload.reason?.trim() || null;
+    if (order.status === "in_progress" && (!reason || reason.length < 5)) {
+      throw new BadRequestException(
+        "A reason of at least 5 characters is required while the order is in progress",
+      );
+    }
+
+    const payloadFingerprint = createHash("sha256")
+      .update(
+        JSON.stringify({
+          templateIds: payload.templateIds,
+          catalogItemIds: payload.catalogItemIds,
+          expectedTemplateVersions: payload.expectedTemplateVersions,
+          expectedCatalogItems: payload.expectedCatalogItems,
+          reason,
+        }),
+      )
+      .digest("hex");
+
+    const itemIds = await this.prisma.$transaction(async (tx) => {
+      await this.lockSpecification(tx, id);
+      const priorRequest =
+        await tx.oneTimeOrderSpecificationApplyRequest.findUnique({
+          where: {
+            oneTimeOrderId_requestId: {
+              oneTimeOrderId: id,
+              requestId: payload.requestId,
+            },
+          },
+        });
+      if (priorRequest) {
+        if (priorRequest.payloadFingerprint !== payloadFingerprint) {
+          throw new ConflictException(
+            "This request ID was already used for a different specification selection",
+          );
+        }
+        return Array.isArray(priorRequest.itemIds)
+          ? priorRequest.itemIds.filter(
+              (itemId): itemId is string => typeof itemId === "string",
+            )
+          : [];
+      }
+
+      if (
+        payload.expectedTemplateVersions.length !== payload.templateIds.length ||
+        payload.expectedCatalogItems.length !== payload.catalogItemIds.length
+      ) {
+        throw new BadRequestException(
+          "Expected catalog versions must match the selected entries",
+        );
+      }
+      if (payload.templateIds.length > 0) {
+        const templates = await tx.oneTimeOrderSpecificationTemplate.findMany({
+          where: { id: { in: payload.templateIds }, isArchived: false },
+          select: { id: true, version: true },
+        });
+        const expectedVersions = new Map(
+          payload.expectedTemplateVersions.map(({ templateId, version }) => [
+            templateId,
+            version,
+          ]),
+        );
+        if (
+          templates.length !== payload.templateIds.length ||
+          templates.some(
+            (template) => expectedVersions.get(template.id) !== template.version,
+          )
+        ) {
+          throw new ConflictException(
+            "A selected specification template changed. Reload the catalog and review it again.",
+          );
+        }
+      }
+      if (payload.catalogItemIds.length > 0) {
+        const catalogItems =
+          await tx.oneTimeOrderSpecificationCatalogItem.findMany({
+            where: { id: { in: payload.catalogItemIds }, isArchived: false },
+            select: { id: true, updatedAt: true },
+          });
+        const expectedUpdatedAt = new Map(
+          payload.expectedCatalogItems.map(({ catalogItemId, updatedAt }) => [
+            catalogItemId,
+            new Date(updatedAt).getTime(),
+          ]),
+        );
+        if (
+          catalogItems.length !== payload.catalogItemIds.length ||
+          catalogItems.some(
+            (item) =>
+              expectedUpdatedAt.get(item.id) !== item.updatedAt.getTime(),
+          )
+        ) {
+          throw new ConflictException(
+            "A selected catalog item changed. Reload the catalog and review it again.",
+          );
+        }
+      }
+
+      const snapshot = await this.resolveSpecificationSnapshot(tx, currentUser, {
+        specificationTemplateIds: payload.templateIds,
+        specificationCatalogItemIds: payload.catalogItemIds,
+      });
+      if (snapshot.length === 0) {
+        throw new BadRequestException(
+          "Selected templates and catalog items contain no specification points",
+        );
+      }
+
+      const lastItem = await tx.oneTimeOrderSpecificationItem.findFirst({
+        where: { oneTimeOrderId: id, deletedAt: null },
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      });
+      const existingItemCount = await tx.oneTimeOrderSpecificationItem.count({
+        where: { oneTimeOrderId: id, deletedAt: null },
+      });
+      let nextSortOrder = (lastItem?.sortOrder ?? -1) + 1;
+      const createdItems: OneTimeOrderSpecificationItemView[] = [];
+      for (const entry of snapshot) {
+        const created = (await tx.oneTimeOrderSpecificationItem.create({
+          data: {
+            oneTimeOrderId: id,
+            title: entry.title,
+            description: entry.description,
+            sortOrder: nextSortOrder++,
+            requiresAttachment: entry.requiresAttachment,
+            createdByUserId: currentUser.id,
+          },
+          include: this.getSpecificationItemInclude(),
+        })) as OneTimeOrderSpecificationItemView;
+        createdItems.push(created);
+      }
+
+      const createdIds = createdItems.map(({ id: itemId }) => itemId);
+      const selectedTemplates = payload.templateIds.length
+        ? await tx.oneTimeOrderSpecificationTemplate.findMany({
+            where: { id: { in: payload.templateIds } },
+            select: { name: true },
+          })
+        : [];
+      await tx.oneTimeOrderSpecificationApplyRequest.create({
+        data: {
+          oneTimeOrderId: id,
+          requestId: payload.requestId,
+          payloadFingerprint,
+          itemIds: createdIds,
+        },
+      });
+      await this.writeAuditEvent(tx, {
+        entityType: "one_time_order",
+        entityId: id,
+        actorUserId: currentUser.id,
+        action: "one_time_order.specification_catalog_applied",
+        oldValues: { activeSpecificationItemCount: existingItemCount },
+        newValues: {
+          addedCount: createdIds.length,
+          items: snapshot.map(({ title }) => title),
+          templates: selectedTemplates.map(({ name }) => name),
+          reason,
+        },
+        metadata: { requestId: payload.requestId },
+      });
+
+      const assignedManagerIds = order.assignments
+        .filter((assignment) => assignment.isActive)
+        .map((assignment) => assignment.userId);
+      const leadershipIds =
+        await this.notificationsService.listActiveUserIdsByRoles(
+          [...LEADERSHIP_OBJECT_ROLE_CODES],
+          tx,
+        );
+      await this.notificationsService.createForRecipients(
+        {
+          recipientUserIds: [...assignedManagerIds, ...leadershipIds].filter(
+            (userId) => userId !== currentUser.id,
+          ),
+          type: "one_time_order.specification_updated",
+          title: "Дополнено техническое задание разового заказа",
+          body: `${order.title}: добавлено пунктов — ${createdIds.length}`,
+          entityType: "one_time_order",
+          entityId: id,
+          targetUrl: `/one-time-orders/${encodeURIComponent(id)}?section=execution`,
+          dedupeKey: `one-time-order:${id}:specification:${payload.requestId}`,
+        },
+        tx,
+      );
+
+      return createdIds;
+    });
+
+    if (itemIds.length === 0) return [];
+    const created = (await this.prisma.oneTimeOrderSpecificationItem.findMany({
+      where: { id: { in: itemIds }, oneTimeOrderId: id },
+      include: this.getSpecificationItemInclude(),
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    })) as OneTimeOrderSpecificationItemView[];
+    const attachments = await this.listAttachmentsByEntityIds(
+      "one_time_order_specification_item",
+      itemIds,
+    );
+    return created.map((item) =>
       this.mapSpecificationItem(item, attachments.get(item.id) ?? []),
     );
   }
@@ -1320,18 +1831,18 @@ export class OneTimeOrdersService {
     id: string,
     payload: CreateOneTimeOrderSpecificationItemDto,
   ): Promise<OneTimeOrderSpecificationItemResponseDto> {
-    await this.getOrderForSpecificationWrite(currentUser, id);
+    await this.getOrderForSpecificationStructureWrite(currentUser, id);
     const title = payload.title.trim();
 
     if (!title) {
-      throw new BadRequestException('Specification item title is required');
+      throw new BadRequestException("Specification item title is required");
     }
 
     const item = await this.prisma.$transaction(async (tx) => {
       await this.lockSpecification(tx, id);
       const lastItem = await tx.oneTimeOrderSpecificationItem.findFirst({
         where: { oneTimeOrderId: id, deletedAt: null },
-        orderBy: { sortOrder: 'desc' },
+        orderBy: { sortOrder: "desc" },
         select: { sortOrder: true },
       });
 
@@ -1341,7 +1852,7 @@ export class OneTimeOrdersService {
           title,
           description: payload.description?.trim() || null,
           sortOrder: (lastItem?.sortOrder ?? -1) + 1,
-          requiresAttachment: payload.requiresAttachment ?? false,
+          requiresAttachment: false,
           createdByUserId: currentUser.id,
         },
         include: this.getSpecificationItemInclude(),
@@ -1350,7 +1861,7 @@ export class OneTimeOrdersService {
       await this.writeSpecificationAudit(tx, {
         oneTimeOrderId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.specification_item_created',
+        action: "one_time_order.specification_item_created",
         itemId: created.id,
         oldValues: null,
         newValues: {
@@ -1376,7 +1887,7 @@ export class OneTimeOrdersService {
     itemId: string,
     payload: UpdateOneTimeOrderSpecificationItemDto,
   ): Promise<OneTimeOrderSpecificationItemResponseDto> {
-    await this.getOrderForSpecificationWrite(currentUser, id);
+    await this.getOrderForSpecificationStructureWrite(currentUser, id);
     const updated = await this.prisma.$transaction(async (tx) => {
       await this.lockSpecification(tx, id);
       const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
@@ -1386,11 +1897,10 @@ export class OneTimeOrdersService {
         payload.description === undefined
           ? existing.description
           : payload.description?.trim() || null;
-      const requiresAttachment =
-        payload.requiresAttachment ?? existing.requiresAttachment;
+      const requiresAttachment = false;
 
       if (!title) {
-        throw new BadRequestException('Specification item title is required');
+        throw new BadRequestException("Specification item title is required");
       }
 
       const hasMeaningfulChanges =
@@ -1404,7 +1914,7 @@ export class OneTimeOrdersService {
         payload.reopenCompleted !== true
       ) {
         throw new ConflictException(
-          'Completed specification item must be explicitly reopened before editing',
+          "Completed specification item must be explicitly reopened before editing",
         );
       }
 
@@ -1432,7 +1942,7 @@ export class OneTimeOrdersService {
       await this.writeSpecificationAudit(tx, {
         oneTimeOrderId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.specification_item_updated',
+        action: "one_time_order.specification_item_updated",
         itemId,
         oldValues: this.specificationAuditValues(existing),
         newValues: this.specificationAuditValues(item),
@@ -1452,7 +1962,7 @@ export class OneTimeOrdersService {
     id: string,
     itemId: string,
   ): Promise<OneTimeOrderSpecificationItemResponseDto> {
-    await this.getOrderForSpecificationWrite(currentUser, id);
+    await this.getOrderForSpecificationStructureWrite(currentUser, id);
     const deleted = await this.prisma.$transaction(async (tx) => {
       await this.lockSpecification(tx, id);
       const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
@@ -1468,7 +1978,7 @@ export class OneTimeOrdersService {
       await this.writeSpecificationAudit(tx, {
         oneTimeOrderId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.specification_item_deleted',
+        action: "one_time_order.specification_item_deleted",
         itemId,
         oldValues: this.specificationAuditValues(existing),
         newValues: null,
@@ -1491,26 +2001,11 @@ export class OneTimeOrdersService {
     await this.getOrderForSpecificationWrite(currentUser, id);
     const completed = await this.prisma.$transaction(async (tx) => {
       await this.lockSpecification(tx, id);
+      await this.assertSpecificationExecutionWritableTx(tx, currentUser, id);
       const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
 
       if (existing.isCompleted) {
         return existing;
-      }
-
-      if (existing.requiresAttachment) {
-        const attachmentCount = await tx.fileAttachment.count({
-          where: {
-            entityType: 'one_time_order_specification_item',
-            entityId: itemId,
-            file: { deletedAt: null },
-          },
-        });
-
-        if (attachmentCount === 0) {
-          throw new ConflictException(
-            'Specification item requires at least one attachment',
-          );
-        }
       }
 
       const item = (await tx.oneTimeOrderSpecificationItem.update({
@@ -1526,7 +2021,7 @@ export class OneTimeOrdersService {
       await this.writeSpecificationAudit(tx, {
         oneTimeOrderId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.specification_item_completed',
+        action: "one_time_order.specification_item_completed",
         itemId,
         oldValues: this.specificationAuditValues(existing),
         newValues: this.specificationAuditValues(item),
@@ -1549,6 +2044,7 @@ export class OneTimeOrdersService {
     await this.getOrderForSpecificationWrite(currentUser, id);
     const reopened = await this.prisma.$transaction(async (tx) => {
       await this.lockSpecification(tx, id);
+      await this.assertSpecificationExecutionWritableTx(tx, currentUser, id);
       const existing = await this.getSpecificationItemFromTx(tx, id, itemId);
 
       if (!existing.isCompleted) {
@@ -1568,7 +2064,7 @@ export class OneTimeOrdersService {
       await this.writeSpecificationAudit(tx, {
         oneTimeOrderId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.specification_item_reopened',
+        action: "one_time_order.specification_item_reopened",
         itemId,
         oldValues: this.specificationAuditValues(existing),
         newValues: this.specificationAuditValues(item),
@@ -1588,13 +2084,13 @@ export class OneTimeOrdersService {
     id: string,
     payload: ReorderOneTimeOrderSpecificationItemsDto,
   ): Promise<OneTimeOrderSpecificationItemResponseDto[]> {
-    await this.getOrderForSpecificationWrite(currentUser, id);
+    await this.getOrderForSpecificationStructureWrite(currentUser, id);
     await this.prisma.$transaction(async (tx) => {
       await this.lockSpecification(tx, id);
       const existing = await tx.oneTimeOrderSpecificationItem.findMany({
         where: { oneTimeOrderId: id, deletedAt: null },
         select: { id: true, sortOrder: true },
-        orderBy: { sortOrder: 'asc' },
+        orderBy: { sortOrder: "asc" },
       });
       const existingIds = existing.map((item) => item.id).sort();
       const requestedIds = [...payload.itemIds].sort();
@@ -1604,13 +2100,11 @@ export class OneTimeOrdersService {
         existingIds.some((itemId, index) => itemId !== requestedIds[index])
       ) {
         throw new BadRequestException(
-          'Reorder payload must contain every active specification item exactly once',
+          "Reorder payload must contain every active specification item exactly once",
         );
       }
 
-      if (
-        existing.every((item, index) => item.id === payload.itemIds[index])
-      ) {
+      if (existing.every((item, index) => item.id === payload.itemIds[index])) {
         return;
       }
 
@@ -1629,10 +2123,10 @@ export class OneTimeOrdersService {
       }
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.specification_reordered',
+        action: "one_time_order.specification_reordered",
         metadata: {
           previousOrder: existing.map((item) => item.id),
           nextOrder: payload.itemIds,
@@ -1650,12 +2144,12 @@ export class OneTimeOrdersService {
   ): Promise<OneTimeOrderResponseDto> {
     const existing = await this.getOrderForWrite(currentUser, id);
 
-    if (payload.status === 'completed') {
-      throw new ConflictException('Use the order completion endpoint');
+    if (payload.status === "completed") {
+      throw new ConflictException("Use the order completion endpoint");
     }
 
-    if (existing.status === 'completed') {
-      throw new ConflictException('Use the order reopen endpoint');
+    if (existing.status === "completed") {
+      throw new ConflictException("Use the order reopen endpoint");
     }
 
     const capabilities = buildOneTimeOrderCapabilities({
@@ -1666,7 +2160,7 @@ export class OneTimeOrdersService {
     });
 
     if (!capabilities.canChangeStatus) {
-      throw new ForbiddenException('One-time order status change denied');
+      throw new ForbiddenException("One-time order status change denied");
     }
 
     if (existing.status === payload.status) {
@@ -1676,7 +2170,7 @@ export class OneTimeOrdersService {
     const managerUserIds = existing.assignments
       .filter(
         (assignment) =>
-          assignment.assignmentRoleCode === 'one_time_manager' &&
+          assignment.assignmentRoleCode === "one_time_manager" &&
           assignment.isActive,
       )
       .map((assignment) => assignment.userId);
@@ -1692,11 +2186,11 @@ export class OneTimeOrdersService {
         current.status !== existing.status ||
         current.workCycle !== existing.workCycle
       ) {
-        throw new ConflictException('One-time order state changed');
+        throw new ConflictException("One-time order state changed");
       }
 
       const conflictResult =
-        existing.status === 'cancelled' && payload.status !== 'cancelled'
+        existing.status === "cancelled" && payload.status !== "cancelled"
           ? await this.checkScheduleConflicts(tx, currentUser, {
               executionStartDate: existing.executionStartDate,
               executionEndDate: existing.executionEndDate,
@@ -1721,10 +2215,10 @@ export class OneTimeOrdersService {
       });
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: order.id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.status_changed',
+        action: "one_time_order.status_changed",
         oldValues: { status: existing.status },
         newValues: { status: order.status },
       });
@@ -1761,7 +2255,7 @@ export class OneTimeOrdersService {
         if (existingRequest) {
           if (existingRequest.payloadFingerprint !== payloadFingerprint) {
             throw new ConflictException(
-              'Completion request id was already used with another payload',
+              "Completion request id was already used with another payload",
             );
           }
 
@@ -1778,9 +2272,9 @@ export class OneTimeOrdersService {
 
       if (!capabilities.canComplete) {
         throw new ConflictException(
-          order.status === 'completed'
-            ? 'One-time order is already completed'
-            : 'One-time order cannot be completed in the current status',
+          order.status === "completed"
+            ? "One-time order is already completed"
+            : "One-time order cannot be completed in the current status",
         );
       }
 
@@ -1789,7 +2283,7 @@ export class OneTimeOrdersService {
         order.workCycle !== expected.workCycle ||
         order.status !== expected.status
       ) {
-        throw new ConflictException('One-time order state changed');
+        throw new ConflictException("One-time order state changed");
       }
 
       const payments = await this.normalizeCompletionPayments(
@@ -1806,7 +2300,7 @@ export class OneTimeOrdersService {
           completedAt,
           completedByUserId: currentUser.id,
           completionComment: payload.completionComment?.trim() || null,
-          status: 'active',
+          status: "active",
           clientRequestId: payload.clientRequestId ?? null,
           payloadFingerprint,
         },
@@ -1833,23 +2327,23 @@ export class OneTimeOrdersService {
           status: order.status,
         },
         data: {
-          status: 'completed',
+          status: "completed",
           completedAt,
           completedByUserId: currentUser.id,
         },
       });
 
       if (updated.count !== 1) {
-        throw new ConflictException('One-time order state changed');
+        throw new ConflictException("One-time order state changed");
       }
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.completed',
+        action: "one_time_order.completed",
         oldValues: { status: order.status, workCycle: order.workCycle },
-        newValues: { status: 'completed', workCycle: order.workCycle },
+        newValues: { status: "completed", workCycle: order.workCycle },
         metadata: {
           completionId: created.id,
           paymentCount: payments.length,
@@ -1877,8 +2371,10 @@ export class OneTimeOrdersService {
   ): Promise<OneTimeOrderResponseDto> {
     const expected = await this.getOrderForWrite(currentUser, id);
 
-    if (expected.status !== 'completed') {
-      throw new ConflictException('Only completed one-time order can be reopened');
+    if (expected.status !== "completed") {
+      throw new ConflictException(
+        "Only completed one-time order can be reopened",
+      );
     }
 
     const reopened = await this.prisma.$transaction(async (tx) => {
@@ -1892,27 +2388,31 @@ export class OneTimeOrdersService {
       });
 
       if (!capabilities.canReopen) {
-        throw new ConflictException('Only completed one-time order can be reopened');
+        throw new ConflictException(
+          "Only completed one-time order can be reopened",
+        );
       }
 
       if (
         order.workCycle !== expected.workCycle ||
         order.status !== expected.status
       ) {
-        throw new ConflictException('One-time order state changed');
+        throw new ConflictException("One-time order state changed");
       }
 
       const superseded = await tx.oneTimeOrderCompletion.updateMany({
         where: {
           oneTimeOrderId: id,
           workCycle: order.workCycle,
-          status: 'active',
+          status: "active",
         },
-        data: { status: 'superseded' },
+        data: { status: "superseded" },
       });
 
       if (superseded.count !== 1) {
-        throw new ConflictException('Active completion history is inconsistent');
+        throw new ConflictException(
+          "Active completion history is inconsistent",
+        );
       }
 
       const nextWorkCycle = order.workCycle + 1;
@@ -1920,27 +2420,27 @@ export class OneTimeOrdersService {
         where: {
           id,
           workCycle: order.workCycle,
-          status: 'completed',
+          status: "completed",
         },
         data: {
           workCycle: nextWorkCycle,
-          status: 'in_progress',
+          status: "in_progress",
           completedAt: null,
           completedByUserId: null,
         },
       });
 
       if (updated.count !== 1) {
-        throw new ConflictException('One-time order state changed');
+        throw new ConflictException("One-time order state changed");
       }
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.reopened',
-        oldValues: { status: 'completed', workCycle: order.workCycle },
-        newValues: { status: 'in_progress', workCycle: nextWorkCycle },
+        action: "one_time_order.reopened",
+        oldValues: { status: "completed", workCycle: order.workCycle },
+        newValues: { status: "in_progress", workCycle: nextWorkCycle },
       });
 
       return (await tx.oneTimeOrder.findUniqueOrThrow({
@@ -1959,7 +2459,7 @@ export class OneTimeOrdersService {
     await this.getOrderById(currentUser, id);
     const completions = await this.prisma.oneTimeOrderCompletion.findMany({
       where: { oneTimeOrderId: id },
-      orderBy: [{ workCycle: 'desc' }, { completedAt: 'desc' }],
+      orderBy: [{ workCycle: "desc" }, { completedAt: "desc" }],
       include: this.getCompletionInclude(),
     });
 
@@ -1978,7 +2478,7 @@ export class OneTimeOrdersService {
     const reason = payload.reason.trim();
 
     if (!reason) {
-      throw new BadRequestException('Payment correction reason is required');
+      throw new BadRequestException("Payment correction reason is required");
     }
 
     const completion = await this.prisma.$transaction(async (tx) => {
@@ -1997,17 +2497,21 @@ export class OneTimeOrdersService {
       });
 
       if (!sourcePayment || sourcePayment.oneTimeOrderId !== orderId) {
-        throw new NotFoundException('One-time order payment not found');
+        throw new NotFoundException("One-time order payment not found");
       }
       if (
-        sourcePayment.status !== 'active' ||
+        sourcePayment.status !== "active" ||
         sourcePayment.reversedByPaymentId ||
         sourcePayment.correctedByPaymentId
       ) {
-        throw new ConflictException('One-time order payment is already resolved');
+        throw new ConflictException(
+          "One-time order payment is already resolved",
+        );
       }
       if (sourcePayment.accountabilityFunding?.reversedByFundingId) {
-        throw new ConflictException('Accountability receipt is already reversed');
+        throw new ConflictException(
+          "Accountability receipt is already reversed",
+        );
       }
 
       const order = (await tx.oneTimeOrder.findUnique({
@@ -2016,7 +2520,7 @@ export class OneTimeOrdersService {
       })) as OneTimeOrderView | null;
 
       if (!order) {
-        throw new NotFoundException('One-time order not found');
+        throw new NotFoundException("One-time order not found");
       }
 
       const historicalRecipientIds = (
@@ -2053,12 +2557,12 @@ export class OneTimeOrdersService {
       );
 
       if (!correctedInput) {
-        throw new BadRequestException('Corrected payment is required');
+        throw new BadRequestException("Corrected payment is required");
       }
 
       const accountabilityUserIds = [
         sourcePayment.accountabilityFunding?.accountabilityAccount.userId,
-        correctedInput.paymentDestination === 'manager_accountability' &&
+        correctedInput.paymentDestination === "manager_accountability" &&
         !correctedInput.amount.isZero()
           ? correctedInput.recipientUserId
           : null,
@@ -2078,25 +2582,25 @@ export class OneTimeOrdersService {
           differenceReason: reason,
           receivedAt: new Date(),
           recordedByUserId: currentUser.id,
-          status: 'reversal',
+          status: "reversal",
           reversalOfPaymentId: sourcePayment.id,
         },
       });
       const reversed = await tx.oneTimeOrderCompletionPayment.updateMany({
         where: {
           id: sourcePayment.id,
-          status: 'active',
+          status: "active",
           reversedByPaymentId: null,
           correctedByPaymentId: null,
         },
         data: {
-          status: 'reversed',
+          status: "reversed",
           reversedByPaymentId: reversalPayment.id,
         },
       });
 
       if (reversed.count !== 1) {
-        throw new ConflictException('One-time order payment state changed');
+        throw new ConflictException("One-time order payment state changed");
       }
 
       let reversalFundingId: string | null = null;
@@ -2109,8 +2613,8 @@ export class OneTimeOrdersService {
             comment: reason,
             issuedByUserId: currentUser.id,
             issuedAt: new Date(),
-            fundingType: 'one_time_order_receipt_reversal',
-            entryDirection: 'debit',
+            fundingType: "one_time_order_receipt_reversal",
+            entryDirection: "debit",
             oneTimeOrderPaymentId: reversalPayment.id,
             oneTimeOrderId: sourcePayment.oneTimeOrderId,
             oneTimeOrderCompletionId: sourcePayment.completionId,
@@ -2127,18 +2631,18 @@ export class OneTimeOrdersService {
         });
 
         if (reversedFunding.count !== 1) {
-          throw new ConflictException('Accountability receipt state changed');
+          throw new ConflictException("Accountability receipt state changed");
         }
 
         reversalFundingId = reversalFunding.id;
         await this.writeAuditEvent(tx, {
-          entityType: 'accountability_funding',
+          entityType: "accountability_funding",
           entityId: reversalFunding.id,
           actorUserId: currentUser.id,
-          action: 'accountability_funding.one_time_order_receipt_reversed',
+          action: "accountability_funding.one_time_order_receipt_reversed",
           newValues: {
             amount: reversalFunding.amount.toNumber(),
-            entryDirection: 'debit',
+            entryDirection: "debit",
             reversalOfFundingId: sourceFunding.id,
             reason,
           },
@@ -2153,16 +2657,20 @@ export class OneTimeOrdersService {
           correctedFromPaymentId: sourcePayment.id,
         },
       });
-      const correctedSource = await tx.oneTimeOrderCompletionPayment.updateMany({
-        where: {
-          id: sourcePayment.id,
-          correctedByPaymentId: null,
+      const correctedSource = await tx.oneTimeOrderCompletionPayment.updateMany(
+        {
+          where: {
+            id: sourcePayment.id,
+            correctedByPaymentId: null,
+          },
+          data: { correctedByPaymentId: correctedPayment.id },
         },
-        data: { correctedByPaymentId: correctedPayment.id },
-      });
+      );
 
       if (correctedSource.count !== 1) {
-        throw new ConflictException('One-time order payment correction changed');
+        throw new ConflictException(
+          "One-time order payment correction changed",
+        );
       }
 
       const correctedFundingId = await this.createAccountabilityReceiptFunding(
@@ -2173,13 +2681,14 @@ export class OneTimeOrdersService {
           actorUserId: currentUser.id,
         },
       );
-      const activePaymentTotal = await tx.oneTimeOrderCompletionPayment.aggregate({
-        where: {
-          oneTimeOrderId: orderId,
-          status: 'active',
-        },
-        _sum: { amount: true },
-      });
+      const activePaymentTotal =
+        await tx.oneTimeOrderCompletionPayment.aggregate({
+          where: {
+            oneTimeOrderId: orderId,
+            status: "active",
+          },
+          _sum: { amount: true },
+        });
       const cumulativeActiveAmount =
         activePaymentTotal._sum.amount ?? new Prisma.Decimal(0);
       const createsFinancialDifference =
@@ -2187,10 +2696,10 @@ export class OneTimeOrdersService {
         !cumulativeActiveAmount.equals(order.agreedSum);
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: orderId,
         actorUserId: currentUser.id,
-        action: 'one_time_order.payment_corrected',
+        action: "one_time_order.payment_corrected",
         oldValues: {
           paymentId: sourcePayment.id,
           amount: sourcePayment.amount.toNumber(),
@@ -2237,12 +2746,12 @@ export class OneTimeOrdersService {
     const [manager] = await this.loadManagerUsers([payload.userId]);
 
     if (!manager) {
-      throw new NotFoundException('Selected one-time order manager not found');
+      throw new NotFoundException("Selected one-time order manager not found");
     }
 
     await this.prisma.$transaction(async (tx) => {
       const conflictResult =
-        order.status === 'cancelled'
+        order.status === "cancelled"
           ? null
           : await this.checkScheduleConflicts(tx, currentUser, {
               executionStartDate: order.executionStartDate,
@@ -2256,7 +2765,7 @@ export class OneTimeOrdersService {
           oneTimeOrderId_userId_assignmentRoleCode: {
             oneTimeOrderId: id,
             userId: manager.id,
-            assignmentRoleCode: 'one_time_manager',
+            assignmentRoleCode: "one_time_manager",
           },
         },
         update: {
@@ -2265,7 +2774,7 @@ export class OneTimeOrdersService {
         create: {
           oneTimeOrderId: id,
           userId: manager.id,
-          assignmentRoleCode: 'one_time_manager',
+          assignmentRoleCode: "one_time_manager",
           isActive: true,
         },
       });
@@ -2277,26 +2786,29 @@ export class OneTimeOrdersService {
       });
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.manager_added',
+        action: "one_time_order.manager_added",
         metadata: {
           managerUserId: manager.id,
           managerFullName: manager.fullName,
         },
       });
-      if (!order.assignments.some((item) =>
-        item.userId === manager.id &&
-        item.assignmentRoleCode === 'one_time_manager' &&
-        item.isActive,
-      )) {
+      if (
+        !order.assignments.some(
+          (item) =>
+            item.userId === manager.id &&
+            item.assignmentRoleCode === "one_time_manager" &&
+            item.isActive,
+        )
+      ) {
         await this.notifyOrderAssignmentChanged(
           tx,
           { id, title: order.title, updatedAt: assignment.updatedAt },
           [manager.id],
           currentUser.id,
-          'назначен',
+          "назначен",
         );
       }
     });
@@ -2316,7 +2828,7 @@ export class OneTimeOrdersService {
         where: {
           oneTimeOrderId: id,
           userId,
-          assignmentRoleCode: 'one_time_manager',
+          assignmentRoleCode: "one_time_manager",
           isActive: true,
         },
         select: { updatedAt: true },
@@ -2325,7 +2837,7 @@ export class OneTimeOrdersService {
         where: {
           oneTimeOrderId: id,
           userId,
-          assignmentRoleCode: 'one_time_manager',
+          assignmentRoleCode: "one_time_manager",
           isActive: true,
         },
         data: { isActive: false },
@@ -2333,21 +2845,21 @@ export class OneTimeOrdersService {
 
       if (result.count === 0) {
         throw new NotFoundException(
-          'One-time order manager assignment not found',
+          "One-time order manager assignment not found",
         );
       }
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.manager_removed',
+        action: "one_time_order.manager_removed",
         metadata: { managerUserId: userId },
       });
       const remainingManagerIds = await tx.oneTimeOrderAssignment.findMany({
         where: {
           oneTimeOrderId: id,
-          assignmentRoleCode: 'one_time_manager',
+          assignmentRoleCode: "one_time_manager",
           isActive: true,
         },
         select: { userId: true },
@@ -2356,12 +2868,20 @@ export class OneTimeOrdersService {
         tx,
         {
           id,
-          title: (await tx.oneTimeOrder.findUniqueOrThrow({ where: { id }, select: { title: true } })).title,
+          title: (
+            await tx.oneTimeOrder.findUniqueOrThrow({
+              where: { id },
+              select: { title: true },
+            })
+          ).title,
           updatedAt: assignment?.updatedAt ?? new Date(),
         },
-        [...remainingManagerIds.map(({ userId: managerId }) => managerId), userId],
+        [
+          ...remainingManagerIds.map(({ userId: managerId }) => managerId),
+          userId,
+        ],
         currentUser.id,
-        'снят',
+        "снят",
       );
     });
 
@@ -2382,13 +2902,13 @@ export class OneTimeOrdersService {
         createdBy: true,
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       take: 50,
     });
 
     const attachmentsMap = await this.listAttachmentsByEntityIds(
-      'one_time_order_comment',
+      "one_time_order_comment",
       items.map((item) => item.id),
     );
 
@@ -2411,14 +2931,14 @@ export class OneTimeOrdersService {
     });
 
     if (!capabilities.canComment) {
-      throw new ForbiddenException('One-time order comment creation denied');
+      throw new ForbiddenException("One-time order comment creation denied");
     }
 
     const created = await this.prisma.oneTimeOrderComment.create({
       data: {
         oneTimeOrderId: id,
         content: payload.content.trim(),
-        commentType: payload.commentType?.trim() || 'manual',
+        commentType: payload.commentType?.trim() || "manual",
         createdByUserId: currentUser.id,
       },
       include: {
@@ -2427,10 +2947,10 @@ export class OneTimeOrdersService {
     });
 
     await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
+      entityType: "one_time_order",
       entityId: id,
       actorUserId: currentUser.id,
-      action: 'one_time_order.comment_created',
+      action: "one_time_order.comment_created",
       metadata: {
         commentId: created.id,
         commentType: created.commentType,
@@ -2463,7 +2983,7 @@ export class OneTimeOrdersService {
     }
 
     const attachmentsMap = await this.listAttachmentsByEntityIds(
-      'one_time_order_daily_report',
+      "one_time_order_daily_report",
       [item.id],
     );
 
@@ -2500,10 +3020,10 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderDailyReportView;
 
     await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
+      entityType: "one_time_order",
       entityId: id,
       actorUserId: currentUser.id,
-      action: 'one_time_order.daily_report_upserted',
+      action: "one_time_order.daily_report_upserted",
       metadata: {
         reportId: item.id,
         reportDate: item.reportDate.toISOString(),
@@ -2533,13 +3053,13 @@ export class OneTimeOrdersService {
         restoredBy: true,
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: "desc",
       },
       take: 100,
     })) as OneTimeOrderPhotoView[];
 
     const attachmentsMap = await this.listAttachmentsByEntityIds(
-      'one_time_order_photo',
+      "one_time_order_photo",
       items.filter((item) => !item.deletedAt).map((item) => item.id),
     );
 
@@ -2550,8 +3070,7 @@ export class OneTimeOrdersService {
           (order.capabilities.canDeletePhotos ||
             (item.createdBy.id === currentUser.id &&
               order.capabilities.canUploadPhotos)),
-        canRestore:
-          !!item.deletedAt && order.capabilities.canRestorePhotos,
+        canRestore: !!item.deletedAt && order.capabilities.canRestorePhotos,
       }),
     );
   }
@@ -2570,7 +3089,7 @@ export class OneTimeOrdersService {
     });
 
     if (!capabilities.canUploadPhotos) {
-      throw new ForbiddenException('One-time order photo upload denied');
+      throw new ForbiddenException("One-time order photo upload denied");
     }
 
     const item = (await this.prisma.oneTimeOrderPhoto.create({
@@ -2588,10 +3107,10 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderPhotoView;
 
     await this.auditService.writeAuditEvent({
-      entityType: 'one_time_order',
+      entityType: "one_time_order",
       entityId: id,
       actorUserId: currentUser.id,
-      action: 'one_time_order.photo_created',
+      action: "one_time_order.photo_created",
       metadata: {
         photoId: item.id,
         category: item.photoCategory,
@@ -2599,7 +3118,8 @@ export class OneTimeOrdersService {
     });
 
     return this.mapPhoto(item, [], {
-      canDelete: capabilities.canDeletePhotos || item.createdBy.id === currentUser.id,
+      canDelete:
+        capabilities.canDeletePhotos || item.createdBy.id === currentUser.id,
       canRestore: false,
     });
   }
@@ -2620,10 +3140,11 @@ export class OneTimeOrdersService {
     const existing = await this.getPhoto(id, photoId);
     const canDelete =
       capabilities.canDeletePhotos ||
-      (existing.createdBy.id === currentUser.id && capabilities.canUploadPhotos);
+      (existing.createdBy.id === currentUser.id &&
+        capabilities.canUploadPhotos);
 
     if (!canDelete) {
-      throw new ForbiddenException('One-time order photo delete denied');
+      throw new ForbiddenException("One-time order photo delete denied");
     }
 
     if (existing.deletedAt) {
@@ -2652,10 +3173,10 @@ export class OneTimeOrdersService {
       })) as OneTimeOrderPhotoView;
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.photo_deleted',
+        action: "one_time_order.photo_deleted",
         metadata: { photoId, deleteReason },
       });
 
@@ -2682,7 +3203,7 @@ export class OneTimeOrdersService {
     });
 
     if (!capabilities.canRestorePhotos) {
-      throw new ForbiddenException('One-time order photo restore denied');
+      throw new ForbiddenException("One-time order photo restore denied");
     }
 
     const existing = await this.getPhoto(id, photoId);
@@ -2713,10 +3234,10 @@ export class OneTimeOrdersService {
       })) as OneTimeOrderPhotoView;
 
       await this.writeAuditEvent(tx, {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: id,
         actorUserId: currentUser.id,
-        action: 'one_time_order.photo_restored',
+        action: "one_time_order.photo_restored",
         metadata: {
           photoId,
           previousDeleteReason: existing.deleteReason,
@@ -2737,9 +3258,22 @@ export class OneTimeOrdersService {
     id: string,
   ): Promise<OneTimeOrderAuditLogResponseDto[]> {
     await this.getOrderById(currentUser, id);
-    const items = await this.auditService.listAuditEvents('one_time_order', id);
+    const items = await this.auditService.listAuditEvents("one_time_order", id);
+    return items.map((item) => this.mapHistoryEvent(item));
+  }
 
-    return items.map((item) => ({
+  async listHistoryPage(
+    currentUser: CurrentAuthUser,
+    id: string,
+    query: ListAuditHistoryQueryDto,
+  ): Promise<AuditHistoryPage<OneTimeOrderAuditLogResponseDto>> {
+    await this.getOrderById(currentUser, id);
+    const page = await this.auditService.listAuditEventsPage("one_time_order", id, query);
+    return { ...page, items: page.items.map((item) => this.mapHistoryEvent(item)) };
+  }
+
+  private mapHistoryEvent(item: AuditHistoryEvent): OneTimeOrderAuditLogResponseDto {
+    return {
       id: item.id,
       entityType: item.entityType,
       entityId: item.entityId,
@@ -2753,18 +3287,18 @@ export class OneTimeOrdersService {
           }
         : null,
       oldValues:
-        item.oldValues && typeof item.oldValues === 'object'
+        item.oldValues && typeof item.oldValues === "object"
           ? (item.oldValues as Record<string, unknown>)
           : null,
       newValues:
-        item.newValues && typeof item.newValues === 'object'
+        item.newValues && typeof item.newValues === "object"
           ? (item.newValues as Record<string, unknown>)
           : null,
       metadata:
-        item.metadata && typeof item.metadata === 'object'
+        item.metadata && typeof item.metadata === "object"
           ? (item.metadata as Record<string, unknown>)
           : null,
-    }));
+    };
   }
 
   async listTasks(
@@ -2816,7 +3350,7 @@ export class OneTimeOrdersService {
     ) {
       this.logger.warn(
         JSON.stringify({
-          event: 'one_time_order.schedule_conflict_rejected',
+          event: "one_time_order.schedule_conflict_rejected",
           actorUserId: currentUser.id,
           executionStartDate: formatBusinessDate(input.executionStartDate),
           executionEndDate: formatBusinessDate(input.executionEndDate),
@@ -2825,7 +3359,7 @@ export class OneTimeOrdersService {
         }),
       );
       throw new ConflictException({
-        message: 'Schedule conflicts require confirmation',
+        message: "Schedule conflicts require confirmation",
         hasConflicts: result.hasConflicts,
         conflictFingerprint: result.conflictFingerprint,
         conflicts: result.conflicts,
@@ -2847,23 +3381,24 @@ export class OneTimeOrdersService {
 
     await tx.auditEvent.create({
       data: {
-        entityType: 'one_time_order',
+        entityType: "one_time_order",
         entityId: orderId,
         actorUserId: currentUser.id,
-        action: 'one_time_order.schedule_conflict_overridden',
+        action: "one_time_order.schedule_conflict_overridden",
         metadata: {
           executionStartDate: formatBusinessDate(input.executionStartDate),
           executionEndDate: formatBusinessDate(input.executionEndDate),
           managerUserIds: [...new Set(input.managerUserIds)],
           conflictFingerprint: input.conflictResult.conflictFingerprint,
-          conflicts: input.conflictResult.conflicts as unknown as Prisma.InputJsonArray,
+          conflicts: input.conflictResult
+            .conflicts as unknown as Prisma.InputJsonArray,
           actorUserId: currentUser.id,
         } as Prisma.InputJsonObject,
       },
     });
     this.logger.log(
       JSON.stringify({
-        event: 'one_time_order.schedule_conflict_overridden',
+        event: "one_time_order.schedule_conflict_overridden",
         actorUserId: currentUser.id,
         orderId,
         executionStartDate: formatBusinessDate(input.executionStartDate),
@@ -2892,7 +3427,7 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderView | null;
 
     if (!order) {
-      throw new NotFoundException('One-time order not found');
+      throw new NotFoundException("One-time order not found");
     }
 
     const roleCodes = this.getRoleCodes(currentUser);
@@ -2904,7 +3439,7 @@ export class OneTimeOrdersService {
     });
 
     if (!capabilities.canEdit) {
-      throw new ForbiddenException('One-time order edit denied');
+      throw new ForbiddenException("One-time order edit denied");
     }
 
     return order;
@@ -2928,7 +3463,7 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderView | null;
 
     if (!order) {
-      throw new NotFoundException('One-time order not found');
+      throw new NotFoundException("One-time order not found");
     }
 
     return order;
@@ -2948,7 +3483,7 @@ export class OneTimeOrdersService {
       })
     ) {
       throw new ForbiddenException(
-        'You cannot correct one-time order payments',
+        "You cannot correct one-time order payments",
       );
     }
   }
@@ -2961,7 +3496,7 @@ export class OneTimeOrdersService {
 
     for (const userId of uniqueUserIds) {
       await tx.$queryRaw(
-        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${'accountability:' + userId}))::text`,
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${"accountability:" + userId}))::text`,
       );
       const account = await tx.accountabilityAccount.findUnique({
         where: { userId },
@@ -2976,9 +3511,9 @@ export class OneTimeOrdersService {
         where: { id: account.id },
       });
 
-      if (lockedAccount.status !== 'active') {
+      if (lockedAccount.status !== "active") {
         throw new ConflictException(
-          'Accountability account does not accept order receipt corrections',
+          "Accountability account does not accept order receipt corrections",
         );
       }
     }
@@ -3001,14 +3536,16 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderPhotoView | null;
 
     if (!item) {
-      throw new NotFoundException('One-time order photo not found');
+      throw new NotFoundException("One-time order photo not found");
     }
 
     return item;
   }
 
-  private async getPhotoAttachments(photoId: string): Promise<SafeFileResponseDto[]> {
-    const map = await this.listAttachmentsByEntityIds('one_time_order_photo', [
+  private async getPhotoAttachments(
+    photoId: string,
+  ): Promise<SafeFileResponseDto[]> {
+    const map = await this.listAttachmentsByEntityIds("one_time_order_photo", [
       photoId,
     ]);
     return map.get(photoId) ?? [];
@@ -3031,7 +3568,7 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderView | null;
 
     if (!order) {
-      throw new NotFoundException('One-time order not found');
+      throw new NotFoundException("One-time order not found");
     }
 
     const capabilities = buildOneTimeOrderCapabilities({
@@ -3042,7 +3579,7 @@ export class OneTimeOrdersService {
     });
 
     if (!capabilities.canEditReview) {
-      throw new ForbiddenException('One-time order review edit denied');
+      throw new ForbiddenException("One-time order review edit denied");
     }
 
     return order;
@@ -3061,16 +3598,159 @@ export class OneTimeOrdersService {
     });
 
     if (!capabilities.canManageSpecification) {
-      throw new ForbiddenException('One-time order specification edit denied');
+      throw new ForbiddenException("One-time order specification edit denied");
     }
 
-    if (order.status === 'completed' || order.status === 'cancelled') {
+    if (order.status === "completed" || order.status === "cancelled") {
       throw new ConflictException(
-        'One-time order specification is read-only in the current status',
+        "One-time order specification is read-only in the current status",
       );
     }
 
     return order;
+  }
+
+  private async assertSpecificationExecutionWritableTx(
+    tx: Prisma.TransactionClient,
+    currentUser: CurrentAuthUser,
+    orderId: string,
+  ): Promise<void> {
+    const orders = await tx.$queryRaw<Array<{ status: string }>>`
+      SELECT "status" FROM "one_time_orders" WHERE "id" = ${orderId} FOR UPDATE
+    `;
+    const order = orders[0];
+    if (!order) throw new NotFoundException("One-time order not found");
+    if (order.status === "completed" || order.status === "cancelled") {
+      throw new ConflictException("One-time order is read-only in the current status");
+    }
+    const assignments = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "one_time_order_assignments"
+      WHERE "oneTimeOrderId" = ${orderId}
+        AND "userId" = ${currentUser.id}
+        AND "assignmentRoleCode" = 'one_time_manager'
+        AND "isActive" = true
+      FOR SHARE
+    `;
+    if (assignments.length === 0) {
+      throw new ForbiddenException("Active one-time manager assignment required");
+    }
+  }
+
+  private async getOrderForSpecificationStructureWrite(
+    currentUser: CurrentAuthUser,
+    id: string,
+  ): Promise<OneTimeOrderView> {
+    const order = await this.getOrderForWrite(currentUser, id);
+    const capabilities = buildOneTimeOrderCapabilities({
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+      permissionCodes: this.getPermissionCodes(currentUser),
+      order,
+    });
+    if (!capabilities.canEditSpecification) {
+      throw new ForbiddenException(
+        "Leadership circle specification edit required",
+      );
+    }
+    if (order.status === "completed" || order.status === "cancelled") {
+      throw new ConflictException(
+        "One-time order specification is read-only in the current status",
+      );
+    }
+    return order;
+  }
+
+  private assertSpecificationComposerIfRequested(
+    currentUser: CurrentAuthUser,
+    payload: {
+      specificationCatalogItemIds?: string[];
+      specificationTemplateIds?: string[];
+      specificationItems?: Array<{ title: string }>;
+    },
+  ) {
+    const requested = Boolean(
+      payload.specificationCatalogItemIds?.length ||
+      payload.specificationTemplateIds?.length ||
+      payload.specificationItems?.length,
+    );
+    const isLeadership = this.getRoleCodes(currentUser).some((role) =>
+      LEADERSHIP_OBJECT_ROLE_CODES.includes(role as never),
+    );
+    if (requested && !isLeadership) {
+      throw new ForbiddenException(
+        "Only the leadership circle may compose an order specification",
+      );
+    }
+  }
+
+  private async resolveSpecificationSnapshot(
+    tx: Prisma.TransactionClient,
+    currentUser: CurrentAuthUser,
+    payload: {
+      specificationCatalogItemIds?: string[];
+      specificationTemplateIds?: string[];
+      specificationItems?: Array<{
+        title: string;
+        description?: string | null;
+        requiresAttachment?: boolean;
+      }>;
+    },
+  ) {
+    this.assertSpecificationComposerIfRequested(currentUser, payload);
+    const result: Array<{
+      title: string;
+      description: string | null;
+      requiresAttachment: boolean;
+    }> = [];
+    const includedCatalogItemIds = new Set<string>();
+    for (const templateId of payload.specificationTemplateIds ?? []) {
+      const template = await tx.oneTimeOrderSpecificationTemplate.findFirst({
+        where: { id: templateId, isArchived: false },
+        include: {
+          items: {
+            include: { catalogItem: true },
+            orderBy: { sortOrder: "asc" },
+          },
+        },
+      });
+      if (!template)
+        throw new NotFoundException("Specification template not found");
+      for (const entry of template.items) {
+        if (includedCatalogItemIds.has(entry.catalogItemId)) continue;
+        includedCatalogItemIds.add(entry.catalogItemId);
+        result.push({
+          title: entry.catalogItem.title,
+          description: entry.catalogItem.description,
+          requiresAttachment: false,
+        });
+      }
+    }
+    for (const catalogItemId of payload.specificationCatalogItemIds ?? []) {
+      if (includedCatalogItemIds.has(catalogItemId)) continue;
+      const item = await tx.oneTimeOrderSpecificationCatalogItem.findFirst({
+        where: { id: catalogItemId, isArchived: false },
+      });
+      if (!item)
+        throw new NotFoundException(
+          "Active specification catalog item not found",
+        );
+      includedCatalogItemIds.add(catalogItemId);
+      result.push({
+        title: item.title,
+        description: item.description,
+        requiresAttachment: false,
+      });
+    }
+    for (const item of payload.specificationItems ?? []) {
+      const title = item.title.trim();
+      if (title)
+        result.push({
+          title,
+          description: item.description?.trim() || null,
+          requiresAttachment: false,
+        });
+    }
+    return result;
   }
 
   private async getSpecificationItemFromTx(
@@ -3088,7 +3768,9 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderSpecificationItemView | null;
 
     if (!item) {
-      throw new NotFoundException('One-time order specification item not found');
+      throw new NotFoundException(
+        "One-time order specification item not found",
+      );
     }
 
     return item;
@@ -3111,7 +3793,7 @@ export class OneTimeOrdersService {
     })) as OneTimeOrderView | null;
 
     if (!order) {
-      throw new NotFoundException('One-time order not found');
+      throw new NotFoundException("One-time order not found");
     }
 
     const capabilities = buildOneTimeOrderCapabilities({
@@ -3122,7 +3804,7 @@ export class OneTimeOrdersService {
     });
 
     if (!capabilities.canManageManagers) {
-      throw new ForbiddenException('One-time order manager management denied');
+      throw new ForbiddenException("One-time order manager management denied");
     }
 
     return order;
@@ -3146,7 +3828,7 @@ export class OneTimeOrdersService {
     });
 
     if (!object) {
-      throw new NotFoundException('Linked object not found');
+      throw new NotFoundException("Linked object not found");
     }
   }
 
@@ -3171,14 +3853,18 @@ export class OneTimeOrdersService {
     });
 
     if (users.length !== userIds.length) {
-      throw new NotFoundException('One or more selected one-time managers were not found');
+      throw new NotFoundException(
+        "One or more selected one-time managers were not found",
+      );
     }
 
     for (const user of users) {
       const roleCodes = user.roles.map((item) => item.role.code);
 
       if (!canBeOneTimeOrderManager(roleCodes)) {
-        throw new ForbiddenException('Selected user cannot be one-time order manager');
+        throw new ForbiddenException(
+          "Selected user cannot be one-time order manager",
+        );
       }
     }
 
@@ -3200,9 +3886,7 @@ export class OneTimeOrdersService {
     });
 
     return users.filter((user) =>
-      canBeOneTimeOrderManager(
-        user.roles.map((item) => item.role.code),
-      ),
+      canBeOneTimeOrderManager(user.roles.map((item) => item.role.code)),
     );
   }
 
@@ -3247,7 +3931,7 @@ export class OneTimeOrdersService {
       },
       assignments: {
         where: {
-          assignmentRoleCode: 'one_time_manager',
+          assignmentRoleCode: "one_time_manager",
           isActive: true,
           user: {
             isActive: true,
@@ -3279,7 +3963,10 @@ export class OneTimeOrdersService {
         },
       },
       payments: {
-        orderBy: [{ receivedAt: 'asc' as const }, { createdAt: 'asc' as const }],
+        orderBy: [
+          { receivedAt: "asc" as const },
+          { createdAt: "asc" as const },
+        ],
         include: {
           recipient: {
             select: {
@@ -3325,8 +4012,7 @@ export class OneTimeOrdersService {
     accessibleTaskCount: number,
   ): OneTimeOrderListItemResponseDto {
     const roleCodes = this.getRoleCodes(currentUser);
-    const executionStartDate =
-      order.executionStartDate ?? order.executionDate;
+    const executionStartDate = order.executionStartDate ?? order.executionDate;
     const executionEndDate = order.executionEndDate ?? executionStartDate;
     const specificationCompleted = order.specificationItems.filter(
       (item) => item.isCompleted,
@@ -3358,7 +4044,7 @@ export class OneTimeOrdersService {
       managers: order.assignments
         .filter(
           (assignment) =>
-            assignment.assignmentRoleCode === 'one_time_manager' &&
+            assignment.assignmentRoleCode === "one_time_manager" &&
             assignment.isActive &&
             assignment.user.isActive &&
             assignment.user.deletedAt === null,
@@ -3367,7 +4053,7 @@ export class OneTimeOrdersService {
           userId: assignment.user.id,
           login: assignment.user.login,
           fullName: assignment.user.fullName,
-          roleCode: assignment.user.roles[0]?.role.code ?? 'unknown',
+          roleCode: assignment.user.roles[0]?.role.code ?? "unknown",
         })),
       contact: {
         name: order.contactName,
@@ -3406,8 +4092,7 @@ export class OneTimeOrdersService {
       order,
     });
 
-    const executionStartDate =
-      order.executionStartDate ?? order.executionDate;
+    const executionStartDate = order.executionStartDate ?? order.executionDate;
     const executionEndDate = order.executionEndDate ?? executionStartDate;
 
     return {
@@ -3469,7 +4154,7 @@ export class OneTimeOrdersService {
       managers: order.assignments
         .filter(
           (assignment) =>
-            assignment.assignmentRoleCode === 'one_time_manager' &&
+            assignment.assignmentRoleCode === "one_time_manager" &&
             assignment.isActive &&
             assignment.user.isActive &&
             assignment.user.deletedAt === null,
@@ -3477,7 +4162,7 @@ export class OneTimeOrdersService {
         .map((assignment) => ({
           userId: assignment.user.id,
           fullName: assignment.user.fullName,
-          roleCode: assignment.user.roles[0]?.role.code ?? 'unknown',
+          roleCode: assignment.user.roles[0]?.role.code ?? "unknown",
         })),
       capabilities,
     };
@@ -3487,7 +4172,7 @@ export class OneTimeOrdersService {
     completion: OneTimeOrderCompletionView,
     currentUser: CurrentAuthUser,
   ): OneTimeOrderCompletionResponseDto {
-    const isLegacyUnknown = completion.completionSource === 'legacy_unknown';
+    const isLegacyUnknown = completion.completionSource === "legacy_unknown";
     const canViewAllPayments =
       canReviewAccountability({
         roleCodes: this.getRoleCodes(currentUser),
@@ -3514,19 +4199,18 @@ export class OneTimeOrdersService {
           : completion.completedAt.toISOString(),
       completedBy: isLegacyUnknown ? null : completion.completedBy,
       completionComment: isLegacyUnknown ? null : completion.completionComment,
-      completionSource: isLegacyUnknown ? 'legacy_unknown' : 'native',
+      completionSource: isLegacyUnknown ? "legacy_unknown" : "native",
       status: completion.status,
       clientRequestId: completion.clientRequestId,
       payments: completion.payments.map((payment) =>
-        this.mapCompletionPayment(
-          payment,
-          currentUser.id,
-          canViewAllPayments,
-        ),
+        this.mapCompletionPayment(payment, currentUser.id, canViewAllPayments),
       ),
       visibleTotalAmount: visiblePayments
-        .filter((payment) => payment.status === 'active')
-        .reduce((sum, payment) => sum.add(payment.amount), new Prisma.Decimal(0))
+        .filter((payment) => payment.status === "active")
+        .reduce(
+          (sum, payment) => sum.add(payment.amount),
+          new Prisma.Decimal(0),
+        )
         .toNumber(),
       fullTotalAmountVisible:
         visiblePayments.length === completion.payments.length,
@@ -3543,7 +4227,7 @@ export class OneTimeOrdersService {
     return (
       canViewAllPayments ||
       payment.recipientUserId === currentUserId ||
-      (payment.paymentDestination === 'organization' &&
+      (payment.paymentDestination === "organization" &&
         payment.recordedByUserId === currentUserId) ||
       (payment.amount.isZero() &&
         payment.zeroReason !== null &&
@@ -3555,13 +4239,9 @@ export class OneTimeOrdersService {
     payment: OneTimeOrderCompletionPaymentView,
     currentUserId: string,
     canViewAllPayments: boolean,
-  ): OneTimeOrderCompletionResponseDto['payments'][number] {
+  ): OneTimeOrderCompletionResponseDto["payments"][number] {
     if (
-      !this.canViewCompletionPayment(
-        payment,
-        currentUserId,
-        canViewAllPayments,
-      )
+      !this.canViewCompletionPayment(payment, currentUserId, canViewAllPayments)
     ) {
       return {
         id: payment.id,
@@ -3596,7 +4276,7 @@ export class OneTimeOrdersService {
   private buildCompletionPayloadFingerprint(
     payload: CompleteOneTimeOrderDto,
   ): string {
-    return createHash('sha256')
+    return createHash("sha256")
       .update(
         JSON.stringify({
           workCycle: payload.workCycle,
@@ -3615,7 +4295,7 @@ export class OneTimeOrdersService {
           })),
         }),
       )
-      .digest('hex');
+      .digest("hex");
   }
 
   private async normalizeCompletionPayments(
@@ -3644,7 +4324,9 @@ export class OneTimeOrdersService {
             },
             select: { id: true },
           });
-    const allowedRecipientIds = new Set(activeRecipients.map((user) => user.id));
+    const allowedRecipientIds = new Set(
+      activeRecipients.map((user) => user.id),
+    );
     for (const userId of allowedHistoricalRecipientIds) {
       allowedRecipientIds.add(userId);
     }
@@ -3654,7 +4336,7 @@ export class OneTimeOrdersService {
     ).length;
     if (noPaymentCount > 0 && input.length !== 1) {
       throw new BadRequestException(
-        'No-payment state must be the only completion payment row',
+        "No-payment state must be the only completion payment row",
       );
     }
 
@@ -3671,65 +4353,65 @@ export class OneTimeOrdersService {
 
       if (isNoPayment) {
         if (!zeroReason) {
-          throw new BadRequestException('Zero payment requires reason');
+          throw new BadRequestException("Zero payment requires reason");
         }
         if (recipientUserId || paymentMethod || paymentDestination) {
           throw new BadRequestException(
-            'No-payment state must not contain payment method, destination or recipient',
+            "No-payment state must not contain payment method, destination or recipient",
           );
         }
-        if (zeroReason === 'other' && !comment) {
-          throw new BadRequestException('Other zero reason requires comment');
+        if (zeroReason === "other" && !comment) {
+          throw new BadRequestException("Other zero reason requires comment");
         }
       } else {
         if (zeroReason) {
           throw new BadRequestException(
-            'Zero payment reason is allowed only for zero amount',
+            "Zero payment reason is allowed only for zero amount",
           );
         }
         if (!paymentMethod || !paymentDestination) {
           throw new BadRequestException(
-            'Actual receipt requires payment method and destination',
+            "Actual receipt requires payment method and destination",
           );
         }
 
-        if (paymentDestination === 'manager_accountability') {
+        if (paymentDestination === "manager_accountability") {
           if (!recipientUserId) {
             throw new BadRequestException(
-              'Manager accountability payment requires recipient',
+              "Manager accountability payment requires recipient",
             );
           }
           if (!allowedRecipientIds.has(recipientUserId)) {
             throw new BadRequestException(
-              'Payment recipient must be an active eligible user',
+              "Payment recipient must be an active eligible user",
             );
           }
         } else if (recipientUserId) {
           throw new BadRequestException(
-            'Organization payment must not have personal recipient',
+            "Organization payment must not have personal recipient",
           );
         }
 
         if (
-          (paymentMethod === 'cash' ||
-            paymentMethod === 'personal_card_transfer') &&
-          paymentDestination !== 'manager_accountability'
+          (paymentMethod === "cash" ||
+            paymentMethod === "personal_card_transfer") &&
+          paymentDestination !== "manager_accountability"
         ) {
           throw new BadRequestException(
-            'Selected payment method requires manager accountability destination',
+            "Selected payment method requires manager accountability destination",
           );
         }
         if (
-          paymentMethod === 'organization_transfer' &&
-          paymentDestination !== 'organization'
+          paymentMethod === "organization_transfer" &&
+          paymentDestination !== "organization"
         ) {
           throw new BadRequestException(
-            'Organization transfer requires organization destination',
+            "Organization transfer requires organization destination",
           );
         }
-        if (paymentMethod === 'other' && !comment) {
+        if (paymentMethod === "other" && !comment) {
           throw new BadRequestException(
-            'Other payment method requires comment',
+            "Other payment method requires comment",
           );
         }
       }
@@ -3746,14 +4428,14 @@ export class OneTimeOrdersService {
           ? new Date(payment.receivedAt)
           : defaultReceivedAt,
         recordedByUserId: actorUserId,
-        status: 'active',
+        status: "active",
       };
     });
 
     const existingTotal = await tx.oneTimeOrderCompletionPayment.aggregate({
       where: {
         oneTimeOrderId: order.id,
-        status: 'active',
+        status: "active",
         id: excludePaymentId ? { not: excludePaymentId } : undefined,
       },
       _sum: { amount: true },
@@ -3775,8 +4457,9 @@ export class OneTimeOrdersService {
       !payments.some((payment) => payment.differenceReason)
     ) {
       throw new BadRequestException({
-        code: 'ACTUAL_AMOUNT_DIFFERENCE_REASON_REQUIRED',
-        message: 'Укажите причину расхождения фактической и согласованной суммы',
+        code: "ACTUAL_AMOUNT_DIFFERENCE_REASON_REQUIRED",
+        message:
+          "Укажите причину расхождения фактической и согласованной суммы",
       });
     }
 
@@ -3800,7 +4483,7 @@ export class OneTimeOrdersService {
     },
   ): Promise<string | null> {
     if (
-      params.payment.paymentDestination !== 'manager_accountability' ||
+      params.payment.paymentDestination !== "manager_accountability" ||
       params.payment.amount.isZero()
     ) {
       return null;
@@ -3810,12 +4493,12 @@ export class OneTimeOrdersService {
 
     if (!recipientUserId) {
       throw new BadRequestException(
-        'Manager accountability payment requires recipient',
+        "Manager accountability payment requires recipient",
       );
     }
 
     await tx.$queryRaw(
-      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${'accountability:' + recipientUserId}))::text`,
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${"accountability:" + recipientUserId}))::text`,
     );
     let account = await tx.accountabilityAccount.findUnique({
       where: { userId: recipientUserId },
@@ -3830,22 +4513,22 @@ export class OneTimeOrdersService {
       account = await tx.accountabilityAccount.create({
         data: {
           userId: recipientUserId,
-          status: 'active',
+          status: "active",
         },
       });
     }
 
-    if (account.status === 'closing_requested') {
+    if (account.status === "closing_requested") {
       const requestedClosures = await tx.accountabilityClosure.findMany({
         where: {
           accountabilityAccountId: account.id,
-          status: 'requested',
+          status: "requested",
         },
         select: { id: true },
       });
       if (requestedClosures.length !== 1) {
         throw new ConflictException(
-          'Accountability closing state is inconsistent',
+          "Accountability closing state is inconsistent",
         );
       }
       const closureId = requestedClosures[0]!.id;
@@ -3860,13 +4543,13 @@ export class OneTimeOrdersService {
           approvalType: ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
           sourceEntityType: ACCOUNTABILITY_CLOSURE_APPROVAL_SOURCE_ENTITY_TYPE,
           sourceEntityId: closureId,
-          status: 'pending',
+          status: "pending",
         },
         select: { id: true },
       });
       if (pendingApprovals.length !== 1) {
         throw new ConflictException(
-          'Accountability closure approval state is inconsistent',
+          "Accountability closure approval state is inconsistent",
         );
       }
       const approvalId = pendingApprovals[0]!.id;
@@ -3877,70 +4560,70 @@ export class OneTimeOrdersService {
         FOR UPDATE
       `;
       const reopenedAt = new Date();
-      const reason = 'Automatically cancelled by a new one-time order receipt';
+      const reason = "Automatically cancelled by a new one-time order receipt";
       const closureUpdate = await tx.accountabilityClosure.updateMany({
-        where: { id: closureId, status: 'requested' },
+        where: { id: closureId, status: "requested" },
         data: {
-          status: 'rejected',
+          status: "rejected",
           rejectedByUserId: params.actorUserId,
           rejectedAt: reopenedAt,
           comment: reason,
         },
       });
       const approvalUpdate = await tx.approvalRequest.updateMany({
-        where: { id: approvalId, status: 'pending' },
+        where: { id: approvalId, status: "pending" },
         data: {
-          status: 'cancelled',
+          status: "cancelled",
           cancelledByUserId: params.actorUserId,
           cancelledAt: reopenedAt,
           decisionComment: reason,
         },
       });
       if (closureUpdate.count !== 1 || approvalUpdate.count !== 1) {
-        throw new ConflictException('Accountability closure state changed');
+        throw new ConflictException("Accountability closure state changed");
       }
       await this.writeAuditEvent(tx, {
-        entityType: 'accountability_closure',
+        entityType: "accountability_closure",
         entityId: closureId,
         actorUserId: params.actorUserId,
-        action: 'accountability_closure.cancelled_by_one_time_order_receipt',
-        oldValues: { status: 'requested' },
-        newValues: { status: 'rejected', reason },
+        action: "accountability_closure.cancelled_by_one_time_order_receipt",
+        oldValues: { status: "requested" },
+        newValues: { status: "rejected", reason },
       });
       await this.writeAuditEvent(tx, {
-        entityType: 'approval_request',
+        entityType: "approval_request",
         entityId: approvalId,
         actorUserId: params.actorUserId,
-        action: 'approval.request.cancelled',
-        oldValues: { status: 'pending' },
+        action: "approval.request.cancelled",
+        oldValues: { status: "pending" },
         newValues: {
-          status: 'cancelled',
+          status: "cancelled",
           reason,
           sourceEntityId: closureId,
         },
       });
-    } else if (account.status !== 'active' && account.status !== 'closed') {
+    } else if (account.status !== "active" && account.status !== "closed") {
       throw new ConflictException(
-        'Accountability account does not accept order receipts',
+        "Accountability account does not accept order receipts",
       );
     }
 
-    if (account.status !== 'active') {
+    if (account.status !== "active") {
       const accountUpdate = await tx.accountabilityAccount.updateMany({
         where: { id: account.id, status: account.status },
-        data: { status: 'active' },
+        data: { status: "active" },
       });
       if (accountUpdate.count !== 1) {
-        throw new ConflictException('Accountability account state changed');
+        throw new ConflictException("Accountability account state changed");
       }
       await this.writeAuditEvent(tx, {
-        entityType: 'accountability_account',
+        entityType: "accountability_account",
         entityId: account.id,
         actorUserId: params.actorUserId,
-        action: 'accountability_account.reopened_by_one_time_order_receipt',
+        action: "accountability_account.reopened_by_one_time_order_receipt",
         oldValues: { status: account.status },
         newValues: {
-          status: 'active',
+          status: "active",
           oneTimeOrderId: params.payment.oneTimeOrderId,
           oneTimeOrderCompletionId: params.completionId,
         },
@@ -3954,8 +4637,8 @@ export class OneTimeOrdersService {
         comment: params.payment.comment,
         issuedByUserId: params.actorUserId,
         issuedAt: params.payment.receivedAt,
-        fundingType: 'one_time_order_receipt',
-        entryDirection: 'credit',
+        fundingType: "one_time_order_receipt",
+        entryDirection: "credit",
         oneTimeOrderPaymentId: params.payment.id,
         oneTimeOrderId: params.payment.oneTimeOrderId,
         oneTimeOrderCompletionId: params.completionId,
@@ -3964,15 +4647,15 @@ export class OneTimeOrdersService {
     });
 
     await this.writeAuditEvent(tx, {
-      entityType: 'accountability_funding',
+      entityType: "accountability_funding",
       entityId: funding.id,
       actorUserId: params.actorUserId,
-      action: 'accountability_funding.one_time_order_receipt_created',
+      action: "accountability_funding.one_time_order_receipt_created",
       newValues: {
         accountabilityAccountId: account.id,
         amount: params.payment.amount.toNumber(),
-        fundingType: 'one_time_order_receipt',
-        entryDirection: 'credit',
+        fundingType: "one_time_order_receipt",
+        entryDirection: "credit",
         oneTimeOrderPaymentId: params.payment.id,
         oneTimeOrderId: params.payment.oneTimeOrderId,
         oneTimeOrderCompletionId: params.completionId,
@@ -3992,7 +4675,7 @@ export class OneTimeOrdersService {
       title: item.title,
       description: item.description,
       sortOrder: item.sortOrder,
-      requiresAttachment: item.requiresAttachment,
+      requiresAttachment: false,
       isCompleted: item.isCompleted,
       completedAt: item.completedAt?.toISOString() ?? null,
       completedBy: item.completedBy
@@ -4017,7 +4700,7 @@ export class OneTimeOrdersService {
     itemId: string,
   ): Promise<SafeFileResponseDto[]> {
     const attachments = await this.listAttachmentsByEntityIds(
-      'one_time_order_specification_item',
+      "one_time_order_specification_item",
       [itemId],
     );
 
@@ -4059,7 +4742,7 @@ export class OneTimeOrdersService {
     },
   ): Promise<void> {
     await this.writeAuditEvent(tx, {
-      entityType: 'one_time_order',
+      entityType: "one_time_order",
       entityId: params.oneTimeOrderId,
       actorUserId: params.actorUserId,
       action: params.action,
@@ -4111,19 +4794,22 @@ export class OneTimeOrdersService {
     });
   }
 
-  private mapComment(item: {
-    id: string;
-    oneTimeOrderId: string;
-    content: string;
-    commentType: string;
-    createdAt: Date;
-    updatedAt: Date;
-    createdBy: {
+  private mapComment(
+    item: {
       id: string;
-      login: string;
-      fullName: string;
-    };
-  }, attachments: SafeFileResponseDto[]): OneTimeOrderCommentResponseDto {
+      oneTimeOrderId: string;
+      content: string;
+      commentType: string;
+      createdAt: Date;
+      updatedAt: Date;
+      createdBy: {
+        id: string;
+        login: string;
+        fullName: string;
+      };
+    },
+    attachments: SafeFileResponseDto[],
+  ): OneTimeOrderCommentResponseDto {
     return {
       id: item.id,
       oneTimeOrderId: item.oneTimeOrderId,
@@ -4212,31 +4898,33 @@ export class OneTimeOrdersService {
       newValue: AuditPrimitive;
     }
   > {
-    const fields: Array<keyof Pick<
-      OneTimeOrderView,
-      | 'title'
-      | 'executionAddress'
-      | 'status'
-      | 'description'
-      | 'contactName'
-      | 'contactPhone'
-      | 'agreedSum'
-      | 'plannedPaymentMethod'
-      | 'financialNotes'
-      | 'expenseNotes'
-      | 'linkedObjectId'
-    >> = [
-      'title',
-      'executionAddress',
-      'status',
-      'description',
-      'contactName',
-      'contactPhone',
-      'agreedSum',
-      'plannedPaymentMethod',
-      'financialNotes',
-      'expenseNotes',
-      'linkedObjectId',
+    const fields: Array<
+      keyof Pick<
+        OneTimeOrderView,
+        | "title"
+        | "executionAddress"
+        | "status"
+        | "description"
+        | "contactName"
+        | "contactPhone"
+        | "agreedSum"
+        | "plannedPaymentMethod"
+        | "financialNotes"
+        | "expenseNotes"
+        | "linkedObjectId"
+      >
+    > = [
+      "title",
+      "executionAddress",
+      "status",
+      "description",
+      "contactName",
+      "contactPhone",
+      "agreedSum",
+      "plannedPaymentMethod",
+      "financialNotes",
+      "expenseNotes",
+      "linkedObjectId",
     ];
     const changes: Record<
       string,
@@ -4255,10 +4943,7 @@ export class OneTimeOrdersService {
       }
     }
 
-    for (const field of [
-      'executionStartDate',
-      'executionEndDate',
-    ] as const) {
+    for (const field of ["executionStartDate", "executionEndDate"] as const) {
       const previousDate = formatBusinessDate(previous[field]);
       const nextDate = formatBusinessDate(next[field]);
 
@@ -4274,7 +4959,10 @@ export class OneTimeOrdersService {
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
-    if (Array.isArray(currentUser.roleCodes) && currentUser.roleCodes.length > 0) {
+    if (
+      Array.isArray(currentUser.roleCodes) &&
+      currentUser.roleCodes.length > 0
+    ) {
       return currentUser.roleCodes;
     }
 
@@ -4289,7 +4977,9 @@ export class OneTimeOrdersService {
         ONE_TIME_ORDER_REVIEW_VIEW_ALL_PERMISSION,
       )
     ) {
-      throw new ForbiddenException('One-time order review registry access denied');
+      throw new ForbiddenException(
+        "One-time order review registry access denied",
+      );
     }
   }
 
@@ -4309,20 +4999,23 @@ export class OneTimeOrdersService {
         tx,
       ),
     ]);
-    await this.notificationsService.createForRecipients({
-      recipientUserIds: [
-        ...assignedManagerUserIds,
-        ...managerUserIds,
-        ...leadershipUserIds,
-      ].filter((userId) => userId !== actorUserId),
-      type: 'one_time_order.created',
-      title: 'Создан новый разовый заказ',
-      body: order.title,
-      entityType: 'one_time_order',
-      entityId: order.id,
-      targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
-      dedupeKey: `one-time-order:${order.id}:created`,
-    }, tx);
+    await this.notificationsService.createForRecipients(
+      {
+        recipientUserIds: [
+          ...assignedManagerUserIds,
+          ...managerUserIds,
+          ...leadershipUserIds,
+        ].filter((userId) => userId !== actorUserId),
+        type: "one_time_order.created",
+        title: "Создан новый разовый заказ",
+        body: order.title,
+        entityType: "one_time_order",
+        entityId: order.id,
+        targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
+        dedupeKey: `one-time-order:${order.id}:created`,
+      },
+      tx,
+    );
   }
 
   private async notifyOrderChanged(
@@ -4331,23 +5024,27 @@ export class OneTimeOrdersService {
     assignedManagerUserIds: string[],
     actorUserId: string,
   ): Promise<void> {
-    const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(
-      [...LEADERSHIP_OBJECT_ROLE_CODES],
+    const leadershipUserIds =
+      await this.notificationsService.listActiveUserIdsByRoles(
+        [...LEADERSHIP_OBJECT_ROLE_CODES],
+        tx,
+      );
+    await this.notificationsService.createForRecipients(
+      {
+        recipientUserIds: [
+          ...assignedManagerUserIds,
+          ...leadershipUserIds,
+        ].filter((userId) => userId !== actorUserId),
+        type: "one_time_order.updated",
+        title: "Изменён разовый заказ",
+        body: order.title,
+        entityType: "one_time_order",
+        entityId: order.id,
+        targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
+        dedupeKey: `one-time-order:${order.id}:updated:${order.updatedAt.toISOString()}`,
+      },
       tx,
     );
-    await this.notificationsService.createForRecipients({
-      recipientUserIds: [
-        ...assignedManagerUserIds,
-        ...leadershipUserIds,
-      ].filter((userId) => userId !== actorUserId),
-      type: 'one_time_order.updated',
-      title: 'Изменён разовый заказ',
-      body: order.title,
-      entityType: 'one_time_order',
-      entityId: order.id,
-      targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
-      dedupeKey: `one-time-order:${order.id}:updated:${order.updatedAt.toISOString()}`,
-    }, tx);
   }
 
   private async notifyOrderAssignmentChanged(
@@ -4355,24 +5052,28 @@ export class OneTimeOrdersService {
     order: { id: string; title: string; updatedAt: Date },
     managerUserIds: string[],
     actorUserId: string,
-    action: 'назначен' | 'снят',
+    action: "назначен" | "снят",
   ): Promise<void> {
-    const leadershipUserIds = await this.notificationsService.listActiveUserIdsByRoles(
-      [...LEADERSHIP_OBJECT_ROLE_CODES],
+    const leadershipUserIds =
+      await this.notificationsService.listActiveUserIdsByRoles(
+        [...LEADERSHIP_OBJECT_ROLE_CODES],
+        tx,
+      );
+    await this.notificationsService.createForRecipients(
+      {
+        recipientUserIds: [...managerUserIds, ...leadershipUserIds].filter(
+          (userId) => userId !== actorUserId,
+        ),
+        type: `one_time_order.manager_${action === "назначен" ? "assigned" : "removed"}`,
+        title: `Менеджер ${action} на разовый заказ`,
+        body: order.title,
+        entityType: "one_time_order",
+        entityId: order.id,
+        targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
+        dedupeKey: `one-time-order:${order.id}:manager:${action}:${order.updatedAt.toISOString()}`,
+      },
       tx,
     );
-    await this.notificationsService.createForRecipients({
-      recipientUserIds: [...managerUserIds, ...leadershipUserIds].filter(
-        (userId) => userId !== actorUserId,
-      ),
-      type: `one_time_order.manager_${action === 'назначен' ? 'assigned' : 'removed'}`,
-      title: `Менеджер ${action} на разовый заказ`,
-      body: order.title,
-      entityType: 'one_time_order',
-      entityId: order.id,
-      targetUrl: `/one-time-orders/${encodeURIComponent(order.id)}`,
-      dedupeKey: `one-time-order:${order.id}:manager:${action}:${order.updatedAt.toISOString()}`,
-    }, tx);
   }
 
   private assertCanAccessRegistry(currentUser: CurrentAuthUser): void {
@@ -4382,7 +5083,7 @@ export class OneTimeOrdersService {
         this.getPermissionCodes(currentUser),
       )
     ) {
-      throw new ForbiddenException('One-time order registry access denied');
+      throw new ForbiddenException("One-time order registry access denied");
     }
   }
 
@@ -4391,7 +5092,7 @@ export class OneTimeOrdersService {
   }
 
   private parseRegistryDate(value: string): Date {
-    const [year, month, day] = value.split('-').map(Number);
+    const [year, month, day] = value.split("-").map(Number);
     const date = new Date(Date.UTC(year!, month! - 1, day!));
 
     if (
@@ -4399,7 +5100,7 @@ export class OneTimeOrdersService {
       date.getUTCMonth() !== month! - 1 ||
       date.getUTCDate() !== day
     ) {
-      throw new BadRequestException('Registry date filter is invalid');
+      throw new BadRequestException("Registry date filter is invalid");
     }
 
     return date;
@@ -4434,7 +5135,7 @@ export class OneTimeOrdersService {
         file: true,
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: "asc",
       },
     });
 
@@ -4446,5 +5147,4 @@ export class OneTimeOrdersService {
 
     return map;
   }
-
 }

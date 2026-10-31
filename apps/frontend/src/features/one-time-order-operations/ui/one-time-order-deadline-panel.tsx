@@ -7,6 +7,7 @@ import {
 } from "@/entities/one-time-order/api/one-time-order-operations-client";
 import { Alert, Button, Field, LoadingState, Stack, Surface } from "@/shared/ui/foundation";
 import { DatePicker } from "@/shared/ui/date-picker/date-picker";
+import { useConfirm } from "@/shared/ui/overlays";
 import styles from "./one-time-order-deadline-panel.module.css";
 
 const moscowInput = (timestamp: string | null) =>
@@ -28,6 +29,8 @@ export function OneTimeOrderDeadlinePanel({
   const [isReading, setIsReading] = useState(true);
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
   const [error, setError] = useState<string | null>(null);
   const apply = (value: OrderDeadline) => {
     setData(value);
@@ -61,14 +64,17 @@ export function OneTimeOrderDeadlinePanel({
   return (
     <Surface as="section" padding="md">
       <Stack gap="md">
-        <h2 className="ui-section-title">Срок завершения заказа</h2>
+        <div className="ui-section-header">
+          <h2 className="ui-section-title">Срок завершения заказа</h2>
+          {data?.canEdit && !isEditing ? <Button onClick={() => setIsEditing(true)}>Изменить срок</Button> : null}
+        </div>
         {error ? (
           <Alert tone="danger" role="alert">
             {error}
           </Alert>
         ) : null}
         {isReading && !data ? <LoadingState label="Загрузка срока…" /> : null}
-        {data && !data.canEdit ? <div>
+        {data && (!data.canEdit || !isEditing) ? <div>
           {data.deadlineAt
             ? `${new Date(data.deadlineAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow" })} МСК`
             : "Срок не задан"}
@@ -81,7 +87,7 @@ export function OneTimeOrderDeadlinePanel({
               : "не задан"}.
           </Alert>
         ) : null}
-        {data?.canEdit ? (
+        {data?.canEdit && isEditing ? (
           <form
             className={styles.form}
             onSubmit={async (event) => {
@@ -98,6 +104,7 @@ export function OneTimeOrderDeadlinePanel({
                     : null,
                 });
                 apply(value);
+                setIsEditing(false);
                 try {
                   await onChanged();
                 } catch {
@@ -111,7 +118,7 @@ export function OneTimeOrderDeadlinePanel({
               }
             }}
           >
-            <Field label="Дата и время, МСК" className={styles.field}>
+            <Field label="Срок завершения, МСК" className={styles.field}>
               <DatePicker
                 withTime
                 clearable
@@ -125,6 +132,16 @@ export function OneTimeOrderDeadlinePanel({
             <Button variant="primary" type="submit" pending={pending} pendingLabel="Сохраняем…" disabled={isReading || needsRefresh}>
               Сохранить срок
             </Button>
+            <Button type="button" disabled={pending} onClick={() => void confirm({
+              title: 'Отменить изменение срока?',
+              consequence: deadline !== moscowInput(data.deadlineAt) ? 'Введённая дата и время будут удалены.' : 'Форма редактирования закроется без сохранения.',
+              confirmLabel: deadline !== moscowInput(data.deadlineAt) ? 'Отменить и удалить изменения' : 'Закрыть форму',
+              tone: deadline !== moscowInput(data.deadlineAt) ? 'danger' : 'neutral',
+            }).then((accepted) => {
+              if (!accepted) return;
+              setDeadline(moscowInput(data.deadlineAt));
+              setIsEditing(false);
+            })}>Отменить</Button>
           </form>
         ) : null}
         {needsRefresh ? <div className="ui-inline"><Button
@@ -155,6 +172,7 @@ export function OneTimeOrderDeadlinePanel({
           Загрузить актуальные данные
         </Button></div> : null}
       </Stack>
+      {confirmDialog}
     </Surface>
   );
 }
