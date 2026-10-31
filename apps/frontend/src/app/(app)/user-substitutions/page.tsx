@@ -1,17 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import { createUserSubstitution, getSubstitutionOptions, listUserSubstitutions, revokeUserSubstitution, type SubstitutionList, type SubstitutionObject, type UserSubstitution } from '@/entities/user-substitution/api/user-substitution-client';
 import { Alert, Badge, Button, Field, PageHeader } from '@/shared/ui/foundation';
-import { Dialog, ReasonDialog } from '@/shared/ui/overlays';
+import { Dialog, ReasonDialog, useConfirm } from '@/shared/ui/overlays';
 import { SearchableSelect, type SearchableSelectOption } from '@/shared/ui/searchable-select/searchable-select';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './user-substitutions.module.css';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import { useCreateDraft } from '@/shared/drafts';
 
 const STATUS_LABELS = { active: 'Действует', scheduled: 'Запланировано', expired: 'Завершено', revoked: 'Прекращено' };
 function moscowDateTime(value: Date): string {
@@ -27,19 +28,41 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
+  const draft = useCreateDraft('user-substitution-create', {
+    open: false, replacement: '', selected: [] as SubstitutionObject[], startNow: true,
+    startsAt: '', endsAt: '', reason: '', initialStartsAt: '', initialEndsAt: '', replacementOption: null as SearchableSelectOption | null,
+  });
+  const { open, replacement, selected, startNow, startsAt, endsAt, reason } = draft.value;
+  const [confirmDiscard, confirmDialog] = useConfirm();
+  const submitLock = useRef(false);
+  const userOptions = useRef(new Map<string, SearchableSelectOption>());
+  const setField = <K extends keyof typeof draft.value>(key: K, next: React.SetStateAction<typeof draft.value[K]>): void => {
+    const value = { ...draft.value, [key]: typeof next === 'function' ? (next as (value: typeof draft.value[K]) => typeof draft.value[K])(draft.value[key]) : next };
+    draft.setValue(value);
+    draft.setDirty(Boolean(value.replacement || value.selected.length || value.reason || !value.startNow || value.startsAt !== value.initialStartsAt || value.endsAt !== value.initialEndsAt));
+  };
+  const setReplacement = (value: string): void => {
+    draft.setValue((current) => ({ ...current, replacement: value, replacementOption: userOptions.current.get(value) ?? null }));
+    draft.setDirty(Boolean(value || selected.length || reason || !startNow || startsAt !== draft.value.initialStartsAt || endsAt !== draft.value.initialEndsAt));
+  };
+  const setSelected: React.Dispatch<React.SetStateAction<SubstitutionObject[]>> = (value) => setField('selected', value);
+  const setStartNow = (value: boolean): void => setField('startNow', value);
+  const setStartsAt = (value: string): void => setField('startsAt', value);
+  const setEndsAt = (value: string): void => setField('endsAt', value);
+  const setReason = (value: string): void => setField('reason', value);
+  const setOpen = (value: boolean): void => { if (!value) draft.clear(); };
+  const requestClose = async (): Promise<void> => {
+    if (pending) return;
+    if (draft.dirty && !await confirmDiscard({ title: 'Закрыть форму без сохранения?', consequence: 'Введённые данные замещения будут удалены.', confirmLabel: 'Закрыть форму', tone: 'danger' })) return;
+    draft.clear();
+  };
+  const [localPending, setPending] = useState(false);
+  const pending = localPending || draft.submitting;
   const [formError, setFormError] = useState<string | null>(null);
-  const [replacement, setReplacement] = useState('');
   const [users, setUsers] = useState<SearchableSelectOption[]>([]);
   const [objects, setObjects] = useState<SubstitutionObject[]>([]);
-  const [selected, setSelected] = useState<SubstitutionObject[]>([]);
   const [objectSearch, setObjectSearch] = useState('');
   const [optionsLoading, setOptionsLoading] = useState(false);
-  const [startNow, setStartNow] = useState(true);
-  const [startsAt, setStartsAt] = useState('');
-  const [endsAt, setEndsAt] = useState('');
-  const [reason, setReason] = useState('');
   const [revokeTarget, setRevokeTarget] = useState<UserSubstitution | null>(null);
   const [revokeReason, setRevokeReason] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -62,7 +85,9 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
       void getSubstitutionOptions({ objectSearch }).then((response) => {
         if (!cancelled) {
           setObjects(response.objects);
-          setUsers(response.users.map((user) => ({ value: user.id, label: user.fullName, description: `@${user.login}` })));
+          const options = response.users.map((user) => ({ value: user.id, label: user.fullName, description: `@${user.login}` }));
+          for (const option of options) userOptions.current.set(option.value, option);
+          setUsers(options);
         }
       }).catch((caught: unknown) => { if (!cancelled) setFormError(message(caught)); })
         .finally(() => { if (!cancelled) setOptionsLoading(false); });
@@ -71,24 +96,28 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
   }, [open, objectSearch]);
 
   const start = (): void => {
-    setReplacement(''); setSelected([]); setObjectSearch(''); setReason(''); setFormError(null);
-    setStartNow(true); setStartsAt(moscowDateTime(new Date()));
-    setEndsAt(moscowDateTime(new Date(Date.now() + 7 * 86_400_000))); setOpen(true);
+    const starts = moscowDateTime(new Date());
+    const ends = moscowDateTime(new Date(Date.now() + 7 * 86_400_000));
+    draft.setValue({ open: true, replacement: '', selected: [], startNow: true, startsAt: starts, endsAt: ends, reason: '', initialStartsAt: starts, initialEndsAt: ends, replacementOption: null });
+    draft.setDirty(false);
+    submitLock.current = false;
+    setObjectSearch(''); setFormError(null);
   };
   const save = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (pending) return;
+    if (pending || submitLock.current) return;
     setFormError(null);
     const from = startNow ? new Date() : new Date(`${startsAt}:00+03:00`);
     const to = new Date(`${endsAt}:00+03:00`);
     if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from || (!startNow && from.getTime() < Date.now())) {
       setFormError('Укажите будущий период: окончание должно быть позже начала.'); return;
     }
+    submitLock.current = true;
     setPending(true);
     try {
-      await createUserSubstitution({ replacementUserId: replacement, objectIds: selected.map((item) => item.id), startsAt: from.toISOString(), endsAt: to.toISOString(), reason: reason.trim() });
+      await draft.submit(() => createUserSubstitution({ replacementUserId: replacement, objectIds: selected.map((item) => item.id), startsAt: from.toISOString(), endsAt: to.toISOString(), reason: reason.trim() }));
       setOpen(false); setPage(1); setReloadKey((value) => value + 1);
-    } catch (caught) { setFormError(message(caught)); }
+    } catch (caught) { submitLock.current = false; setFormError(message(caught)); }
     finally { setPending(false); }
   };
   const revoke = async (value: string): Promise<void> => {
@@ -117,10 +146,10 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
     {list ? <TablePagination page={page} totalPages={list.totalPages} pending={loading} label="Страницы замещений"
       summary={list.total > 0 ? `Показано ${(page - 1) * 20 + 1}–${Math.min(page * 20, list.total)} из ${list.total}` : 'Замещения не найдены'}
       onPageChange={setPage} /> : null}
-    <Dialog open={open} onOpenChange={setOpen} busy={pending} title="Создать замещение" description="Только ваш собственный доступ. Полученные по замещению права передать дальше нельзя." footer={<div className={styles.actions}><Button disabled={pending} onClick={() => setOpen(false)}>Отмена</Button><Button variant="primary" type="submit" form="substitution-form" pending={pending} disabled={!replacement || !selected.length || !reason.trim() || optionsLoading}>Создать замещение</Button></div>}>
+    <Dialog open={open} onOpenChange={(value) => { if (!value) void requestClose(); }} busy={pending} title="Создать замещение" description="Только ваш собственный доступ. Полученные по замещению права передать дальше нельзя." footer={<div className={styles.actions}><Button disabled={pending} onClick={() => void requestClose()}>Отмена</Button><Button variant="primary" type="submit" form="substitution-form" pending={pending} disabled={!replacement || !selected.length || !reason.trim() || optionsLoading}>Создать замещение</Button></div>}>
       <form id="substitution-form" className={styles.form} onSubmit={(event) => { void save(event); }}>
         {formError ? <Alert tone="danger" role="alert">{formError}</Alert> : null}
-        <SearchableSelect label="Кто замещает" value={replacement} options={users} onChange={setReplacement} required disabled={pending} viewportAware placeholder="Выберите пользователя" searchPlaceholder="Имя или логин" asyncSearch={async (query) => (await getSubstitutionOptions({ userSearch: query })).users.map((user) => ({ value: user.id, label: user.fullName, description: `@${user.login}` }))} />
+        <SearchableSelect label="Кто замещает" value={replacement} selectedOption={draft.value.replacementOption} options={users} onChange={setReplacement} required disabled={pending} viewportAware placeholder="Выберите пользователя" searchPlaceholder="Имя или логин" asyncSearch={async (query) => { const options = (await getSubstitutionOptions({ userSearch: query })).users.map((user) => ({ value: user.id, label: user.fullName, description: `@${user.login}` })); for (const option of options) userOptions.current.set(option.value, option); return options; }} />
         <fieldset className={styles.scope}><legend>Объекты · выбрано {selected.length} из 100</legend>
           <Field label="Найти объект"><input type="search" value={objectSearch} maxLength={100} onChange={(event) => setObjectSearch(event.target.value)} placeholder="Название или адрес" disabled={pending} /></Field>
           {selected.length ? <div className={styles.selected}>{selected.map((item) => <Button size="sm" key={item.id} disabled={pending} aria-label={`Убрать ${item.name} из замещения`} onClick={() => setSelected((values) => values.filter((entry) => entry.id !== item.id))}>{item.name} ×</Button>)}</div> : null}
@@ -128,10 +157,11 @@ export default function UserSubstitutionsPage(): React.JSX.Element {
           <p className={styles.muted}>Показаны первые 100 результатов. Уточните поиск; выбранные объекты сохранятся.</p>
         </fieldset>
         <label className={styles.check}><input type="checkbox" checked={startNow} onChange={(event) => setStartNow(event.target.checked)} disabled={pending} /> Начать сразу после сохранения</label>
-        <div className={styles.dates}>{!startNow ? <Field label="Начало · Москва" required><DatePicker withTime value={startsAt} onChange={(nextValue) => setStartsAt(nextValue)} disabled={pending} /></Field> : null}<Field label="Окончание · Москва" required><DatePicker withTime value={endsAt} onChange={(nextValue) => setEndsAt(nextValue)} disabled={pending} /></Field></div>
+        <div className={styles.dates}>{!startNow ? <Field label="Начало · Москва" required><DatePicker displayFormat="short" required withTime value={startsAt} onChange={(nextValue) => setStartsAt(nextValue)} disabled={pending} /></Field> : null}<Field label="Окончание · Москва" required><DatePicker withTime value={endsAt} onChange={(nextValue) => setEndsAt(nextValue)} disabled={pending} /></Field></div>
         <Field label="Основание" required><textarea rows={3} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Например, отпуск или временное замещение" disabled={pending} /></Field>
       </form>
     </Dialog>
+    {confirmDialog}
     <ReasonDialog open={!!revokeTarget} onOpenChange={(value) => { if (!value) setRevokeTarget(null); }} title="Прекратить замещение?" description="Делегированный доступ закроется со следующего запроса. Собственные права пользователя останутся." reason={revokeReason} onReasonChange={setRevokeReason} onConfirm={(value) => { void revoke(value); }} confirmLabel="Прекратить замещение" pending={pending} error={formError} />
   </div>;
 }

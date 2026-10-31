@@ -1,6 +1,7 @@
 const registryDateFormatter = new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric',
   month: 'short',
+  year: 'numeric',
 });
 
 export function formatRegistryDate(value: Date | string | null | undefined): string {

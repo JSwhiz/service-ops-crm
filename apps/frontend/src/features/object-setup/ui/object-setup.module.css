@@ -15,6 +15,7 @@
   gap: var(--ui-space-3);
   min-width: 0;
 }
+.section[hidden] { display: none !important; }
 .section + .section {
   border-top: 1px solid var(--ui-border);
   padding-top: var(--ui-space-4);

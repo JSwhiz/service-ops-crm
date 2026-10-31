@@ -11,8 +11,16 @@
 }
 
 .candidateTable td {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
+
+.candidateTable th:first-child { width: 20%; min-width: 180px; }
+.candidateTable th:nth-child(3) { min-width: 140px; }
+.candidateTable th:nth-child(4), .candidateTable th:nth-child(6) { min-width: 160px; }
+.candidateTable th:nth-child(5) { width: 23%; min-width: 210px; }
+.candidateTable td:first-child :global(.ui-text-muted) > span:first-child, .noWrap { white-space: nowrap; }
+.feedback summary { cursor: pointer; }
+.feedback p { white-space: pre-wrap; margin-block: var(--ui-space-2); }
 
 .candidateMobileList {
   display: none;

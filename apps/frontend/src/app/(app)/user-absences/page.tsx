@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -20,6 +20,7 @@ import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { Alert, Button, Field } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { ConfirmDialog } from '@/shared/ui/overlays';
+import { useCreateNavigation } from '@/shared/create-navigation';
 
 import styles from './user-absences.module.css';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
@@ -78,6 +79,8 @@ function eventLabel(item: UserAbsenceItem): string {
 export default function UserAbsencesPage(): React.JSX.Element {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const createNavigation = useCreateNavigation();
   const searchParams = useSearchParams();
   const today = useMemo(() => moscowDate(), []);
   const queryMonth = searchParams.get('month');
@@ -92,6 +95,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
   const [canViewAll, setCanViewAll] = useState(false);
   const [canViewPrivateReasons, setCanViewPrivateReasons] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<UserAbsenceItem | null>(null);
@@ -107,6 +111,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
   });
 
   useEffect(() => {
+    if (pathname !== '/user-absences') return;
     const next = new URLSearchParams(searchParams.toString());
     next.set('month', monthKey);
     next.delete('from');
@@ -115,7 +120,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
     if (serialized !== searchParams.toString()) {
       router.replace(`/user-absences?${serialized}`, { scroll: false });
     }
-  }, [monthKey, router, searchParams]);
+  }, [monthKey, pathname, router, searchParams]);
 
   const load = async (): Promise<void> => {
     setLoading(true);
@@ -143,7 +148,13 @@ export default function UserAbsencesPage(): React.JSX.Element {
     }
   };
 
-  useEffect(() => { void load(); }, [bounds.from, bounds.to, selectedUserId, selectedType]);
+  useEffect(() => { void load(); }, [bounds.from, bounds.to, selectedUserId, selectedType, revision]);
+
+  useEffect(() => {
+    const onCreated = (): void => setRevision((value) => value + 1);
+    window.addEventListener('user-absence-created', onCreated);
+    return () => window.removeEventListener('user-absence-created', onCreated);
+  }, []);
 
   const visibleUsers = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('ru-RU');
@@ -170,12 +181,12 @@ export default function UserAbsencesPage(): React.JSX.Element {
   };
 
   const openCreate = (day = today, targetUserId = selectedUserId): void => {
+    setEditorOpen(false);
     setEditing(null);
-    setForm({
-      userId: (canManageAll ? targetUserId : '') || user?.id || '',
-      absenceType: 'vacation', startDate: day, endDate: day, comment: '',
-    });
-    setEditorOpen(true);
+    const params = new URLSearchParams();
+    params.set('date', day);
+    if (canManageAll && targetUserId) params.set('forUser', targetUserId);
+    createNavigation.open(`/user-absences/new?${params.toString()}`);
   };
 
   const openEdit = (item: UserAbsenceItem): void => {
@@ -274,7 +285,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
 
       {error ? <Alert tone="warning" role="alert">{error}</Alert> : null}
 
-      {editorOpen && canManage ? (
+      {editorOpen && editing && canManage ? (
         <section className={styles.editor} aria-labelledby="absence-editor-title">
           <div className={styles.editorHeading}><h2 id="absence-editor-title">{editing ? 'Изменить отсутствие' : 'Новое отсутствие'}</h2><span>* — обязательные поля</span></div>
           <div className={styles.editorGrid}>

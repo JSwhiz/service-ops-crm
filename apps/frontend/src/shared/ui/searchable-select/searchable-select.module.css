@@ -1,3 +1,13 @@
+.wrappingTrigger > span:first-child, .wrappingOptions button > span {
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+.wrappingOptions button { min-width: 0; }
+
 :global(.searchable-select__popover) .registrySearchInput {
   width: 100%;
   min-width: 0;

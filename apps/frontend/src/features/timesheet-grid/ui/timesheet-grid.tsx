@@ -9,6 +9,8 @@ import {
 } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { isTimesheetDateEditable } from '@/shared/lib/timesheet-edit-window';
 import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
+import { PersonName } from '@/shared/ui/person-presentation/person-presentation';
+import { TimesheetScrollRegion } from './timesheet-scroll-region';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -87,7 +89,7 @@ export function TimesheetGrid({
       </div>
 
       <div className={timesheetStyles.timesheetShell}>
-        <div className={timesheetStyles.timesheetScroll}>
+        <TimesheetScrollRegion year={timesheet.year} month={timesheet.month} stickyWidth={240} className={timesheetStyles.timesheetScroll ?? ''}>
           <table className={timesheetStyles.timesheetTable}>
             <colgroup>
               <col style={{ width: 240 }} />
@@ -100,7 +102,7 @@ export function TimesheetGrid({
             <thead>
               <tr>
                 <th className={timesheetStyles.timesheetTableStickyLeft}>Сотрудник</th>
-                {days.map((day) => <th key={day}>{day}</th>)}
+                {days.map((day) => <th key={day} data-timesheet-day={day}>{day}</th>)}
                 <th className={timesheetStyles.timesheetTableSummary}>Аванс</th>
                 <th className={timesheetStyles.timesheetTableSummary}>ЗП</th>
                 <th className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableStickyRight}`}>Итого</th>
@@ -110,7 +112,7 @@ export function TimesheetGrid({
             <tbody>
               {timesheet.rows.map((row) => (
                 <tr key={row.employeeId}>
-                  <td className={`${timesheetStyles.timesheetTableStickyLeft} ${timesheetStyles.timesheetTableName}`}>{row.employeeName}</td>
+                  <td className={`${timesheetStyles.timesheetTableStickyLeft} ${timesheetStyles.timesheetTableName}`}><PersonName person={{ fullName: row.employeeName }} compact /></td>
                   {row.entries.map((entry) => (
                     <td
                       key={entry.dayOfMonth}
@@ -169,7 +171,7 @@ export function TimesheetGrid({
               </tr>
             </tfoot>
           </table>
-        </div>
+        </TimesheetScrollRegion>
       </div>
     </div>
   );

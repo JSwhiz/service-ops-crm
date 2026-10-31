@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import {
   changeOneTimeOrderStatus,
@@ -30,6 +30,7 @@ import { CloseIcon } from '@/shared/ui/icons/icons';
 import styles from './one-time-order-preview-drawer.module.css';
 import { Button, IconButton } from '@/shared/ui/foundation';
 import { ScheduleConflictList } from '@/entities/one-time-order/ui/schedule-conflicts';
+import { PeopleList } from '@/shared/ui/person-presentation/person-presentation';
 
 function formatExecutionDates(start: string | null, end: string | null): string {
   if (!start) return 'Даты не указаны';
@@ -156,11 +157,6 @@ export function OneTimeOrderPreviewDrawer({
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [item, close, statusMenuOpen]);
-
-  const managers = useMemo(
-    () => item?.managers.map(getUserDisplayName).join(', ') || 'Не назначены',
-    [item],
-  );
 
   if (!item) return null;
 
@@ -325,7 +321,7 @@ export function OneTimeOrderPreviewDrawer({
                 </a>
               ) : <strong>Не указан</strong>}
             </div>
-            <Fact label="Менеджеры" value={managers} />
+            <Fact label="Менеджеры" value={item.managers.length ? <PeopleList people={item.managers} compact={false} label="Менеджеры заказа" /> : 'Не назначены'} />
             <div className={styles.fact}>
               <span>Объект</span>
               {item.linkedObject?.canOpenObjectCard ? (
@@ -492,11 +488,11 @@ export function OneTimeOrderPreviewDrawer({
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }): React.JSX.Element {
+function Fact({ label, value }: { label: string; value: React.ReactNode }): React.JSX.Element {
   return (
     <div className={styles.fact}>
       <span>{label}</span>
-      <strong title={value}>{value}</strong>
+      <div className={styles.factValue} title={typeof value === 'string' ? value : undefined}>{value}</div>
     </div>
   );
 }

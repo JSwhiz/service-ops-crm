@@ -669,12 +669,12 @@ a.listTitle:hover {
 }
 
 .personName {
-  overflow: hidden;
+  overflow: visible;
   color: var(--ui-text);
   font-weight: 600;
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
@@ -683,11 +683,11 @@ a.listTitle:hover {
 }
 
 .personMeta {
-  overflow: hidden;
+  overflow: visible;
   color: var(--ui-text-secondary);
   font-size: var(--ui-text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
@@ -977,3 +977,8 @@ a.listTitle:hover {
   display: grid;
   gap: 2px;
 }
+
+.phones { display: inline-flex; flex-wrap: wrap; gap: var(--ui-space-2); align-items: baseline; }
+.phones a, .mobileMeta > span:first-child { white-space: nowrap; }
+.phones summary { cursor: pointer; }
+.phones ul { margin: var(--ui-space-2) 0 0; padding: 0; list-style: none; }

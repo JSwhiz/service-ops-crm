@@ -1,0 +1,9 @@
+.table { table-layout: auto; }
+.table th:first-child { min-width: 230px; width: 28%; }
+.table th:nth-child(3) { min-width: 150px; }
+.table th:nth-child(5) { min-width: 130px; }
+.table th:nth-child(6) { min-width: 145px; }
+.table td { overflow-wrap: break-word; }
+.table :global(.task-table__title) { white-space: normal; overflow-wrap: anywhere; }
+.table :global(.task-table__meta) { white-space: normal; }
+.table .confirmation { white-space: nowrap; font-size: var(--ui-text-xs); }

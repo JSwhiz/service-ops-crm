@@ -1,0 +1,12 @@
+.full, .person, .group { display: inline-block; max-width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.full small, .list small, .group > small { display: block; color: var(--ui-text-secondary); font-size: var(--ui-text-xs, 12px); }
+.name, .more { display: inline; border: 0; border-radius: 4px; background: transparent; color: inherit; font: inherit; text-align: left; padding: 2px 0; cursor: pointer; white-space: normal; overflow-wrap: normal; }
+.name:focus-visible, .more:focus-visible, .relatedSummary:focus-visible { outline: 2px solid var(--ui-focus-border); outline-offset: 2px; }
+.name:hover, .more:hover { color: var(--ui-accent); text-decoration: underline; }
+.person > .full { display: block; margin-top: 4px; }
+.summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.more { color: var(--ui-accent); min-width: 24px; min-height: 24px; white-space: nowrap; }
+.list { display: grid; gap: 6px; padding: 8px 0 0; margin: 0; list-style: none; }
+.list li { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.relatedSummary { cursor: pointer; white-space: normal; overflow-wrap: anywhere; }
+@media (pointer: coarse) { .name, .more, .relatedSummary { min-height: 44px; } }

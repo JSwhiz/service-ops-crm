@@ -17,7 +17,8 @@ import { TASK_STATUS_OPTIONS } from '@/shared/lib/task-presentation';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
-import { ButtonLink, Surface } from '@/shared/ui/foundation';
+import { Surface } from '@/shared/ui/foundation';
+import { CreateNavigationLink } from '@/shared/create-navigation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
@@ -154,7 +155,7 @@ function TasksRegistry(): React.JSX.Element {
         onSearchChange={(value) => updateQuery({ q: value })}
         activeFilters={activeFilters}
         availableFilters={availableFilters}
-        actions={<ButtonLink variant="primary" icon={<PlusIcon />} href="/tasks/new">Создать задачу</ButtonLink>}
+        actions={<CreateNavigationLink className="ui-button ui-button--primary" href="/tasks/new"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Создать задачу</CreateNavigationLink>}
       />
       {isLoading ? <Surface padding="md">Загрузка…</Surface> : error ? (
         <Surface padding="md" className={taskStyles.taskError} role="alert">{error}</Surface>

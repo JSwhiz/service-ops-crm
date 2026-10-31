@@ -12,24 +12,19 @@
 }
 
 .menu {
-  position: absolute;
+  position: fixed;
   z-index: 100;
-  right: 0;
-  top: calc(100% + var(--ui-space-1));
   display: grid;
   width: max-content;
-  min-width: 224px;
+  min-width: min(224px, calc(100vw - 24px));
   max-width: min(300px, calc(100vw - 24px));
   padding: var(--ui-space-1);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg);
   background: var(--ui-surface);
   box-shadow: var(--ui-shadow-popover);
-}
-
-.menuAbove {
-  top: auto;
-  bottom: calc(100% + var(--ui-space-1));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .menuItem {

@@ -11,6 +11,7 @@ import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Alert, ButtonLink, Surface } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import { CreateNavigationLink } from '@/shared/create-navigation';
 import inventoryStyles from '@/app/(app)/inventory/inventory-workspace.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -149,7 +150,7 @@ export default function InventoryPage(): React.JSX.Element {
                 <ButtonLink href="/inventory/movements">Движения</ButtonLink>
                 <ButtonLink href="/inventory/reports">Отчёты</ButtonLink>
               </> : null}
-              {canManageInventoryCatalog ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/inventory/new">Добавить позицию</ButtonLink> : null}
+              {canManageInventoryCatalog ? <CreateNavigationLink href="/inventory/new" className="ui-button ui-button--primary"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Добавить позицию</CreateNavigationLink> : null}
             </>}
           />
 

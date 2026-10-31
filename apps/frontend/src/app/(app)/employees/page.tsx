@@ -31,14 +31,16 @@ import type { ActiveRegistryFilter, AvailableRegistryFilter } from '@/shared/ui/
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+import { CreateNavigationLink } from '@/shared/create-navigation';
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/shared/ui/searchable-select/searchable-select';
 
 import styles from '@/features/employee-workspace/ui/employee-workspace.module.css';
-import { Alert, Badge, Button, ButtonLink, EmptyState, PageHeader, Skeleton } from '@/shared/ui/foundation';
+import { Alert, Badge, Button, EmptyState, PageHeader, Skeleton } from '@/shared/ui/foundation';
 import { formatPhone, getPhoneHref } from '@/shared/lib/phone';
+import { RelatedValues } from '@/shared/ui/person-presentation/person-presentation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 
@@ -339,13 +341,7 @@ export default function EmployeesPage(): React.JSX.Element {
 
   const renderObjects = (item: EmployeeListItem): React.ReactNode => {
     if (!item.currentObjects.length) return <span className={styles.muted}>Без объекта</span>;
-    const [first, ...rest] = item.currentObjects;
-    return (
-      <span className={styles.objects} title={item.currentObjects.map((object) => object.name).join(', ')}>
-        <span className={styles.objectChip}>{first!.name}</span>
-        {rest.length ? <span className={styles.objectMore}>+{rest.length}</span> : null}
-      </span>
-    );
+    return <RelatedValues values={item.currentObjects.map((object) => ({ id: object.id, label: object.name }))} label="Объекты сотрудника" />;
   };
 
   const renderStatus = (item: EmployeeListItem): React.ReactNode => {
@@ -365,7 +361,7 @@ export default function EmployeesPage(): React.JSX.Element {
       <PageHeader
         title="Сотрудники"
         actions={result.capabilities.canCreate
-          ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/employees/new">Добавить сотрудника</ButtonLink>
+          ? <CreateNavigationLink className="ui-button ui-button--primary" href="/employees/new"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Добавить сотрудника</CreateNavigationLink>
           : null}
       />
 
@@ -401,7 +397,7 @@ export default function EmployeesPage(): React.JSX.Element {
           <EmptyState title="Сотрудников пока нет"
             description={archiveState === 'archived' ? 'В архиве нет карточек.' : 'Добавьте первого сотрудника.'}
             action={result.capabilities.canCreate && archiveState !== 'archived'
-              ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/employees/new">Добавить сотрудника</ButtonLink> : undefined} />
+              ? <CreateNavigationLink className="ui-button ui-button--primary" href="/employees/new"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Добавить сотрудника</CreateNavigationLink> : undefined} />
         )
       ) : (
         <div aria-busy={isLoading}>
@@ -435,7 +431,7 @@ export default function EmployeesPage(): React.JSX.Element {
                       key={item.id}
                       onClick={(event) => {
                         const target = event.target as HTMLElement;
-                        if (target.closest('a, button, input, select') || window.getSelection()?.toString()) return;
+                        if (target.closest('a, button, input, select, details') || window.getSelection()?.toString()) return;
                         router.push(href);
                       }}
                     >
@@ -471,12 +467,12 @@ export default function EmployeesPage(): React.JSX.Element {
           <ul className={styles.mobileList} aria-label="Сотрудники">
             {result.items.map((item) => (
               <li key={item.id}>
-                <Link className={styles.mobileRow} href={`/employees/${item.id}`}>
+                <article className={styles.mobileRow}>
                   <span className={styles.mobileRowHead}>
                     <span className={styles.person}>
                       <UserAvatar fullName={item.fullName} size="medium" variant="soft" decorative />
                       <span className={styles.personText}>
-                        <span className={styles.personName}>{item.fullName}</span>
+                        <Link className={styles.personName} href={`/employees/${item.id}`}>{item.fullName}</Link>
                         <span className={styles.personMeta}>{personMeta(item)}</span>
                       </span>
                     </span>
@@ -487,7 +483,7 @@ export default function EmployeesPage(): React.JSX.Element {
                     {scheduleText(item) ? <span>{scheduleText(item)}</span> : null}
                   </span>
                   {renderObjects(item)}
-                </Link>
+                </article>
               </li>
             ))}
           </ul>

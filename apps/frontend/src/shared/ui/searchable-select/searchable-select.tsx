@@ -200,7 +200,7 @@ export function SearchableSelect({
         {...triggerProps}
         ref={triggerRef}
         type="button"
-        className="searchable-select__trigger"
+        className={`searchable-select__trigger ${styles.wrappingTrigger}`}
         aria-label={hideLabel && label ? label : undefined}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -252,7 +252,7 @@ export function SearchableSelect({
               }}
             />
           ) : null}
-          <div className="searchable-select__options" role="listbox" aria-label={label}>
+          <div className={`searchable-select__options ${styles.wrappingOptions}`} role="listbox" aria-label={label}>
             {clearable && value ? (
               <button type="button" onClick={() => choose('')}>
                 Очистить выбор

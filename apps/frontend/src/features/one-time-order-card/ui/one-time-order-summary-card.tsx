@@ -6,6 +6,7 @@ import type { OneTimeOrderItem } from '@/entities/one-time-order/model/one-time-
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 import { Button, EntityHeader, StatusBadge, Surface } from '@/shared/ui/foundation';
 import { OverflowMenu } from '@/shared/ui/overflow-menu/overflow-menu';
+import { useCreateNavigation } from '@/shared/create-navigation';
 import styles from './one-time-order-summary-card.module.css';
 
 export function OneTimeOrderSummaryCard({
@@ -22,6 +23,7 @@ export function OneTimeOrderSummaryCard({
   isEditing?: boolean;
 }): React.JSX.Element {
   const router = useRouter();
+  const createNavigation = useCreateNavigation();
   const status = <StatusBadge status={item.status}>{getOneTimeOrderStatusLabel(item.status)}</StatusBadge>;
   const facts = [
     {
@@ -69,7 +71,10 @@ export function OneTimeOrderSummaryCard({
                 items={[{
                   key: 'copy',
                   label: 'Скопировать заказ',
-                  onSelect: () => router.push(`/one-time-orders/new?copyFrom=${item.id}`),
+                  onSelect: () => {
+                    const destination = `/one-time-orders/new?copyFrom=${encodeURIComponent(item.id)}`;
+                    if (!createNavigation.open(destination)) router.push(destination);
+                  },
                 }]}
               />
             ) : null}

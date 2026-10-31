@@ -64,7 +64,7 @@
 .factGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
 .fact { min-width: 0; display: grid; gap: 5px; }
 .fact > span { color: var(--ui-text-tertiary); font-size: 12px; }
-.fact strong { overflow-wrap: anywhere; color: var(--ui-text); font-size: 13px; font-weight: 650; line-height: 1.4; }
+.fact strong, .factValue { overflow-wrap: anywhere; color: var(--ui-text); font-size: 13px; font-weight: 650; line-height: 1.4; }
 .factLink { min-width: 0; color: var(--ui-text-secondary); font-size: 13px; font-weight: 650; line-height: 1.4; text-decoration: none; overflow-wrap: anywhere; }
 .factLink:hover { color:var(--ui-text); text-decoration: underline; }
 .factLink:focus-visible { outline: 2px solid rgba(15, 49, 201, .22); outline-offset: 2px; border-radius: 3px; }

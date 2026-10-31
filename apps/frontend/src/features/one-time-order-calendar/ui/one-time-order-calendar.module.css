@@ -215,7 +215,7 @@
   overflow-wrap: anywhere;
 }
 
-.oneTimeCalendarManagerCell span,
+.oneTimeCalendarManagerCell > span:last-child,
 .oneTimeCalendarWorkedCell span {
   margin-top: 4px;
   color: var(--ui-text-tertiary);

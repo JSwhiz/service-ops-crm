@@ -1,0 +1,21 @@
+{
+  "container": "service_ops_frontend",
+  "snapshot": "/tmp/crm-E-production.0iMsyG",
+  "before": {
+    "sourceSha256": "b97abcba19e9380d9d1add35c933185254737ce601c6c86eb559bdcbb474a7de",
+    "sourceFiles": 499,
+    "trackedDiffSha256": "3b7c3b1408fb602feec05e5b0355349d6fa75498b1838d61ebc5293acdf37b04"
+  },
+  "archiveSha256": "22ba0912e080bc7f542bdc3f7c06da21ef4b2d344ceeda8e58e8b678e212d4eb",
+  "startedAt": "2026-10-31T20:27:49.325Z",
+  "nodeOptions": "--max-old-space-size=1024 --max-old-space-size-percentage=12",
+  "cpus": 1,
+  "exitCode": 0,
+  "finishedAt": "2026-10-31T20:28:45.760Z",
+  "after": {
+    "sourceSha256": "b97abcba19e9380d9d1add35c933185254737ce601c6c86eb559bdcbb474a7de",
+    "sourceFiles": 499,
+    "trackedDiffSha256": "3b7c3b1408fb602feec05e5b0355349d6fa75498b1838d61ebc5293acdf37b04"
+  },
+  "sourceUnchanged": true
+}

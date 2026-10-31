@@ -19,8 +19,9 @@ import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './objects-registry.module.css';
-import { Alert, ButtonLink } from '@/shared/ui/foundation';
+import { Alert } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import { CreateNavigationLink } from '@/shared/create-navigation';
 
 const PAGE_LIMIT = 20;
 const SIGNAL_BATCH_SIZE = 50;
@@ -283,9 +284,9 @@ export default function ObjectsPage(): React.JSX.Element {
         availableFilters={availableFilters}
         actions={
           allowCreateObject ? (
-            <ButtonLink variant="primary" icon={<PlusIcon />} href="/objects/new">
-              Создать объект
-            </ButtonLink>
+            <CreateNavigationLink className="ui-button ui-button--primary" href="/objects/new">
+              <span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Создать объект
+            </CreateNavigationLink>
           ) : null
         }
       />

@@ -7,6 +7,7 @@ import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
 import styles from './media-action-picker.module.css';
 import { Alert, Button, IconButton } from '@/shared/ui/foundation';
 import { AttachmentTrigger } from './attachment-trigger';
+import { getMediaMenuPosition, type MediaMenuPosition } from './media-action-position';
 
 export function MediaActionPicker({
   onPick,
@@ -57,14 +58,40 @@ export function MediaActionPicker({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const menuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuAbove, setMenuAbove] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<MediaMenuPosition | null>(null);
 
   useLayoutEffect(() => {
     if (!menuOpen) return;
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const menuHeight = (allowGenericFile ? 3 : 2) * 44 + 16;
-    setMenuAbove(window.innerHeight - rect.bottom < menuHeight && rect.top > menuHeight);
+    const updatePosition = (): void => {
+      const anchor = triggerRef.current?.getBoundingClientRect();
+      const menu = menuRef.current;
+      if (!anchor || !menu) return;
+      const viewport = window.visualViewport;
+      const safeWidth = Math.max(1, (viewport?.width ?? window.innerWidth) - 24);
+      menu.style.maxWidth = `${Math.min(300, safeWidth)}px`;
+      menu.style.minWidth = `${Math.min(224, safeWidth)}px`;
+      const next = getMediaMenuPosition(
+        anchor,
+        { width: menu.getBoundingClientRect().width, height: menu.scrollHeight + menu.offsetHeight - menu.clientHeight },
+        { width: viewport?.width ?? window.innerWidth, height: viewport?.height ?? window.innerHeight, left: viewport?.offsetLeft, top: viewport?.offsetTop },
+      );
+      setMenuPosition(next);
+    };
+    updatePosition();
+    const observer = new ResizeObserver(updatePosition);
+    if (triggerRef.current) observer.observe(triggerRef.current);
+    if (menuRef.current) observer.observe(menuRef.current);
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    window.visualViewport?.addEventListener('resize', updatePosition);
+    window.visualViewport?.addEventListener('scroll', updatePosition);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+      window.visualViewport?.removeEventListener('resize', updatePosition);
+      window.visualViewport?.removeEventListener('scroll', updatePosition);
+    };
   }, [allowGenericFile, menuOpen]);
 
   useEffect(() => {
@@ -79,6 +106,7 @@ export function MediaActionPicker({
 
   const openSource = (input: React.RefObject<HTMLInputElement | null>): void => {
     setMenuOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
     input.current?.click();
   };
 
@@ -141,18 +169,25 @@ export function MediaActionPicker({
             <div
               id={menuId}
               ref={menuRef}
-              className={`${styles.menu} ${menuAbove ? styles.menuAbove : ''}`}
+              className={styles.menu}
               role="menu"
               aria-label="Выберите способ добавления вложения"
+              data-placement={menuPosition?.placement}
+              style={menuPosition ? {
+                left: `${menuPosition.left}px`,
+                top: `${menuPosition.top}px`,
+                maxHeight: `${menuPosition.maxHeight}px`,
+              } : undefined}
               onKeyDown={(event) => {
                 const current = menuItemRefs.current.findIndex((node) => node === document.activeElement);
+                const count = allowGenericFile ? 3 : 2;
                 const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
                 if (step) {
                   event.preventDefault();
-                  menuItemRefs.current[(current + step + menuItemRefs.current.length) % menuItemRefs.current.length]?.focus();
+                  menuItemRefs.current[(current + step + count) % count]?.focus();
                 } else if (event.key === 'Home' || event.key === 'End') {
                   event.preventDefault();
-                  menuItemRefs.current[event.key === 'Home' ? 0 : menuItemRefs.current.length - 1]?.focus();
+                  menuItemRefs.current[event.key === 'Home' ? 0 : count - 1]?.focus();
                 } else if (event.key === 'Escape') {
                   event.preventDefault();
                   event.stopPropagation();
@@ -160,6 +195,8 @@ export function MediaActionPicker({
                   triggerRef.current?.focus();
                 } else if (event.key === 'Tab') {
                   setMenuOpen(false);
+                  triggerRef.current?.focus();
+                  if (event.shiftKey) event.preventDefault();
                 }
               }}
             >

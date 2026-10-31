@@ -2,7 +2,7 @@
 
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import { usePopoverPlacement } from '@/shared/ui/searchable-select/use-popover-placement';
+import { useFloatingPosition } from '@/shared/ui/overlays/use-floating-position';
 
 import styles from './date-picker.module.css';
 import { CalendarIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@/shared/ui/icons/icons';
@@ -97,7 +97,7 @@ export function DatePicker({
   });
   const [focusKey, setFocusKey] = useState(selectedKey || todayKey);
   const [mode, setMode] = useState<'days' | 'months' | 'years'>('days');
-  const { placement, availableHeight } = usePopoverPlacement(open, triggerRef, popoverRef, 420);
+  const popoverPosition = useFloatingPosition(open, triggerRef, popoverRef);
 
   useEffect(() => {
     if (!open) return;
@@ -232,8 +232,14 @@ export function DatePicker({
           id={dialogId}
           role="dialog"
           aria-label="Выбор даты"
-          className={`${styles.popover} ${placement === 'top' ? styles.top : ''}`}
-          style={{ maxHeight: availableHeight }}
+          popover="manual"
+          className={styles.popover}
+          style={{
+            left: popoverPosition?.left,
+            top: popoverPosition?.top,
+            maxHeight: popoverPosition?.maxHeight,
+            visibility: popoverPosition ? 'visible' : 'hidden',
+          }}
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
               event.preventDefault();

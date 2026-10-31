@@ -178,7 +178,7 @@ export function RegistryToolbar({
           );
         })}
 
-        <div className={styles.addFilterRoot} ref={addMenuOpen ? popoverAnchorRef : undefined}>
+        {availableFilters.length > 0 ? <div className={styles.addFilterRoot} ref={addMenuOpen ? popoverAnchorRef : undefined}>
           <button
             type="button"
             className={styles.addFilterButton}
@@ -224,7 +224,7 @@ export function RegistryToolbar({
               ))}
             </div>
           ) : null}
-        </div>
+        </div> : null}
         {actions ? <div className={styles.actions}>{actions}</div> : null}
       </div>
     </div>

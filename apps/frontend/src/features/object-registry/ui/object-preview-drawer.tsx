@@ -12,7 +12,7 @@ import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-attendance-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
-import { getUserDisplayName } from '@/shared/lib/display-name';
+import { PeopleList, PersonName } from '@/shared/ui/person-presentation/person-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { Button } from '@/shared/ui/foundation';
 import { Drawer, useConfirm } from '@/shared/ui/overlays';
@@ -108,8 +108,8 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
       {item.capabilities.canEdit || item.capabilities.canManageCompensationRates ? <Link className={styles.actionButton} href={`/objects/${item.id}/edit`}>Редактировать</Link> : null}</div>}>
     <section className={styles.section}>
       <h3 className={styles.sectionTitle}>Ответственные</h3>
-      <div className={styles.peopleRow}><span className={styles.label}>Ответственный</span><span className={styles.value}>{item.responsible ? getUserDisplayName(item.responsible) : 'Не назначен'}</span></div>
-      <div className={styles.peopleRow}><span className={styles.label}>Менеджеры</span><span className={styles.value}>{item.managers.length ? item.managers.map(getUserDisplayName).join(', ') : 'Не назначены'}</span></div>
+      <div className={styles.peopleRow}><span className={styles.label}>Ответственный</span><span className={styles.value}>{item.responsible ? <PersonName person={item.responsible} /> : 'Не назначен'}</span></div>
+      <div className={styles.peopleRow}><span className={styles.label}>Менеджеры</span><div className={styles.value}>{item.managers.length ? <PeopleList people={item.managers} compact={false} label="Менеджеры объекта" /> : 'Не назначены'}</div></div>
     </section>
     {loading ? <div role="status">Загрузка…</div> : null}
     {readErrors.length ? <div className={styles.error} role="alert">Не удалось загрузить: {readErrors.join(', ')}. Откройте карточку для повторной загрузки.</div> : null}

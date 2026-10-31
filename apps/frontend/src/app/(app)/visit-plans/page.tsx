@@ -194,6 +194,7 @@ export default function VisitPlansPage(): React.JSX.Element {
                 </Select>
               </Field>
             ) : null}
+            <Button size="sm" disabled={pending} onClick={() => void load()}>Обновить данные</Button>
           </div>
           {reportDirty ? (
             <div className="ui-text-muted">
@@ -206,9 +207,6 @@ export default function VisitPlansPage(): React.JSX.Element {
             {error}
           </Alert>
         ) : null}
-        <Button disabled={pending} onClick={() => void load()}>
-          Обновить данные
-        </Button>
         {loading ? (
           <LoadingState label="Загрузка плана" />
         ) : plan ? (
@@ -251,7 +249,7 @@ export default function VisitPlansPage(): React.JSX.Element {
               />
             ))}
             {!plan.entries.length ? (
-              <EmptyState title="Визитов пока нет" />
+              <EmptyState title="Визитов пока нет" description={data.capabilities.canManage ? "Добавьте визит в форме ниже." : "Визиты добавляет пользователь с правом управления планом."} />
             ) : null}
             {data.capabilities.canManage ? (
               <Surface padding="md" className={styles.formPanel}>
@@ -440,7 +438,7 @@ export default function VisitPlansPage(): React.JSX.Element {
           </>
         ) : data ? (
           <Surface padding="md" className={styles.formPanel}>
-            <EmptyState title="На этот день плана нет" />
+            <EmptyState title="На этот день плана нет" description={data.capabilities.canManage ? (managerId ? "Создайте план для выбранного менеджера ниже." : "Выберите менеджера, чтобы создать для него план.") : "План создаёт пользователь с правом управления планами."} />
             {data.capabilities.canManage && managerId ? (
               <Stack gap="md">
                 <Field label="Срок отчёта, МСК (необязательно)">

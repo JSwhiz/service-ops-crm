@@ -47,7 +47,10 @@ interface OverlayFrameProps
   initialFocusRef?: React.RefObject<HTMLElement>;
   returnFocusRef?: React.RefObject<HTMLElement>;
   kind: OverlayKind;
+  size?: DialogSize;
 }
+
+export type DialogSize = 'compact' | 'regular' | 'wide';
 
 function OverlayFrame({
   open,
@@ -59,6 +62,7 @@ function OverlayFrame({
   initialFocusRef,
   returnFocusRef,
   kind,
+  size = 'compact',
   className,
   children,
   ...props
@@ -115,6 +119,8 @@ function OverlayFrame({
       className={classes(
         styles.overlay,
         kind === 'drawer' ? styles.drawer : styles.dialog,
+        kind === 'dialog' && size === 'regular' ? styles.dialogRegular : false,
+        kind === 'dialog' && size === 'wide' ? styles.dialogWide : false,
         className,
       )}
       aria-labelledby={titleId}
@@ -176,7 +182,7 @@ export function Dialog(props: DialogProps): React.JSX.Element {
   return <OverlayFrame {...props} kind="dialog" />;
 }
 
-export type DrawerProps = Omit<OverlayFrameProps, 'kind'>;
+export type DrawerProps = Omit<OverlayFrameProps, 'kind' | 'size'>;
 
 export function Drawer(props: DrawerProps): React.JSX.Element {
   return <OverlayFrame {...props} kind="drawer" />;

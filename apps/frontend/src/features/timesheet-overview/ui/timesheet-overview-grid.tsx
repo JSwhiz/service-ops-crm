@@ -11,6 +11,8 @@ import {
 import { isTimesheetDateEditable } from '@/shared/lib/timesheet-edit-window';
 import { Surface } from '@/shared/ui/foundation';
 import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
+import { PersonName } from '@/shared/ui/person-presentation/person-presentation';
+import { TimesheetScrollRegion } from '@/features/timesheet-grid/ui/timesheet-scroll-region';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -64,13 +66,13 @@ export function TimesheetOverviewGrid({
       ) : (
         <>
           <div className={timesheetStyles.timesheetOverviewDesktop}>
-            <div className={timesheetStyles.timesheetOverviewScroll}>
+            <TimesheetScrollRegion year={overview.year} month={overview.month} stickyWidth={352} className={timesheetStyles.timesheetOverviewScroll ?? ''}>
               <table className={timesheetStyles.timesheetOverviewTable}>
                 <thead>
                   <tr>
                     <th className="is-object">Объект</th>
                     <th className="is-employee">Сотрудник</th>
-                    {days.map((day) => <th key={day}>{day}</th>)}
+                    {days.map((day) => <th key={day} data-timesheet-day={day}>{day}</th>)}
                     <th className="is-summary">Аванс</th>
                     <th className="is-summary">ЗП</th>
                     <th className="is-summary is-total">Итого</th>
@@ -80,7 +82,7 @@ export function TimesheetOverviewGrid({
                   {overview.rows.map((row) => (
                     <tr key={`${row.objectId}:${row.employeeId}`}>
                       <td className="is-object">{row.objectName}</td>
-                      <td className="is-employee">{row.employeeName}</td>
+                      <td className="is-employee"><PersonName person={{ fullName: row.employeeName }} compact /></td>
                       {row.entries.map((entry) => (
                         <td
                           key={entry.dayOfMonth}
@@ -115,7 +117,7 @@ export function TimesheetOverviewGrid({
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TimesheetScrollRegion>
           </div>
 
           <div className={timesheetStyles.timesheetOverviewMobile}>

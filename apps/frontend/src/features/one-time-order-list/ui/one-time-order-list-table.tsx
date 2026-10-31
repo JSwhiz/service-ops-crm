@@ -5,7 +5,7 @@ import React, { useCallback, useState } from 'react';
 
 import type { OneTimeOrderSortField } from '@/entities/one-time-order/api/one-time-order-client';
 import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
-import { getUserDisplayName } from '@/shared/lib/display-name';
+import { PeopleList } from '@/shared/ui/person-presentation/person-presentation';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { OneTimeOrderPreviewDrawer } from './one-time-order-preview-drawer';
@@ -107,7 +107,7 @@ export function OneTimeOrderListTable({
                   </StatusBadge>
                 </td>
                 <td data-label="Менеджеры">
-                  {item.managers.map(getUserDisplayName).join(', ') || '—'}
+                  <PeopleList people={item.managers} label="Менеджеры заказа" />
                 </td>
                 <td data-label="Объект">
                   {item.linkedObject ? (

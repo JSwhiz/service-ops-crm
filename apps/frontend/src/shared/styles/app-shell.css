@@ -563,9 +563,10 @@
 .app-header__account-summary strong,
 .app-header__account-summary span {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .app-header__account-summary strong {

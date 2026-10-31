@@ -12,6 +12,17 @@
   gap: 12px;
 }
 
+.form[data-active-section] > section[data-create-section] { display: none; }
+.form[data-active-section='basic'] > section[data-create-section='basic'],
+.form[data-active-section='contract'] > section[data-create-section='contract'],
+.form[data-active-section='contract'] > section[data-create-section='setup'],
+.form[data-active-section='people'] > section[data-create-section='people'],
+.form[data-active-section='payment'] > section[data-create-section='payment'],
+.form[data-active-section='staffing'] > section[data-create-section='staffing'],
+.form[data-active-section='articles'] > section[data-create-section='articles'],
+.form[data-active-section='articles'] > section[data-create-section='setup'],
+.form[data-active-section='instructions'] > section[data-create-section='instructions'] { display: block; }
+
 .section {
   min-width: 0;
   padding: 4px 0 16px;
@@ -317,22 +328,20 @@
 }
 
 .managerCopy strong {
-  overflow: hidden;
+  min-width: 0;
   color: var(--ui-text);
   font-size: 13px;
   font-weight: 650;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .managerCopy > span {
-  overflow: hidden;
+  min-width: 0;
   color: var(--ui-text-tertiary);
   font-size: 11.5px;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .emptyManagers,

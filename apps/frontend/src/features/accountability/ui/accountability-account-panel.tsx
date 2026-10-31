@@ -23,7 +23,7 @@ import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 
 import { AccountabilityExpenseForm } from './accountability-expense-form';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Button, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Button, EmptyState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 import accountabilityStyles from '@/features/accountability/ui/accountability-ui.module.css';
 
 function formatMoney(value: number): string {
@@ -223,9 +223,7 @@ export function AccountabilityAccountPanel({
         ) : null}
 
         {view.account.id ? null : (
-          <div className="ui-text-muted">
-            Активный подотчетный контур для пользователя еще не открыт.
-          </div>
+          <div className="ui-text-muted">Подотчёт ещё не открыт. Отсутствие счёта не означает нулевой остаток.</div>
         )}
       </Surface>
 
@@ -245,14 +243,14 @@ export function AccountabilityAccountPanel({
         hidden={activeSection !== 'overview'}
       >
         <Surface padding="md" style={{ display: 'grid', gap: 16 }}>
-          <div className="stat-grid">
+          {!view.account.id ? <EmptyState title="Подотчёт пока не открыт" description={view.capabilities.canIssueFunding ? 'Для начала работы используйте выдачу средств над карточкой.' : view.capabilities.canRecordExternalReceipt ? 'Для начала работы перейдите в «Движения» и укажите внешнее поступление.' : 'Обратитесь к пользователю с правом выдачи подотчётных средств.'} /> : <div className="stat-grid">
             {overviewCards.map((card) => (
               <div key={card.label} className="stat-card">
                 <div className="ui-detail-label">{card.label}</div>
                 <div className="stat-card__value">{card.value}</div>
               </div>
             ))}
-          </div>
+          </div>}
           <div className={accountabilityStyles.accountabilityOverviewMeta}>
             <span>Черновики расходов: <strong>{view.summary.draftExpensesCount}</strong></span>
             <span>На проверке: <strong>{view.summary.submittedExpensesCount}</strong></span>

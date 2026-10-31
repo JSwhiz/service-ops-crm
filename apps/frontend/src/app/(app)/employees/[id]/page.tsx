@@ -36,6 +36,7 @@ import { ConfirmDialog, ReasonDialog } from '@/shared/ui/overlays';
 import { OverflowMenu, type OverflowMenuItem } from '@/shared/ui/overflow-menu/overflow-menu';
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import { formatPhone, getPhoneHref } from '@/shared/lib/phone';
+import { RelatedValues } from '@/shared/ui/person-presentation/person-presentation';
 import { PencilIcon } from '@/shared/ui/icons/icons';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 
@@ -297,19 +298,19 @@ export default function EmployeeDetailPage({
               key: 'phone',
               label: item.phones.length > 1 ? 'Телефоны' : 'Телефон',
               value: item.phone ? (
-                <span>
+                <div className={styles.phones}>
                   {phoneHref ? <a href={phoneHref}>{formatPhone(item.phone)}</a> : item.phone}
                   {item.phones.length > 1 ? (
-                    <span className={styles.muted} title={item.phones.slice(1).join(', ')}> · ещё {item.phones.length - 1}</span>
+                    <details><summary>Ещё {item.phones.length - 1}</summary><ul>{item.phones.slice(1).map((phone, index) => <li key={index}>{getPhoneHref(phone) ? <a href={getPhoneHref(phone)!}>{formatPhone(phone)}</a> : phone}</li>)}</ul></details>
                   ) : null}
-                </span>
+                </div>
               ) : <span className={styles.muted}>Не указан</span>,
             },
             {
               key: 'objects',
               label: 'Объекты',
               value: item.currentObjectAssignments.length
-                ? item.currentObjectAssignments.map((assignment) => assignment.objectName).join(', ')
+                ? <RelatedValues values={item.currentObjectAssignments.map((assignment, index) => ({ id: String(index), label: assignment.objectName }))} label="Текущие объекты сотрудника" />
                 : <span className={styles.muted}>Без объекта</span>,
             },
             {

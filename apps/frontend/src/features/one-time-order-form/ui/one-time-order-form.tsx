@@ -19,6 +19,9 @@ import {
 } from "@/shared/ui/searchable-select/searchable-select";
 import { DatePicker } from "@/shared/ui/date-picker/date-picker";
 import { Alert, Button, Field } from "@/shared/ui/foundation";
+import { findSectionValidationIssue, revealSectionValidationIssue } from '@/features/object-create/model/section-validation';
+import { isNativeValidationIssueResolved, type NativeValidationIssue } from '@/features/object-create/model/stale-native-validation';
+import { isOrderCreateSection, prepareCreateSubmission, type CreationRequestMetadata } from '../model/create-request';
 import orderStyles from "@/entities/one-time-order/ui/one-time-order-ui.module.css";
 import {
   SpecificationComposer,
@@ -52,15 +55,37 @@ type OneTimeOrderFormPayload = {
   creationRequestId?: string;
 };
 
+export interface OneTimeOrderFormDraft {
+  creationRequest?: CreationRequestMetadata | null;
+  form: {
+    title: string; executionAddress: string; linkedObjectId: string; status: string; description: string;
+    dateMode: 'none' | 'single' | 'range'; executionStartDate: string; executionEndDate: string;
+    contactName: string; contactPhone: string; agreedSum: string; plannedPaymentMethod: string;
+    financialNotes: string; expenseNotes: string; managerUserIds: string[];
+  };
+  notesDisclosureOpen: boolean;
+  selectedManagers: SystemUserOption[];
+  specificationItems: Array<{ title: string; description: string | null; requiresAttachment: boolean }>;
+  specificationDraft: SpecificationDraft;
+}
+
 export function OneTimeOrderForm({
   initialLinkedObjectOption = null,
   initialManagerOptions = [],
   searchObjects,
   searchManagers,
   initialValue,
+  initialDraft,
+  initialDraftDirty = false,
   formId,
+  activeSection,
+  hideSubmitActions = false,
+  dialogMode = false,
   autoFocus = false,
   onDirtyChange,
+  onDraftChange,
+  onRequiredSection,
+  onBusyChange,
   onCancel,
   canSelectLinkedObject,
   canEditFinancialFields = true,
@@ -78,9 +103,17 @@ export function OneTimeOrderForm({
   searchObjects?: (query: string) => Promise<SearchableSelectOption[]>;
   searchManagers?: (query: string) => Promise<SystemUserOption[]>;
   initialValue?: Partial<CreateOneTimeOrderPayload>;
+  initialDraft?: OneTimeOrderFormDraft;
+  initialDraftDirty?: boolean;
   formId?: string;
+  activeSection?: 'basic' | 'planning' | 'conditions' | 'specification' | 'notes';
+  hideSubmitActions?: boolean;
+  dialogMode?: boolean;
   autoFocus?: boolean;
   onDirtyChange?: (dirty: boolean) => void;
+  onDraftChange?: (draft: OneTimeOrderFormDraft) => void;
+  onRequiredSection?: (section: 'basic' | 'planning' | 'conditions' | 'specification' | 'notes') => void;
+  onBusyChange?: (busy: boolean) => void;
   onCancel?: () => void;
   canSelectLinkedObject: boolean;
   canEditFinancialFields?: boolean;
@@ -97,14 +130,14 @@ export function OneTimeOrderForm({
   submitLabel: string;
   onSubmit: (payload: OneTimeOrderFormPayload) => Promise<void>;
 }): React.JSX.Element {
-  const creationRequestRef = useRef<{ fingerprint: string; id: string } | null>(
-    null,
+  const creationRequestRef = useRef<CreationRequestMetadata | null>(
+    initialDraft?.creationRequest ?? null,
   );
   const paymentMethodRef = useRef<HTMLDivElement>(null);
   const initialStartDate =
     initialValue?.executionStartDate ?? initialValue?.executionDate ?? "";
   const initialEndDate = initialValue?.executionEndDate ?? initialStartDate;
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(initialDraft?.form ?? {
     title: initialValue?.title ?? "",
     executionAddress: initialValue?.executionAddress ?? "",
     linkedObjectId: initialValue?.linkedObjectId ?? "",
@@ -129,33 +162,40 @@ export function OneTimeOrderForm({
     managerUserIds: initialValue?.managerUserIds ?? ([] as string[]),
   });
   const [error, setError] = useState<string | null>(null);
-  const [notesDisclosureOpen, setNotesDisclosureOpen] = useState(() =>
+  const [nativeValidationIssue, setNativeValidationIssue] = useState<NativeValidationIssue | null>(null);
+  useEffect(() => {
+    if (nativeValidationIssue && isNativeValidationIssueResolved(nativeValidationIssue.control)) setNativeValidationIssue(null);
+  });
+  const [notesDisclosureOpen, setNotesDisclosureOpen] = useState(() => initialDraft?.notesDisclosureOpen ?? (
     Boolean(
       initialValue?.description?.trim() ||
       (canEditFinancialFields &&
         (initialValue?.financialNotes?.trim() ||
           initialValue?.expenseNotes?.trim())),
-    ),
-  );
+    )
+  ));
+  useEffect(() => {
+    if (activeSection === 'notes') setNotesDisclosureOpen(true);
+  }, [activeSection]);
   const [selectedManagers, setSelectedManagers] = useState<SystemUserOption[]>(
-    initialManagerOptions,
+    initialDraft?.selectedManagers ?? initialManagerOptions,
   );
   const [managerSearchOptions, setManagerSearchOptions] = useState<
     SystemUserOption[]
   >([]);
   const [managerPickerValue, setManagerPickerValue] = useState("");
   const [specificationItems, setSpecificationItems] = useState(
-    initialSpecificationItems.map((item) => ({ ...item })),
+    initialDraft?.specificationItems ?? initialSpecificationItems.map((item) => ({ ...item })),
   );
   const [specificationDraft, setSpecificationDraft] =
-    useState<SpecificationDraft>({
+    useState<SpecificationDraft>(initialDraft?.specificationDraft ?? {
       catalogItemIds: [],
       templateIds: [],
       customItems: [],
     });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const initialSnapshotRef = useRef(JSON.stringify({
+  const initialSnapshotRef = useRef(initialDraftDirty ? '' : JSON.stringify({
     form: {
       title: initialValue?.title ?? "",
       executionAddress: initialValue?.executionAddress ?? "",
@@ -176,11 +216,14 @@ export function OneTimeOrderForm({
     specificationItems: initialSpecificationItems.map((item) => ({ ...item })),
     specificationDraft: { catalogItemIds: [], templateIds: [], customItems: [] },
   }));
+  const hadInitialDraft = useRef(initialDraftDirty);
 
   useEffect(() => {
+    const currentDraft: OneTimeOrderFormDraft = { form, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, creationRequest: creationRequestRef.current };
     const currentSnapshot = JSON.stringify({ form, specificationItems, specificationDraft });
-    onDirtyChange?.(currentSnapshot !== initialSnapshotRef.current);
-  }, [form, specificationItems, specificationDraft, onDirtyChange]);
+    onDraftChange?.(currentDraft);
+    onDirtyChange?.(hadInitialDraft.current || currentSnapshot !== initialSnapshotRef.current);
+  }, [form, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, onDirtyChange, onDraftChange]);
 
   useEffect(() => {
     if (!autoFocus) return;
@@ -237,12 +280,44 @@ export function OneTimeOrderForm({
     event.preventDefault();
     if (isSubmitting) return;
     setError(null);
+    setNativeValidationIssue(null);
+    const invalid = findSectionValidationIssue(event.currentTarget.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea'));
+    if (invalid) {
+      if (invalid.control instanceof HTMLElement) setNativeValidationIssue({ control: invalid.control, message: invalid.message });
+      revealSectionValidationIssue(invalid, (id) => {
+        if (isOrderCreateSection(id)) onRequiredSection?.(id);
+      }, (callback) => window.requestAnimationFrame(callback));
+      return;
+    }
+    if (!form.title || !form.executionAddress) {
+      setError('Укажите название заказа и адрес выполнения.');
+      onRequiredSection?.('basic');
+      window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('input[required]:invalid')?.focus());
+      return;
+    }
+    if (!form.contactName || (form.dateMode !== 'none' && !form.executionStartDate)
+      || (form.dateMode === 'range' && !form.executionEndDate)) {
+      setError('Заполните контакт и выбранную дату выполнения.');
+      onRequiredSection?.('planning');
+      window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('input[required]:invalid')?.focus());
+      return;
+    }
     if (requirePlannedPaymentMethod && !form.plannedPaymentMethod) {
       setError("Укажите плановый способ оплаты.");
-      paymentMethodRef.current?.querySelector("button")?.focus();
+      onRequiredSection?.('conditions');
+      window.requestAnimationFrame(() => paymentMethodRef.current?.querySelector("button")?.focus());
+      return;
+    }
+    const missingSpecificationTitle = (includeSpecificationItems && specificationItems.some((item) => !item.title.trim()))
+      || (canComposeSpecification && specificationDraft.customItems.some((item) => !item.title.trim()));
+    if (missingSpecificationTitle) {
+      setError('Заполните название каждого пункта технического задания.');
+      onRequiredSection?.('specification');
+      window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('input[required]:invalid')?.focus());
       return;
     }
     setIsSubmitting(true);
+    onBusyChange?.(true);
 
     try {
       const requestPayload: OneTimeOrderFormPayload = {
@@ -292,16 +367,17 @@ export function OneTimeOrderForm({
             }
           : {}),
       };
-      const fingerprint = JSON.stringify(requestPayload);
-      if (
-        !creationRequestRef.current ||
-        creationRequestRef.current.fingerprint !== fingerprint
-      ) {
-        creationRequestRef.current = { fingerprint, id: crypto.randomUUID() };
-      }
+      const submission = prepareCreateSubmission(
+        { form, notesDisclosureOpen, selectedManagers, specificationItems, specificationDraft, creationRequest: creationRequestRef.current },
+        requestPayload,
+        () => crypto.randomUUID(),
+      );
+      creationRequestRef.current = submission.draft.creationRequest;
+      // Persist synchronously before the POST can have an unknown outcome or the route unmounts.
+      onDraftChange?.(submission.draft);
       await onSubmit({
         ...requestPayload,
-        creationRequestId: creationRequestRef.current.id,
+        creationRequestId: submission.creationRequestId,
       });
     } catch (cause) {
       setError(
@@ -313,6 +389,7 @@ export function OneTimeOrderForm({
       );
     } finally {
       setIsSubmitting(false);
+      onBusyChange?.(false);
     }
   };
 
@@ -320,16 +397,18 @@ export function OneTimeOrderForm({
     <form
       ref={formRef}
       id={formId}
-      className={`ui-surface ui-surface--padded ${orderStyles.oneTimeOrderForm}`}
+      noValidate
+      className={`${dialogMode ? '' : 'ui-surface ui-surface--padded'} ${orderStyles.oneTimeOrderForm}`}
       onSubmit={handleSubmit}
     >
-      <div className="ui-section-header">
+      {!dialogMode ? <div className="ui-section-header">
         <div>
           <h2 className="ui-section-title">{onCancel ? "Редактирование заказа" : "Параметры заказа"}</h2>
           {onCancel ? <div className="ui-text-muted">Сохраните изменения, чтобы применить их к заказу.</div> : null}
         </div>
-      </div>
+      </div> : null}
       <div className={orderStyles.oneTimeOrderFormFields}>
+        <fieldset data-create-section="basic" aria-label="Основные сведения" className={orderStyles.orderCreateSection} hidden={Boolean(activeSection && activeSection !== 'basic')}>
         <h3 className={`${orderStyles.orderFormGroupHeading} ${orderStyles.orderWideField}`}>Основные сведения</h3>
         <Field label="Название заказа">
           <input
@@ -370,6 +449,8 @@ export function OneTimeOrderForm({
           />
         ) : null}
 
+        </fieldset>
+        <fieldset data-create-section="planning" aria-label="Планирование и контакт" className={orderStyles.orderCreateSection} hidden={Boolean(activeSection && activeSection !== 'planning')}>
         <h3 className={`${orderStyles.orderFormGroupHeading} ${orderStyles.orderWideField}`}>Планирование и контакт</h3>
         <fieldset
           className={`${orderStyles.oneTimeOrderDateMode} ${orderStyles.orderWideField}`}
@@ -474,7 +555,9 @@ export function OneTimeOrderForm({
             }
           />
         </Field>
+        </fieldset>
 
+        <fieldset data-create-section="conditions" aria-label="Условия заказа" className={orderStyles.orderCreateSection} hidden={Boolean(activeSection && activeSection !== 'conditions')}>
         <h3 className={`${orderStyles.orderFormGroupHeading} ${orderStyles.orderWideField}`}>Условия заказа</h3>
         {canEditFinancialFields ? (
           <>
@@ -512,7 +595,9 @@ export function OneTimeOrderForm({
             </div>
           </>
         ) : null}
+        </fieldset>
 
+        <fieldset data-create-section="notes" aria-label="Заметки" className={orderStyles.orderCreateSection} hidden={Boolean(activeSection && activeSection !== 'notes')}>
         <details
           className={orderStyles.orderOptionalNotes}
           open={notesDisclosureOpen}
@@ -564,8 +649,10 @@ export function OneTimeOrderForm({
             ) : null}
           </div>
         </details>
+        </fieldset>
 
         {includeManagers ? (
+          <fieldset data-create-section="planning" aria-label="Менеджеры заказа" className={orderStyles.orderCreateSection} hidden={Boolean(activeSection && activeSection !== 'planning')}>
           <>
           <h3 className={`${orderStyles.orderFormGroupHeading} ${orderStyles.orderWideField}`}>Менеджеры</h3>
           <div
@@ -619,9 +706,11 @@ export function OneTimeOrderForm({
             />
           </div>
           </>
+          </fieldset>
         ) : null}
 
         {canComposeSpecification ? (
+          <fieldset data-create-section="specification" aria-label="Техническое задание" className={orderStyles.orderCreateSection} hidden={Boolean(activeSection && activeSection !== 'specification')}>
           <>
           <h3 className={`${orderStyles.orderFormGroupHeading} ${orderStyles.orderWideField}`}>Техническое задание</h3>
           <div className={orderStyles.orderWideField}>
@@ -631,9 +720,11 @@ export function OneTimeOrderForm({
             />
           </div>
           </>
+          </fieldset>
         ) : null}
 
         {includeSpecificationItems && !canComposeSpecification ? (
+          <fieldset data-create-section="specification" aria-label="Техническое задание" className={orderStyles.orderCreateSection} hidden={Boolean(activeSection && activeSection !== 'specification')}>
           <>
           <h3 className={`${orderStyles.orderFormGroupHeading} ${orderStyles.orderWideField}`}>Техническое задание</h3>
           <div
@@ -731,16 +822,17 @@ export function OneTimeOrderForm({
             </div>
           </div>
           </>
+          </fieldset>
         ) : null}
       </div>
 
-      {error ? (
+      {nativeValidationIssue || error ? (
         <Alert tone="danger" role="alert">
-          {error}
+          {nativeValidationIssue?.message ?? error}
         </Alert>
       ) : null}
 
-      <div className="ui-inline">
+      {!hideSubmitActions ? <div className="ui-inline">
         <Button
           variant="primary"
           type="submit"
@@ -750,7 +842,7 @@ export function OneTimeOrderForm({
           {submitLabel}
         </Button>
         {onCancel ? <Button disabled={isSubmitting} onClick={onCancel}>Отменить</Button> : null}
-      </div>
+      </div> : null}
     </form>
   );
 }

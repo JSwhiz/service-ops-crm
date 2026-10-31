@@ -41,6 +41,16 @@
   border-radius: var(--ui-radius-lg);
 }
 
+.dialogRegular {
+  width: min(800px, calc(100vw - 32px));
+  max-width: 800px;
+}
+
+.dialogWide {
+  width: min(1040px, calc(100vw - 32px));
+  max-width: 1040px;
+}
+
 .drawer {
   width: min(640px, 100vw);
   max-width: 640px;

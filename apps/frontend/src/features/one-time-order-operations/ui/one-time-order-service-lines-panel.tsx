@@ -14,6 +14,7 @@ import {
   Surface,
 } from "@/shared/ui/foundation";
 import { useConfirm } from "@/shared/ui/overlays";
+import styles from './one-time-order-compact-actions.module.css';
 
 export function OneTimeOrderServiceLinesPanel({
   orderId,
@@ -195,7 +196,8 @@ export function OneTimeOrderServiceLinesPanel({
         ) : !error ? (
           <LoadingState />
         ) : null}
-        <Button
+        <div className={styles.actions}><Button
+          size="sm"
           disabled={pending || isEditing}
           onClick={() => {
             setError(null);
@@ -205,7 +207,7 @@ export function OneTimeOrderServiceLinesPanel({
           }}
         >
           Обновить данные
-        </Button>
+        </Button></div>
       </Stack>
       {confirmDialog}
     </Surface>
