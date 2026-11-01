@@ -3,6 +3,8 @@ FROM golang:1.24.8-alpine AS build
 ARG MINIO_VERSION
 ENV CGO_ENABLED=0
 
+RUN apk add --no-cache ca-certificates git
+
 RUN test -n "$MINIO_VERSION" \
     && go install "github.com/minio/minio@${MINIO_VERSION}"
 

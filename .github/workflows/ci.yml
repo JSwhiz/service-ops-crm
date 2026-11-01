@@ -134,5 +134,5 @@ jobs:
         run: pnpm ci:check
 
       - name: Stop CI infrastructure
-        if: always()
+        if: always() && hashFiles('.env.infra.local') != ''
         run: docker compose --env-file .env.infra.local -f docker-compose.dev.yml down -v --remove-orphans
