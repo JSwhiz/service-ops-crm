@@ -20,6 +20,7 @@ import {
   Button,
   EmptyState,
   Field,
+  IconButton,
   LoadingState,
   PageHeader,
   Stack,
@@ -28,7 +29,9 @@ import {
 import { DatePicker } from "@/shared/ui/date-picker/date-picker";
 import { Select } from "@/shared/ui/searchable-select/select";
 import { SearchableSelect } from "@/shared/ui/searchable-select/searchable-select";
+import { RefreshIcon, ChevronLeftIcon, ChevronRightIcon } from "@/shared/ui/icons/icons";
 import styles from "./visit-plans.module.css";
+import { resolveIsoDay, shiftIsoDay, visitPlanEmptyCopy } from "../calendar-date-helpers";
 
 const historyLabels: Record<string, string> = {
   "visit_plan.created": "План создан",
@@ -75,7 +78,7 @@ export default function VisitPlansPage(): React.JSX.Element {
   useEffect(() => {
     const sync = () => {
       const params = new URLSearchParams(window.location.search);
-      setDate(params.get("date") ?? today());
+      setDate(resolveIsoDay(params.get("date"), today()));
       setManagerId(params.get("managerUserId") ?? "");
     };
     sync();
@@ -165,21 +168,48 @@ export default function VisitPlansPage(): React.JSX.Element {
   };
   const plan = data?.plan;
   const objectOptionsManagerId = managerId || plan?.manager.id || "";
+  const currentDate = today();
+  const emptyPlanCopy = visitPlanEmptyCopy(date, Boolean(data?.capabilities.canManage), Boolean(managerId));
   return (
     <div className={`ui-page ${styles.page}`}>
       <PageHeader title="План посещений на день" />
       <Stack gap="lg">
-        <Surface padding="md" className={styles.formPanel}>
-          <div className={styles.fields}>
-            <Field label="Дата">
+        <div className={styles.dateToolbar} role="group" aria-label="Дата плана">
+          <div className={styles.dateNavigation}>
+            <IconButton
+              aria-label="Предыдущий день"
+              disabled={pending || reportDirty}
+              onClick={() => select(shiftIsoDay(date, -1), managerId)}
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+            <Field label="Дата" className={styles.dateField}>
               <DatePicker
                 value={date}
+                clearable={false}
                 disabled={pending || reportDirty}
-                onChange={(value) => select(value, managerId)}
+                onChange={(value) => { if (value) select(value, managerId); }}
               />
             </Field>
+            <IconButton
+              aria-label="Следующий день"
+              disabled={pending || reportDirty}
+              onClick={() => select(shiftIsoDay(date, 1), managerId)}
+            >
+              <ChevronRightIcon />
+            </IconButton>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending || reportDirty || date === currentDate}
+              onClick={() => select(currentDate, managerId)}
+            >
+              Сегодня
+            </Button>
+          </div>
+          <div className={styles.dateOptions}>
             {data?.capabilities.canManage ? (
-              <Field label="Менеджер" error={managersLoadFailed ? "Список менеджеров не загружен. Обновите данные." : undefined}>
+              <Field label="Менеджер" className={styles.managerField} error={managersLoadFailed ? "Список менеджеров не загружен. Обновите данные." : undefined}>
                 <Select
                   value={managerId}
                   disabled={pending || reportDirty}
@@ -194,14 +224,21 @@ export default function VisitPlansPage(): React.JSX.Element {
                 </Select>
               </Field>
             ) : null}
-            <Button size="sm" disabled={pending} onClick={() => void load()}>Обновить данные</Button>
+            <IconButton
+              aria-label="Обновить план"
+              title="Обновить план"
+              disabled={pending || reportDirty}
+              onClick={() => void load()}
+            >
+              <RefreshIcon />
+            </IconButton>
           </div>
           {reportDirty ? (
             <div className="ui-text-muted">
               Сохраните отчёт или отмените изменения перед сменой дня.
             </div>
           ) : null}
-        </Surface>
+        </div>
         {error ? (
           <Alert tone="danger" role="alert">
             {error}
@@ -437,10 +474,10 @@ export default function VisitPlansPage(): React.JSX.Element {
             </Surface>
           </>
         ) : data ? (
-          <Surface padding="md" className={styles.formPanel}>
-            <EmptyState title="На этот день плана нет" description={data.capabilities.canManage ? (managerId ? "Создайте план для выбранного менеджера ниже." : "Выберите менеджера, чтобы создать для него план.") : "План создаёт пользователь с правом управления планами."} />
+          <div className={styles.emptyPlan}>
+            <EmptyState title={emptyPlanCopy.title} description={emptyPlanCopy.description} />
             {data.capabilities.canManage && managerId ? (
-              <Stack gap="md">
+              <div className={styles.emptyPlanAction}>
                 <Field label="Срок отчёта, МСК (необязательно)">
                   <DatePicker
                     withTime
@@ -469,9 +506,9 @@ export default function VisitPlansPage(): React.JSX.Element {
                 >
                   Создать план
                 </Button>
-              </Stack>
+              </div>
             ) : null}
-          </Surface>
+          </div>
         ) : null}
       </Stack>
     </div>

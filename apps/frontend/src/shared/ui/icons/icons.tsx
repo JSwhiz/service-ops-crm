@@ -72,6 +72,10 @@ export function CalendarIcon(props: IconProps): React.JSX.Element {
   return <Icon {...props}><rect x="3" y="4.5" width="14" height="12.5" rx="2" /><path d="M3 8.5h14M7 3v3M13 3v3" /></Icon>;
 }
 
+export function RefreshIcon(props: IconProps): React.JSX.Element {
+  return <Icon {...props}><path d="M16 7a6.5 6.5 0 1 0 .4 5M16 3v4h-4" /></Icon>;
+}
+
 export function DownloadIcon(props: IconProps): React.JSX.Element {
   return <Icon {...props}><path d="M10 3v9m0 0 3.2-3.2M10 12 6.8 8.8M4 15.5h12" /></Icon>;
 }

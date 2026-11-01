@@ -1,4 +1,7 @@
 .controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-2); padding: var(--ui-space-3); }
 .controls span { color: var(--ui-text-secondary); font-size: var(--ui-text-sm); }
 .region:focus-visible { outline: 2px solid var(--ui-focus-border); outline-offset: -2px; }
-.region td:first-child, .region td:global(.is-employee) { white-space: normal; overflow: visible; text-overflow: clip; }
+.region { overflow: auto; max-height: 65dvh; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.region [data-selected-column] { background: var(--ui-accent-subtle); }
+.region tbody [data-selected-row] > :first-child,
+.region tbody [data-selected-row] > :global(.is-employee) { background: var(--ui-accent-subtle); }

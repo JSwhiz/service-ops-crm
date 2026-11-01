@@ -2,7 +2,6 @@ import React from 'react';
 
 import type {
   TimesheetOverview,
-  TimesheetOverviewEntry,
 } from '@/entities/timesheet/model/timesheet.types';
 import {
   TimesheetCellEditor,
@@ -11,8 +10,9 @@ import {
 import { isTimesheetDateEditable } from '@/shared/lib/timesheet-edit-window';
 import { Surface } from '@/shared/ui/foundation';
 import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
-import { PersonName } from '@/shared/ui/person-presentation/person-presentation';
+import { TimesheetIdentity } from '@/entities/timesheet/ui/timesheet-identity';
 import { TimesheetScrollRegion } from '@/features/timesheet-grid/ui/timesheet-scroll-region';
+import { TimesheetDayHeading } from '@/features/timesheet-grid/ui/timesheet-day-heading';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -24,26 +24,21 @@ function formatMoney(value: number): string {
   return moneyFormatter.format(Number.isFinite(value) ? value : 0);
 }
 
-function getEntryTitle(entry: TimesheetOverviewEntry): string {
-  return [
-    `Авто: ${entry.autoValue}`,
-    `Итог: ${entry.finalValue}`,
-    entry.difference !== 0 ? `Отклонение: ${entry.difference}` : null,
-    entry.workedHours !== null ? `Часы: ${entry.workedHours}` : null,
-    entry.comment,
-    entry.calculationExplanation,
-  ]
-    .filter(Boolean)
-    .join('. ');
-}
-
 export function TimesheetOverviewGrid({
   overview,
+  mutationsBlocked = false,
+  refreshing = false,
+  dataRevision = 0,
+  onRefresh,
   onDirectChange,
   onRequestCorrection,
   onOpenDetails,
 }: {
   overview: TimesheetOverview;
+  mutationsBlocked?: boolean;
+  refreshing?: boolean;
+  dataRevision?: number;
+  onRefresh?: () => void;
   onDirectChange: (payload: TimesheetCellMutation) => Promise<void>;
   onRequestCorrection: (payload: Required<TimesheetCellMutation>) => Promise<void>;
   onOpenDetails: (objectId: string, employeeId: string) => void;
@@ -54,42 +49,53 @@ export function TimesheetOverviewGrid({
   );
 
   return (
-    <div className={timesheetStyles.timesheetOverview}>
+    <div className={timesheetStyles.timesheetOverview} aria-busy={refreshing}>
       <div className={timesheetStyles.timesheetOverviewTotals} aria-label="Итоги табеля">
-        <div><span>Аванс</span><strong>{formatMoney(overview.totals.advanceTotal)}</strong></div>
-        <div><span>ЗП</span><strong>{formatMoney(overview.totals.salaryTotal)}</strong></div>
-        <div><span>Итого за месяц</span><strong>{formatMoney(overview.totals.monthTotal)}</strong></div>
+        <div><span>Аванс (начислено)</span><strong>{formatMoney(overview.totals.advanceTotal)}</strong></div>
+        <div><span>Зарплата (начислено)</span><strong>{formatMoney(overview.totals.salaryTotal)}</strong></div>
+        <div><span>Итого по выбранным фильтрам</span><strong>{formatMoney(overview.totals.monthTotal)}</strong></div>
       </div>
 
       {overview.rows.length === 0 ? (
-        <Surface padding="md">За выбранный период начислений нет.</Surface>
+        <Surface padding="md">По выбранным фильтрам строк табеля нет.</Surface>
       ) : (
         <>
           <div className={timesheetStyles.timesheetOverviewDesktop}>
-            <TimesheetScrollRegion year={overview.year} month={overview.month} stickyWidth={352} className={timesheetStyles.timesheetOverviewScroll ?? ''}>
+            <TimesheetScrollRegion year={overview.year} month={overview.month} stickyWidth={240} className={timesheetStyles.timesheetOverviewScroll ?? ''}>
               <table className={timesheetStyles.timesheetOverviewTable}>
+                <caption className={timesheetStyles.timesheetCaption}>Начисления по дням, ₽. Прочерк означает 0 ₽; маркер — ручная корректировка. Выберите ячейку для просмотра. Стрелки перемещают фокус.</caption>
+                <colgroup>
+                  <col style={{ width: 96 }} /><col style={{ width: 144 }} />
+                  {days.map((day) => <col key={day} style={{ width: 76 }} />)}
+                  <col style={{ width: 144 }} /><col style={{ width: 144 }} /><col style={{ width: 120 }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th className="is-object">Объект</th>
-                    <th className="is-employee">Сотрудник</th>
-                    {days.map((day) => <th key={day} data-timesheet-day={day}>{day}</th>)}
-                    <th className="is-summary">Аванс</th>
-                    <th className="is-summary">ЗП</th>
-                    <th className="is-summary is-total">Итого</th>
+                    <th scope="col" className="is-object">Объект</th>
+                    <th scope="col" className="is-employee">Сотрудник</th>
+                    {days.map((day) => <TimesheetDayHeading key={day} year={overview.year} month={overview.month} day={day} />)}
+                    <th scope="col" className="is-summary">Аванс (начислено)</th>
+                    <th scope="col" className="is-summary">Зарплата (начислено)</th>
+                    <th scope="col" className="is-summary is-total">Итого</th>
                   </tr>
                 </thead>
                 <tbody>
                   {overview.rows.map((row) => (
                     <tr key={`${row.objectId}:${row.employeeId}`}>
-                      <td className="is-object">{row.objectName}</td>
-                      <td className="is-employee"><PersonName person={{ fullName: row.employeeName }} compact /></td>
+                      <td className="is-object"><TimesheetIdentity name={row.objectName} /></td>
+                      <th scope="row" className="is-employee"><TimesheetIdentity name={row.employeeName} person /></th>
                       {row.entries.map((entry) => (
                         <td
                           key={entry.dayOfMonth}
+                          data-timesheet-day={entry.dayOfMonth}
                           className={entry.isChangedManually ? 'is-manual' : entry.hasFact ? 'has-fact' : undefined}
-                          title={getEntryTitle(entry)}
                         >
                           <TimesheetCellEditor
+                            mutationsBlocked={mutationsBlocked}
+                            refreshing={refreshing}
+                            dataRevision={dataRevision}
+                            onRefresh={onRefresh}
+                            entry={entry}
                             objectId={row.objectId}
                             objectName={row.objectName}
                             employeeId={row.employeeId}
@@ -120,36 +126,6 @@ export function TimesheetOverviewGrid({
             </TimesheetScrollRegion>
           </div>
 
-          <div className={timesheetStyles.timesheetOverviewMobile}>
-            {overview.rows.map((row) => (
-              <article className={timesheetStyles.timesheetOverviewCard} key={`${row.objectId}:${row.employeeId}`}>
-                <div className={timesheetStyles.timesheetOverviewCardHeader}>
-                  <span>{row.objectName}</span>
-                  <strong>{row.employeeName}</strong>
-                </div>
-                <div className={timesheetStyles.timesheetOverviewCardTotals}>
-                  <div><span>Аванс</span><strong>{formatMoney(row.advanceTotal)}</strong></div>
-                  <div><span>ЗП</span><strong>{formatMoney(row.salaryTotal)}</strong></div>
-                  <div><span>Итого</span><strong>{formatMoney(row.monthTotal)}</strong></div>
-                </div>
-                <details>
-                  <summary>Дни месяца</summary>
-                  <div className={timesheetStyles.timesheetOverviewCardDays}>
-                    {row.entries.map((entry) => (
-                      <div
-                        key={entry.dayOfMonth}
-                        className={entry.isChangedManually ? 'is-manual' : entry.hasFact ? 'has-fact' : undefined}
-                        title={getEntryTitle(entry)}
-                      >
-                        <span>{entry.dayOfMonth}</span>
-                        <strong className={entry.isChangedManually ? timesheetStyles.timesheetValueManual : undefined}>{entry.finalValue === 0 ? '—' : entry.finalValue}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              </article>
-            ))}
-          </div>
         </>
       )}
     </div>

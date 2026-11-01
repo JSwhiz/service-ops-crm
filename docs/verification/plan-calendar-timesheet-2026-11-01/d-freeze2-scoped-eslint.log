@@ -1,0 +1,3 @@
+$ docker exec -w /workspace/apps/frontend service_ops_frontend "pnpm" "exec" "eslint" "src/app/(app)/timesheet/page.tsx" "src/app/(app)/user-absences/page.tsx" "src/app/(app)/visit-plans/page.tsx" "src/app/(app)/calendar-date-helpers.ts" "src/entities/timesheet/ui/timesheet-identity.tsx" "src/features/timesheet-cell-editing/ui/timesheet-cell-editor.tsx" "src/features/timesheet-cell-editing/model/cell-presentation.ts" "src/features/timesheet-grid/model/matrix-navigation.ts" "src/features/timesheet-grid/ui/timesheet-day-heading.tsx" "src/features/timesheet-grid/ui/timesheet-grid.tsx" "src/features/timesheet-grid/ui/timesheet-scroll-region.tsx" "src/features/timesheet-overview/ui/timesheet-overview-grid.tsx" "src/shared/ui/icons/icons.tsx"
+
+exit=0

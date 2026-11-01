@@ -1,0 +1,225 @@
+$ docker exec -w /workspace/apps/frontend service_ops_frontend "node" "--experimental-strip-types" "--test" "src/app/(app)/calendar-date-helpers.test.mjs" "src/features/timesheet-cell-editing/model/cell-presentation.test.mjs" "src/features/timesheet-grid/model/matrix-navigation.test.mjs" "src/features/timesheet-overview/model/overview-refresh.test.mjs" "../../docs/verification/plan-calendar-timesheet-2026-11-01/d-freeze3-addressed.test.mjs"
+TAP version 13
+# (node:7224) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/apps/frontend/src/features/timesheet-grid/model/matrix-navigation.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/apps/frontend/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: D: row reveal leaves full focused cells inside the matrix below sticky headers on both axes
+ok 1 - D: row reveal leaves full focused cells inside the matrix below sticky headers on both axes
+  ---
+  duration_ms: 0.696917
+  type: 'test'
+  ...
+# Subtest: D: failed and overlapping refresh revisions retain row identity but never unlock stale financial actions
+ok 2 - D: failed and overlapping refresh revisions retain row identity but never unlock stale financial actions
+  ---
+  duration_ms: 0.146709
+  type: 'test'
+  ...
+# Subtest: D: actual fetcher decodes the real pending-409 response into an actionable blocked request
+ok 3 - D: actual fetcher decodes the real pending-409 response into an actionable blocked request
+  ---
+  duration_ms: 86.345625
+  type: 'test'
+  ...
+# Subtest: D: actual 409 conflict and ambiguous failure require a fresh revision before retry
+ok 4 - D: actual 409 conflict and ambiguous failure require a fresh revision before retry
+  ---
+  duration_ms: 51.993417
+  type: 'test'
+  ...
+# Subtest: D source wiring: overview rendering is independent of loading/error and has a stable scope key
+ok 5 - D source wiring: overview rendering is independent of loading/error and has a stable scope key
+  ---
+  duration_ms: 24.204208
+  type: 'test'
+  ...
+# Subtest: D source wiring: retained drawer keeps local success and guards both submit paths while stale
+ok 6 - D source wiring: retained drawer keeps local success and guards both submit paths while stale
+  ---
+  duration_ms: 8.864709
+  type: 'test'
+  ...
+# Subtest: D source wiring: focus calls matrix-only two-axis reveal and the region has vertical overflow
+ok 7 - D source wiring: focus calls matrix-only two-axis reveal and the region has vertical overflow
+  ---
+  duration_ms: 0.926084
+  type: 'test'
+  ...
+# (node:7225) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/apps/frontend/src/app/(app)/calendar-date-helpers.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/apps/frontend/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: URL dates reject empty, malformed and impossible days without guessing a different date
+ok 8 - URL dates reject empty, malformed and impossible days without guessing a different date
+  ---
+  duration_ms: 4.652167
+  type: 'test'
+  ...
+# Subtest: day navigation crosses month, year, and leap-day boundaries in UTC
+ok 9 - day navigation crosses month, year, and leap-day boundaries in UTC
+  ---
+  duration_ms: 0.264084
+  type: 'test'
+  ...
+# Subtest: calendar month dates include the correct number of days
+ok 10 - calendar month dates include the correct number of days
+  ---
+  duration_ms: 0.766625
+  type: 'test'
+  ...
+# Subtest: missing plan state names the selected date and keeps the manager selection gate
+ok 11 - missing plan state names the selected date and keeps the manager selection gate
+  ---
+  duration_ms: 17.149083
+  type: 'test'
+  ...
+# (node:7226) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/apps/frontend/src/features/timesheet-cell-editing/model/cell-presentation.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/apps/frontend/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: zero is an amount with independent attendance, never missing data
+ok 12 - zero is an amount with independent attendance, never missing data
+  ---
+  duration_ms: 2.059917
+  type: 'test'
+  ...
+# Subtest: manual zero is distinct from absent manual value and a normal zero
+ok 13 - manual zero is distinct from absent manual value and a normal zero
+  ---
+  duration_ms: 0.212584
+  type: 'test'
+  ...
+# Subtest: a nonzero manual amount is not described as an automatic result
+ok 14 - a nonzero manual amount is not described as an automatic result
+  ---
+  duration_ms: 0.130291
+  type: 'test'
+  ...
+# Subtest: sensitive correction preserves integer, nonnegative and mandatory reason checks
+ok 15 - sensitive correction preserves integer, nonnegative and mandatory reason checks
+  ---
+  duration_ms: 0.2225
+  type: 'test'
+  ...
+# Subtest: restore-auto remains a separate direct-correction permission
+ok 16 - restore-auto remains a separate direct-correction permission
+  ---
+  duration_ms: 0.185583
+  type: 'test'
+  ...
+# Subtest: actual already-pending response has an actionable message distinct from a version conflict
+ok 17 - actual already-pending response has an actionable message distinct from a version conflict
+  ---
+  duration_ms: 0.265417
+  type: 'test'
+  ...
+# Subtest: permission and session failures instruct the user without exposing raw response text
+ok 18 - permission and session failures instruct the user without exposing raw response text
+  ---
+  duration_ms: 0.204167
+  type: 'test'
+  ...
+# Subtest: known server validation keeps the draft editable; changed automatic value requires refresh
+ok 19 - known server validation keeps the draft editable; changed automatic value requires refresh
+  ---
+  duration_ms: 0.316625
+  type: 'test'
+  ...
+# Subtest: unknown/network failures never echo backend text or allow retry before a fresh read
+ok 20 - unknown/network failures never echo backend text or allow retry before a fresh read
+  ---
+  duration_ms: 0.565208
+  type: 'test'
+  ...
+# (node:7228) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/apps/frontend/src/features/timesheet-grid/model/matrix-navigation.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/apps/frontend/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: today uses the Moscow day across month and year boundaries
+ok 21 - today uses the Moscow day across month and year boundaries
+  ---
+  duration_ms: 17.435
+  type: 'test'
+  ...
+# Subtest: date-only headings preserve weekdays, weekends and leap-day dates
+ok 22 - date-only headings preserve weekdays, weekends and leap-day dates
+  ---
+  duration_ms: 0.99225
+  type: 'test'
+  ...
+# Subtest: overflow hints reflect hidden content, including at each scroll boundary
+ok 23 - overflow hints reflect hidden content, including at each scroll boundary
+  ---
+  duration_ms: 0.19075
+  type: 'test'
+  ...
+# Subtest: arrows move within matrix bounds without wrapping to another employee
+ok 24 - arrows move within matrix bounds without wrapping to another employee
+  ---
+  duration_ms: 0.249709
+  type: 'test'
+  ...
+# Subtest: Home and End respect 28/29/30/31-day months, optionally across employees
+ok 25 - Home and End respect 28/29/30/31-day months, optionally across employees
+  ---
+  duration_ms: 0.237958
+  type: 'test'
+  ...
+# Subtest: focus scroll exposes a day behind sticky identities or the total column
+ok 26 - focus scroll exposes a day behind sticky identities or the total column
+  ---
+  duration_ms: 0.0925
+  type: 'test'
+  ...
+# Subtest: ArrowDown reveals the full row beyond the matrix viewport without moving the page
+ok 27 - ArrowDown reveals the full row beyond the matrix viewport without moving the page
+  ---
+  duration_ms: 0.201584
+  type: 'test'
+  ...
+# Subtest: ArrowUp reveals a row hidden behind the sticky date header
+ok 28 - ArrowUp reveals a row hidden behind the sticky date header
+  ---
+  duration_ms: 0.124292
+  type: 'test'
+  ...
+# Subtest: diagonal reveal accounts for sticky identities, total and date header together
+ok 29 - diagonal reveal accounts for sticky identities, total and date header together
+  ---
+  duration_ms: 0.38975
+  type: 'test'
+  ...
+# (node:7238) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/apps/frontend/src/features/timesheet-overview/model/overview-refresh.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/apps/frontend/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: successful mutation → refetch retains the matrix identity while blocking another correction
+ok 30 - successful mutation → refetch retains the matrix identity while blocking another correction
+  ---
+  duration_ms: 2.792875
+  type: 'test'
+  ...
+# Subtest: a failed read cannot unlock stale amounts; only the requested fresh revision unlocks them
+ok 31 - a failed read cannot unlock stale amounts; only the requested fresh revision unlocks them
+  ---
+  duration_ms: 1.904833
+  type: 'test'
+  ...
+# Subtest: changing employee/object/period never exposes the retained previous scope
+ok 32 - changing employee/object/period never exposes the retained previous scope
+  ---
+  duration_ms: 0.253375
+  type: 'test'
+  ...
+1..32
+# tests 32
+# suites 0
+# pass 32
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 488.963542
+
+exit=0

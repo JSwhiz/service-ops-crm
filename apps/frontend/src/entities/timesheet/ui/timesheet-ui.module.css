@@ -22,8 +22,7 @@
   position: relative;
   width: 100%;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: clip;
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-md);
   background: var(--ui-surface);
@@ -56,11 +55,12 @@
 }
 
 .timesheetTable thead th {
-  position: relative;
+  position: sticky;
+  top: 0;
   background: var(--ui-surface-subtle);
   font-weight: 600;
   color: var(--ui-text-secondary);
-  z-index: 1;
+  z-index: 10;
 }
 
 .timesheetTable tfoot td {
@@ -87,13 +87,13 @@
   position: sticky;
   left: 0;
   z-index: 20;
-  background: var(--ui-surface) !important;
-  box-shadow: 10px 0 14px -12px rgba(40, 49, 71, 0.2);
+  background: var(--ui-surface);
+  border-right: 1px solid var(--ui-border-strong);
 }
 
 .timesheetTable thead .timesheetTableStickyLeft,
 .timesheetTable tfoot .timesheetTableStickyLeft {
-  background: var(--ui-surface-subtle) !important;
+  background: var(--ui-surface-subtle);
   z-index: 30;
 }
 
@@ -101,8 +101,8 @@
   position: sticky;
   right: 0;
   z-index: 20;
-  background: var(--ui-surface) !important;
-  box-shadow: -10px 0 14px -12px rgba(40, 49, 71, 0.2);
+  background: var(--ui-surface);
+  border-left: 1px solid var(--ui-border-strong);
 }
 
 .timesheetTable thead .timesheetTableStickyRight,
@@ -127,6 +127,59 @@
   border-left: 1px solid var(--ui-border);
   background: var(--ui-surface-subtle) !important;
 }
+
+.timesheetCaption {
+  caption-side: bottom;
+  text-align: left;
+  padding: var(--ui-space-3);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-text-xs);
+  white-space: normal;
+}
+
+.timesheetDayNumber,
+.timesheetWeekday { display: block; }
+.timesheetWeekday { margin-top: var(--ui-space-1); font-size: var(--ui-text-xs); font-weight: 400; }
+
+.timesheetIdentity {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--ui-space-1) 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.timesheetIdentity:hover { text-decoration: underline; }
+.timesheetIdentity:focus-visible { outline: 2px solid var(--ui-focus-border); outline-offset: -2px; }
+.timesheetFullIdentity { margin: 0; overflow-wrap: anywhere; }
+
+.timesheetTable thead th[data-weekend],
+.timesheetOverviewTable thead th[data-weekend] { background: var(--ui-surface-muted); }
+.timesheetTable thead th[data-today],
+.timesheetOverviewTable thead th[data-today] { background: var(--ui-info-subtle); color: var(--ui-info); }
+.timesheetTable [data-selected-column],
+.timesheetOverviewTable [data-selected-column] { box-shadow: inset 0 -2px 0 var(--ui-border-strong); }
+.timesheetTable tbody [data-selected-row] > th,
+.timesheetOverviewTable tbody [data-selected-row] > :global(.is-object),
+.timesheetOverviewTable tbody [data-selected-row] > :global(.is-employee) { background: var(--ui-accent-subtle); }
+
+.timesheetTable th,
+.timesheetOverviewTable th { font-size: var(--ui-text-xs); font-weight: 600; }
+.timesheetTable tbody th,
+.timesheetOverviewTable tbody th { font-size: var(--ui-text-sm); }
+.timesheetTable td,
+.timesheetOverviewTable td { font-variant-numeric: tabular-nums; }
+.timesheetTable .timesheetTableSummary,
+.timesheetOverviewTable :global(.is-summary) { text-align: right; }
 
 .timesheetOverviewFilters {
   display: grid;
@@ -170,8 +223,7 @@
   border-right: 0;
 }
 
-.timesheetOverviewTotals span,
-.timesheetOverviewCardTotals span {
+.timesheetOverviewTotals span {
   color: var(--ui-text-tertiary);
   font-size: 12px;
 }
@@ -201,7 +253,8 @@
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 12px;
+  table-layout: fixed;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -215,11 +268,11 @@
   background: var(--ui-surface);
 }
 
-.timesheetOverviewTable th {
+.timesheetOverviewTable thead th {
   position: sticky;
   top: 0;
-  z-index: 3;
-  color: var(--ui-text-tertiary);
+  z-index: 10;
+  color: var(--ui-text-secondary);
   background: var(--ui-surface-muted);
   font-weight: 600;
 }
@@ -227,9 +280,7 @@
 .timesheetOverviewTable :global(.is-object),
 .timesheetOverviewTable :global(.is-employee) {
   position: sticky;
-  z-index: 4;
-  min-width: 176px;
-  max-width: 176px;
+  z-index: 11;
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
@@ -237,16 +288,22 @@
 
 .timesheetOverviewTable :global(.is-object) {
   left: 0;
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
 }
 
 .timesheetOverviewTable :global(.is-employee) {
-  left: 176px;
-  box-shadow: 8px 0 12px -12px rgba(40, 49, 71, 0.32);
+  left: 96px;
+  width: 144px;
+  min-width: 144px;
+  max-width: 144px;
+  border-right: 1px solid var(--ui-border-strong);
 }
 
 .timesheetOverviewTable thead :global(.is-object),
 .timesheetOverviewTable thead :global(.is-employee) {
-  z-index: 6;
+  z-index: 12;
   background: var(--ui-surface-muted);
 }
 
@@ -258,8 +315,8 @@
 }
 
 .timesheetOverviewTable :global(.is-total) {
-  color: var(--ui-success);
-  background: var(--ui-success-subtle);
+  color: var(--ui-text);
+  background: var(--ui-surface-subtle);
 }
 
 .timesheetOverviewTable :global(.has-fact) {
@@ -274,10 +331,6 @@
   color: var(--ui-accent);
   background: var(--ui-accent-subtle);
   font-weight: 700;
-}
-
-.timesheetOverviewMobile {
-  display: none;
 }
 
 @media (max-width: 900px) {
@@ -304,10 +357,6 @@
     grid-template-columns: 1fr;
   }
 
-  .timesheetOverviewDesktop {
-    display: none;
-  }
-
   .timesheetOverviewTotals > div {
     border-right: 0;
     border-bottom: 1px solid var(--ui-border);
@@ -317,87 +366,6 @@
     border-bottom: 0;
   }
 
-  .timesheetOverviewMobile {
-    display: grid;
-    gap: 10px;
-  }
-
-  .timesheetOverviewCard {
-    display: grid;
-    gap: 12px;
-    padding: 14px;
-    border: 1px solid var(--ui-border);
-    border-radius: 10px;
-    background: var(--ui-surface);
-  }
-
-  .timesheetOverviewCardHeader {
-    display: grid;
-    gap: 4px;
-  }
-
-  .timesheetOverviewCardHeader span {
-    color: var(--ui-text-tertiary);
-    font-size: 12px;
-  }
-
-  .timesheetOverviewCardTotals {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 7px;
-  }
-
-  .timesheetOverviewCardTotals > div {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-    padding: 9px;
-    border-radius: 10px;
-    background: var(--ui-surface-muted);
-  }
-
-  .timesheetOverviewCardTotals strong {
-    overflow: hidden;
-    font-size: 13px;
-    text-overflow: ellipsis;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .timesheetOverviewCard summary {
-    cursor: pointer;
-    color: var(--ui-text-secondary);
-    font-weight: 650;
-  }
-
-  .timesheetOverviewCardDays {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(44px, 1fr));
-    gap: 5px;
-    margin-top: 10px;
-  }
-
-  .timesheetOverviewCardDays > div {
-    display: grid;
-    gap: 2px;
-    padding: 6px 3px;
-    border-radius: 8px;
-    text-align: center;
-    background: var(--ui-surface-muted);
-  }
-
-  .timesheetOverviewCardDays span {
-    color: var(--ui-text-tertiary);
-    font-size: 10px;
-  }
-
-  .timesheetOverviewCardDays strong {
-    font-size: 11px;
-  }
-
-  .timesheetOverviewCardDays :global(.is-manual) {
-    color: var(--ui-accent);
-    background: var(--ui-accent-subtle);
-  }
 }
 
 .timesheetOverviewTable td:not(:global(.is-object)):not(:global(.is-employee)):not(:global(.is-summary)),
@@ -406,12 +374,14 @@
 }
 
 .timesheetCellTrigger {
+  position: relative;
   appearance: none;
   width: 100%;
   min-width: 52px;
-  min-height: 42px;
+  min-height: 44px;
   display: grid;
-  place-items: center;
+  align-items: center;
+  justify-items: end;
   padding: 0 8px;
   border: 1px solid transparent;
   border-radius: 0;
@@ -420,7 +390,7 @@
   box-shadow: none;
   transform: none;
   font: inherit;
-  cursor: default;
+  cursor: pointer;
   transition:
     background-color var(--ui-duration-fast) var(--ui-ease-standard),
     box-shadow var(--ui-duration-fast) var(--ui-ease-standard),
@@ -437,8 +407,9 @@
 .timesheetCellTrigger:focus,
 .timesheetCellTrigger:focus-visible,
 .timesheetCellTrigger:active {
-  outline: 0;
-  border-color: transparent;
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: -2px;
+  border-color: var(--ui-focus-border);
   box-shadow: none;
   transform: none;
 }
@@ -455,8 +426,7 @@
   color: var(--ui-text);
 }
 
-.timesheetCellTrigger:global(.is-manual) strong,
-.timesheetValueManual {
+.timesheetCellTrigger:global(.is-manual) strong {
   color: var(--ui-text);
   font-weight: 800;
 }
@@ -476,267 +446,8 @@
 }
 
 .timesheetCellTrigger:global(.is-locked) {
-  color: var(--ui-text-tertiary);
+  color: var(--ui-text-secondary);
   background: transparent;
-}
-
-.timesheetCellMenu,
-.timesheetCellEditor {
-  position: fixed;
-  z-index: 220;
-  border: 1px solid var(--ui-border);
-  background: var(--ui-surface);
-  box-shadow: var(--ui-shadow-popover);
-  color: var(--ui-text);
-  font-family: var(--ui-font-sans);
-}
-
-.timesheetCellMenu {
-  width: 232px;
-  padding: 6px;
-  border-radius: var(--ui-radius-md);
-}
-
-.timesheetCellMenu button {
-  width: 100%;
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  padding: 0 9px;
-  border: 0;
-  border-radius: var(--ui-radius-sm);
-  background: transparent;
-  color: var(--ui-text-secondary);
-  box-shadow: none;
-  font-size: var(--ui-text-sm);
-  font-weight: 550;
-  text-align: left;
-  transform: none;
-}
-
-.timesheetCellMenu button:hover:not(:disabled),
-.timesheetCellMenu button:focus-visible {
-  outline: 0;
-  border: 0;
-  background: var(--ui-surface-hover);
-  color: var(--ui-text);
-  box-shadow: none;
-  transform: none;
-}
-
-.timesheetCellMenuHint {
-  padding: 8px 9px;
-  color: var(--ui-text-tertiary);
-  font-size: var(--ui-text-xs);
-  line-height: 1.4;
-}
-
-.timesheetCellEditor {
-  width: min(380px, calc(100vw - 24px));
-  max-height: calc(100vh - 24px);
-  overflow-y: auto;
-  padding: 16px;
-  border-radius: var(--ui-radius-lg);
-}
-
-.timesheetCellEditorHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.timesheetCellEditorHeader > div {
-  min-width: 0;
-  padding-top: 1px;
-}
-
-.timesheetCellEditorHeader strong,
-.timesheetCellEditorHeader span {
-  display: block;
-}
-
-.timesheetCellEditorHeader strong {
-  overflow: hidden;
-  color: var(--ui-text);
-  font-size: var(--ui-text-lg);
-  font-weight: 700;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.timesheetCellEditorHeader span {
-  margin-top: 4px;
-  color: var(--ui-text-tertiary);
-  font-size: var(--ui-text-xs);
-  line-height: 1.35;
-}
-
-.timesheetCellEditor .timesheetCellEditorClose {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
-  border-radius: var(--ui-radius-sm);
-}
-
-.timesheetCellEditorClose svg {
-  width: 18px;
-  height: 18px;
-}
-
-.timesheetCellEditorSummary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-  padding: 10px 11px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-surface-subtle);
-}
-
-.timesheetCellEditorSummary span {
-  color: var(--ui-text-tertiary);
-  font-size: var(--ui-text-xs);
-}
-
-.timesheetCellEditorSummary strong {
-  color: var(--ui-text);
-  font-size: var(--ui-text-md);
-  font-weight: 700;
-}
-
-.timesheetCellEditorField {
-  display: grid;
-  gap: 6px;
-  margin-top: 11px;
-}
-
-.timesheetCellEditorField > span {
-  color: var(--ui-text-secondary);
-  font-size: var(--ui-text-xs);
-  font-weight: 650;
-  line-height: 1.35;
-}
-
-.timesheetCellEditorField input,
-.timesheetCellEditorField textarea {
-  width: 100%;
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-surface);
-  color: var(--ui-text);
-  box-shadow: none;
-  font-family: var(--ui-font-sans);
-  font-size: var(--ui-text-md);
-  transition:
-    border-color var(--ui-duration-fast) var(--ui-ease-standard),
-    box-shadow var(--ui-duration-fast) var(--ui-ease-standard);
-}
-
-.timesheetCellEditorField input {
-  min-height: 40px;
-  padding: 0 11px;
-}
-
-.timesheetCellEditorField textarea {
-  min-height: 82px;
-  padding: 9px 11px;
-  line-height: var(--ui-leading-normal);
-  resize: vertical;
-}
-
-.timesheetCellEditorField input:hover,
-.timesheetCellEditorField textarea:hover {
-  border-color: var(--ui-border-hover);
-}
-
-.timesheetCellEditorField input:focus,
-.timesheetCellEditorField input:focus-visible,
-.timesheetCellEditorField textarea:focus,
-.timesheetCellEditorField textarea:focus-visible {
-  outline: 0;
-  border-color: var(--ui-focus-border);
-  box-shadow: var(--ui-focus-ring);
-}
-
-.timesheetCellEditorMessage {
-  margin-top: 11px;
-  padding: 9px 10px;
-  border: 1px solid var(--ui-warning-border);
-  border-radius: var(--ui-radius-sm);
-  background: var(--ui-warning-subtle);
-  color: var(--ui-warning);
-  font-size: var(--ui-text-xs);
-  line-height: 1.4;
-}
-
-.timesheetCellEditorActions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  margin: 16px -16px -16px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--ui-border);
-  background: var(--ui-surface-subtle);
-  border-radius: 0 0 var(--ui-radius-lg) var(--ui-radius-lg);
-}
-
-.timesheetCellEditorActionsLeft,
-.timesheetCellEditorActionsRight {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.timesheetCellEditorActionsLeft {
-  min-width: 0;
-}
-
-.timesheetCellEditorActionsRight {
-  justify-content: flex-end;
-}
-
-.timesheetCellEditorActions :global(.ui-button) {
-  min-width: 74px;
-  white-space: nowrap;
-}
-
-.timesheetCellEditorActionsLeft :global(.ui-button) {
-  min-width: 0;
-  padding-inline: 8px;
-  color: var(--ui-text-secondary);
-}
-
-@media (max-width: 760px) {
-  .timesheetCellEditor {
-    left: 12px !important;
-    right: 12px;
-    top: auto !important;
-    bottom: 12px;
-    width: auto;
-    max-height: calc(100vh - 24px);
-  }
-
-  .timesheetCellEditorActions {
-    grid-template-columns: 1fr;
-  }
-
-  .timesheetCellEditorActionsLeft:empty {
-    display: none;
-  }
-
-  .timesheetCellEditorActionsRight {
-    width: 100%;
-  }
-
-  .timesheetCellEditorActionsRight :global(.ui-button) {
-    flex: 1;
-  }
 }
 
 :global(.app-content):has(.timesheetPage) {
@@ -939,8 +650,8 @@
   overflow: hidden;
   border: 1px solid var(--ui-border-strong);
   border-radius: var(--ui-radius-md);
-  background: linear-gradient(180deg, var(--ui-surface-subtle) 0%, var(--ui-surface-muted) 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  background: var(--ui-surface-subtle);
+  box-shadow: none;
 }
 
 .timesheetPage .timesheetOverviewTotals > div {

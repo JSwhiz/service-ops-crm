@@ -1,0 +1,120 @@
+D_BUILD_PREP={"snapshot":"/tmp/crm-d-freeze2-build.iaQKj1","parentHeapMiB":988,"childHeapMiB":988,"cpus":1,"copiedFiles":506,"metadataEntries":0,"copiedSourceMatches":true}
+   ▲ Next.js 15.5.14
+   - Experiments (use with caution):
+     · cpus: 1
+
+   Creating an optimized production build ...
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|javascript/auto|/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-flight-css-loader.js??ruleSet[1].rules[14].oneOf[5].use[0]!/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[1]!/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!/tmp/crm-d-freeze2-build.iaQKj1/apps/frontend/src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css|ssr': No serializer registered for Warning
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> Array { 1 items } -> webpack/lib/ModuleWarning -> Warning
+ ⚠ Compiled with warnings in 14.2s
+
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+Warning
+
+(1:72) autoprefixer: end value has mixed support, consider using flex-end instead
+
+Import trace for requested module:
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+./src/features/one-time-order-operations/ui/one-time-order-service-lines-panel.tsx
+./src/app/(app)/one-time-orders/[id]/page.tsx
+
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!/tmp/crm-d-freeze2-build.iaQKj1/apps/frontend/src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css': No serializer registered for Warning
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> Array { 1 items } -> webpack/lib/ModuleWarning -> Warning
+ ⚠ Compiled with warnings in 9.3s
+
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css.webpack[javascript/auto]!=!../../../../workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!../../../../workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+Warning
+
+(1:72) autoprefixer: end value has mixed support, consider using flex-end instead
+
+Import trace for requested module:
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css.webpack[javascript/auto]!=!../../../../workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!../../../../workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+./src/features/one-time-order-operations/ui/one-time-order-escorts-panel.tsx
+./src/app/(app)/one-time-orders/[id]/page.tsx
+
+ ✓ Compiled successfully in 23.8s
+   Linting and checking validity of types ...
+
+ ⚠ The Next.js plugin was not detected in your ESLint configuration. See https://nextjs.org/docs/app/api-reference/config/eslint#migrating-existing-config
+   Collecting page data ...
+   Generating static pages (0/50) ...
+   Generating static pages (12/50)
+   Generating static pages (24/50)
+   Generating static pages (37/50)
+ ✓ Generating static pages (50/50)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                    Size  First Load JS
+┌ ○ /                                         133 B         103 kB
+├ ○ /_not-found                                1 kB         104 kB
+├ ○ /(.)candidates/new                      5.11 kB         126 kB
+├ ○ /(.)counterparties/new                  3.85 kB         119 kB
+├ ○ /(.)employees/new                       3.03 kB         130 kB
+├ ○ /(.)equipment/new                       1.58 kB         122 kB
+├ ○ /(.)inventory/new                       3.88 kB         119 kB
+├ ○ /(.)objects/new                         3.72 kB         149 kB
+├ ○ /(.)one-time-orders/new                 3.59 kB         137 kB
+├ ○ /(.)rubber-mats/new                     3.32 kB         118 kB
+├ ○ /(.)tasks/new                           7.53 kB         139 kB
+├ ○ /(.)user-absences/new                   3.41 kB         127 kB
+├ ƒ /[...catchAll]                            133 B         103 kB
+├ ○ /accountability                         15.6 kB         146 kB
+├ ○ /accountability/queue                   5.45 kB         112 kB
+├ ○ /approvals                              9.73 kB         133 kB
+├ ○ /candidates                             1.91 kB         130 kB
+├ ƒ /candidates/[id]                        13.9 kB         129 kB
+├ ○ /candidates/new                           374 B         139 kB
+├ ○ /chats                                  18.5 kB         147 kB
+├ ○ /counterparties                          1.9 kB         126 kB
+├ ƒ /counterparties/[id]                    11.4 kB         137 kB
+├ ○ /counterparties/new                     3.07 kB         131 kB
+├ ○ /dashboard                              19.4 kB         130 kB
+├ ○ /employees                              1.91 kB         132 kB
+├ ƒ /employees/[id]                         18.1 kB         145 kB
+├ ○ /employees/new                          3.03 kB         142 kB
+├ ○ /employees/reserve                      3.32 kB         131 kB
+├ ○ /equipment                              1.91 kB         131 kB
+├ ƒ /equipment/[id]                         10.2 kB         136 kB
+├ ○ /equipment/new                            326 B         139 kB
+├ ƒ /files/[fileId]/view                    4.04 kB         120 kB
+├ ○ /inventory                               1.9 kB         126 kB
+├ ƒ /inventory/[id]                         7.35 kB         145 kB
+├ ○ /inventory/movements                     5.1 kB         146 kB
+├ ○ /inventory/new                          3.02 kB         132 kB
+├ ○ /inventory/reports                      4.55 kB         129 kB
+├ ○ /login                                  3.21 kB         106 kB
+├ ○ /objects                                1.57 kB         161 kB
+├ ƒ /objects/[id]                           32.9 kB         205 kB
+├ ƒ /objects/[id]/edit                      2.75 kB         138 kB
+├ ƒ /objects/[id]/history                   5.28 kB         115 kB
+├ ○ /objects/new                              219 B         185 kB
+├ ○ /one-time-orders                        3.57 kB         141 kB
+├ ƒ /one-time-orders/[id]                   33.8 kB         189 kB
+├ ƒ /one-time-orders/[id]/workforce         7.89 kB         126 kB
+├ ○ /one-time-orders/attention               4.7 kB         118 kB
+├ ○ /one-time-orders/calendar               10.5 kB         133 kB
+├ ○ /one-time-orders/new                      208 B         152 kB
+├ ○ /one-time-orders/specification-catalog  6.25 kB         121 kB
+├ ○ /rubber-mats                             1.9 kB         124 kB
+├ ○ /rubber-mats/new                        3.01 kB         130 kB
+├ ○ /settings                                 169 B         107 kB
+├ ○ /tasks                                  3.46 kB         131 kB
+├ ƒ /tasks/[id]                             10.2 kB         151 kB
+├ ○ /tasks/new                               3.3 kB         147 kB
+├ ○ /timesheet                              10.7 kB         129 kB
+├ ○ /user-absences                            189 B         129 kB
+├ ○ /user-absences/new                        321 B         133 kB
+├ ○ /user-substitutions                     7.98 kB         127 kB
+└ ○ /visit-plans                            6.84 kB         122 kB
++ First Load JS shared by all                103 kB
+  ├ chunks/9790-bf906906576907ea.js         46.6 kB
+  ├ chunks/d4b07c72-aed0efc43b5d60b2.js     54.2 kB
+  └ other shared chunks (total)             2.36 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+D_BUILD_RESULT={"snapshot":"/tmp/crm-d-freeze2-build.iaQKj1","output":"/tmp/crm-d-freeze2-build.iaQKj1/apps/frontend/.next","container":"service_ops_frontend","platform":"linux","arch":"arm64","node":"v22.22.3","nodeOptions":"--max-old-space-size=1024 --max-old-space-size-percentage=12","parentHeapMiB":988,"childHeapMiB":988,"cpus":1,"startedAt":"2026-11-01T09:29:59.075Z","finishedAt":"2026-11-01T09:30:47.111Z","exitCode":0,"signal":null,"copiedFiles":506,"metadataEntries":0,"copiedSourceMatches":true,"sourceSnapshotAlterations":["Only copied next.config.ts receives experimental.cpus: 1"],"originalSourceConfigSha256":"313bbd12b7c02687533a9834c38c1052cd8037ad0b47b26713cbaa19e6fbad74","snapshotConfigSha256":"bdd1f625bccc2e92d7bc047343ac17d8066740359bea0c1a786d1f409747c878","originalSourceConfigUnchanged":true,"routes":61,"staticPagesGenerated":50,"buildId":"jYqlCQacd9TNDVFNjKQO3","dependencyInstall":false,"liveBuildOutputTargeted":false}

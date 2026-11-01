@@ -1,0 +1,52 @@
+{
+  "snapshot": "/tmp/crm-d-freeze3-build.DVlCpF",
+  "output": "/tmp/crm-d-freeze3-build.DVlCpF/apps/frontend/.next",
+  "container": "service_ops_frontend",
+  "platform": "linux",
+  "arch": "arm64",
+  "node": "v22.22.3",
+  "nodeOptions": "--max-old-space-size=1024 --max-old-space-size-percentage=12",
+  "parentHeapMiB": 988,
+  "childHeapMiB": 988,
+  "cpus": 1,
+  "startedAt": "2026-11-01T09:41:26.399Z",
+  "finishedAt": "2026-11-01T09:42:12.905Z",
+  "exitCode": 0,
+  "signal": null,
+  "copiedFiles": 508,
+  "metadataEntries": 0,
+  "copiedSourceMatches": true,
+  "sourceSnapshotAlterations": [
+    "Only copied next.config.ts receives experimental.cpus: 1"
+  ],
+  "originalSourceConfigSha256": "313bbd12b7c02687533a9834c38c1052cd8037ad0b47b26713cbaa19e6fbad74",
+  "snapshotConfigSha256": "bdd1f625bccc2e92d7bc047343ac17d8066740359bea0c1a786d1f409747c878",
+  "originalSourceConfigUnchanged": true,
+  "routes": 61,
+  "staticPagesGenerated": 50,
+  "buildId": "sRZMOfO4Xkj38nnGtgda3",
+  "dependencyInstall": false,
+  "liveBuildOutputTargeted": false,
+  "baseline": "42c7166fcc932bad11d5441d28db3b91a7344501",
+  "freeze": 3,
+  "before": {
+    "sha256": "54a47950dc7c9f6e186f4d8f933f9c05e89dc39ae2afe72a70d0782c07463669",
+    "files": 512
+  },
+  "after": {
+    "sha256": "54a47950dc7c9f6e186f4d8f933f9c05e89dc39ae2afe72a70d0782c07463669",
+    "files": 512
+  },
+  "sourceUnchanged": true,
+  "checks": "d-checks-freeze3.json",
+  "hostStartedAt": "2026-11-01T09:41:25.525Z",
+  "hostFinishedAt": "2026-11-01T09:42:12.987Z",
+  "status": "pass-freeze3",
+  "provisional": false,
+  "verificationScope": "D source, offline addressed tests, and isolated production build",
+  "liveSaveReloadAccepted": false,
+  "limitations": [
+    "No real money POST or live save/reload was exercised.",
+    "No installed React renderer/DOM library; drawer continuity and stale-action guards have source/state evidence, not mounted React save-flow interaction coverage."
+  ]
+}

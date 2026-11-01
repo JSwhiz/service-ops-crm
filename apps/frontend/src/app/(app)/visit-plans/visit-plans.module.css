@@ -9,11 +9,40 @@
   min-width: 0;
 }
 
-.fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), max-content));
-  gap: var(--ui-space-4);
-  align-items: end;
+.dateToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-space-3) var(--ui-space-4);
+  min-width: 0;
+}
+
+.dateNavigation,
+.dateOptions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.dateNavigation {
+  flex: 0 1 auto;
+}
+
+.dateOptions {
+  flex: 1 1 240px;
+}
+
+.dateField {
+  width: 190px;
+  min-width: 0;
+}
+
+.managerField {
+  flex: 1 1 200px;
+  max-width: 320px;
+  min-width: min(100%, 200px);
 }
 
 .formPanel {
@@ -22,8 +51,21 @@
   min-width: 0;
 }
 
-.page :global(.ui-stack) > :global(.ui-button) {
-  justify-self: start;
+.emptyPlan {
+  display: grid;
+  justify-items: start;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.emptyPlanAction {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-space-3);
+  width: min(100%, 520px);
+  padding-top: var(--ui-space-3);
+  border-top: 1px solid var(--ui-border);
 }
 
 .report {
@@ -39,4 +81,31 @@
 
 .checkbox input {
   flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .dateNavigation {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    flex: 1 1 100%;
+    gap: var(--ui-space-1);
+  }
+
+  .dateNavigation > :last-child {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .dateField {
+    flex: 1 1 130px;
+    width: auto;
+  }
+
+  .dateOptions {
+    flex: 1 1 100%;
+  }
+
+  .emptyPlanAction {
+    width: 100%;
+  }
 }

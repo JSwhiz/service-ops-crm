@@ -1,0 +1,6 @@
+CSS audit exit 1. Four reports, all unchanged modules and identical to docs/verification/actions-files-2026-11-01/e-css-audit.log:
+app/(app)/counterparties/counterparties.module.css: dead createForm, createPage, createTitle, emptyState, error, formActions, formFields, fullRow, surface
+app/(app)/rubber-mats/rubber-mats.module.css: dead createForm
+features/employee-workspace/ui/employee-workspace.module.css: dead formPage, objectChip, objectMore, objects
+features/object-list/ui/object-list-table.module.css: dead managerNames, managerSummary, morePeople, personText
+No changed B/C CSS module reports; no missing classes, undefined tokens, broken comments, or global-class reports.

@@ -1,10 +1,13 @@
 'use client';
 
-import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-
-import { Button, IconButton } from '@/shared/ui/foundation';
-import { CloseIcon } from '@/shared/ui/icons/icons';
+import React, { useEffect, useId, useRef, useState } from 'react';
+import type { TimesheetEntry, TimesheetOverviewEntry } from '@/entities/timesheet/model/timesheet.types';
+import { Alert, Button, Field } from '@/shared/ui/foundation';
+import { Drawer } from '@/shared/ui/overlays';
+import { formatUiDate } from '@/shared/lib/format-date';
+import { ApiError } from '@/shared/api/fetcher';
+import { describeTimesheetValue, humanizeCellCorrectionError, isCellCorrectionRetryBlocked, validateCellCorrection } from '../model/cell-presentation';
+import styles from './timesheet-cell-detail.module.css';
 import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
 
 export interface TimesheetCellMutation {
@@ -23,6 +26,7 @@ interface TimesheetCellEditorProps {
   year: number;
   month: number;
   dayOfMonth: number;
+  entry: TimesheetOverviewEntry | TimesheetEntry;
   finalValue: number;
   autoValue: number;
   isChangedManually: boolean;
@@ -33,374 +37,139 @@ interface TimesheetCellEditorProps {
   onDirectChange: (payload: TimesheetCellMutation) => Promise<void>;
   onRequestCorrection: (payload: Required<TimesheetCellMutation>) => Promise<void>;
   onOpenDetails?: () => void;
+  mutationsBlocked?: boolean;
+  refreshing?: boolean;
+  dataRevision?: number;
+  onRefresh?: () => void;
 }
 
-interface Point {
-  left: number;
-  top: number;
-}
-
-const VIEWPORT_GAP = 12;
-const FLOATING_GAP = 8;
-const MENU_WIDTH = 232;
-const MENU_ESTIMATED_HEIGHT = 176;
-
-function formatMoney(value: number): string {
-  return `${new Intl.NumberFormat('ru-RU').format(value)} ₽`;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), Math.max(min, max));
-}
+const moneyFormatter = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 2 });
 
 export function TimesheetCellEditor({
-  objectId,
-  objectName,
-  employeeId,
-  employeeName,
-  year,
-  month,
-  dayOfMonth,
-  finalValue,
-  autoValue,
-  isChangedManually,
-  comment,
-  canDirectEdit,
-  canRequestCorrection,
-  isEditableDate,
-  onDirectChange,
-  onRequestCorrection,
-  onOpenDetails,
+  objectId, objectName, employeeId, employeeName, year, month, dayOfMonth, entry,
+  finalValue, autoValue, isChangedManually, comment, canDirectEdit,
+  canRequestCorrection, isEditableDate, onDirectChange, onRequestCorrection, onOpenDetails,
+  mutationsBlocked = false, refreshing = false, dataRevision = 0, onRefresh,
 }: TimesheetCellEditorProps): React.JSX.Element {
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const editorId = useId();
-  const [selected, setSelected] = useState(false);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorPoint, setEditorPoint] = useState<Point>({ left: VIEWPORT_GAP, top: VIEWPORT_GAP });
-  const [menuPoint, setMenuPoint] = useState<Point | null>(null);
+  const savingRef = useRef(false);
+  const detailId = useId();
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(String(finalValue));
   const [reason, setReason] = useState(comment ?? '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [blockedAtRevision, setBlockedAtRevision] = useState<number | null>(null);
+  const [pendingRequest, setPendingRequest] = useState(false);
+  const canOfferCorrection = isEditableDate && (canDirectEdit || canRequestCorrection);
+  const retryBlocked = isCellCorrectionRetryBlocked(pendingRequest, blockedAtRevision, dataRevision);
+  const canMutate = canOfferCorrection && !mutationsBlocked && !retryBlocked;
+  const date = `${year}-${String(month).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
 
-  const canMutate = isEditableDate && (canDirectEdit || canRequestCorrection);
-
-  const closeInteraction = useCallback((): void => {
-    setSelected(false);
-    setEditorOpen(false);
-    setMenuPoint(null);
-    setMessage(null);
-  }, []);
-
-  const positionEditor = useCallback((): void => {
+  useEffect(() => {
+    if (!open) return;
     const trigger = triggerRef.current;
-    const editor = editorRef.current;
-    if (!trigger || !editor || typeof window === 'undefined') return;
+    return () => { if (trigger?.isConnected) trigger.focus({ preventScroll: true }); };
+  }, [open]);
 
-    const triggerRect = trigger.getBoundingClientRect();
-    const editorRect = editor.getBoundingClientRect();
-    const width = editorRect.width;
-    const height = editorRect.height;
-
-    const left = clamp(
-      triggerRect.left,
-      VIEWPORT_GAP,
-      window.innerWidth - width - VIEWPORT_GAP,
-    );
-
-    const fitsBelow = triggerRect.bottom + FLOATING_GAP + height <= window.innerHeight - VIEWPORT_GAP;
-    const fitsAbove = triggerRect.top - FLOATING_GAP - height >= VIEWPORT_GAP;
-
-    let top: number;
-    if (fitsBelow) {
-      top = triggerRect.bottom + FLOATING_GAP;
-    } else if (fitsAbove) {
-      top = triggerRect.top - FLOATING_GAP - height;
-    } else {
-      top = clamp(
-        triggerRect.top + triggerRect.height / 2 - height / 2,
-        VIEWPORT_GAP,
-        window.innerHeight - height - VIEWPORT_GAP,
-      );
-    }
-
-    setEditorPoint({ left, top });
-  }, []);
-
-  useEffect(() => {
-    setValue(String(finalValue));
-    setReason(comment ?? '');
-  }, [comment, finalValue]);
-
-  useLayoutEffect(() => {
-    if (!editorOpen) return;
-    positionEditor();
-  }, [editorOpen, message, positionEditor]);
-
-  useEffect(() => {
-    if (!editorOpen) return undefined;
-
-    const reposition = (): void => positionEditor();
-    window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
-    return () => {
-      window.removeEventListener('resize', reposition);
-      window.removeEventListener('scroll', reposition, true);
-    };
-  }, [editorOpen, positionEditor]);
-
-  useEffect(() => {
-    if (!selected && !editorOpen && !menuPoint) return undefined;
-
-    const onPointerDown = (event: PointerEvent): void => {
-      const target = event.target as Node | null;
-      if (!target) return;
-      if (triggerRef.current?.contains(target)) return;
-      if (editorRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      closeInteraction();
-    };
-
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') closeInteraction();
-    };
-
-    document.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [closeInteraction, editorOpen, menuPoint, selected]);
-
-  const openEditor = (): void => {
-    if (!canMutate) return;
-    setSelected(true);
-    setMenuPoint(null);
+  const openDetails = (): void => {
+    setEditing(false);
     setMessage(null);
+    setSuccess(null);
+    setOpen(true);
+  };
+  const startEditing = (): void => {
+    if (!canMutate) return;
     setValue(String(finalValue));
     setReason(comment ?? '');
-    setEditorPoint({ left: VIEWPORT_GAP, top: VIEWPORT_GAP });
-    setEditorOpen(true);
+    setMessage(null);
+    setSuccess(null);
+    setEditing(true);
   };
-
-  const openMenu = (clientX: number, clientY: number): void => {
-    setSelected(true);
-    setEditorOpen(false);
-    setMenuPoint({
-      left: clamp(clientX, VIEWPORT_GAP, window.innerWidth - MENU_WIDTH - VIEWPORT_GAP),
-      top: clamp(clientY, VIEWPORT_GAP, window.innerHeight - MENU_ESTIMATED_HEIGHT - VIEWPORT_GAP),
-    });
-  };
-
-  const submit = async (): Promise<void> => {
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 0) {
-      setMessage('Введите целую сумму не меньше 0 ₽.');
-      return;
-    }
-
-    const normalizedReason = reason.trim();
-    const differsFromAuto = parsed !== autoValue;
-    if (differsFromAuto && !normalizedReason) {
-      setMessage('Для ручной корректировки укажите причину.');
-      return;
-    }
-
-    if (parsed === finalValue) {
-      closeInteraction();
-      return;
-    }
-
+  const mutate = async (restore = false): Promise<void> => {
+    if (savingRef.current || !canMutate || !editing) return;
+    if (restore && (!canDirectEdit || finalValue === autoValue)) return;
+    const parsed = restore ? autoValue : Number(value);
+    const validation = restore ? null : validateCellCorrection(value, reason, autoValue, canDirectEdit);
+    if (validation) { setMessage(validation); return; }
+    if (parsed === finalValue) { setEditing(false); return; }
+    savingRef.current = true;
     setSaving(true);
     setMessage(null);
     try {
       if (canDirectEdit) {
-        await onDirectChange({
-          objectId,
-          employeeId,
-          dayOfMonth,
-          dayValue: parsed,
-          comment: differsFromAuto ? normalizedReason : undefined,
-        });
+        await onDirectChange({ objectId, employeeId, dayOfMonth, dayValue: parsed, comment: parsed !== autoValue ? reason.trim() : undefined });
       } else {
-        if (parsed === autoValue) {
-          setMessage('Возврат к авторасчёту доступен только пользователю с правом прямой корректировки.');
-          return;
-        }
-        await onRequestCorrection({
-          objectId,
-          employeeId,
-          dayOfMonth,
-          dayValue: parsed,
-          comment: normalizedReason,
-        });
+        await onRequestCorrection({ objectId, employeeId, dayOfMonth, dayValue: parsed, comment: reason.trim() });
+        setPendingRequest(true);
       }
-      closeInteraction();
+      setEditing(false);
+      setSuccess(canDirectEdit ? 'Корректировка сохранена.' : 'Запрос на корректировку отправлен. Итог изменится после согласования.');
     } catch (error) {
-      setMessage(error instanceof Error && error.message.trim() ? error.message : 'Не удалось сохранить корректировку.');
+      const failure = humanizeCellCorrectionError(error instanceof ApiError ? error : null);
+      setMessage(failure.message);
+      if (failure.recovery === 'refresh') setBlockedAtRevision(dataRevision);
+      if (failure.recovery === 'pending') setPendingRequest(true);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
-  const restoreAuto = async (): Promise<void> => {
-    if (!canDirectEdit || !isEditableDate || finalValue === autoValue) return;
-    setSaving(true);
-    setMessage(null);
-    try {
-      await onDirectChange({
-        objectId,
-        employeeId,
-        dayOfMonth,
-        dayValue: autoValue,
-      });
-      closeInteraction();
-    } catch (error) {
-      setMessage(error instanceof Error && error.message.trim() ? error.message : 'Не удалось вернуть авторасчёт.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const label = finalValue === 0 ? '—' : String(finalValue);
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className={`${timesheetStyles.timesheetCellTrigger}${selected ? ' is-selected' : ''}${isChangedManually ? ' is-manual' : ''}${!isEditableDate ? ' is-locked' : ''}`}
-        aria-label={`${employeeName}, ${dayOfMonth}.${month}.${year}: ${formatMoney(finalValue)}`}
-        aria-describedby={editorOpen ? editorId : undefined}
-        aria-pressed={selected}
-        onClick={() => {
-          if (editorOpen || menuPoint) return;
-          setSelected((current) => !current);
-        }}
-        onDoubleClick={openEditor}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          openMenu(event.clientX, event.clientY);
-        }}
-      >
-        <strong>{label}</strong>
-      </button>
-
-      {menuPoint && typeof document !== 'undefined'
-        ? createPortal(
-            <div ref={menuRef} className={timesheetStyles.timesheetCellMenu} style={menuPoint} role="menu">
-              {canMutate ? (
-                <Button role="menuitem" onClick={openEditor}>
-                  {canDirectEdit ? 'Изменить выплату' : 'Запросить корректировку'}
-                </Button>
-              ) : null}
-              {canDirectEdit && isEditableDate && isChangedManually ? (
-                <Button role="menuitem" onClick={() => void restoreAuto()} disabled={saving}>
-                  Вернуть авторасчёт
-                </Button>
-              ) : null}
-              {onOpenDetails ? (
-                <Button
-                  role="menuitem"
-                  onClick={() => {
-                    closeInteraction();
-                    onOpenDetails();
-                  }}
-                >
-                  История / детализация
-                </Button>
-              ) : null}
-              {!isEditableDate ? (
-                <div className={timesheetStyles.timesheetCellMenuHint}>
-                  Корректировка недоступна для закрытого или будущего периода.
-                </div>
-              ) : null}
-            </div>,
-            document.body,
-          )
-        : null}
-
-      {editorOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <div
-              ref={editorRef}
-              id={editorId}
-              className={timesheetStyles.timesheetCellEditor}
-              style={editorPoint}
-              role="dialog"
-              aria-modal="false"
-              aria-label="Корректировка выплаты"
-            >
-              <div className={timesheetStyles.timesheetCellEditorHeader}>
-                <div>
-                  <strong>{employeeName}</strong>
-                  <span>{objectName} · {dayOfMonth}.{String(month).padStart(2, '0')}.{year}</span>
-                </div>
-                <IconButton
-                  className={timesheetStyles.timesheetCellEditorClose}
-                  onClick={closeInteraction}
-                  aria-label="Закрыть редактор"
-                >
-                  <CloseIcon />
-                </IconButton>
-              </div>
-
-              <div className={timesheetStyles.timesheetCellEditorSummary}>
-                <span>Текущая выплата</span>
-                <strong>{formatMoney(finalValue)}</strong>
-              </div>
-
-              <label className={timesheetStyles.timesheetCellEditorField}>
-                <span>{canDirectEdit ? 'Новая выплата' : 'Запросить выплату'}</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  inputMode="numeric"
-                  value={value}
-                  onChange={(event) => setValue(event.target.value)}
-                  autoFocus
-                />
-              </label>
-
-              <label className={timesheetStyles.timesheetCellEditorField}>
-                <span>
-                  Причина {Number(value) === autoValue ? '(не требуется при возврате к авторасчёту)' : ''}
-                </span>
-                <textarea
-                  rows={3}
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  placeholder="Коротко объясните изменение"
-                />
-              </label>
-
-              {message ? <div className={timesheetStyles.timesheetCellEditorMessage}>{message}</div> : null}
-
-              <div className={timesheetStyles.timesheetCellEditorActions}>
-                <div className={timesheetStyles.timesheetCellEditorActionsLeft}>
-                  {canDirectEdit && isChangedManually && finalValue !== autoValue ? (
-                    <Button variant="ghost" size="sm" onClick={() => void restoreAuto()} disabled={saving}>
-                      Вернуть авторасчёт
-                    </Button>
-                  ) : null}
-                </div>
-                <div className={timesheetStyles.timesheetCellEditorActionsRight}>
-                  <Button size="sm" onClick={closeInteraction} disabled={saving}>
-                    Отмена
-                  </Button>
-                  <Button variant="primary" size="sm" onClick={() => void submit()} disabled={saving}>
-                    {saving ? 'Сохраняем…' : canDirectEdit ? 'Сохранить' : 'Отправить запрос'}
-                  </Button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
-    </>
-  );
+  return <>
+    <button ref={triggerRef} type="button" data-timesheet-cell={dayOfMonth} tabIndex={-1}
+      className={`${timesheetStyles.timesheetCellTrigger}${open ? ' is-selected' : ''}${isChangedManually ? ' is-manual' : ''}${!isEditableDate ? ' is-locked' : ''}`}
+      aria-label={`${objectName}, ${employeeName}, ${formatUiDate(date, { full: true })}: ${moneyFormatter.format(finalValue)}${isChangedManually ? ', ручная корректировка' : ''}`}
+      aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? detailId : undefined}
+      onClick={openDetails} onContextMenu={(event) => { event.preventDefault(); openDetails(); }}
+    >
+      <strong>{finalValue === 0 ? '—' : finalValue}</strong>
+      {isChangedManually ? <span className={styles.manualMarker} aria-hidden="true" /> : null}
+    </button>
+    {open ? <Drawer id={detailId} open={open} onOpenChange={(next) => { if (!savingRef.current) setOpen(next); }}
+      title={editing ? 'Корректировка начисления' : 'Начисление за день'}
+      description={`${objectName} · ${formatUiDate(date, { full: true })}`} busy={saving} returnFocusRef={triggerRef}
+      footer={<div className={styles.actions}>
+        {editing ? <>
+          {canDirectEdit && isChangedManually && finalValue !== autoValue ? <Button variant="ghost" disabled={saving || !canMutate} onClick={() => void mutate(true)}>Вернуть авторасчёт</Button> : null}
+          <Button disabled={saving} onClick={() => { setEditing(false); setMessage(null); }}>Отмена</Button>
+          <Button variant="primary" pending={saving} disabled={!canMutate} onClick={() => void mutate()}>{canDirectEdit ? 'Сохранить корректировку' : 'Отправить запрос'}</Button>
+        </> : <>
+          {onOpenDetails ? <Button variant="ghost" onClick={() => { setOpen(false); onOpenDetails(); }}>История / детализация</Button> : null}
+          {canOfferCorrection ? <Button disabled={!canMutate} onClick={startEditing}>{canDirectEdit ? 'Скорректировать начисление' : 'Запросить корректировку'}</Button> : null}
+        </>}
+      </div>}
+    >
+      <div className={styles.detail}>
+        <h3 className={styles.employeeName} tabIndex={-1} data-dialog-initial-focus>{employeeName}</h3>
+        <dl className={styles.facts}>
+          <div><dt>Текущее начисление</dt><dd>{moneyFormatter.format(finalValue)}</dd></div>
+          <div><dt>Автоматическое значение</dt><dd>{moneyFormatter.format(autoValue)}</dd></div>
+          <div><dt>Ручное значение</dt><dd>{entry.manualValue === null ? 'Не задано' : moneyFormatter.format(entry.manualValue)}</dd></div>
+          <div><dt>Факт выхода</dt><dd>{entry.hasFact ? 'Есть факт присутствия' : 'Факт присутствия не отмечен'}</dd></div>
+          {entry.workedHours !== null ? <div><dt>Часы</dt><dd>{entry.workedHours}</dd></div> : null}
+          {entry.difference !== 0 ? <div><dt>Отклонение от авторасчёта</dt><dd>{moneyFormatter.format(entry.difference)}</dd></div> : null}
+        </dl>
+        <p>{describeTimesheetValue(entry)}</p>
+        {entry.calculationExplanation ? <section aria-label="Пояснение расчёта"><h3>Пояснение расчёта</h3><p>{entry.calculationExplanation}</p></section> : null}
+        {comment ? <section aria-label="Причина корректировки"><h3>Причина корректировки</h3><p>{comment}</p></section> : null}
+        {'updatedAt' in entry && entry.updatedAt ? <p>Последнее изменение: {formatUiDate(entry.updatedAt, { time: true, timeZone: 'Europe/Moscow' })}{entry.updatedByUserName ? ` · ${entry.updatedByUserName}` : ''}</p> : null}
+        {!isEditableDate ? <p>Корректировка недоступна для закрытого или будущего периода.</p> : null}
+        {!canDirectEdit && canRequestCorrection && isEditableDate ? <p>Изменение доступно через запрос на согласование.</p> : null}
+        {success ? <Alert tone="success" role="status">{success}</Alert> : null}
+        {message ? <Alert tone="warning" role="alert">{message}</Alert> : null}
+        {mutationsBlocked ? <p role="status">Начисления обновляются или требуют обновления. Корректировка станет доступна после загрузки свежих данных.</p> : null}
+        {pendingRequest ? <p>Запрос по этому дню уже ожидает согласования. Повторная отправка недоступна до проверки решения в истории.</p> : null}
+        {onRefresh && (mutationsBlocked || retryBlocked) ? <Button disabled={saving || refreshing} onClick={onRefresh}>Обновить табель</Button> : null}
+        {editing ? <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void mutate(); }}>
+          <Field label="Новое начисление, ₽" required><input type="number" min="0" step="1" inputMode="numeric" value={value} disabled={saving || !canMutate} onChange={(event) => setValue(event.target.value)} autoFocus /></Field>
+          <Field label="Причина" required={Number(value) !== autoValue} description={Number(value) === autoValue ? 'Не требуется при возврате к авторасчёту.' : 'Объясните отклонение от автоматического значения.'}>
+            <textarea rows={3} value={reason} disabled={saving || !canMutate} onChange={(event) => setReason(event.target.value)} />
+          </Field>
+        </form> : null}
+      </div>
+    </Drawer> : null}
+  </>;
 }
