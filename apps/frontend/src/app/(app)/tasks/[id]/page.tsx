@@ -43,7 +43,8 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { useConfirm, useReasonPrompt } from '@/shared/ui/overlays';
-import { Alert, BackLink, Button, EmptyState, Field, LoadingState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, BackLink, Button, EmptyState, Field, IconButton, LoadingState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { CloseIcon } from '@/shared/ui/icons/icons';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
 
 export default function TaskDetailPage({
@@ -509,9 +510,9 @@ export default function TaskDetailPage({
           >
             <div className="ui-section-header">
               <div className="ui-section-title">Редактировать задачу</div>
-              <Button onClick={() => setIsEditing(false)}>
-                Закрыть
-              </Button>
+              <IconButton aria-label="Закрыть редактор задачи" title="Закрыть редактор задачи" onClick={() => setIsEditing(false)}>
+                <CloseIcon size={18} />
+              </IconButton>
             </div>
             <TaskForm
               key={`${item.id}:${item.updatedAt}`}

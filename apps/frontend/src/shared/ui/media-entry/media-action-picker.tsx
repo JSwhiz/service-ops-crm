@@ -15,7 +15,7 @@ export function MediaActionPicker({
   allowGenericFile = true,
   genericFileAccept,
   iconOnly = false,
-  compactMenu = false,
+  compactMenu = true,
   compactLabel = 'Добавить фото или файл',
   onBusyChange,
 }: {
@@ -153,7 +153,7 @@ export function MediaActionPicker({
         onChange={(event) => void handleFile(event)}
       />
 
-      {compactMenu ? (
+      {compactMenu || iconOnly ? (
         <div className={styles.menuRoot}>
           <AttachmentTrigger
             ref={triggerRef}

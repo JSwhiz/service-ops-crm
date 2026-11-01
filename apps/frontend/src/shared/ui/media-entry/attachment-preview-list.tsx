@@ -16,6 +16,7 @@ import type {
 import { Button } from '@/shared/ui/foundation';
 import { OverflowMenu, type OverflowMenuItem } from '@/shared/ui/overflow-menu/overflow-menu';
 import { FileViewer } from './file-viewer';
+import { formatFileTypeLabel } from './file-viewer-presentation';
 import compactStyles from './attachment-preview-list.module.css';
 import mediaStyles from '@/shared/ui/media-entry/media-entry.module.css';
 
@@ -35,7 +36,6 @@ function getFileTypeLabel(file: FilePreviewItem): string {
 
 function AttachmentPreviewCard({
   file,
-  compactMetadata = false,
   compact = false,
   renderFileAction,
   getFileActions,
@@ -43,7 +43,6 @@ function AttachmentPreviewCard({
   onOpenGallery,
 }: {
   file: FilePreviewItem;
-  compactMetadata?: boolean;
   compact?: boolean;
   renderFileAction?: (file: FilePreviewItem) => React.ReactNode;
   getFileActions?: (file: FilePreviewItem) => ReadonlyArray<OverflowMenuItem>;
@@ -208,7 +207,9 @@ function AttachmentPreviewCard({
         ? 'Предпросмотр недоступен'
         : view?.previewType === 'unsupported'
           ? 'Только скачивание'
-          : 'Можно открыть в браузере';
+          : view?.previewStatus === 'ready'
+            ? 'Предпросмотр'
+            : 'Проверяем формат…';
 
   return (
     <div className="attachment-file-card" onContextMenu={openContextActions} onKeyDown={openKeyboardActions}>
@@ -224,7 +225,7 @@ function AttachmentPreviewCard({
         <span className="attachment-file-card__body">
           <strong title={file.originalName}>{file.originalName}</strong>
           <span>
-            {compactMetadata ? getFileTypeLabel(file) : file.mimeType} ·{' '}
+            {formatFileTypeLabel(file)} ·{' '}
             {formatFileSize(file.sizeBytes)}
           </span>
           <span>{statusText}</span>
@@ -255,7 +256,6 @@ function AttachmentPreviewCard({
 export function AttachmentPreviewList({
   files,
   emptyText = 'Вложений пока нет.',
-  compactMetadata = false,
   compact = true,
   renderFileAction,
   getFileActions,
@@ -316,7 +316,6 @@ export function AttachmentPreviewList({
             <AttachmentPreviewCard
               key={file.id}
               file={file}
-              compactMetadata={compactMetadata}
               compact={compact}
               renderFileAction={renderFileAction}
               getFileActions={getFileActions}

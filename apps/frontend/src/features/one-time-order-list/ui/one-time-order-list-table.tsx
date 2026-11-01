@@ -10,6 +10,7 @@ import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presenta
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { OneTimeOrderPreviewDrawer } from './one-time-order-preview-drawer';
 import { StatusBadge } from '@/shared/ui/foundation';
+import { ChevronRightIcon } from '@/shared/ui/icons/icons';
 import { SortableHeader } from '@/shared/ui/data-table/sortable-header';
 import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
@@ -66,7 +67,10 @@ export function OneTimeOrderListTable({
                 className={orderStyles.oneTimeOrderPreviewRow}
                 tabIndex={0}
                 aria-label={`Быстрый просмотр заказа ${item.title}`}
-                onClick={() => setPreviewItem(item)}
+                onClick={(event) => {
+                  if (event.target instanceof Element && event.target.closest('a, button, [role="button"]')) return;
+                  setPreviewItem(item);
+                }}
                 onKeyDown={(event) => {
                   if (event.target !== event.currentTarget) return;
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -100,7 +104,9 @@ export function OneTimeOrderListTable({
                     </span>
                   ) : null}
                 </td>
-                <td data-label="Адрес" className={orderStyles.oneTimeOrderRegistryAddress} title={item.executionAddress}>{item.executionAddress || '—'}</td>
+                <td data-label="Адрес" className={orderStyles.oneTimeOrderRegistryAddress} title={item.executionAddress}>
+                  <span className={orderStyles.oneTimeOrderRegistryAddressContent}>{item.executionAddress || '—'}</span>
+                </td>
                 <td data-label="Статус">
                   <StatusBadge status={item.status}>
                     {getOneTimeOrderStatusLabel(item.status)}
@@ -131,7 +137,7 @@ export function OneTimeOrderListTable({
                 </td>
                 <td data-label="Задачи">{item.accessibleTaskCount}</td>
                 <td data-label="">
-                  <div className={orderStyles.oneTimeOrderTableActions}>
+                  <div className={`ui-action-group ${orderStyles.oneTimeOrderTableActions}`}>
                     <Link
                       href={href}
                       className={orderStyles.oneTimeOrderPreviewTrigger}
@@ -139,7 +145,7 @@ export function OneTimeOrderListTable({
                       title="Открыть полную карточку"
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <span aria-hidden="true">›</span>
+                      <ChevronRightIcon size={18} />
                     </Link>
                   </div>
                 </td>

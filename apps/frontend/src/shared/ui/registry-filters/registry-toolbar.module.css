@@ -246,7 +246,9 @@
 
 .addFilterOptionIcon svg { width: 14px; height: 14px; }
 
-.actions { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.actions { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+.actions > * { min-width: 0; max-width: 100%; }
 
 .actions :global(.ui-button) { min-height: var(--ui-control-lg); }
 
@@ -263,7 +265,6 @@
   .actions { width: 100%; }
   .filterTrigger { min-width: 0; flex: 1; }
   .filterCopy { min-width: 0; flex: 1; }
-  .actions > * { width: 100%; }
   .filterDropdown,
   .addFilterMenu { right: auto; left: 0; width: min(320px, calc(100vw - 48px)); }
 }

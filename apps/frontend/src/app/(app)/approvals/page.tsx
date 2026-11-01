@@ -866,7 +866,7 @@ function ApprovalDetail({
       {item.capabilities.canApprove ||
       item.capabilities.canReject ||
       item.capabilities.canCancel ? (
-        <div className={styles.detailActions}>
+        <div className={`ui-action-group ${styles.detailActions}`}>
           {item.capabilities.canApprove ? (
             <Button
               variant="primary"

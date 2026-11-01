@@ -1,0 +1,152 @@
+{
+  "snapshot": "/tmp/crm-actions-e-final.hvBIoc",
+  "output": "/tmp/crm-actions-e-final.hvBIoc/apps/frontend/.next",
+  "container": "service_ops_frontend",
+  "platform": "linux",
+  "arch": "arm64",
+  "node": "v22.22.3",
+  "nodeOptions": "--max-old-space-size=1024 --max-old-space-size-percentage=12",
+  "parentHeapMiB": 988,
+  "cpus": 1,
+  "pdfjsVersion": "6.4.299",
+  "originalSourceConfigSha256": "313bbd12b7c02687533a9834c38c1052cd8037ad0b47b26713cbaa19e6fbad74",
+  "snapshotConfigSha256": "bdd1f625bccc2e92d7bc047343ac17d8066740359bea0c1a786d1f409747c878",
+  "startedAt": "2026-10-31T22:50:38.942Z",
+  "finishedAt": "2026-10-31T22:51:21.439Z",
+  "exitCode": 0,
+  "signal": null,
+  "originalSourceConfigUnchanged": true,
+  "workerAssets": [
+    {
+      "file": "apps/frontend/.next/static/media/pdf.worker.min.fc1b73eb.mjs",
+      "bytes": 1182501,
+      "sha256": "3a711552b821c9f85e541f6cd9f3be3a02cdf003c583e1b22b373c237973e210"
+    }
+  ],
+  "buildId": "s7jeuv4Qkd7mQf_j-WKPQ",
+  "baseline": "6d59afa5d09fd99d197e955073e677f1f27aaa8a",
+  "archiveSha256": "a188a9b34614c0c3b6bc43220bbc266e9c81281d71e98dc973e22e7183f70239",
+  "archiveMetadataEntries": 0,
+  "archiveEntryCount": 847,
+  "before": {
+    "sourceSha256": "d62f137c37e4026eaf1a199195f92c5bb986a5bdcb3874c3c31fce37c1081541",
+    "sourceFiles": 497,
+    "trackedDiffSha256": "e4271a9208ddfe86db2a51fbe9287e4217471e778bca4f9c7474d553b2f995fe"
+  },
+  "after": {
+    "sourceSha256": "d62f137c37e4026eaf1a199195f92c5bb986a5bdcb3874c3c31fce37c1081541",
+    "sourceFiles": 497,
+    "trackedDiffSha256": "e4271a9208ddfe86db2a51fbe9287e4217471e778bca4f9c7474d553b2f995fe"
+  },
+  "sourceUnchanged": true,
+  "sourceSnapshotAlterations": [
+    "Only copied next.config.ts receives experimental.cpus: 1"
+  ],
+  "routes": 61,
+  "staticPagesGenerated": 50,
+  "backendChangedFiles": [],
+  "manifestPdfjsPin": "6.4.299",
+  "pdfjsDeclaredNodeRequirement": ">=22.13.0 || >=24",
+  "dependencyInstallByE": false,
+  "validation": {
+    "targeted-tests": {
+      "command": "/opt/homebrew/Cellar/node/26.13.0_1/bin/node",
+      "args": [
+        "--test",
+        "apps/frontend/src/features/one-time-order-list/ui/one-time-order-list-table.test.mjs",
+        "apps/frontend/src/features/one-time-order-list/ui/one-time-order-preview-drawer.test.mjs",
+        "apps/frontend/src/shared/styles/mobile-actions.test.mjs",
+        "apps/frontend/src/shared/ui/overflow-menu/overflow-menu-navigation.test.mjs",
+        "apps/frontend/src/shared/ui/media-entry/file-viewer-geometry.test.mjs",
+        "apps/frontend/src/shared/ui/media-entry/file-viewer-presentation.test.mjs",
+        "apps/frontend/src/shared/ui/media-entry/media-action-position.test.mjs",
+        "apps/frontend/src/shared/ui/media-entry/pdf-document-preview.test.mjs"
+      ],
+      "exitCode": 0,
+      "signal": null,
+      "startedAt": "2026-10-31T22:50:02.495Z",
+      "finishedAt": "2026-10-31T22:50:03.658Z",
+      "files": 8,
+      "summary": [
+        "ℹ tests 33",
+        "ℹ suites 0",
+        "ℹ pass 33",
+        "ℹ fail 0",
+        "ℹ cancelled 0",
+        "ℹ skipped 0",
+        "ℹ todo 0",
+        "ℹ duration_ms 1077.079625"
+      ]
+    },
+    "frontend-typecheck": {
+      "command": "pnpm",
+      "args": [
+        "--filter",
+        "frontend",
+        "exec",
+        "tsc",
+        "-p",
+        "tsconfig.json",
+        "--noEmit",
+        "--incremental",
+        "false"
+      ],
+      "exitCode": 0,
+      "signal": null,
+      "startedAt": "2026-10-31T22:50:03.659Z",
+      "finishedAt": "2026-10-31T22:50:09.247Z"
+    },
+    "scoped-eslint": {
+      "command": "pnpm",
+      "args": [
+        "exec",
+        "eslint",
+        "apps/frontend/src/app/(app)/approvals/page.tsx",
+        "apps/frontend/src/app/(app)/one-time-orders/[id]/page.tsx",
+        "apps/frontend/src/app/(app)/tasks/[id]/page.tsx",
+        "apps/frontend/src/features/one-time-order-list/ui/one-time-order-list-table.tsx",
+        "apps/frontend/src/features/one-time-order-list/ui/one-time-order-preview-drawer.tsx",
+        "apps/frontend/src/shared/ui/media-entry/attachment-preview-list.tsx",
+        "apps/frontend/src/shared/ui/media-entry/file-viewer.tsx",
+        "apps/frontend/src/shared/ui/media-entry/media-action-picker.tsx",
+        "apps/frontend/src/shared/ui/overflow-menu/overflow-menu-navigation.ts",
+        "apps/frontend/src/shared/ui/overflow-menu/overflow-menu.tsx",
+        "apps/frontend/src/shared/ui/media-entry/file-viewer-presentation.ts",
+        "apps/frontend/src/shared/ui/media-entry/pdf-document-preview.tsx"
+      ],
+      "exitCode": 0,
+      "signal": null,
+      "startedAt": "2026-10-31T22:50:09.281Z",
+      "finishedAt": "2026-10-31T22:50:10.525Z",
+      "files": 12
+    },
+    "css-audit": {
+      "command": "/opt/homebrew/Cellar/node/26.13.0_1/bin/node",
+      "args": [
+        "scripts/audit-css.mjs",
+        "--json"
+      ],
+      "exitCode": 1,
+      "signal": null,
+      "startedAt": "2026-10-31T22:50:10.525Z",
+      "finishedAt": "2026-10-31T22:50:11.690Z"
+    },
+    "diff-check": {
+      "command": "git",
+      "args": [
+        "diff",
+        "--check",
+        "6d59afa"
+      ],
+      "exitCode": 0,
+      "signal": null,
+      "startedAt": "2026-10-31T22:50:11.690Z",
+      "finishedAt": "2026-10-31T22:50:11.717Z"
+    }
+  },
+  "caveats": [
+    "Full CSS audit reports unused classes in four unchanged stylesheets.",
+    "Actual browser 200% zoom NOT CHECKED.",
+    "PDF canvas resizing threshold and input/output caps are not an absolute worker RSS guarantee."
+  ]
+}

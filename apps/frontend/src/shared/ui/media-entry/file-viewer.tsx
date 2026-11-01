@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 
 import {
   getFileView,
@@ -13,7 +14,13 @@ import { Button, IconButton } from '@/shared/ui/foundation';
 import { Dialog } from '@/shared/ui/overlays/overlays';
 import { ChevronLeftIcon, ChevronRightIcon, FitToScreenIcon, OneToOneIcon, SearchIcon } from '@/shared/ui/icons/icons';
 import { getLensGeometry, type LensGeometry } from './file-viewer-geometry';
+import { formatFileTypeLabel } from './file-viewer-presentation';
 import styles from './file-viewer.module.css';
+
+const PdfDocumentPreview = dynamic(
+  () => import('./pdf-document-preview').then((module) => module.PdfDocumentPreview),
+  { ssr: false, loading: () => <div className={styles.viewerState} role="status">Загружаем PDF-просмотрщик…</div> },
+);
 
 const VIEW_POLL_ATTEMPTS = 40;
 const ORIGINAL_CONTENT_PATH = (id: string): string => `/api/v1/files/${id}/content`;
@@ -226,7 +233,7 @@ export function FileViewer({
     {!onClose ? <header className={styles.header}>
       <div className={styles.metadata}>
         <h1 title={displayName}>{displayName}</h1>
-        <p>{view ? `${view.mimeType} · ${formatFileSize(view.sizeBytes)}` : error ?? 'Загрузка файла…'}</p>
+        <p>{view ? `${formatFileTypeLabel(view)} · ${formatFileSize(view.sizeBytes)}` : error ?? 'Загрузка файла…'}</p>
       </div>
       {toolbarActions}
     </header> : <div className={styles.galleryToolbar}>{toolbarActions}</div>}
@@ -248,16 +255,22 @@ export function FileViewer({
         {pollTimedOut ? error ? <span>Автообновление остановлено из-за ошибки.</span> : <Button onClick={() => { setPollTimedOut(false); setPollingRun((value) => value + 1); }}>Обновить статус</Button> : <span>Статус обновится автоматически.</span>}
       </div> : null}
       {view?.previewStatus === 'failed' ? <div className={styles.viewerState}>
-        <strong>Не удалось сформировать предпросмотр документа</strong>
+        <strong>{view.previewType === 'unsupported' ? 'Предпросмотр этого формата недоступен' : 'Не удалось сформировать предпросмотр документа'}</strong>
         <span>{view.errorMessage || 'Предпросмотр недоступен.'}</span>
         {view.previewType !== 'unsupported' ? <Button onClick={() => void handleRetry()}>Повторить</Button> : null}
+        {downloadUrl ? <a href={downloadUrl}>Скачать оригинал</a> : null}
+      </div> : null}
+      {view?.previewStatus === 'ready' && view.previewType === 'unsupported' ? <div className={styles.viewerState}>
+        <strong>Предпросмотр этого формата недоступен</strong>
+        <span>Скачайте оригинал, чтобы открыть его в подходящей программе.</span>
+        {downloadUrl ? <a href={downloadUrl}>Скачать оригинал</a> : null}
       </div> : null}
       {imageElement}
       {imageUnavailable ? <div className={styles.viewerState}>
         <strong>Не удалось открыть изображение</strong>
         <span>Оригинал файла также недоступен для просмотра. Попробуйте скачать его.</span>
       </div> : null}
-      {view?.previewStatus === 'ready' && view.previewType === 'pdf' && inlineUrl ? <iframe className={styles.pdf} src={inlineUrl} title={`Предпросмотр ${view.originalName}`} /> : null}
+      {view?.previewStatus === 'ready' && view.previewType === 'pdf' && inlineUrl ? <PdfDocumentPreview url={inlineUrl} title={view.originalName} downloadUrl={downloadUrl} /> : null}
       {view?.previewStatus === 'ready' && view.previewType === 'text' ? <div className={styles.text}>
         {textTruncated ? <p>Показаны первые 512 КБ файла.</p> : null}
         <pre>{textPreview ?? 'Загрузка текста…'}</pre>
@@ -282,7 +295,7 @@ export function FileViewer({
     }}
     onOpenChange={(open) => { if (!open) onClose(); }}
     title={<span title={displayName}>{displayName}</span>}
-    description={view ? `${view.mimeType} · ${formatFileSize(view.sizeBytes)}` : 'Загрузка предпросмотра…'}
+    description={view ? `${formatFileTypeLabel(view)} · ${formatFileSize(view.sizeBytes)}` : 'Загрузка предпросмотра…'}
     className={styles.dialog}
   >
     <div className={styles.gallery}>{viewer}</div>

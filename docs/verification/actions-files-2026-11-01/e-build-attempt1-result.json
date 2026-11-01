@@ -1,0 +1,27 @@
+{
+  "snapshot": "/tmp/crm-actions-e-build.TUCcDR",
+  "output": "/tmp/crm-actions-e-build.TUCcDR/apps/frontend/.next",
+  "container": "service_ops_frontend",
+  "platform": "linux",
+  "arch": "arm64",
+  "node": "v22.22.3",
+  "nodeOptions": "--max-old-space-size=1024 --max-old-space-size-percentage=12",
+  "parentHeapMiB": 988,
+  "cpus": 1,
+  "pdfjsVersion": "6.4.299",
+  "originalSourceConfigSha256": "313bbd12b7c02687533a9834c38c1052cd8037ad0b47b26713cbaa19e6fbad74",
+  "snapshotConfigSha256": "bdd1f625bccc2e92d7bc047343ac17d8066740359bea0c1a786d1f409747c878",
+  "startedAt": "2026-10-31T22:42:00.872Z",
+  "finishedAt": "2026-10-31T22:42:33.733Z",
+  "exitCode": 1,
+  "signal": null,
+  "originalSourceConfigUnchanged": true,
+  "workerAssets": [
+    {
+      "file": "apps/frontend/.next/static/media/pdf.worker.min.fc1b73eb.mjs",
+      "bytes": 1182501,
+      "sha256": "3a711552b821c9f85e541f6cd9f3be3a02cdf003c583e1b22b373c237973e210"
+    }
+  ],
+  "buildId": null
+}

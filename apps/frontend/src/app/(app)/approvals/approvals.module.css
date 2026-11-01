@@ -321,12 +321,7 @@
   }
 
   .detailActions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .detailActions :global(.ui-button) {
-    width: 100%;
-    min-height: 44px;
+    align-items: center;
+    justify-content: flex-start;
   }
 }

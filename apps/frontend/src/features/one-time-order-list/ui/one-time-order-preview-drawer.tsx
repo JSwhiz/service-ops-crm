@@ -96,6 +96,8 @@ export function OneTimeOrderPreviewDrawer({
   const [reviewRatingDraft, setReviewRatingDraft] = useState<number | null>(null);
   const [savingReview, setSavingReview] = useState(false);
   const [clearReviewConfirmOpen, setClearReviewConfirmOpen] = useState(false);
+  const [reviewFormOpen, setReviewFormOpen] = useState(false);
+  const [commentFormOpen, setCommentFormOpen] = useState(false);
 
   const close = useCallback(() => onClose(), [onClose]);
 
@@ -108,6 +110,8 @@ export function OneTimeOrderPreviewDrawer({
       setCommentDraft('');
       setReviewDraft('');
       setReviewRatingDraft(null);
+      setReviewFormOpen(false);
+      setCommentFormOpen(false);
       return;
     }
 
@@ -128,6 +132,8 @@ export function OneTimeOrderPreviewDrawer({
       setComments(orderComments);
       setReviewDraft(order.capabilities.canEditReview ? order.reviewText ?? '' : '');
       setReviewRatingDraft(order.reviewRating);
+      setReviewFormOpen(false);
+      setCommentFormOpen(false);
     }).catch(() => {
       if (cancelled) return;
       setError('Не удалось загрузить данные заказа. Откройте полную карточку и попробуйте снова.');
@@ -161,10 +167,13 @@ export function OneTimeOrderPreviewDrawer({
   if (!item) return null;
 
   const order = details;
+  const executionStartDate = order ? order.executionStartDate : item.executionStartDate;
+  const executionEndDate = order ? order.executionEndDate : item.executionEndDate;
+  const managers = order ? order.managers : item.managers;
   const visibleComments = comments.slice(0, 3);
   const status = order?.status ?? item.status;
   const canComment = order?.capabilities.canComment ?? item.capabilities.canComment;
-  const canEdit = order?.capabilities.canEdit ?? item.capabilities.canEdit;
+  const canEditOperationalFields = order?.capabilities.canEditOperationalFields ?? item.capabilities.canEditOperationalFields;
   const canChangeStatus = order?.capabilities.canChangeStatus ?? item.capabilities.canChangeStatus;
   const canEditReview = order?.capabilities.canEditReview ?? false;
   const reviewText = (canEditReview ? order?.reviewText : item.reviewPreview)?.trim() || '';
@@ -303,8 +312,14 @@ export function OneTimeOrderPreviewDrawer({
             <span className={styles.statusDot} aria-hidden="true" />
             {getOneTimeOrderStatusLabel(status)}
           </span>
-          <span className={styles.date}>{formatExecutionDates(item.executionStartDate, item.executionEndDate)}</span>
+          <span className={styles.date}>{formatExecutionDates(executionStartDate, executionEndDate)}</span>
         </div>
+        {!executionStartDate || !executionEndDate || managers.length === 0 ? (
+          <div className={styles.warnings} aria-label="Требует внимания">
+            {!executionStartDate || !executionEndDate ? <span className={styles.warning}>{!executionStartDate ? 'Даты не указаны' : 'Дата окончания не указана'}</span> : null}
+            {managers.length === 0 ? <span className={styles.warning}>Менеджеры не назначены</span> : null}
+          </div>
+        ) : null}
 
         {loading ? <div className={styles.notice} role="status">Загружаю данные заказа…</div> : null}
         {error ? <div className={`${styles.notice} ${styles.error}`} role="alert">{error}</div> : null}
@@ -321,7 +336,7 @@ export function OneTimeOrderPreviewDrawer({
                 </a>
               ) : <strong>Не указан</strong>}
             </div>
-            <Fact label="Менеджеры" value={item.managers.length ? <PeopleList people={item.managers} compact={false} label="Менеджеры заказа" /> : 'Не назначены'} />
+            <Fact label="Менеджеры" value={managers.length ? <PeopleList people={managers} compact={false} label="Менеджеры заказа" /> : 'Не назначены'} />
             <div className={styles.fact}>
               <span>Объект</span>
               {item.linkedObject?.canOpenObjectCard ? (
@@ -331,52 +346,6 @@ export function OneTimeOrderPreviewDrawer({
             {order?.description ? <Fact label="Описание" value={order.description} /> : null}
           </div>
         </section>
-
-        <section className={styles.reviewSummary} aria-label="Отзыв клиента">
-          <div className={styles.reviewHeading}>
-            <h3 className={styles.sectionTitle}>Отзыв клиента</h3>
-          </div>
-          {reviewText ? <p className={styles.review}>{reviewText}</p> : <p className={styles.muted}>Текст отзыва пока не добавлен.</p>}
-          {canEditReview ? (
-            <form className={styles.reviewForm} onSubmit={(event) => { event.preventDefault(); void saveReview(); }}>
-              <label className={styles.reviewLabel}>
-                <span>Текст отзыва</span>
-                <textarea
-                  value={reviewDraft}
-                  onChange={(event) => setReviewDraft(event.target.value)}
-                  placeholder="Напишите отзыв клиента"
-                  aria-label="Текст отзыва"
-                  maxLength={5000}
-                  rows={3}
-                  disabled={savingReview}
-                />
-              </label>
-              <div className={styles.reviewActions}>
-                <Button variant="primary" type="submit" disabled={savingReview || !reviewDraft.trim()}>
-                  {savingReview ? 'Сохраняю…' : 'Сохранить отзыв'}
-                </Button>
-                {order && (order.reviewText !== null || order.reviewRating !== null) ? (
-                  <Button disabled={savingReview} onClick={() => setClearReviewConfirmOpen(true)}>
-                    Удалить отзыв
-                  </Button>
-                ) : null}
-              </div>
-            </form>
-          ) : null}
-        </section>
-
-        {order ? (
-          <section className={styles.section} aria-label="Условия оплаты">
-            <h3 className={styles.sectionTitle}>Условия оплаты</h3>
-            <div className={styles.factGrid}>
-              <Fact label="Сумма заказа" value={formatMoney(order.agreedSum)} />
-              <Fact label="Способ оплаты" value={order.plannedPaymentMethod ? getOneTimeOrderPlannedPaymentMethodLabel(order.plannedPaymentMethod) : 'Не указан'} />
-              {order.financialNotes ? <Fact label="Финансовые заметки" value={order.financialNotes} /> : null}
-              {order.expenseNotes ? <Fact label="Расходы" value={order.expenseNotes} /> : null}
-            </div>
-            <p className={styles.helper}>Поступления и подотчёт оформляются в штатном разделе завершения заказа.</p>
-          </section>
-        ) : null}
 
         <section className={styles.section} aria-label="Ход выполнения">
           <h3 className={styles.sectionTitle}>Выполнение</h3>
@@ -390,6 +359,11 @@ export function OneTimeOrderPreviewDrawer({
           <div className={styles.progressRow}>
             <span>Доступные задачи</span>
             <strong>{item.accessibleTaskCount}</strong>
+          </div>
+          <div className={styles.sectionLinks}>
+            <Link className={styles.sectionLink} href={`/one-time-orders/${item.id}?section=execution#one-time-order-specification`} onClick={close}>Открыть работы и ТЗ</Link>
+            <Link className={styles.sectionLink} href={`/one-time-orders/${item.id}?section=execution#one-time-order-tasks`} onClick={close}>Открыть задачи</Link>
+            <Link className={styles.sectionLink} href={`/one-time-orders/${item.id}?section=materials`} onClick={close}>Открыть материалы</Link>
           </div>
         </section>
 
@@ -444,7 +418,7 @@ export function OneTimeOrderPreviewDrawer({
         <section className={styles.section} aria-label="Комментарии к заказу">
           <div className={styles.sectionHeading}>
             <h3 className={styles.sectionTitle}>Комментарии</h3>
-            {comments.length > 3 ? <Link href={`/one-time-orders/${item.id}`} onClick={close}>Все {comments.length}</Link> : null}
+            {comments.length > 3 ? <Link href={`/one-time-orders/${item.id}?section=discussion`} onClick={close}>Все {comments.length}</Link> : null}
           </div>
           {visibleComments.length ? (
             <div className={styles.commentList}>
@@ -457,11 +431,66 @@ export function OneTimeOrderPreviewDrawer({
             </div>
           ) : <p className={styles.muted}>Комментариев пока нет.</p>}
           {canComment ? (
-            <form className={styles.commentForm} onSubmit={(event) => { event.preventDefault(); void saveComment(); }}>
+            <>
+              <Button onClick={() => setCommentFormOpen((open) => !open)} aria-expanded={commentFormOpen} aria-controls="one-time-order-preview-comment-form">{commentFormOpen ? 'Скрыть форму' : 'Добавить комментарий'}</Button>
+              {commentFormOpen ? <form id="one-time-order-preview-comment-form" className={styles.commentForm} onSubmit={(event) => { event.preventDefault(); void saveComment(); }}>
               <textarea value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} placeholder="Добавить комментарий к заказу" aria-label="Новый комментарий" maxLength={5000} />
               <Button type="submit" disabled={!commentDraft.trim() || savingComment}>
-                {savingComment ? 'Добавляю…' : 'Добавить комментарий'}
+                {savingComment ? 'Добавляю…' : 'Сохранить комментарий'}
               </Button>
+              </form> : null}
+            </>
+          ) : null}
+        </section>
+
+        {order ? (
+          <section className={styles.section} aria-label="Условия оплаты">
+            <h3 className={styles.sectionTitle}>Условия оплаты</h3>
+            <div className={styles.factGrid}>
+              <Fact label="Плановая сумма заказа" value={formatMoney(order.agreedSum)} />
+              <Fact label="Способ оплаты" value={order.plannedPaymentMethod ? getOneTimeOrderPlannedPaymentMethodLabel(order.plannedPaymentMethod) : 'Не указан'} />
+              {order.financialNotes ? <Fact label="Финансовые заметки" value={order.financialNotes} /> : null}
+              {order.expenseNotes ? <Fact label="Расходы" value={order.expenseNotes} /> : null}
+            </div>
+            <p className={styles.helper}>Это плановые условия заказа. Полученные платежи и подотчёт смотрите в разделе финансов полной карточки.</p>
+            <Link className={styles.sectionLink} href={`/one-time-orders/${item.id}?section=finance`} onClick={close}>Открыть финансы</Link>
+          </section>
+        ) : null}
+
+        <section className={styles.reviewSummary} aria-label="Отзыв клиента">
+          <div className={styles.reviewHeading}>
+            <h3 className={styles.sectionTitle}>Отзыв клиента</h3>
+            {canEditReview ? <Button onClick={() => setReviewFormOpen((open) => !open)} aria-expanded={reviewFormOpen} aria-controls="one-time-order-preview-review-form">{reviewFormOpen ? 'Скрыть форму' : reviewText ? 'Изменить отзыв' : 'Добавить отзыв'}</Button> : null}
+          </div>
+          {reviewText ? <p className={styles.review}>{reviewText}</p> : <p className={styles.muted}>Текст отзыва пока не добавлен.</p>}
+          {canEditReview && reviewFormOpen ? (
+            <form id="one-time-order-preview-review-form" className={styles.reviewForm} onSubmit={(event) => { event.preventDefault(); void saveReview(); }}>
+              <label className={styles.reviewLabel}>
+                <span>Текст отзыва</span>
+                <textarea
+                  value={reviewDraft}
+                  onChange={(event) => setReviewDraft(event.target.value)}
+                  placeholder="Напишите отзыв клиента"
+                  aria-label="Текст отзыва"
+                  maxLength={5000}
+                  rows={3}
+                  disabled={savingReview}
+                />
+              </label>
+              <label className={styles.reviewLabel}>
+                <span>Оценка клиента (0,5–5)</span>
+                <input type="number" min="0.5" max="5" step="0.5" value={reviewRatingDraft ?? ''} onChange={(event) => setReviewRatingDraft(event.target.value ? Number(event.target.value) : null)} disabled={savingReview} />
+              </label>
+              <div className={styles.reviewActions}>
+                <Button variant="primary" type="submit" disabled={savingReview || !reviewDraft.trim()}>
+                  {savingReview ? 'Сохраняю…' : 'Сохранить отзыв'}
+                </Button>
+                {order && (order.reviewText !== null || order.reviewRating !== null) ? (
+                  <Button disabled={savingReview} onClick={() => setClearReviewConfirmOpen(true)}>
+                    Удалить отзыв
+                  </Button>
+                ) : null}
+              </div>
             </form>
           ) : null}
         </section>
@@ -469,7 +498,7 @@ export function OneTimeOrderPreviewDrawer({
         {notice ? <div className={styles.notice} role="status">{notice}</div> : null}
 
         <footer className={styles.footer}>
-          {canEdit ? <Link className={styles.secondaryAction} href={`/one-time-orders/${item.id}`} onClick={close}>Редактировать</Link> : null}
+          {canEditOperationalFields ? <Link className={styles.secondaryAction} href={`/one-time-orders/${item.id}?section=overview&edit=1`} onClick={close}>Редактировать</Link> : null}
           <Link className={styles.primaryAction} href={`/one-time-orders/${item.id}`} onClick={close}>Открыть заказ</Link>
         </footer>
       </aside>

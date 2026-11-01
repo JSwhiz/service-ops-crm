@@ -58,6 +58,8 @@
 .status[data-status='cancelled'] { border-color: var(--ui-danger-border); background: var(--ui-danger-subtle); color: var(--ui-danger); }
 .statusDot { width: 7px; height: 7px; border-radius: 2px; background: currentColor; opacity: .72; }
 .date { color: var(--ui-text-tertiary); font-size: 13px; text-align: right; }
+.warnings { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.warning { padding: 4px 8px; border: 1px solid var(--ui-warning-border); border-radius: 6px; background: var(--ui-warning-subtle); color: var(--ui-warning); font-size: 12px; line-height: 1.4; }
 
 .section { padding: 17px 0; border-top: 1px solid var(--ui-border); }
 .sectionTitle { margin: 0 0 13px; color: var(--ui-text); font-size: 14px; font-weight: 700; }
@@ -71,7 +73,7 @@
 .progressRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--ui-text-tertiary); font-size: 13px; }
 .progressRow strong { color: var(--ui-text); font-variant-numeric: tabular-nums; }
 .progressTrack { height: 6px; margin: 9px 0 16px; overflow: hidden; border-radius: 99px; background:var(--ui-surface-pressed); }
-.progressTrack > span { display: block; height: 100%; border-radius: inherit; background:var(--ui-text-secondary); transition: width 160ms ease; }
+.progressTrack > span { display: block; height: 100%; border-radius: inherit; background:var(--ui-text-secondary); }
 .reviewSummary { padding: 16px 0; border-top: 1px solid var(--ui-border); }
 .reviewHeading, .sectionHeading, .commentMeta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .reviewHeading { color: var(--ui-text-tertiary); font-size: 12px; font-weight: 650; }
@@ -80,6 +82,7 @@
 .reviewForm { display: grid; gap: 12px; margin-top: 14px; }
 .reviewLabel { display: grid; gap: 6px; color: var(--ui-text-tertiary); font-size: 12px; }
 .reviewLabel textarea { box-sizing: border-box; width: 100%; min-height: 72px; padding: 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-text); font: inherit; font-size: 13px; line-height: 1.45; resize: vertical; }
+.reviewLabel input { box-sizing: border-box; width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-text); font: inherit; font-size: 13px; }
 .reviewLabel textarea::placeholder { color: var(--ui-text-tertiary); }
 .reviewLabel textarea:focus-visible { outline: 2px solid rgba(15, 49, 201, .18); outline-offset: 1px; border-color: var(--ui-border-strong); }
 .reviewActions { display: flex; justify-content: flex-end; gap: 8px; }
@@ -87,6 +90,10 @@
 .reviewActions > button:disabled { cursor: not-allowed; opacity: .55; }
 .muted { margin: 0; color: var(--ui-text-tertiary); font-size: 13px; }
 .helper { margin: 9px 0 0; color: var(--ui-text-tertiary); font-size: 12px; line-height: 1.45; }
+.sectionLinks { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+.sectionLink { display: inline-flex; align-items: center; min-height: 30px; color: var(--ui-text-secondary); font-size: 12px; font-weight: 650; text-decoration: underline; text-decoration-color: var(--ui-border-strong); text-underline-offset: 3px; }
+.sectionLink:hover { color: var(--ui-text); }
+.sectionLink:focus-visible { outline: 2px solid rgba(15, 49, 201, .22); outline-offset: 2px; border-radius: 3px; }
 .statusAction { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .commentForm textarea { box-sizing: border-box; min-width: 0; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-surface); color: var(--ui-text); font: inherit; font-size: 13px; }
 .statusPicker { position: relative; min-width: 0; }
@@ -131,6 +138,7 @@
   .statusRow { align-items: flex-start; flex-direction: column; }
   .date { text-align: left; }
   .footer { flex-direction: column; }
+  .footer > * { flex: 0 1 auto; align-self: flex-start; }
   .statusAction { grid-template-columns: 1fr; }
-  .statusAction button { width: 100%; }
+  .statusAction > button { width: auto; }
 }

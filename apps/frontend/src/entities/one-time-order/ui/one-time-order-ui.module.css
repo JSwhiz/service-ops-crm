@@ -413,7 +413,7 @@
   -webkit-line-clamp: 2;
 }
 
-.oneTimeOrderRegistry .oneTimeOrderRegistryAddress {
+.oneTimeOrderRegistry .oneTimeOrderRegistryAddressContent {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -769,8 +769,8 @@
 
 .oneTimeOrderPreviewTrigger {
   display: inline-grid;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   padding: 0;
   border: 0;
@@ -778,8 +778,6 @@
   background: transparent;
   color: var(--ui-text-disabled);
   box-shadow: none;
-  font-size: 25px;
-  line-height: 1;
   text-decoration: none;
   transition: color 120ms ease, background-color 120ms ease;
 }
@@ -792,11 +790,16 @@
 }
 
 .oneTimeOrderPreviewTrigger:focus-visible {
-  outline: 2px solid rgba(15, 49, 201, .25);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
 }
 
 @media (max-width: 640px) {
+  .oneTimeOrderPreviewTrigger {
+    width: 44px;
+    height: 44px;
+  }
+
   .oneTimeOrderRegistryTable td:last-child {
     display: flex;
     justify-content: flex-end;

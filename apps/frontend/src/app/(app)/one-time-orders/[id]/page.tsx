@@ -224,6 +224,27 @@ export default function OneTimeOrderDetailPage({
     return () => window.removeEventListener('popstate', syncFromUrl);
   }, [confirm, isEditing, isEditFormDirty]);
 
+  useEffect(() => {
+    if (isLoading || activeSection !== 'execution') return;
+    let frame: number | undefined;
+    const revealExecutionTarget = (): void => {
+      const anchor = window.location.hash.slice(1);
+      if (anchor !== 'one-time-order-specification' && anchor !== 'one-time-order-tasks') return;
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const target = document.getElementById(anchor);
+        target?.focus({ preventScroll: true });
+        target?.scrollIntoView({ block: 'start' });
+      });
+    };
+    revealExecutionTarget();
+    window.addEventListener('hashchange', revealExecutionTarget);
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      window.removeEventListener('hashchange', revealExecutionTarget);
+    };
+  }, [activeSection, isLoading, item?.id]);
+
   const selectSection = async (section: string): Promise<void> => {
     if (isEditing && isEditFormDirty && section !== activeSectionRef.current) {
       const accepted = await confirm({
@@ -266,6 +287,16 @@ export default function OneTimeOrderDetailPage({
       }
     });
   };
+
+  useEffect(() => {
+    if (!item?.capabilities.canEditOperationalFields) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('edit') !== '1') return;
+    setIsEditing(true);
+    setIsEditFormDirty(false);
+    activeSectionRef.current = 'overview';
+    setActiveSection('overview');
+  }, [item?.id, item?.capabilities.canEditOperationalFields]);
 
   const editableInitialValue = useMemo(
     () =>
@@ -796,7 +827,9 @@ export default function OneTimeOrderDetailPage({
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-execution" role="tabpanel" aria-labelledby="workspace-tab-execution" hidden={activeSection !== 'execution'}>
+          <section id="one-time-order-specification" className={styles.executionAnchor} tabIndex={-1} aria-label="Техническое задание">
           <OneTimeOrderSpecificationPanel orderId={item.id} canManage={item.capabilities.canManageSpecification} canEditStructure={item.capabilities.canEditSpecification} orderStatus={item.status} onOpenDailyReport={() => { void selectSection('execution').then(() => { if (activeSectionRef.current === 'execution') window.setTimeout(() => document.getElementById('one-time-order-daily-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }); }} />
+          </section>
           <section className="ui-stack ui-stack--lg" aria-label="Услуги заказа">
                 <OneTimeOrderServiceLinesPanel orderId={item.id} onChanged={() => loadAll(item.id)} />
                 <div className="ui-section-subtitle">
@@ -820,6 +853,7 @@ export default function OneTimeOrderDetailPage({
               if (uploads.some((result) => result.status === 'rejected')) throw new Error('Текст отчёта сохранён. Не все вложения загрузились — повторите сохранение, уже загруженные файлы не продублируются.');
             }}
           />
+          <section id="one-time-order-tasks" className={styles.executionAnchor} tabIndex={-1} aria-label="Задачи заказа">
           <OneTimeOrderTasksPanel
             items={tasks} assigneeOptions={taskAssignees}
             canCreateTask={item.capabilities.canCreateTask}
@@ -829,6 +863,7 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+          </section>
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-materials" role="tabpanel" aria-labelledby="workspace-tab-materials" hidden={activeSection !== 'materials'}>

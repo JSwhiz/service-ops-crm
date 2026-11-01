@@ -2,7 +2,7 @@
 
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
-import { getMenuBoundaryIndex } from './overflow-menu-navigation';
+import { getMenuBoundaryIndex, getOverflowMenuPosition } from './overflow-menu-navigation';
 import styles from './overflow-menu.module.css';
 
 export interface OverflowMenuItem {
@@ -76,8 +76,9 @@ export function OverflowMenu({
 
     let bounds = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
     for (let ancestor = trigger.parentElement; ancestor; ancestor = ancestor.parentElement) {
-      const overflowY = window.getComputedStyle(ancestor).overflowY;
-      if (overflowY === 'auto' || overflowY === 'scroll') {
+      const style = window.getComputedStyle(ancestor);
+      const clips = [style.overflowX, style.overflowY].some((value) => ['auto', 'scroll', 'hidden', 'clip'].includes(value));
+      if (clips) {
         const rect = ancestor.getBoundingClientRect();
         bounds = {
           left: Math.max(bounds.left, rect.left),
@@ -85,31 +86,16 @@ export function OverflowMenu({
           right: Math.min(bounds.right, rect.right),
           bottom: Math.min(bounds.bottom, rect.bottom),
         };
-        break;
       }
     }
-    const padding = 8;
-    const availableWidth = Math.max(0, bounds.right - bounds.left - padding * 2);
-    menu.style.maxHeight = `${Math.max(0, bounds.bottom - bounds.top - padding * 2)}px`;
-    menu.style.maxWidth = `${availableWidth}px`;
-    menu.style.minWidth = `${Math.min(232, availableWidth)}px`;
     const triggerRect = trigger.getBoundingClientRect();
     const menuRect = menu.getBoundingClientRect();
-    const availableHeight = Math.max(0, bounds.bottom - bounds.top - padding * 2);
-    const height = Math.min(menuRect.height, availableHeight);
-    const belowTop = triggerRect.bottom + padding;
-    const aboveTop = triggerRect.top - height - padding;
-    const top = belowTop + height <= bounds.bottom - padding
-      ? belowTop
-      : aboveTop >= bounds.top + padding
-        ? aboveTop
-        : Math.min(bounds.bottom - height - padding, Math.max(bounds.top + padding, belowTop));
-    const left = Math.min(
-      bounds.right - menuRect.width - padding,
-      Math.max(bounds.left + padding, triggerRect.right - menuRect.width),
-    );
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top}px`;
+    const position = getOverflowMenuPosition(triggerRect, menuRect, bounds);
+    menu.style.maxHeight = `${position.maxHeight}px`;
+    menu.style.maxWidth = `${position.maxWidth}px`;
+    menu.style.minWidth = `${position.minWidth}px`;
+    menu.style.left = `${position.left}px`;
+    menu.style.top = `${position.top}px`;
   }, [open]);
 
   if (ordered.length === 0) return null;
