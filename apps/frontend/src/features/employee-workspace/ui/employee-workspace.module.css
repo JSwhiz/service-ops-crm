@@ -15,10 +15,6 @@
   min-width: 0;
 }
 
-.formPage {
-  max-width: 1040px;
-}
-
 .formSurface {
   padding: var(--ui-space-6);
 }
@@ -697,34 +693,6 @@ a.listTitle:hover {
   font-weight: 400;
   white-space: nowrap;
   text-decoration: none;
-}
-
-.objects {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ui-space-1);
-  min-width: 0;
-}
-
-.objectChip {
-  min-width: 0;
-  max-width: 100%;
-  padding: 2px 8px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-xs);
-  background: var(--ui-surface-subtle);
-  color: var(--ui-text);
-  font-size: var(--ui-text-xs);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.objectMore {
-  flex: 0 0 auto;
-  color: var(--ui-text-secondary);
-  font-size: var(--ui-text-xs);
-  font-weight: 600;
 }
 
 .cellStack {

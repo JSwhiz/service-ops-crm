@@ -199,16 +199,6 @@
   font-size: 13.5px;
 }
 
-.personText {
-  display: block;
-  overflow: hidden;
-  color: var(--ui-text);
-  font-size: 14px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .teamCell {
   white-space: normal;
 }
@@ -259,36 +249,6 @@
 
 .todaySignal[data-state='attention'] .signalDot {
   background: var(--ui-warning);
-}
-
-.managerSummary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: 100%;
-}
-
-.managerNames {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ui-text);
-  font-size: 14px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.morePeople {
-  flex: 0 0 auto;
-  padding: 2px 5px;
-  border: 1px solid var(--ui-border);
-  border-radius: 6px;
-  background: var(--ui-surface-subtle);
-  color: var(--ui-text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.2;
 }
 
 .updatedCell {

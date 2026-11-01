@@ -9,24 +9,8 @@
   margin: 0 0 2px;
 }
 
-.surface {
-  min-width: 0;
-  padding: 18px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-  box-shadow: none;
-}
-
 .page :global(.page-title) {
   margin-bottom: 2px;
-}
-
-.formActions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .muted {
@@ -34,34 +18,6 @@
   color: var(--ui-text-tertiary);
   font-size: 13px;
   line-height: 1.45;
-}
-
-.formFields label > span {
-  color: var(--ui-text-secondary);
-  font-size: 12px;
-  font-weight: 680;
-}
-
-.formFields input,
-.formFields textarea {
-  width: 100%;
-  min-width: 0;
-  min-height: 40px;
-  padding: var(--ui-space-2) var(--ui-space-3);
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-  color: var(--ui-text);
-  font: inherit;
-  font-size: var(--ui-text-md);
-  box-shadow: none;
-}
-
-.formFields input:focus,
-.formFields textarea:focus {
-  border-color: var(--ui-focus-border);
-  outline: 0;
-  box-shadow: var(--ui-focus-ring);
 }
 
 .tableScroll {
@@ -204,144 +160,8 @@
   outline-offset: 1px;
 }
 
-.emptyState {
-  color: var(--ui-text-tertiary);
-  line-height: 1.5;
-}
-
-.emptyState {
-  padding: 22px;
-  text-align: center;
-}
-
-.formFields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.formFields label {
-  min-width: 0;
-  display: grid;
-  align-content: start;
-  gap: 7px;
-}
-
-.formFields textarea {
-  min-height: 116px;
-  resize: vertical;
-}
-
-.formFields input:focus,
-.formFields textarea:focus {
-  border-color: var(--ui-focus-border);
-  outline: 0;
-  box-shadow: var(--ui-focus-ring);
-}
-
-.fullRow {
-  grid-column: 1 / -1;
-}
-
-.error {
-  padding: 12px 14px;
-  border: 1px solid var(--ui-danger-border);
-  border-radius: 9px;
-  background: var(--ui-danger-subtle);
-  color: var(--ui-danger);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.createPage {
-  max-width: 800px;
-  gap: var(--ui-space-6);
-}
-
-.createForm {
-  display: grid;
-  gap: 16px;
-}
-
-.createTitle {
-  margin: 0;
-  padding: 2px 0 13px;
-  border-bottom: 1px solid var(--ui-border);
-  color: var(--ui-text);
-  font-size: 16px;
-  font-weight: 740;
-  line-height: 1.3;
-}
-
-.createForm .formFields {
-  gap: 12px;
-}
-
-.createForm .formFields label {
-  gap: 6px;
-}
-
-.createForm .formFields label > span {
-  color: var(--ui-text-secondary);
-  font-size: 12.5px;
-  font-weight: 680;
-  line-height: 1.3;
-}
-
-.createForm .formFields input,
-.createForm .formFields textarea {
-  min-height: 42px;
-  box-sizing: border-box;
-  padding: 9px 10px;
-  border: 1px solid var(--ui-border-strong);
-  border-radius: var(--ui-radius-md);
-  background: var(--ui-surface);
-  color: var(--ui-text);
-  font-family: inherit;
-  font-size: var(--ui-text-md);
-  line-height: 1.35;
-}
-
-.createForm .formFields input::placeholder,
-.createForm .formFields textarea::placeholder {
-  color: var(--ui-text-tertiary);
-  opacity: 1;
-}
-
-.createForm .formFields textarea {
-  min-height: 100px;
-}
-
-.createForm .formFields input:focus,
-.createForm .formFields textarea:focus {
-  border-color: var(--ui-focus-border);
-  outline: 0;
-  background: var(--ui-surface);
-  box-shadow: var(--ui-focus-ring);
-}
-
-.formActions {
-  justify-content: flex-end;
-  padding-top: 14px;
-  border-top: 1px solid var(--ui-border);
-}
-
-@media (max-width: 680px) {
-  .createForm .formActions {
-    justify-content: flex-end;
-  }
-}
-
 @media (max-width: 680px) {
   .page {
     gap: 12px;
-  }
-
-  .surface {
-    padding: 14px;
-  }
-
-  .formFields {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
