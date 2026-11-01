@@ -14,6 +14,7 @@ interface OrderCapabilities {
   canChangeStatus: boolean;
   canCorrectPayments: boolean;
   canManageSpecification: boolean;
+  canEditSpecification: boolean;
   canUploadPhotos: boolean;
   canDeletePhotos: boolean;
   canRestorePhotos: boolean;
@@ -71,6 +72,9 @@ test('one-time order capabilities separate operational, financial and calendar a
   t.after(async () => {
     await prisma.auditEvent.deleteMany({
       where: { entityType: 'one_time_order', entityId: { in: orderIds } },
+    });
+    await prisma.oneTimeOrderSpecificationItem.deleteMany({
+      where: { oneTimeOrderId: { in: orderIds } },
     });
     await prisma.oneTimeOrderAssignment.deleteMany({
       where: { oneTimeOrderId: { in: orderIds } },
@@ -154,6 +158,8 @@ test('one-time order capabilities separate operational, financial and calendar a
   assert.equal(leadership.payload?.capabilities.canManageAnyAvailability, true);
   assert.equal(leadership.payload?.capabilities.canApproveAvailability, true);
   assert.equal(leadership.payload?.capabilities.canCorrectPayments, true);
+  assert.equal(leadership.payload?.capabilities.canManageSpecification, false);
+  assert.equal(leadership.payload?.capabilities.canEditSpecification, true);
 
   const creator = await getOrder(cookies.manager2);
   assert.equal(creator.response.status, 200);
@@ -162,6 +168,8 @@ test('one-time order capabilities separate operational, financial and calendar a
   assert.equal(creator.payload?.capabilities.canChangeLinkedObject, true);
   assert.equal(creator.payload?.capabilities.canManageManagers, true);
   assert.equal(creator.payload?.capabilities.canEditReview, false);
+  assert.equal(creator.payload?.capabilities.canManageSpecification, false);
+  assert.equal(creator.payload?.capabilities.canEditSpecification, false);
 
   const creatorFinancialEdit = await fetch(
     `${baseUrl}/api/v1/one-time-orders/${creatorOrder.id}`,
@@ -184,6 +192,7 @@ test('one-time order capabilities separate operational, financial and calendar a
   assert.equal(activeManager.payload?.capabilities.canManageManagers, false);
   assert.equal(activeManager.payload?.capabilities.canChangeStatus, true);
   assert.equal(activeManager.payload?.capabilities.canManageSpecification, true);
+  assert.equal(activeManager.payload?.capabilities.canEditSpecification, false);
   assert.equal(activeManager.payload?.capabilities.canUploadPhotos, true);
   assert.equal(activeManager.payload?.capabilities.canCreateTask, true);
   assert.equal(activeManager.payload?.capabilities.canManageOwnAvailability, true);
@@ -224,13 +233,83 @@ test('one-time order capabilities separate operational, financial and calendar a
   assert.equal(deputyDirector.payload?.capabilities.canChangeLinkedObject, true);
   assert.equal(deputyDirector.payload?.capabilities.canManageManagers, true);
   assert.equal(deputyDirector.payload?.capabilities.canChangeStatus, true);
-  assert.equal(deputyDirector.payload?.capabilities.canManageSpecification, true);
+  assert.equal(deputyDirector.payload?.capabilities.canManageSpecification, false);
+  assert.equal(deputyDirector.payload?.capabilities.canEditSpecification, false);
   assert.equal(deputyDirector.payload?.capabilities.canUploadPhotos, true);
   assert.equal(deputyDirector.payload?.capabilities.canCreateTask, true);
   assert.equal(deputyDirector.payload?.capabilities.canCorrectPayments, true);
   assert.equal(deputyDirector.payload?.capabilities.canEditReview, true);
   assert.equal(deputyDirector.payload?.capabilities.canManageAnyAvailability, true);
   assert.equal(deputyDirector.payload?.capabilities.canApproveAvailability, true);
+
+  await t.test('specification structure and execution enforce R1/R2 independently', async () => {
+    const itemsUrl = `${baseUrl}/api/v1/one-time-orders/${creatorOrder.id}/specification-items`;
+    const createItem = (cookie: string) => fetch(itemsUrl, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Пункт, сформированный руководством' }),
+    });
+    for (const cookie of [cookies.manager1, cookies.manager2, cookies.deputy1]) {
+      assert.equal((await createItem(cookie)).status, 403);
+    }
+    const created = await createItem(cookies.founder);
+    assert.equal(created.status, 201);
+    const item = (await created.json()) as { id: string };
+    const completeUrl = `${itemsUrl}/${item.id}/complete`;
+    const reopenUrl = `${itemsUrl}/${item.id}/reopen`;
+    const execute = (url: string, cookie: string) => fetch(url, {
+      method: 'POST', headers: { Cookie: cookie },
+    });
+
+    for (const cookie of [cookies.founder, cookies.manager2, cookies.deputy1]) {
+      assert.equal((await execute(completeUrl, cookie)).status, 403);
+    }
+    assert.equal((await execute(completeUrl, cookies.manager1)).status, 201);
+    const completed = await prisma.oneTimeOrderSpecificationItem.findUniqueOrThrow({
+      where: { id: item.id },
+    });
+    assert.equal(completed.isCompleted, true);
+    assert.equal(completed.completedByUserId, managerOne.id);
+
+    const leadershipAssignment = await prisma.oneTimeOrderAssignment.create({
+      data: {
+        oneTimeOrderId: creatorOrder.id,
+        userId: founder.id,
+        assignmentRoleCode: 'one_time_manager',
+        isActive: true,
+      },
+    });
+    const assignedLeadership = await getOrder(cookies.founder);
+    assert.equal(assignedLeadership.payload?.capabilities.canManageSpecification, true);
+    assert.equal(assignedLeadership.payload?.capabilities.canEditSpecification, true);
+    assert.equal((await execute(reopenUrl, cookies.founder)).status, 201);
+    await prisma.oneTimeOrderAssignment.update({
+      where: { id: leadershipAssignment.id }, data: { isActive: false },
+    });
+    const removedLeadership = await getOrder(cookies.founder);
+    assert.equal(removedLeadership.response.status, 200);
+    assert.equal(removedLeadership.payload?.capabilities.canManageSpecification, false);
+    assert.equal(removedLeadership.payload?.capabilities.canEditSpecification, true);
+    assert.equal((await execute(completeUrl, cookies.founder)).status, 403);
+
+    await prisma.oneTimeOrder.update({
+      where: { id: creatorOrder.id }, data: { status: 'completed' },
+    });
+    assert.equal((await execute(completeUrl, cookies.manager1)).status, 409);
+    await prisma.oneTimeOrder.update({
+      where: { id: creatorOrder.id }, data: { status: 'in_progress' },
+    });
+    assert.equal((await execute(completeUrl, cookies.manager1)).status, 201);
+    await prisma.oneTimeOrderAssignment.updateMany({
+      where: { oneTimeOrderId: creatorOrder.id, userId: managerOne.id },
+      data: { isActive: false },
+    });
+    assert.equal((await getOrder(cookies.manager1)).response.status, 404);
+    assert.equal((await execute(reopenUrl, cookies.manager1)).status, 404);
+    assert.equal((await prisma.oneTimeOrderSpecificationItem.findUniqueOrThrow({
+      where: { id: item.id },
+    })).isCompleted, true);
+  });
 
   const deputyMeResponse = await fetch(`${baseUrl}/api/v1/auth/me`, {
     headers: { Cookie: cookies.deputy1 },

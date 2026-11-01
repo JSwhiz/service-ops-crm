@@ -127,7 +127,13 @@ jobs:
       - name: Frontend typecheck
         run: pnpm --filter frontend typecheck
 
+      - name: Backend integration test typecheck
+        run: pnpm --filter backend exec tsc -p tsconfig.integration.json
+
       - name: Backend integration tests
+        # Check all test types once above, not again in every isolated process.
+        env:
+          TS_NODE_TRANSPILE_ONLY: 'true'
         run: pnpm --filter backend test:integration
 
       - name: Full repository CI check
