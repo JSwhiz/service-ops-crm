@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   addVisitPlanEntry,
   createVisitPlan,
+  getVisitPlanObjectOptions,
   getPlanHistory,
   getPlanManagers,
   getVisitPlan,
@@ -13,13 +14,13 @@ import {
   type VisitPlan,
   type VisitPlanDay,
 } from "@/entities/visit-plan/api/visit-plan-client";
-import { listObjectsPage } from "@/entities/object/api/object-client";
 import { ApiError } from "@/shared/api/fetcher";
 import {
   Alert,
   Button,
   EmptyState,
   Field,
+  IconButton,
   LoadingState,
   PageHeader,
   Stack,
@@ -28,7 +29,9 @@ import {
 import { DatePicker } from "@/shared/ui/date-picker/date-picker";
 import { Select } from "@/shared/ui/searchable-select/select";
 import { SearchableSelect } from "@/shared/ui/searchable-select/searchable-select";
+import { RefreshIcon, ChevronLeftIcon, ChevronRightIcon } from "@/shared/ui/icons/icons";
 import styles from "./visit-plans.module.css";
+import { resolveIsoDay, shiftIsoDay, visitPlanEmptyCopy } from "../calendar-date-helpers";
 
 const historyLabels: Record<string, string> = {
   "visit_plan.created": "План создан",
@@ -45,6 +48,10 @@ const mutationError = (error: unknown) =>
   error instanceof ApiError && error.statusCode === 409
     ? "План изменился. Обновите данные перед сохранением; введённый текст сохранён в форме."
     : "Не удалось сохранить план. Проверьте данные и права доступа.";
+const visitEntryMutationError = (error: unknown) =>
+  error instanceof ApiError && error.statusCode === 403
+    ? "Объект недоступен в плане выбранного менеджера. Выберите другой объект; текущий выбор сохранён."
+    : mutationError(error);
 
 export default function VisitPlansPage(): React.JSX.Element {
   const [date, setDate] = useState(today);
@@ -71,7 +78,7 @@ export default function VisitPlansPage(): React.JSX.Element {
   useEffect(() => {
     const sync = () => {
       const params = new URLSearchParams(window.location.search);
-      setDate(params.get("date") ?? today());
+      setDate(resolveIsoDay(params.get("date"), today()));
       setManagerId(params.get("managerUserId") ?? "");
     };
     sync();
@@ -133,6 +140,7 @@ export default function VisitPlansPage(): React.JSX.Element {
     setData(null);
     setHistory([]);
     setDate(nextDate);
+    if (nextManager !== managerId) setObjectId("");
     setManagerId(nextManager);
     const url = new URL(window.location.href);
     url.searchParams.set("date", nextDate);
@@ -141,7 +149,10 @@ export default function VisitPlansPage(): React.JSX.Element {
     window.history.pushState(null, "", `${url.pathname}${url.search}`);
   };
 
-  const mutate = async (action: () => Promise<VisitPlan>) => {
+  const mutate = async (
+    action: () => Promise<VisitPlan>,
+    getErrorMessage: (error: unknown) => string = mutationError,
+  ) => {
     if (pending) return;
     setPending(true);
     setError(null);
@@ -150,27 +161,55 @@ export default function VisitPlansPage(): React.JSX.Element {
       setData((current) => (current ? { ...current, plan } : current));
       setHistory(await getPlanHistory(plan.id));
     } catch (failure) {
-      setError(mutationError(failure));
+      setError(getErrorMessage(failure));
     } finally {
       setPending(false);
     }
   };
   const plan = data?.plan;
+  const objectOptionsManagerId = managerId || plan?.manager.id || "";
+  const currentDate = today();
+  const emptyPlanCopy = visitPlanEmptyCopy(date, Boolean(data?.capabilities.canManage), Boolean(managerId));
   return (
     <div className={`ui-page ${styles.page}`}>
       <PageHeader title="План посещений на день" />
       <Stack gap="lg">
-        <Surface padding="md" className={styles.formPanel}>
-          <div className={styles.fields}>
-            <Field label="Дата">
+        <div className={styles.dateToolbar} role="group" aria-label="Дата плана">
+          <div className={styles.dateNavigation}>
+            <IconButton
+              aria-label="Предыдущий день"
+              disabled={pending || reportDirty}
+              onClick={() => select(shiftIsoDay(date, -1), managerId)}
+            >
+              <ChevronLeftIcon />
+            </IconButton>
+            <Field label="Дата" className={styles.dateField}>
               <DatePicker
                 value={date}
+                clearable={false}
                 disabled={pending || reportDirty}
-                onChange={(value) => select(value, managerId)}
+                onChange={(value) => { if (value) select(value, managerId); }}
               />
             </Field>
+            <IconButton
+              aria-label="Следующий день"
+              disabled={pending || reportDirty}
+              onClick={() => select(shiftIsoDay(date, 1), managerId)}
+            >
+              <ChevronRightIcon />
+            </IconButton>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={pending || reportDirty || date === currentDate}
+              onClick={() => select(currentDate, managerId)}
+            >
+              Сегодня
+            </Button>
+          </div>
+          <div className={styles.dateOptions}>
             {data?.capabilities.canManage ? (
-              <Field label="Менеджер" error={managersLoadFailed ? "Список менеджеров не загружен. Обновите данные." : undefined}>
+              <Field label="Менеджер" className={styles.managerField} error={managersLoadFailed ? "Список менеджеров не загружен. Обновите данные." : undefined}>
                 <Select
                   value={managerId}
                   disabled={pending || reportDirty}
@@ -185,21 +224,26 @@ export default function VisitPlansPage(): React.JSX.Element {
                 </Select>
               </Field>
             ) : null}
+            <IconButton
+              aria-label="Обновить план"
+              title="Обновить план"
+              disabled={pending || reportDirty}
+              onClick={() => void load()}
+            >
+              <RefreshIcon />
+            </IconButton>
           </div>
           {reportDirty ? (
             <div className="ui-text-muted">
               Сохраните отчёт или отмените изменения перед сменой дня.
             </div>
           ) : null}
-        </Surface>
+        </div>
         {error ? (
           <Alert tone="danger" role="alert">
             {error}
           </Alert>
         ) : null}
-        <Button disabled={pending} onClick={() => void load()}>
-          Обновить данные
-        </Button>
         {loading ? (
           <LoadingState label="Загрузка плана" />
         ) : plan ? (
@@ -242,21 +286,25 @@ export default function VisitPlansPage(): React.JSX.Element {
               />
             ))}
             {!plan.entries.length ? (
-              <EmptyState title="Визитов пока нет" />
+              <EmptyState title="Визитов пока нет" description={data.capabilities.canManage ? "Добавьте визит в форме ниже." : "Визиты добавляет пользователь с правом управления планом."} />
             ) : null}
             {data.capabilities.canManage ? (
               <Surface padding="md" className={styles.formPanel}>
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
-                    void mutate(() =>
-                      addVisitPlanEntry(plan.id, {
-                        expectedVersion: plan.version,
-                        ...(entryType === "object"
-                          ? { objectId }
-                          : { clientName }),
-                        isUnplanned,
-                      }),
+                    void mutate(
+                      () =>
+                        addVisitPlanEntry(plan.id, {
+                          expectedVersion: plan.version,
+                          ...(entryType === "object"
+                            ? { objectId }
+                            : { clientName }),
+                          isUnplanned,
+                        }),
+                      entryType === "object"
+                        ? visitEntryMutationError
+                        : mutationError,
                     );
                   }}
                 >
@@ -285,27 +333,38 @@ export default function VisitPlansPage(): React.JSX.Element {
                         />
                       </Field>
                     ) : (
-                      <SearchableSelect
-                        label="Объект"
-                        value={objectId}
-                        disabled={pending}
-                        onChange={setObjectId}
-                      options={[]}
-                      asyncSearch={async (q) =>
-                          (
-                            await listObjectsPage({
+                      <div>
+                        <div
+                          id="visit-plan-object-label"
+                          className="ui-detail-label"
+                        >
+                          Объект
+                        </div>
+                        <SearchableSelect
+                          label="Объект"
+                          hideLabel
+                          value={objectId}
+                          disabled={pending || !objectOptionsManagerId}
+                          onChange={setObjectId}
+                          options={[]}
+                          triggerProps={{
+                            "aria-labelledby": "visit-plan-object-label",
+                          }}
+                          minimumSearchLength={2}
+                          searchPromptText="Введите не менее 2 символов для поиска объектов"
+                          asyncSearch={async (q) => {
+                            if (!objectOptionsManagerId) return [];
+                            const result = await getVisitPlanObjectOptions(
+                              objectOptionsManagerId,
                               q,
-                              page: 1,
-                              limit: 20,
-                              sortBy: "name",
-                              sortDirection: "asc",
-                            })
-                          ).items.map((object) => ({
-                            value: object.id,
-                            label: object.name,
-                          }))
-                        }
-                      />
+                            );
+                            return result.items.map((object) => ({
+                              value: object.id,
+                              label: object.name,
+                            }));
+                          }}
+                        />
+                      </div>
                     )}
                     <label className={styles.checkbox}>
                       <input
@@ -415,10 +474,10 @@ export default function VisitPlansPage(): React.JSX.Element {
             </Surface>
           </>
         ) : data ? (
-          <Surface padding="md" className={styles.formPanel}>
-            <EmptyState title="На этот день плана нет" />
+          <div className={styles.emptyPlan}>
+            <EmptyState title={emptyPlanCopy.title} description={emptyPlanCopy.description} />
             {data.capabilities.canManage && managerId ? (
-              <Stack gap="md">
+              <div className={styles.emptyPlanAction}>
                 <Field label="Срок отчёта, МСК (необязательно)">
                   <DatePicker
                     withTime
@@ -447,9 +506,9 @@ export default function VisitPlansPage(): React.JSX.Element {
                 >
                   Создать план
                 </Button>
-              </Stack>
+              </div>
             ) : null}
-          </Surface>
+          </div>
         ) : null}
       </Stack>
     </div>

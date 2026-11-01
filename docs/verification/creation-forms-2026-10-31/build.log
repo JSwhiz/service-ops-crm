@@ -1,0 +1,116 @@
+   ▲ Next.js 15.5.14
+   - Experiments (use with caution):
+     · cpus: 1
+
+   Creating an optimized production build ...
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|javascript/auto|/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-flight-css-loader.js??ruleSet[1].rules[14].oneOf[5].use[0]!/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[1]!/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!/tmp/crm-E-production.0iMsyG/apps/frontend/src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css|ssr': No serializer registered for Warning
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> Array { 1 items } -> webpack/lib/ModuleWarning -> Warning
+ ⚠ Compiled with warnings in 15.7s
+
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+Warning
+
+(1:72) autoprefixer: end value has mixed support, consider using flex-end instead
+
+Import trace for requested module:
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+./src/features/one-time-order-operations/ui/one-time-order-escorts-panel.tsx
+./src/app/(app)/one-time-orders/[id]/page.tsx
+
+<w> [webpack.cache.PackFileCacheStrategy] Skipped not serializable cache item 'Compilation/modules|/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!/workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!/tmp/crm-E-production.0iMsyG/apps/frontend/src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css': No serializer registered for Warning
+<w> while serializing webpack/lib/cache/PackFileCacheStrategy.PackContentItems -> webpack/lib/NormalModule -> Array { 1 items } -> webpack/lib/ModuleWarning -> Warning
+ ⚠ Compiled with warnings in 8.8s
+
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css.webpack[javascript/auto]!=!../../../../workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!../../../../workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+Warning
+
+(1:72) autoprefixer: end value has mixed support, consider using flex-end instead
+
+Import trace for requested module:
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css.webpack[javascript/auto]!=!../../../../workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[2]!../../../../workspace/node_modules/.pnpm/next@15.5.14_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[5].use[3]!./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+./src/features/one-time-order-operations/ui/one-time-order-compact-actions.module.css
+./src/features/one-time-order-operations/ui/one-time-order-escorts-panel.tsx
+./src/app/(app)/one-time-orders/[id]/page.tsx
+
+ ✓ Compiled successfully in 24.6s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/50) ...
+   Generating static pages (12/50) 
+   Generating static pages (24/50) 
+   Generating static pages (37/50) 
+ ✓ Generating static pages (50/50)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                    Size  First Load JS
+┌ ○ /                                         133 B         103 kB
+├ ○ /_not-found                                1 kB         104 kB
+├ ○ /(.)candidates/new                      5.07 kB         125 kB
+├ ○ /(.)counterparties/new                  3.85 kB         118 kB
+├ ○ /(.)employees/new                       4.76 kB         129 kB
+├ ○ /(.)equipment/new                       1.58 kB         121 kB
+├ ○ /(.)inventory/new                       3.88 kB         118 kB
+├ ○ /(.)objects/new                         3.29 kB         149 kB
+├ ○ /(.)one-time-orders/new                 3.58 kB         137 kB
+├ ○ /(.)rubber-mats/new                     3.32 kB         118 kB
+├ ○ /(.)tasks/new                           5.55 kB         139 kB
+├ ○ /(.)user-absences/new                     277 B         126 kB
+├ ƒ /[...catchAll]                            133 B         103 kB
+├ ○ /accountability                         16.1 kB         144 kB
+├ ○ /accountability/queue                   5.45 kB         112 kB
+├ ○ /approvals                              12.2 kB         131 kB
+├ ○ /candidates                             1.91 kB         129 kB
+├ ƒ /candidates/[id]                        13.8 kB         128 kB
+├ ○ /candidates/new                           378 B         138 kB
+├ ○ /chats                                  18.5 kB         145 kB
+├ ○ /counterparties                          1.9 kB         124 kB
+├ ƒ /counterparties/[id]                    12.5 kB         136 kB
+├ ○ /counterparties/new                     3.06 kB         130 kB
+├ ○ /dashboard                              19.4 kB         129 kB
+├ ○ /employees                                 4 kB         132 kB
+├ ƒ /employees/[id]                         16.8 kB         145 kB
+├ ○ /employees/new                          3.04 kB         141 kB
+├ ○ /employees/reserve                      3.32 kB         131 kB
+├ ○ /equipment                              1.91 kB         130 kB
+├ ƒ /equipment/[id]                         10.6 kB         134 kB
+├ ○ /equipment/new                            329 B         139 kB
+├ ƒ /files/[fileId]/view                    4.02 kB         118 kB
+├ ○ /inventory                               1.9 kB         125 kB
+├ ƒ /inventory/[id]                         4.77 kB         143 kB
+├ ○ /inventory/movements                    5.36 kB         144 kB
+├ ○ /inventory/new                          3.02 kB         131 kB
+├ ○ /inventory/reports                      4.52 kB         127 kB
+├ ○ /login                                  3.21 kB         106 kB
+├ ○ /objects                                2.21 kB         159 kB
+├ ƒ /objects/[id]                           31.7 kB         204 kB
+├ ƒ /objects/[id]/edit                      4.53 kB         138 kB
+├ ƒ /objects/[id]/history                   5.28 kB         115 kB
+├ ○ /objects/new                              224 B         183 kB
+├ ○ /one-time-orders                        3.57 kB         141 kB
+├ ƒ /one-time-orders/[id]                   32.3 kB         188 kB
+├ ƒ /one-time-orders/[id]/workforce         10.5 kB         125 kB
+├ ○ /one-time-orders/attention              7.48 kB         117 kB
+├ ○ /one-time-orders/calendar               10.3 kB         133 kB
+├ ○ /one-time-orders/new                      213 B         151 kB
+├ ○ /one-time-orders/specification-catalog  6.22 kB         121 kB
+├ ○ /rubber-mats                             1.9 kB         124 kB
+├ ○ /rubber-mats/new                           3 kB         130 kB
+├ ○ /settings                                 169 B         106 kB
+├ ○ /tasks                                  1.91 kB         130 kB
+├ ƒ /tasks/[id]                              8.8 kB         150 kB
+├ ○ /tasks/new                               3.3 kB         147 kB
+├ ○ /timesheet                                10 kB         123 kB
+├ ○ /user-absences                            188 B         128 kB
+├ ○ /user-absences/new                        318 B         132 kB
+├ ○ /user-substitutions                     7.98 kB         127 kB
+└ ○ /visit-plans                            6.18 kB         121 kB
++ First Load JS shared by all                103 kB
+  ├ chunks/9790-bf906906576907ea.js         46.6 kB
+  ├ chunks/d4b07c72-aed0efc43b5d60b2.js     54.2 kB
+  └ other shared chunks (total)             2.07 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

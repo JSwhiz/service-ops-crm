@@ -68,6 +68,7 @@ export function CandidateManagerFields({
   requireManager?: boolean;
 }): React.JSX.Element {
   const objectCache = useRef(new Map<string, CandidateObjectSummary>());
+  const managerCache = useRef(new Map<string, NonNullable<CandidateManagerDraft['manager']>>());
   const update = (key: string, patch: Partial<CandidateManagerDraft>): void =>
     onChange(rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   return (
@@ -92,8 +93,10 @@ export function CandidateManagerFields({
               }
               placeholder="Выберите менеджера"
               searchPlaceholder="ФИО или логин"
-              asyncSearch={async (query) =>
-                (await listCandidateManagers({ q: query }))
+              asyncSearch={async (query) => {
+                const available = await listCandidateManagers({ q: query });
+                for (const manager of available) managerCache.current.set(manager.id, manager);
+                return available
                   .filter(
                     (manager) =>
                       manager.id === row.managerUserId ||
@@ -103,10 +106,10 @@ export function CandidateManagerFields({
                     value: manager.id,
                     label: manager.fullName || manager.login,
                     description: `@${manager.login}`,
-                  }))
-              }
+                  }));
+              }}
               onChange={(managerUserId) =>
-                update(row.key, { managerUserId, manager: undefined })
+                update(row.key, { managerUserId, manager: managerCache.current.get(managerUserId) })
               }
             />
             <SearchableSelect

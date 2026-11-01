@@ -4,6 +4,7 @@ import React from 'react';
 
 import type { ObjectAuditLogItem } from '@/entities/object/model/object.types';
 import styles from '@/features/object-shared-ui/object-surfaces.module.css';
+import { ActivityTimeline } from '@/shared/ui/activity-timeline/activity-timeline';
 import {
   getUserDisplayName,
   getUserSecondaryLabel,
@@ -42,6 +43,28 @@ const FIELD_LABELS: Record<string, string> = {
 
 function getActionLabel(actionCode: string): string {
   switch (actionCode) {
+    case 'daily_report.draft_saved':
+      return 'Сохранён черновик ежедневного отчёта';
+    case 'daily_report.submitted':
+      return 'Ежедневный отчёт отправлен';
+    case 'daily_report.attachments_corrected':
+      return 'Исправлены вложения ежедневного отчёта';
+    case 'scheduling_employee_assigned':
+      return 'Сотрудник назначен в график';
+    case 'scheduling_position_created':
+      return 'Создана штатная позиция';
+    case 'scheduling_position_archived':
+      return 'Штатная позиция архивирована';
+    case 'scheduling_position_versioned':
+      return 'Сохранена новая версия графика';
+    case 'scheduling_contour_created':
+      return 'Созданы условия оплаты';
+    case 'scheduling_contour_updated':
+      return 'Условия оплаты изменены';
+    case 'scheduling_shift_confirmed':
+      return 'Выход по графику подтверждён';
+    case 'scheduling_shift_cancelled':
+      return 'Выход по графику отменён';
     case 'object.contact.created':
       return 'Добавлен контакт';
     case 'object.contact.updated':
@@ -166,31 +189,17 @@ export function ObjectHistoryList({
 
   return (
     <section className={`${styles.surface} ${styles.historySurface}`}>
-      <div className={styles.recordList}>
-        {items.map((item) => {
+      <ActivityTimeline entries={items.map((item) => {
           const changes = item.payload
             ? getReadableChanges(item.payload as Record<string, unknown>)
             : [];
 
-          return (
-            <article key={item.id} className={styles.recordCard}>
-              <div className={styles.auditHeader}>
-                <div>
-                  <div className={styles.recordTitle}>
-                    {getActionLabel(item.actionCode)}
-                  </div>
-                  <div className={styles.muted}>
-                    {getUserDisplayName(item.actor)}
-                    {getUserSecondaryLabel(item.actor)
-                      ? ` · ${getUserSecondaryLabel(item.actor)}`
-                      : ''}
-                  </div>
-                </div>
-                <time className={styles.auditTime}>
-                  {new Date(item.createdAt).toLocaleString('ru-RU')}
-                </time>
-              </div>
-
+          return {
+            id: item.id,
+            title: getActionLabel(item.actionCode),
+            occurredAt: item.createdAt,
+            actor: [getUserDisplayName(item.actor), getUserSecondaryLabel(item.actor)].filter(Boolean).join(' · '),
+            children: <>
               {changes.length > 0 ? (
                 <details className={styles.auditTechnical}>
                   <summary>Подробности</summary>
@@ -212,10 +221,13 @@ export function ObjectHistoryList({
                 </div>
                 </details>
               ) : null}
-            </article>
-          );
-        })}
-      </div>
+              {item.payload ? <details className={styles.auditTechnical}>
+                <summary>Технические сведения события</summary>
+                <pre className={styles.auditPayload}>{JSON.stringify({ action: item.actionCode, payload: item.payload }, null, 2)}</pre>
+              </details> : null}
+            </>,
+          };
+        })} />
     </section>
   );
 }

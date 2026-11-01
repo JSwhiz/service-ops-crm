@@ -1,0 +1,6 @@
+.date { width: min(100%, 260px); flex: 0 1 260px; }
+.body { display: grid; gap: 16px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.selected { display: grid; gap: 6px; }
+.selected > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.selected span { overflow-wrap: anywhere; }
+.selected small { display: block; color: var(--ui-text-secondary); }

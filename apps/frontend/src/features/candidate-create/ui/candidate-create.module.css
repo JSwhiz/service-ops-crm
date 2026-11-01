@@ -1,0 +1,7 @@
+.footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.phoneArea { grid-column: 1 / -1; width: min(100%, 300px); min-width: 0; }
+@media (max-width: 520px) {
+  .footer { flex-direction: column-reverse; }
+  .footer > * { width: 100%; }
+  .phoneArea { width: 100%; }
+}

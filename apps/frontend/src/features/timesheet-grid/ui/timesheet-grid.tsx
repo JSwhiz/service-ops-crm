@@ -9,6 +9,9 @@ import {
 } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { isTimesheetDateEditable } from '@/shared/lib/timesheet-edit-window';
 import timesheetStyles from '@/entities/timesheet/ui/timesheet-ui.module.css';
+import { TimesheetIdentity } from '@/entities/timesheet/ui/timesheet-identity';
+import { TimesheetScrollRegion } from './timesheet-scroll-region';
+import { TimesheetDayHeading } from './timesheet-day-heading';
 
 const moneyFormatter = new Intl.NumberFormat('ru-RU', {
   style: 'currency',
@@ -38,8 +41,8 @@ function getCellTitle(params: {
   calculationExplanation: string | null;
 }): string | undefined {
   const base = [
-    `Auto: ${params.autoValue}`,
-    `Final: ${params.finalValue}`,
+    `Автоматическое значение: ${params.autoValue}`,
+    `Начислено: ${params.finalValue}`,
     params.difference !== 0 ? `Отклонение: ${params.difference}` : null,
     params.calculationExplanation,
   ]
@@ -81,16 +84,17 @@ export function TimesheetGrid({
             ? `${moneyFormatter.format(timesheet.objectMonthlySalary)} / месяц`
             : `${moneyFormatter.format(timesheet.objectDailyRate)} / выход`}
         </div>
-        <div><strong>Аванс:</strong> {moneyFormatter.format(timesheet.advanceTotal)}</div>
-        <div><strong>ЗП:</strong> {moneyFormatter.format(timesheet.salaryTotal)}</div>
+        <div><strong>Аванс (начислено):</strong> {moneyFormatter.format(timesheet.advanceTotal)}</div>
+        <div><strong>Зарплата (начислено):</strong> {moneyFormatter.format(timesheet.salaryTotal)}</div>
         <div><strong>Итого:</strong> {moneyFormatter.format(timesheet.monthTotal)}</div>
       </div>
 
       <div className={timesheetStyles.timesheetShell}>
-        <div className={timesheetStyles.timesheetScroll}>
+        <TimesheetScrollRegion year={timesheet.year} month={timesheet.month} stickyWidth={160} className={timesheetStyles.timesheetScroll ?? ''}>
           <table className={timesheetStyles.timesheetTable}>
+            <caption className={timesheetStyles.timesheetCaption}>Начисления по дням, ₽. Прочерк означает 0 ₽; маркер — ручная корректировка. Выберите ячейку для просмотра. Стрелки перемещают фокус.</caption>
             <colgroup>
-              <col style={{ width: 240 }} />
+              <col style={{ width: 160 }} />
               {days.map((day) => <col key={day} style={{ width: 76 }} />)}
               <col style={{ width: 120 }} />
               <col style={{ width: 120 }} />
@@ -99,21 +103,22 @@ export function TimesheetGrid({
 
             <thead>
               <tr>
-                <th className={timesheetStyles.timesheetTableStickyLeft}>Сотрудник</th>
-                {days.map((day) => <th key={day}>{day}</th>)}
-                <th className={timesheetStyles.timesheetTableSummary}>Аванс</th>
-                <th className={timesheetStyles.timesheetTableSummary}>ЗП</th>
-                <th className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableStickyRight}`}>Итого</th>
+                <th scope="col" className={timesheetStyles.timesheetTableStickyLeft}>Сотрудник</th>
+                {days.map((day) => <TimesheetDayHeading key={day} year={timesheet.year} month={timesheet.month} day={day} />)}
+                <th scope="col" className={timesheetStyles.timesheetTableSummary}>Аванс (начислено)</th>
+                <th scope="col" className={timesheetStyles.timesheetTableSummary}>Зарплата (начислено)</th>
+                <th scope="col" data-sticky-total className={`${timesheetStyles.timesheetTableSummary} ${timesheetStyles.timesheetTableStickyRight}`}>Итого</th>
               </tr>
             </thead>
 
             <tbody>
               {timesheet.rows.map((row) => (
                 <tr key={row.employeeId}>
-                  <td className={`${timesheetStyles.timesheetTableStickyLeft} ${timesheetStyles.timesheetTableName}`}>{row.employeeName}</td>
+                  <th scope="row" className={`${timesheetStyles.timesheetTableStickyLeft} ${timesheetStyles.timesheetTableName}`}><TimesheetIdentity name={row.employeeName} person /></th>
                   {row.entries.map((entry) => (
                     <td
                       key={entry.dayOfMonth}
+                      data-timesheet-day={entry.dayOfMonth}
                       className={getCellClassNames({ isChangedManually: entry.isChangedManually, hasFact: entry.hasFact })}
                       title={getCellTitle({
                         isChangedManually: entry.isChangedManually,
@@ -126,6 +131,7 @@ export function TimesheetGrid({
                       })}
                     >
                       <TimesheetCellEditor
+                        entry={entry}
                         objectId={timesheet.objectId}
                         objectName={timesheet.objectName}
                         employeeId={row.employeeId}
@@ -169,7 +175,7 @@ export function TimesheetGrid({
               </tr>
             </tfoot>
           </table>
-        </div>
+        </TimesheetScrollRegion>
       </div>
     </div>
   );

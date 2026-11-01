@@ -103,6 +103,19 @@
   gap: var(--ui-space-4);
 }
 
+.todayGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.todayGrid > * {
+  height: auto;
+}
+
+@media (max-width: 1100px) {
+  .todayGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .todayGrid > :global(.ui-surface--padded),
 .twoColumn > :global(.ui-surface--padded) {
   margin-top: 0;

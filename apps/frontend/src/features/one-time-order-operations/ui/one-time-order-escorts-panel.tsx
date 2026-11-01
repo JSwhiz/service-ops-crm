@@ -15,6 +15,7 @@ import {
   Surface,
 } from "@/shared/ui/foundation";
 import { DatePicker } from "@/shared/ui/date-picker/date-picker";
+import styles from './one-time-order-compact-actions.module.css';
 
 export function OneTimeOrderEscortsPanel({
   orderId,
@@ -70,9 +71,15 @@ export function OneTimeOrderEscortsPanel({
     <Surface padding="md">
       <Stack gap="md">
         <h2 className="ui-section-title">Кто едет на заказ</h2>
-        <Field label="Дата поездки">
+        <div className={styles.dateActions}>
+        <Field label="Дата поездки" className={styles.dateField}>
           <DatePicker value={date} disabled={pending} onChange={setDate} />
         </Field>
+        <Button size="sm" disabled={pending || loading} onClick={() => {
+          setError(null);
+          void reload().catch(() => setError("Не удалось обновить список."));
+        }}>Обновить список</Button>
+        </div>
         {error ? (
           <Alert tone="danger" role="alert">
             {error}
@@ -163,15 +170,6 @@ export function OneTimeOrderEscortsPanel({
             ) : null}
           </>
         ) : null}
-        <Button
-          disabled={pending || loading}
-          onClick={() => {
-            setError(null);
-            void reload().catch(() => setError("Не удалось обновить список."));
-          }}
-        >
-          Обновить список
-        </Button>
       </Stack>
     </Surface>
   );

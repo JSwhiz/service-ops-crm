@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -7,6 +8,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { isDeepStrictEqual } from 'node:util';
 
 import { AuditService } from '../audit/audit.service';
 import { FileResponseDto } from '../files/dto/file-response.dto';
@@ -1641,44 +1643,76 @@ export class ChatsService implements OnModuleInit {
       return;
     }
 
-    const message = await this.prisma.chatMessage.create({
-      data: {
-        ...(systemEventKey ? { systemEventKey } : {}),
-        chatRoomId: room.id,
-        authorUserId: null,
-        messageType: 'system',
-        text,
-        metadata: metadata ? (metadata as Prisma.InputJsonObject) : undefined,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            login: true,
-            fullName: true,
-          },
-        },
-      },
-    }).catch((error: unknown) => {
-      if (systemEventKey && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
-      throw error;
-    });
-    if (!message) return;
-
-    await this.updateRoomLastMessage(room.id, text);
-
-    const auditNewValues: Prisma.InputJsonObject = {
-      code: roomCode,
+    const data = {
+      ...(systemEventKey ? { systemEventKey } : {}),
+      chatRoomId: room.id,
+      authorUserId: null,
+      messageType: 'system',
       text,
-      metadata: metadata ? (metadata as Prisma.InputJsonObject) : null,
-    };
+      metadata: metadata ? (metadata as Prisma.InputJsonObject) : undefined,
+    } satisfies Prisma.ChatMessageUncheckedCreateInput;
+    let message: { id: string; chatRoomId: string; text: string | null; metadata: Prisma.JsonValue | null; createdAt: Date };
+    try {
+      message = await this.prisma.chatMessage.create({ data });
+    } catch (error: unknown) {
+      if (!systemEventKey || !(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+      const existing = await this.prisma.chatMessage.findUnique({ where: { systemEventKey } });
+      if (!existing) throw error;
+      if (existing.chatRoomId !== room.id || existing.text !== text || !isDeepStrictEqual(existing.metadata ?? null, metadata ?? null)) {
+        throw new ConflictException('systemEventKey already exists with a different message payload');
+      }
+      message = existing;
+    }
 
-    await this.auditService.writeAuditEvent({
-      entityType: 'chat_room',
-      entityId: room.id,
-      actorUserId: actorUserId ?? null,
-      action: 'chat.system_message.created',
-      newValues: auditNewValues,
+    // Message insertion and delivery completion are deliberately separate: an
+    // outbox retry must be able to finish these side effects after a crash.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "chat_messages" WHERE "id" = ${message.id} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "chat_rooms" WHERE "id" = ${room.id} FOR UPDATE`;
+      const latestMessage = await tx.chatMessage.findFirst({
+        where: { chatRoomId: room.id },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, createdAt: true },
+      });
+      // A delayed outbox retry must not roll room state back over a newer message.
+      if (latestMessage?.id === message.id) {
+        await tx.chatRoom.update({
+          where: { id: room.id },
+          data: { lastMessageAt: message.createdAt, lastMessagePreview: text },
+        });
+      }
+
+      const auditMetadata: Prisma.InputJsonObject | undefined = systemEventKey ? { systemEventKey } : undefined;
+      const existingAudit = systemEventKey
+        ? await tx.auditEvent.findFirst({
+            where: {
+              entityType: 'chat_room',
+              entityId: room.id,
+              action: 'chat.system_message.created',
+              metadata: { path: ['systemEventKey'], equals: systemEventKey },
+            },
+            select: { id: true, actorUserId: true, newValues: true },
+          })
+        : null;
+      const auditNewValues: Prisma.InputJsonObject = {
+        code: roomCode,
+        text,
+        metadata: metadata ? (metadata as Prisma.InputJsonObject) : null,
+      };
+      if (existingAudit) {
+        if (existingAudit.actorUserId !== (actorUserId ?? null) || !isDeepStrictEqual(existingAudit.newValues, auditNewValues)) {
+          throw new ConflictException('systemEventKey already has a different audit payload');
+        }
+      } else {
+        await this.auditService.writeAuditEvent({
+          entityType: 'chat_room',
+          entityId: room.id,
+          actorUserId: actorUserId ?? null,
+          action: 'chat.system_message.created',
+          newValues: auditNewValues,
+          ...(auditMetadata ? { metadata: auditMetadata } : {}),
+        }, tx);
+      }
     });
 
     await this.publishMessageEvent(room.id, 'chat.message_created', message.id);

@@ -1,3 +1,5 @@
+import type { HistoryActor, HistoryPageQuery, HistoryPageResponse } from '@/shared/api/history-page';
+
 export interface CounterpartyListItem {
   id: string;
   name: string;
@@ -74,11 +76,10 @@ export interface CounterpartyHistoryItem {
   id: string;
   action: string;
   createdAt: string;
-  actor: {
-    id: string;
-    login: string;
-    fullName: string;
-  } | null;
+  actor: HistoryActor | null;
   oldValues: Record<string, unknown> | null;
   newValues: Record<string, unknown> | null;
 }
+
+export type CounterpartyHistoryPage = HistoryPageResponse<CounterpartyHistoryItem>;
+export type CounterpartyHistoryPageQuery = HistoryPageQuery;

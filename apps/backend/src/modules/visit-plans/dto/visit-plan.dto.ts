@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   Matches,
   MaxLength,
   Min,
@@ -18,6 +19,29 @@ export class VisitPlanQueryDto {
   @IsOptional()
   @IsUUID()
   managerUserId?: string;
+}
+
+export class VisitPlanObjectOptionsQueryDto {
+  @IsUUID()
+  managerUserId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 50;
 }
 
 export class CreateVisitPlanDto {

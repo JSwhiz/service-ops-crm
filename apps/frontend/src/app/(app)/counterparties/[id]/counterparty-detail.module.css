@@ -108,6 +108,21 @@
 
 .objectLinkAction {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+
+.addObjectButton {
+  width: max-content;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+.movementFilters {
+  display: grid;
+  grid-template-columns: minmax(230px, auto) minmax(220px, 1fr) minmax(180px, 1fr) auto;
+  align-items: end;
+  gap: var(--ui-space-3);
 }
 
 .recordList {
@@ -194,7 +209,10 @@
   }
 
   .inlineForm,
-  .objectLinkForm {
+  .objectLinkForm,
+  .movementFilters {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .addObjectButton { align-self: flex-start; }
 }

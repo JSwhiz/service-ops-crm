@@ -10,6 +10,16 @@
   color: var(--ui-text-tertiary);
 }
 
+.previewActionGroup {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .pendingMediaList {
   display: grid;
   gap: 8px;

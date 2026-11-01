@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 
 import {
@@ -16,15 +16,16 @@ import type {
   UserAbsenceUserOption,
 } from '@/entities/user-absence/model/user-absence.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { Alert, Button, Field } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { ConfirmDialog } from '@/shared/ui/overlays';
+import { useCreateNavigation } from '@/shared/create-navigation';
 
 import styles from './user-absences.module.css';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import { isoMonthDays } from '../calendar-date-helpers';
 
 const TYPE_LABELS: Record<UserAbsenceType, string> = {
   vacation: 'Отпуск',
@@ -63,10 +64,6 @@ function formatDay(value: string): string {
     .format(new Date(`${value}T00:00:00.000Z`));
 }
 
-function isoDay(year: number, month: number, day: number): string {
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-}
-
 function eventForDay(items: UserAbsenceItem[], userId: string, day: string): UserAbsenceItem | undefined {
   return items.find((item) => item.userId === userId && item.startDate <= day && item.endDate >= day);
 }
@@ -78,6 +75,8 @@ function eventLabel(item: UserAbsenceItem): string {
 export default function UserAbsencesPage(): React.JSX.Element {
   const { user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const createNavigation = useCreateNavigation();
   const searchParams = useSearchParams();
   const today = useMemo(() => moscowDate(), []);
   const queryMonth = searchParams.get('month');
@@ -85,6 +84,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
     ? queryMonth
     : (searchParams.get('from')?.slice(0, 7) ?? today.slice(0, 7));
   const bounds = useMemo(() => monthBounds(monthKey), [monthKey]);
+  const monthDays = useMemo(() => isoMonthDays(bounds.year, bounds.month), [bounds.month, bounds.year]);
   const [items, setItems] = useState<UserAbsenceItem[]>([]);
   const [users, setUsers] = useState<UserAbsenceUserOption[]>([]);
   const [canManage, setCanManage] = useState(false);
@@ -92,6 +92,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
   const [canViewAll, setCanViewAll] = useState(false);
   const [canViewPrivateReasons, setCanViewPrivateReasons] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<UserAbsenceItem | null>(null);
@@ -107,6 +108,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
   });
 
   useEffect(() => {
+    if (pathname !== '/user-absences') return;
     const next = new URLSearchParams(searchParams.toString());
     next.set('month', monthKey);
     next.delete('from');
@@ -115,7 +117,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
     if (serialized !== searchParams.toString()) {
       router.replace(`/user-absences?${serialized}`, { scroll: false });
     }
-  }, [monthKey, router, searchParams]);
+  }, [monthKey, pathname, router, searchParams]);
 
   const load = async (): Promise<void> => {
     setLoading(true);
@@ -143,7 +145,13 @@ export default function UserAbsencesPage(): React.JSX.Element {
     }
   };
 
-  useEffect(() => { void load(); }, [bounds.from, bounds.to, selectedUserId, selectedType]);
+  useEffect(() => { void load(); }, [bounds.from, bounds.to, selectedUserId, selectedType, revision]);
+
+  useEffect(() => {
+    const onCreated = (): void => setRevision((value) => value + 1);
+    window.addEventListener('user-absence-created', onCreated);
+    return () => window.removeEventListener('user-absence-created', onCreated);
+  }, []);
 
   const visibleUsers = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('ru-RU');
@@ -170,12 +178,12 @@ export default function UserAbsencesPage(): React.JSX.Element {
   };
 
   const openCreate = (day = today, targetUserId = selectedUserId): void => {
+    setEditorOpen(false);
     setEditing(null);
-    setForm({
-      userId: (canManageAll ? targetUserId : '') || user?.id || '',
-      absenceType: 'vacation', startDate: day, endDate: day, comment: '',
-    });
-    setEditorOpen(true);
+    const params = new URLSearchParams();
+    params.set('date', day);
+    if (canManageAll && targetUserId) params.set('forUser', targetUserId);
+    createNavigation.open(`/user-absences/new?${params.toString()}`);
   };
 
   const openEdit = (item: UserAbsenceItem): void => {
@@ -231,7 +239,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
 
   return (
     <div className={styles.root}>
-      <PageTitle title="Календарь пользователей" />
+      <h1 className={styles.visuallyHidden}>Календарь пользователей</h1>
 
       <section className={styles.toolbar} aria-label="Управление календарём">
         <div className={styles.periodControls}>
@@ -253,7 +261,7 @@ export default function UserAbsencesPage(): React.JSX.Element {
             </Field>
           ) : null}
           {canViewAll ? (
-            <Field label="Поиск пользователя">
+            <Field label="Поиск пользователя" className={styles.searchField}>
               <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Имя или логин" />
             </Field>
           ) : null}
@@ -263,18 +271,27 @@ export default function UserAbsencesPage(): React.JSX.Element {
               {Object.entries(TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </Select>
           </Field>
-          {canManage ? <Button variant="primary" icon={<PlusIcon />} onClick={() => openCreate()}>Добавить отсутствие</Button> : null}
+          {canManage ? <Button size="lg" variant="primary" icon={<PlusIcon />} onClick={() => openCreate()}>Добавить отсутствие</Button> : null}
         </div>
       </section>
 
+      <div className={styles.legend} role="list" aria-label="Типы отсутствий">
+        {Object.entries(TYPE_LABELS).map(([type, label]) => (
+          <span className={styles.legendItem} role="listitem" key={type}>
+            <span className={`${styles.legendSwatch} ${styles[type]}`} aria-hidden="true" />
+            {label}
+          </span>
+        ))}
+      </div>
+
       {!loading && !loadFailed ? <div className={styles.summary}>
-        <strong>{todayCount}</strong><span>отсутствуют сегодня</span>
-        <strong>{upcomingCount}</strong><span>запланировано в месяце</span>
+        <div className={styles.summaryItem}><strong>{todayCount}</strong><span>отсутствуют сегодня</span></div>
+        <div className={styles.summaryItem}><strong>{upcomingCount}</strong><span>запланировано в месяце</span></div>
       </div> : null}
 
       {error ? <Alert tone="warning" role="alert">{error}</Alert> : null}
 
-      {editorOpen && canManage ? (
+      {editorOpen && editing && canManage ? (
         <section className={styles.editor} aria-labelledby="absence-editor-title">
           <div className={styles.editorHeading}><h2 id="absence-editor-title">{editing ? 'Изменить отсутствие' : 'Новое отсутствие'}</h2><span>* — обязательные поля</span></div>
           <div className={styles.editorGrid}>
@@ -292,17 +309,14 @@ export default function UserAbsencesPage(): React.JSX.Element {
         {loading ? <div className={styles.empty}>Загрузка календаря…</div> : loadFailed ? <div className={styles.empty}><Button onClick={() => void load()}>Повторить загрузку календаря</Button></div> : visibleUsers.length === 0 ? <div className={styles.empty}>Пользователи не найдены.</div> : (
           <div className={styles.gridScroll} role="region" aria-label="Календарь по дням; прокручивайте по горизонтали">
             <table className={styles.calendarGrid}>
-              <thead><tr><th scope="col" className={styles.personHeader}>Пользователь</th>{Array.from({ length: bounds.days }, (_, index) => {
-                const day = index + 1;
-                const date = isoDay(bounds.year, bounds.month, day);
+              <thead><tr><th scope="col" className={styles.personHeader}>Пользователь</th>{monthDays.map((date) => {
+                const day = Number(date.slice(-2));
                 const weekDay = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`));
-                return <th scope="col" key={date} className={`${styles.dayHeader} ${date === today ? styles.today : ''}`}><span>{weekDay}</span><strong>{day}</strong></th>;
+                return <th scope="col" key={date} aria-label={formatDay(date)} className={`${styles.dayHeader} ${date === today ? styles.today : ''}`}><span>{weekDay}</span><strong>{day}</strong></th>;
               })}</tr></thead>
               <tbody>{visibleUsers.map((entry) => <tr key={entry.id}>
                 <th scope="row" className={styles.personCell}><strong>{entry.fullName || entry.login}</strong><small>{entry.login}</small></th>
-                {Array.from({ length: bounds.days }, (_, index) => {
-                  const day = index + 1;
-                  const date = isoDay(bounds.year, bounds.month, day);
+                {monthDays.map((date) => {
                   const item = eventForDay(visibleItems, entry.id, date);
                   const canEdit = canManage && (canManageAll || entry.id === user?.id);
                   const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();

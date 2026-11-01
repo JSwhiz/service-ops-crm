@@ -2,6 +2,7 @@
 
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
+import { getMenuBoundaryIndex, getOverflowMenuPosition } from './overflow-menu-navigation';
 import styles from './overflow-menu.module.css';
 
 export interface OverflowMenuItem {
@@ -17,6 +18,8 @@ export interface OverflowMenuItem {
 export interface OverflowMenuProps {
   items: ReadonlyArray<OverflowMenuItem>;
   triggerLabel?: string;
+  /** Lets a containing row invoke the same visible menu for context gestures. */
+  triggerRef?: React.MutableRefObject<HTMLButtonElement | null>;
 }
 
 /**
@@ -27,13 +30,13 @@ export interface OverflowMenuProps {
 export function OverflowMenu({
   items,
   triggerLabel = 'Другие действия',
+  triggerRef,
 }: OverflowMenuProps): React.JSX.Element | null {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const internalTriggerRef = useRef<HTMLButtonElement | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [alignStart, setAlignStart] = useState(false);
   const menuId = useId();
 
   const ordered = [
@@ -47,16 +50,52 @@ export function OverflowMenu({
     const onPointerDown = (event: PointerEvent): void => {
       if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
     };
+    const onExternalScroll = (event: Event): void => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onResize = (): void => setOpen(false);
     document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('scroll', onExternalScroll, true);
+    window.addEventListener('resize', onResize);
     queueMicrotask(() => itemRefs.current.find((item) => item && !item.disabled)?.focus());
-    return () => document.removeEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('scroll', onExternalScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
   }, [open]);
 
   useLayoutEffect(() => {
-    if (!open) { setAlignStart(false); return; }
-    // Keep the menu inside the viewport when the trigger sits near the left edge.
-    const rect = menuRef.current?.getBoundingClientRect();
-    if (rect && rect.left < 8) setAlignStart(true);
+    if (!open) return;
+    const menu = menuRef.current;
+    const trigger = internalTriggerRef.current;
+    if (!menu || !trigger) return;
+    if (typeof menu.showPopover === 'function' && !menu.matches(':popover-open')) {
+      menu.showPopover();
+    }
+
+    let bounds = { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    for (let ancestor = trigger.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      const style = window.getComputedStyle(ancestor);
+      const clips = [style.overflowX, style.overflowY].some((value) => ['auto', 'scroll', 'hidden', 'clip'].includes(value));
+      if (clips) {
+        const rect = ancestor.getBoundingClientRect();
+        bounds = {
+          left: Math.max(bounds.left, rect.left),
+          top: Math.max(bounds.top, rect.top),
+          right: Math.min(bounds.right, rect.right),
+          bottom: Math.min(bounds.bottom, rect.bottom),
+        };
+      }
+    }
+    const triggerRect = trigger.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const position = getOverflowMenuPosition(triggerRect, menuRect, bounds);
+    menu.style.maxHeight = `${position.maxHeight}px`;
+    menu.style.maxWidth = `${position.maxWidth}px`;
+    menu.style.minWidth = `${position.minWidth}px`;
+    menu.style.left = `${position.left}px`;
+    menu.style.top = `${position.top}px`;
   }, [open]);
 
   if (ordered.length === 0) return null;
@@ -71,15 +110,24 @@ export function OverflowMenu({
     next?.node?.focus();
   };
 
+  const focusBoundary = (last: boolean): void => {
+    const enabledIndexes = itemRefs.current.flatMap((node, index) => node && !node.disabled ? [index] : []);
+    const targetIndex = getMenuBoundaryIndex(enabledIndexes, last);
+    if (targetIndex !== null) itemRefs.current[targetIndex]?.focus();
+  };
+
   const close = (): void => {
     setOpen(false);
-    triggerRef.current?.focus();
+    internalTriggerRef.current?.focus();
   };
 
   return (
     <div ref={rootRef} className={styles.root}>
       <button
-        ref={triggerRef}
+        ref={(node) => {
+          if (triggerRef) triggerRef.current = node;
+          internalTriggerRef.current = node;
+        }}
         type="button"
         className={`ui-button ${styles.trigger}`}
         aria-label={triggerLabel}
@@ -105,17 +153,18 @@ export function OverflowMenu({
       {open ? (
         <div
           id={menuId}
+          popover="manual"
           role="menu"
           aria-label={triggerLabel}
           ref={menuRef}
-          className={`${styles.menu} ${alignStart ? styles.menuStart : ''}`}
+          className={styles.menu}
           onKeyDown={(event) => {
             const current = itemRefs.current.findIndex((node) => node === document.activeElement);
             if (event.key === 'ArrowDown') { event.preventDefault(); focusItem(current, 1); }
             if (event.key === 'ArrowUp') { event.preventDefault(); focusItem(current, -1); }
-            if (event.key === 'Home') { event.preventDefault(); focusItem(-1, 1); }
-            if (event.key === 'End') { event.preventDefault(); focusItem(ordered.length, -1); }
-            if (event.key === 'Escape') { event.preventDefault(); close(); }
+            if (event.key === 'Home') { event.preventDefault(); focusBoundary(false); }
+            if (event.key === 'End') { event.preventDefault(); focusBoundary(true); }
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
             if (event.key === 'Tab') setOpen(false);
           }}
         >

@@ -1,6 +1,4 @@
 .page { display: grid; gap: 14px; width: 100%; min-width: 0; }
-.createForm { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--ui-border); border-radius: 11px; background: var(--ui-surface); }
-.createForm h2 { margin: 0; color: var(--ui-text); font-size: 17px; }
 .formGrid input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--ui-border); border-radius: 9px; background: var(--ui-surface); padding: 8px 10px; color: var(--ui-text); font: inherit; }
 .formGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .tableFrame { width: 100%; }

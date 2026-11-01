@@ -42,9 +42,12 @@ import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
 import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import styles from './candidate-fields.module.css';
-import { Alert, Badge, ButtonLink, Surface } from '@/shared/ui/foundation';
+import { Alert, Badge, Surface } from '@/shared/ui/foundation';
+import { CreateNavigationLink } from '@/shared/create-navigation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
 import registryStyles from '@/features/candidate-registry/ui/candidate-registry.module.css';
+import { PeopleList, PersonName } from '@/shared/ui/person-presentation/person-presentation';
+import { formatUiDate } from '@/shared/lib/format-date';
 
 const EMPTY: CandidateListResponse = {
   items: [],
@@ -348,9 +351,10 @@ export function CandidateRegistry({
         availableFilters={availableRegistryFilters}
         actions={
           canManage && !fixedType ? (
-            <ButtonLink variant="primary" icon={<PlusIcon />} href="/candidates/new">
+            <CreateNavigationLink className="ui-button ui-button--primary" href="/candidates/new">
+              <span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>
               Добавить кандидата
-            </ButtonLink>
+            </CreateNavigationLink>
           ) : null
         }
       />
@@ -423,23 +427,12 @@ export function CandidateRegistry({
                         </div>
                       </>
                     ) : (
-                      <span className="ui-text-muted">Не назначен</span>
+                      <span className={`ui-text-muted ${registryStyles.noWrap}`}>Не назначен</span>
                     )}
                   </td>
                   <td>
                     {candidateActiveAssignments(item).length ? (
-                      candidateActiveAssignments(item).map((assignment) => (
-                        <div key={assignment.id} className={styles.assignment}>
-                          <span>
-                            {assignment.manager.fullName ||
-                              assignment.manager.login}
-                          </span>
-                          <span className="ui-text-muted">
-                            {assignment.object?.name ??
-                              'Без объекта рассмотрения'}
-                          </span>
-                        </div>
-                      ))
+                      <PeopleList label="Ответственные менеджеры" people={candidateActiveAssignments(item).map((assignment) => ({ ...assignment.manager, id: assignment.id, description: assignment.object?.name ?? 'Без объекта рассмотрения' }))} />
                     ) : (
                       <span className="ui-text-muted">Не назначены</span>
                     )}
@@ -447,16 +440,10 @@ export function CandidateRegistry({
                   <td>
                     {item.latestFeedback ? (
                       <>
-                        <div>
-                          {item.latestFeedback.text.length > 120
-                            ? `${item.latestFeedback.text.slice(0, 120)}…`
-                            : item.latestFeedback.text}
-                        </div>
+                        {item.latestFeedback.text.length > 120 ? <details className={registryStyles.feedback}><summary>{item.latestFeedback.text.slice(0, 120)}…</summary><p>{item.latestFeedback.text}</p></details> : <div>{item.latestFeedback.text}</div>}
                         <div className="ui-text-muted">
                           {item.latestFeedback.author.fullName} ·{' '}
-                          {new Date(
-                            item.latestFeedback.createdAt,
-                          ).toLocaleString('ru-RU')}
+                          {formatUiDate(item.latestFeedback.createdAt, { time: true })}
                         </div>
                       </>
                     ) : (
@@ -471,8 +458,7 @@ export function CandidateRegistry({
                             className={styles.assignment}
                           >
                             <span className="ui-text-muted">
-                              {assignment.manager.fullName ||
-                                assignment.manager.login}
+                              <PersonName person={assignment.manager} compact />
                             </span>
                             <span
                               className={

@@ -16,6 +16,7 @@ export function EntityFilesPanel({
   onUpload,
   emptyText,
   iconOnlyMediaActions = false,
+  compactMediaActions = false,
 }: {
   title: string;
   files: AttachedFile[];
@@ -23,6 +24,7 @@ export function EntityFilesPanel({
   onUpload: (file: File) => Promise<void>;
   emptyText: string;
   iconOnlyMediaActions?: boolean;
+  compactMediaActions?: boolean;
 }): React.JSX.Element {
   return (
     <Surface padding="md" className={`${styles.workPanel}`}>
@@ -31,7 +33,7 @@ export function EntityFilesPanel({
         <span className={styles.panelMeta}>{files.length}</span>
       </div>
 
-      {canUpload ? <MediaActionPicker iconOnly={iconOnlyMediaActions} onPick={onUpload} /> : null}
+      {canUpload ? <MediaActionPicker iconOnly={iconOnlyMediaActions} compactMenu={compactMediaActions} compactLabel={`Добавить вложение к разделу «${title}»`} onPick={onUpload} /> : null}
 
       {files.length === 0 ? (
         <div className={styles.emptyState}>{emptyText}</div>

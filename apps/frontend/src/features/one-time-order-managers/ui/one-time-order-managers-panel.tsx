@@ -11,6 +11,8 @@ import {
 } from '@/shared/lib/display-name';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { Button, Stack, Surface } from '@/shared/ui/foundation';
+import { PersonName } from '@/shared/ui/person-presentation/person-presentation';
+import styles from './one-time-order-managers-panel.module.css';
 
 export function OneTimeOrderManagersPanel({
   item,
@@ -45,16 +47,18 @@ export function OneTimeOrderManagersPanel({
                   justifyContent: 'space-between',
                   gap: 12,
                   alignItems: 'center',
+                  flexWrap: 'wrap',
                 }}
               >
-                <div>
-                  <div>{getUserDisplayName(manager)}</div>
+                <div className={styles.identity}>
+                  <PersonName person={manager} />
                   <div className="ui-text-muted">
                     {getUserRoleLabel(manager.roleCode)}
                   </div>
                 </div>
                 {item.capabilities.canManageManagers ? (
                   <Button
+                    size="sm"
                     disabled={isAssigning}
                     onClick={() => void onRemove(manager.userId)}
                   >
@@ -68,7 +72,7 @@ export function OneTimeOrderManagersPanel({
       </div>
 
       {item.capabilities.canManageManagers ? (
-        <Stack gap="sm">
+        <Stack gap="sm" className={styles.picker}>
           <SearchableSelect
             label="Назначить менеджера"
             viewportAware
@@ -85,7 +89,7 @@ export function OneTimeOrderManagersPanel({
                 .map((candidate) => ({
                   value: candidate.id,
                   label: getUserDisplayName(candidate),
-                  description: getUserSecondaryLabel(candidate) || undefined,
+                  description: getUserSecondaryLabel(candidate) ?? (candidate.login ? `@${candidate.login}` : undefined),
                   searchText: `${candidate.fullName} ${candidate.login}`,
                 }))
             }

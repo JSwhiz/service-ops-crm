@@ -282,3 +282,18 @@ EntitySummary, QueueRow, ApprovalDetail, Ledger, MatrixInspector и ChatMessage 
 - `useConfirm()` / `useReasonPrompt()` (shared/ui/overlays): promise-based dialogs instead of `window.confirm/prompt`.
 - `SortableHeader` (shared/ui/data-table) and `RegistryDateRange` (shared/ui/registry-filters).
 - Section styles live in modules: `entities/{task,one-time-order,timesheet}/ui/*-ui.module.css`, feature and page modules; `globals.css` keeps tag defaults and classes queried from the DOM.
+
+## Additions 2026-10-31 — object layout, media and activity
+
+- Read-only workspace content must not reuse the 800px form wrapper. Object setup/scheduling use full-width `content`; actual editors retain bounded `editor`. Date-range preview controls remain compact even when their results use full width.
+- `AttachmentPreviewList compact` defaults to true after the approved common-media pass. It initially renders four attachments and exposes an explicit expand/collapse control for the rest. Images have 108px previews, no visible filename caption, and retain accessible filenames/viewer links. Ordinary file titles remain readable. `getFileActions(file)` supplies domain-owned OverflowMenu actions (including R3 staged removals/reasons); `getFileState(file)` may return `pending-removal`. Legacy `renderFileAction` and `iconDownload` remain source-compatible. Disclosure/viewer controls never delete a file or attachment.
+- `ActivityTimeline` (`shared/ui/activity-timeline`) is a presentational list taking `entries[{id,title,occurredAt,actor?,children?}]` and optional `emptyText`. It groups adjacent events by Moscow calendar date without sorting, deduplicating, loading data or formatting domain payloads. Object audit, object feed and order history retain their own field/change adapters and data sources. Page scrolling replaces nested history scrolling.
+- Feed search/type filtering is explicitly limited to loaded events, with a reset and visible result count. It must not claim a complete searchable archive or merge the audit and operational feeds client-side.
+- Attio informs record hierarchy, Greenhouse informs chronological readability; neither overrides CRM tokens, navigation, ACL or historical values. No new UI library or theme is introduced.
+
+### Common media interaction — 2026-10-31
+
+- Thumbnail click opens shared `FileViewer`; modifier/new-tab semantics retain the canonical file URL. Context menu, Shift+F10 and visible overflow button expose the same permitted actions. Menu items never infer ACL from a file extension or current role.
+- `FileViewer` is shared by the gallery and canonical file route. It preserves authenticated preview/original/download URLs and image/PDF/text/unsupported states. Original 1:1 and pointer magnifier are distinct from fitting the derivative preview; keyboard arrows belong to native scrolling at 1:1, otherwise to gallery navigation only while focused inside the viewer.
+- Native dialog close/cancel handlers ignore events originating in nested dialogs. Cancelling a reason, confirmation or gallery must not close the containing Drawer.
+- Report attachment edits stay staged until the existing reason/audit/publication flow succeeds. The common thumbnail may show `pending-removal`, but does not execute detach or binary deletion.

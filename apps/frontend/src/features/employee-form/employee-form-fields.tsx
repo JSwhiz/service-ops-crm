@@ -48,22 +48,27 @@ interface EmployeeFormFieldsProps {
   value: EmployeeFormValue;
   onChange: (value: EmployeeFormValue) => void;
   disabled?: boolean;
+  activeSection?: string;
 }
 
 function FormSection({
   title,
+  sectionId,
   description,
   disabled,
+  active,
   children,
 }: {
   title: string;
+  sectionId: string;
   description?: string;
   disabled: boolean;
+  active: boolean;
   children: React.ReactNode;
 }): React.JSX.Element {
   const titleId = useId();
   return (
-    <fieldset className={styles.fieldset} disabled={disabled}>
+    <fieldset className={styles.fieldset} data-section={sectionId} disabled={disabled} hidden={!active}>
       <div className={styles.section} role="group" aria-labelledby={titleId}>
         <div className={styles.sectionHeading}>
           <h3 id={titleId} className={styles.sectionTitle}>{title}</h3>
@@ -80,6 +85,7 @@ export function EmployeeFormFields({
   value,
   onChange,
   disabled = false,
+  activeSection,
 }: EmployeeFormFieldsProps): React.JSX.Element {
   const positionListId = useId();
   const [positions, setPositions] = useState<string[]>([]);
@@ -101,7 +107,7 @@ export function EmployeeFormFields({
     <div className={styles.form}>
       <p className={styles.requiredNote}>* — обязательные поля</p>
 
-      <FormSection title="Основное" disabled={disabled}>
+      <FormSection title="Контакты" sectionId="contacts" disabled={disabled} active={!activeSection || activeSection === 'contacts'}>
         <Field className={styles.full} label="ФИО" required>
           <input value={value.fullName} maxLength={200} autoComplete="off"
             placeholder="Фамилия Имя Отчество"
@@ -118,7 +124,7 @@ export function EmployeeFormFields({
         </Field>
       </FormSection>
 
-      <FormSection title="Работа" disabled={disabled}>
+      <FormSection title="Работа" sectionId="work" disabled={disabled} active={!activeSection || activeSection === 'work'}>
         <SelectField
           label="Тип сотрудника"
           required
@@ -155,8 +161,10 @@ export function EmployeeFormFields({
 
       <FormSection
         title="Рабочий режим"
+        sectionId="mode"
         description="Для подбора смен. Выходы считаются по табелю."
         disabled={disabled}
+        active={!activeSection || activeSection === 'mode'}
       >
         <SelectField
           label="График работы"
@@ -191,7 +199,7 @@ export function EmployeeFormFields({
         </Field>
       </FormSection>
 
-      <FormSection title="Документы" description="Дата и автор отметки сохраняются." disabled={disabled}>
+      <FormSection title="Документы" sectionId="documents" description="Дата и автор отметки сохраняются." disabled={disabled} active={!activeSection || activeSection === 'documents'}>
         <div className={`${styles.full} ${styles.choices}`}>
           <label className={styles.choice}>
             <input type="checkbox" checked={value.passportReceived}
@@ -206,7 +214,7 @@ export function EmployeeFormFields({
         </div>
       </FormSection>
 
-      <FormSection title="Примечание" disabled={disabled}>
+      <FormSection title="Примечание" sectionId="documents" disabled={disabled} active={!activeSection || activeSection === 'documents'}>
         <Field className={styles.full} label="Комментарий для коллег">
           <textarea rows={4} value={value.notes} maxLength={4000}
             onChange={(event) => update('notes', event.target.value)} />

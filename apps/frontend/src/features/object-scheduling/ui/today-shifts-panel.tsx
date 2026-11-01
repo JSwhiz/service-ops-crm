@@ -86,12 +86,14 @@ export function TodayShiftsPanel({ objectId, employees, onChanged = ignoreChange
       title="Отменить подтверждённый выход?" description="Факт сохранится в истории с автором и причиной отмены. Дневной итог обновит сервер; ручная корректировка табеля сохранится."
       reason={cancelReason} onReasonChange={setCancelReason} reasonRequired confirmLabel="Отменить выход" pending={!!pending} error={cancelError}
       onConfirm={(reason) => { void cancelShift(reason); }} />
-    <section className={styles.editor} aria-label="Плановые и подтверждённые смены" aria-busy={loading}>
+    <section className={styles.content} aria-label="Плановые и подтверждённые смены" aria-busy={loading}>
       <div className="ui-section-header"><h3 className="ui-section-title">Смены сегодня</h3><Button disabled={!!pending || loading} onClick={() => setRefresh((value) => value + 1)}>Обновить</Button></div>
       <p className="ui-text-muted">План по графику показан отдельно от факта. Подтверждение создаёт выход и передаёт его в действующий табель; выплата этим действием не создаётся.</p>
       {loading ? <LoadingState label="Загрузка смен" /> : null}
       {error ? <Alert tone="danger">{error} Введённые и сохранённые данные остаются на месте. Обновите сведения перед следующим действием.</Alert> : null}
-      {preview?.warnings.map((warning, index) => <Alert tone="warning" key={`${warning.code}-${index}`}>{warning.message}</Alert>)}
+      {preview?.warnings.length ? <Alert tone="warning" title="Обратите внимание на график">
+        <ul className={styles.warnings}>{preview.warnings.map((warning, index) => <li key={`${warning.code}-${index}`}>{warning.message}</li>)}</ul>
+      </Alert> : null}
       {preview?.shifts.map((shift) => {
         const key = eventKey(shift);
         const fact = facts.find((item) => item.status === 'confirmed' && eventKey(item) === key);

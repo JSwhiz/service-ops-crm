@@ -1,6 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { CreateNavigationLink } from '@/shared/create-navigation';
+import { EquipmentCatalogRegistry } from '@/features/equipment-form/ui/equipment-catalog-registry';
 
 import { createEquipmentMovement, listEquipmentUnits } from '@/entities/equipment/api/equipment-client';
 import type { EquipmentUnit } from '@/entities/equipment/model/equipment.types';
@@ -17,6 +20,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
 }
 
 export default function EquipmentPage(): React.JSX.Element {
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const canAccessEquipment = user?.capabilities?.canAccessEquipment ?? false;
   const canManageEquipmentCatalog =
@@ -68,6 +72,8 @@ export default function EquipmentPage(): React.JSX.Element {
     };
   }, [canAccessEquipment, search, status]);
 
+  if (searchParams.get('view') === 'types') return <EquipmentCatalogRegistry />;
+
   const statusOptions = [
     { value: 'in_storage', label: 'На складе' },
     { value: 'assigned_to_object', label: 'На объекте' },
@@ -94,7 +100,7 @@ export default function EquipmentPage(): React.JSX.Element {
               onChange: setStatus, onRemove: () => setStatus(''),
             }] : []}
             availableFilters={status ? [] : [{ id: 'status', label: 'Статус', options: statusOptions, onAdd: setStatus }]}
-            actions={canManageEquipmentCatalog ? <ButtonLink variant="primary" icon={<PlusIcon />} href="/equipment/new">Добавить оборудование</ButtonLink> : null}
+            actions={canManageEquipmentCatalog ? <div className="ui-inline"><CreateNavigationLink className="ui-button ui-button--primary" href="/equipment/new"><span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Добавить оборудование</CreateNavigationLink><ButtonLink href="/equipment?view=types">Типы оборудования</ButtonLink></div> : null}
           />
 
           {isLoading ? (

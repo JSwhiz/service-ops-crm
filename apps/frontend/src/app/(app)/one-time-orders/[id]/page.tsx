@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   createAccountabilityExpense,
@@ -25,7 +25,7 @@ import {
   getTodayOneTimeOrderDailyReport,
   listOneTimeOrderComments,
   listOneTimeOrderCompletions,
-  listOneTimeOrderHistory,
+  listOneTimeOrderHistoryPage,
   listOneTimeOrderPhotos,
   removeOneTimeOrderManager,
   reopenOneTimeOrder,
@@ -38,7 +38,7 @@ import type {
   OneTimeOrderCommentItem,
   OneTimeOrderCompletion,
   OneTimeOrderDailyReportItem,
-  OneTimeOrderHistoryItem,
+  OneTimeOrderHistoryPage,
   OneTimeOrderItem,
   OneTimeOrderPhotoItem,
 } from '@/entities/one-time-order/model/one-time-order.types';
@@ -70,12 +70,15 @@ import {
 import type { SystemUserOption } from '@/entities/user/model/user.types';
 import { OneTimeOrderSummaryCard } from '@/features/one-time-order-card/ui/one-time-order-summary-card';
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
-import { ConfirmDialog } from '@/shared/ui/overlays';
+import { hasHistoryFilters, HistoryFilterBar, type HistoryFilterValues } from '@/shared/ui/history-filters/history-filter-bar';
+import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+import { ConfirmDialog, useConfirm } from '@/shared/ui/overlays';
+import { usePageExitGuard } from '@/shared/lib/use-page-exit-guard';
 import { OneTimeOrderForm } from '@/features/one-time-order-form/ui/one-time-order-form';
 import { OneTimeOrderManagersPanel } from '@/features/one-time-order-managers/ui/one-time-order-managers-panel';
 import { OneTimeOrderInventoryPanel } from '@/features/one-time-order-inventory/ui/one-time-order-inventory-panel';
 import { OneTimeOrderCommentsPanel } from '@/features/one-time-order-comments/ui/one-time-order-comments-panel';
-import { OneTimeOrderHistoryList } from '@/features/one-time-order-history/ui/one-time-order-history-list';
+import { OneTimeOrderHistoryList, getOneTimeOrderHistoryActionLabel } from '@/features/one-time-order-history/ui/one-time-order-history-list';
 import { OneTimeOrderFilesPanel } from '@/features/one-time-order-files/ui/one-time-order-files-panel';
 import { OneTimeOrderDailyReportPanel } from '@/features/one-time-order-report/ui/one-time-order-daily-report-panel';
 import { OneTimeOrderPhotosPanel } from '@/features/one-time-order-photos/ui/one-time-order-photos-panel';
@@ -122,6 +125,10 @@ function toObjectOption(object: ServiceObject): SearchableSelectOption {
 
 type ScheduleConflict = { date: string; type: string; user: { fullName: string } };
 
+const EMPTY_HISTORY_FILTERS: HistoryFilterValues = {
+  q: '', eventType: '', actorUserId: '', dateFrom: '', dateTo: '',
+};
+
 export default function OneTimeOrderDetailPage({
   params,
 }: {
@@ -131,7 +138,15 @@ export default function OneTimeOrderDetailPage({
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
   const [completions, setCompletions] = useState<OneTimeOrderCompletion[]>([]);
   const [dailyReport, setDailyReport] = useState<OneTimeOrderDailyReportItem | null>(null);
-  const [history, setHistory] = useState<OneTimeOrderHistoryItem[]>([]);
+  const [historyPageData, setHistoryPageData] = useState<OneTimeOrderHistoryPage | null>(null);
+  const [historyPageNumber, setHistoryPageNumber] = useState(1);
+  const [historyFilters, setHistoryFilters] = useState(EMPTY_HISTORY_FILTERS);
+  const [appliedHistoryFilters, setAppliedHistoryFilters] = useState(EMPTY_HISTORY_FILTERS);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoadedQueryKey, setHistoryLoadedQueryKey] = useState<string | null>(null);
+  const [historyRetry, setHistoryRetry] = useState(0);
+  const [historyRefreshVersion, setHistoryRefreshVersion] = useState(0);
   const [files, setFiles] = useState<AttachedFile[]>([]);
   const [photos, setPhotos] = useState<OneTimeOrderPhotoItem[]>([]);
   const [equipment, setEquipment] = useState<EquipmentScope | null>(null);
@@ -145,6 +160,15 @@ export default function OneTimeOrderDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditFormDirty, setIsEditFormDirty] = useState(false);
+  const [isCompletionDraftDirty, setIsCompletionDraftDirty] = useState(false);
+  const [completionFormSignal, setCompletionFormSignal] = useState(0);
+  const activeSectionRef = useRef('overview');
+  const [confirm, editConfirmDialog] = useConfirm();
+  usePageExitGuard(
+    (isEditing && isEditFormDirty) || isCompletionDraftDirty,
+    confirm,
+  );
   const [scheduleConflictPrompt, setScheduleConflictPrompt] = useState<{
     conflicts: ScheduleConflict[];
     resolve: (confirmed: boolean) => void;
@@ -173,21 +197,106 @@ export default function OneTimeOrderDetailPage({
   ];
 
   useEffect(() => {
-    const syncFromUrl = (): void => {
+    const syncFromUrl = async (): Promise<void> => {
       const candidate = new URL(window.location.href).searchParams.get('section');
-      setActiveSection(sections.some((section) => section.value === candidate) ? candidate! : 'overview');
+      const next = sections.some((section) => section.value === candidate) ? candidate! : 'overview';
+      if (isEditing && isEditFormDirty && next !== activeSectionRef.current) {
+        const accepted = await confirm({
+          title: 'Покинуть редактирование?',
+          consequence: 'Несохранённые изменения заказа будут удалены.',
+          confirmLabel: 'Перейти без сохранения',
+          tone: 'danger',
+        });
+        if (!accepted) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('section', activeSectionRef.current);
+          window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+          return;
+        }
+        setIsEditing(false);
+        setIsEditFormDirty(false);
+      }
+      activeSectionRef.current = next;
+      setActiveSection(next);
     };
-    syncFromUrl();
+    void syncFromUrl();
     window.addEventListener('popstate', syncFromUrl);
     return () => window.removeEventListener('popstate', syncFromUrl);
-  }, []);
+  }, [confirm, isEditing, isEditFormDirty]);
 
-  const selectSection = (section: string): void => {
+  useEffect(() => {
+    if (isLoading || activeSection !== 'execution') return;
+    let frame: number | undefined;
+    const revealExecutionTarget = (): void => {
+      const anchor = window.location.hash.slice(1);
+      if (anchor !== 'one-time-order-specification' && anchor !== 'one-time-order-tasks') return;
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const target = document.getElementById(anchor);
+        target?.focus({ preventScroll: true });
+        target?.scrollIntoView({ block: 'start' });
+      });
+    };
+    revealExecutionTarget();
+    window.addEventListener('hashchange', revealExecutionTarget);
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      window.removeEventListener('hashchange', revealExecutionTarget);
+    };
+  }, [activeSection, isLoading, item?.id]);
+
+  const selectSection = async (section: string): Promise<void> => {
+    if (isEditing && isEditFormDirty && section !== activeSectionRef.current) {
+      const accepted = await confirm({
+        title: 'Покинуть редактирование?',
+        consequence: 'Несохранённые изменения заказа будут удалены.',
+        confirmLabel: 'Перейти без сохранения',
+        tone: 'danger',
+      });
+      if (!accepted) return;
+      setIsEditing(false);
+      setIsEditFormDirty(false);
+    }
+    activeSectionRef.current = section;
     setActiveSection(section);
     const url = new URL(window.location.href);
     url.searchParams.set('section', section);
     window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
   };
+
+  const startEditing = (): void => {
+    if (!isEditing) {
+      setIsEditing(true);
+      setIsEditFormDirty(false);
+      activeSectionRef.current = 'overview';
+      setActiveSection('overview');
+      const url = new URL(window.location.href);
+      url.searchParams.set('section', 'overview');
+      window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      return;
+    }
+    void confirm({
+      title: 'Отменить редактирование?',
+      consequence: isEditFormDirty ? 'Введённые изменения заказа будут удалены.' : 'Форма редактирования закроется без сохранения.',
+      confirmLabel: isEditFormDirty ? 'Отменить и удалить изменения' : 'Закрыть форму',
+      tone: isEditFormDirty ? 'danger' : 'neutral',
+    }).then((accepted) => {
+      if (accepted) {
+        setIsEditing(false);
+        setIsEditFormDirty(false);
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (!item?.capabilities.canEditOperationalFields) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('edit') !== '1') return;
+    setIsEditing(true);
+    setIsEditFormDirty(false);
+    activeSectionRef.current = 'overview';
+    setActiveSection('overview');
+  }, [item?.id, item?.capabilities.canEditOperationalFields]);
 
   const editableInitialValue = useMemo(
     () =>
@@ -254,6 +363,7 @@ export default function OneTimeOrderDetailPage({
     }
 
     setItem(order);
+    setHistoryRefreshVersion((version) => version + 1);
 
     const requests: Array<Promise<void>> = [
       listOneTimeOrderComments(id).then((response) => {
@@ -269,11 +379,6 @@ export default function OneTimeOrderDetailPage({
       getTodayOneTimeOrderDailyReport(id).then((response) => {
         if (!cancelled) {
           setDailyReport(response);
-        }
-      }),
-      listOneTimeOrderHistory(id).then((response) => {
-        if (!cancelled) {
-          setHistory(response);
         }
       }),
       listFilesByEntity('one_time_order', id).then((response) => {
@@ -330,6 +435,48 @@ export default function OneTimeOrderDetailPage({
     await Promise.all(requests);
   };
 
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setAppliedHistoryFilters(historyFilters), 250);
+    return () => window.clearTimeout(timeout);
+  }, [historyFilters]);
+
+  const historyQueryKey = JSON.stringify([item?.id, historyPageNumber, appliedHistoryFilters]);
+
+  useEffect(() => {
+    const orderId = item?.id;
+    if (activeSection !== 'history' || !orderId) return;
+    let active = true;
+    const requestKey = historyQueryKey;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    void listOneTimeOrderHistoryPage(orderId, {
+      page: historyPageNumber,
+      limit: 25,
+      q: appliedHistoryFilters.q.trim() || undefined,
+      eventType: appliedHistoryFilters.eventType || undefined,
+      actorUserId: appliedHistoryFilters.actorUserId || undefined,
+      dateFrom: appliedHistoryFilters.dateFrom || undefined,
+      dateTo: appliedHistoryFilters.dateTo || undefined,
+    })
+      .then((response) => {
+        if (!active) return;
+        setHistoryPageData(response);
+        setHistoryLoadedQueryKey(requestKey);
+      })
+      .catch((caughtError) => {
+        if (active) setHistoryError(getErrorMessage(caughtError, 'Не удалось загрузить историю заказа.'));
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
+      });
+    return () => { active = false; };
+  }, [activeSection, appliedHistoryFilters, historyPageNumber, historyQueryKey, historyRefreshVersion, historyRetry, item?.id]);
+
+  const history = historyPageData?.items ?? [];
+
+  const activeWorkforce = workforce.filter((employee) => employee.isActive);
+  const formerWorkforce = workforce.filter((employee) => !employee.isActive);
+
   return (
     <div className={`ui-page ${orderStyles.orderDetailPage}`}>
       {isLoading ? (
@@ -343,8 +490,9 @@ export default function OneTimeOrderDetailPage({
           <OneTimeOrderSummaryCard
             item={item}
             isEditing={isEditing}
-            onEdit={() => { setIsEditing((value) => !value); selectSection('overview'); }}
-            onComplete={() => { selectSection('finance'); window.setTimeout(() => document.getElementById('order-completion')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }}
+            onEdit={startEditing}
+            onComplete={() => { void selectSection('finance').then(() => { if (activeSectionRef.current !== 'finance') return; setCompletionFormSignal((value) => value + 1); window.setTimeout(() => document.getElementById('order-completion')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }); }}
+            onReopen={() => { void selectSection('finance').then(() => { if (activeSectionRef.current !== 'finance') return; window.setTimeout(() => { const action = document.getElementById('order-reopen-trigger'); action?.scrollIntoView({ behavior: 'smooth', block: 'center' }); action?.click(); }, 0); }); }}
           />
 
           <WorkspaceTabs
@@ -355,49 +503,52 @@ export default function OneTimeOrderDetailPage({
           />
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-team" role="tabpanel" aria-labelledby="workspace-tab-team" hidden={activeSection !== 'team'}>
-          <Surface as="section" padding="md">
+          <Surface as="section" padding="md" className={orderStyles.orderTeamOverview}>
             <div className="ui-section-header">
               <div>
-                <div className="ui-section-title">Сотрудники и оплата за заказ</div>
+                <div className="ui-section-title">Состав разового заказа</div>
                 <div className="ui-section-subtitle">
-                  Разовый состав и согласованная оплата каждого сотрудника за текущий цикл.
+                  Менеджеры — пользователи CRM; сотрудники — отдельные кадровые записи. Оплата за заказ не является отметкой о фактическом выходе.
                 </div>
               </div>
               <ButtonLink href={`/one-time-orders/${item.id}/workforce`}>
-                Открыть команду
+                Управлять составом
               </ButtonLink>
             </div>
-
-            {workforce.filter((employee) => employee.isActive).length === 0 ? (
-              <EmptyState title="Команда пока не сформирована" description="Откройте команду, чтобы посмотреть состав и доступные действия." />
-            ) : (
-              <div className="ui-stack ui-stack--sm">
-                {workforce
-                  .filter((employee) => employee.isActive)
-                  .map((employee) => (
-                    <div className={orderStyles.specificationItem} key={employee.employeeId}>
-                      <div className="ui-section-header">
-                        <div>
-                          <strong>{employee.fullName}</strong>
-                          <div className="ui-text-muted">
-                            {employee.position ?? 'Должность не указана'}
-                          </div>
-                        </div>
-                        <div className={orderStyles.orderAmount}>
-                          <div className="ui-text-muted">Оплата за заказ</div>
-                          <strong>
-                            {employee.orderPayment === null
-                              ? 'Не указана'
-                              : `${employee.orderPayment.toLocaleString('ru-RU', {
-                                  maximumFractionDigits: 2,
-                                })} ₽`}
-                          </strong>
-                        </div>
+            <div className={orderStyles.orderTeamMetrics} aria-label="Сводка команды">
+              <div className="ui-detail-field"><div className="ui-detail-label">Менеджеры CRM</div><strong>{item.managers.length}</strong></div>
+              <div className="ui-detail-field"><div className="ui-detail-label">Активные сотрудники</div><strong>{activeWorkforce.length}</strong></div>
+              {formerWorkforce.length ? <div className="ui-detail-field"><div className="ui-detail-label">Сняты с состава</div><strong>{formerWorkforce.length}</strong></div> : null}
+            </div>
+            <section className="ui-stack ui-stack--sm" aria-labelledby="order-workforce-summary-heading">
+              <h3 className="ui-section-title" id="order-workforce-summary-heading">Сотрудники и согласованная оплата</h3>
+              {activeWorkforce.length === 0 ? (
+                <EmptyState title="Сотрудники ещё не добавлены" description="Добавьте кадровый состав в управлении командой. Фактические выходы отмечаются отдельно." />
+              ) : (
+                <div className={orderStyles.orderTeamEmployeeList}>
+                  {activeWorkforce.map((employee) => (
+                    <div className={orderStyles.orderTeamEmployee} key={employee.employeeId}>
+                      <div>
+                        <strong>{employee.fullName}</strong>
+                        <div className="ui-text-muted">{employee.position ?? 'Должность не указана'}</div>
+                      </div>
+                      <div className={orderStyles.orderAmount}>
+                        <div className="ui-text-muted">Оплата за заказ</div>
+                        <strong>{employee.orderPayment === null ? 'Не указана' : `${employee.orderPayment.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`}</strong>
                       </div>
                     </div>
                   ))}
-              </div>
-            )}
+                </div>
+              )}
+            </section>
+            {formerWorkforce.length ? (
+              <details>
+                <summary className={orderStyles.orderTeamFormerSummary}>Сотрудники, снятые с состава ({formerWorkforce.length})</summary>
+                <ul className="ui-plain-list">
+                  {formerWorkforce.map((employee) => <li key={employee.employeeId}>{employee.fullName}{employee.position ? ` · ${employee.position}` : ''}{employee.removedAt ? ` · снят ${new Date(employee.removedAt).toLocaleDateString('ru-RU')}` : ''}</li>)}
+                </ul>
+              </details>
+            ) : null}
           </Surface>
           <OneTimeOrderManagersPanel
             item={item}
@@ -522,6 +673,10 @@ export default function OneTimeOrderDetailPage({
                 return result.items.map(toObjectOption);
               }}
               initialValue={editableInitialValue}
+              formId="one-time-order-edit-form"
+              autoFocus
+              onDirtyChange={setIsEditFormDirty}
+              onCancel={() => startEditing()}
               canSelectLinkedObject={canSelectLinkedObject}
               canEditFinancialFields={
                 item.capabilities.canEditFinancialFields
@@ -556,6 +711,7 @@ export default function OneTimeOrderDetailPage({
                 });
                 setItem(updated);
                 setIsEditing(false);
+                setIsEditFormDirty(false);
                 await loadAll(item.id);
               }}
             />
@@ -581,9 +737,19 @@ export default function OneTimeOrderDetailPage({
           <OneTimeOrderCompletionPanel
             item={item}
             completions={completions}
-            onComplete={async (payload) => { await completeOneTimeOrder(item.id, payload); await loadAll(item.id); }}
+            onComplete={async (payload) => { await completeOneTimeOrder(item.id, payload); }}
+            onRefresh={async () => {
+              try {
+                await loadAll(item.id);
+                return true;
+              } catch {
+                return false;
+              }
+            }}
+            onDraftChange={setIsCompletionDraftDirty}
             onReopen={async () => { await reopenOneTimeOrder(item.id); await loadAll(item.id); }}
             onCorrectPayment={async (paymentId, payload) => { await correctOneTimeOrderPayment(item.id, paymentId, payload); await loadAll(item.id); }}
+            openFormSignal={completionFormSignal}
           />
           {accountability ? (
             <OneTimeOrderAccountabilityPanel
@@ -661,7 +827,9 @@ export default function OneTimeOrderDetailPage({
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-execution" role="tabpanel" aria-labelledby="workspace-tab-execution" hidden={activeSection !== 'execution'}>
-          <OneTimeOrderSpecificationPanel orderId={item.id} canManage={item.capabilities.canManageSpecification} />
+          <section id="one-time-order-specification" className={styles.executionAnchor} tabIndex={-1} aria-label="Техническое задание">
+          <OneTimeOrderSpecificationPanel orderId={item.id} canManage={item.capabilities.canManageSpecification} canEditStructure={item.capabilities.canEditSpecification} orderStatus={item.status} onOpenDailyReport={() => { void selectSection('execution').then(() => { if (activeSectionRef.current === 'execution') window.setTimeout(() => document.getElementById('one-time-order-daily-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }); }} />
+          </section>
           <section className="ui-stack ui-stack--lg" aria-label="Услуги заказа">
                 <OneTimeOrderServiceLinesPanel orderId={item.id} onChanged={() => loadAll(item.id)} />
                 <div className="ui-section-subtitle">
@@ -685,6 +853,7 @@ export default function OneTimeOrderDetailPage({
               if (uploads.some((result) => result.status === 'rejected')) throw new Error('Текст отчёта сохранён. Не все вложения загрузились — повторите сохранение, уже загруженные файлы не продублируются.');
             }}
           />
+          <section id="one-time-order-tasks" className={styles.executionAnchor} tabIndex={-1} aria-label="Задачи заказа">
           <OneTimeOrderTasksPanel
             items={tasks} assigneeOptions={taskAssignees}
             canCreateTask={item.capabilities.canCreateTask}
@@ -694,6 +863,7 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
+          </section>
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-materials" role="tabpanel" aria-labelledby="workspace-tab-materials" hidden={activeSection !== 'materials'}>
@@ -744,7 +914,52 @@ export default function OneTimeOrderDetailPage({
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-history" role="tabpanel" aria-labelledby="workspace-tab-history" hidden={activeSection !== 'history'}>
-            <OneTimeOrderHistoryList items={history} />
+            <HistoryFilterBar
+              filters={historyFilters}
+              eventTypes={(historyPageData?.facets.eventTypes ?? []).map((eventType) => ({
+                value: eventType,
+                label: getOneTimeOrderHistoryActionLabel(eventType),
+              }))}
+              actors={historyPageData?.facets.actors ?? []}
+              actorsHasMore={historyPageData?.facets.actorsHasMore ?? false}
+              eventTypesHasMore={historyPageData?.facets.eventTypesHasMore ?? false}
+              busy={historyLoading}
+              onActorSearch={async (actorSearch) => {
+                const result = await listOneTimeOrderHistoryPage(item.id, {
+                  page: 1, limit: 1, actorSearch,
+                });
+                return result.facets.actors;
+              }}
+              onChange={(nextFilters) => {
+                setHistoryFilters(nextFilters);
+                setHistoryPageNumber(1);
+              }}
+            />
+            {historyError || (historyLoadedQueryKey !== historyQueryKey && history.length > 0) ? (
+              <Alert tone={historyError ? 'warning' : 'info'} role={historyError ? 'alert' : 'status'}>
+                <div className="ui-inline">
+                  <span>{historyError ?? 'Показаны события по предыдущим фильтрам, пока загружается новый результат.'}</span>
+                  {historyError ? <Button onClick={() => setHistoryRetry((value) => value + 1)}>Повторить</Button> : null}
+                </div>
+              </Alert>
+            ) : null}
+            {historyLoading && history.length === 0 ? <LoadingState label="Загружаем историю…" /> : null}
+            {historyPageData && (!historyLoading || history.length > 0) ? (
+              <OneTimeOrderHistoryList
+                items={history}
+                emptyText={historyLoadedQueryKey === historyQueryKey && historyPageData.total === 0 && hasHistoryFilters(appliedHistoryFilters) ? 'По выбранным фильтрам событий нет.' : 'История по заказу пока пуста.'}
+              />
+            ) : null}
+            {historyPageData ? (
+              <TablePagination
+                page={historyPageData.page}
+                totalPages={historyPageData.totalPages}
+                pending={historyLoading || historyLoadedQueryKey !== historyQueryKey}
+                label="Страницы истории заказа"
+                summary={historyPageData.total > 0 ? `Показано ${(historyPageData.page - 1) * historyPageData.limit + 1}–${Math.min(historyPageData.page * historyPageData.limit, historyPageData.total)} из ${historyPageData.total}` : 'Событий не найдено'}
+                onPageChange={setHistoryPageNumber}
+              />
+            ) : null}
           </div>
         </div>
       ) : (
@@ -774,6 +989,7 @@ export default function OneTimeOrderDetailPage({
         confirmLabel="Продолжить"
         onConfirm={() => closeScheduleConflictPrompt(true)}
       />
+      {editConfirmDialog}
     </div>
   );
 }

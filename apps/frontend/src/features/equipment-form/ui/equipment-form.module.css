@@ -3,6 +3,7 @@
   max-width: 800px;
   min-width: 0;
 }
+.body { display: grid; gap: var(--ui-space-3); min-width: 0; margin: 0; padding: 0; border: 0; }
 
 .grid {
   display: grid;

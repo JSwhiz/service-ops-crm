@@ -1,0 +1,118 @@
+.header {
+  margin-bottom: var(--ui-space-3);
+}
+
+.headerCopy {
+  min-width: 0;
+}
+
+.attendanceList {
+  max-height: 284px;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-border-strong) transparent;
+  scroll-snap-type: y mandatory;
+  scroll-padding-block: 2px;
+}
+
+.attendanceList > * {
+  min-width: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.employeeCard {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.unavailable {
+  border: 1px solid var(--ui-danger-border);
+  background: var(--ui-danger-subtle);
+}
+
+.unselectedUnavailable {
+  opacity: 0.75;
+}
+
+.employeeLabel,
+.employeeIdentity {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.employeeIdentity {
+  flex-wrap: wrap;
+}
+
+.employeeName {
+  overflow-wrap: anywhere;
+}
+
+.availability {
+  color: var(--ui-text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 120px) minmax(0, 1fr);
+  max-width: 640px;
+  align-items: end;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.controls > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.controls :global(.attendance-hours-control) {
+  display: grid;
+  gap: var(--ui-space-1);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.controls :global(.attendance-hours-control input),
+.controls :global(.attendance-hours-control select) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.rateControls:has(> :nth-child(4)) {
+  grid-template-columns: minmax(0, 120px) minmax(0, 1fr) minmax(0, 180px);
+  max-width: 800px;
+}
+
+.reasonControl {
+  grid-column: 1 / -1;
+}
+
+.submit {
+  margin-top: var(--ui-space-3);
+}
+
+.error {
+  margin-top: var(--ui-space-3);
+  color: var(--ui-danger);
+}
+
+@media (max-width: 640px) {
+  .controls,
+  .rateControls:has(> :nth-child(4)) {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: none;
+  }
+}

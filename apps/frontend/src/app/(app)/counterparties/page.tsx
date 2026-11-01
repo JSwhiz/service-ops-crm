@@ -14,8 +14,9 @@ import { usePageSizeParam } from '@/shared/lib/use-page-size-param';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 
 import styles from './counterparties.module.css';
-import { Alert, ButtonLink, EmptyState, LoadingState, StatusBadge } from '@/shared/ui/foundation';
+import { Alert, EmptyState, LoadingState, StatusBadge } from '@/shared/ui/foundation';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import { CreateNavigationLink } from '@/shared/create-navigation';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
 
 const EMPTY: CounterpartyListResponse = {
@@ -146,9 +147,10 @@ export default function CounterpartiesPage(): React.JSX.Element {
           onAdd: (value) => replaceQuery({ status: value, page: null }),
         }] : []}
         actions={canManage ? (
-          <ButtonLink variant="primary" icon={<PlusIcon />} href="/counterparties/new">
+          <CreateNavigationLink href="/counterparties/new" className="ui-button ui-button--primary">
+            <span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>
             Создать контрагента
-          </ButtonLink>
+          </CreateNavigationLink>
         ) : null}
       />
 

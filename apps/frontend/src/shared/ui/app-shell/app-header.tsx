@@ -15,6 +15,7 @@ import {
 } from '@/shared/ui/global-command/global-command';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
 import { ChevronDownIcon } from '@/shared/ui/icons/icons';
+import { compactPersonName } from '@/shared/ui/person-presentation/compact-person-name';
 
 const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
   ['/dashboard', 'Рабочий стол'],
@@ -30,6 +31,7 @@ const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
   ['/equipment', 'Оборудование'],
   ['/tasks', 'Задачи'],
   ['/timesheet', 'Табель'],
+  ['/visit-plans', 'План на день'],
   ['/candidates', 'Кандидаты'],
   ['/employees', 'Сотрудники'],
   ['/user-absences', 'Календарь'],
@@ -185,10 +187,11 @@ export function AppHeader(): React.JSX.Element {
                 }}
                 aria-haspopup="menu"
                 aria-expanded={accountOpen}
+                aria-label={`Профиль: ${displayName}`}
               >
                 <UserAvatar fullName={displayName} size="small" />
                 <span className="app-header__account-copy">
-                  <span className="app-header__account-name">{displayName}</span>
+                  <span className="app-header__account-name">{compactPersonName(displayName)}</span>
                   <span className="app-header__account-role">{roleLabel}</span>
                 </span>
                 <span className="app-header__account-chevron"><ChevronDownIcon /></span>

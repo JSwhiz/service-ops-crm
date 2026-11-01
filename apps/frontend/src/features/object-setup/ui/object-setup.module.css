@@ -1,17 +1,24 @@
+.content {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
 .editor {
   display: grid;
-  gap: var(--ui-space-6);
+  gap: var(--ui-space-4);
+  width: 100%;
   max-width: 800px;
   min-width: 0;
 }
 .section {
   display: grid;
-  gap: var(--ui-space-4);
+  gap: var(--ui-space-3);
   min-width: 0;
 }
+.section[hidden] { display: none !important; }
 .section + .section {
   border-top: 1px solid var(--ui-border);
-  padding-top: var(--ui-space-6);
+  padding-top: var(--ui-space-4);
 }
 .grid, .months {
   display: grid;

@@ -29,11 +29,13 @@ import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presenta
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Button, ButtonLink, Surface } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { PlusIcon } from '@/shared/ui/icons/icons';
+import { CreateNavigationLink } from '@/shared/create-navigation';
 import { useConfirm } from '@/shared/ui/overlays';
 import calendarStyles from '@/features/one-time-order-calendar/ui/one-time-order-calendar.module.css';
+import { PersonName } from '@/shared/ui/person-presentation/person-presentation';
 
 const AVAILABILITY_OPTIONS: Array<{
   value: OneTimeOrderAvailabilityType;
@@ -469,9 +471,9 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             </Button>
           ) : null}
           {canCreateOrder ? (
-            <ButtonLink variant="primary" icon={<PlusIcon />} href="/one-time-orders/new">
-              Создать заказ
-            </ButtonLink>
+            <CreateNavigationLink className="ui-button ui-button--primary" href="/one-time-orders/new">
+              <span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>Создать заказ
+            </CreateNavigationLink>
           ) : null}
         </div>
       </Surface>
@@ -496,10 +498,11 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
             <table className={calendarStyles.oneTimeCalendarGrid}>
               <thead>
                 <tr>
-                  <th className={calendarStyles.oneTimeCalendarManagerCell}>Менеджер</th>
+                  <th scope="col" className={calendarStyles.oneTimeCalendarManagerCell}>Менеджер</th>
                   {calendar.managers[0]!.days.map((day) => (
                     <th
                       key={day.date}
+                      scope="col"
                       className={isWeekend(day.date) ? 'is-weekend' : undefined}
                       data-today={day.date === today || undefined}
                     >
@@ -507,14 +510,14 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                       <strong>{Number(day.date.slice(-2))}</strong>
                     </th>
                   ))}
-                  <th className={calendarStyles.oneTimeCalendarWorkedCell}>Дни</th>
+                  <th scope="col" className={calendarStyles.oneTimeCalendarWorkedCell}>Дни</th>
                 </tr>
               </thead>
               <tbody>
                 {calendar.managers.map((manager) => (
                   <tr key={manager.user.id}>
-                    <th className={calendarStyles.oneTimeCalendarManagerCell}>
-                      <strong>{getUserDisplayName(manager.user)}</strong>
+                    <th scope="row" className={calendarStyles.oneTimeCalendarManagerCell}>
+                      <PersonName person={manager.user} compact />
                       <span>{manager.isActive ? 'Активен' : 'Неактивен'}</span>
                     </th>
                     {manager.days.map((day) => {
@@ -527,6 +530,7 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                           data-conflict={day.conflictLevel !== 'none' || undefined}
                           tabIndex={0}
                           role="button"
+                          aria-label={`${getUserDisplayName(manager.user)}, ${formatDate(day.date)}${warning ? `, ${warning}` : ''}: открыть детали дня`}
                           onClick={() => {
                             setError(null);
                             setSelectedDay({ manager, day });
@@ -534,8 +538,10 @@ export function OneTimeOrderCalendar(): React.JSX.Element {
                           }}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
                               setError(null);
                               setSelectedDay({ manager, day });
+                              setDecisionComment('');
                             }
                           }}
                         >
@@ -846,12 +852,13 @@ function DayDetailsModal({
 
         <div className="ui-inline">
           {canCreateOrder ? (
-            <ButtonLink
-              icon={<PlusIcon />}
+            <CreateNavigationLink
+              className="ui-button"
               href={`/one-time-orders/new?date=${day.date}&managerUserId=${manager.user.id}`}
             >
+              <span className="ui-button__icon" aria-hidden="true"><PlusIcon /></span>
               Создать заказ на дату
-            </ButtonLink>
+            </CreateNavigationLink>
           ) : null}
           {canManageOwn && manager.user.id === currentUserId ? (
             <Button onClick={() => onCreateOwn(day.date)}>

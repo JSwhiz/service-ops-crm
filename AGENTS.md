@@ -61,3 +61,11 @@ These UI documents supplement the primary product contracts listed under Read do
 - Preserve Objects detail anchor navigation as an intentional exception.
 - A Chats visual refactor must not simultaneously move or rewrite realtime effects, socket ordering, deduplication, or the scroll controller.
 - Replace browser-native confirm/prompt gradually within the migration of the corresponding module.
+
+## Frontend review skills
+
+- For a requested code-level UI guideline review, use `.agents/skills/vercel-web-design-guidelines/SKILL.md`; fetch its current upstream guideline document for each review. Treat it as an additional audit checklist, not as permission to redesign or edit.
+- Impeccable is available at `.agents/skills/impeccable/SKILL.md`. For existing CRM screens, use its `Operate` mode and prefer scoped `audit` (technical findings only), `critique` (UX review), or `polish` (only when implementation is explicitly requested).
+- `docs/ui/STYLE_SOURCES.md`, `UI_ARCHITECTURE.md`, `COMPONENT_CONTRACTS.md`, and `MODULE_ROADMAP.md` remain authoritative. If an external skill suggests a conflicting pattern, token, component, visual treatment, or behavior, follow the project docs and report the conflict instead of applying the suggestion.
+- Do not invoke Impeccable `new-work`, `bolder`, `colorize`, `overdrive`, `extract`, or `live` for routine CRM maintenance. Any broader visual direction, new design tokens, global hooks, live editing, generated assets, or external telemetry requires explicit user approval.
+- Audits/reviews are read-only unless the user separately asks for fixes. Keep findings scoped to the requested files/module and preserve roles, permissions, domain logic, and navigation.

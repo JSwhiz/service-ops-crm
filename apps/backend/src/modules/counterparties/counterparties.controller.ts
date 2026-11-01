@@ -12,6 +12,7 @@ import {
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ListAuditHistoryQueryDto } from '../audit/dto/list-audit-history-query.dto';
 
 import {
   CreateCounterpartyDto,
@@ -63,6 +64,15 @@ export class CounterpartiesController {
   @Get(':id/history')
   history(@CurrentUser() user: CurrentAuthUser, @Param('id') id: string) {
     return this.service.history(user, id);
+  }
+
+  @Get(':id/history-page')
+  historyPage(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Query() query: ListAuditHistoryQueryDto,
+  ) {
+    return this.service.historyPage(user, id, query);
   }
 
   @Get(':id/inventory-movements')

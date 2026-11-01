@@ -1,0 +1,23 @@
+{
+  "package": "pdfjs-dist",
+  "version": "6.4.299",
+  "entry": "legacy/build/pdf.mjs (supported offline Node entry)",
+  "runtime": "Linux arm64 Node v22.22.3",
+  "syntheticPdfBytes": 16250,
+  "imageWidth": 4001,
+  "imageHeight": 4000,
+  "imagePixels": 16004000,
+  "configuration": {
+    "maxImageSize": -1,
+    "canvasMaxAreaInBytes": 33554432
+  },
+  "result": {
+    "status": "rendered",
+    "canvasWidth": 200,
+    "canvasHeight": 200,
+    "centerPixelRGBA": [0, 0, 0, 255],
+    "imageOperators": ["paintImageXObject"]
+  },
+  "scope": "Real PDF parsing and pixel rendering of the bounded synthetic fixture; no browser, external service or user file.",
+  "memoryCaveat": "This proves content retention under maxImageSize:-1. The Node entry does not establish the browser OffscreenCanvas resizing path or an absolute worker RSS bound. The 32 MiB option is a resizing threshold, not a total decoded-memory guarantee."
+}

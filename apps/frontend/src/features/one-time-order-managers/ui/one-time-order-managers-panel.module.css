@@ -1,0 +1,2 @@
+.identity { min-width: 0; overflow-wrap: anywhere; flex: 1 1 200px; }
+.picker { width: 100%; max-width: 440px; min-width: 0; }

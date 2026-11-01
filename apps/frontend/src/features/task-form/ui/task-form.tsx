@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
@@ -24,6 +24,7 @@ import { Button } from '@/shared/ui/foundation';
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import taskStyles from '@/entities/task/ui/task-ui.module.css';
+import createStyles from './task-form.module.css';
 
 export interface TaskFormInitialValue {
   title: string;
@@ -40,7 +41,7 @@ export interface TaskFormInitialValue {
   dueTime: string;
 }
 
-const EMPTY_VALUE: TaskFormInitialValue = {
+export const EMPTY_TASK_VALUE: TaskFormInitialValue = {
   title: '',
   description: '',
   priority: 'important_not_urgent',
@@ -65,6 +66,7 @@ export function TaskForm({
   onTargetsChange,
   onSubmit,
   onCancel,
+  draft, formId, hideActions = false, onSubmittingChange, completed = false, externalPending = false,
 }: {
   objects: ServiceObject[];
   orders: OneTimeOrderListItem[];
@@ -75,16 +77,27 @@ export function TaskForm({
   onTargetsChange: (objectId: string, oneTimeOrderId: string) => void;
   onSubmit: (payload: CreateTaskPayload, files: File[]) => Promise<void>;
   onCancel?: () => void;
+  draft?: { value: TaskFormInitialValue; setValue: React.Dispatch<React.SetStateAction<TaskFormInitialValue>>; files: File[]; setFiles: React.Dispatch<React.SetStateAction<File[]>> };
+  formId?: string;
+  hideActions?: boolean;
+  onSubmittingChange?: (pending: boolean) => void;
+  completed?: boolean;
+  externalPending?: boolean;
 }): React.JSX.Element {
-  const [form, setForm] = useState<TaskFormInitialValue>({
-    ...EMPTY_VALUE,
+  const [localForm, setLocalForm] = useState<TaskFormInitialValue>({
+    ...EMPTY_TASK_VALUE,
     ...initialValue,
   });
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [visibilitySearch, setVisibilitySearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [localFiles, setLocalFiles] = useState<File[]>([]);
+  const form = draft?.value ?? localForm;
+  const setForm = draft?.setValue ?? setLocalForm;
+  const pendingFiles = draft?.files ?? localFiles;
+  const setPendingFiles = draft?.setFiles ?? setLocalFiles;
+  const submitLock = useRef(false);
 
   const filteredUsers = useMemo(() => {
     const query = assigneeSearch.trim().toLocaleLowerCase('ru-RU');
@@ -140,6 +153,7 @@ export function TaskForm({
     event: React.FormEvent<HTMLFormElement>,
   ): Promise<void> => {
     event.preventDefault();
+    if (submitLock.current || completed || externalPending) return;
     setError(null);
 
     if (!isEdit && form.assigneeUserIds.length === 0) {
@@ -151,7 +165,9 @@ export function TaskForm({
       return;
     }
 
+    submitLock.current = true;
     setIsSubmitting(true);
+    onSubmittingChange?.(true);
     try {
       await onSubmit({
         title: form.title.trim(),
@@ -176,15 +192,18 @@ export function TaskForm({
           : 'Не удалось сохранить задачу.',
       );
     } finally {
+      submitLock.current = false;
       setIsSubmitting(false);
+      onSubmittingChange?.(false);
     }
   };
 
   return (
-    <form className={taskStyles.taskForm} onSubmit={(event) => void submit(event)}>
+    <form id={formId} className={taskStyles.taskForm} aria-busy={isSubmitting} onSubmit={(event) => void submit(event)}>
+      <fieldset className={createStyles.body} disabled={!isEdit && (isSubmitting || completed || externalPending)}>
       <div className={taskStyles.taskFormGrid}>
         <label className={`${taskStyles.taskField} ${taskStyles.taskFieldWide}`}>
-          <span>Название</span>
+          <span>Название *</span>
           <input
             value={form.title}
             minLength={2}
@@ -279,7 +298,7 @@ export function TaskForm({
       <fieldset className={taskStyles.taskFormSection}>
         <legend>Срок *</legend>
         <div className={taskStyles.taskFormInline}>
-          <DatePicker aria-label="Дата срока" value={form.dueDate} required onChange={(nextValue) => setForm({ ...form, dueDate: nextValue })} />
+          <DatePicker className={isEdit ? undefined : createStyles.date} displayFormat={isEdit ? 'long' : 'short'} aria-label="Дата срока" value={form.dueDate} required onChange={(nextValue) => setForm({ ...form, dueDate: nextValue })} />
           <label className={taskStyles.taskCheck}>
             <input
               type="checkbox"
@@ -316,6 +335,8 @@ export function TaskForm({
           search={assigneeSearch}
           onSearch={setAssigneeSearch}
           users={filteredUsers}
+          allUsers={users}
+          compact
           selectedIds={form.assigneeUserIds}
           onToggle={(id) => toggleUser('assigneeUserIds', id)}
         />
@@ -377,6 +398,8 @@ export function TaskForm({
             search={visibilitySearch}
             onSearch={setVisibilitySearch}
             users={filteredVisibilityUsers}
+            allUsers={visibilityUsers}
+            compact={!isEdit}
             selectedIds={form.visibleUserIds}
             onToggle={(id) => toggleUser('visibleUserIds', id)}
           />
@@ -396,7 +419,7 @@ export function TaskForm({
 
       {!isEdit ? <div className={taskStyles.taskField}>
         <span>Вложения к задаче</span>
-        <MediaActionPicker disabled={isSubmitting} onPick={async (file) => setPendingFiles((current) => [...current, file])} />
+        <MediaActionPicker compactMenu disabled={isSubmitting} onPick={async (file) => setPendingFiles((current) => [...current, file])} />
         <PendingMediaList files={pendingFiles} onRemove={(index) => setPendingFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))} emptyText="Вложений пока нет." />
       </div> : null}
       {error ? (
@@ -404,7 +427,7 @@ export function TaskForm({
           {error}
         </div>
       ) : null}
-      <div className="ui-inline">
+      {hideActions ? null : <div className="ui-inline">
         <Button variant="primary" type="submit" disabled={isSubmitting}>
           {isSubmitting
             ? 'Сохраняем…'
@@ -417,7 +440,8 @@ export function TaskForm({
             Отмена
           </Button>
         ) : null}
-      </div>
+      </div>}
+      </fieldset>
     </form>
   );
 }
@@ -428,6 +452,8 @@ function UserChecklist({
   search,
   onSearch,
   users,
+  allUsers,
+  compact = false,
   selectedIds,
   onToggle,
 }: {
@@ -436,6 +462,8 @@ function UserChecklist({
   search: string;
   onSearch: (value: string) => void;
   users: SystemUserOption[];
+  allUsers: SystemUserOption[];
+  compact?: boolean;
   selectedIds: string[];
   onToggle: (id: string) => void;
 }): React.JSX.Element {
@@ -443,6 +471,9 @@ function UserChecklist({
     <fieldset className={taskStyles.taskFormSection}>
       <legend>{title}</legend>
       {hint ? <div className="ui-section-subtitle">{hint}</div> : null}
+      {compact && selectedIds.length ? <div className={createStyles.selected} aria-label={'Выбрано: ' + title}>
+        {selectedIds.map((id) => { const user = allUsers.find((entry) => entry.id === id); return <div key={id}><span>{user ? getUserDisplayName(user) : 'Выбранный пользователь'}{user?.login ? <small>@{user.login}</small> : null}</span><Button size="sm" variant="ghost" onClick={() => onToggle(id)}>Убрать</Button></div>; })}
+      </div> : null}
       <input
         type="search"
         value={search}
@@ -454,7 +485,7 @@ function UserChecklist({
         {users.length === 0 ? (
           <div className="ui-text-muted">Пользователи не найдены.</div>
         ) : (
-          users.map((user) => (
+          (compact ? users.filter((user) => !selectedIds.includes(user.id)).slice(0, 20) : users).map((user) => (
             <label key={user.id} className={taskStyles.taskUserOption}>
               <input
                 type="checkbox"
@@ -463,14 +494,15 @@ function UserChecklist({
               />
               <span>
                 {getUserDisplayName(user)}
-                {getUserSecondaryLabel(user) ? (
-                  <small>{getUserSecondaryLabel(user)}</small>
+                {getUserSecondaryLabel(user) || user.login ? (
+                  <small>{getUserSecondaryLabel(user) ?? `@${user.login}`}</small>
                 ) : null}
               </span>
             </label>
           ))
         )}
       </div>
+      {compact && users.filter((user) => !selectedIds.includes(user.id)).length > 20 ? <p className="ui-text-muted">Показаны первые 20 пользователей. Уточните поиск.</p> : null}
     </fieldset>
   );
 }

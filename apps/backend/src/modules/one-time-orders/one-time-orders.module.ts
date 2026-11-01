@@ -10,6 +10,8 @@ import { TasksModule } from '../tasks/tasks.module';
 import { OneTimeOrderAttentionController } from './one-time-order-attention.controller';
 import { OneTimeOrderOperationsController } from './one-time-order-operations.controller';
 import { OneTimeOrderOperationsService } from './one-time-order-operations.service';
+import { OneTimeOrderSpecificationCatalogController } from './one-time-order-specification-catalog.controller';
+import { OneTimeOrderSpecificationCatalogService } from './one-time-order-specification-catalog.service';
 import { OneTimeOrderAttentionService } from './one-time-order-attention.service';
 import { OneTimeOrderWorkforceController } from './one-time-order-workforce.controller';
 import { OneTimeOrderWorkforceDirectoryController } from './one-time-order-workforce-directory.controller';
@@ -28,6 +30,7 @@ import { OneTimeManagerAvailabilityService } from './one-time-manager-availabili
     OneTimeOrderAttentionController,
     OneTimeOrderWorkforceController,
     OneTimeOrderWorkforceDirectoryController,
+    OneTimeOrderSpecificationCatalogController,
     OneTimeOrdersController,
   ],
   providers: [
@@ -39,6 +42,7 @@ import { OneTimeManagerAvailabilityService } from './one-time-manager-availabili
     OneTimeManagerAvailabilityService,
     OneTimeOrderCalendarService,
     OneTimeOrderConflictService,
+    OneTimeOrderSpecificationCatalogService,
   ],
   exports: [
     OneTimeOrdersService,

@@ -1,0 +1,6 @@
+$ pnpm exec tsc -p tsconfig.json --noEmit --incremental false
+Exit 2
+src/app/(app)/calendar-date-helpers.ts(3,37): error TS2769: No overload matches this call; year/month/day may be undefined under strict indexed access.
+src/app/(app)/calendar-date-helpers.ts(3,43): error TS18048: 'month' is possibly 'undefined'.
+src/app/(app)/calendar-date-helpers.ts(3,54): error TS18048: 'day' is possibly 'undefined'.
+src/features/timesheet-cell-editing/ui/timesheet-cell-editor.tsx(151,73): error TS2322: FieldProps has no 'help' property (the supported prop is 'description').

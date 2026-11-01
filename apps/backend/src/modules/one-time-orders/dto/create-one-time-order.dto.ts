@@ -6,15 +6,23 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
   MinLength,
   Matches,
-} from 'class-validator';
+  ValidateNested,
+} from "class-validator";
+import { Type } from "class-transformer";
 
-import { ONE_TIME_ORDER_STATUSES } from '../types/one-time-order-status.type';
-import { ONE_TIME_ORDER_PAYMENT_METHODS } from '../types/one-time-order-payment-method.type';
+import { ONE_TIME_ORDER_STATUSES } from "../types/one-time-order-status.type";
+import { ONE_TIME_ORDER_PAYMENT_METHODS } from "../types/one-time-order-payment-method.type";
+import { CreateOneTimeOrderSpecificationItemDto } from "./create-one-time-order-specification-item.dto";
 
 export class CreateOneTimeOrderDto {
+  @IsOptional()
+  @IsUUID()
+  creationRequestId?: string;
+
   @IsString()
   @MinLength(2)
   title!: string;
@@ -76,6 +84,24 @@ export class CreateOneTimeOrderDto {
   @ArrayUnique()
   @IsString({ each: true })
   managerUserIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  specificationCatalogItemIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  specificationTemplateIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateOneTimeOrderSpecificationItemDto)
+  specificationItems?: CreateOneTimeOrderSpecificationItemDto[];
 
   @IsOptional()
   @IsString()

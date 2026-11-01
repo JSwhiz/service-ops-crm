@@ -230,7 +230,25 @@ export class InventoryService {
     counterpartyId: string,
     page = 1,
     limit = 50,
+    query: Pick<
+      ListInventoryMovementsQueryDto,
+      'dateFrom' | 'dateTo' | 'objectId' | 'movementType'
+    > = {},
   ): Promise<InventoryMovementListResponseDto> {
+    const createdAtFrom = query.dateFrom
+      ? this.parseCounterpartyMovementDate(query.dateFrom)
+      : undefined;
+    const createdAtToExclusive = query.dateTo
+      ? this.parseCounterpartyMovementDate(query.dateTo, true)
+      : undefined;
+    if (
+      createdAtFrom &&
+      createdAtToExclusive &&
+      createdAtFrom >= createdAtToExclusive
+    ) {
+      throw new BadRequestException('Counterparty movement date range is invalid');
+    }
+
     const linkedObjects = await this.prisma.object.findMany({
       where: { counterpartyId, deletedAt: null },
       select: {
@@ -253,12 +271,25 @@ export class InventoryService {
       )
       .map((object) => object.id);
 
-    if (visibleObjectIds.length === 0) {
+    const scopedObjectIds = query.objectId
+      ? visibleObjectIds.filter((objectId) => objectId === query.objectId)
+      : visibleObjectIds;
+
+    if (scopedObjectIds.length === 0) {
       return { items: [], total: 0, page, limit, totalPages: 0 };
     }
 
     const where: Prisma.InventoryMovementWhereInput = {
-      relatedObjectId: { in: visibleObjectIds },
+      relatedObjectId: { in: scopedObjectIds },
+      ...(query.movementType ? { movementType: query.movementType } : {}),
+      ...(query.dateFrom || query.dateTo
+        ? {
+            createdAt: {
+              ...(createdAtFrom ? { gte: createdAtFrom } : {}),
+              ...(createdAtToExclusive ? { lt: createdAtToExclusive } : {}),
+            },
+          }
+        : {}),
     };
     const [total, movements] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.count({ where }),
@@ -333,6 +364,21 @@ export class InventoryService {
       limit,
       totalPages: total === 0 ? 0 : Math.ceil(total / limit),
     };
+  }
+
+  private parseCounterpartyMovementDate(value: string, nextDay = false): Date {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year!, month! - 1, day!));
+    if (
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month! - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      throw new BadRequestException('Counterparty movement date is invalid');
+    }
+    if (nextDay) date.setUTCDate(date.getUTCDate() + 1);
+    // CRM calendar dates use Europe/Moscow (UTC+03:00).
+    return new Date(`${date.toISOString().slice(0, 10)}T00:00:00+03:00`);
   }
 
   async listItems(

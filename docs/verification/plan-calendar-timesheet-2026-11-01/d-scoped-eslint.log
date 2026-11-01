@@ -1,0 +1,3 @@
+$ pnpm exec eslint <13 frozen changed/new TS/TSX source files>
+Exit 0; no diagnostics.
+Included src/shared/ui/icons/icons.tsx (RefreshIcon export).

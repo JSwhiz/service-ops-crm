@@ -16,6 +16,7 @@ import {
   getStringValue,
 } from '@/entities/approval/model/approval-summary';
 import type { ApprovalRequestItem } from '@/entities/approval/model/approval.types';
+import { formatUiDate } from '@/shared/lib/format-date';
 import {
   APPROVAL_SOURCE_OPTIONS,
   APPROVAL_STATUS_OPTIONS,
@@ -477,6 +478,10 @@ export default function ApprovalsPage(): React.JSX.Element {
 
   return (
     <div className={styles.page}>
+      <div className="ui-inline" role="group" aria-label="Быстрый выбор статуса согласований">
+        <Button size="sm" aria-pressed={status === 'pending'} onClick={() => updateQuery({ status: 'pending', page: '' })}>Ожидают решения</Button>
+        <Button size="sm" aria-pressed={!status} onClick={() => updateQuery({ status: '', page: '' })}>Все статусы</Button>
+      </div>
       <div className={styles.filters} role="region" aria-label="Фильтры согласований">
         <RegistryToolbar
           searchValue={searchDraft}
@@ -652,7 +657,7 @@ export default function ApprovalsPage(): React.JSX.Element {
                   <span className={styles.queueMeta}>
                     <span>{getUserDisplayName(item.createdBy)}</span>
                     <time dateTime={item.createdAt}>
-                      {new Date(item.createdAt).toLocaleString('ru-RU')}
+                      {formatUiDate(item.createdAt, { time: true })}
                     </time>
                   </span>
                 </button>
@@ -861,7 +866,7 @@ function ApprovalDetail({
       {item.capabilities.canApprove ||
       item.capabilities.canReject ||
       item.capabilities.canCancel ? (
-        <div className={styles.detailActions}>
+        <div className={`ui-action-group ${styles.detailActions}`}>
           {item.capabilities.canApprove ? (
             <Button
               variant="primary"

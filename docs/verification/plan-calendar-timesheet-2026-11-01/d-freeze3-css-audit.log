@@ -1,0 +1,49 @@
+$ docker exec -w /workspace/apps/frontend service_ops_frontend "node" "../../scripts/audit-css.mjs" "--json"
+{
+  "globals": {},
+  "modules": {
+    "app/(app)/counterparties/counterparties.module.css": {
+      "dead": [
+        "createForm",
+        "createPage",
+        "createTitle",
+        "emptyState",
+        "error",
+        "formActions",
+        "formFields",
+        "fullRow",
+        "surface"
+      ],
+      "deadGlobalRefs": []
+    },
+    "app/(app)/rubber-mats/rubber-mats.module.css": {
+      "dead": [
+        "createForm"
+      ],
+      "deadGlobalRefs": []
+    },
+    "features/employee-workspace/ui/employee-workspace.module.css": {
+      "dead": [
+        "formPage",
+        "objectChip",
+        "objectMore",
+        "objects"
+      ],
+      "deadGlobalRefs": []
+    },
+    "features/object-list/ui/object-list-table.module.css": {
+      "dead": [
+        "managerNames",
+        "managerSummary",
+        "morePeople",
+        "personText"
+      ],
+      "deadGlobalRefs": []
+    }
+  },
+  "brokenComments": [],
+  "missingModuleClasses": {},
+  "undefinedTokens": {}
+}
+
+exit=1

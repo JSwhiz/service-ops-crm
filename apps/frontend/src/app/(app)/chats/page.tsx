@@ -49,6 +49,8 @@ import {
   getUserSecondaryLabel,
 } from '@/shared/lib/display-name';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
+import { AttachmentTrigger } from '@/shared/ui/media-entry/attachment-trigger';
+import { getChatSystemTarget } from '@/shared/lib/safe-local-target';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { ChatIcon } from './chat-icon';
 import { ChatExplorer } from './chat-explorer';
@@ -2468,14 +2470,14 @@ export default function ChatsPage(): React.JSX.Element {
                                       {message.text}
                                     </p>
                                   ) : null}
-                                  {message.messageType === 'system' && typeof message.metadata?.budgetAlertId === 'string' && typeof message.metadata?.objectId === 'string' ? (
-                                    <ButtonLink variant="ghost" size="sm" href={`/objects/${encodeURIComponent(message.metadata.objectId)}#planning`}>Открыть бюджет объекта</ButtonLink>
-                                  ) : null}
+                                  {message.messageType === 'system' ? (() => {
+                                    const target = getChatSystemTarget(message.metadata);
+                                    return target ? <ButtonLink variant="ghost" size="sm" href={target.href}>{target.label}</ButtonLink> : null;
+                                  })() : null}
                                   {!message.isDeleted &&
                                   message.attachments.length > 0 ? (
                                     <AttachmentPreviewList
                                       files={message.attachments}
-                                      emptyText=""
                                       compactMetadata
                                     />
                                   ) : null}
@@ -2696,15 +2698,10 @@ export default function ChatsPage(): React.JSX.Element {
                       </div>
                     ) : null}
                     <div className={styles.chatComposerInputRow}>
-                      <button
-                        type="button"
-                        className="chat-attach-button"
-                        aria-label="Прикрепить фото или файл"
+                      <AttachmentTrigger
                         title="Прикрепить файл (⌘/Ctrl+Shift+U)"
                         onClick={() => attachmentInputRef.current?.click()}
-                      >
-                        <ChatIcon name="attach" />
-                      </button>
+                      />
                       <input
                         ref={attachmentInputRef}
                         hidden

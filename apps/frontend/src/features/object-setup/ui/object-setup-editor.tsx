@@ -9,13 +9,14 @@ import { Select } from '@/shared/ui/searchable-select/select';
 import { budgetCategories, budgetPeriods, type SetupDraft } from '../model/setup-draft';
 import styles from './object-setup.module.css';
 
-export function ObjectSetupEditor({ value, onChange, capabilities: caps, disabled = false, searchUsers, selectedSalesUser }: {
+export function ObjectSetupEditor({ value, onChange, capabilities: caps, disabled = false, searchUsers, selectedSalesUser, activeSection }: {
   value: SetupDraft; onChange: (value: SetupDraft) => void; capabilities: SetupCapabilities; disabled?: boolean;
   searchUsers: (query: string) => Promise<SearchableSelectOption[]>; selectedSalesUser?: SearchableSelectOption | null;
+  activeSection?: 'contract' | 'articles';
 }): React.JSX.Element {
   const patch = (next: Partial<SetupDraft>): void => onChange({ ...value, ...next });
   return <div className={styles.editor}>
-    <section className={styles.section} aria-label="Сведения и договор">
+    <section data-create-section="contract" className={styles.section} aria-label="Сведения и договор" hidden={activeSection === 'articles'}>
       <h3 className="ui-section-title">Сведения и договор</h3>
       <p className="ui-section-subtitle">Все поля необязательны. Юридическое название независимо от контрагента.</p>
       <div className={styles.grid}>
@@ -29,7 +30,7 @@ export function ObjectSetupEditor({ value, onChange, capabilities: caps, disable
         {caps.canViewCoefficient ? <Field label="Коэффициент" description={caps.canEditCoefficient ? 'Сохраняется как настройка. В расчётах пока не применяется.' : 'В расчётах пока не применяется. Для изменения требуется отдельное право.'}><input type="number" step="0.0001" min={0} value={value.coefficient} disabled={disabled || !caps.canEditCoefficient} onChange={(event) => patch({ coefficient: event.target.value })} /></Field> : null}
       </div>
     </section>
-    {caps.canViewBudgets ? <section className={styles.section} aria-label="Плановые бюджеты">
+    {caps.canViewBudgets ? <section data-create-section="articles" className={styles.section} aria-label="Плановые бюджеты" hidden={activeSection === 'contract'}>
       <h3 className="ui-section-title">Плановые бюджеты</h3>
       <p className="ui-section-subtitle">Зарплата и расходники учитываются отдельно. План не создаёт расход или выплату. Пустая сумма означает «не задана».</p>
       {!caps.canEditBudgets ? <Alert tone="info">Изменение бюджета доступно по отдельному праву.</Alert> : null}

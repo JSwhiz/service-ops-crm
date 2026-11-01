@@ -10,8 +10,10 @@ import { Prisma } from "@prisma/client";
 import { AuditService } from "../audit/audit.service";
 import {
   canViewObjectByScope,
+  hasWideObjectAccess,
   LEADERSHIP_OBJECT_ROLE_CODES,
 } from "../objects/utils/object-access.util";
+import { delegatedObjectIds } from "../user-substitutions/object-delegation.context";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateVisitPlanDto,
@@ -19,6 +21,7 @@ import {
   SaveVisitPlanEntryDto,
   SaveVisitPlanReportDto,
   SaveVisitPlanDeadlineDto,
+  VisitPlanObjectOptionsQueryDto,
 } from "./dto/visit-plan.dto";
 
 export interface VisitPlanUser {
@@ -100,6 +103,82 @@ export class VisitPlansService {
       select: { id: true, fullName: true },
       orderBy: [{ fullName: "asc" }, { id: "asc" }],
     });
+  }
+
+  async listObjectOptions(
+    user: VisitPlanUser,
+    query: VisitPlanObjectOptionsQueryDto,
+  ) {
+    this.assertManage(user);
+    const manager = await this.prisma.user.findFirst({
+      where: {
+        id: query.managerUserId,
+        isActive: true,
+        deletedAt: null,
+        roles: {
+          some: {
+            role: {
+              code: { in: ["manager", "senior_manager", "operation_manager"] },
+            },
+          },
+        },
+      },
+      include: { roles: { include: { role: true } } },
+    });
+    if (!manager) throw new NotFoundException("Plan manager not found");
+
+    const filters: Prisma.ObjectWhereInput[] = [{ deletedAt: null }];
+    const managerRoles = manager.roles.map(({ role }) => role.code);
+    if (!hasWideObjectAccess(managerRoles)) {
+      filters.push({
+        OR: [
+          { createdByUserId: manager.id },
+          { assignments: { some: { userId: manager.id, isActive: true } } },
+        ],
+      });
+    }
+
+    const plannerRoles = user.roleCodes ?? [user.roleCode];
+    if (!hasWideObjectAccess(plannerRoles)) {
+      filters.push({
+        OR: [
+          { id: { in: delegatedObjectIds(user.id) } },
+          { createdByUserId: user.id },
+          { assignments: { some: { userId: user.id, isActive: true } } },
+        ],
+      });
+    }
+
+    const search = query.q?.trim();
+    if (search) {
+      filters.push({
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { internalName: { contains: search, mode: "insensitive" } },
+          { address: { contains: search, mode: "insensitive" } },
+        ],
+      });
+    }
+
+    const where: Prisma.ObjectWhereInput = { AND: filters };
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.object.count({ where }),
+      this.prisma.object.findMany({
+        where,
+        select: { id: true, name: true },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+    ]);
+
+    return {
+      items,
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: total === 0 ? 0 : Math.ceil(total / query.limit),
+    };
   }
 
   async getDay(user: VisitPlanUser, date: string, managerUserId = user.id) {

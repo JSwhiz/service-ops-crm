@@ -16,6 +16,7 @@ import type { Response } from 'express';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AuditHistoryPage, ListAuditHistoryQueryDto } from '../audit/dto/list-audit-history-query.dto';
 import { EquipmentScopeResponseDto } from '../equipment/dto/equipment-response.dto';
 import { TaskResponseDto } from '../tasks/dto/task-response.dto';
 
@@ -33,6 +34,8 @@ import { CreateOneTimeOrderCommentDto } from './dto/create-one-time-order-commen
 import { CreateOneTimeOrderPhotoDto } from './dto/create-one-time-order-photo.dto';
 import { CreateOneTimeOrderDto } from './dto/create-one-time-order.dto';
 import { CreateOneTimeOrderSpecificationItemDto } from './dto/create-one-time-order-specification-item.dto';
+import { CreateSpecificationItemCommentDto } from './dto/create-specification-item-comment.dto';
+import { ApplyOneTimeOrderSpecificationCatalogDto } from './dto/apply-one-time-order-specification-catalog.dto';
 import { DeleteOneTimeOrderPhotoDto } from './dto/delete-one-time-order-photo.dto';
 import { ListOneTimeOrderCalendarQueryDto } from './dto/list-one-time-order-calendar-query.dto';
 import { ListOneTimeOrderCalendarManagersQueryDto } from './dto/list-one-time-order-calendar-managers-query.dto';
@@ -51,6 +54,7 @@ import { OneTimeOrderPhotoResponseDto } from './dto/one-time-order-photo-respons
 import { OneTimeOrderResponseDto } from './dto/one-time-order-response.dto';
 import { OneTimeOrderReviewListResponseDto } from './dto/one-time-order-review-list-response.dto';
 import { OneTimeOrderSpecificationItemResponseDto } from './dto/one-time-order-specification-item-response.dto';
+import { SpecificationItemCommentResponseDto } from './dto/specification-item-comment-response.dto';
 import { ReorderOneTimeOrderSpecificationItemsDto } from './dto/reorder-one-time-order-specification-items.dto';
 import {
   ApproveOneTimeManagerAvailabilityDto,
@@ -335,6 +339,44 @@ export class OneTimeOrdersController {
     return this.oneTimeOrdersService.listSpecificationItems(user, id);
   }
 
+  @Get(':id/specification-items/:itemId/comments')
+  listSpecificationItemComments(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ): Promise<SpecificationItemCommentResponseDto[]> {
+    return this.oneTimeOrdersService.listSpecificationItemComments(user, id, itemId);
+  }
+
+  @Post(':id/specification-items/:itemId/comments')
+  createSpecificationItemComment(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() payload: CreateSpecificationItemCommentDto,
+  ): Promise<SpecificationItemCommentResponseDto> {
+    return this.oneTimeOrdersService.createSpecificationItemComment(user, id, itemId, payload);
+  }
+
+  @Delete(':id/specification-items/:itemId/attachments/:fileId')
+  detachSpecificationItemAttachment(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Param('fileId') fileId: string,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto> {
+    return this.oneTimeOrdersService.detachSpecificationItemAttachment(user, id, itemId, fileId);
+  }
+
+  @Post(':id/specification-items/apply-catalog')
+  applySpecificationCatalog(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Body() payload: ApplyOneTimeOrderSpecificationCatalogDto,
+  ): Promise<OneTimeOrderSpecificationItemResponseDto[]> {
+    return this.oneTimeOrdersService.applySpecificationCatalog(user, id, payload);
+  }
+
   @Post(':id/specification-items')
   createSpecificationItem(
     @CurrentUser() user: CurrentAuthUser,
@@ -511,6 +553,15 @@ export class OneTimeOrdersController {
     @Param('id') id: string,
   ): Promise<OneTimeOrderAuditLogResponseDto[]> {
     return this.oneTimeOrdersService.listHistory(user, id);
+  }
+
+  @Get(':id/history-page')
+  listHistoryPage(
+    @CurrentUser() user: CurrentAuthUser,
+    @Param('id') id: string,
+    @Query() query: ListAuditHistoryQueryDto,
+  ): Promise<AuditHistoryPage<OneTimeOrderAuditLogResponseDto>> {
+    return this.oneTimeOrdersService.listHistoryPage(user, id, query);
   }
 
   @Get(':id/tasks')

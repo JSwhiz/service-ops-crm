@@ -15,10 +15,6 @@
   min-width: 0;
 }
 
-.formPage {
-  max-width: 1040px;
-}
-
 .formSurface {
   padding: var(--ui-space-6);
 }
@@ -669,12 +665,12 @@ a.listTitle:hover {
 }
 
 .personName {
-  overflow: hidden;
+  overflow: visible;
   color: var(--ui-text);
   font-weight: 600;
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
@@ -683,11 +679,11 @@ a.listTitle:hover {
 }
 
 .personMeta {
-  overflow: hidden;
+  overflow: visible;
   color: var(--ui-text-secondary);
   font-size: var(--ui-text-xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-overflow: clip;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
 
@@ -697,34 +693,6 @@ a.listTitle:hover {
   font-weight: 400;
   white-space: nowrap;
   text-decoration: none;
-}
-
-.objects {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ui-space-1);
-  min-width: 0;
-}
-
-.objectChip {
-  min-width: 0;
-  max-width: 100%;
-  padding: 2px 8px;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius-xs);
-  background: var(--ui-surface-subtle);
-  color: var(--ui-text);
-  font-size: var(--ui-text-xs);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.objectMore {
-  flex: 0 0 auto;
-  color: var(--ui-text-secondary);
-  font-size: var(--ui-text-xs);
-  font-weight: 600;
 }
 
 .cellStack {
@@ -977,3 +945,8 @@ a.listTitle:hover {
   display: grid;
   gap: 2px;
 }
+
+.phones { display: inline-flex; flex-wrap: wrap; gap: var(--ui-space-2); align-items: baseline; }
+.phones a, .mobileMeta > span:first-child { white-space: nowrap; }
+.phones summary { cursor: pointer; }
+.phones ul { margin: var(--ui-space-2) 0 0; padding: 0; list-style: none; }

@@ -1,0 +1,3 @@
+$ docker exec -w /workspace/apps/frontend service_ops_frontend "pnpm" "exec" "tsc" "-p" "tsconfig.json" "--noEmit" "--incremental" "false"
+
+exit=0

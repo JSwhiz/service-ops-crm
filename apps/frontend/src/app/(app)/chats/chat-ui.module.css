@@ -805,8 +805,7 @@
   border-color: var(--ui-border);
   background: var(--ui-surface);
 }
-.workspace .chatComposerInputRow button[type='submit'],
-.workspace :global(.chat-attach-button) {
+.workspace .chatComposerInputRow button[type='submit'] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -818,13 +817,6 @@
   border: 0;
   border-radius: 50%;
   box-shadow: none;
-}
-.workspace :global(.chat-attach-button) {
-  background: transparent;
-  color: var(--ui-text-secondary);
-}
-.workspace :global(.chat-attach-button:hover) {
-  background: var(--ui-surface-hover);
 }
 .workspace .chatComposerInputRow button[type='submit'] {
   background: var(--ui-accent);

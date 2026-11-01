@@ -15,13 +15,20 @@
 }
 
 .menu {
-  position: absolute;
-  top: calc(100% + var(--ui-space-1));
-  right: 0;
-  z-index: 100;
+  box-sizing: border-box;
+  position: fixed;
+  inset: auto;
+  inset-block: auto;
+  inset-inline: auto;
+  margin: 0;
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  height: max-content;
   min-width: 232px;
   max-width: min(320px, calc(100vw - 24px));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
   padding: var(--ui-space-1);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg);
@@ -29,9 +36,9 @@
   box-shadow: var(--ui-shadow-popover);
 }
 
-.menuStart {
-  right: auto;
-  left: 0;
+.menu:popover-open {
+  inset-block-end: auto;
+  margin-block: 0;
 }
 
 .item.item {

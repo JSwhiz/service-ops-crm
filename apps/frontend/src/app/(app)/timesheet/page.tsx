@@ -21,6 +21,8 @@ import type {
 import type { TimesheetCellMutation } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/timesheet-corrections-panel';
 import { TimesheetOverviewGrid } from '@/features/timesheet-overview/ui/timesheet-overview-grid';
+import { getOverviewRefreshState, type OverviewSnapshot } from '@/features/timesheet-overview/model/overview-refresh';
+import { ApiError } from '@/shared/api/fetcher';
 import { Button, Surface } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import {
@@ -62,7 +64,8 @@ export default function TimesheetPage(): React.JSX.Element {
   const { year, month } = parsePeriod(searchParams);
   const objectId = searchParams.get('objectId') ?? '';
   const employeeId = searchParams.get('employeeId') ?? '';
-  const [overview, setOverview] = useState<TimesheetOverview | null>(null);
+  const overviewScope = JSON.stringify([year, month, objectId, employeeId]);
+  const [overviewSnapshot, setOverviewSnapshot] = useState<OverviewSnapshot<TimesheetOverview> | null>(null);
   const [objectTimesheet, setObjectTimesheet] = useState<TimesheetMonth | null>(null);
   const [corrections, setCorrections] = useState<TimesheetCorrectionItem[]>([]);
   const [selectedObject, setSelectedObject] = useState<SearchableSelectOption | null>(null);
@@ -77,6 +80,8 @@ export default function TimesheetPage(): React.JSX.Element {
   const detailRequestRef = useRef(0);
   const objectReferenceRequestRef = useRef(0);
   const employeeReferenceRequestRef = useRef(0);
+  const refreshLockRef = useRef(false);
+  const { overview, mutationsBlocked } = getOverviewRefreshState(overviewSnapshot, overviewScope, refreshVersion, loading);
 
   const replaceFilters = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -101,27 +106,31 @@ export default function TimesheetPage(): React.JSX.Element {
     setError(null);
     void getTimesheetOverview({ year, month, objectId: objectId || undefined, employeeId: employeeId || undefined })
       .then((result) => {
-        if (requestId === overviewRequestRef.current) setOverview(result);
+        if (requestId === overviewRequestRef.current) {
+          setOverviewSnapshot({ data: result, scope: overviewScope, revision: refreshVersion });
+          refreshLockRef.current = false;
+        }
       })
       .catch(() => {
         if (requestId === overviewRequestRef.current) {
-          setOverview(null);
           setError('Не удалось загрузить сводный табель.');
         }
       })
       .finally(() => {
         if (requestId === overviewRequestRef.current) setLoading(false);
       });
-  }, [employeeId, month, objectId, refreshVersion, year]);
+    return () => { if (overviewRequestRef.current === requestId) overviewRequestRef.current += 1; };
+  }, [employeeId, month, objectId, overviewScope, refreshVersion, year]);
 
   useEffect(() => {
+    const requestId = ++detailRequestRef.current;
     if (!objectId) {
       setObjectTimesheet(null);
       setCorrections([]);
       setDetailError(null);
+      setDetailLoading(false);
       return;
     }
-    const requestId = ++detailRequestRef.current;
     setDetailLoading(true);
     setDetailError(null);
     void Promise.all([
@@ -179,12 +188,22 @@ export default function TimesheetPage(): React.JSX.Element {
   }, [employeeId, month, objectId, year]);
 
   const directChange = async (payload: TimesheetCellMutation): Promise<void> => {
+    if (mutationsBlocked || refreshLockRef.current) throw new ApiError('Refresh required', 409, 'TIMESHEET_REFRESH_REQUIRED');
     await upsertTimesheetEntry({ year, month, ...payload });
+    refreshLockRef.current = true;
+    setLoading(true);
     setRefreshVersion((value) => value + 1);
   };
 
   const requestCorrection = async (payload: Required<TimesheetCellMutation>): Promise<void> => {
+    if (mutationsBlocked || refreshLockRef.current) throw new ApiError('Refresh required', 409, 'TIMESHEET_REFRESH_REQUIRED');
     await requestTimesheetManualException({ year, month, ...payload });
+  };
+
+  const refreshOverview = (): void => {
+    refreshLockRef.current = true;
+    setLoading(true);
+    setRefreshVersion((value) => value + 1);
   };
 
   const openDetails = (nextObjectId: string, nextEmployeeId: string): void => {
@@ -233,7 +252,7 @@ export default function TimesheetPage(): React.JSX.Element {
         <Button
           className={timesheetStyles.timesheetExportButton}
           size="md"
-          disabled={isExporting || !overview?.capabilities.canExport}
+          disabled={mutationsBlocked || isExporting || !overview?.capabilities.canExport}
           onClick={() => {
             setIsExporting(true);
             setError(null);
@@ -248,11 +267,16 @@ export default function TimesheetPage(): React.JSX.Element {
         </Button>
       </Surface>
 
-      {loading ? <Surface padding="md">Загрузка табеля...</Surface> : null}
-      {error ? <Surface padding="md" className="page-error">{error}</Surface> : null}
-      {!loading && !error && overview ? (
+      {loading && !overview ? <Surface padding="md">Загрузка табеля...</Surface> : null}
+      {error ? <Surface padding="md" className="page-error">{error} <Button disabled={loading} onClick={refreshOverview}>Обновить табель</Button></Surface> : null}
+      {overview ? (
         <TimesheetOverviewGrid
+          key={`${year}:${month}:${objectId}:${employeeId}`}
           overview={overview}
+          mutationsBlocked={mutationsBlocked}
+          refreshing={loading}
+          dataRevision={overviewSnapshot?.revision ?? 0}
+          onRefresh={refreshOverview}
           onDirectChange={directChange}
           onRequestCorrection={requestCorrection}
           onOpenDetails={openDetails}
@@ -265,13 +289,13 @@ export default function TimesheetPage(): React.JSX.Element {
             <div>
               <h2 className="ui-section-title">Детализация объекта</h2>
               <p className="ui-section-subtitle">
-                Выборка открыта из табеля. Редактирование остаётся в основной таблице выше.
+                Начисления и Excel учитывают выбранные месяц, объект и сотрудника. Корректировка доступна отдельным действием в ячейке.
               </p>
             </div>
           </div>
           {detailLoading ? <Surface padding="md">Загрузка детализации...</Surface> : null}
           {detailError ? <Surface padding="md" className="page-error">{detailError}</Surface> : null}
-          {!detailLoading && objectTimesheet ? (
+          {!detailLoading && !loading && !error && objectTimesheet && overview ? (
             <>
               <div className={timesheetStyles.timesheetObjectInspector} aria-label="Сводка выбранного объекта">
                 <div className={timesheetStyles.timesheetObjectInspectorIdentity}>
@@ -309,16 +333,16 @@ export default function TimesheetPage(): React.JSX.Element {
                   ) : null}
                 </div>
                 <div className="timesheet-object-inspector__metric">
-                  <span>Аванс</span>
-                  <strong>{moneyFormatter.format(objectTimesheet.advanceTotal)}</strong>
+                  <span>Аванс (начислено)</span>
+                  <strong>{moneyFormatter.format(overview.totals.advanceTotal)}</strong>
                 </div>
                 <div className="timesheet-object-inspector__metric">
-                  <span>ЗП</span>
-                  <strong>{moneyFormatter.format(objectTimesheet.salaryTotal)}</strong>
+                  <span>Зарплата (начислено)</span>
+                  <strong>{moneyFormatter.format(overview.totals.salaryTotal)}</strong>
                 </div>
                 <div className="timesheet-object-inspector__metric">
-                  <span>Итого</span>
-                  <strong>{moneyFormatter.format(objectTimesheet.monthTotal)}</strong>
+                  <span>Итого по выбранным фильтрам</span>
+                  <strong>{moneyFormatter.format(overview.totals.monthTotal)}</strong>
                 </div>
               </div>
               <TimesheetCorrectionsPanel

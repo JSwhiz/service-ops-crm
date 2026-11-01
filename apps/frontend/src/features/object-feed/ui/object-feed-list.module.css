@@ -1,34 +1,26 @@
 .card {
   display: grid;
-  gap: 12px;
+  gap: var(--ui-space-4);
 }
 
 .header {
   margin-bottom: 0;
 }
 
-.list {
-  gap: 0;
+.filters {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
 }
-
-.item {
-  display: grid;
-  gap: 5px;
-  padding: 12px 0;
-  border: 0;
-  border-bottom: 1px solid var(--ui-border);
-  border-radius: 0;
-  background: transparent;
-}
-
-.meta {
-  color: var(--ui-text-secondary);
-  font-size: 12px;
-  line-height: 1.4;
+.filters > :not(button) {
+  flex: 1 1 240px;
+  min-width: 0;
 }
 
 .description {
   color: var(--ui-text);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--ui-text-md);
+  line-height: var(--ui-leading-normal);
+  white-space: pre-wrap;
 }

@@ -18,6 +18,7 @@ export class UpdateOneTimeOrderSpecificationItemDto {
   @MaxLength(5000)
   description?: string | null;
 
+  // Deprecated compatibility input. Attachments are never mandatory.
   @IsOptional()
   @IsBoolean()
   requiresAttachment?: boolean;

@@ -1,0 +1,72 @@
+{
+  "freeze": 3,
+  "independentTests": 7,
+  "independentTestFile": "d-freeze3-addressed.test.mjs",
+  "integratedApplicationTests": 25,
+  "totalPassingTests": 32,
+  "findings": [
+    {
+      "priority": "P2",
+      "owner": "C",
+      "issue": "Vertical arrow reveal",
+      "status": "addressed: independent geometry/source checks plus main LIVE retest",
+      "evidence": [
+        "56 synthetic rectangle cases reveal full focused cells below the sticky header and between sticky identities/totals.",
+        "Focus wiring uses target.focus({preventScroll:true}) and matrix scrollBy with measured client bounds/header height.",
+        "Main: 16 Down -> scrollTop 726.5, focused cell 579.8–623.8 inside viewport 266.5–815.1 below header 266.5–322.3.",
+        "Main: 16 Up -> scrollTop 0, focused cell top 338.8 >= sticky header bottom 330.8."
+      ]
+    },
+    {
+      "priority": "P2",
+      "owner": "C",
+      "issue": "Refetch unmounts drawer/focus/success; stale actions remain available",
+      "status": "addressed by source and offline state/wiring evidence; live save-flow interaction remains untested",
+      "evidence": [
+        "Same-scope overview snapshots preserve object and row identity during loading and failed refresh.",
+        "Page renders overview independently of loading/error, with key based only on period/object/employee.",
+        "Stable employee/day keys preserve the editor instance for retained rows; success is local state and has no revision effect clearing it.",
+        "Both parent mutation handlers guard mutationsBlocked/refreshLockRef; editor canMutate, submit/restore guards and disabled controls block stale actions.",
+        "Only matching fresh snapshot revision unlocks actions; failed refresh remains blocked."
+      ],
+      "limits": [
+        "No full mounted React save/refetch interaction test or money POST.",
+        "Actual focus after the editing footer changes on successful save is not accepted by these source checks; main's read-only Enter/Escape focus return passed."
+      ]
+    },
+    {
+      "priority": "P2",
+      "owner": "C",
+      "issue": "Generic error hides pending conflict",
+      "status": "addressed with actual fetcher parsing and offline responses",
+      "evidence": [
+        "Exact backend pending-409 message is preserved by real fetcher code executed against a mocked Response.",
+        "Pending conflict maps to actionable wait/history guidance and duplicate retry block.",
+        "Version/ambiguous errors instruct refresh and comparison; retry stays blocked until a newer data revision.",
+        "No backend diagnostics are echoed."
+      ],
+      "limits": [
+        "Pending-request latch is local; automatic re-enabling after approval/rejection was not tested or claimed."
+      ]
+    }
+  ],
+  "mainLive": {
+    "bViewports": [
+      390,
+      768,
+      1280,
+      1600
+    ],
+    "bViewportsAccepted": true,
+    "desktopReadOnlyEnterEscapeFocusReturn": "pass",
+    "mobile390ReadOnlyEnterCloseFocusReturn": "pass",
+    "moneyPost": false
+  },
+  "reactHarness": {
+    "reactTestRenderer": false,
+    "jsdom": false,
+    "happyDom": false,
+    "installPerformed": false
+  },
+  "network": "Only offline mocked GET error fixtures; no live mutation or network request from the addressed test."
+}

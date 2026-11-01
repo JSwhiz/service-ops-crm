@@ -5,11 +5,12 @@ import React, { useCallback, useState } from 'react';
 
 import type { OneTimeOrderSortField } from '@/entities/one-time-order/api/one-time-order-client';
 import type { OneTimeOrderListItem } from '@/entities/one-time-order/model/one-time-order.types';
-import { getUserDisplayName } from '@/shared/lib/display-name';
+import { PeopleList } from '@/shared/ui/person-presentation/person-presentation';
 import { getOneTimeOrderStatusLabel } from '@/shared/lib/one-time-order-presentation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { OneTimeOrderPreviewDrawer } from './one-time-order-preview-drawer';
 import { StatusBadge } from '@/shared/ui/foundation';
+import { ChevronRightIcon } from '@/shared/ui/icons/icons';
 import { SortableHeader } from '@/shared/ui/data-table/sortable-header';
 import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
@@ -48,7 +49,6 @@ export function OneTimeOrderListTable({
             <th scope="col">Объект</th>
             <th scope="col">ТЗ</th>
             <th scope="col">Задачи</th>
-            <th scope="col">Отзыв</th>
             <th scope="col" aria-label="Быстрый просмотр" />
           </tr>
         </thead>
@@ -67,7 +67,10 @@ export function OneTimeOrderListTable({
                 className={orderStyles.oneTimeOrderPreviewRow}
                 tabIndex={0}
                 aria-label={`Быстрый просмотр заказа ${item.title}`}
-                onClick={() => setPreviewItem(item)}
+                onClick={(event) => {
+                  if (event.target instanceof Element && event.target.closest('a, button, [role="button"]')) return;
+                  setPreviewItem(item);
+                }}
                 onKeyDown={(event) => {
                   if (event.target !== event.currentTarget) return;
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -76,11 +79,10 @@ export function OneTimeOrderListTable({
                   }
                 }}
               >
-                <td data-label="Заказ">
-                  <Link href={href} onClick={(event) => event.stopPropagation()}><strong>{item.title}</strong></Link>
-                  <span className={orderStyles.oneTimeOrderTableMeta}>
-                    {item.contact.name}
-                    {item.contact.phone ? ` · ${item.contact.phone}` : ''}
+                <td data-label="Заказ" className={orderStyles.oneTimeOrderRegistryIdentity}>
+                  <Link href={href} title={item.title} onClick={(event) => event.stopPropagation()}><strong>{item.title}</strong></Link>
+                  <span className={orderStyles.oneTimeOrderTableMeta} title={[item.contact.name, item.contact.phone].filter(Boolean).join(' · ')}>
+                    {item.contact.name}{item.contact.phone ? ` · ${item.contact.phone}` : ''}
                   </span>
                 </td>
                 <td data-label="Даты">
@@ -102,14 +104,16 @@ export function OneTimeOrderListTable({
                     </span>
                   ) : null}
                 </td>
-                <td data-label="Адрес">{item.executionAddress}</td>
+                <td data-label="Адрес" className={orderStyles.oneTimeOrderRegistryAddress} title={item.executionAddress}>
+                  <span className={orderStyles.oneTimeOrderRegistryAddressContent}>{item.executionAddress || '—'}</span>
+                </td>
                 <td data-label="Статус">
                   <StatusBadge status={item.status}>
                     {getOneTimeOrderStatusLabel(item.status)}
                   </StatusBadge>
                 </td>
                 <td data-label="Менеджеры">
-                  {item.managers.map(getUserDisplayName).join(', ') || '—'}
+                  <PeopleList people={item.managers} label="Менеджеры заказа" />
                 </td>
                 <td data-label="Объект">
                   {item.linkedObject ? (
@@ -125,24 +129,15 @@ export function OneTimeOrderListTable({
                   )}
                 </td>
                 <td data-label="ТЗ">
-                  <span
+                  {item.specificationProgress.total === 0 ? '—' : <span
                     className={orderStyles.oneTimeOrderSpecificationProgress}
-                    data-complete={item.specificationProgress.total > 0 && item.specificationProgress.completed >= item.specificationProgress.total}
+                    data-complete={item.specificationProgress.completed >= item.specificationProgress.total}
                     title={`Выполнено пунктов ТЗ: ${item.specificationProgress.completed} из ${item.specificationProgress.total}`}
-                  >
-                    <strong>{item.specificationProgress.completed}</strong>
-                    <span aria-hidden="true">/</span>
-                    {item.specificationProgress.total}
-                  </span>
+                  >{item.specificationProgress.completed} / {item.specificationProgress.total}</span>}
                 </td>
                 <td data-label="Задачи">{item.accessibleTaskCount}</td>
-                <td data-label="Отзыв">
-                  <span className={orderStyles.oneTimeOrderReviewPreview} title={item.reviewPreview ?? undefined}>
-                    {item.reviewPreview || '—'}
-                  </span>
-                </td>
                 <td data-label="">
-                  <div className={orderStyles.oneTimeOrderTableActions}>
+                  <div className={`ui-action-group ${orderStyles.oneTimeOrderTableActions}`}>
                     <Link
                       href={href}
                       className={orderStyles.oneTimeOrderPreviewTrigger}
@@ -150,7 +145,7 @@ export function OneTimeOrderListTable({
                       title="Открыть полную карточку"
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <span aria-hidden="true">›</span>
+                      <ChevronRightIcon size={18} />
                     </Link>
                   </div>
                 </td>

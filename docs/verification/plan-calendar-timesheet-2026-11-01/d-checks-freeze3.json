@@ -1,0 +1,117 @@
+{
+  "baseline": "42c7166fcc932bad11d5441d28db3b91a7344501",
+  "freeze": 3,
+  "runtime": {
+    "container": "service_ops_frontend",
+    "node": "v22.22.3",
+    "pnpm": "10.33.0"
+  },
+  "tests": [
+    "src/app/(app)/calendar-date-helpers.test.mjs",
+    "src/features/timesheet-cell-editing/model/cell-presentation.test.mjs",
+    "src/features/timesheet-grid/model/matrix-navigation.test.mjs",
+    "src/features/timesheet-overview/model/overview-refresh.test.mjs",
+    "../../docs/verification/plan-calendar-timesheet-2026-11-01/d-freeze3-addressed.test.mjs"
+  ],
+  "lintFiles": [
+    "src/app/(app)/timesheet/page.tsx",
+    "src/app/(app)/user-absences/page.tsx",
+    "src/app/(app)/visit-plans/page.tsx",
+    "src/app/(app)/calendar-date-helpers.ts",
+    "src/entities/timesheet/ui/timesheet-identity.tsx",
+    "src/features/timesheet-cell-editing/ui/timesheet-cell-editor.tsx",
+    "src/features/timesheet-cell-editing/model/cell-presentation.ts",
+    "src/features/timesheet-grid/model/matrix-navigation.ts",
+    "src/features/timesheet-grid/ui/timesheet-day-heading.tsx",
+    "src/features/timesheet-grid/ui/timesheet-grid.tsx",
+    "src/features/timesheet-grid/ui/timesheet-scroll-region.tsx",
+    "src/features/timesheet-overview/ui/timesheet-overview-grid.tsx",
+    "src/shared/ui/icons/icons.tsx",
+    "src/features/timesheet-overview/model/overview-refresh.ts"
+  ],
+  "checks": [
+    {
+      "name": "targeted-tests",
+      "args": [
+        "node",
+        "--experimental-strip-types",
+        "--test",
+        "src/app/(app)/calendar-date-helpers.test.mjs",
+        "src/features/timesheet-cell-editing/model/cell-presentation.test.mjs",
+        "src/features/timesheet-grid/model/matrix-navigation.test.mjs",
+        "src/features/timesheet-overview/model/overview-refresh.test.mjs",
+        "../../docs/verification/plan-calendar-timesheet-2026-11-01/d-freeze3-addressed.test.mjs"
+      ],
+      "exitCode": 0,
+      "signal": null,
+      "startedAt": "2026-11-01T09:40:23.503Z",
+      "finishedAt": "2026-11-01T09:40:24.328Z"
+    },
+    {
+      "name": "typecheck",
+      "args": [
+        "pnpm",
+        "exec",
+        "tsc",
+        "-p",
+        "tsconfig.json",
+        "--noEmit",
+        "--incremental",
+        "false"
+      ],
+      "exitCode": 0,
+      "signal": null,
+      "startedAt": "2026-11-01T09:40:24.330Z",
+      "finishedAt": "2026-11-01T09:40:37.665Z"
+    },
+    {
+      "name": "scoped-eslint",
+      "args": [
+        "pnpm",
+        "exec",
+        "eslint",
+        "src/app/(app)/timesheet/page.tsx",
+        "src/app/(app)/user-absences/page.tsx",
+        "src/app/(app)/visit-plans/page.tsx",
+        "src/app/(app)/calendar-date-helpers.ts",
+        "src/entities/timesheet/ui/timesheet-identity.tsx",
+        "src/features/timesheet-cell-editing/ui/timesheet-cell-editor.tsx",
+        "src/features/timesheet-cell-editing/model/cell-presentation.ts",
+        "src/features/timesheet-grid/model/matrix-navigation.ts",
+        "src/features/timesheet-grid/ui/timesheet-day-heading.tsx",
+        "src/features/timesheet-grid/ui/timesheet-grid.tsx",
+        "src/features/timesheet-grid/ui/timesheet-scroll-region.tsx",
+        "src/features/timesheet-overview/ui/timesheet-overview-grid.tsx",
+        "src/shared/ui/icons/icons.tsx",
+        "src/features/timesheet-overview/model/overview-refresh.ts"
+      ],
+      "exitCode": 0,
+      "signal": null,
+      "startedAt": "2026-11-01T09:40:37.665Z",
+      "finishedAt": "2026-11-01T09:40:39.445Z"
+    },
+    {
+      "name": "css-audit",
+      "args": [
+        "node",
+        "../../scripts/audit-css.mjs",
+        "--json"
+      ],
+      "exitCode": 1,
+      "signal": null,
+      "startedAt": "2026-11-01T09:40:39.445Z",
+      "finishedAt": "2026-11-01T09:40:41.372Z"
+    }
+  ],
+  "cssBaselineOnly": true,
+  "before": {
+    "sha256": "54a47950dc7c9f6e186f4d8f933f9c05e89dc39ae2afe72a70d0782c07463669",
+    "files": 512
+  },
+  "after": {
+    "sha256": "54a47950dc7c9f6e186f4d8f933f9c05e89dc39ae2afe72a70d0782c07463669",
+    "files": 512
+  },
+  "sourceUnchanged": true,
+  "readyForBuild": true
+}

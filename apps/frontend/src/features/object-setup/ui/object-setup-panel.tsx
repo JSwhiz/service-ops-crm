@@ -75,7 +75,7 @@ export function ObjectSetupPanel({ objectId }: { objectId: string }): React.JSX.
   const canEdit = caps && (caps.canEditCore || caps.canEditContractAmount || caps.canEditBudgets || caps.canEditCoefficient);
   return <Surface padding="md">
     {dialog}
-    <div className={styles.editor}>
+    <div className={styles.content}>
       <div className="ui-section-header"><h3 className="ui-section-title">Сведения, договор и плановые статьи</h3>{canEdit && !draft ? <Button onClick={() => begin()}>Изменить сведения</Button> : null}</div>
       {loading ? <LoadingState label="Загрузка сведений объекта" /> : null}
       {error ? <Alert tone="danger">{error}<div><Button disabled={pending} onClick={() => { void refresh(); }}>Обновить данные</Button></div></Alert> : null}

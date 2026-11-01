@@ -5,6 +5,9 @@ import type {
   ObjectArrivalPhoto,
   ObjectComment,
   ObjectDailyReport,
+  StagedDailyReportAttachment,
+  CorrectDailyReportAttachmentsPayload,
+  CorrectDailyReportAttachmentsResponse,
   ObjectFeedItem,
   LinkedOneTimeOrderProjection,
 } from '../model/object-operations.types';
@@ -173,6 +176,32 @@ export async function getTodayDailyReport(
 
 export async function listObjectDailyReports(objectId: string, date?: string): Promise<ObjectDailyReport[]> {
   return fetcher<ObjectDailyReport[]>(`/objects/${objectId}/daily-reports${date ? `?date=${encodeURIComponent(date)}` : ''}`, { method: 'GET' });
+}
+
+export async function stageDailyReportAttachment(
+  objectId: string,
+  reportId: string,
+  file: File,
+  requestId: string,
+): Promise<StagedDailyReportAttachment> {
+  const formData = new FormData();
+  formData.set('requestId', requestId);
+  formData.set('file', file);
+  return fetcher<StagedDailyReportAttachment>(
+    `/objects/${objectId}/daily-reports/${reportId}/attachments`,
+    { method: 'POST', body: formData },
+  );
+}
+
+export async function correctDailyReportAttachments(
+  objectId: string,
+  reportId: string,
+  payload: CorrectDailyReportAttachmentsPayload,
+): Promise<CorrectDailyReportAttachmentsResponse> {
+  return fetcher<CorrectDailyReportAttachmentsResponse>(
+    `/objects/${objectId}/daily-reports/${reportId}/attachments`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  );
 }
 
 export async function submitTodayDailyReport(objectId: string, expectedRevision: number): Promise<ObjectDailyReport> {

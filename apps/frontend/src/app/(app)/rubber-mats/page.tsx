@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import {
-  createRubberMatSize, getRubberMatAggregateRegistry, getRubberMatCatalog, getRubberMatCostHistory,
+  getRubberMatAggregateRegistry, getRubberMatCatalog, getRubberMatCostHistory,
   matMoney, matSizeLabel, setRubberMatCost,
   type RubberMatAggregateRegistry, type RubberMatCostChange, type RubberMatSize,
 } from '@/entities/rubber-mat/api/rubber-mat-client';
@@ -11,19 +11,19 @@ import { Alert, Button, Field } from '@/shared/ui/foundation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
 import { RegistryToolbar } from '@/shared/ui/registry-filters/registry-toolbar';
+import { CreateNavigationLink } from '@/shared/create-navigation';
 import styles from './rubber-mats.module.css';
 
 export default function RubberMatsPage(): React.JSX.Element {
   const [catalog, setCatalog] = useState<{ items: RubberMatSize[]; canManage: boolean } | null>(null);
   const [registry, setRegistry] = useState<RubberMatAggregateRegistry | null>(null);
   const [query, setQuery] = useState('');
+  const [withMatsOnPage, setWithMatsOnPage] = useState(false);
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({ length: '', width: '', cost: '' });
   const [costDrafts, setCostDrafts] = useState<Record<string, { value: string; version: number }>>({});
   const [history, setHistory] = useState<{ size: RubberMatSize; changes: RubberMatCostChange[] } | null>(null);
 
@@ -33,6 +33,12 @@ export default function RubberMatsPage(): React.JSX.Element {
       .catch((caught: unknown) => { if (active) setError(caught instanceof Error ? caught.message : 'Не удалось загрузить каталог'); });
     return () => { active = false; };
   }, [revision]);
+
+  useEffect(() => {
+    const onCreated = (): void => setRevision((value) => value + 1);
+    window.addEventListener('rubber-mat-size-created', onCreated);
+    return () => window.removeEventListener('rubber-mat-size-created', onCreated);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -56,35 +62,25 @@ export default function RubberMatsPage(): React.JSX.Element {
     finally { setBusy(false); }
   };
 
+  const visibleRows = registry?.items.filter((row) => !withMatsOnPage || row.quantity > 0) ?? [];
+
   return <div className={styles.page}>
     <p>Количество ковров на объектах и каталог стоимости замены.</p>
+    <div className="ui-inline"><Button size="sm" aria-pressed={withMatsOnPage} onClick={() => setWithMatsOnPage((current) => !current)}>Есть ковры · на текущей странице</Button><a href="#rubber-mat-catalog">Каталог размеров</a></div>
+    {withMatsOnPage ? <p className="ui-text-muted">Показаны объекты с коврами только среди загруженных объектов этой страницы. Поиск и пагинация относятся ко всем доступным объектам.</p> : null}
     {error ? <Alert tone="danger" role="alert">{error} <Button onClick={() => { setError(null); setRevision((value) => value + 1); }}>Обновить данные</Button></Alert> : null}
     <RegistryToolbar searchValue={query} searchLabel="Поиск объектов" searchPlaceholder="Название или адрес объекта" onSearchChange={(value) => { setQuery(value); setPage(1); }} activeFilters={[]} availableFilters={[]} />
     <DataTable label="Ковры на доступных объектах" frameClassName={styles.tableFrame}>
       <thead><tr><th>Объект</th><th>Количество ковров</th><th>Стоимость замены</th></tr></thead>
-      <tbody>{loading ? <tr><td colSpan={3}>Загружаем учёт…</td></tr> : !registry || registry.items.length === 0 ? <tr><td colSpan={3}>Объекты не найдены.</td></tr> : registry.items.map((row) => <tr key={row.object.id}>
+      <tbody>{loading ? <tr><td colSpan={3}>Загружаем учёт…</td></tr> : visibleRows.length === 0 ? <tr><td colSpan={3}>{withMatsOnPage ? 'На этой странице нет объектов с коврами.' : 'Объекты не найдены.'}</td></tr> : visibleRows.map((row) => <tr key={row.object.id}>
         <td><Link href={'/objects/' + row.object.id + '#rubber-mats'}>{row.object.name}</Link><small>{row.object.address}</small></td>
         <td>{row.quantity}</td><td>{row.totalReplacementCost === null ? 'Не определена' : matMoney(row.totalReplacementCost)}{row.totalReplacementCost === null ? <small>Известная часть: {matMoney(row.knownReplacementCost)}</small> : null}</td>
       </tr>)}</tbody>
     </DataTable>
     <TablePagination page={page} totalPages={registry?.totalPages || 1} pending={loading} label="Страницы объектов с коврами" summary={'Объектов: ' + (registry?.total ?? 0)} onPageChange={setPage} />
 
-    <div className="ui-inline"><h2>Каталог размеров</h2>{catalog?.canManage ? <Button onClick={() => setCreateOpen((value) => !value)}>{createOpen ? 'Закрыть форму' : 'Добавить размер'}</Button> : null}</div>
+    <div id="rubber-mat-catalog" className="ui-inline"><h2>Каталог размеров</h2>{catalog?.canManage ? <CreateNavigationLink className="ui-button ui-button--primary" href="/rubber-mats/new">Добавить размер</CreateNavigationLink> : null}</div>
     <p>Новые размеры и цены вводятся явно. Пустая цена означает, что стоимость ещё не указана.</p>
-    {createOpen && catalog?.canManage ? <form className={styles.createForm} onSubmit={(event) => {
-      event.preventDefault();
-      void run(async () => {
-        await createRubberMatSize({ lengthCm: Number(form.length), widthCm: Number(form.width), replacementCost: form.cost.trim() || null });
-        setForm({ length: '', width: '', cost: '' }); setCreateOpen(false);
-      });
-    }}>
-      <div className={styles.formGrid}>
-        <Field label="Длина, см" required><input required type="number" min="0.01" max="99999999.99" step="0.01" value={form.length} disabled={busy} onChange={(event) => setForm((old) => ({ ...old, length: event.target.value }))} /></Field>
-        <Field label="Ширина, см" required><input required type="number" min="0.01" max="99999999.99" step="0.01" value={form.width} disabled={busy} onChange={(event) => setForm((old) => ({ ...old, width: event.target.value }))} /></Field>
-        <Field label="Стоимость замены, ₽"><input type="number" min="0" max="999999999999.99" step="0.01" value={form.cost} disabled={busy} onChange={(event) => setForm((old) => ({ ...old, cost: event.target.value }))} /></Field>
-      </div>
-      <Button type="submit" variant="primary" disabled={busy}>Добавить размер</Button>
-    </form> : null}
     <DataTable label="Каталог размеров ковров" frameClassName={styles.tableFrame}>
       <thead><tr><th>Размер</th><th>Стоимость замены за ковёр</th><th>Действия</th></tr></thead>
       <tbody>{!catalog ? <tr><td colSpan={3}>{error ? 'Каталог не загружен.' : 'Загружаем каталог…'}</td></tr> : catalog.items.length === 0 ? <tr><td colSpan={3}>Размеры пока не добавлены.</td></tr> : catalog.items.map((size) => <tr key={size.id}>

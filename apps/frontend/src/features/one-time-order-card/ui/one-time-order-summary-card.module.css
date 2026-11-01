@@ -3,6 +3,27 @@
   gap: 20px;
 }
 
+.summary :global(.ui-entity-header) { flex-wrap: wrap; }
+.summary :global(.ui-entity-header__content) { align-content: start; }
+.summary :global(.ui-entity-header__actions) { max-width: 100%; }
+.summary :global(.one-time-order-summary__actions) > :global(.ui-button) {
+  width: max-content;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .summary :global(.one-time-order-summary__actions) > :global(.ui-button) {
+    min-height: 44px;
+  }
+}
+
+.summary :global(.ui-entity-header__title) { overflow-wrap: anywhere; }
+
+@media (min-width: 761px) {
+  .summary :global(.ui-entity-header__content) { flex: 1 1 22rem; }
+}
+
 .facts {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px 24px;

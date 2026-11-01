@@ -269,9 +269,7 @@ export function ObjectInventoryPanel({
               {canIssueInventoryToObject && ['issue_to_object', 'issue_to_one_time_order'].includes(movement.movementType) && movement.status === 'applied' ? <Button disabled={isSaving} onClick={() => void correct(movement)}>Исправить выдачу</Button> : null}
               {canIssueInventoryToObject && !['cancelled', 'rejected'].includes(movement.status) && new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(new Date(movement.createdAt)) === new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(new Date()) ? <MediaActionPicker disabled={isSaving} allowGenericFile={false} onPick={async (file) => { await onAttachEvidence(movement.id, [file]); await onRefresh(); }} /> : null}
               {movement.attachments.length > 0 ? (
-                <div className={styles.savedPhotosViewport}>
-                  <AttachmentPreviewList files={movement.attachments} />
-                </div>
+                <AttachmentPreviewList files={movement.attachments} />
               ) : null}
             </Surface>
           ))

@@ -8,20 +8,22 @@ import {
   clearCounterpartyMasterObject,
   linkCounterpartyObject,
   listCounterpartyInventoryMovements,
-  listCounterpartyHistory,
+  listCounterpartyHistoryPage,
   setCounterpartyArchived,
   setCounterpartyMasterObject,
   unlinkCounterpartyObject,
   updateCounterparty,
 } from '@/entities/counterparty/api/counterparty-client';
-import type { CounterpartyCard, CounterpartyHistoryItem } from '@/entities/counterparty/model/counterparty.types';
+import type { CounterpartyCard, CounterpartyHistoryPage } from '@/entities/counterparty/model/counterparty.types';
 import type { CounterpartyInventoryMovement } from '@/entities/counterparty/model/counterparty.types';
 import { getObjectById, listObjectsPage } from '@/entities/object/api/object-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { DataTable } from '@/shared/ui/data-table/data-table';
-import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
-import { ConfirmDialog } from '@/shared/ui/overlays';
+import { ConfirmDialog, useConfirm } from '@/shared/ui/overlays';
+import { OverflowMenu } from '@/shared/ui/overflow-menu/overflow-menu';
 import { TablePagination } from '@/shared/ui/table-pagination/table-pagination';
+import { RegistryDateRange } from '@/shared/ui/registry-filters/registry-toolbar';
+import { usePageExitGuard } from '@/shared/lib/use-page-exit-guard';
 import {
   SearchableSelect,
   type SearchableSelectOption,
@@ -29,7 +31,8 @@ import {
 
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
 import styles from './counterparty-detail.module.css';
-import { CounterpartyHistory } from './counterparty-history';
+import { CounterpartyHistory, getCounterpartyHistoryActionLabel } from './counterparty-history';
+import { hasHistoryFilters, HistoryFilterBar, type HistoryFilterValues } from '@/shared/ui/history-filters/history-filter-bar';
 import { Alert, BackLink, Badge, Button, EmptyState, FactStrip, Field, LoadingState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 
 function toObjectOption(object: ServiceObject): SearchableSelectOption {
@@ -59,8 +62,17 @@ function movementStatusLabel(status: string): string {
 }
 
 function formatMovementDate(value: string): string {
-  return new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value));
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Europe/Moscow',
+  }).format(new Date(value));
 }
+
+const EMPTY_HISTORY_FILTERS: HistoryFilterValues = {
+  q: '', eventType: '', actorUserId: '', dateFrom: '', dateTo: '',
+};
 
 export default function CounterpartyPage({
   params,
@@ -68,18 +80,31 @@ export default function CounterpartyPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const [item, setItem] = useState<CounterpartyCard | null>(null);
-  const [history, setHistory] = useState<CounterpartyHistoryItem[]>([]);
-  const [historyLoadedForId, setHistoryLoadedForId] = useState<string | null>(null);
+  const [historyPageData, setHistoryPageData] = useState<CounterpartyHistoryPage | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoadedQueryKey, setHistoryLoadedQueryKey] = useState<string | null>(null);
+  const [historyPageNumber, setHistoryPageNumber] = useState(1);
+  const [historyRetry, setHistoryRetry] = useState(0);
+  const [historyFilters, setHistoryFilters] = useState(EMPTY_HISTORY_FILTERS);
+  const [appliedHistoryFilters, setAppliedHistoryFilters] = useState(EMPTY_HISTORY_FILTERS);
   const [extraObjectNames, setExtraObjectNames] = useState<Record<string, string>>({});
   const [inventoryMovements, setInventoryMovements] = useState<CounterpartyInventoryMovement[]>([]);
   const [inventoryMovementsTotal, setInventoryMovementsTotal] = useState(0);
   const [inventoryMovementsLoading, setInventoryMovementsLoading] = useState(false);
+  const [inventoryMovementsError, setInventoryMovementsError] = useState<string | null>(null);
+  const [inventoryMovementsLoadedQueryKey, setInventoryMovementsLoadedQueryKey] = useState<string | null>(null);
+  const [inventoryMovementsRetry, setInventoryMovementsRetry] = useState(0);
   const [inventoryMovementsPage, setInventoryMovementsPage] = useState(1);
   const [inventoryMovementsTotalPages, setInventoryMovementsTotalPages] = useState(0);
+  const [movementDateFrom, setMovementDateFrom] = useState('');
+  const [movementDateTo, setMovementDateTo] = useState('');
+  const [movementObjectId, setMovementObjectId] = useState('');
+  const [movementType, setMovementType] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [isLinkingObject, setIsLinkingObject] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'history'>('overview');
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
@@ -92,6 +117,15 @@ export default function CounterpartyPage({
     contactPhone: '',
     notes: '',
   });
+  const [confirm, confirmDialog] = useConfirm();
+  const editNameRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      editNameRef.current?.focus();
+      document.getElementById('counterparty-edit-form')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [editing]);
 
   const sync = (next: CounterpartyCard): void => {
     setItem(next);
@@ -134,17 +168,35 @@ export default function CounterpartyPage({
   }, [params]);
 
   useEffect(() => {
-    if (activeTab !== 'history' || !item || historyLoadedForId === item.id) return;
+    const timeout = window.setTimeout(() => setAppliedHistoryFilters(historyFilters), 250);
+    return () => window.clearTimeout(timeout);
+  }, [historyFilters]);
+
+  const historyQueryKey = JSON.stringify([item?.id, historyPageNumber, appliedHistoryFilters]);
+
+  useEffect(() => {
+    const counterpartyId = item?.id;
+    if (activeTab !== 'history' || !counterpartyId) return;
     let active = true;
+    const requestKey = historyQueryKey;
     setHistoryLoading(true);
-    void listCounterpartyHistory(item.id)
-      .then((events) => {
+    setHistoryError(null);
+    void listCounterpartyHistoryPage(counterpartyId, {
+      page: historyPageNumber,
+      limit: 25,
+      q: appliedHistoryFilters.q.trim() || undefined,
+      eventType: appliedHistoryFilters.eventType || undefined,
+      actorUserId: appliedHistoryFilters.actorUserId || undefined,
+      dateFrom: appliedHistoryFilters.dateFrom || undefined,
+      dateTo: appliedHistoryFilters.dateTo || undefined,
+    })
+      .then((response) => {
         if (!active) return;
-        setHistory(events);
-        setHistoryLoadedForId(item.id);
+        setHistoryPageData(response);
+        setHistoryLoadedQueryKey(requestKey);
       })
       .catch((caughtError) => {
-        if (active) setError(caughtError instanceof Error ? caughtError.message : 'Не удалось загрузить историю контрагента.');
+        if (active) setHistoryError(caughtError instanceof Error ? caughtError.message : 'Не удалось загрузить историю контрагента.');
       })
       .finally(() => {
         if (active) setHistoryLoading(false);
@@ -152,7 +204,9 @@ export default function CounterpartyPage({
     return () => {
       active = false;
     };
-  }, [activeTab, historyLoadedForId, item]);
+  }, [activeTab, appliedHistoryFilters, historyPageNumber, historyQueryKey, historyRetry, item?.id]);
+
+  const history = historyPageData?.items ?? [];
 
   const historyObjectNames = useMemo(() => {
     const names = new Map<string, string>(Object.entries(extraObjectNames));
@@ -182,41 +236,82 @@ export default function CounterpartyPage({
     return () => { cancelled = true; };
   }, [history, historyObjectNames]);
 
+  const movementQueryKey = JSON.stringify([
+    item?.id,
+    inventoryMovementsPage,
+    movementDateFrom,
+    movementDateTo,
+    movementObjectId,
+    movementType,
+  ]);
+
   useEffect(() => {
     if (activeTab !== 'overview' || !item) return;
     let active = true;
+    const requestKey = movementQueryKey;
     setInventoryMovementsLoading(true);
-    void listCounterpartyInventoryMovements(item.id, { page: inventoryMovementsPage, limit: 10 })
+    setInventoryMovementsError(null);
+    void listCounterpartyInventoryMovements(item.id, {
+      page: inventoryMovementsPage,
+      limit: 10,
+      dateFrom: movementDateFrom || undefined,
+      dateTo: movementDateTo || undefined,
+      objectId: movementObjectId || undefined,
+      movementType: movementType || undefined,
+    })
       .then((result) => {
         if (!active) return;
         setInventoryMovements(result.items);
         setInventoryMovementsTotal(result.total);
         setInventoryMovementsTotalPages(result.totalPages);
+        setInventoryMovementsLoadedQueryKey(requestKey);
       })
       .catch((caughtError) => {
-        if (active) setError(caughtError instanceof Error ? caughtError.message : 'Не удалось загрузить движения расходников.');
+        if (active) setInventoryMovementsError(caughtError instanceof Error ? caughtError.message : 'Не удалось загрузить движения расходников.');
       })
       .finally(() => { if (active) setInventoryMovementsLoading(false); });
     return () => { active = false; };
-  }, [activeTab, inventoryMovementsPage, item?.id]);
+  }, [activeTab, item?.id, movementQueryKey, inventoryMovementsRetry]);
 
   const mutate = async (
     operation: () => Promise<CounterpartyCard>,
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     setSaving(true);
     setError(null);
     try {
       const next = await operation();
       sync(next);
+      return true;
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
           ? caughtError.message
           : 'Не удалось сохранить изменение.',
       );
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const editIsDirty = item !== null && (
+    form.name !== item.name ||
+    form.legalName !== (item.legalName ?? '') ||
+    form.contactName !== (item.contactName ?? '') ||
+    form.contactPhone !== (item.contactPhone ?? '') ||
+    form.notes !== (item.notes ?? '')
+  );
+  usePageExitGuard(editing && editIsDirty, confirm);
+
+  const cancelEdit = async (): Promise<void> => {
+    if (editIsDirty && !(await confirm({
+      title: 'Отменить изменения контрагента?',
+      consequence: 'Введённые данные не будут сохранены.',
+      confirmLabel: 'Отменить изменения',
+      tone: 'danger',
+    }))) return;
+    if (item) sync(item);
+    setEditing(false);
   };
 
   const hiddenObjectCount = useMemo(
@@ -258,22 +353,17 @@ export default function CounterpartyPage({
           </div>
           <div className={styles.summaryActions}>
             {item.capabilities.canManage ? (
-              <Button variant="primary" onClick={() => setEditing((current) => !current)}>
-                {editing ? 'Отменить' : 'Редактировать'}
+              <Button variant="primary" onClick={() => {
+                if (editing) void cancelEdit();
+                else { setActiveTab('overview'); setEditing(true); }
+              }}>
+                {editing ? 'Отменить редактирование' : 'Редактировать'}
               </Button>
             ) : null}
-            <Button variant="ghost" onClick={() => { setEditing(false); setActiveTab('history'); }}>
-              История
-            </Button>
             {item.capabilities.canManage ? (
-              item.status === 'active' ? (
-                <Button variant="ghost" disabled={saving} onClick={() => { setArchiveError(null); setArchiveDialogOpen(true); }}>
-                  <MediaActionIcon name="archive" />
-                  В архив
-                </Button>
-              ) : (
-                <Button disabled={saving} onClick={() => void mutate(() => setCounterpartyArchived(item.id, false))}>Восстановить</Button>
-              )
+              item.status === 'active' ? <OverflowMenu triggerLabel="Действия с контрагентом" items={[
+                { key: 'archive', label: 'В архив', tone: 'danger', disabled: saving, onSelect: () => { setArchiveError(null); setArchiveDialogOpen(true); } },
+              ]} /> : <Button disabled={saving} onClick={() => void mutate(() => setCounterpartyArchived(item.id, false))}>Восстановить</Button>
             ) : null}
           </div>
         </div>
@@ -288,7 +378,25 @@ export default function CounterpartyPage({
       <WorkspaceTabs
         items={[{ value: 'overview', label: 'Обзор' }, { value: 'history', label: 'История' }]}
         value={activeTab}
-        onChange={(value) => { setActiveTab(value as 'overview' | 'history'); setEditing(false); }}
+        onChange={(value) => {
+          const nextTab = value as 'overview' | 'history';
+          if (nextTab === activeTab) return;
+          if (editing && editIsDirty) {
+            void confirm({
+              title: 'Закрыть редактирование?',
+              consequence: 'Несохранённые изменения будут отменены перед переходом в другой раздел.',
+              confirmLabel: 'Отменить изменения',
+              tone: 'danger',
+            }).then((accepted) => {
+              if (!accepted) return;
+              if (item) sync(item);
+              setEditing(false);
+              setActiveTab(nextTab);
+            });
+            return;
+          }
+          setActiveTab(nextTab);
+        }}
         label="Разделы контрагента"
         idPrefix="counterparty"
       />
@@ -304,7 +412,6 @@ export default function CounterpartyPage({
             <h2 className={styles.sectionTitle}>Редактирование контрагента</h2>
           </div>
         </div>
-
         {editing ? (
           <form
             className={styles.inlineForm}
@@ -318,13 +425,14 @@ export default function CounterpartyPage({
                   contactPhone: form.contactPhone.trim() || null,
                   notes: form.notes.trim() || null,
                 }),
-              ).then(() => setEditing(false));
+              ).then((saved) => { if (saved) setEditing(false); });
             }}
           >
             <Field label="Название" required>
               <input
                 required
                 minLength={2}
+                ref={editNameRef}
                 placeholder="Например, ООО «Чистота»"
                 value={form.name}
                 onChange={(event) =>
@@ -386,7 +494,7 @@ export default function CounterpartyPage({
               />
             </Field>
             <div className={`${styles.formActions} ${styles.fullRow}`}>
-              <Button onClick={() => { sync(item); setEditing(false); }}>
+              <Button onClick={() => void cancelEdit()}>
                 Отмена
               </Button>
               <Button variant="primary"
@@ -412,13 +520,15 @@ export default function CounterpartyPage({
                 : ''}
             </div>
           </div>
+          {item.capabilities.canLinkObjects && item.status === 'active' && !isLinkingObject ? (
+            <Button className={styles.addObjectButton} variant="primary" onClick={() => setIsLinkingObject(true)}>Добавить объект</Button>
+          ) : null}
         </div>
 
-        {item.capabilities.canLinkObjects && item.status === 'active' ? (
+        {item.capabilities.canLinkObjects && item.status === 'active' && isLinkingObject ? (
           <div className={styles.objectLinkForm}>
             <SearchableSelect
-              label="Добавить / перенести объект"
-              hideLabel
+              label="Объект для связи"
               value={linkObjectId}
               options={[]}
               placeholder="Найти доступный объект"
@@ -444,13 +554,22 @@ export default function CounterpartyPage({
                 disabled={saving || !linkObjectId}
                 onClick={() => {
                   const objectId = linkObjectId;
-                  void mutate(() =>
-                    linkCounterpartyObject(item.id, objectId),
-                  ).then(() => setLinkObjectId(''));
+                  void confirm({
+                    title: 'Связать объект с контрагентом?',
+                    consequence: 'Если объект сейчас связан с другим контрагентом, связь будет перенесена. Текущий мастер-статус объекта при переносе может быть снят.',
+                    confirmLabel: 'Связать объект',
+                  }).then(async (accepted) => {
+                    if (!accepted) return;
+                    if (await mutate(() => linkCounterpartyObject(item.id, objectId))) {
+                      setLinkObjectId('');
+                      setIsLinkingObject(false);
+                    }
+                  });
                 }}
               >
                 Привязать объект
               </Button>
+              <Button disabled={saving} onClick={() => { setLinkObjectId(''); setIsLinkingObject(false); }}>Отмена</Button>
             </div>
           </div>
         ) : null}
@@ -473,25 +592,35 @@ export default function CounterpartyPage({
                   </div>
                 </div>
                 <div className={styles.recordActions}>
-                {item.capabilities.canLinkObjects && item.status === 'active' ? (
-                  item.masterObject?.id === object.id ? (
-                    <Button variant="ghost" disabled={saving} onClick={() => void mutate(() => clearCounterpartyMasterObject(item.id))}>Снять мастер-объект</Button>
-                  ) : (
-                    <Button variant="ghost" disabled={saving} onClick={() => void mutate(() => setCounterpartyMasterObject(item.id, object.id))}>Назначить мастером</Button>
-                  )
-                ) : null}
-                {item.capabilities.canLinkObjects ? (
-                  <Button variant="ghost"
-                    disabled={saving}
-                    onClick={() =>
-                      void mutate(() =>
-                        unlinkCounterpartyObject(item.id, object.id),
-                      )
-                    }
-                  >
-                    Отвязать
-                  </Button>
-                ) : null}
+                  {item.capabilities.canLinkObjects ? <OverflowMenu triggerLabel={`Действия с объектом ${object.name}`} items={[
+                    ...(item.status === 'active' ? [{
+                      key: 'master',
+                      label: item.masterObject?.id === object.id ? 'Снять мастер-объект' : 'Назначить мастер-объектом',
+                      disabled: saving,
+                      onSelect: () => {
+                        const isMaster = item.masterObject?.id === object.id;
+                        void confirm({
+                          title: isMaster ? 'Снять мастер-объект?' : 'Назначить мастер-объектом?',
+                          consequence: isMaster ? 'Контрагент останется связан с объектом, но объект перестанет быть основным.' : 'Текущий мастер-объект контрагента будет заменён.',
+                          confirmLabel: isMaster ? 'Снять назначение' : 'Назначить',
+                        }).then((accepted) => {
+                          if (accepted) void mutate(() => isMaster
+                            ? clearCounterpartyMasterObject(item.id)
+                            : setCounterpartyMasterObject(item.id, object.id));
+                        });
+                      },
+                    }] : []),
+                    {
+                      key: 'unlink', label: 'Отвязать от контрагента', tone: 'danger', disabled: saving,
+                      onSelect: () => void confirm({
+                        title: 'Отвязать объект?',
+                        consequence: 'Связь объекта с этим контрагентом будет удалена. История операции сохранится.',
+                        confirmLabel: 'Отвязать', tone: 'danger',
+                      }).then((accepted) => {
+                        if (accepted) void mutate(() => unlinkCounterpartyObject(item.id, object.id));
+                      }),
+                    },
+                  ]} /> : null}
                 </div>
               </li>
             ))}
@@ -506,8 +635,71 @@ export default function CounterpartyPage({
             <div className={styles.muted}>Показываются движения только по объектам, доступным вам. У каждой записи указан фактический объект.</div>
           </div>
         </div>
+        <div className={styles.movementFilters} aria-label="Фильтры движений расходников">
+          <RegistryDateRange
+            label="Период, МСК"
+            from={movementDateFrom}
+            to={movementDateTo}
+            onFromChange={(value) => { setInventoryMovementsPage(1); setMovementDateFrom(value); }}
+            onToChange={(value) => { setInventoryMovementsPage(1); setMovementDateTo(value); }}
+          />
+          <SearchableSelect
+            label="Фактический объект"
+            value={movementObjectId}
+            options={item.objects.map((object) => ({
+              value: object.id,
+              label: object.name,
+              description: [object.internalName, object.address].filter(Boolean).join(' · ') || undefined,
+              searchText: `${object.name} ${object.internalName ?? ''} ${object.address ?? ''}`,
+            }))}
+            selectedOption={null}
+            placeholder="Все объекты"
+            searchPlaceholder="Название или адрес связанного объекта"
+            emptyText="Связанные объекты не найдены"
+            minimumSearchLength={0}
+            onChange={(value) => {
+              setMovementObjectId(value);
+              setInventoryMovementsPage(1);
+            }}
+          />
+          <SearchableSelect
+            label="Операция"
+            value={movementType}
+            options={[
+              { value: 'receipt', label: 'Поступление' },
+              { value: 'return', label: 'Возврат' },
+              { value: 'issue_to_object', label: 'Выдача на объект' },
+              { value: 'issue_to_one_time_order', label: 'Выдача на разовый заказ' },
+              { value: 'writeoff', label: 'Списание' },
+              { value: 'adjustment', label: 'Корректировка' },
+            ]}
+            searchable={false}
+            placeholder="Все операции"
+            onChange={(value) => { setMovementType(value); setInventoryMovementsPage(1); }}
+          />
+          {(movementDateFrom || movementDateTo || movementObjectId || movementType) ? (
+            <Button variant="ghost" onClick={() => {
+              setMovementDateFrom(''); setMovementDateTo(''); setMovementObjectId('');
+              setMovementType(''); setInventoryMovementsPage(1);
+            }}>Сбросить</Button>
+          ) : null}
+        </div>
+        {inventoryMovementsError ? (
+          <Alert tone="warning" role="alert">
+            <div className="ui-inline">
+              <span>{inventoryMovementsError}</span>
+              {inventoryMovements.length > 0 && inventoryMovementsLoadedQueryKey !== movementQueryKey ? (
+                <span>Показаны движения по предыдущим фильтрам; они не соответствуют выбранному периоду, объекту и операции.</span>
+              ) : null}
+              <Button onClick={() => setInventoryMovementsRetry((value) => value + 1)}>Повторить</Button>
+            </div>
+          </Alert>
+        ) : null}
         {inventoryMovementsLoading ? <LoadingState label="Загружаем движения…" /> : inventoryMovements.length === 0 ? (
-          <EmptyState title="Движений расходников пока нет" description="Здесь появятся движения по доступным вам объектам." />
+          <EmptyState
+            title={inventoryMovementsError ? 'Не удалось загрузить движения' : 'Движений расходников пока нет'}
+            description={inventoryMovementsError ? 'Повторите загрузку, чтобы увидеть результат фильтра.' : 'Здесь появятся движения по доступным вам объектам.'}
+          />
         ) : (
           <>
             <DataTable label="Движения расходников по объектам контрагента" className={styles.movementsTable}>
@@ -548,15 +740,52 @@ export default function CounterpartyPage({
         <Surface as="section" padding="md" className={`${styles.surface} ${styles.section} ${styles.detailSurface}`}>
           <div className={styles.sectionHeader}>
             <h2 className={styles.sectionTitle}>История изменений</h2>
-            <span className={styles.muted}>{history.length}</span>
+            <span className={styles.muted}>{historyPageData?.total ?? 0}</span>
           </div>
-          {historyLoading ? (
-            <LoadingState label="Загружаем историю…" />
-          ) : history.length === 0 ? (
-            <EmptyState title="История изменений пока пуста" />
-          ) : (
-            <CounterpartyHistory items={history} objectNames={historyObjectNames} />
-          )}
+          <HistoryFilterBar
+            filters={historyFilters}
+            eventTypes={(historyPageData?.facets.eventTypes ?? []).map((eventType) => ({
+              value: eventType,
+              label: getCounterpartyHistoryActionLabel(eventType),
+            }))}
+            actors={historyPageData?.facets.actors ?? []}
+            actorsHasMore={historyPageData?.facets.actorsHasMore ?? false}
+            eventTypesHasMore={historyPageData?.facets.eventTypesHasMore ?? false}
+            busy={historyLoading}
+            onActorSearch={async (actorSearch) => {
+              const result = await listCounterpartyHistoryPage(item.id, {
+                page: 1, limit: 1, actorSearch,
+              });
+              return result.facets.actors;
+            }}
+            onChange={(nextFilters) => {
+              setHistoryFilters(nextFilters);
+              setHistoryPageNumber(1);
+            }}
+          />
+          {historyError || (historyLoadedQueryKey !== historyQueryKey && history.length > 0) ? (
+            <Alert tone={historyError ? 'warning' : 'info'} role={historyError ? 'alert' : 'status'}>
+              <div className="ui-inline">
+                <span>{historyError ?? 'Показаны события по предыдущим фильтрам, пока загружается новый результат.'}</span>
+                {historyError ? <Button onClick={() => setHistoryRetry((value) => value + 1)}>Повторить</Button> : null}
+              </div>
+            </Alert>
+          ) : null}
+          {historyLoading && history.length === 0 ? <LoadingState label="Загружаем историю…" /> : null}
+          {!historyLoading && history.length === 0 ? (
+            <EmptyState title={historyError ? 'Не удалось загрузить историю' : historyPageData?.total === 0 && historyLoadedQueryKey === historyQueryKey && hasHistoryFilters(appliedHistoryFilters) ? 'По выбранным фильтрам событий нет' : 'История изменений пока пуста'} />
+          ) : null}
+          {history.length > 0 ? <CounterpartyHistory items={history} objectNames={historyObjectNames} /> : null}
+          {historyPageData ? (
+            <TablePagination
+              page={historyPageData.page}
+              totalPages={historyPageData.totalPages}
+              pending={historyLoading || historyLoadedQueryKey !== historyQueryKey}
+              label="Страницы истории контрагента"
+              summary={historyPageData.total > 0 ? `Показано ${(historyPageData.page - 1) * historyPageData.limit + 1}–${Math.min(historyPageData.page * historyPageData.limit, historyPageData.total)} из ${historyPageData.total}` : 'Событий не найдено'}
+              onPageChange={setHistoryPageNumber}
+            />
+          ) : null}
         </Surface>
       )}
 
@@ -586,6 +815,7 @@ export default function CounterpartyPage({
             .finally(() => setSaving(false));
         }}
       />
+      {confirmDialog}
     </Stack>
   );
 }

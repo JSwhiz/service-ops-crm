@@ -1,6 +1,7 @@
 import { Transform } from 'class-transformer';
 import {
   IsIn,
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -44,6 +45,20 @@ export class ListOneTimeOrdersQueryDto {
   @IsOptional()
   @IsIn(['missing', 'present'])
   reviewStatus?: 'missing' | 'present';
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  withoutDate?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  withoutActiveManager?: boolean;
 
   @IsOptional()
   @Transform(({ value }) => Number(value))

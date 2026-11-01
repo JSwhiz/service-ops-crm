@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { getObjectEquipment } from '@/entities/equipment/api/equipment-client';
 import { getObjectInventory } from '@/entities/inventory/api/inventory-client';
@@ -11,11 +12,10 @@ import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { ObjectAttendancePanel } from '@/features/object-attendance/ui/object-attendance-panel';
 import { ObjectDailyReportPanel } from '@/features/object-report/ui/object-daily-report-panel';
-import { getUserDisplayName } from '@/shared/lib/display-name';
-import { uploadFileBatch } from '@/entities/file/api/file-client';
+import { PeopleList, PersonName } from '@/shared/ui/person-presentation/person-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { Button } from '@/shared/ui/foundation';
-import { Drawer } from '@/shared/ui/overlays';
+import { Drawer, useConfirm } from '@/shared/ui/overlays';
 import styles from './object-preview-drawer.module.css';
 
 function stamp(date: string): string { return new Date(date).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }); }
@@ -25,6 +25,9 @@ export function ObjectPreviewDrawer({ item, onClose }: { item: ServiceObject | n
 }
 
 function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose: () => void }): React.JSX.Element {
+  const router = useRouter();
+  const [confirmDiscard, discardDialog] = useConfirm();
+  const [reportEditState, setReportEditState] = useState({ dirty: false, busy: false });
   const [attendance, setAttendance] = useState<ObjectAttendanceToday | null>(null);
   const [report, setReport] = useState<ObjectDailyReport | null>(null);
   const [reports, setReports] = useState<ObjectDailyReport[]>([]);
@@ -40,6 +43,20 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
   const canOperate = item.capabilities.canViewOperationalSections;
   const canReadReports = canOperate || !!item.capabilities.canViewReportsHistory;
   const canAttend = canOperate && item.capabilities.canOperateAttendance !== false;
+  const dirty = reportEditState.dirty || !!commentDraft.trim();
+  const busy = reportEditState.busy || savingComment;
+
+  useEffect(() => {
+    if (!dirty && !busy) return;
+    const beforeUnload = (event: BeforeUnloadEvent): void => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [dirty, busy]);
+
+  const mayLeave = async (): Promise<boolean> => {
+    if (busy) return false;
+    return !dirty || confirmDiscard({ title: 'Закрыть без сохранения?', consequence: 'Несохранённые изменения отчёта, вложений и комментария будут потеряны. Сохранённые данные не изменятся.', confirmLabel: 'Выйти без сохранения', tone: 'danger' });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -74,14 +91,25 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
   const overdueTasks = openTasks.filter((task) => task.isOverdue);
   const initialIds = attendance?.employeeIds.length ? attendance.employeeIds : attendance?.suggestedEmployeeIds ?? [];
 
-  return <Drawer open onOpenChange={(open) => { if (!open) onClose(); }} title={item.name}
+  return <>{discardDialog}<Drawer open busy={busy} onOpenChange={(open) => { if (!open) void mayLeave().then((allowed) => { if (allowed) onClose(); }); }} title={item.name}
+    onClickCapture={(event) => {
+      // Preserve modifier/new-tab link behaviour. Guard only navigation that
+      // would unmount this drawer and discard its local edits.
+      if ((!dirty && !busy) || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const anchor = event.target instanceof Element ? event.target.closest('a') : null;
+      const href = anchor?.getAttribute('href');
+      if (!href?.startsWith('/') || href.startsWith('//') || anchor?.target === '_blank') return;
+      event.preventDefault();
+      event.stopPropagation();
+      void mayLeave().then((allowed) => { if (allowed) router.push(href); });
+    }}
     description={[item.internalName, item.address].filter(Boolean).join(' · ')}
     footer={<div className={styles.footer}><Link className={styles.primaryAction} href={`/objects/${item.id}`}>Открыть объект</Link>
       {item.capabilities.canEdit || item.capabilities.canManageCompensationRates ? <Link className={styles.actionButton} href={`/objects/${item.id}/edit`}>Редактировать</Link> : null}</div>}>
     <section className={styles.section}>
       <h3 className={styles.sectionTitle}>Ответственные</h3>
-      <div className={styles.peopleRow}><span className={styles.label}>Ответственный</span><span className={styles.value}>{item.responsible ? getUserDisplayName(item.responsible) : 'Не назначен'}</span></div>
-      <div className={styles.peopleRow}><span className={styles.label}>Менеджеры</span><span className={styles.value}>{item.managers.length ? item.managers.map(getUserDisplayName).join(', ') : 'Не назначены'}</span></div>
+      <div className={styles.peopleRow}><span className={styles.label}>Ответственный</span><span className={styles.value}>{item.responsible ? <PersonName person={item.responsible} /> : 'Не назначен'}</span></div>
+      <div className={styles.peopleRow}><span className={styles.label}>Менеджеры</span><div className={styles.value}>{item.managers.length ? <PeopleList people={item.managers} compact={false} label="Менеджеры объекта" /> : 'Не назначены'}</div></div>
     </section>
     {loading ? <div role="status">Загрузка…</div> : null}
     {readErrors.length ? <div className={styles.error} role="alert">Не удалось загрузить: {readErrors.join(', ')}. Откройте карточку для повторной загрузки.</div> : null}
@@ -104,12 +132,13 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
           canEditRates={item.capabilities.canEditDailyRate} canAddExtraShift={item.capabilities.canAddExtraShift ?? false} operationDate={attendance.operationDate}
           onSave={async (payload) => { await upsertObjectAttendance(item.id, payload); await refreshAttendance(); }} />
       </section> : null}
-      {!loading && !readErrors.includes('Отчёт') ? <section className={styles.section}><ObjectDailyReportPanel item={report} onSave={async (payload) => {
+      {!loading && !readErrors.includes('Отчёт') ? <section className={styles.section}><ObjectDailyReportPanel item={report} onEditStateChange={setReportEditState} onAttachmentsUpdated={async () => { const refreshed = await getTodayDailyReport(item.id); setReport(refreshed); return refreshed; }} onSave={async (payload) => {
         const saved = await upsertTodayDailyReport(item.id, { content: payload.content, expectedRevision: report?.revision ?? 0 });
         setReport(saved);
-        const uploads = await uploadFileBatch({ entityType: 'object_daily_report', entityId: saved.id, files: payload.files });
-        if (uploads.some((result) => result.status === 'rejected')) throw new Error('Отчёт сохранён, не все файлы загрузились. Повторите сохранение: загруженные файлы не продублируются.');
-        setReport(await getTodayDailyReport(item.id));
+        const refreshed = await getTodayDailyReport(item.id);
+        setReport(refreshed);
+        if (!refreshed) throw new Error('Черновик сохранён, но не удалось перечитать отчёт. Обновите данные перед продолжением.');
+        return refreshed;
       }} /></section> : null}
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>Фото прибытия</h3>
@@ -125,7 +154,7 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
         <Link href={`/objects/${item.id}#tasks`}>Все задачи объекта</Link>
       </section>
       <section className={styles.section}><h3 className={styles.sectionTitle}>Оперативный комментарий</h3>
-        <label><span className={styles.label}>Комментарий</span><textarea className={styles.textarea} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} /></label>
+        <label><span className={styles.label}>Комментарий</span><textarea className={styles.textarea} disabled={savingComment} value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} /></label>
         <Button disabled={savingComment || !commentDraft.trim()} onClick={() => void saveComment()}>{savingComment ? 'Добавляю…' : 'Добавить комментарий'}</Button>
       </section>
       <section className={styles.section}><h3 className={styles.sectionTitle}>Ресурсы</h3>
@@ -139,5 +168,5 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
       <Link href={`/objects/${item.id}#history`}>История объекта</Link>
     </section> : <div className={styles.notice}>Операционные данные скрыты текущими правами доступа.</div>}
     {message ? <div className={styles.notice} role="status">{message}</div> : null}
-  </Drawer>;
+  </Drawer></>;
 }

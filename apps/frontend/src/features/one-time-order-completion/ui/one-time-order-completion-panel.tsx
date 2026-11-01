@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
   CompleteOneTimeOrderPayload,
@@ -16,13 +16,17 @@ import type {
 import { listOneTimeOrderPaymentRecipientCandidates } from '@/entities/user/api/user-client';
 import { ApiError } from '@/shared/api/fetcher';
 import { getUserDisplayName } from '@/shared/lib/display-name';
+import { commitAndStartRefresh } from '@/features/one-time-order-completion/model/commit-and-refresh';
 import {
   getOneTimeOrderPaymentDestinationLabel,
   getOneTimeOrderPaymentMethodLabel,
   getOneTimeOrderPaymentZeroReasonLabel,
+  getOneTimeOrderStatusLabel,
 } from '@/shared/lib/one-time-order-presentation';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
-import { Badge, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { ChevronDownIcon } from '@/shared/ui/icons/icons';
+import { useConfirm } from '@/shared/ui/overlays';
 import orderStyles from '@/entities/one-time-order/ui/one-time-order-ui.module.css';
 
 const PAYMENT_METHODS: OneTimeOrderPaymentMethod[] = [
@@ -146,17 +150,23 @@ export function OneTimeOrderCompletionPanel({
   item,
   completions,
   onComplete,
+  onRefresh,
+  onDraftChange,
   onReopen,
   onCorrectPayment,
+  openFormSignal = 0,
 }: {
   item: OneTimeOrderItem;
   completions: OneTimeOrderCompletion[];
   onComplete: (payload: CompleteOneTimeOrderPayload) => Promise<void>;
+  onRefresh: () => Promise<boolean>;
+  onDraftChange?: (dirty: boolean) => void;
   onReopen: () => Promise<void>;
   onCorrectPayment: (
     paymentId: string,
     payload: CorrectOneTimeOrderPaymentPayload,
   ) => Promise<void>;
+  openFormSignal?: number;
 }): React.JSX.Element {
   const [payments, setPayments] = useState<PaymentDraft[]>([
     createPaymentDraft(),
@@ -165,6 +175,9 @@ export function OneTimeOrderCompletionPanel({
   const [differenceReason, setDifferenceReason] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isReopening, setIsReopening] = useState(false);
+  const [isCompletionFormOpen, setIsCompletionFormOpen] = useState(false);
+  const [isCompletionRefreshNeeded, setIsCompletionRefreshNeeded] = useState(false);
+  const [isRefreshingAfterCompletion, setIsRefreshingAfterCompletion] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canRetry, setCanRetry] = useState(false);
   const [serverRequiresDifferenceReason, setServerRequiresDifferenceReason] =
@@ -174,21 +187,71 @@ export function OneTimeOrderCompletionPanel({
     fingerprint: string;
     payload: CompleteOneTimeOrderPayload;
   } | null>(null);
+  const [confirm, confirmDialog] = useConfirm();
 
+  const isDraftDirty = Boolean(
+    completionComment ||
+    differenceReason ||
+    payments.length !== 1 ||
+    payments.some((payment) =>
+      payment.mode !== 'paid' ||
+      payment.amount !== '' ||
+      payment.recipientUserId !== '' ||
+      payment.paymentMethod !== '' ||
+      payment.paymentDestination !== '' ||
+      payment.zeroReason !== '' ||
+      payment.comment !== ''
+    ),
+  );
+
+  useEffect(() => {
+    onDraftChange?.(isDraftDirty);
+  }, [isDraftDirty, onDraftChange]);
+
+  const refreshAfterCompletion = async (): Promise<void> => {
+    setIsRefreshingAfterCompletion(true);
+    try {
+      const refreshed = await onRefresh();
+      setIsCompletionRefreshNeeded(!refreshed);
+    } catch {
+      setIsCompletionRefreshNeeded(true);
+    } finally {
+      setIsRefreshingAfterCompletion(false);
+    }
+  };
+
+  useEffect(() => {
+    if (openFormSignal > 0 && item.capabilities.canComplete) {
+      setIsCompletionFormOpen(true);
+    }
+  }, [openFormSignal, item.capabilities.canComplete]);
+
+  const currentCompletedStage = item.status === 'completed'
+    ? completions.find((completion) => completion.workCycle === item.workCycle && completion.status === 'active') ?? null
+    : null;
+  const previousCompletions = currentCompletedStage
+    ? completions.filter((completion) => completion.id !== currentCompletedStage.id)
+    : completions;
   const previousActual = useMemo(
     () =>
-      completions.reduce(
+      previousCompletions.reduce(
         (sum, completion) => sum + completion.visibleTotalAmount,
         0,
       ),
-    [completions],
+    [previousCompletions],
   );
   const currentActual = payments.reduce((sum, payment) => {
     const amount = Number(payment.amount);
     return sum + (Number.isFinite(amount) ? amount : 0);
   }, 0);
+  const enteredPaidAmounts = payments
+    .filter((payment) => payment.mode === 'paid' && payment.amount.trim() !== '')
+    .map((payment) => Number(payment.amount));
+  const hasInvalidDraftAmount = enteredPaidAmounts.some((amount) => !Number.isFinite(amount) || amount <= 0);
+  const hasUnfilledDraftAmount = payments.some((payment) => payment.mode === 'paid' && payment.amount.trim() === '');
+  const enteredDraftTotal = enteredPaidAmounts.reduce((sum, amount) => sum + amount, 0);
   const cumulativeActual = previousActual + currentActual;
-  const fullPreviousTotalVisible = completions.every(
+  const fullPreviousTotalVisible = previousCompletions.every(
     (completion) => completion.fullTotalAmountVisible,
   );
   const hasEnteredAmounts = payments.every(
@@ -284,12 +347,23 @@ export function OneTimeOrderCompletionPanel({
     setCanRetry(false);
     setError(null);
     try {
-      await onComplete(requestPayload);
-      retryRequestRef.current = null;
-      setPayments([createPaymentDraft()]);
-      setCompletionComment('');
-      setDifferenceReason('');
-      setServerRequiresDifferenceReason(false);
+      const { refreshResult } = await commitAndStartRefresh(
+        () => onComplete(requestPayload),
+        () => {
+          retryRequestRef.current = null;
+          setPayments([createPaymentDraft()]);
+          setCompletionComment('');
+          setDifferenceReason('');
+          setServerRequiresDifferenceReason(false);
+          setIsCompletionFormOpen(false);
+          setCanRetry(false);
+          setIsCompletionRefreshNeeded(true);
+        },
+        onRefresh,
+      );
+      void refreshResult.then((refreshed) => {
+        setIsCompletionRefreshNeeded(!refreshed);
+      });
     } catch (saveError) {
       if (
         saveError instanceof ApiError &&
@@ -302,9 +376,7 @@ export function OneTimeOrderCompletionPanel({
         return;
       }
       setError(
-        saveError instanceof Error
-          ? saveError.message
-          : 'Не удалось завершить заказ.',
+        'Не удалось завершить заказ. Введённые данные сохранены; проверьте карточку и повторите действие.',
       );
       setCanRetry(true);
     } finally {
@@ -317,32 +389,61 @@ export function OneTimeOrderCompletionPanel({
     <Surface as="section" padding="md" id="order-completion" className={orderStyles.orderCompletionPanel}>
       <div className="ui-section-header">
         <div>
-          <div className="ui-section-title">Фактические поступления</div>
-          <div className="ui-section-subtitle">
-            Записывайте полученные деньги по текущему циклу. Согласованная сумма — ориентир, не факт оплаты.
-          </div>
+          <div className="ui-section-title">Оплата и завершение</div>
+          <details className={orderStyles.orderCompletionHelp}>
+            <summary>Как начинается новый этап?</summary>
+            <div>Новый этап начинается, когда завершённый заказ снова открывают для работы. Предыдущие поступления сохраняются.</div>
+          </details>
         </div>
-        <Badge>Цикл {item.workCycle}</Badge>
+        <div className={orderStyles.orderCompletionStageHeading}>
+          <strong>Этап работ №{item.workCycle}</strong>
+          <StatusBadge status={item.status}>{getOneTimeOrderStatusLabel(item.status)}</StatusBadge>
+        </div>
       </div>
 
       <div className={orderStyles.orderCompletionSummary}>
-        <Summary label="Согласованная сумма" value={item.agreedSum === null ? 'Не указана' : formatMoney(item.agreedSum)} />
-        <Summary label="Получено в предыдущих циклах" value={formatMoney(previousActual)} />
+        <Summary label="Стоимость заказа" value={item.agreedSum === null ? 'Не указана' : formatMoney(item.agreedSum)} detail="Согласованная сумма, не факт оплаты" />
+        <Summary
+          label={currentCompletedStage ? 'Получено в текущем этапе' : 'Получено за предыдущие этапы'}
+          value={formatMoney(currentCompletedStage?.visibleTotalAmount ?? previousActual)}
+          detail={currentCompletedStage && !currentCompletedStage.fullTotalAmountVisible || !currentCompletedStage && !fullPreviousTotalVisible ? 'Показана только доступная для просмотра часть' : undefined}
+        />
       </div>
 
-      {!fullPreviousTotalVisible ? (
+      {!fullPreviousTotalVisible || Boolean(currentCompletedStage && !currentCompletedStage.fullTotalAmountVisible) ? (
         <div className="ui-text-muted">
-          Часть предыдущих поступлений скрыта. Итоговая сумма будет проверена
-          сервером.
+          Часть сведений о поступлениях недоступна для просмотра; показанная сумма не является полным итогом.
         </div>
       ) : null}
 
-      {item.capabilities.canComplete ? (
-        <div className={orderStyles.orderCompletionForm}>
+      {isCompletionRefreshNeeded ? (
+        <Alert
+          tone={isRefreshingAfterCompletion ? 'info' : 'warning'}
+          role={isRefreshingAfterCompletion ? 'status' : 'alert'}
+          action={isRefreshingAfterCompletion ? undefined : (
+            <Button onClick={() => void refreshAfterCompletion()}>Обновить</Button>
+          )}
+        >
+          {isRefreshingAfterCompletion
+            ? 'Заказ завершён. Обновляем данные карточки…'
+            : 'Заказ завершён, но не удалось обновить данные карточки. Повторите обновление; завершение заказа не будет отправлено повторно.'}
+        </Alert>
+      ) : null}
+
+      {item.capabilities.canComplete && !isCompletionRefreshNeeded ? (
+        <div className={orderStyles.orderCompletionDisclosure}>
+          {!isCompletionFormOpen ? (
+            <Button className={orderStyles.orderCompletionPrimaryAction} id="order-completion-trigger" variant="primary" onClick={() => setIsCompletionFormOpen(true)}>Завершить заказ</Button>
+          ) : (
+          <div className={orderStyles.orderCompletionForm}>
+          <div className="ui-section-header">
+            <strong>Поступления при завершении этапа №{item.workCycle}</strong>
+            <Button variant="ghost" onClick={() => setIsCompletionFormOpen(false)}>Свернуть форму</Button>
+          </div>
           {payments.map((payment, index) => (
             <PaymentFields
               key={payment.key}
-              title={`Получение №${index + 1}`}
+              title={`Поступление ${index + 1}`}
               draft={payment}
               item={item}
               canRemove={payments.length > 1}
@@ -357,12 +458,13 @@ export function OneTimeOrderCompletionPanel({
 
           {!isExplicitNoPayment ? (
             <Button
+              className={orderStyles.orderAddPayment}
 
               onClick={() =>
                 setPayments((current) => [...current, createPaymentDraft()])
               }
             >
-              Добавить еще получателя
+              Добавить поступление
             </Button>
           ) : null}
 
@@ -381,13 +483,12 @@ export function OneTimeOrderCompletionPanel({
               <strong>Комментарий к расхождению общей суммы</strong>
               {fullPreviousTotalVisible ? (
                 <div>
-                  После этого цикла: {formatMoney(cumulativeActual)}. Укажите причину
+                  После этого этапа: {formatMoney(cumulativeActual)}. Укажите причину
                   расхождения.
                 </div>
               ) : (
                 <div>
-                  Сервер обнаружил расхождение с согласованной суммой без раскрытия
-                  скрытых поступлений.
+                  Укажите причину расхождения. Часть сведений о поступлениях недоступна для просмотра.
                 </div>
               )}
               <textarea
@@ -399,49 +500,72 @@ export function OneTimeOrderCompletionPanel({
             </div>
           ) : null}
 
+          {!isExplicitNoPayment && enteredPaidAmounts.length > 0 ? (
+            <div className={orderStyles.orderCompletionDraftTotal} role="status">
+              {hasInvalidDraftAmount ? (
+                'Проверьте введённые суммы поступлений — итог не рассчитан.'
+              ) : (
+                <>
+                  Будет записано при завершении{hasUnfilledDraftAmount ? ' по заполненным строкам' : ''}: {formatMoney(enteredDraftTotal)}
+                  {hasUnfilledDraftAmount ? <span className="ui-text-muted">. Заполните суммы в оставшихся строках — итог изменится.</span> : null}
+                </>
+              )}
+            </div>
+          ) : null}
+
           {error ? <div className="form-error">{error}</div> : null}
           <div className="ui-inline">
             <Button
+              variant="primary"
               disabled={isSaving || !canSubmit}
               onClick={() => void submit()}
             >
-              {isSaving
-                ? 'Завершаем...'
-                : canRetry
-                  ? 'Повторить завершение'
-                  : 'Завершить заказ'}
+              {isSaving ? 'Подтверждаем…' : canRetry ? 'Повторить завершение' : 'Подтвердить завершение'}
             </Button>
+            <Button disabled={isSaving} onClick={() => void (async () => {
+              const hasDraft = completionComment.trim() || differenceReason.trim() || payments.some((payment) => payment.mode === 'no_payment' || payment.amount.trim() || payment.recipientUserId || payment.comment.trim() || payment.zeroReason || payment.paymentMethod || payment.paymentDestination);
+              if (hasDraft && !(await confirm({ title: 'Отменить завершение заказа?', consequence: 'Введённые поступления и комментарии будут очищены.', confirmLabel: 'Отменить и очистить', tone: 'danger' }))) return;
+              setPayments([createPaymentDraft()]); setCompletionComment(''); setDifferenceReason('');
+              setServerRequiresDifferenceReason(false); setCanRetry(false); setError(null); retryRequestRef.current = null;
+              setIsCompletionFormOpen(false);
+            })()}>Отмена</Button>
           </div>
+          </div>
+          )}
         </div>
       ) : item.capabilities.canReopen ? (
         <div className={orderStyles.orderCompletionClosedState}>
           <div>
-            <strong>Текущий цикл завершен.</strong>
+            <strong>Этап работ №{item.workCycle} завершён.</strong>
             <div className="ui-text-muted">
-              Для повторной поездки откройте новый цикл. Старые поступления сохранятся.
+            Для продолжения работ можно открыть новый этап. Предыдущие поступления и история сохранятся.
             </div>
           </div>
           <Button
+            id="order-reopen-trigger"
             disabled={isReopening}
-            onClick={() => {
+            onClick={() => void confirm({
+              title: 'Возобновить работу?',
+              consequence: 'Заказ снова перейдёт в работу. Предыдущие поступления и история сохранятся.',
+              confirmLabel: 'Возобновить работу',
+            }).then((accepted) => {
+              if (!accepted) return;
               void (async () => {
                 setIsReopening(true);
                 setError(null);
                 try {
                   await onReopen();
-                } catch (reopenError) {
+                } catch {
                   setError(
-                    reopenError instanceof Error
-                      ? reopenError.message
-                      : 'Не удалось переоткрыть заказ.',
+                    'Не удалось возобновить работу. Обновите карточку и повторите действие.',
                   );
                 } finally {
                   setIsReopening(false);
                 }
               })();
-            }}
+            })}
           >
-            {isReopening ? 'Открываем...' : 'Открыть новый цикл'}
+            {isReopening ? 'Возобновляем…' : 'Возобновить работу'}
           </Button>
         </div>
       ) : null}
@@ -453,8 +577,10 @@ export function OneTimeOrderCompletionPanel({
       <CompletionHistory
         item={item}
         completions={completions}
+        currentCompletedStageId={currentCompletedStage?.id ?? null}
         onCorrectPayment={onCorrectPayment}
       />
+      {confirmDialog}
     </Surface>
   );
 }
@@ -487,26 +613,28 @@ function PaymentFields({
         ) : null}
       </div>
 
-      <div className="ui-inline" role="group" aria-label="Состояние оплаты">
-        <label>
+      <div className={orderStyles.orderPaymentModeOptions} role="group" aria-label="Состояние оплаты">
+        <label className={orderStyles.orderPaymentModeOption}>
           <input
             type="radio"
+            name={`payment-mode-${draft.key}`}
             checked={draft.mode === 'paid'}
             onChange={() =>
               onChange((current) => setPaymentMode(current, 'paid'))
             }
           />{' '}
-          Оплата получена
+          Деньги получены
         </label>
-        <label>
+        <label className={orderStyles.orderPaymentModeOption}>
           <input
             type="radio"
+            name={`payment-mode-${draft.key}`}
             checked={draft.mode === 'no_payment'}
             onChange={() =>
               onChange((current) => setPaymentMode(current, 'no_payment'))
             }
           />{' '}
-          Без оплаты
+          Деньги не получены
         </label>
       </div>
 
@@ -552,7 +680,7 @@ function PaymentFields({
       ) : (
         <div className="field-grid">
           <label>
-            <span>Фактически получено</span>
+            <span>Полученная сумма</span>
             <input
               type="number"
               min="0.01"
@@ -569,7 +697,7 @@ function PaymentFields({
           </label>
 
           <SearchableSelect
-              label="Способ"
+              label="Способ оплаты"
               value={draft.paymentMethod}
               options={PAYMENT_METHODS.map((method) => ({ value: method, label: getOneTimeOrderPaymentMethodLabel(method) }))}
               placeholder="Выберите способ"
@@ -611,7 +739,7 @@ function PaymentFields({
 
           {draft.paymentDestination === 'manager_accountability' ? (
             <SearchableSelect
-              label="Кто получил"
+              label="Кто получил деньги"
               value={draft.recipientUserId}
               options={[]}
               selectedOption={
@@ -684,10 +812,12 @@ function PaymentFields({
 function CompletionHistory({
   item,
   completions,
+  currentCompletedStageId,
   onCorrectPayment,
 }: {
   item: OneTimeOrderItem;
   completions: OneTimeOrderCompletion[];
+  currentCompletedStageId: string | null;
   onCorrectPayment: (
     paymentId: string,
     payload: CorrectOneTimeOrderPaymentPayload,
@@ -696,7 +826,7 @@ function CompletionHistory({
   return (
     <div className={orderStyles.orderCompletionHistory}>
       <div>
-        <div className="ui-section-title">История циклов</div>
+                <div className="ui-section-title">Предыдущие этапы</div>
         <div className="ui-section-subtitle">
           Исправления сохраняются отдельными записями — история оплат остаётся доступна.
         </div>
@@ -704,28 +834,26 @@ function CompletionHistory({
       {completions.length === 0 ? (
         <div className="ui-text-muted">
           {item.status === 'completed'
-            ? 'Заказ был завершен до введения истории циклов. Точная дата и пользователь завершения отсутствуют.'
-            : 'Завершенных циклов пока нет.'}
+            ? 'Заказ завершили до начала ведения истории завершений. Дата и автор этой записи недоступны.'
+            : 'Завершённых этапов пока нет.'}
         </div>
       ) : (
-        <div className="record-list local-scroll local-scroll--lg">
+        <div className="record-list">
           {completions.map((completion) => (
-            <div key={completion.id} className={orderStyles.orderCompletionCycle}>
-              <div className="ui-section-header">
-                <div>
-                  <strong>Цикл {completion.workCycle}</strong>
-                  <div className="ui-text-muted">
-                    {completion.completionSource === 'legacy_unknown' ||
-                    !completion.completedAt ||
-                    !completion.completedBy
-                      ? 'Историческое завершение: точная дата и пользователь отсутствуют'
+            <details key={completion.id} className={orderStyles.orderCompletionCycle}>
+              <summary className={orderStyles.orderCompletionStageSummary}>
+                <span>
+                  <strong>{completion.id === currentCompletedStageId ? `Текущая запись завершения · этап работ №${completion.workCycle}` : `Этап работ №${completion.workCycle}`}</strong>
+                  <span className="ui-text-muted">
+                    {completion.completionSource === 'legacy_unknown' || !completion.completedAt || !completion.completedBy
+                      ? 'Дата и автор для прежней записи недоступны'
                       : `${new Date(completion.completedAt).toLocaleString('ru-RU')} · ${getUserDisplayName(completion.completedBy)}`}
-                  </div>
-                </div>
-                <StatusBadge status={completion.status}>
-                  {completion.status === 'active' ? 'Текущий' : 'Завершен'}
-                </StatusBadge>
-              </div>
+                  </span>
+                </span>
+                <ChevronDownIcon />
+              </summary>
+              <div className={orderStyles.orderCompletionStageBody}>
+              {!completion.fullTotalAmountVisible ? <div className="ui-text-muted">Показаны только записи, доступные для просмотра; полный итог этапа недоступен.</div> : null}
               {completion.completionComment ? (
                 <div>{completion.completionComment}</div>
               ) : null}
@@ -739,7 +867,8 @@ function CompletionHistory({
                   />
                 ))}
               </div>
-            </div>
+              </div>
+            </details>
           ))}
         </div>
       )}
@@ -961,11 +1090,12 @@ function PaymentCorrectionForm({
   );
 }
 
-function Summary({ label, value }: { label: string; value: string }): React.JSX.Element {
+function Summary({ label, value, detail }: { label: string; value: string; detail?: string }): React.JSX.Element {
   return (
     <div className="stat-card">
       <div className="ui-detail-label">{label}</div>
       <div className="stat-card__value">{value}</div>
+      {detail ? <div className="ui-text-muted">{detail}</div> : null}
     </div>
   );
 }

@@ -309,6 +309,8 @@ test('one-time order registry is paginated, searchable and access-safe', async (
   assert.equal(founderItem.financialNotes, undefined);
   assert.equal(founderItem.expenseNotes, undefined);
   assert.equal(typeof founderItem.capabilities.canEdit, 'boolean');
+  assert.equal(founderItem.capabilities.canManageSpecification, false);
+  assert.equal(founderItem.capabilities.canEditSpecification, true);
 
   const readerResult = await list(`q=${marker}&limit=20`, readerCookie);
   assert.deepEqual(
@@ -317,6 +319,8 @@ test('one-time order registry is paginated, searchable and access-safe', async (
   );
   assert.equal(readerResult.total, readerResult.items.length);
   assert.equal(readerResult.items[0]?.accessibleTaskCount, 2);
+  assert.equal(readerResult.items[0]?.capabilities.canManageSpecification, true);
+  assert.equal(readerResult.items[0]?.capabilities.canEditSpecification, false);
 
   const deputyResult = await list(`q=${marker}&limit=20`, deputyCookie);
   assert.deepEqual(
@@ -335,7 +339,8 @@ test('one-time order registry is paginated, searchable and access-safe', async (
     assert.equal(item.capabilities.canEditFinancialFields, true);
     assert.equal(item.capabilities.canChangeLinkedObject, true);
     assert.equal(item.capabilities.canManageManagers, true);
-    assert.equal(item.capabilities.canManageSpecification, true);
+    assert.equal(item.capabilities.canManageSpecification, false);
+    assert.equal(item.capabilities.canEditSpecification, false);
     assert.equal(item.capabilities.canCorrectPayments, true);
     assert.equal(item.capabilities.canEditReview, true);
     assert.equal(item.capabilities.canViewCalendar, true);

@@ -1,0 +1,4 @@
+$ node --experimental-strip-types -e 'shiftIsoDay("",1); visitPlanEmptyCopy("",false,false)'
+shiftIsoDay("") => 0NaN-NaN-NaN
+visitPlanEmptyCopy("") => RangeError: Invalid time value
+Source: visit-plans/page.tsx initializes date from URLSearchParams.get("date") ?? today(); an explicit ?date= remains empty.

@@ -1,8 +1,10 @@
-import { FileResponseDto } from '../../files/dto/file-response.dto';
+import { ObjectDailyReportAttachmentResponseDto } from './object-daily-report-attachment-response.dto';
 
 export class ObjectDailyReportResponseDto {
   revision!: number;
   submittedRevision!: number;
+  publicationState!: 'draft' | 'submitted' | 'draft_after_submission';
+  capabilities!: { editAttachments: boolean };
   id!: string;
   objectId!: string;
   reportDate!: string;
@@ -14,5 +16,5 @@ export class ObjectDailyReportResponseDto {
     login: string;
     fullName: string;
   };
-  attachments!: FileResponseDto[];
+  attachments!: ObjectDailyReportAttachmentResponseDto[];
 }

@@ -1,2 +1,3 @@
 .content[hidden] { display: none; }
 .longText { white-space: pre-wrap; overflow-wrap: anywhere; }
+.executionAnchor { scroll-margin-top: calc(max(var(--ui-topbar-height), 64px) + var(--ui-space-4)); }

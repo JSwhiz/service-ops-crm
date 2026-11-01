@@ -1,14 +1,18 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  IsDateString,
   IsIn,
   IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
+
+import { INVENTORY_MOVEMENT_TYPES } from '../../inventory/types/inventory-movement.type';
 
 const optionalTrim = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() || undefined : value;
@@ -58,6 +62,24 @@ export class ListCounterpartyReferencesQueryDto {
 }
 
 export class ListCounterpartyMovementsQueryDto {
+  @IsOptional()
+  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  dateTo?: string;
+
+  @IsOptional()
+  @IsUUID('4')
+  objectId?: string;
+
+  @IsOptional()
+  @IsIn(INVENTORY_MOVEMENT_TYPES)
+  movementType?: (typeof INVENTORY_MOVEMENT_TYPES)[number];
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

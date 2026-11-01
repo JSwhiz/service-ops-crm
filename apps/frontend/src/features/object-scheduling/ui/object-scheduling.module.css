@@ -1,19 +1,34 @@
+.content {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.warnings {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding-inline-start: var(--ui-space-5);
+}
+.previewDates {
+  max-width: 640px;
+}
 .editor {
   display: grid;
-  gap: var(--ui-space-6);
+  gap: var(--ui-space-4);
+  width: 100%;
   max-width: 800px;
   min-width: 0;
 }
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--ui-space-4);
+  gap: var(--ui-space-3);
   min-width: 0;
 }
 .section {
   display: grid;
   gap: var(--ui-space-4);
-  padding-block: var(--ui-space-4);
+  padding-block: var(--ui-space-3);
   border-top: 1px solid var(--ui-border);
   min-width: 0;
 }

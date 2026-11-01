@@ -1,4 +1,5 @@
-import type { AttachedFile } from '@/entities/file/model/file.types';
+import type { HistoryActor, HistoryPageQuery, HistoryPageResponse } from '@/shared/api/history-page';
+import type { AttachedFile } from "@/entities/file/model/file.types";
 
 export interface OneTimeOrderManager {
   userId: string;
@@ -61,6 +62,7 @@ export interface OneTimeOrderItem {
     canCorrectPayments: boolean;
     canManageManagers: boolean;
     canManageSpecification: boolean;
+    canEditSpecification: boolean;
     canUploadPhotos: boolean;
     canDeletePhotos: boolean;
     canRestorePhotos: boolean;
@@ -77,21 +79,21 @@ export interface OneTimeOrderItem {
 }
 
 export type OneTimeOrderPaymentMethod =
-  | 'cash'
-  | 'personal_card_transfer'
-  | 'organization_transfer'
-  | 'other';
+  | "cash"
+  | "personal_card_transfer"
+  | "organization_transfer"
+  | "other";
 
 export type OneTimeOrderPaymentDestination =
-  | 'manager_accountability'
-  | 'organization';
+  | "manager_accountability"
+  | "organization";
 
 export type OneTimeOrderPaymentZeroReason =
-  | 'payment_later'
-  | 'paid_directly_to_organization'
-  | 'free_order'
-  | 'customer_did_not_pay'
-  | 'other';
+  | "payment_later"
+  | "paid_directly_to_organization"
+  | "free_order"
+  | "customer_did_not_pay"
+  | "other";
 
 export interface VisibleOneTimeOrderCompletionPayment {
   id: string;
@@ -115,7 +117,7 @@ export interface VisibleOneTimeOrderCompletionPayment {
     login: string;
     fullName: string;
   };
-  status: 'active' | 'reversed' | 'reversal';
+  status: "active" | "reversed" | "reversal";
   reversalOfPaymentId: string | null;
   reversedByPaymentId: string | null;
   correctedFromPaymentId: string | null;
@@ -144,8 +146,8 @@ export interface OneTimeOrderCompletion {
     fullName: string;
   } | null;
   completionComment: string | null;
-  completionSource: 'native' | 'legacy_unknown';
-  status: 'active' | 'superseded';
+  completionSource: "native" | "legacy_unknown";
+  status: "active" | "superseded";
   clientRequestId: string | null;
   payments: OneTimeOrderCompletionPayment[];
   visibleTotalAmount: number;
@@ -212,7 +214,7 @@ export interface OneTimeOrderListItem {
     total: number;
   };
   accessibleTaskCount: number;
-  capabilities: OneTimeOrderItem['capabilities'];
+  capabilities: OneTimeOrderItem["capabilities"];
   createdAt: string;
   updatedAt: string;
 }
@@ -328,15 +330,14 @@ export interface OneTimeOrderHistoryItem {
   entityId: string;
   action: string;
   createdAt: string;
-  actor: {
-    id: string;
-    login: string;
-    fullName: string;
-  } | null;
+  actor: HistoryActor | null;
   oldValues: Record<string, unknown> | null;
   newValues: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
 }
+
+export type OneTimeOrderHistoryPage = HistoryPageResponse<OneTimeOrderHistoryItem>;
+export type OneTimeOrderHistoryPageQuery = HistoryPageQuery;
 
 export interface OneTimeOrderSpecificationItem {
   id: string;
@@ -362,7 +363,16 @@ export interface OneTimeOrderSpecificationItem {
   attachments: AttachedFile[];
 }
 
+export interface OneTimeOrderSpecificationComment {
+  id: string;
+  itemId: string;
+  content: string;
+  createdAt: string;
+  createdBy: { id: string; login: string; fullName: string };
+}
+
 export interface CreateOneTimeOrderPayload {
+  creationRequestId?: string;
   title: string;
   executionAddress: string;
   linkedObjectId?: string | null;
@@ -378,6 +388,13 @@ export interface CreateOneTimeOrderPayload {
   financialNotes?: string;
   expenseNotes?: string;
   managerUserIds?: string[];
+  specificationCatalogItemIds?: string[];
+  specificationTemplateIds?: string[];
+  specificationItems?: Array<{
+    title: string;
+    description?: string | null;
+    requiresAttachment?: boolean;
+  }>;
   conflictFingerprint?: string;
 }
 
@@ -388,7 +405,6 @@ export interface CopyOneTimeOrderPayload extends CreateOneTimeOrderPayload {
     requiresAttachment?: boolean;
   }>;
 }
-
 export interface UpdateOneTimeOrderPayload {
   title?: string;
   executionAddress?: string;
@@ -407,9 +423,9 @@ export interface UpdateOneTimeOrderPayload {
 }
 
 export type OneTimeOrderAvailabilityType =
-  | 'day_off'
-  | 'vacation'
-  | 'sick_leave';
+  | "day_off"
+  | "vacation"
+  | "sick_leave";
 
 export interface OneTimeOrderCalendarAvailability {
   id: string;
@@ -421,7 +437,7 @@ export interface OneTimeOrderCalendarAvailability {
 }
 
 export interface OneTimeOrderCalendarOrder {
-  type: 'existing_order';
+  type: "existing_order";
   detailsRestricted: boolean;
   relatedOrder: {
     id: string;
@@ -441,10 +457,10 @@ export interface OneTimeOrderCalendarDay {
   pendingRequests: OneTimeOrderCalendarAvailability[];
   orders: OneTimeOrderCalendarOrder[];
   conflictLevel:
-    | 'none'
-    | 'multiple_orders'
-    | 'approved_availability'
-    | 'multiple_orders_and_availability';
+    | "none"
+    | "multiple_orders"
+    | "approved_availability"
+    | "multiple_orders_and_availability";
 }
 
 export interface OneTimeOrderCalendarManager {
@@ -492,11 +508,11 @@ export interface OneTimeOrderConflictResponse {
     date: string;
     user: { id: string; login: string; fullName: string };
     type:
-      | 'existing_order'
-      | 'day_off'
-      | 'vacation'
-      | 'sick_leave'
-      | 'pending_availability_request';
+      | "existing_order"
+      | "day_off"
+      | "vacation"
+      | "sick_leave"
+      | "pending_availability_request";
     relatedOrder: {
       id: string;
       title: string;

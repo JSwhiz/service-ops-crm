@@ -55,6 +55,8 @@ export interface ObjectArrivalPhoto {
 }
 
 export interface ObjectDailyReport {
+  publicationState: 'draft' | 'submitted' | 'draft_after_submission';
+  capabilities: { editAttachments: boolean };
   revision: number;
   submittedRevision: number;
   id: string;
@@ -68,7 +70,39 @@ export interface ObjectDailyReport {
     login: string;
     fullName: string;
   };
-  attachments: AttachedFile[];
+  attachments: ObjectDailyReportAttachment[];
+}
+
+export interface ObjectDailyReportAttachment extends AttachedFile {
+  /** Attachment relationship ID; distinct from the underlying file ID. */
+  attachmentId: string;
+}
+
+export interface StagedDailyReportAttachment {
+  stagingId: string;
+  file: AttachedFile;
+  createdAt: string;
+}
+
+export interface CorrectDailyReportAttachmentsPayload {
+  expectedRevision: number;
+  requestId: string;
+  removeAttachmentIds: string[];
+  addFileIds: string[];
+  reason?: string;
+}
+
+export interface CorrectDailyReportAttachmentsResponse {
+  reportId: string;
+  revision: number;
+  submittedRevision: number;
+  attachments: Array<{ attachmentId: string; id: string; originalName: string }>;
+  correction: {
+    reason: string | null;
+    actor: { id: string; fullName: string };
+    createdAt: string;
+  };
+  publication: { status: 'queued' | 'not_required' };
 }
 
 export interface ObjectComment {

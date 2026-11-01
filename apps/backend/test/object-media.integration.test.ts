@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { randomUUID } from 'node:crypto';
 
 import { PrismaClient } from '@prisma/client';
 
@@ -66,6 +67,12 @@ test('object comment, daily report and arrival photo expose MinIO-backed attachm
           OR: attachmentEntityFilters,
         },
       });
+
+      if (reportId) {
+        await prisma.objectDailyReportAttachmentStage.deleteMany({
+          where: { reportId },
+        });
+      }
 
       if (fileIds.length > 0) {
         await prisma.file.deleteMany({
@@ -138,15 +145,14 @@ test('object comment, daily report and arrival photo expose MinIO-backed attachm
   reportId = createdReport.id;
 
   const reportAttachmentForm = new FormData();
-  reportAttachmentForm.set('entityType', 'object_daily_report');
-  reportAttachmentForm.set('entityId', createdReport.id);
+  reportAttachmentForm.set('requestId', randomUUID());
   reportAttachmentForm.set(
     'file',
-    new Blob(['object-report'], { type: 'image/jpeg' }),
+    new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZHkAAAAASUVORK5CYII=', 'base64')], { type: 'image/png' }),
     'object-report.jpg',
   );
 
-  const reportUploadResponse = await fetch(`${baseUrl}/api/v1/files/upload`, {
+  const reportUploadResponse = await fetch(`${baseUrl}/api/v1/objects/${objectId}/daily-reports/${createdReport.id}/attachments`, {
     method: 'POST',
     headers: {
       Cookie: founderCookie,
@@ -155,6 +161,12 @@ test('object comment, daily report and arrival photo expose MinIO-backed attachm
   });
 
   assert.equal(reportUploadResponse.status, 201);
+  const stagedReportFile = await reportUploadResponse.json() as { file: { id: string } };
+  const attachReportResponse = await fetch(`${baseUrl}/api/v1/objects/${objectId}/daily-reports/${createdReport.id}/attachments`, {
+    method: 'PATCH', headers: { Cookie: founderCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: 1, requestId: randomUUID(), removeAttachmentIds: [], addFileIds: [stagedReportFile.file.id] }),
+  });
+  assert.equal(attachReportResponse.status, 200, await attachReportResponse.clone().text());
 
   const arrivalResponse = await fetch(
     `${baseUrl}/api/v1/objects/${objectId}/arrival-photo`,

@@ -7,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
-import { AuditService } from '../audit/audit.service';
+import { AuditHistoryEvent, AuditService } from '../audit/audit.service';
+import { ListAuditHistoryQueryDto } from '../audit/dto/list-audit-history-query.dto';
 import { InventoryService } from '../inventory/inventory.service';
 import { canViewObjectBasicProfile } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -453,7 +454,18 @@ export class CounterpartiesService {
     this.assertView(currentUser);
     await this.assertExists(id);
     const events = await this.auditService.listAuditEvents('counterparty', id);
-    return events.map((event) => ({
+    return events.map((event) => this.mapHistoryEvent(event));
+  }
+
+  async historyPage(currentUser: CurrentAuthUser, id: string, query: ListAuditHistoryQueryDto) {
+    this.assertView(currentUser);
+    await this.assertExists(id);
+    const page = await this.auditService.listAuditEventsPage('counterparty', id, query);
+    return { ...page, items: page.items.map((event) => this.mapHistoryEvent(event)) };
+  }
+
+  private mapHistoryEvent(event: AuditHistoryEvent) {
+    return {
       id: event.id,
       action: event.action,
       createdAt: event.createdAt.toISOString(),
@@ -466,7 +478,7 @@ export class CounterpartiesService {
         event.newValues && typeof event.newValues === 'object'
           ? event.newValues
           : null,
-    }));
+    };
   }
 
   async setMasterObject(currentUser: CurrentAuthUser, id: string, objectId: string) {
@@ -545,6 +557,7 @@ export class CounterpartiesService {
       id,
       query.page,
       query.limit,
+      query,
     );
   }
 

@@ -12,6 +12,8 @@ import type {
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { useAuth } from '@/shared/auth/use-auth';
 import { getUserGreetingName } from '@/shared/lib/display-name';
+import { getApprovalTypeLabel } from '@/shared/lib/approval-presentation';
+import { getInventoryMovementTypeLabel } from '@/shared/lib/inventory-presentation';
 
 import interactionStyles from './leadership-dashboard-interactions.module.css';
 import styles from './leadership-dashboard.module.css';
@@ -23,6 +25,14 @@ import {
 import { Button } from '@/shared/ui/foundation';
 
 const PREVIEW_LIMIT = 5;
+
+function attentionPresentation(item: LeadershipAttentionItem): { title: string; subtitle: string } {
+  if (item.kind !== 'approval') return item;
+  const title = item.title === 'Inventory exception'
+    ? getApprovalTypeLabel('inventory_exception_confirmation') : item.title;
+  const [movement, ...details] = item.subtitle.split(' · ');
+  return { title, subtitle: [getInventoryMovementTypeLabel(movement ?? ''), ...details].join(' · ') };
+}
 
 function moscowNow(): { date: string; hour: number } {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -44,7 +54,7 @@ function greeting(): string {
 function formatDate(value: string | null): string {
   if (!value) return 'Без срока';
   return new Intl.DateTimeFormat('ru-RU', {
-    timeZone: 'Europe/Moscow', day: '2-digit', month: 'short',
+    timeZone: 'Europe/Moscow', day: '2-digit', month: 'short', year: 'numeric',
   }).format(new Date(value));
 }
 
@@ -193,8 +203,8 @@ export function LeadershipDashboard(): React.JSX.Element {
     }
     setPreviewTarget(summaryPreview({
       eyebrow: item.kind === 'approval' ? 'Согласование' : item.kind === 'object_issue' ? 'Объекты' : 'Задача',
-      title: item.title,
-      subtitle: item.subtitle,
+      title: attentionPresentation(item).title,
+      subtitle: attentionPresentation(item).subtitle,
       facts: [{ label: 'Состояние', value: item.meta }],
       href: attentionHref(item),
       actionLabel: 'Открыть выборку →',
@@ -234,7 +244,7 @@ export function LeadershipDashboard(): React.JSX.Element {
                 {!loading && !attentionItems.length ? <div className={styles.empty}><strong>Нет срочных вопросов</strong></div> : attentionItems.map((item) => (
                   <button className={`${styles.row} ${styles.attentionRow} ${interactionStyles.entityRow}`} type="button" onClick={() => openAttentionPreview(item)} key={item.id}>
                     <span className={`${styles.badge} ${styles[item.tone]}`}>{item.badge}</span>
-                    <span className={styles.copy}><strong>{item.title}</strong><small>{item.subtitle}</small></span>
+                    <span className={styles.copy}><strong>{attentionPresentation(item).title}</strong><small>{attentionPresentation(item).subtitle}</small></span>
                     <span className={styles.meta}>{item.meta}</span>
                   </button>
                 ))}

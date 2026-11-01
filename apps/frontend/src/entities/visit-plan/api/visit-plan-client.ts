@@ -39,6 +39,30 @@ export const getVisitPlan = (
 export const getPlanManagers = (): Promise<
   Array<{ id: string; fullName: string }>
 > => fetcher("/visit-plans/managers");
+export const getVisitPlanObjectOptions = (
+  managerUserId: string,
+  search: string,
+): Promise<{
+  items: Array<{ id: string; name: string }>;
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}> => {
+  const params = new URLSearchParams({
+    managerUserId,
+    page: "1",
+    limit: "100",
+  });
+  if (search.trim()) params.set("q", search.trim());
+  return fetcher<{
+    items: Array<{ id: string; name: string }>;
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  }>(`/visit-plans/object-options?${params.toString()}`);
+};
 export const getPlanHistory = (id: string): Promise<PlanHistory[]> =>
   fetcher(`/visit-plans/${id}/history`);
 export const createVisitPlan = (payload: {

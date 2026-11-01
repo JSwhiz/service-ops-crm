@@ -183,8 +183,16 @@ test('task lifecycle keeps per-assignee results and one shared confirmation', as
     `${baseUrl}/api/v1/approvals?sourceEntityType=task&sourceEntityId=${created.id}&status=pending`,
     { headers: { Cookie: founderCookie } },
   );
-  const approvals = (await approvalsResponse.json()) as Array<{ id: string }>;
+  const approvals = (await approvalsResponse.json()) as Array<{
+    id: string;
+    approvalType: string;
+    sourceEntityType: string;
+    sourceEntityId: string;
+  }>;
   assert.equal(approvals.length, 1);
+  assert.equal(approvals[0]?.approvalType, 'task_result_confirmation');
+  assert.equal(approvals[0]?.sourceEntityType, 'task');
+  assert.equal(approvals[0]?.sourceEntityId, created.id);
 
   const rejectResponse = await fetch(
     `${baseUrl}/api/v1/approvals/${approvals[0]?.id}/reject`,

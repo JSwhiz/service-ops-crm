@@ -1,0 +1,47 @@
+{
+  "snapshot": "/tmp/crm-d-freeze2-build.iaQKj1",
+  "output": "/tmp/crm-d-freeze2-build.iaQKj1/apps/frontend/.next",
+  "container": "service_ops_frontend",
+  "platform": "linux",
+  "arch": "arm64",
+  "node": "v22.22.3",
+  "nodeOptions": "--max-old-space-size=1024 --max-old-space-size-percentage=12",
+  "parentHeapMiB": 988,
+  "childHeapMiB": 988,
+  "cpus": 1,
+  "startedAt": "2026-11-01T09:29:59.075Z",
+  "finishedAt": "2026-11-01T09:30:47.111Z",
+  "exitCode": 0,
+  "signal": null,
+  "copiedFiles": 506,
+  "metadataEntries": 0,
+  "copiedSourceMatches": true,
+  "sourceSnapshotAlterations": [
+    "Only copied next.config.ts receives experimental.cpus: 1"
+  ],
+  "originalSourceConfigSha256": "313bbd12b7c02687533a9834c38c1052cd8037ad0b47b26713cbaa19e6fbad74",
+  "snapshotConfigSha256": "bdd1f625bccc2e92d7bc047343ac17d8066740359bea0c1a786d1f409747c878",
+  "originalSourceConfigUnchanged": true,
+  "routes": 61,
+  "staticPagesGenerated": 50,
+  "buildId": "jYqlCQacd9TNDVFNjKQO3",
+  "dependencyInstall": false,
+  "liveBuildOutputTargeted": false,
+  "baseline": "42c7166fcc932bad11d5441d28db3b91a7344501",
+  "freeze": 2,
+  "before": {
+    "sha256": "232d7d99c5378e013d43f7541b4a31e71f0289598d9122cd3f64fae076768fcd",
+    "files": 510
+  },
+  "after": {
+    "sha256": "232d7d99c5378e013d43f7541b4a31e71f0289598d9122cd3f64fae076768fcd",
+    "files": 510
+  },
+  "sourceUnchanged": true,
+  "checks": "d-checks-freeze2.json",
+  "hostStartedAt": "2026-11-01T09:29:58.303Z",
+  "hostFinishedAt": "2026-11-01T09:30:47.177Z",
+  "status": "provisional-freeze2",
+  "finalAcceptance": false,
+  "holdReason": "Terra reported three C-owned P2s after the freeze2 build completed. Await C freeze3, addressed retests, full frontend TypeScript, scoped lint, and a fresh final isolated build."
+}

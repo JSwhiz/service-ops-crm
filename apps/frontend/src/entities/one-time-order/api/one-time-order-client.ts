@@ -1,6 +1,8 @@
-import { fetcher } from '@/shared/api/fetcher';
-import { refreshSession } from '@/shared/auth/auth-session';
-import { appConfig } from '@/shared/config/app-config';
+import { fetcher } from "@/shared/api/fetcher";
+import { historyPageQueryString } from "@/shared/api/history-page";
+import type { HistoryPageQuery, HistoryPageResponse } from "@/shared/api/history-page";
+import { refreshSession } from "@/shared/auth/auth-session";
+import { appConfig } from "@/shared/config/app-config";
 
 import type {
   CreateOneTimeOrderPayload,
@@ -21,16 +23,107 @@ import type {
   OneTimeOrderObjectReference,
   OneTimeOrderReviewListResponse,
   OneTimeOrderSpecificationItem,
+  OneTimeOrderSpecificationComment,
   OneTimeOrderUserReference,
   UpdateOneTimeOrderPayload,
-} from '../model/one-time-order.types';
+} from "../model/one-time-order.types";
+
+export interface SpecificationCatalogItem {
+  id: string;
+  title: string;
+  description: string | null;
+  sortOrder: number;
+  isArchived: boolean;
+  updatedAt: string;
+}
+
+export interface SpecificationTemplate {
+  id: string;
+  name: string;
+  isArchived: boolean;
+  version: number;
+  items: Array<{
+    catalogItemId: string;
+    title: string;
+    description: string | null;
+    sortOrder: number;
+  }>;
+}
+
+export async function listSpecificationCatalog(): Promise<
+  SpecificationCatalogItem[]
+> {
+  return fetcher<SpecificationCatalogItem[]>(
+    "/one-time-orders/specification-catalog",
+    { method: "GET" },
+  );
+}
+
+export async function createSpecificationCatalogItem(
+  payload: Pick<SpecificationCatalogItem, "title"> &
+    Partial<Pick<SpecificationCatalogItem, "description" | "sortOrder">>,
+): Promise<SpecificationCatalogItem> {
+  return fetcher<SpecificationCatalogItem>(
+    "/one-time-orders/specification-catalog",
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
+export async function updateSpecificationCatalogItem(
+  id: string,
+  payload: Partial<
+    Pick<
+      SpecificationCatalogItem,
+      "title" | "description" | "sortOrder" | "isArchived"
+    >
+  >,
+): Promise<SpecificationCatalogItem> {
+  return fetcher<SpecificationCatalogItem>(
+    `/one-time-orders/specification-catalog/${id}`,
+    { method: "PATCH", body: JSON.stringify(payload) },
+  );
+}
+
+export async function listSpecificationTemplates(): Promise<
+  SpecificationTemplate[]
+> {
+  return fetcher<SpecificationTemplate[]>(
+    "/one-time-orders/specification-templates",
+    { method: "GET" },
+  );
+}
+
+export async function createSpecificationTemplate(payload: {
+  name: string;
+  items: Array<{ catalogItemId: string; sortOrder: number }>;
+}): Promise<SpecificationTemplate> {
+  return fetcher<SpecificationTemplate>(
+    "/one-time-orders/specification-templates",
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
+export async function updateSpecificationTemplate(
+  id: string,
+  payload: {
+    expectedVersion: number;
+    name?: string;
+    isArchived?: boolean;
+    items?: Array<{ catalogItemId: string; sortOrder: number }>;
+  },
+): Promise<SpecificationTemplate> {
+  return fetcher<SpecificationTemplate>(
+    `/one-time-orders/specification-templates/${id}`,
+    { method: "PATCH", body: JSON.stringify(payload) },
+  );
+}
 
 export type OneTimeOrderSortField =
-  | 'title'
-  | 'executionStartDate'
-  | 'status'
-  | 'createdAt'
-  | 'updatedAt';
+  | "title"
+  | "executionStartDate"
+  | "status"
+  | "createdAt"
+  | "updatedAt";
 
 export interface ListOneTimeOrdersParams {
   q?: string;
@@ -40,29 +133,31 @@ export interface ListOneTimeOrdersParams {
   linkedObjectId?: string;
   dateFrom?: string;
   dateTo?: string;
-  reviewStatus?: 'missing' | 'present';
+  reviewStatus?: "missing" | "present";
+  withoutDate?: boolean;
+  withoutActiveManager?: boolean;
   page?: number;
   limit?: number;
   sortBy?: OneTimeOrderSortField;
-  sortDirection?: 'asc' | 'desc';
+  sortDirection?: "asc" | "desc";
 }
 
 function buildQuery(params?: object): string {
   if (!params) {
-    return '';
+    return "";
   }
 
   const searchParams = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') {
+    if (value !== undefined && value !== "") {
       searchParams.set(key, String(value));
     }
   }
 
   const query = searchParams.toString();
 
-  return query ? `?${query}` : '';
+  return query ? `?${query}` : "";
 }
 
 export async function listOneTimeOrders(
@@ -71,7 +166,7 @@ export async function listOneTimeOrders(
   return fetcher<OneTimeOrderListResponse>(
     `/one-time-orders${buildQuery(params)}`,
     {
-      method: 'GET',
+      method: "GET",
     },
   );
 }
@@ -87,7 +182,7 @@ export async function listOneTimeOrderReviews(params?: {
 }): Promise<OneTimeOrderReviewListResponse> {
   return fetcher<OneTimeOrderReviewListResponse>(
     `/one-time-orders/reviews${buildQuery(params)}`,
-    { method: 'GET' },
+    { method: "GET" },
   );
 }
 
@@ -97,7 +192,7 @@ export async function listOneTimeOrderManagerReferences(params?: {
 }): Promise<OneTimeOrderUserReference[]> {
   return fetcher<OneTimeOrderUserReference[]>(
     `/one-time-orders/references/managers${buildQuery(params)}`,
-    { method: 'GET' },
+    { method: "GET" },
   );
 }
 
@@ -107,22 +202,27 @@ export async function listOneTimeOrderObjectReferences(params?: {
 }): Promise<OneTimeOrderObjectReference[]> {
   return fetcher<OneTimeOrderObjectReference[]>(
     `/one-time-orders/references/objects${buildQuery(params)}`,
-    { method: 'GET' },
+    { method: "GET" },
   );
 }
 
-export async function getOneTimeOrderById(id: string): Promise<OneTimeOrderItem> {
+export async function getOneTimeOrderById(
+  id: string,
+): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}`, {
-    method: 'GET',
+    method: "GET",
   });
 }
 
 export async function listOneTimeOrderCompletions(
   id: string,
 ): Promise<OneTimeOrderCompletion[]> {
-  return fetcher<OneTimeOrderCompletion[]>(`/one-time-orders/${id}/completions`, {
-    method: 'GET',
-  });
+  return fetcher<OneTimeOrderCompletion[]>(
+    `/one-time-orders/${id}/completions`,
+    {
+      method: "GET",
+    },
+  );
 }
 
 export async function completeOneTimeOrder(
@@ -130,7 +230,7 @@ export async function completeOneTimeOrder(
   payload: CompleteOneTimeOrderPayload,
 ): Promise<OneTimeOrderCompletion> {
   return fetcher<OneTimeOrderCompletion>(`/one-time-orders/${id}/complete`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -139,7 +239,7 @@ export async function reopenOneTimeOrder(
   id: string,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/reopen`, {
-    method: 'POST',
+    method: "POST",
   });
 }
 
@@ -150,15 +250,15 @@ export async function correctOneTimeOrderPayment(
 ): Promise<OneTimeOrderCompletion> {
   return fetcher<OneTimeOrderCompletion>(
     `/one-time-orders/${orderId}/payments/${paymentId}/correct`,
-    { method: 'POST', body: JSON.stringify(payload) },
+    { method: "POST", body: JSON.stringify(payload) },
   );
 }
 
 export async function createOneTimeOrder(
   payload: CreateOneTimeOrderPayload,
 ): Promise<OneTimeOrderItem> {
-  return fetcher<OneTimeOrderItem>('/one-time-orders', {
-    method: 'POST',
+  return fetcher<OneTimeOrderItem>("/one-time-orders", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -169,7 +269,7 @@ export async function copyOneTimeOrder(
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(
     `/one-time-orders/${sourceOneTimeOrderId}/copy`,
-    { method: 'POST', body: JSON.stringify(payload) },
+    { method: "POST", body: JSON.stringify(payload) },
   );
 }
 
@@ -178,7 +278,7 @@ export async function updateOneTimeOrder(
   payload: UpdateOneTimeOrderPayload,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}`, {
-    method: 'PATCH',
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
@@ -188,7 +288,7 @@ export async function updateOneTimeOrderReview(
   payload: { reviewText: string | null; reviewRating: number | null },
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/review`, {
-    method: 'PATCH',
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
@@ -197,7 +297,7 @@ export async function clearOneTimeOrderReview(
   id: string,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/review`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 }
 
@@ -206,7 +306,56 @@ export async function listOneTimeOrderSpecificationItems(
 ): Promise<OneTimeOrderSpecificationItem[]> {
   return fetcher<OneTimeOrderSpecificationItem[]>(
     `/one-time-orders/${id}/specification-items`,
-    { method: 'GET' },
+    { method: "GET" },
+  );
+}
+
+export async function listOneTimeOrderSpecificationComments(
+  orderId: string,
+  itemId: string,
+): Promise<OneTimeOrderSpecificationComment[]> {
+  return fetcher<OneTimeOrderSpecificationComment[]>(
+    `/one-time-orders/${orderId}/specification-items/${itemId}/comments`,
+    { method: "GET" },
+  );
+}
+
+export async function createOneTimeOrderSpecificationComment(
+  orderId: string,
+  itemId: string,
+  payload: { requestId: string; content: string },
+): Promise<OneTimeOrderSpecificationComment> {
+  return fetcher<OneTimeOrderSpecificationComment>(
+    `/one-time-orders/${orderId}/specification-items/${itemId}/comments`,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+}
+
+export async function detachOneTimeOrderSpecificationAttachment(
+  orderId: string,
+  itemId: string,
+  fileId: string,
+): Promise<OneTimeOrderSpecificationItem> {
+  return fetcher<OneTimeOrderSpecificationItem>(
+    `/one-time-orders/${orderId}/specification-items/${itemId}/attachments/${fileId}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function applyOneTimeOrderSpecificationCatalog(
+  id: string,
+  payload: {
+    requestId: string;
+    templateIds: string[];
+    catalogItemIds: string[];
+    expectedTemplateVersions: Array<{ templateId: string; version: number }>;
+    expectedCatalogItems: Array<{ catalogItemId: string; updatedAt: string }>;
+    reason?: string;
+  },
+): Promise<OneTimeOrderSpecificationItem[]> {
+  return fetcher<OneTimeOrderSpecificationItem[]>(
+    `/one-time-orders/${id}/specification-items/apply-catalog`,
+    { method: "POST", body: JSON.stringify(payload) },
   );
 }
 
@@ -220,7 +369,7 @@ export async function createOneTimeOrderSpecificationItem(
 ): Promise<OneTimeOrderSpecificationItem> {
   return fetcher<OneTimeOrderSpecificationItem>(
     `/one-time-orders/${id}/specification-items`,
-    { method: 'POST', body: JSON.stringify(payload) },
+    { method: "POST", body: JSON.stringify(payload) },
   );
 }
 
@@ -236,7 +385,7 @@ export async function updateOneTimeOrderSpecificationItem(
 ): Promise<OneTimeOrderSpecificationItem> {
   return fetcher<OneTimeOrderSpecificationItem>(
     `/one-time-orders/${id}/specification-items/${itemId}`,
-    { method: 'PATCH', body: JSON.stringify(payload) },
+    { method: "PATCH", body: JSON.stringify(payload) },
   );
 }
 
@@ -246,7 +395,7 @@ export async function deleteOneTimeOrderSpecificationItem(
 ): Promise<OneTimeOrderSpecificationItem> {
   return fetcher<OneTimeOrderSpecificationItem>(
     `/one-time-orders/${id}/specification-items/${itemId}`,
-    { method: 'DELETE' },
+    { method: "DELETE" },
   );
 }
 
@@ -256,7 +405,7 @@ export async function completeOneTimeOrderSpecificationItem(
 ): Promise<OneTimeOrderSpecificationItem> {
   return fetcher<OneTimeOrderSpecificationItem>(
     `/one-time-orders/${id}/specification-items/${itemId}/complete`,
-    { method: 'POST' },
+    { method: "POST" },
   );
 }
 
@@ -266,7 +415,7 @@ export async function reopenOneTimeOrderSpecificationItem(
 ): Promise<OneTimeOrderSpecificationItem> {
   return fetcher<OneTimeOrderSpecificationItem>(
     `/one-time-orders/${id}/specification-items/${itemId}/reopen`,
-    { method: 'POST' },
+    { method: "POST" },
   );
 }
 
@@ -276,7 +425,7 @@ export async function reorderOneTimeOrderSpecificationItems(
 ): Promise<OneTimeOrderSpecificationItem[]> {
   return fetcher<OneTimeOrderSpecificationItem[]>(
     `/one-time-orders/${id}/specification-items/reorder`,
-    { method: 'PATCH', body: JSON.stringify({ itemIds }) },
+    { method: "PATCH", body: JSON.stringify({ itemIds }) },
   );
 }
 
@@ -286,7 +435,7 @@ export async function changeOneTimeOrderStatus(
   conflictFingerprint?: string,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/status`, {
-    method: 'PATCH',
+    method: "PATCH",
     body: JSON.stringify({ status, conflictFingerprint }),
   });
 }
@@ -297,7 +446,7 @@ export async function assignOneTimeOrderManager(
   conflictFingerprint?: string,
 ): Promise<OneTimeOrderItem> {
   return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/managers`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify({ userId, conflictFingerprint }),
   });
 }
@@ -306,16 +455,19 @@ export async function removeOneTimeOrderManager(
   id: string,
   userId: string,
 ): Promise<OneTimeOrderItem> {
-  return fetcher<OneTimeOrderItem>(`/one-time-orders/${id}/managers/${userId}`, {
-    method: 'DELETE',
-  });
+  return fetcher<OneTimeOrderItem>(
+    `/one-time-orders/${id}/managers/${userId}`,
+    {
+      method: "DELETE",
+    },
+  );
 }
 
 export async function listOneTimeOrderComments(
   id: string,
 ): Promise<OneTimeOrderCommentItem[]> {
   return fetcher<OneTimeOrderCommentItem[]>(`/one-time-orders/${id}/comments`, {
-    method: 'GET',
+    method: "GET",
   });
 }
 
@@ -327,7 +479,7 @@ export async function createOneTimeOrderComment(
   },
 ): Promise<OneTimeOrderCommentItem> {
   return fetcher<OneTimeOrderCommentItem>(`/one-time-orders/${id}/comments`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -336,8 +488,18 @@ export async function listOneTimeOrderHistory(
   id: string,
 ): Promise<OneTimeOrderHistoryItem[]> {
   return fetcher<OneTimeOrderHistoryItem[]>(`/one-time-orders/${id}/history`, {
-    method: 'GET',
+    method: "GET",
   });
+}
+
+export async function listOneTimeOrderHistoryPage(
+  id: string,
+  params: HistoryPageQuery,
+): Promise<HistoryPageResponse<OneTimeOrderHistoryItem>> {
+  return fetcher<HistoryPageResponse<OneTimeOrderHistoryItem>>(
+    `/one-time-orders/${id}/history-page${historyPageQueryString(params)}`,
+    { method: "GET" },
+  );
 }
 
 export async function getTodayOneTimeOrderDailyReport(
@@ -346,7 +508,7 @@ export async function getTodayOneTimeOrderDailyReport(
   return fetcher<OneTimeOrderDailyReportItem | null>(
     `/one-time-orders/${id}/daily-report/today`,
     {
-      method: 'GET',
+      method: "GET",
     },
   );
 }
@@ -360,7 +522,7 @@ export async function upsertTodayOneTimeOrderDailyReport(
   return fetcher<OneTimeOrderDailyReportItem>(
     `/one-time-orders/${id}/daily-report/today`,
     {
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(payload),
     },
   );
@@ -370,11 +532,11 @@ export async function listOneTimeOrderPhotos(
   id: string,
   options?: { includeDeleted?: boolean },
 ): Promise<OneTimeOrderPhotoItem[]> {
-  const query = options?.includeDeleted ? '?includeDeleted=true' : '';
+  const query = options?.includeDeleted ? "?includeDeleted=true" : "";
   return fetcher<OneTimeOrderPhotoItem[]>(
     `/one-time-orders/${id}/photos${query}`,
     {
-      method: 'GET',
+      method: "GET",
     },
   );
 }
@@ -387,7 +549,7 @@ export async function createOneTimeOrderPhoto(
   },
 ): Promise<OneTimeOrderPhotoItem> {
   return fetcher<OneTimeOrderPhotoItem>(`/one-time-orders/${id}/photos`, {
-    method: 'POST',
+    method: "POST",
     body: JSON.stringify(payload),
   });
 }
@@ -400,7 +562,7 @@ export async function deleteOneTimeOrderPhoto(
   return fetcher<OneTimeOrderPhotoItem>(
     `/one-time-orders/${id}/photos/${photoId}`,
     {
-      method: 'DELETE',
+      method: "DELETE",
       body: JSON.stringify({ reason }),
     },
   );
@@ -412,7 +574,7 @@ export async function restoreOneTimeOrderPhoto(
 ): Promise<OneTimeOrderPhotoItem> {
   return fetcher<OneTimeOrderPhotoItem>(
     `/one-time-orders/${id}/photos/${photoId}/restore`,
-    { method: 'POST' },
+    { method: "POST" },
   );
 }
 
@@ -422,7 +584,7 @@ export async function getOneTimeOrderCalendar(params: {
 }): Promise<OneTimeOrderCalendarResponse> {
   return fetcher<OneTimeOrderCalendarResponse>(
     `/one-time-orders/calendar${buildQuery(params)}`,
-    { method: 'GET' },
+    { method: "GET" },
   );
 }
 
@@ -431,7 +593,7 @@ export async function listOneTimeOrderCalendarManagers(
 ): Promise<Array<{ id: string; login: string; fullName: string }>> {
   return fetcher<Array<{ id: string; login: string; fullName: string }>>(
     `/one-time-orders/calendar/managers${buildQuery({ search })}`,
-    { method: 'GET' },
+    { method: "GET" },
   );
 }
 
@@ -444,9 +606,9 @@ export async function downloadOneTimeOrderCalendarExcel(params: {
   const path = `/one-time-orders/calendar/export.xlsx${buildQuery(params)}`;
   const request = (): Promise<Response> =>
     fetch(`${appConfig.apiUrl}${path}`, {
-      method: 'GET',
-      credentials: 'include',
-      cache: 'no-store',
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
     });
   let response = await request();
 
@@ -457,7 +619,7 @@ export async function downloadOneTimeOrderCalendarExcel(params: {
   if (!response.ok) {
     const body = await response.text();
     throw new Error(
-      `GET ${path} failed with status ${response.status}${body ? `: ${body}` : ''}`,
+      `GET ${path} failed with status ${response.status}${body ? `: ${body}` : ""}`,
     );
   }
 
@@ -471,8 +633,8 @@ export async function checkOneTimeOrderConflicts(payload: {
   excludeOrderId?: string;
 }): Promise<OneTimeOrderConflictResponse> {
   return fetcher<OneTimeOrderConflictResponse>(
-    '/one-time-orders/calendar/check-conflicts',
-    { method: 'POST', body: JSON.stringify(payload) },
+    "/one-time-orders/calendar/check-conflicts",
+    { method: "POST", body: JSON.stringify(payload) },
   );
 }
 
@@ -483,8 +645,8 @@ export async function createOwnOneTimeManagerAvailability(payload: {
   comment?: string;
 }): Promise<OneTimeManagerAvailability> {
   return fetcher<OneTimeManagerAvailability>(
-    '/one-time-orders/calendar/availability-requests',
-    { method: 'POST', body: JSON.stringify(payload) },
+    "/one-time-orders/calendar/availability-requests",
+    { method: "POST", body: JSON.stringify(payload) },
   );
 }
 
@@ -496,8 +658,8 @@ export async function createDirectOneTimeManagerAvailability(payload: {
   comment?: string;
 }): Promise<OneTimeManagerAvailability> {
   return fetcher<OneTimeManagerAvailability>(
-    '/one-time-orders/calendar/availability/direct',
-    { method: 'POST', body: JSON.stringify(payload) },
+    "/one-time-orders/calendar/availability/direct",
+    { method: "POST", body: JSON.stringify(payload) },
   );
 }
 
@@ -507,7 +669,7 @@ export async function approveOneTimeManagerAvailability(
 ): Promise<OneTimeManagerAvailability> {
   return fetcher<OneTimeManagerAvailability>(
     `/one-time-orders/calendar/availability/${id}/approve`,
-    { method: 'POST', body: JSON.stringify({ comment }) },
+    { method: "POST", body: JSON.stringify({ comment }) },
   );
 }
 
@@ -517,7 +679,7 @@ export async function rejectOneTimeManagerAvailability(
 ): Promise<OneTimeManagerAvailability> {
   return fetcher<OneTimeManagerAvailability>(
     `/one-time-orders/calendar/availability/${id}/reject`,
-    { method: 'POST', body: JSON.stringify({ comment }) },
+    { method: "POST", body: JSON.stringify({ comment }) },
   );
 }
 
@@ -526,7 +688,7 @@ export async function cancelOneTimeManagerAvailability(
 ): Promise<OneTimeManagerAvailability> {
   return fetcher<OneTimeManagerAvailability>(
     `/one-time-orders/calendar/availability/${id}/cancel`,
-    { method: 'POST' },
+    { method: "POST" },
   );
 }
 
@@ -541,6 +703,6 @@ export async function updateOneTimeManagerAvailability(
 ): Promise<OneTimeManagerAvailability> {
   return fetcher<OneTimeManagerAvailability>(
     `/one-time-orders/calendar/availability/${id}`,
-    { method: 'PATCH', body: JSON.stringify(payload) },
+    { method: "PATCH", body: JSON.stringify(payload) },
   );
 }

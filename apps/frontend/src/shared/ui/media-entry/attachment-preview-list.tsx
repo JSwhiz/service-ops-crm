@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 import {
   buildFileDownloadUrl,
@@ -13,10 +13,15 @@ import type {
   FilePreviewItem,
   FileView,
 } from '@/entities/file/model/file.types';
-import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
+import { Button } from '@/shared/ui/foundation';
+import { OverflowMenu, type OverflowMenuItem } from '@/shared/ui/overflow-menu/overflow-menu';
+import { FileViewer } from './file-viewer';
+import { formatFileTypeLabel } from './file-viewer-presentation';
+import compactStyles from './attachment-preview-list.module.css';
 import mediaStyles from '@/shared/ui/media-entry/media-entry.module.css';
 
 const PREVIEW_POLL_ATTEMPTS = 40;
+const COMPACT_VISIBLE_LIMIT = 4;
 
 function formatFileSize(size: number): string {
   return size < 1024 * 1024
@@ -31,18 +36,48 @@ function getFileTypeLabel(file: FilePreviewItem): string {
 
 function AttachmentPreviewCard({
   file,
-  iconDownload = false,
-  compactMetadata = false,
+  compact = false,
+  renderFileAction,
+  getFileActions,
+  getFileState,
+  onOpenGallery,
 }: {
   file: FilePreviewItem;
-  iconDownload?: boolean;
-  compactMetadata?: boolean;
+  compact?: boolean;
+  renderFileAction?: (file: FilePreviewItem) => React.ReactNode;
+  getFileActions?: (file: FilePreviewItem) => ReadonlyArray<OverflowMenuItem>;
+  getFileState?: (file: FilePreviewItem) => 'pending-removal' | null | undefined;
+  onOpenGallery: (fileId: string) => void;
 }): React.JSX.Element {
   const [view, setView] = useState<FileView | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [pollingRun, setPollingRun] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const actionsTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const viewerUrl = buildFileViewerUrl(file.id);
+  const downloadUrl = buildFileDownloadUrl(file.id);
+  const fileState = getFileState?.(file);
+  const fileActions: OverflowMenuItem[] = [
+    { key: 'open', label: 'Открыть', onSelect: () => onOpenGallery(file.id) },
+    ...(getFileActions?.(file) ?? []),
+    { key: 'download', label: 'Скачать', onSelect: () => { window.location.assign(downloadUrl); } },
+  ];
+
+  const openContextActions = (event: React.MouseEvent<HTMLElement>): void => {
+    event.preventDefault();
+    if (actionsTriggerRef.current?.getAttribute('aria-expanded') !== 'true') {
+      actionsTriggerRef.current?.click();
+    }
+  };
+  const openKeyboardActions = (event: React.KeyboardEvent<HTMLElement>): void => {
+    if (event.shiftKey && event.key === 'F10') {
+      event.preventDefault();
+      if (actionsTriggerRef.current?.getAttribute('aria-expanded') !== 'true') {
+        actionsTriggerRef.current?.click();
+      }
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -100,8 +135,6 @@ function AttachmentPreviewCard({
     }
   };
 
-  const viewerUrl = buildFileViewerUrl(file.id);
-  const downloadUrl = buildFileDownloadUrl(file.id);
   const isImage = view?.previewType === 'image';
   const thumbnailUrl = view?.thumbnailUrl
     ? resolveFileApiUrl(view.thumbnailUrl)
@@ -112,16 +145,28 @@ function AttachmentPreviewCard({
 
   if (isImage) {
     return (
-      <div className="attachment-image-card-shell">
+      <div className={`attachment-image-card-shell${compact ? ` ${compactStyles.compactImageShell}` : ''}`} onContextMenu={openContextActions} onKeyDown={openKeyboardActions}>
         <a
           href={viewerUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="attachment-image-card"
+          className={`attachment-image-card${compact ? ` ${compactStyles.compactImage}` : ''}`}
           aria-label={`Открыть ${file.originalName}`}
+          title={file.originalName}
+          onClick={(event) => {
+            if (event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+              event.preventDefault();
+              onOpenGallery(file.id);
+            }
+          }}
         >
           {thumbnailUrl ? (
             <img
+              className={fileState === 'pending-removal' ? compactStyles.pendingRemovalImage : undefined}
+              width={320}
+              height={180}
+              loading="lazy"
+              decoding="async"
               src={thumbnailFailed ? originalInlineUrl : thumbnailUrl}
               alt={file.originalName}
               onError={() => setThumbnailFailed(true)}
@@ -133,16 +178,13 @@ function AttachmentPreviewCard({
                 : 'Формируется превью…'}
             </span>
           )}
-          <span title={file.originalName}>{file.originalName}</span>
         </a>
-        <a
-          href={downloadUrl}
-          className="attachment-download-link"
-          aria-label={`Скачать ${file.originalName}`}
-          title="Скачать"
-        >
-          {iconDownload ? <MediaActionIcon name="download" /> : 'Скачать'}
-        </a>
+        {!compact ? <span className={compactStyles.compactFilename} title={file.originalName}>{file.originalName}</span> : null}
+        {renderFileAction ? <div className={compactStyles.legacyAction}>{renderFileAction(file)}</div> : null}
+        <div className={mediaStyles.previewActionGroup}>
+          <OverflowMenu items={fileActions} triggerLabel={`Действия с файлом: ${file.originalName}`} triggerRef={actionsTriggerRef} />
+        </div>
+        {fileState === 'pending-removal' ? <span className={compactStyles.fileState} role="status">Ожидает удаления</span> : null}
         {view?.previewStatus === 'failed' &&
         view.previewType !== 'unsupported' ? (
           <button
@@ -165,10 +207,12 @@ function AttachmentPreviewCard({
         ? 'Предпросмотр недоступен'
         : view?.previewType === 'unsupported'
           ? 'Только скачивание'
-          : 'Можно открыть в браузере';
+          : view?.previewStatus === 'ready'
+            ? 'Предпросмотр'
+            : 'Проверяем формат…';
 
   return (
-    <div className="attachment-file-card">
+    <div className="attachment-file-card" onContextMenu={openContextActions} onKeyDown={openKeyboardActions}>
       <a
         href={viewerUrl}
         target="_blank"
@@ -181,17 +225,18 @@ function AttachmentPreviewCard({
         <span className="attachment-file-card__body">
           <strong title={file.originalName}>{file.originalName}</strong>
           <span>
-            {compactMetadata ? getFileTypeLabel(file) : file.mimeType} ·{' '}
+            {formatFileTypeLabel(file)} ·{' '}
             {formatFileSize(file.sizeBytes)}
           </span>
           <span>{statusText}</span>
         </span>
       </a>
-      <span className="attachment-file-card__actions">
+      <div className="attachment-file-card__actions">
+        {renderFileAction?.(file)}
         <a href={viewerUrl} target="_blank" rel="noopener noreferrer">
           Открыть
         </a>
-        <a href={downloadUrl}>Скачать</a>
+        <OverflowMenu items={fileActions} triggerLabel={`Действия с файлом: ${file.originalName}`} triggerRef={actionsTriggerRef} />
         {view?.previewStatus === 'failed' &&
         view.previewType !== 'unsupported' ? (
           <button
@@ -202,7 +247,8 @@ function AttachmentPreviewCard({
             {isRetrying ? 'Повторяем…' : 'Повторить'}
           </button>
         ) : null}
-      </span>
+      </div>
+      {fileState === 'pending-removal' ? <span className={compactStyles.fileState} role="status">Ожидает удаления</span> : null}
     </div>
   );
 }
@@ -210,26 +256,39 @@ function AttachmentPreviewCard({
 export function AttachmentPreviewList({
   files,
   emptyText = 'Вложений пока нет.',
-  iconDownload = false,
-  compactMetadata = false,
+  compact = true,
+  renderFileAction,
+  getFileActions,
+  getFileState,
 }: {
   files: FilePreviewItem[];
   emptyText?: string;
+  /** Kept for source compatibility; downloads now live in the per-file menu. */
   iconDownload?: boolean;
   compactMetadata?: boolean;
+  /** Limit the initial preview, retaining access to every attachment. */
+  compact?: boolean;
+  renderFileAction?: (file: FilePreviewItem) => React.ReactNode;
+  getFileActions?: (file: FilePreviewItem) => ReadonlyArray<OverflowMenuItem>;
+  getFileState?: (file: FilePreviewItem) => 'pending-removal' | null | undefined;
 }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const listId = React.useId();
   if (files.length === 0) {
     return <div className="ui-text-muted">{emptyText}</div>;
   }
 
-  const imageFiles = files.filter(
+  const visibleFiles = compact && !expanded ? files.slice(0, COMPACT_VISIBLE_LIMIT) : files;
+  const imageFiles = visibleFiles.filter(
     (file) =>
       file.mimeType.startsWith('image/') && file.mimeType !== 'image/svg+xml',
   );
-  const regularFiles = files.filter((file) => !imageFiles.includes(file));
+  const regularFiles = visibleFiles.filter((file) => !imageFiles.includes(file));
 
   return (
-    <div className="attachment-preview-stack">
+    <div className={`attachment-preview-stack${compact ? ` ${compactStyles.compactList}` : ''}`}>
+      <div id={`${listId}-files`}>
       {imageFiles.length > 0 ? (
         <div
           className={`attachment-image-grid attachment-image-grid--${Math.min(
@@ -241,7 +300,11 @@ export function AttachmentPreviewList({
             <AttachmentPreviewCard
               key={file.id}
               file={file}
-              iconDownload={iconDownload}
+              compact={compact}
+              renderFileAction={renderFileAction}
+              getFileActions={getFileActions}
+              getFileState={getFileState}
+              onOpenGallery={setActiveFileId}
             />
           ))}
         </div>
@@ -253,11 +316,20 @@ export function AttachmentPreviewList({
             <AttachmentPreviewCard
               key={file.id}
               file={file}
-              compactMetadata={compactMetadata}
+              compact={compact}
+              renderFileAction={renderFileAction}
+              getFileActions={getFileActions}
+              getFileState={getFileState}
+              onOpenGallery={setActiveFileId}
             />
           ))}
         </div>
       ) : null}
+      </div>
+      {compact && files.length > COMPACT_VISIBLE_LIMIT ? <Button id={`${listId}-disclosure`} className={compactStyles.expandButton} variant="ghost" aria-expanded={expanded} aria-controls={`${listId}-files`} onClick={() => setExpanded((value) => !value)}>
+        {expanded ? 'Свернуть вложения' : `Показать все вложения (${files.length})`}
+      </Button> : null}
+      {activeFileId ? <FileViewer fileId={activeFileId} files={files} onClose={() => setActiveFileId(null)} /> : null}
     </div>
   );
 }

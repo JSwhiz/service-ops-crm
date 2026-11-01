@@ -85,9 +85,9 @@
 }
 
 .popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
+  position: fixed;
+  inset: auto;
+  margin: 0;
   z-index: 320;
   display: grid;
   gap: var(--ui-space-2);
@@ -101,9 +101,8 @@
   box-shadow: var(--ui-shadow-popover);
 }
 
-.top {
-  top: auto;
-  bottom: calc(100% + 6px);
+.popover[popover]:not(:popover-open) {
+  display: none;
 }
 
 .header {

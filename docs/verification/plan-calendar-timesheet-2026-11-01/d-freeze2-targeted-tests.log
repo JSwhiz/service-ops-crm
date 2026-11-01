@@ -1,0 +1,115 @@
+$ docker exec -w /workspace/apps/frontend service_ops_frontend "node" "--experimental-strip-types" "--test" "src/app/(app)/calendar-date-helpers.test.mjs" "src/features/timesheet-cell-editing/model/cell-presentation.test.mjs" "src/features/timesheet-grid/model/matrix-navigation.test.mjs"
+TAP version 13
+# (node:6329) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/apps/frontend/src/app/(app)/calendar-date-helpers.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/apps/frontend/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: URL dates reject empty, malformed and impossible days without guessing a different date
+ok 1 - URL dates reject empty, malformed and impossible days without guessing a different date
+  ---
+  duration_ms: 3.109416
+  type: 'test'
+  ...
+# Subtest: day navigation crosses month, year, and leap-day boundaries in UTC
+ok 2 - day navigation crosses month, year, and leap-day boundaries in UTC
+  ---
+  duration_ms: 0.359625
+  type: 'test'
+  ...
+# Subtest: calendar month dates include the correct number of days
+ok 3 - calendar month dates include the correct number of days
+  ---
+  duration_ms: 0.926792
+  type: 'test'
+  ...
+# Subtest: missing plan state names the selected date and keeps the manager selection gate
+ok 4 - missing plan state names the selected date and keeps the manager selection gate
+  ---
+  duration_ms: 20.601625
+  type: 'test'
+  ...
+# (node:6330) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/apps/frontend/src/features/timesheet-cell-editing/model/cell-presentation.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/apps/frontend/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: zero is an amount with independent attendance, never missing data
+ok 5 - zero is an amount with independent attendance, never missing data
+  ---
+  duration_ms: 0.975417
+  type: 'test'
+  ...
+# Subtest: manual zero is distinct from absent manual value and a normal zero
+ok 6 - manual zero is distinct from absent manual value and a normal zero
+  ---
+  duration_ms: 0.151417
+  type: 'test'
+  ...
+# Subtest: a nonzero manual amount is not described as an automatic result
+ok 7 - a nonzero manual amount is not described as an automatic result
+  ---
+  duration_ms: 0.1105
+  type: 'test'
+  ...
+# Subtest: sensitive correction preserves integer, nonnegative and mandatory reason checks
+ok 8 - sensitive correction preserves integer, nonnegative and mandatory reason checks
+  ---
+  duration_ms: 0.23425
+  type: 'test'
+  ...
+# Subtest: restore-auto remains a separate direct-correction permission
+ok 9 - restore-auto remains a separate direct-correction permission
+  ---
+  duration_ms: 0.1235
+  type: 'test'
+  ...
+# (node:6336) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///workspace/apps/frontend/src/features/timesheet-grid/model/matrix-navigation.ts is not specified and it doesn't parse as CommonJS.
+# Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+# To eliminate this warning, add "type": "module" to /workspace/apps/frontend/package.json.
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: today uses the Moscow day across month and year boundaries
+ok 10 - today uses the Moscow day across month and year boundaries
+  ---
+  duration_ms: 27.073875
+  type: 'test'
+  ...
+# Subtest: date-only headings preserve weekdays, weekends and leap-day dates
+ok 11 - date-only headings preserve weekdays, weekends and leap-day dates
+  ---
+  duration_ms: 1.425084
+  type: 'test'
+  ...
+# Subtest: overflow hints reflect hidden content, including at each scroll boundary
+ok 12 - overflow hints reflect hidden content, including at each scroll boundary
+  ---
+  duration_ms: 0.300125
+  type: 'test'
+  ...
+# Subtest: arrows move within matrix bounds without wrapping to another employee
+ok 13 - arrows move within matrix bounds without wrapping to another employee
+  ---
+  duration_ms: 0.318
+  type: 'test'
+  ...
+# Subtest: Home and End respect 28/29/30/31-day months, optionally across employees
+ok 14 - Home and End respect 28/29/30/31-day months, optionally across employees
+  ---
+  duration_ms: 0.297
+  type: 'test'
+  ...
+# Subtest: focus scroll exposes a day behind sticky identities or the total column
+ok 15 - focus scroll exposes a day behind sticky identities or the total column
+  ---
+  duration_ms: 0.146292
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 216.232001
+
+exit=0

@@ -151,7 +151,8 @@ test('one-time workforce attendance is scoped, correctable with audit, and refle
   assert.equal(coverageAfterCorrection.history[0]?.reason, 'Employee confirmed the missed attendance mark');
   assert.equal(coverageAfterCorrection.history[0]?.actor, assignedManager.fullName);
 
-  const timesheetResponse = await fetch(`${basePath}/timesheet?workCycle=1`, {
+  // This fixture records October attendance regardless of the current month.
+  const timesheetResponse = await fetch(`${basePath}/timesheet?month=2026-10&workCycle=1`, {
     headers: { Cookie: managerCookie },
   });
   assert.equal(timesheetResponse.status, 200);
@@ -296,7 +297,7 @@ test('one-time workforce attendance is scoped, correctable with audit, and refle
   });
   assert.equal(invalidEmployeePayoutResponse.status, 400);
 
-  const exportResponse = await fetch(`${basePath}/timesheet/export.xlsx?workCycle=1&employeeId=${SEEDED_EMPLOYEE_IDS.ivan}`, {
+  const exportResponse = await fetch(`${basePath}/timesheet/export.xlsx?month=2026-10&workCycle=1&employeeId=${SEEDED_EMPLOYEE_IDS.ivan}`, {
     headers: { Cookie: managerCookie },
   });
   assert.equal(exportResponse.status, 200);

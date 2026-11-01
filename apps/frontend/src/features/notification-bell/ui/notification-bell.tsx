@@ -9,6 +9,7 @@ import type { AppNotification } from '@/entities/notification/model/notification
 import { ApiError, fetcher } from '@/shared/api/fetcher';
 import { Alert, Button, IconButton } from '@/shared/ui/foundation';
 import { CloseIcon } from '@/shared/ui/icons/icons';
+import { getSafeLocalTarget } from '@/shared/lib/safe-local-target';
 
 import styles from './notification-bell.module.css';
 
@@ -157,9 +158,9 @@ export function NotificationBell(): React.JSX.Element {
           setItems((current) => current.map((entry) => entry.id === item.id ? read : entry));
           void getNotificationUnreadCount().then((value) => setCount(value.count)).catch(() => undefined);
         }
-        const target = item.targetUrl;
+        const target = item.targetUrl ? getSafeLocalTarget(item.targetUrl) : null;
+        if (item.targetUrl && !target) throw new Error('Ссылка уведомления недоступна.');
         if (target) {
-          if (!target.startsWith('/') || target.startsWith('//')) throw new Error('Ссылка уведомления недоступна.');
           const entityPath = /^\/(objects|one-time-orders)\/([^/?#]+)/.exec(target);
           if (entityPath) await fetcher(`/${entityPath[1]}/${entityPath[2]}`, { method: 'GET' });
           setOpen(false);

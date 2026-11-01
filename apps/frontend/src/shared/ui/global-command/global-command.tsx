@@ -9,6 +9,7 @@ import {
   type GlobalSearchEntityType,
 } from '@/shared/api/global-search';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useCreateNavigation } from '@/shared/create-navigation';
 
 import {
   COMMAND_GROUP_ORDER,
@@ -62,6 +63,7 @@ function toCommandItem(item: {
 
 export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }): React.JSX.Element | null {
   const router = useRouter();
+  const createNavigation = useCreateNavigation();
   const { user } = useAuth();
   const navigation = useMemo(() => resolveGlobalNavigation(user), [user]);
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
@@ -191,7 +193,8 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   const run = (item: CommandItem): void => {
     recordRecentCommand(user?.id, item);
     onOpenChange(false);
-    router.push(item.href);
+    if (item.kind === 'action') createNavigation.open(item.href);
+    else router.push(item.href);
   };
 
   if (!open) return null;
@@ -299,7 +302,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
 }
 
 export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }): React.JSX.Element {
-  const router = useRouter();
+  const createNavigation = useCreateNavigation();
   const { user } = useAuth();
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
   const groupedActions = useMemo(
@@ -337,7 +340,7 @@ export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpen
             <div className="global-create__section" key={section.group}>
               <div className="global-create__label">{section.group}</div>
               {section.items.map((item) => (
-                <button type="button" role="menuitem" key={item.id} onClick={() => { onOpenChange(false); router.push(item.href); }}>
+                <button type="button" role="menuitem" key={item.id} onClick={() => { onOpenChange(false); createNavigation.open(item.href); }}>
                   <span className="global-create__item-icon"><PlusIcon /></span>
                   <span><strong>{createMenuLabel(item.label)}</strong><small>{item.description}</small></span>
                 </button>

@@ -4,13 +4,15 @@ import React from 'react';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
-  formatTaskDeadline,
   getTaskPriorityLabel,
   getTaskStatusLabel,
 } from '@/shared/lib/task-presentation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
 import { RegistryOpenLink } from '@/shared/ui/data-table/registry-open-link';
 import { StatusBadge } from '@/shared/ui/foundation';
+import { PeopleList } from '@/shared/ui/person-presentation/person-presentation';
+import styles from './task-list-table.module.css';
+import { formatUiDate } from '@/shared/lib/format-date';
 
 export function TaskListTable({
   items,
@@ -28,7 +30,7 @@ export function TaskListTable({
   return (
     <DataTable
       label="Таблица задач"
-      className="task-table"
+      className={`task-table ${styles.table}`}
       frameClassName={embedded ? 'task-table-scroll' : 'task-table-scroll'}
     >
         <thead>
@@ -55,15 +57,15 @@ export function TaskListTable({
                 {item.oneTimeOrder ? <Link href={`/one-time-orders/${item.oneTimeOrder.id}`}>{item.oneTimeOrder.title}</Link> : null}
                 {!item.object && !item.oneTimeOrder ? 'Без привязки' : null}
               </td>
-              <td>{item.assignees.filter((user) => user.isActive).map(getUserDisplayName).join(', ')}</td>
+              <td><PeopleList people={item.assignees.filter((user) => user.isActive)} label="Исполнители задачи" /></td>
               <td>{item.completionProgress.completed} из {item.completionProgress.total}</td>
               <td className={item.isOverdue ? 'task-overdue' : undefined}>
-                {formatTaskDeadline(item.dueAt, item.dueTimeSpecified)}
+                {item.dueAt ? formatUiDate(item.dueAt, { time: item.dueTimeSpecified, timeZone: 'Europe/Moscow' }) : 'Без срока'}
                 {item.isOverdue ? <span className="task-table__meta">Просрочено</span> : null}
               </td>
               <td>
                 <StatusBadge status={item.status}>{getTaskStatusLabel(item.status)}</StatusBadge>
-                {item.requiresConfirmation ? <span className="task-table__meta">С подтверждением</span> : null}
+                {item.requiresConfirmation ? <span className={`task-table__meta ${styles.confirmation}`}>С подтверждением</span> : null}
               </td>
               <td className="registry-open-cell"><RegistryOpenLink href={`/tasks/${item.id}`} label={`Открыть задачу ${item.title}`} /></td>
             </tr>

@@ -15,6 +15,7 @@ import { DataTable } from '@/shared/ui/data-table/data-table';
 import styles from './object-list-table.module.css';
 import { Button } from '@/shared/ui/foundation';
 import { SortableHeader } from '@/shared/ui/data-table/sortable-header';
+import { PeopleList, PersonName } from '@/shared/ui/person-presentation/person-presentation';
 
 interface ObjectListTableProps {
   items: ServiceObject[];
@@ -27,6 +28,7 @@ interface ObjectListTableProps {
 const shortDateFormatter = new Intl.DateTimeFormat('ru-RU', {
   day: 'numeric',
   month: 'short',
+  year: 'numeric',
 });
 
 const fullDateFormatter = new Intl.DateTimeFormat('ru-RU', {
@@ -53,17 +55,7 @@ function getEmployeeLabel(count: number): string {
 function renderManagers(items: ObjectAssignedUser[]): React.JSX.Element {
   if (!items.length) return <span className={styles.secondary}>—</span>;
 
-  const names = items.map(getUserDisplayName);
-  const visibleNames = names.slice(0, 2);
-  const hiddenCount = Math.max(0, names.length - visibleNames.length);
-  const fullLabel = names.join(', ');
-
-  return (
-    <span className={styles.managerSummary} title={fullLabel} aria-label={`Менеджеры: ${fullLabel}`}>
-      <span className={styles.managerNames}>{visibleNames.join(', ')}</span>
-      {hiddenCount > 0 ? <span className={styles.morePeople}>+{hiddenCount}</span> : null}
-    </span>
-  );
+  return <PeopleList people={items} label="Менеджеры объекта" />;
 }
 
 function renderTodaySignal(signal: ObjectRegistrySignal): React.JSX.Element {
@@ -141,6 +133,7 @@ export function ObjectListTable({
                   tabIndex={0}
                   onClick={() => setPreviewItem(item)}
                   onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
                       setPreviewItem(item);
@@ -164,7 +157,7 @@ export function ObjectListTable({
                   </td>
                   <td>
                     {responsibleName ? (
-                      <span className={styles.personText} title={responsibleName}>{responsibleName}</span>
+                      <PersonName person={item.responsible!} compact />
                     ) : (
                       <span className={styles.attention}>Не назначен</span>
                     )}

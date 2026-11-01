@@ -1,5 +1,6 @@
 import React from 'react';
 import { MediaActionIcon } from '@/shared/ui/app-shell/media-action-icon';
+import { AttachmentIcon } from '@/shared/ui/media-entry/attachment-icon';
 
 type ChatIconName =
   | 'search'
@@ -19,6 +20,7 @@ type ChatIconName =
   | 'back';
 
 export function ChatIcon({ name }: { name: ChatIconName }): React.JSX.Element {
+  if (name === 'attach') return <AttachmentIcon />;
   if (
     name === 'close' ||
     name === 'edit' ||
@@ -56,9 +58,6 @@ export function ChatIcon({ name }: { name: ChatIconName }): React.JSX.Element {
           <circle cx="12" cy="12" r="1" />
           <circle cx="19" cy="12" r="1" />
         </>
-      ) : null}
-      {name === 'attach' ? (
-        <path d="m9 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9a2 2 0 0 1 3 3l-9 9" />
       ) : null}
       {name === 'send' ? <path d="m3 3 18 9-18 9 3-9-3-9Zm3 9h15" /> : null}
       {name === 'heart' ? (

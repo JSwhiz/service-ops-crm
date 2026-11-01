@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { ObjectEmployeeOption } from '@/entities/object/model/object.types';
-import styles from '@/features/object-shared-ui/object-surfaces.module.css';
+import styles from './object-attendance.module.css';
 import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Alert, Badge, Button, Surface } from '@/shared/ui/foundation';
@@ -162,10 +162,10 @@ export function ObjectAttendancePanel({
 
   return (
     <Surface padding="md">
-      <div className="ui-section-header" style={{ marginBottom: 12 }}>
-        <div>
+      <div className={`ui-section-header ${styles.header}`}>
+        <div className={styles.headerCopy}>
           <div className="ui-section-title">Кто был сегодня на объекте</div>
-          <div className="ui-section-subtitle">{operationDate}</div>
+          <div className="ui-section-subtitle">{new Date(`${operationDate}T12:00:00Z`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Moscow' })}</div>
         </div>
       </div>
 
@@ -180,26 +180,18 @@ export function ObjectAttendancePanel({
             {safeEmployees.map((employee) => (
               <Surface padding="sm"
                 key={employee.id}
-
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr)',
-                  gap: 8,
-                  border: employee.availability.isUnavailable ? '1px solid var(--ui-danger-border)' : undefined,
-                  background: employee.availability.isUnavailable ? 'var(--ui-danger-subtle)' : undefined,
-                  opacity: employee.availability.isUnavailable && !selectedIds.includes(employee.id) ? 0.75 : 1,
-                }}
+                className={`${styles.employeeCard} ${employee.availability.isUnavailable ? styles.unavailable : ''} ${employee.availability.isUnavailable && !selectedIds.includes(employee.id) ? styles.unselectedUnavailable : ''}`}
                 title={getAvailabilityLabel(employee.availability) ?? undefined}
               >
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                <label className={styles.employeeLabel}>
                   <input
                     type="checkbox"
                     checked={selectedIds.includes(employee.id)}
                     onChange={() => toggleEmployee(employee.id)}
                     disabled={!!readOnlyReason || isSubmitting || (employee.availability.isUnavailable && !selectedIds.includes(employee.id))}
                   />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span>{employee.fullName}</span>
+                  <span className={styles.employeeIdentity}>
+                    <span className={styles.employeeName}>{employee.fullName}</span>
                     {!employee.isAssignedToObject ? <Badge>Подмена</Badge> : null}
                     {employee.activeSubstitutions
                       .filter((item) => item.role === 'replacement')
@@ -214,10 +206,10 @@ export function ObjectAttendancePanel({
                   </span>
                 </label>
                 {employee.availability.isUnavailable ? (
-                  <div style={{ color: 'var(--ui-text-secondary)', fontSize: 12 }}>{getAvailabilityLabel(employee.availability)}</div>
+                  <div className={styles.availability}>{getAvailabilityLabel(employee.availability)}</div>
                 ) : null}
                 {selectedIds.includes(employee.id) && !readOnlyReason ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: canEditRates ? 'repeat(auto-fit, minmax(180px, 1fr))' : 'minmax(160px, 1fr)', alignItems: 'end', gap: 8 }}>
+                  <div className={`${styles.controls} ${canEditRates ? styles.rateControls : ''}`}>
                     <label className="attendance-hours-control">
                       <span>Часы</span>
                       <input
@@ -246,7 +238,7 @@ export function ObjectAttendancePanel({
                           <span>Сумма за выход, ₽</span>
                         <input type="number" min="0" step="1" disabled={!!readOnlyReason || isSubmitting} value={specialRateById[employee.id]?.amount ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), amount: event.target.value } }))} required />
                         </label>
-                        <label className="attendance-hours-control" style={{ gridColumn: '1 / -1' }}>
+                        <label className={`attendance-hours-control ${styles.reasonControl}`}>
                           <span>Основание</span>
                           <input type="text" maxLength={1000} disabled={!!readOnlyReason || isSubmitting} value={specialRateById[employee.id]?.reason ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), reason: event.target.value } }))} required />
                         </label>
@@ -258,9 +250,9 @@ export function ObjectAttendancePanel({
             ))}
           </div>
 
-          {error ? <div className={styles.error} style={{ marginTop: 12 }}>{error}</div> : null}
+          {error ? <Alert tone="danger" className={styles.error}>{error}</Alert> : null}
 
-          <div style={{ marginTop: 12 }}>
+          <div className={styles.submit}>
             <Button variant="primary" type="submit" disabled={isSubmitting || !!readOnlyReason}>
               {isSubmitting ? 'Сохраняем...' : 'Сохранить'}
             </Button>

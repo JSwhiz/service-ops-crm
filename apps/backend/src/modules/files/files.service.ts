@@ -7,7 +7,7 @@ import {
   NotFoundException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { ObjectPlanningService } from '../objects/object-planning.service';
 import { ModuleRef } from '@nestjs/core';
 import { isInventoryPhotoDay } from '../inventory/utils/inventory-photo.util';
@@ -36,6 +36,7 @@ import {
   buildOneTimeOrderAccessWhere,
   canEditOneTimeOrderByScope,
   canViewOneTimeOrderByScope,
+  hasActiveOneTimeOrderAssignment,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
@@ -99,6 +100,9 @@ export class FilesService {
     file: UploadedFilePayload,
   ): Promise<SafeFileResponseDto> {
     const entityType = this.parseEntityType(body.entityType);
+    if (entityType === 'object_daily_report') {
+      throw new BadRequestException('Daily report files must be staged through the report attachment endpoint');
+    }
     this.assertValidFieldCode(entityType, body.fieldCode ?? null);
     await this.assertEntityWritable(currentUser, entityType, body.entityId);
 
@@ -150,6 +154,26 @@ export class FilesService {
         await tx.$queryRaw`SELECT "id" FROM "inventory_movements" WHERE "id" = ${body.entityId} FOR UPDATE`;
         // Recheck after storage I/O and the movement lock: a correction or the
         // Moscow date boundary may have made this target unwritable.
+        await this.assertEntityWritable(currentUser, entityType, body.entityId);
+      }
+      if (entityType === 'one_time_order_specification_item') {
+        const target = await tx.oneTimeOrderSpecificationItem.findFirst({
+          where: { id: body.entityId, deletedAt: null },
+          select: { oneTimeOrderId: true },
+        });
+        if (!target) throw new NotFoundException('Specification item not found');
+        await tx.$queryRaw`SELECT "id" FROM "one_time_orders" WHERE "id" = ${target.oneTimeOrderId} FOR UPDATE`;
+        const activeAssignments = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "one_time_order_assignments"
+          WHERE "oneTimeOrderId" = ${target.oneTimeOrderId}
+            AND "userId" = ${currentUser.id}
+            AND "assignmentRoleCode" = 'one_time_manager'
+            AND "isActive" = true
+          FOR SHARE
+        `;
+        if (activeAssignments.length === 0) {
+          throw new ForbiddenException('Active one-time manager assignment required');
+        }
         await this.assertEntityWritable(currentUser, entityType, body.entityId);
       }
       const storedFile = await tx.file.create({
@@ -228,6 +252,25 @@ export class FilesService {
         entityType, entityId: body.entityId, actorUserId: currentUser.id,
         action: 'file.attached', newValues: { fileId: storedFile.id, originalName, mimeType: verifiedMimeType },
       }, tx);
+      if (entityType === 'one_time_order_specification_item') {
+        const item = await tx.oneTimeOrderSpecificationItem.findUniqueOrThrow({
+          where: { id: body.entityId },
+          select: { oneTimeOrderId: true, title: true },
+        });
+        await this.auditService.writeAuditEvent({
+          entityType: 'one_time_order',
+          entityId: item.oneTimeOrderId,
+          actorUserId: currentUser.id,
+          action: 'one_time_order.specification_item_attachment_attached',
+          newValues: {
+            specificationItemId: body.entityId,
+            specificationItemTitle: item.title,
+            fileId: storedFile.id,
+            originalName,
+            mimeType: verifiedMimeType,
+          },
+        }, tx);
+      }
       for (const approvalRequestId of cancelledApprovalRequestIds) {
         await this.auditService.writeAuditEvent({
           entityType: 'approval_request', entityId: approvalRequestId,
@@ -264,6 +307,56 @@ export class FilesService {
     });
 
     return mapSafeFileResponse(uploadResult.file);
+  }
+
+  async stageDailyReportAttachment(
+    currentUser: CurrentAuthUser,
+    objectId: string,
+    reportId: string,
+    requestId: string,
+    file: UploadedFilePayload,
+  ) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+      throw new BadRequestException('requestId must be a UUID v4');
+    }
+    const report = await this.prisma.objectDailyReport.findFirst({
+      where: { id: reportId, objectId }, include: { object: { select: { status: true, deletedAt: true } } },
+    });
+    if (!report) throw new NotFoundException('Daily report not found');
+    if (report.object.deletedAt || ['frozen', 'archived'].includes(report.object.status)) throw new ConflictException('Object does not accept report changes');
+    await this.assertDailyReportWritable(currentUser, reportId);
+    const verifiedMimeType = this.detectMimeType(file.buffer, file.mimetype);
+    const originalName = Array.from(file.originalname).map((character) => {
+      const code = character.charCodeAt(0);
+      return character === '/' || character === '\\' || code < 32 || code === 127 ? '_' : character;
+    }).join('').trim().slice(0, 255) || 'photo';
+    const payloadHash = createHash('sha256').update(originalName).update('\0').update(verifiedMimeType).update('\0').update(file.buffer).digest('hex');
+    const staged = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "object_daily_reports" WHERE "id" = ${reportId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "object_assignments" WHERE "objectId" = ${objectId} FOR SHARE`;
+      await this.assertDailyReportWritable(currentUser, reportId);
+      const replay = await tx.objectDailyReportAttachmentStage.findUnique({
+        where: { reportId_actorUserId_requestId: { reportId, actorUserId: currentUser.id, requestId } }, include: { file: { include: { attachments: true } } },
+      });
+      if (replay) {
+        if (replay.payloadHash !== payloadHash) throw new ConflictException('requestId already used with a different staged file');
+        return replay;
+      }
+      const current = await tx.objectDailyReport.findFirst({ where: { id: reportId, objectId }, include: { object: { select: { status: true, deletedAt: true } } } });
+      if (!current || current.object.deletedAt || ['frozen', 'archived'].includes(current.object.status)) throw new ConflictException('Daily report is no longer editable');
+      const storageResult = await this.storageService.uploadObject({ objectKey: this.buildObjectKey('object_daily_report', originalName), body: file.buffer, contentType: verifiedMimeType, contentLength: file.size });
+      const stored = await tx.file.create({ data: { bucket: storageResult.bucket, objectKey: storageResult.objectKey, originalName, mimeType: verifiedMimeType, sizeBytes: file.size, uploadedByUserId: currentUser.id } });
+      return tx.objectDailyReportAttachmentStage.create({ data: { reportId, objectId, fileId: stored.id, actorUserId: currentUser.id, requestId, payloadHash }, include: { file: { include: { attachments: true } } } });
+    });
+    await this.filePreviewService.ensurePreview(staged.file).catch((error) => this.logger.warn(`Unable to enqueue preview for staged report file: ${error instanceof Error ? error.message : 'unknown error'}`));
+    return { stagingId: staged.id, file: mapSafeFileResponse(staged.file), createdAt: staged.createdAt };
+  }
+
+  async assertDailyReportWritable(currentUser: CurrentAuthUser, reportId: string): Promise<void> {
+    if (this.getPermissionCodes(currentUser).includes('objects.hr_reports_view') || !(await this.canWriteDailyReportTarget(currentUser, reportId))) {
+      throw new ForbiddenException('Daily report attachment editing denied');
+    }
   }
 
   async getViewById(
@@ -714,7 +807,7 @@ export class FilesService {
       case 'object_daily_report':
         if (this.getPermissionCodes(currentUser).includes('objects.hr_reports_view')) {
           const report = await this.prisma.objectDailyReport.findUnique({ where: { id: entityId }, select: { objectId: true } });
-          return !!report && this.canReadObject(currentUser, report.objectId);
+          return !!report;
         }
         return this.canAccessObjectScopedEntity(currentUser, 'objectDailyReport', entityId);
       case 'object_comment':
@@ -767,17 +860,14 @@ export class FilesService {
       case 'object':
         return this.canWriteObjectCore(currentUser, entityId);
       case 'object_arrival_photo':
-      case 'object_daily_report':
       case 'object_comment':
         return this.canAccessObjectScopedEntity(
           currentUser,
-          entityType === 'object_arrival_photo'
-            ? 'objectArrivalPhoto'
-            : entityType === 'object_daily_report'
-              ? 'objectDailyReport'
-            : 'objectComment',
+          entityType === 'object_arrival_photo' ? 'objectArrivalPhoto' : 'objectComment',
           entityId,
         );
+      case 'object_daily_report':
+        return this.canWriteDailyReportTarget(currentUser, entityId);
       case 'one_time_order_comment':
         return this.canAccessOneTimeOrderScopedEntity(
           currentUser,
@@ -853,6 +943,19 @@ export class FilesService {
       object.assignments.some((assignment) => assignment.userId === currentUser.id) ||
       hasDelegatedObjectAction(currentUser.id, objectId, 'view')
     );
+  }
+
+  private async canWriteDailyReportTarget(currentUser: CurrentAuthUser, reportId: string): Promise<boolean> {
+    const report = await this.prisma.objectDailyReport.findUnique({
+      where: { id: reportId },
+      select: { objectId: true, object: { select: { createdByUserId: true, status: true, deletedAt: true, assignments: { where: { isActive: true }, select: { userId: true } } } } },
+    });
+    if (!report) throw new NotFoundException('Attachment target entity not found');
+    if (report.object.deletedAt || ['frozen', 'archived'].includes(report.object.status)) return false;
+    const roleCodes = this.getRoleCodes(currentUser);
+    return hasWideObjectAccess(roleCodes) || report.object.createdByUserId === currentUser.id ||
+      report.object.assignments.some((assignment) => assignment.userId === currentUser.id) ||
+      hasDelegatedObjectAction(currentUser.id, report.objectId, 'edit');
   }
 
   private async canWriteObjectCore(
@@ -1228,6 +1331,9 @@ export class FilesService {
         oneTimeOrder: {
           select: {
             status: true,
+            assignments: {
+              select: { userId: true, assignmentRoleCode: true, isActive: true },
+            },
           },
         },
       },
@@ -1239,12 +1345,15 @@ export class FilesService {
       );
     }
 
-    if (
-      mode === 'write' &&
-      (item.oneTimeOrder.status === 'completed' ||
-        item.oneTimeOrder.status === 'cancelled')
-    ) {
-      return false;
+    if (mode === 'write') {
+      if (
+        item.oneTimeOrder.status === 'completed' ||
+        item.oneTimeOrder.status === 'cancelled'
+      ) return false;
+      return hasActiveOneTimeOrderAssignment(
+        item.oneTimeOrder,
+        currentUser.id,
+      );
     }
 
     return this.canAccessOneTimeOrder(

@@ -34,7 +34,7 @@ import {
 import { PageTitle } from '@/shared/ui/page-title/page-title';
 import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-select';
 import { WorkspaceTabs } from '@/shared/ui/workspace-tabs/workspace-tabs';
-import { Alert, Button, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, EmptyState, Stack, StatusBadge, Surface } from '@/shared/ui/foundation';
 import accountabilityStyles from '@/features/accountability/ui/accountability-ui.module.css';
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -479,7 +479,7 @@ export default function AccountabilityPage(): React.JSX.Element {
             }}
           />
           </>
-        ) : null}
+        ) : <EmptyState title="Подотчёт пока не открыт" description="Это не нулевой остаток: сведения о вашем счёте пока отсутствуют. Обратитесь к пользователю с правом выдачи подотчётных средств." />}
         </section>
         ) : null}
         {canReviewAccountability ? (
@@ -514,9 +514,9 @@ export default function AccountabilityPage(): React.JSX.Element {
                     searchText: `${option.login} ${option.roleCodes.join(' ')}`,
                   }))}
                   onChange={setSelectedUserId}
-                  placeholder="Выберите сотрудника"
-                  searchPlaceholder="Найти сотрудника"
-                  emptyText="Сотрудник не найден"
+                  placeholder="Выберите пользователя"
+                  searchPlaceholder="Найти пользователя"
+                  emptyText="Пользователь не найден"
                   clearable={false}
                   hideLabel
                 />
@@ -568,7 +568,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                 <div className="ui-detail-field">
                   <div className="ui-detail-label">Текущий остаток</div>
                   <div className="ui-detail-value">
-                    {reviewView ? formatMoney(reviewView.summary.currentBalance) : '—'}
+                    {reviewView?.account.id ? formatMoney(reviewView.summary.currentBalance) : 'Счёт не открыт'}
                   </div>
                 </div>
               </div>
@@ -622,7 +622,7 @@ export default function AccountabilityPage(): React.JSX.Element {
 
               {accountItems.length === 0 ? (
                 <div className="ui-text-muted">
-                  Пока нет пользователей с открытым или ранее использованным подотчетом.
+                  Пока нет пользователей с открытым или ранее использованным подотчетом. Выберите пользователя выше, чтобы проверить его счёт.
                 </div>
               ) : (
                 <div className="record-list">
@@ -683,7 +683,7 @@ export default function AccountabilityPage(): React.JSX.Element {
           </Surface>
         {canReviewAccountability ? (
           reviewLoading ? (
-            <Surface padding="md">Загрузка review-экрана...</Surface>
+            <Surface padding="md">Загрузка подотчёта пользователя…</Surface>
           ) : reviewError ? (
             <Alert tone="danger" role="alert">
               {reviewError}
@@ -744,7 +744,7 @@ export default function AccountabilityPage(): React.JSX.Element {
                 }
               }}
             />
-          ) : null
+          ) : <EmptyState title={selectedUserId ? 'Подотчёт пользователя пока не открыт' : 'Выберите пользователя'} description={selectedUserId ? (canIssueAccountabilityFunds ? 'Это не нулевой остаток. Для начала работы используйте выдачу средств выше.' : 'Счёт появляется при начале работы с подотчётом. Выдача средств доступна пользователю с соответствующим правом.') : 'Выберите пользователя выше, чтобы просмотреть его подотчёт.'} />
         ) : null}
         </section>
         ) : null}

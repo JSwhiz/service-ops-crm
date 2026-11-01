@@ -1,0 +1,51 @@
+{
+  "baseline": "42c7166fcc932bad11d5441d28db3b91a7344501",
+  "status": "D-freeze3-verification-complete",
+  "freeze": 3,
+  "tests": {
+    "application": 25,
+    "independentAddressed": 7,
+    "passed": 32,
+    "failed": 0,
+    "files": 5
+  },
+  "typecheck": "pass",
+  "scopedEslint": {
+    "status": "pass",
+    "files": 14
+  },
+  "cssAudit": {
+    "status": "baseline-only-failure",
+    "baselineExactMatch": true,
+    "changedScopedModulesReported": []
+  },
+  "diffCheck": "pass",
+  "sourceUnchangedDuringChecksAndBuild": true,
+  "sourceFiles": 512,
+  "sourceSha256": "54a47950dc7c9f6e186f4d8f933f9c05e89dc39ae2afe72a70d0782c07463669",
+  "build": {
+    "exitCode": 0,
+    "routes": 61,
+    "staticPagesGenerated": 50,
+    "status": "pass-freeze3",
+    "evidence": "d-build-result.json"
+  },
+  "addressedEvidence": "d-addressed-freeze3.json",
+  "confirmedOpenSourceP1P2": [],
+  "limitations": [
+    "No real money POST or live save/reload was exercised.",
+    "No installed React renderer/DOM library; drawer continuity and stale-action guards have source/state evidence, not mounted React save-flow interaction coverage."
+  ],
+  "mainLive": {
+    "bViewports": [
+      390,
+      768,
+      1280,
+      1600
+    ],
+    "bViewportsAccepted": true,
+    "desktopReadOnlyEnterEscapeFocusReturn": "pass",
+    "mobile390ReadOnlyEnterCloseFocusReturn": "pass",
+    "moneyPost": false
+  }
+}

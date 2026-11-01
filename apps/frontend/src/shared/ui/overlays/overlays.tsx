@@ -47,7 +47,10 @@ interface OverlayFrameProps
   initialFocusRef?: React.RefObject<HTMLElement>;
   returnFocusRef?: React.RefObject<HTMLElement>;
   kind: OverlayKind;
+  size?: DialogSize;
 }
+
+export type DialogSize = 'compact' | 'regular' | 'wide';
 
 function OverlayFrame({
   open,
@@ -59,6 +62,7 @@ function OverlayFrame({
   initialFocusRef,
   returnFocusRef,
   kind,
+  size = 'compact',
   className,
   children,
   ...props
@@ -115,6 +119,8 @@ function OverlayFrame({
       className={classes(
         styles.overlay,
         kind === 'drawer' ? styles.drawer : styles.dialog,
+        kind === 'dialog' && size === 'regular' ? styles.dialogRegular : false,
+        kind === 'dialog' && size === 'wide' ? styles.dialogWide : false,
         className,
       )}
       aria-labelledby={titleId}
@@ -122,12 +128,18 @@ function OverlayFrame({
       aria-modal="true"
       aria-busy={busy || undefined}
       onCancel={(event) => {
+        // React propagates dialog events through nested overlay owners.
+        // Only the dialog that emitted the event may close itself.
+        if (event.target !== event.currentTarget) return;
+        event.stopPropagation();
         event.preventDefault();
         if (!busy) {
           onOpenChange(false);
         }
       }}
-      onClose={() => {
+      onClose={(event) => {
+        if (event.target !== event.currentTarget) return;
+        event.stopPropagation();
         if (open) {
           onOpenChange(false);
         }
@@ -170,7 +182,7 @@ export function Dialog(props: DialogProps): React.JSX.Element {
   return <OverlayFrame {...props} kind="dialog" />;
 }
 
-export type DrawerProps = Omit<OverlayFrameProps, 'kind'>;
+export type DrawerProps = Omit<OverlayFrameProps, 'kind' | 'size'>;
 
 export function Drawer(props: DrawerProps): React.JSX.Element {
   return <OverlayFrame {...props} kind="drawer" />;

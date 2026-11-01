@@ -49,10 +49,10 @@ import type {
 } from '@/entities/object/model/object.types';
 import {
   listFilesByEntity,
-  uploadFileBatch,
   uploadFileToEntity,
 } from '@/entities/file/api/file-client';
 import type { AttachedFile } from '@/entities/file/model/file.types';
+import { ApiError } from '@/shared/api/fetcher';
 import { listTasksByObject } from '@/entities/task/api/task-client';
 import type { TaskItem } from '@/entities/task/model/task.types';
 import {
@@ -87,7 +87,7 @@ import { TaskListTable } from '@/features/task-list/ui/task-list-table';
 import { EntityFilesPanel } from '@/shared/ui/entity-files/entity-files-panel';
 
 import styles from './object-detail-workspace.module.css';
-import { Surface } from '@/shared/ui/foundation';
+import { Button, Surface } from '@/shared/ui/foundation';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
@@ -132,6 +132,7 @@ export default function ObjectDetailPage({
   const [item, setItem] = useState<ServiceObject | null>(null);
   const [coreLoading, setCoreLoading] = useState(true);
   const [coreError, setCoreError] = useState<string | null>(null);
+  const [coreRetry, setCoreRetry] = useState(0);
 
   useEffect(() => {
     // Sections arrive after the initial document; resolve a deep link only
@@ -211,7 +212,16 @@ export default function ObjectDetailPage({
       if (!cancelled) setItem(response);
       return response;
     } catch (error) {
-      if (!cancelled) setCoreError(getErrorMessage(error, 'Не удалось загрузить карточку объекта.'));
+      if (!cancelled) {
+        const message = error instanceof ApiError
+          ? error.statusCode === 404
+            ? 'Объект не найден или недоступен.'
+            : error.statusCode === 403
+              ? 'Нет доступа к просмотру объекта.'
+              : 'Не удалось загрузить объект. Повторите попытку.'
+          : 'Не удалось загрузить объект. Повторите попытку.';
+        setCoreError(message);
+      }
       return null;
     } finally {
       if (!cancelled) setCoreLoading(false);
@@ -324,7 +334,7 @@ export default function ObjectDetailPage({
       await Promise.all([...employeeLoads, ...operationalLoads]);
     })();
     return () => { cancelled = true; };
-  }, [params]);
+  }, [params, coreRetry]);
 
   useEffect(() => {
     if (!objectId || !item) return;
@@ -359,7 +369,10 @@ export default function ObjectDetailPage({
       {coreLoading ? (
         <ObjectPanelLoading title="Карточка объекта" />
       ) : coreError ? (
-        <ObjectPanelError title="Карточка объекта" message={coreError} />
+        <>
+          <ObjectPanelError title="Карточка объекта" message={coreError} />
+          {coreError !== 'Объект не найден или недоступен.' && coreError !== 'Нет доступа к просмотру объекта.' ? <Button onClick={() => setCoreRetry((attempt) => attempt + 1)}>Повторить</Button> : null}
+        </>
       ) : item ? (
         <div className={styles.workspace}>
           <ObjectSummaryCard item={item} />
@@ -447,6 +460,25 @@ export default function ObjectDetailPage({
           {item.capabilities.canViewOperationalSections ? (
             <WorkspaceSection id="today" title="Сегодня">
               {item.capabilities.canOperateAttendance === false ? null : <TodayShiftsPanel key={objectId} objectId={objectId} employees={assignedEmployees} onDayStateChange={onShiftDayStateChange} onChanged={async () => { await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }} />}
+              {item.capabilities.canOperateAttendance === false ? null : attendanceLoading ? <ObjectPanelLoading title="Кто был сегодня на объекте" /> : attendanceError ? (
+                <ObjectPanelError title="Кто был сегодня на объекте" message={attendanceError} />
+              ) : (
+                <ObjectAttendancePanel
+                  objectId={objectId}
+                  onSubstitutionSaved={async () => { await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }}
+                  employees={attendanceEmployees}
+                  initialEmployeeIds={currentShiftDay?.owned ? [...new Set([...attendanceEmployeeFacts.map((fact) => fact.employeeId), ...currentShiftDay.confirmedEmployeeIds])] : attendanceEmployeeIds}
+                  initialEmployeeFacts={attendanceEmployeeFacts}
+                  readOnlyReason={legacyAttendanceReadOnlyReason}
+                  canEditRates={item.capabilities.canEditDailyRate}
+                  canAddExtraShift={item.capabilities.canAddExtraShift ?? false}
+                  operationDate={todayAsBusinessDate()}
+                  onSave={async (payload) => {
+                    await upsertObjectAttendance(objectId, payload);
+                    await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId), loadDirectory(objectId, employeeSearch)]);
+                  }}
+                />
+              )}
               <div className={styles.todayGrid}>
                 {arrivalLoading ? <ObjectPanelLoading title="Фото прибытия сегодня" /> : arrivalError ? (
                   <ObjectPanelError title="Фото прибытия сегодня" message={arrivalError} />
@@ -465,34 +497,17 @@ export default function ObjectDetailPage({
                 {reportLoading ? <ObjectPanelLoading title="Ежедневный отчет" /> : reportError ? (
                   <ObjectPanelError title="Ежедневный отчет" message={reportError} />
                 ) : (
-                  <ObjectDailyReportPanel item={report} onSave={async (payload) => {
+                  <ObjectDailyReportPanel item={report} onAttachmentsUpdated={async () => { const refreshed = await getTodayDailyReport(objectId); setReport(refreshed); return refreshed; }} onSave={async (payload) => {
                     const saved = await upsertTodayDailyReport(objectId, { content: payload.content, expectedRevision: report?.revision ?? 0 });
                     setReport(saved);
-                    const uploads = await uploadFileBatch({ entityType: 'object_daily_report', entityId: saved.id, files: payload.files });
-                    await Promise.all([loadReport(objectId), loadFeed(objectId)]);
-                    if (uploads.some((result) => result.status === 'rejected')) throw new Error('Текст отчёта сохранён. Не все вложения загрузились — повторите сохранение: уже загруженные файлы не продублируются.');
+                    const refreshed = await getTodayDailyReport(objectId);
+                    setReport(refreshed);
+                    await loadFeed(objectId);
+                    if (!refreshed) throw new Error('Черновик сохранён, но не удалось перечитать отчёт. Обновите данные перед продолжением.');
+                    return refreshed;
                   }} />
                 )}
 
-                {item.capabilities.canOperateAttendance === false ? null : attendanceLoading ? <ObjectPanelLoading title="Кто был сегодня на объекте" /> : attendanceError ? (
-                  <ObjectPanelError title="Кто был сегодня на объекте" message={attendanceError} />
-                ) : (
-                  <ObjectAttendancePanel
-                    objectId={objectId}
-                    onSubstitutionSaved={async () => { await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }}
-                    employees={attendanceEmployees}
-                    initialEmployeeIds={currentShiftDay?.owned ? [...new Set([...attendanceEmployeeFacts.map((fact) => fact.employeeId), ...currentShiftDay.confirmedEmployeeIds])] : attendanceEmployeeIds}
-                    initialEmployeeFacts={attendanceEmployeeFacts}
-                    readOnlyReason={legacyAttendanceReadOnlyReason}
-                    canEditRates={item.capabilities.canEditDailyRate}
-                    canAddExtraShift={item.capabilities.canAddExtraShift ?? false}
-                    operationDate={todayAsBusinessDate()}
-                    onSave={async (payload) => {
-                      await upsertObjectAttendance(objectId, payload);
-                      await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId), loadDirectory(objectId, employeeSearch)]);
-                    }}
-                  />
-                )}
               </div>
 
               {commentsLoading ? <ObjectPanelLoading title="Оперативный комментарий" /> : commentsError ? (

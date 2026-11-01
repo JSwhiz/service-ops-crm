@@ -1,0 +1,60 @@
+.formDialog {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.sections {
+  position: sticky;
+  z-index: 1;
+  top: calc(-1 * var(--ui-space-5));
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  margin: calc(-1 * var(--ui-space-5)) calc(-1 * var(--ui-space-6)) var(--ui-space-5);
+  padding: var(--ui-space-3) var(--ui-space-6);
+  overflow-x: visible;
+  border-bottom: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+}
+
+.sections button {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-height: var(--ui-control-md);
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-sm);
+  background: transparent;
+  color: var(--ui-text-secondary);
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.sections button[data-active='true'] {
+  border-color: var(--ui-border-strong);
+  background: var(--ui-surface-subtle);
+  color: var(--ui-text);
+  font-weight: 600;
+}
+
+.sections button[aria-invalid='true'] {
+  color: var(--ui-danger);
+}
+
+.sections button:focus-visible {
+  outline: 2px solid var(--ui-focus-border);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .sections {
+    top: calc(-1 * var(--ui-space-4));
+    margin: calc(-1 * var(--ui-space-4)) calc(-1 * var(--ui-space-4)) var(--ui-space-4);
+    padding-inline: var(--ui-space-4);
+  }
+}
+
+@media (pointer: coarse) {
+  .sections button { min-height: 44px; }
+}
