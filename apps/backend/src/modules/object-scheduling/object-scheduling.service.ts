@@ -7,12 +7,13 @@ import { TimesheetsService } from '../timesheets/timesheets.service';
 import { canCreateObject, canEditObjectDailyRate, canViewObjectByScope } from '../objects/utils/object-access.util';
 import { annualSeason, seasonalCompensation } from '../objects/utils/object-season.util';
 import { canManageEmployeeAssignments } from '../employees/utils/employee-hr-access.util';
-import { canManuallyCorrectTimesheet } from '../timesheets/utils/timesheet-access.util';
 import { buildObjectDefaultRatePolicy, calculateMonthlySalaryDailyRate, normalizeRatePolicy, parseRatePolicySnapshot, pinRatePolicyProductionCalendar } from '../timesheets/utils/timesheet-rate-policy.util';
 import { usedObjectDelegations } from '../user-substitutions/object-delegation.context';
 import { ArchivePositionDto, CancelShiftDto, ConfirmShiftDto, CreateContourDto, CreatePositionDto, DateRangeDto, EmployeeOptionsDto, PositionFieldsDto, PreviewDto, SavePositionDto, UpdateContourDto } from './scheduling.dto';
 import type { PositionView, SchedulingUser } from './scheduling.types';
 import { boundedDates, calendarPreview, dateOnly, legacyFactDay, legacyFactRange, todayMoscow, validatePlan } from './scheduling-calendar';
+import { ObjectCompensationService } from './object-compensation.service';
+import { CreateCompensationAdjustmentDto } from './compensation.dto';
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const roles = (user: SchedulingUser) => user.roleCodes?.length ? user.roleCodes : [user.roleCode];
@@ -24,7 +25,7 @@ type PositionRecord = Prisma.ObjectStaffPositionGetPayload<{include: typeof posi
 
 @Injectable()
 export class ObjectSchedulingService {
-  constructor(private readonly prisma: PrismaService, private readonly timesheets: TimesheetsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly timesheets: TimesheetsService, private readonly compensation: ObjectCompensationService) {}
 
   private async access(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, write = false) {
     const object = await tx.object.findFirst({where: {id: objectId, deletedAt: null}, include: {assignments: {where: {isActive: true}}, planningSettings: true}});
@@ -169,6 +170,7 @@ export class ObjectSchedulingService {
       if (!prior) throw new NotFoundException('Контур не найден');
       if (prior.version !== input.expectedVersion) conflict('VERSION_CONFLICT', 'Контур изменён другим пользователем');
       const {expectedVersion, ...changes} = input;
+      if (await tx.objectCompensationVersion.findFirst({where: {objectId, scope: 'contour', scopeId: id, cancelledAt: null}}) && Object.entries(changes).some(([key, value]) => value !== undefined && ['dailyRate', 'summerDailyRate', 'winterDailyRate'].includes(key))) conflict('DATED_TERMS_REQUIRED', 'Измените сумму через датированную версию контура');
       const contour = await tx.objectPayContour.update({where: {id}, data: {...changes, version: expectedVersion + 1, effectiveFrom: dateOnly(todayMoscow())}});
       await this.audit(tx, user, objectId, 'scheduling_contour_updated', {contourId: id, version: contour.version}); return contour;
     });
@@ -244,11 +246,14 @@ export class ObjectSchedulingService {
     return {attendance: items.map(({revision, ...item}) => this.attendanceView(item, revision.positionId))};
   }
   async confirm(user: SchedulingUser, objectId: string, input: ConfirmShiftDto) {
-    return this.prisma.$transaction(async tx => {
+    return this.prisma.$transaction(tx => this.confirmInTransaction(tx, user, objectId, input));
+  }
+  private async confirmInTransaction(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, input: ConfirmShiftDto, approved = false) {
       const object = await this.lock(tx, user, objectId); await this.writableDay(tx, objectId, input.operationDate);
+      const actualEmployeeId = input.replacementEmployeeId ?? input.employeeId;
       const existingRequest = await tx.objectShiftAttendance.findUnique({where: {objectId_requestKey: {objectId, requestKey: input.requestKey}}, include: {revision: {select: {positionId: true}}}});
       if (existingRequest) {
-        if (existingRequest.revisionId !== input.revisionId || existingRequest.revision.positionId !== input.positionId || existingRequest.groupKey !== input.groupKey || existingRequest.timeRangeKey !== input.timeRangeKey || existingRequest.employeeId !== input.employeeId || existingRequest.operationDate.toISOString().slice(0,10) !== input.operationDate) conflict('REQUEST_KEY_REUSED', 'Ключ запроса уже использован для другой смены');
+        if (existingRequest.revisionId !== input.revisionId || existingRequest.revision.positionId !== input.positionId || existingRequest.groupKey !== input.groupKey || existingRequest.timeRangeKey !== input.timeRangeKey || existingRequest.employeeId !== actualEmployeeId || existingRequest.operationDate.toISOString().slice(0,10) !== input.operationDate) conflict('REQUEST_KEY_REUSED', 'Ключ запроса уже использован для другой смены');
         return this.attendanceView(existingRequest, input.positionId);
       }
       const requestAudit = await tx.objectAuditLog.findFirst({where: {objectId, actionCode: 'scheduling_shift_confirmed', payload: {path: ['data', 'requestKey'], equals: input.requestKey}}});
@@ -256,11 +261,11 @@ export class ObjectSchedulingService {
         const auditData = (requestAudit.payload as unknown as {data: {attendanceId: string; event: ConfirmShiftDto}}).data;
         const {requestKey: ignored, ...event} = input; void ignored;
         const {requestKey: original, ...savedEvent} = auditData.event; void original;
-        if (!isDeepStrictEqual(event, savedEvent)) conflict('REQUEST_KEY_REUSED', 'Ключ запроса уже использован для другой смены');
+        if (!isDeepStrictEqual(json(event), json(savedEvent))) conflict('REQUEST_KEY_REUSED', 'Ключ запроса уже использован для другой смены');
         const replay = await tx.objectShiftAttendance.findUniqueOrThrow({where: {id: auditData.attendanceId}});
         return this.attendanceView(replay, input.positionId);
       }
-      const saved = await tx.objectShiftAttendance.findFirst({where: {objectId, revisionId: input.revisionId, groupKey: input.groupKey, timeRangeKey: input.timeRangeKey, employeeId: input.employeeId, operationDate: dateOnly(input.operationDate)}, include: {revision: {select: {positionId: true}}}});
+      const saved = await tx.objectShiftAttendance.findFirst({where: {objectId, revisionId: input.revisionId, groupKey: input.groupKey, timeRangeKey: input.timeRangeKey, employeeId: actualEmployeeId, operationDate: dateOnly(input.operationDate)}, include: {revision: {select: {positionId: true}}}});
       if (saved && saved.revision.positionId !== input.positionId) conflict('SHIFT_NOT_EXPECTED', 'Версия графика не относится к указанной позиции');
       if (saved?.status === 'confirmed') {
         await this.audit(tx, user, objectId, 'scheduling_shift_confirmed', {attendanceId: saved.id, requestKey: input.requestKey, event: input, replay: true});
@@ -270,7 +275,14 @@ export class ObjectSchedulingService {
       const sourcePosition = saved ? {...position, revisions: position.revisions.filter(r => r.id === saved.revisionId)} : position;
       const shift = calendarPreview([sourcePosition], input.operationDate, input.operationDate).shifts.find(s => s.revisionId === input.revisionId && s.groupKey === input.groupKey && s.timeRangeKey === input.timeRangeKey && s.employeeId === input.employeeId);
       if (!shift) conflict('SHIFT_NOT_EXPECTED', 'Смена не соответствует действующей версии графика');
-      const employee = await tx.employee.findFirst({where: {id: input.employeeId, deletedAt: null, employmentStatus: 'active'}});
+      if (input.replacementEmployeeId) {
+        if (!input.substitutionId || input.replacementEmployeeId === input.employeeId) throw new BadRequestException('Выберите другого сменщика и кадровую подмену');
+        const coverage = await tx.employeeSubstitution.findFirst({where: {id: input.substitutionId, objectId, employeeId: input.employeeId, substituteEmployeeId: input.replacementEmployeeId, status: {in: ['active', 'planned']}, startDate: {lte: new Date(shift.startsAt)}, OR: [{endDate: null}, {endDate: {gte: new Date(shift.endsAt)}}]}});
+        if (!coverage) conflict('SUBSTITUTION_OUT_OF_SCOPE', 'Подмена не покрывает всю указанную смену');
+        const paidPrimary = await tx.objectShiftAttendance.findFirst({where: {objectId, employeeId: input.employeeId, contourId: shift.contourId, operationDate: dateOnly(input.operationDate), status: 'confirmed'}});
+        if (paidPrimary || await tx.objectAttendanceFact.findFirst({where: {objectId, employeeId: input.employeeId, operationDate: legacyFactRange(input.operationDate)}})) conflict('PRIMARY_ALREADY_PAID', 'Основной сотрудник уже оплачен; используйте связанное исправление подмены с ожидаемой версией');
+      } else if (input.substitutionId) throw new BadRequestException('Укажите сменщика');
+      const employee = await tx.employee.findFirst({where: {id: actualEmployeeId, deletedAt: null, employmentStatus: 'active'}});
       if (!employee) throw new BadRequestException('Сотрудник неактивен');
       const warnings = await this.employeeWarnings(tx, objectId, employee.id, input.operationDate, new Date(shift.startsAt), new Date(shift.endsAt));
       if (warnings.length) conflict(warnings[0], 'Сотрудник вне состава объекта, недоступен или подменён');
@@ -281,14 +293,20 @@ export class ObjectSchedulingService {
       if (saved && peers.some(peer => peer.contourId === saved.contourId && (peer.dailyRateSnapshot !== saved.dailyRateSnapshot || !isDeepStrictEqual(peer.ratePolicySnapshot, saved.ratePolicySnapshot)))) {
         conflict('CONTOUR_SNAPSHOT_CONFLICT', 'Сохранённые условия отменённого выхода отличаются от уже подтверждённых условий этого контура за дату. Повторное подтверждение не может изменить сохранённую оплату');
       }
-      const assignment = await tx.objectEmployeeAssignment.findUnique({where: {objectId_employeeId: {objectId, employeeId: employee.id}}});
+      const assignment = await tx.objectEmployeeAssignment.findUnique({where: {objectId_employeeId: {objectId, employeeId: input.replacementEmployeeId ? input.employeeId : employee.id}}});
       const substitution = await tx.employeeSubstitution.findFirst({where: {objectId, substituteEmployeeId: employee.id, status: {in: ['planned', 'active']}, startDate: {lte: dayStart(input.operationDate)}, OR: [{endDate: null}, {endDate: {gte: dayStart(input.operationDate)}}]}});
       const season = object.planningSettings?.automaticSeasons && object.planningSettings.summerStartsOn && object.planningSettings.winterStartsOn ? annualSeason(object.planningSettings.summerStartsOn, object.planningSettings.winterStartsOn, dayStart(input.operationDate)) : object.seasonMode;
       const profile = object.planningSettings?.automaticSeasons ? seasonalCompensation(object, season) : object;
-      let policy = parseRatePolicySnapshot(sameContour?.ratePolicySnapshot) ?? parseRatePolicySnapshot(saved?.ratePolicySnapshot) ?? parseRatePolicySnapshot(substitution?.ratePolicySnapshot) ?? (assignment?.ratePolicyUpdatedAt ? normalizeRatePolicy(assignment, profile.dailyRate) : buildObjectDefaultRatePolicy({paymentType: profile.paymentType as 'monthly' | 'daily', monthlySalary: profile.monthlySalary, dailyRate: profile.dailyRate, scheduleCode: profile.paymentScheduleCode, scheduleWeekdays: profile.paymentScheduleWeekdays, scheduleCycleStartDate: profile.paymentScheduleCycleStartDate}));
+      let policy = parseRatePolicySnapshot(sameContour?.ratePolicySnapshot) ?? parseRatePolicySnapshot(saved?.ratePolicySnapshot) ?? (input.replacementEmployeeId ? null : parseRatePolicySnapshot(substitution?.ratePolicySnapshot)) ?? (assignment?.ratePolicyUpdatedAt ? normalizeRatePolicy(assignment, profile.dailyRate) : buildObjectDefaultRatePolicy({paymentType: profile.paymentType as 'monthly' | 'daily', monthlySalary: profile.monthlySalary, dailyRate: profile.dailyRate, scheduleCode: profile.paymentScheduleCode, scheduleWeekdays: profile.paymentScheduleWeekdays, scheduleCycleStartDate: profile.paymentScheduleCycleStartDate}));
       let amount = sameContour?.dailyRateSnapshot ?? saved?.dailyRateSnapshot ?? policy.baseAmount;
       if (!sameContour && !saved) {
-        if (shift.contourId) {
+        const datedPolicy = await this.compensation.resolvePolicy(tx, objectId, input.operationDate, input.replacementEmployeeId ? input.employeeId : employee.id, shift.contourId, position.revisions.find(r => r.id === input.revisionId), input.positionId);
+        if (datedPolicy) {
+          policy = datedPolicy;
+          const occupied = policy.poolKey ? await tx.objectShiftAttendance.findMany({where: {objectId, operationDate: dateOnly(input.operationDate), contourId: shift.contourId, employeeId: {not: employee.id}, status: 'confirmed', revision: {positionId: input.positionId}}, select: {employeeId: true}, distinct: ['employeeId']}) : [];
+          if (policy.poolKey && occupied.length >= (policy.dailySlotCapacity ?? 1)) conflict('PAY_SLOT_OCCUPIED', 'Оплачиваемые места позиции уже заняты');
+          amount = await this.compensation.pricePolicyDay(tx, objectId, employee.id, input.operationDate, policy, `shift:${employee.id}:${input.operationDate}:${shift.contourId ?? 'default'}`, input.replacementEmployeeId ? input.employeeId : undefined);
+        } else if (shift.contourId) {
           if (!['daily_rate', 'per_attendance', 'agreed_substitution_rate'].includes(policy.ratePolicyType)) conflict('INCOMPATIBLE_PAY_MODES', 'Отдельные дневные контуры несовместимы с месячным или специальным режимом сотрудника');
           const contour = await tx.objectPayContour.findFirst({where: {id: shift.contourId, objectId, isActive: true}});
           if (!contour) conflict('CONTOUR_INACTIVE', 'Контур оплаты неактивен');
@@ -304,30 +322,34 @@ export class ObjectSchedulingService {
         policy = pinRatePolicyProductionCalendar(policy, Number(input.operationDate.slice(0,4)));
       }
       if (peers.length && peers.some(p => p.contourId !== shift.contourId) && (!shift.contourId || peers.some(p => !p.contourId))) conflict('INCOMPATIBLE_PAY_MODES', 'Нельзя смешивать неявную базовую оплату и явно выделенные контуры в одной дате');
-      if (saved && input.operationDate < todayMoscow() && !canManuallyCorrectTimesheet(roles(user)) && !user.permissionCodes?.includes('timesheet.manual_correction')) throw new ForbiddenException('Повторное подтверждение исторического выхода требует права корректировки табеля');
+      const primaryHoliday = input.replacementEmployeeId ? await tx.objectPayrollCredit.findUnique({where: {objectId_sourceKey: {objectId, sourceKey: `holiday:${input.employeeId}:${input.operationDate}:${shift.contourId ?? 'default'}`}}}) : null;
+      if (input.operationDate < todayMoscow() && !approved) {
+        return this.compensation.request(tx, user, objectId, {requestKey: `confirm:${input.requestKey}`, kind: 'confirm_shift', operationDate: input.operationDate, employeeId: employee.id, reason: 'Подтверждение выхода за прошлую дату'}, input, {saved: saved ?? null, peers: peers.map(p => ({id: p.id, version: p.version})), primaryHoliday});
+      }
+      if (primaryHoliday) await this.compensation.postCredit(tx, user.id, objectId, input.employeeId, input.operationDate, primaryHoliday.sourceKey, 0, {...primaryHoliday.policySnapshot as Prisma.JsonObject, payable: false}, 'Праздничная оплата передана сменщику по исходным условиям');
       const item = saved
         ? await tx.objectShiftAttendance.update({where: {id: saved.id}, data: {status: 'confirmed', version: {increment: 1}}})
         : await tx.objectShiftAttendance.create({data: {objectId, employeeId: employee.id, operationDate: dateOnly(input.operationDate), revisionId: input.revisionId, groupKey: input.groupKey, timeRangeKey: input.timeRangeKey, requestKey: input.requestKey, contourId: shift.contourId, startsAt: new Date(shift.startsAt), endsAt: new Date(shift.endsAt), dailyRateSnapshot: amount, ratePolicySnapshot: json(policy), createdByUserId: user.id}});
       await this.aggregate(tx, user, objectId, employee.id, input.operationDate);
       await this.audit(tx, user, objectId, 'scheduling_shift_confirmed', {attendanceId: item.id, requestKey: input.requestKey, event: input, previousStatus: saved?.status, previousVersion: saved?.version, version: item.version});
       return this.attendanceView(item, input.positionId);
-    });
   }
   async cancel(user: SchedulingUser, objectId: string, id: string, input: CancelShiftDto) {
-    return this.prisma.$transaction(async tx => {
+    return this.prisma.$transaction(tx => this.cancelInTransaction(tx, user, objectId, id, input));
+  }
+  private async cancelInTransaction(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, id: string, input: CancelShiftDto, approved = false) {
       await this.lock(tx, user, objectId);
       const item = await tx.objectShiftAttendance.findFirst({where: {id, objectId}, include: {revision: {select: {positionId: true}}}});
       if (!item) throw new NotFoundException('Выход не найден');
       const date = item.operationDate.toISOString().slice(0,10); await this.writableDay(tx, objectId, date);
-      if (date < todayMoscow() && !canManuallyCorrectTimesheet(roles(user)) && !user.permissionCodes?.includes('timesheet.manual_correction')) throw new ForbiddenException('Отмена исторического выхода требует права корректировки табеля');
       if (item.version !== input.expectedVersion) conflict('VERSION_CONFLICT', 'Факт выхода уже изменён');
       if (item.status === 'cancelled') return this.attendanceView(item, item.revision.positionId);
       if (!input.reason.trim()) throw new BadRequestException('Укажите причину отмены');
+      if (date < todayMoscow() && !approved) return this.compensation.request(tx, user, objectId, {requestKey: `cancel:${id}:${input.expectedVersion}`, kind: 'cancel_shift', operationDate: date, employeeId: item.employeeId, attendanceId: id, reason: input.reason}, {id, ...input}, item);
       const updated = await tx.objectShiftAttendance.update({where: {id}, data: {status: 'cancelled', version: {increment: 1}, cancelledByUserId: user.id, cancelledAt: new Date(), cancelReason: input.reason.trim()}});
       await this.aggregate(tx, user, objectId, item.employeeId, date);
       await this.audit(tx, user, objectId, 'scheduling_shift_cancelled', {attendanceId: id, reason: input.reason.trim()});
       return this.attendanceView(updated, item.revision.positionId);
-    });
   }
   private async aggregate(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, employeeId: string, date: string) {
     const shifts = await tx.objectShiftAttendance.findMany({where: {objectId, employeeId, operationDate: dateOnly(date), status: 'confirmed'}, orderBy: [{createdAt: 'asc'}, {id: 'asc'}]});
@@ -343,6 +365,61 @@ export class ObjectSchedulingService {
     const container = await tx.timesheetMonth.upsert({where: {objectId_year_month: {objectId, year, month}}, create: {objectId, year, month, createdByUserId: user.id}, update: {}});
     const employee = await tx.employee.findUniqueOrThrow({where: {id: employeeId}});
     await tx.timesheetEmployeeRow.upsert({where: {timesheetMonthId_employeeId: {timesheetMonthId: container.id, employeeId}}, create: {timesheetMonthId: container.id, employeeId, employeeNameSnapshot: employee.fullName}, update: {}});
-    await this.timesheets.syncAttendanceDay(tx, {objectId, timesheetMonthId: container.id, year, month, dayOfMonth, actorUserId: user.id, previousFactEmployeeIds: [], employeeIds: [employeeId], reconcileMonthly: true});
+    const v2 = exits.some(exit => parseRatePolicySnapshot(exit.ratePolicySnapshot)?.calculationVersion === 'half_salary_v2');
+    const oldCredits = await tx.objectPayrollCredit.findMany({where: {objectId, employeeId, operationDate: dateOnly(date), sourceKey: {startsWith: `shift:${employeeId}:${date}:`}}});
+    if (v2 || oldCredits.length) {
+      const keys = new Set<string>();
+      for (const exit of exits) {
+        const holidayKey = `holiday:${employeeId}:${date}:${exit.contourId ?? 'default'}`;
+        const holiday = await tx.objectPayrollCredit.findUnique({where: {objectId_sourceKey: {objectId, sourceKey: holidayKey}}});
+        if (holiday?.amount) await this.compensation.postCredit(tx, user.id, objectId, employeeId, date, holidayKey, 0, {...holiday.policySnapshot as Prisma.JsonObject, payable: false}, 'Праздник учтён в фактическом выходе, без повторной оплаты');
+        const key = `shift:${employeeId}:${date}:${exit.contourId ?? 'default'}`; keys.add(key);
+        await this.compensation.postCredit(tx, user.id, objectId, employeeId, date, key, exit.dailyRateSnapshot, exit.ratePolicySnapshot, `Начисление по сохранённым условиям: ${exit.dailyRateSnapshot} ₽`);
+      }
+      for (const credit of oldCredits) if (!keys.has(credit.sourceKey)) await this.compensation.postCredit(tx, user.id, objectId, employeeId, date, credit.sourceKey, 0, {...credit.policySnapshot as Prisma.JsonObject, payable: false}, 'Выход отменён или оплата перенесена сменщику');
+      const monthlyPolicy = exits.map(exit => parseRatePolicySnapshot(exit.ratePolicySnapshot)).find(p => p?.ratePolicyType === 'monthly_fixed') ?? oldCredits.map(credit => parseRatePolicySnapshot(credit.policySnapshot)).find(p => p?.ratePolicyType === 'monthly_fixed');
+      if (monthlyPolicy) await this.compensation.reconcileSalaryRounding(tx, user.id, objectId, employeeId, date, monthlyPolicy);
+    } else await this.timesheets.syncAttendanceDay(tx, {objectId, timesheetMonthId: container.id, year, month, dayOfMonth, actorUserId: user.id, previousFactEmployeeIds: [], employeeIds: [employeeId], reconcileMonthly: true});
+  }
+
+  async adjustCompensation(user: SchedulingUser, objectId: string, input: CreateCompensationAdjustmentDto) {
+    return this.compensation.adjustment(user, objectId, input, async (tx, adjustmentId) => {
+      await this.refreshAdjustmentAggregates(tx, user, adjustmentId);
+    });
+  }
+  private async refreshAdjustmentAggregates(tx: Prisma.TransactionClient, user: SchedulingUser, id: string) {
+    const adjustment = await tx.objectCompensationAdjustment.findUniqueOrThrow({where: {id}});
+    if (!adjustment.attendanceId) return;
+    const shift = await tx.objectShiftAttendance.findUniqueOrThrow({where: {id: adjustment.attendanceId}});
+    const date = adjustment.operationDate.toISOString().slice(0, 10);
+    const before = adjustment.beforeSnapshot as unknown as {employeeId?: string};
+    if (before.employeeId && before.employeeId !== shift.employeeId) await this.aggregate(tx, user, shift.objectId, before.employeeId, date);
+    await this.aggregate(tx, user, shift.objectId, shift.employeeId, date);
+  }
+  async applyFinancialDecision(tx: Prisma.TransactionClient, user: SchedulingUser, id: string, decision: 'approve' | 'reject' | 'cancel') {
+    const item = await tx.objectCompensationAdjustment.findUniqueOrThrow({where: {id}});
+    await this.lock(tx, user, item.objectId);
+    if (item.status !== 'pending') conflict('APPROVAL_ALREADY_RESOLVED', 'Финансовая заявка уже обработана');
+    if (decision !== 'approve') {
+      await tx.objectCompensationAdjustment.update({where: {id}, data: {status: decision === 'reject' ? 'rejected' : 'cancelled'}}); return;
+    }
+    if (item.kind === 'confirm_shift') {
+      const input = item.payload as unknown as ConfirmShiftDto;
+      const saved = await tx.objectShiftAttendance.findFirst({where: {objectId: item.objectId, revisionId: input.revisionId, groupKey: input.groupKey, timeRangeKey: input.timeRangeKey, employeeId: input.replacementEmployeeId ?? input.employeeId, operationDate: dateOnly(input.operationDate)}, include: {revision: {select: {positionId: true}}}});
+      const peers = await tx.objectShiftAttendance.findMany({where: {objectId: item.objectId, employeeId: input.replacementEmployeeId ?? input.employeeId, operationDate: dateOnly(input.operationDate), status: 'confirmed'}, orderBy: [{createdAt: 'asc'}, {id: 'asc'}]});
+      const position = this.view(await this.position(tx, item.objectId, input.positionId));
+      const contourId = position.revisions.find(r => r.id === input.revisionId)?.groups.find(g => g.key === input.groupKey)?.timeRanges.find(r => r.key === input.timeRangeKey)?.contourId ?? null;
+      const primaryHoliday = input.replacementEmployeeId ? await tx.objectPayrollCredit.findUnique({where: {objectId_sourceKey: {objectId: item.objectId, sourceKey: `holiday:${input.employeeId}:${input.operationDate}:${contourId ?? 'default'}`}}}) : null;
+      const before = item.beforeSnapshot as Prisma.JsonObject;
+      if (!isDeepStrictEqual(json({saved: saved ?? null, peers: peers.map(p => ({id: p.id, version: p.version})), ...('primaryHoliday' in before ? {primaryHoliday} : {})}), item.beforeSnapshot)) conflict('VERSION_CONFLICT', 'Выход изменён после подачи заявки');
+      await this.confirmInTransaction(tx, user, item.objectId, input, true);
+    } else if (item.kind === 'cancel_shift') {
+      const payload = item.payload as unknown as CancelShiftDto & {id: string};
+      await this.cancelInTransaction(tx, user, item.objectId, payload.id, payload, true);
+    } else {
+      await this.compensation.applyAdjustment(tx, item, user.id);
+      await this.refreshAdjustmentAggregates(tx, user, id);
+    }
+    await tx.objectCompensationAdjustment.update({where: {id}, data: {status: 'applied', appliedAt: new Date(), appliedByUserId: user.id}});
   }
 }

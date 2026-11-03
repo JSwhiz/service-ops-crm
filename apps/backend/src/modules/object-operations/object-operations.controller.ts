@@ -331,7 +331,7 @@ export class ObjectOperationsController {
     @CurrentUser() user: CurrentAuthUser,
     @Param('id') objectId: string,
     @Body() payload: UpsertObjectAttendanceDto,
-  ): Promise<{ success: true }> {
+  ) {
     const result = await this.objectOperationsService.upsertObjectAttendance(
       user,
       objectId,

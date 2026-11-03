@@ -33,6 +33,16 @@ export type TimesheetRateRoundingMode =
   (typeof TIMESHEET_RATE_ROUNDING_MODES)[number];
 
 export interface TimesheetRatePolicySnapshot {
+  calculationVersion?: 'half_salary_v2';
+  compensationVersionId?: string;
+  paidHolidays?: boolean;
+  normDaysFirstHalf?: number | null;
+  normDaysSecondHalf?: number | null;
+  poolKey?: string;
+  positionId?: string;
+  contourId?: string;
+  dailySlotCapacity?: number;
+  salaryOwnerEmployeeId?: string;
   ratePolicyType: TimesheetRatePolicyType;
   baseAmount: number;
   scheduleCode: TimesheetRateScheduleCode | null;

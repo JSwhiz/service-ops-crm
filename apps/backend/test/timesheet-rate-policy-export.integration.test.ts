@@ -7,11 +7,11 @@ import {
   SEEDED_EMPLOYEE_IDS,
   cleanupCoreTestObject,
   createCoreTestObject,
-  getSafeBusinessDate,
 } from './helpers/core-fixtures';
 import { calculateMonthlySalaryDailyRate } from '../src/modules/timesheets/utils/timesheet-rate-policy.util';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { approvePendingFinancialChange } from './helpers/approve-financial-change';
 
 test('timesheet rate policies calculate auto/final/deviation fields and export xlsx', async (t) => {
   const prisma = new PrismaClient();
@@ -21,9 +21,12 @@ test('timesheet rate policies calculate auto/final/deviation fields and export x
     login: 'founder',
     password: 'founder123',
   });
-  const partialDate = getSafeBusinessDate(10);
-  const agreedDate = getSafeBusinessDate(11);
-  const monthlyDate = getSafeBusinessDate(12);
+  const directorCookie = await loginAndGetCookieHeader({baseUrl, login: 'director', password: 'director123'});
+  const previous = new Date(); previous.setDate(1); previous.setMonth(previous.getMonth() - 1);
+  const date = (dayOfMonth: number) => ({year: previous.getFullYear(), month: previous.getMonth() + 1, dayOfMonth, operationDate: `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`});
+  const partialDate = date(10);
+  const agreedDate = date(11);
+  const monthlyDate = date(12);
   const { objectId } = await createCoreTestObject(prisma);
 
   t.after(async () => {
@@ -104,6 +107,7 @@ test('timesheet rate policies calculate auto/final/deviation fields and export x
     },
   );
   assert.equal(partialAttendanceResponse.status, 201);
+  await approvePendingFinancialChange(partialAttendanceResponse, baseUrl, directorCookie);
 
   const agreedAttendanceResponse = await fetch(
     `${baseUrl}/api/v1/objects/${objectId}/attendance`,
@@ -120,6 +124,7 @@ test('timesheet rate policies calculate auto/final/deviation fields and export x
     },
   );
   assert.equal(agreedAttendanceResponse.status, 201);
+  await approvePendingFinancialChange(agreedAttendanceResponse, baseUrl, directorCookie);
 
   const monthlyAttendanceResponse = await fetch(
     `${baseUrl}/api/v1/objects/${objectId}/attendance`,
@@ -136,6 +141,7 @@ test('timesheet rate policies calculate auto/final/deviation fields and export x
     },
   );
   assert.equal(monthlyAttendanceResponse.status, 201);
+  await approvePendingFinancialChange(monthlyAttendanceResponse, baseUrl, directorCookie);
 
   const timesheetResponse = await fetch(
     `${baseUrl}/api/v1/timesheets?objectId=${objectId}&year=${partialDate.year}&month=${partialDate.month}`,

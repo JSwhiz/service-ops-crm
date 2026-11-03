@@ -20,6 +20,7 @@ const displayDate = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'l
 const shortDate = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
 
 export interface DatePickerProps {
+  name?: string;
   /** `YYYY-MM-DD`, or `YYYY-MM-DDTHH:mm` with `withTime`; empty string when unset. */
   value: string;
   onChange: (value: string) => void;
@@ -62,6 +63,7 @@ function parseKey(key: string): Date | null {
  * unlike native date inputs, and works inside Field and Dialog.
  */
 export function DatePicker({
+  name,
   value,
   onChange,
   withTime = false,
@@ -182,6 +184,7 @@ export function DatePicker({
   return (
     <div ref={rootRef} className={[styles.root, className].filter(Boolean).join(' ')}>
       <button
+        name={name}
         ref={triggerRef}
         id={id}
         type="button"

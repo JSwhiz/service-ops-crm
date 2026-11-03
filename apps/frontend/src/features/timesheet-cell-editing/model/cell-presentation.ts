@@ -9,10 +9,12 @@ export function describeTimesheetValue(entry: Pick<TimesheetOverviewEntry, 'fina
 }
 
 /** Validate the existing correction contract; viewing a cell never creates a mutation. */
-export function validateCellCorrection(value: string, reason: string, autoValue: number, canDirectEdit: boolean): string | null {
+export function validateCellCorrection(value: string, reason: string, autoValue: number, canDirectEdit: boolean, allowApprovedRestore = false): string | null {
   const parsed = Number(value);
   if (!value.trim() || !Number.isInteger(parsed) || parsed < 0) return 'Введите целую сумму не меньше 0 ₽.';
   if (parsed !== autoValue && !reason.trim()) return 'Для ручной корректировки укажите причину.';
+  if (allowApprovedRestore && !reason.trim()) return 'Для согласования возврата к авторасчёту укажите причину.';
+  if (allowApprovedRestore) return null;
   if (!canDirectEdit && parsed === autoValue) return 'Возврат к авторасчёту доступен только пользователю с правом прямой корректировки.';
   return null;
 }

@@ -78,6 +78,8 @@ export class UpdateContourDto {
   @ValidateIf((_, value) => value !== undefined) @IsBoolean() isActive?: boolean;
 }
 export class ConfirmShiftDto {
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(80) replacementEmployeeId?: string;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(80) substitutionId?: string;
   @IsString() @MinLength(1) @MaxLength(80) requestKey!: string;
   @IsString() @MinLength(1) @MaxLength(80) positionId!: string;
   @IsString() @MinLength(1) @MaxLength(80) revisionId!: string;

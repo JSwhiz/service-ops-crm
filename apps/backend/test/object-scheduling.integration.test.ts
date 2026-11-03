@@ -11,6 +11,7 @@ import { legacyFactDay, todayMoscow } from '../src/modules/object-scheduling/sch
 import { TimesheetsService } from '../src/modules/timesheets/timesheets.service';
 import { normalizeRatePolicy } from '../src/modules/timesheets/utils/timesheet-rate-policy.util';
 import { Prisma } from '@prisma/client';
+import { approvePendingFinancialChange } from './helpers/approve-financial-change';
 
 interface Attendance {id: string; version: number; dailyRateSnapshot: number; ratePolicySnapshot: unknown; status: string; operationDate: string}
 interface Contour {id: string; version: number; code: string; dailyRate: number}
@@ -22,6 +23,7 @@ test('scheduling HTTP → snapshots → daily aggregate → timesheet', async t 
   const cookies = {
     founder: await loginAndGetCookieHeader({baseUrl, login: 'founder', password: 'founder123'}),
     manager: await loginAndGetCookieHeader({baseUrl, login: 'manager1', password: 'manager123'}),
+    director: await loginAndGetCookieHeader({baseUrl, login: 'director', password: 'director123'}),
   };
   const today = todayMoscow();
   const tomorrow = new Date(new Date(`${today}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0,10);
@@ -29,7 +31,6 @@ test('scheduling HTTP → snapshots → daily aggregate → timesheet', async t 
   const objects: string[] = [];
   t.after(async () => {
     for (const objectId of objects) {
-      await prisma.objectShiftAttendance.deleteMany({where: {objectId}});
       await cleanupCoreTestObject(prisma, objectId);
     }
     await app.close(); await prisma.$disconnect();
@@ -38,6 +39,21 @@ test('scheduling HTTP → snapshots → daily aggregate → timesheet', async t 
     const response = await fetch(`${baseUrl}/api/v1${path}`, {method, headers: {Cookie: cookies[actor], 'Content-Type': 'application/json'}, ...(body === undefined ? {} : {body: JSON.stringify(body)})});
     const data = await response.json();
     assert.equal(response.status, status, JSON.stringify(data));
+    if (status < 300 && data !== null && typeof data === 'object' && 'status' in data && data.status === 'pending' && 'approvalRequestId' in data && typeof data.approvalRequestId === 'string') {
+      // Explicitly exercise the new independent retroapproval instead of
+      // assuming that a successful request already changed historical money.
+      await approvePendingFinancialChange(new Response(JSON.stringify(data)), baseUrl, cookies.director);
+      if (path.endsWith('/attendance/confirm')) {
+        const input = body as {revisionId: string; groupKey: string; timeRangeKey: string; employeeId: string; operationDate: string};
+        const item = await prisma.objectShiftAttendance.findFirstOrThrow({where: {revisionId: input.revisionId, groupKey: input.groupKey, timeRangeKey: input.timeRangeKey, employeeId: input.employeeId, operationDate: new Date(`${input.operationDate}T00:00:00Z`)}});
+        return {...item, operationDate: item.operationDate.toISOString().slice(0, 10)} as T;
+      }
+      if (path.endsWith('/cancel')) {
+        const id = path.split('/').at(-2)!;
+        const item = await prisma.objectShiftAttendance.findUniqueOrThrow({where: {id}});
+        return {...item, operationDate: item.operationDate.toISOString().slice(0, 10)} as T;
+      }
+    }
     return data as T;
   }
   async function fixture() {const {objectId} = await createCoreTestObject(prisma, {includeManagerAssignment: true}); objects.push(objectId); return objectId;}

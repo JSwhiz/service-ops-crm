@@ -8,6 +8,7 @@ import {
   getRussianProductionWorkingDays,
   isCycleScheduleCode,
 } from './russian-production-calendar.util';
+import { ConflictException } from '@nestjs/common';
 
 export interface RatePolicyRecord {
   ratePolicyType?: string | null;
@@ -168,6 +169,18 @@ export function parseRatePolicySnapshot(
   return {
     ratePolicyType: type,
     baseAmount,
+    ...(record.calculationVersion === 'half_salary_v2' ? {
+      calculationVersion: 'half_salary_v2' as const,
+      compensationVersionId: typeof record.compensationVersionId === 'string' ? record.compensationVersionId : undefined,
+      paidHolidays: record.paidHolidays !== false,
+      normDaysFirstHalf: typeof record.normDaysFirstHalf === 'number' ? record.normDaysFirstHalf : null,
+      normDaysSecondHalf: typeof record.normDaysSecondHalf === 'number' ? record.normDaysSecondHalf : null,
+      poolKey: typeof record.poolKey === 'string' ? record.poolKey : undefined,
+      positionId: typeof record.positionId === 'string' ? record.positionId : undefined,
+      contourId: typeof record.contourId === 'string' ? record.contourId : undefined,
+      dailySlotCapacity: typeof record.dailySlotCapacity === 'number' ? record.dailySlotCapacity : undefined,
+      salaryOwnerEmployeeId: typeof record.salaryOwnerEmployeeId === 'string' ? record.salaryOwnerEmployeeId : undefined,
+    } : {}),
     scheduleCode,
     scheduleWeekdays,
     // Old snapshots were calculated using Monday-based weekdays and carry no
@@ -214,6 +227,19 @@ export function calculateTimesheetAutoValues(params: {
 
   switch (params.policy.ratePolicyType) {
     case 'monthly_fixed': {
+      if (params.policy.calculationVersion === 'half_salary_v2') {
+        for (const half of [1, 2] as const) {
+          const days = [...factsByDay.keys()].filter(day => (day <= 15 ? 1 : 2) === half).sort((a, b) => a - b);
+          if (!days.length) continue;
+          const norm = half === 1 ? params.policy.normDaysFirstHalf : params.policy.normDaysSecondHalf;
+          if (!norm || norm <= 0) throw new ConflictException({code: 'SALARY_UNAVAILABLE', message: 'Не определена норма половины месяца в сохранённых условиях'});
+          const first = Math.round(params.policy.baseAmount / 2);
+          const base = half === 1 ? first : params.policy.baseAmount - first;
+          const totalAmount = Math.round(base * Math.min(days.length, norm) / norm);
+          distributeAmountAcrossDays({days, totalAmount, policy: params.policy, result, explanationPrefix: `${base} × ${Math.min(days.length, norm)} / ${norm}, половина месяца ${half}`});
+        }
+        return result;
+      }
       const factDays = [...factsByDay.keys()].sort((left, right) => left - right);
       const workingDays =
         params.policy.workingDaysInMonth ??

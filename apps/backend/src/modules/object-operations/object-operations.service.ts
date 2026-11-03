@@ -6,6 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
+import { ObjectCompensationService } from '../object-scheduling/object-compensation.service';
+import { todayMoscow } from '../object-scheduling/scheduling-calendar';
 
 import { EmployeesService } from '../employees/employees.service';
 import { EMPLOYEE_SUBSTITUTION_STATUSES } from '../employees/constants/employee-hr.constants';
@@ -168,6 +172,7 @@ export class ObjectOperationsService {
     private readonly planningService: ObjectPlanningService,
     private readonly reportPublications: ObjectDailyReportPublicationService,
     private readonly filesService: FilesService,
+    private readonly compensation: ObjectCompensationService,
   ) {}
 
   async getTodayArrivalPhoto(
@@ -1024,6 +1029,7 @@ export class ObjectOperationsService {
   ): Promise<{ success: true }> {
     await this.assertRatePolicyWritable(currentUser);
     await this.assertObjectVisible(currentUser, objectId);
+    if (await this.prisma.objectCompensationVersion.findFirst({where: {objectId, scope: 'defaults', cancelledAt: null}})) throw new ConflictException({code: 'DATED_TERMS_REQUIRED', message: 'Для этого объекта используйте датированную версию условий оплаты'});
     const existing = await this.prisma.object.findFirst({
       where: { id: objectId, deletedAt: null },
       select: {
@@ -1204,6 +1210,7 @@ export class ObjectOperationsService {
   ): Promise<ObjectCompensationRateResponseDto> {
     await this.assertRatePolicyWritable(currentUser);
     await this.assertObjectVisible(currentUser, objectId);
+    if (await this.prisma.objectCompensationVersion.findFirst({where: {objectId, scope: 'rate', scopeId: rateId, cancelledAt: null}}) && Object.entries(payload).some(([key, value]) => value !== undefined && !['name', 'category', 'isActive'].includes(key))) throw new ConflictException({code: 'DATED_TERMS_REQUIRED', message: 'Измените сумму и график через датированную версию этого условия'});
     const existing = await this.prisma.objectCompensationRate.findFirst({ where: { id: rateId, objectId } });
     if (!existing) throw new NotFoundException('Вариант оплаты не найден');
     const scheduleError = getScheduleConfigurationError({
@@ -1331,9 +1338,11 @@ export class ObjectOperationsService {
     currentUser: CurrentAuthUser,
     objectId: string,
     payload: UpsertObjectAttendanceDto,
-  ): Promise<{ success: true }> {
+    approvedTransaction?: Prisma.TransactionClient,
+  ) {
     await this.assertObjectVisible(currentUser, objectId, true);
-    await this.planningService.applySeason(objectId);
+    if (!approvedTransaction) await this.planningService.applySeason(objectId);
+    const client = approvedTransaction ?? this.prisma;
 
     const inputFacts = payload.employeeFacts ?? [];
     if (new Set(inputFacts.map((fact) => fact.employeeId)).size !== inputFacts.length || inputFacts.some((fact) => !payload.employeeIds.includes(fact.employeeId))) {
@@ -1354,7 +1363,7 @@ export class ObjectOperationsService {
       }
     }
 
-    const object = await this.prisma.object.findFirst({
+    const object = await client.object.findFirst({
       where: {
         id: objectId,
         deletedAt: null,
@@ -1373,7 +1382,7 @@ export class ObjectOperationsService {
 
     const sideJobFacts = inputFacts.filter((fact) => fact.ratePolicyType === 'side_job');
     if (sideJobFacts.length > 0) {
-      const assignedManager = await this.prisma.objectAssignment.findFirst({
+      const assignedManager = await client.objectAssignment.findFirst({
         where: { objectId, userId: currentUser.id, assignmentRoleCode: 'manager', isActive: true },
         select: { id: true },
       });
@@ -1400,7 +1409,7 @@ export class ObjectOperationsService {
 
     const [existingFacts, activeSubstitutions, unavailableEmployees] =
       await Promise.all([
-        this.prisma.objectAttendanceFact.findMany({
+        client.objectAttendanceFact.findMany({
           where: {
             objectId,
             operationDate: normalizedDate,
@@ -1410,7 +1419,7 @@ export class ObjectOperationsService {
             ratePolicySnapshot: true,
           },
         }),
-        this.prisma.employeeSubstitution.findMany({
+        client.employeeSubstitution.findMany({
           where: this.buildActiveObjectSubstitutionWhere(objectId, dayRange),
           include: {
             substituteEmployee: {
@@ -1421,7 +1430,7 @@ export class ObjectOperationsService {
             },
           },
         }),
-        this.prisma.employee.findMany({
+        client.employee.findMany({
           where: {
             id: {
               in: payload.employeeIds,
@@ -1491,7 +1500,7 @@ export class ObjectOperationsService {
       );
 
       if (missingEmployeeIds.length > 0) {
-        const additionalEmployees = await this.prisma.employee.findMany({
+        const additionalEmployees = await client.employee.findMany({
           where: {
             id: {
               in: missingEmployeeIds,
@@ -1524,10 +1533,26 @@ export class ObjectOperationsService {
         );
       }
     }
+    if (activeSubstitutions.some(s => payload.employeeIds.includes(s.employeeId))) throw new ConflictException({code: 'PRIMARY_SUBSTITUTED', message: 'Для основного сотрудника действует подмена; отметьте фактически вышедшего сменщика'});
 
-    await this.prisma.$transaction(async (tx) => {
+    const apply = async (tx: Prisma.TransactionClient) => {
       await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
       const previousFacts = await tx.objectAttendanceFact.findMany({ where: { objectId, operationDate: normalizedDate } });
+      const coveredPrimaryIds = activeSubstitutions.filter(s => payload.employeeIds.includes(s.substituteEmployeeId)).map(s => s.employeeId);
+      const holidayOwnerIds = [...new Set([...payload.employeeIds, ...coveredPrimaryIds])];
+      const dayHolidays = await tx.objectPayrollCredit.findMany({where: {objectId, employeeId: {in: holidayOwnerIds}, operationDate: new Date(`${payload.operationDate.slice(0, 10)}T00:00:00.000Z`), sourceKey: {startsWith: 'holiday:'}}, orderBy: {sourceKey: 'asc'}});
+      // postCredit intentionally preserves manual final values. A replacement
+      // cannot transfer the automatic earning while leaving that primary paid.
+      // Run before requesting approval and again in its applied transaction.
+      if (coveredPrimaryIds.length && await tx.timesheetDayEntry.findFirst({where: {
+        dayOfMonth: Number(payload.operationDate.slice(8, 10)), isChangedManually: true,
+        row: {employeeId: {in: coveredPrimaryIds}, timesheetMonth: {objectId, year: targetYear, month: targetMonth}},
+      }})) throw new ConflictException({code: 'MANUAL_DAY_REQUIRES_RECONCILIATION', message: 'В дне основного сотрудника есть отдельная ручная сумма. Сначала согласуйте её восстановление, чтобы не оплатить подмену дважды'});
+      if (payload.operationDate.slice(0, 10) > todayMoscow()) throw new BadRequestException('Будущий выход подтвердить нельзя');
+      if (payload.operationDate.slice(0, 10) < todayMoscow() && !approvedTransaction) {
+        const requestKey = `attendance:${createHash('sha256').update(JSON.stringify({userId: currentUser.id, objectId, payload})).digest('hex')}`;
+        return this.compensation.request(tx, currentUser, objectId, {requestKey, kind: 'legacy_attendance', operationDate: payload.operationDate.slice(0, 10), reason: payload.comment?.trim() || 'Изменение посещаемости за прошлую дату'}, payload, {facts: previousFacts.sort((a, b) => a.employeeId.localeCompare(b.employeeId)), holidays: dayHolidays});
+      }
       if (previousFacts.some((fact) => fact.source === 'shifts')) {
         throw new ConflictException({ code: 'SHIFT_ATTENDANCE_CONFLICT', message: 'Эта дата содержит сменные факты. Измените или отмените их через график смен' });
       }
@@ -1540,15 +1565,19 @@ export class ObjectOperationsService {
       });
 
       if (payload.employeeIds.length > 0) {
-        const nextFacts = payload.employeeIds.map((employeeId) => {
+        const nextFacts = await Promise.all(payload.employeeIds.map(async (employeeId) => {
+            const substitution = activeSubstitutions.find(s => s.substituteEmployeeId === employeeId);
             const assignment = object.employeeAssignments.find(
-              (item) => item.employeeId === employeeId,
+              (item) => item.employeeId === (substitution?.employeeId ?? employeeId),
             );
             const previous = previousFacts.find((fact) => fact.employeeId === employeeId);
             const inputFact = inputFacts.find((fact) => fact.employeeId === employeeId);
             const savedPolicy = parseRatePolicySnapshot(previous?.ratePolicySnapshot);
-            const substitutionPolicy = parseRatePolicySnapshot(activeSubstitutions.find((item) => item.substituteEmployeeId === employeeId)?.ratePolicySnapshot);
-            const ratePolicy = pinRatePolicyProductionCalendar(inputFact?.ratePolicyType
+            const primaryHolidays = substitution ? dayHolidays.filter(c => c.employeeId === substitution.employeeId) : [];
+            if (primaryHolidays.length > 1) throw new ConflictException({code: 'SUBSTITUTION_CONTOUR_REQUIRED', message: 'Подмена затрагивает несколько контуров. Подтвердите заменяемые смены по отдельным контурам'});
+            const substitutionPolicy = substitution ? parseRatePolicySnapshot(previousFacts.find(f => f.employeeId === substitution.employeeId)?.ratePolicySnapshot ?? primaryHolidays[0]?.policySnapshot) : null;
+            const datedPolicy = previous ? null : await this.compensation.resolvePolicy(tx, objectId, payload.operationDate.slice(0, 10), substitution?.employeeId ?? employeeId, null);
+            const ratePolicy = pinRatePolicyProductionCalendar(inputFact?.ratePolicyType === 'complex_shift'
               ? normalizeRatePolicy({ ratePolicyType: inputFact.ratePolicyType, ratePolicyBaseAmount: inputFact.rateAmount, ratePolicyNotes: inputFact.rateReason }, inputFact.rateAmount ?? 0)
               : inputFact?.clearRateOverride
                 ? assignment?.ratePolicyUpdatedAt
@@ -1556,7 +1585,7 @@ export class ObjectOperationsService {
                   : buildObjectDefaultRatePolicy({ paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: assignment?.ratePolicyScheduleCode ?? object.paymentScheduleCode, scheduleWeekdays: assignment?.ratePolicyWeekdays ?? object.paymentScheduleWeekdays, scheduleCycleStartDate: assignment?.ratePolicyScheduleCycleStartDate ?? object.paymentScheduleCycleStartDate })
                 : savedPolicy ?? (previous
               ? normalizeRatePolicy({ ratePolicyType: 'per_attendance', ratePolicyBaseAmount: previous.dailyRateSnapshot }, previous.dailyRateSnapshot)
-              : substitutionPolicy ?? (assignment?.ratePolicyUpdatedAt
+              : substitutionPolicy ?? datedPolicy ?? (assignment?.ratePolicyUpdatedAt
               ? normalizeRatePolicy(
                   assignment,
                   this.getObjectMonthlySalaryDailyFallback({
@@ -1583,7 +1612,9 @@ export class ObjectOperationsService {
                 }))), targetYear);
             const workedHours = workedHoursByEmployeeId.has(employeeId) ? workedHoursByEmployeeId.get(employeeId) ?? null : previous?.workedHours ?? null;
             const dailyRateSnapshot =
-              ratePolicy.ratePolicyType === 'monthly_fixed'
+              ratePolicy.calculationVersion === 'half_salary_v2'
+                ? await this.compensation.pricePolicyDay(tx, objectId, employeeId, payload.operationDate.slice(0, 10), ratePolicy, `legacy:${employeeId}:${payload.operationDate.slice(0, 10)}`, substitution?.employeeId)
+                : ratePolicy.ratePolicyType === 'monthly_fixed'
                 ? calculateMonthlySalaryDailyRate({
                     monthlySalary: ratePolicy.baseAmount,
                     year: targetYear,
@@ -1614,7 +1645,7 @@ export class ObjectOperationsService {
                   : null,
               createdByUserId: previous?.createdByUserId ?? currentUser.id,
             };
-          });
+          }));
         for (const fact of nextFacts) {
           const { createdByUserId, ...values } = fact;
           await tx.objectAttendanceFact.upsert({ where: { objectId_employeeId_operationDate: { objectId, employeeId: fact.employeeId, operationDate: normalizedDate } }, update: values, create: { ...values, createdByUserId } });
@@ -1657,7 +1688,25 @@ export class ObjectOperationsService {
           },
         });
       }
-      await this.timesheetsService.syncAttendanceDay(tx, { objectId, timesheetMonthId: monthContainer.id, year: targetYear, month: targetMonth, dayOfMonth: normalizedDate.getDate(), actorUserId: currentUser.id, previousFactEmployeeIds: previousFacts.map((fact) => fact.employeeId) });
+      const currentFacts = await tx.objectAttendanceFact.findMany({where: {objectId, operationDate: normalizedDate}});
+      const managedCredits = await tx.objectPayrollCredit.findMany({where: {objectId, operationDate: new Date(`${payload.operationDate.slice(0, 10)}T00:00:00.000Z`), sourceKey: {startsWith: 'legacy:'}}});
+      const managedEmployeeIds = new Set([...managedCredits.map(c => c.employeeId), ...currentFacts.filter(f => parseRatePolicySnapshot(f.ratePolicySnapshot)?.calculationVersion === 'half_salary_v2').map(f => f.employeeId)]);
+      for (const holiday of dayHolidays) {
+        await this.compensation.postCredit(tx, currentUser.id, objectId, holiday.employeeId, payload.operationDate.slice(0, 10), holiday.sourceKey, 0, {...holiday.policySnapshot as Prisma.JsonObject, payable: false}, coveredPrimaryIds.includes(holiday.employeeId) ? 'Праздничная оплата передана сменщику по исходным условиям' : 'Праздник учтён фактическим выходом, без повторного начисления');
+      }
+      await this.timesheetsService.syncAttendanceDay(tx, { objectId, timesheetMonthId: monthContainer.id, year: targetYear, month: targetMonth, dayOfMonth: normalizedDate.getDate(), actorUserId: currentUser.id, previousFactEmployeeIds: previousFacts.map((fact) => fact.employeeId), employeeIds: [...timesheetEmployees.keys()].filter(id => !managedEmployeeIds.has(id)) });
+      for (const employeeId of managedEmployeeIds) {
+        const fact = currentFacts.find(f => f.employeeId === employeeId);
+        const old = managedCredits.find(c => c.employeeId === employeeId);
+        await this.compensation.postCredit(tx, currentUser.id, objectId, employeeId, payload.operationDate.slice(0, 10), `legacy:${employeeId}:${payload.operationDate.slice(0, 10)}`, fact?.dailyRateSnapshot ?? 0, fact?.ratePolicySnapshot ?? {...old?.policySnapshot as Prisma.JsonObject, payable: false}, fact ? `Начисление по сохранённым условиям: ${fact.dailyRateSnapshot} ₽` : 'Выход снят; начисление отменено');
+        const monthlyPolicy = parseRatePolicySnapshot(fact?.ratePolicySnapshot ?? old?.policySnapshot);
+        if (monthlyPolicy) await this.compensation.reconcileSalaryRounding(tx, currentUser.id, objectId, employeeId, payload.operationDate.slice(0, 10), monthlyPolicy);
+      }
+      for (const extra of sideJobFacts) {
+        const oldPolicy = parseRatePolicySnapshot(previousFacts.find(f => f.employeeId === extra.employeeId)?.ratePolicySnapshot);
+        if (oldPolicy?.ratePolicyType === 'side_job' && oldPolicy.baseAmount === extra.rateAmount && oldPolicy.notes === extra.rateReason?.trim()) continue;
+        await this.compensation.postCredit(tx, currentUser.id, objectId, extra.employeeId, payload.operationDate.slice(0, 10), `extra:legacy:${extra.employeeId}:${payload.operationDate.slice(0, 10)}`, extra.rateAmount!, {kind: 'extra_work', reason: extra.rateReason}, `Допработа +${extra.rateAmount} ₽. Основание: ${extra.rateReason}`);
+      }
       const nextFacts = await tx.objectAttendanceFact.findMany({ where: { objectId, operationDate: normalizedDate } });
       const snapshot = (facts: typeof nextFacts) => facts.map((fact) => ({ employeeId: fact.employeeId, dailyRateSnapshot: fact.dailyRateSnapshot, workedHours: fact.workedHours, ratePolicySnapshot: fact.ratePolicySnapshot }));
       await tx.auditEvent.create({ data: { entityType: 'object_attendance', entityId: objectId, actorUserId: currentUser.id, action: 'object.attendance.updated', oldValues: snapshot(previousFacts) as Prisma.InputJsonValue, newValues: snapshot(nextFacts) as Prisma.InputJsonValue, metadata: { operationDate: payload.operationDate, comment: payload.comment?.trim() || null } } });
@@ -1684,9 +1733,27 @@ export class ObjectOperationsService {
           targetUrl: `/objects/${encodeURIComponent(objectId)}#today`,
         }, tx);
       }
-    });
+      return {success: true as const};
+    };
+    return approvedTransaction ? apply(approvedTransaction) : this.prisma.$transaction(apply);
+  }
 
-    return { success: true };
+  async applyAttendanceFinancialDecision(tx: Prisma.TransactionClient, currentUser: CurrentAuthUser, adjustmentId: string) {
+    const item = await tx.objectCompensationAdjustment.findUniqueOrThrow({where: {id: adjustmentId}});
+    await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${item.objectId} FOR UPDATE`;
+    const payload = item.payload as unknown as UpsertObjectAttendanceDto;
+    const facts = await tx.objectAttendanceFact.findMany({where: {objectId: item.objectId, operationDate: this.parseBusinessDate(payload.operationDate)}, orderBy: {employeeId: 'asc'}});
+    let source: unknown = facts;
+    if (!Array.isArray(item.beforeSnapshot)) {
+      const dayRange = this.getBusinessDayRange(this.parseBusinessDate(payload.operationDate));
+      const substitutions = await tx.employeeSubstitution.findMany({where: {...this.buildActiveObjectSubstitutionWhere(item.objectId, dayRange), substituteEmployeeId: {in: payload.employeeIds}}});
+      const employeeIds = [...new Set([...payload.employeeIds, ...substitutions.map(s => s.employeeId)])];
+      const holidays = await tx.objectPayrollCredit.findMany({where: {objectId: item.objectId, employeeId: {in: employeeIds}, operationDate: new Date(`${payload.operationDate.slice(0, 10)}T00:00:00.000Z`), sourceKey: {startsWith: 'holiday:'}}, orderBy: {sourceKey: 'asc'}});
+      source = {facts, holidays};
+    }
+    if (!isDeepStrictEqual(JSON.parse(JSON.stringify(source)), item.beforeSnapshot)) throw new ConflictException('Посещаемость или праздничное начисление изменились после подачи заявки');
+    await this.upsertObjectAttendance(currentUser, item.objectId, payload, tx);
+    await tx.objectCompensationAdjustment.update({where: {id: item.id}, data: {status: 'applied', appliedByUserId: currentUser.id, appliedAt: new Date(), afterSnapshot: item.payload as Prisma.InputJsonValue}});
   }
 
   private async listAttendanceEmployees(

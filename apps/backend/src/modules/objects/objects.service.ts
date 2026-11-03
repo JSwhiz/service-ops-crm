@@ -737,6 +737,7 @@ export class ObjectsService {
     const existing = isRateOnlyEditor
       ? await this.getRateEditableObject(currentUser, id)
       : await this.getEditableObject(currentUser, id);
+    if (Object.entries(payload).some(([field, value]) => value !== undefined && OBJECT_COMPENSATION_UPDATE_FIELDS.has(field)) && await this.prisma.objectCompensationVersion.findFirst({where: {objectId: id, scope: 'defaults', cancelledAt: null}})) throw new ConflictException({code: 'DATED_TERMS_REQUIRED', message: 'Ставки и график этого объекта изменяются через датированные условия оплаты'});
     if (
       isRateOnlyEditor &&
       Object.entries(payload).some(

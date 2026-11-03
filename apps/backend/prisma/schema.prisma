@@ -2279,6 +2279,90 @@ model ObjectPayContour {
   @@map("object_pay_contours")
 }
 
+/// Opt-in immutable terms. Intervals are [effectiveFrom, next effectiveFrom).
+/// No legacy rows or monetary snapshots are backfilled by this migration.
+model ObjectCompensationVersion {
+  id              String   @id @default(uuid())
+  objectId        String
+  scope           String
+  scopeId         String
+  version         Int
+  requestKey      String
+  effectiveFrom   DateTime @db.Date
+  terms           Json
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  cancelledAt     DateTime?
+  cancelledByUserId String?
+  cancelReason    String?
+
+  @@unique([objectId, requestKey])
+  @@unique([objectId, scope, scopeId, version])
+  @@index([objectId, scope, scopeId, effectiveFrom])
+  @@map("object_compensation_versions")
+}
+
+model ObjectTeamFundVersion {
+  id              String   @id @default(uuid())
+  objectId        String
+  version         Int
+  requestKey      String
+  effectiveFrom   DateTime @db.Date
+  monthlyAmount   Int
+  allocations     Json
+  reason          String
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  @@unique([objectId, requestKey])
+  @@unique([objectId, version])
+  @@index([objectId, effectiveFrom])
+  @@map("object_team_fund_versions")
+}
+
+/// Requested and applied corrections share the existing ApprovalRequest owner.
+model ObjectCompensationAdjustment {
+  id              String   @id @default(uuid())
+  objectId        String
+  requestKey      String
+  kind            String
+  operationDate   DateTime @db.Date
+  employeeId      String?
+  attendanceId    String?
+  amount          Int?
+  reason          String
+  status          String   @default("pending")
+  payload         Json
+  beforeSnapshot  Json
+  afterSnapshot   Json?
+  createdByUserId String
+  appliedByUserId String?
+  createdAt       DateTime @default(now())
+  appliedAt       DateTime?
+
+  @@unique([objectId, requestKey])
+  @@index([objectId, operationDate, status])
+  @@map("object_compensation_adjustments")
+}
+
+/// Saved payroll projections, including holiday credits with no attendance.
+model ObjectPayrollCredit {
+  id              String   @id @default(uuid())
+  objectId        String
+  employeeId      String
+  operationDate   DateTime @db.Date
+  sourceKey       String
+  amount          Int
+  policySnapshot  Json
+  explanation     String
+  createdByUserId String
+  updatedAt       DateTime @updatedAt
+
+  @@unique([objectId, sourceKey])
+  @@index([objectId, employeeId, operationDate])
+  @@map("object_payroll_credits")
+}
+
 model ObjectShiftAttendance {
   id                    String @id @default(uuid())
   objectId              String

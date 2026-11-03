@@ -7,6 +7,7 @@ import { moscowDateKey } from '../src/modules/objects/utils/object-season.util';
 import { createCoreTestObject, SEEDED_EMPLOYEE_IDS } from './helpers/core-fixtures';
 import { createTestApp } from './helpers/create-test-app';
 import { loginAndGetCookieHeader } from './helpers/auth';
+import { approvePendingFinancialChange } from './helpers/approve-financial-change';
 
 async function fixture(t: test.TestContext, withManager = true) {
   assert.equal(process.env.TEST_ISOLATED_DATABASE, 'true', 'Run through the isolated integration runner');
@@ -19,7 +20,7 @@ async function fixture(t: test.TestContext, withManager = true) {
   const request = (auth: string, path: string, method = 'GET', body?: unknown) => fetch(`${baseUrl}/api/v1${path}`, {
     method, headers: { Cookie: auth, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  return { prisma, app, objectId, founder, cookie, request };
+  return { prisma, app, baseUrl, objectId, founder, cookie, request };
 }
 
 test('named HR permissions read report history and redacted audit; ordinary HR and writes remain denied', async (t) => {
@@ -67,12 +68,18 @@ test('named HR permissions read report history and redacted audit; ordinary HR a
 });
 
 test('quick presence suggests only eligible saved people without creating facts, and respects empty confirmations', async (t) => {
-  const { prisma, objectId, founder, cookie, request } = await fixture(t);
+  const { prisma, baseUrl, objectId, founder, cookie, request } = await fixture(t);
   const auth = await cookie('manager1', 'manager123');
+  const approver = await cookie('founder', 'founder123');
   const today = moscowDateKey();
   const yesterdayDate = new Date(`${today}T12:00:00Z`); yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
   const yesterday = yesterdayDate.toISOString().slice(0, 10);
-  assert.equal((await request(auth, `/objects/${objectId}/attendance`, 'POST', { operationDate: yesterday, employeeIds: [SEEDED_EMPLOYEE_IDS.ivan, SEEDED_EMPLOYEE_IDS.sergey] })).status, 201);
+  const yesterdayResponse = await request(auth, `/objects/${objectId}/attendance`, 'POST', { operationDate: yesterday, employeeIds: [SEEDED_EMPLOYEE_IDS.ivan, SEEDED_EMPLOYEE_IDS.sergey] });
+  assert.equal(yesterdayResponse.status, 201);
+  assert.equal((await yesterdayResponse.clone().json() as { status: string }).status, 'pending');
+  assert.equal(await prisma.objectAttendanceFact.count({ where: { objectId } }), 0, 'historical request alone cannot create attendance');
+  await approvePendingFinancialChange(yesterdayResponse, baseUrl, approver);
+  assert.equal(await prisma.objectAttendanceFact.count({ where: { objectId } }), 2);
   const window = await prisma.employeeAvailabilityWindow.create({ data: { employeeId: SEEDED_EMPLOYEE_IDS.sergey, startDate: new Date(`${today}T00:00:00`), endDate: new Date(`${today}T23:59:59`), availabilityStatus: 'unavailable', createdByUserId: founder.id } });
   t.after(async () => { const cleanup = new PrismaClient(); await cleanup.employeeAvailabilityWindow.delete({ where: { id: window.id } }); await cleanup.$disconnect(); });
   const before = await prisma.objectAttendanceFact.count({ where: { objectId } });
@@ -83,7 +90,12 @@ test('quick presence suggests only eligible saved people without creating facts,
   assert.deepEqual(suggested.suggestedEmployeeIds, [SEEDED_EMPLOYEE_IDS.ivan]);
   assert.equal(suggested.prefillSourceDate, yesterday); assert.equal(suggested.submittedAt, null);
   assert.equal(await prisma.objectAttendanceFact.count({ where: { objectId } }), before);
-  assert.equal((await request(auth, `/objects/${objectId}/attendance`, 'POST', { operationDate: yesterday, employeeIds: [] })).status, 201);
+  const clearYesterdayResponse = await request(auth, `/objects/${objectId}/attendance`, 'POST', { operationDate: yesterday, employeeIds: [] });
+  assert.equal(clearYesterdayResponse.status, 201);
+  assert.equal((await clearYesterdayResponse.clone().json() as { status: string }).status, 'pending');
+  assert.equal(await prisma.objectAttendanceFact.count({ where: { objectId } }), 2, 'pending correction retains previously approved attendance');
+  await approvePendingFinancialChange(clearYesterdayResponse, baseUrl, approver);
+  assert.equal(await prisma.objectAttendanceFact.count({ where: { objectId } }), 0);
   const emptyHistory = await (await request(auth, `/objects/${objectId}/attendance/today`)).json() as { suggestedEmployeeIds: string[] };
   assert.deepEqual(emptyHistory.suggestedEmployeeIds, []);
   assert.equal((await request(auth, `/objects/${objectId}/attendance`, 'POST', { operationDate: today, employeeIds: [] })).status, 201);
@@ -91,7 +103,7 @@ test('quick presence suggests only eligible saved people without creating facts,
   assert.deepEqual(confirmed.employeeIds, []); assert.ok(confirmed.submittedAt); assert.ok(confirmed.submittedBy.fullName); assert.equal(confirmed.prefillSourceDate, null);
 });
 
-test('manager creates scoped substitution from existing rate; conflicts, catalog rights and historical snapshots stay protected', async (t) => {
+test('manager creates scoped substitution with existing rate selection; primary terms, catalog rights and historical snapshots stay protected', async (t) => {
   const { prisma, objectId, founder, cookie, request } = await fixture(t);
   const { objectId: outside } = await createCoreTestObject(prisma);
   const replacement = await prisma.employee.create({ data: { fullName: 'Подменный тестовый', employeeType: 'substitution', employmentStatus: 'active' } });
@@ -108,11 +120,18 @@ test('manager creates scoped substitution from existing rate; conflicts, catalog
   const response = await request(auth, `/objects/${objectId}/attendance`, 'POST', { operationDate: today, employeeIds: [replacement.id] });
   assert.equal(response.status, 201);
   const saved = await prisma.objectAttendanceFact.findFirstOrThrow({ where: { objectId, employeeId: replacement.id } });
-  assert.equal(saved.dailyRateSnapshot, 3700);
+  // The approved 2026-11-03 contract pays the primary's 2500 fixture terms,
+  // rather than the separately selected substitution catalog amount of 3700.
+  assert.equal(saved.dailyRateSnapshot, 2500);
+  assert.equal((saved.ratePolicySnapshot as { baseAmount: number }).baseAmount, 2500);
   await prisma.objectCompensationRate.update({ where: { id: rate.id }, data: { baseAmount: 9000 } });
+  await prisma.object.update({ where: { id: objectId }, data: { dailyRate: 6500 } });
   assert.equal((await request(auth, `/objects/${objectId}/attendance`, 'POST', { operationDate: today, employeeIds: [replacement.id], employeeFacts: [{ employeeId: replacement.id, workedHours: 0 }] })).status, 201);
   const after = await prisma.objectAttendanceFact.findUniqueOrThrow({ where: { id: saved.id } });
-  assert.equal(after.dailyRateSnapshot, 3700); assert.equal(after.workedHours, 0);
+  assert.equal(after.dailyRateSnapshot, 2500); assert.equal(after.workedHours, 0);
+  assert.deepEqual(after.ratePolicySnapshot, saved.ratePolicySnapshot, 'saved inherited primary terms survive changes to both current primary and catalog rates');
+  assert.equal(await prisma.objectAttendanceFact.count({ where: { objectId, employeeId: SEEDED_EMPLOYEE_IDS.ivan } }), 0, 'the replaced primary does not also receive an attendance fact');
+  assert.equal(await prisma.objectAttendanceFact.count({ where: { objectId, employeeId: replacement.id } }), 1);
   const attendance = await (await request(auth, `/objects/${objectId}/attendance/today`)).json() as { employeeFacts: Array<{ employeeName: string; createdBy: { fullName: string }; updatedAt: string }> };
   assert.equal(attendance.employeeFacts[0]?.employeeName, replacement.fullName); assert.ok(attendance.employeeFacts[0]?.createdBy?.fullName); assert.ok(attendance.employeeFacts[0]?.updatedAt);
 });

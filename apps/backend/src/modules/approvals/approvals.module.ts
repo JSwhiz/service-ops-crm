@@ -9,6 +9,8 @@ import { OneTimeOrdersModule } from '../one-time-orders/one-time-orders.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TasksModule } from '../tasks/tasks.module';
 import { TimesheetsModule } from '../timesheets/timesheets.module';
+import { ObjectSchedulingModule } from '../object-scheduling/object-scheduling.module';
+import { ObjectOperationsModule } from '../object-operations/object-operations.module';
 
 import { ApprovalsController } from './approvals.controller';
 import { ApprovalsService } from './approvals.service';
@@ -23,6 +25,8 @@ import { ApprovalsService } from './approvals.service';
     ObjectsModule,
     OneTimeOrdersModule,
     TimesheetsModule,
+    ObjectSchedulingModule,
+    ObjectOperationsModule,
     AccountabilityModule,
   ],
   controllers: [ApprovalsController],

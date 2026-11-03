@@ -12,6 +12,7 @@ import {
 } from './helpers/core-fixtures';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { approvePendingFinancialChange } from './helpers/approve-financial-change';
 
 test('attendance sync keeps manual timesheet correction stable when fact is later removed', async (t) => {
   const prisma = new PrismaClient();
@@ -22,6 +23,7 @@ test('attendance sync keeps manual timesheet correction stable when fact is late
     password: 'founder123',
   });
   const targetDate = getSafeBusinessDate(1);
+  const directorCookie = await loginAndGetCookieHeader({baseUrl, login: 'director', password: 'director123'});
   const { objectId } = await createCoreTestObject(prisma);
 
   t.after(async () => {
@@ -46,6 +48,7 @@ test('attendance sync keeps manual timesheet correction stable when fact is late
   );
 
   assert.equal(attendanceResponse.status, 201);
+  await approvePendingFinancialChange(attendanceResponse, baseUrl, directorCookie);
 
   const timesheetAfterAttendance = await fetch(
     `${baseUrl}/api/v1/timesheets?objectId=${objectId}&year=${targetDate.year}&month=${targetDate.month}`,
@@ -98,6 +101,7 @@ test('attendance sync keeps manual timesheet correction stable when fact is late
   });
 
   assert.equal(correctionResponse.status, 201);
+  await approvePendingFinancialChange(correctionResponse, baseUrl, directorCookie);
 
   const removeAttendanceResponse = await fetch(
     `${baseUrl}/api/v1/objects/${objectId}/attendance`,
@@ -115,6 +119,7 @@ test('attendance sync keeps manual timesheet correction stable when fact is late
   );
 
   assert.equal(removeAttendanceResponse.status, 201);
+  await approvePendingFinancialChange(removeAttendanceResponse, baseUrl, directorCookie);
 
   const timesheetAfterRemoval = await fetch(
     `${baseUrl}/api/v1/timesheets?objectId=${objectId}&year=${targetDate.year}&month=${targetDate.month}`,
@@ -248,7 +253,7 @@ test('attendance keeps historical snapshots, stores manual per-shift rates, and 
   const special = await save([{
     employeeId: SEEDED_EMPLOYEE_IDS.ivan,
     workedHours: 8,
-    ratePolicyType: 'side_job',
+    ratePolicyType: 'complex_shift',
     rateAmount: 2700,
     rateReason: 'Дополнительная смена по запросу заказчика',
   }]);
@@ -259,12 +264,12 @@ test('attendance keeps historical snapshots, stores manual per-shift rates, and 
   });
   assert.equal(storedAfterFirstSave.autoValue, 2700);
   assert.equal(storedAfterFirstSave.dayValue, 2700);
-  assert.equal((storedAfterFirstSave.ratePolicySnapshot as { ratePolicyType: string }).ratePolicyType, 'side_job');
+  assert.equal((storedAfterFirstSave.ratePolicySnapshot as { ratePolicyType: string }).ratePolicyType, 'complex_shift');
 
   const repeated = await save([{
     employeeId: SEEDED_EMPLOYEE_IDS.ivan,
     workedHours: 8,
-    ratePolicyType: 'side_job',
+    ratePolicyType: 'complex_shift',
     rateAmount: 2700,
     rateReason: 'Дополнительная смена по запросу заказчика',
   }]);

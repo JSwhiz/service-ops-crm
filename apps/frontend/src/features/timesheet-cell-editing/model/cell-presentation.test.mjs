@@ -33,6 +33,13 @@ test('restore-auto remains a separate direct-correction permission', () => {
   assert.match(validateCellCorrection('1000', '', 1000, false), /правом прямой корректировки/);
 });
 
+test('historical restore can be requested only with a reason, never silently applied', () => {
+  assert.match(validateCellCorrection('1000', '', 1000, false, true), /причину/);
+  assert.equal(validateCellCorrection('1000', 'Вернуть сохранённый авторасчёт', 1000, false, true), null);
+  assert.equal(validateCellCorrection('0', 'Возврат к нулевому начислению', 0, false, true), null);
+  assert.ok(validateCellCorrection('-1', 'Причина', 0, false, true));
+});
+
 test('actual already-pending response has an actionable message distinct from a version conflict', () => {
   const pending = humanizeCellCorrectionError({ statusCode: 409, code: null, message: 'Timesheet manual exception approval is already pending for this day' });
   assert.equal(pending.recovery, 'pending');

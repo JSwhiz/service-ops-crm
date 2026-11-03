@@ -73,6 +73,7 @@ export function ObjectSchedulingPanel({ objectId, canSelectEmployees, employees,
       <div className="ui-section-header"><h3 className="ui-section-title">Штатные позиции и графики</h3>
         {data?.capabilities.managePositions && !draft ? <Button onClick={() => start(null)}>Добавить позицию</Button> : null}
       </div>
+      <p className="ui-text-muted">Фонд команды распределяется по позициям, а не по числу сотрудников. <a href="#planning">Фонд, датированные условия и история начислений — в «Бюджете и сезонах»</a>. Подмена получает оплату вместо основного по условиям заменяемой смены.</p>
       {loading ? <LoadingState label="Загрузка графиков" /> : null}
       {error ? <Alert tone="danger">{error}<div><Button onClick={() => { void refresh(); }}>Обновить данные</Button></div></Alert> : null}
       {success ? <Alert tone="success">{success}</Alert> : null}

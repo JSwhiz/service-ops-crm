@@ -8,6 +8,7 @@ import { getAvailabilityLabel } from '@/shared/lib/employee-availability-label';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Alert, Badge, Button, Surface } from '@/shared/ui/foundation';
 import { ObjectSubstitutionPanel } from './object-substitution-panel';
+import type { CompensationMutationResult } from '@/entities/object/model/object-compensation.types';
 
 interface ObjectAttendancePanelProps {
   objectId?: string;
@@ -36,7 +37,7 @@ interface ObjectAttendancePanelProps {
       rateReason?: string;
       clearRateOverride?: true;
     }>;
-  }) => Promise<void>;
+  }) => Promise<void | CompensationMutationResult>;
 }
 
 export function ObjectAttendancePanel({
@@ -56,6 +57,8 @@ export function ObjectAttendancePanel({
   const [specialRateById, setSpecialRateById] = useState<Record<string, { type: '' | 'complex_shift' | 'side_job'; amount: string; reason: string }>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [compensationResult, setCompensationResult] = useState<CompensationMutationResult | null>(null);
+  useEffect(() => { setCompensationResult(null); }, [operationDate, objectId]);
   const safeEmployees = useMemo(() => employees ?? [], [employees]);
   const employeeById = useMemo(
     () => new Map(safeEmployees.map((employee) => [employee.id, employee])),
@@ -131,12 +134,12 @@ export function ObjectAttendancePanel({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (readOnlyReason || isSubmitting) return;
+    if (readOnlyReason || isSubmitting || compensationResult?.status === 'pending') return;
     setError(null);
     setIsSubmitting(true);
 
     try {
-      await onSave({
+      const result = await onSave({
         operationDate,
         employeeIds: selectedIds,
         employeeFacts: selectedIds.map((employeeId) => {
@@ -149,6 +152,7 @@ export function ObjectAttendancePanel({
           };
         }),
       });
+      if (result) setCompensationResult(result);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error && caughtError.message
@@ -224,18 +228,18 @@ export function ObjectAttendancePanel({
                     </label>
                     {canEditRates || canAddExtraShift ? (
                       <label className="attendance-hours-control">
-                        <span>{canEditRates ? 'Особая ставка на этот выход' : 'Дополнительный выход'}</span>
+                        <span>{canEditRates ? 'Изменение начисления' : 'Допработа'}</span>
                         <Select disabled={!!readOnlyReason || isSubmitting} value={specialRateById[employee.id]?.type ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { type: event.target.value as '' | 'complex_shift' | 'side_job', amount: current[employee.id]?.amount ?? '', reason: current[employee.id]?.reason ?? '' } }))}>
                           <option value="">Обычная ставка объекта</option>
-                          {canEditRates ? <option value="complex_shift">Сложный выход</option> : null}
-                          {canAddExtraShift ? <option value="side_job">Дополнительный выход</option> : null}
+                          {canEditRates ? <option value="complex_shift">Изменить цену выхода · заменяет</option> : null}
+                          {canAddExtraShift ? <option value="side_job">Допработа · добавляет</option> : null}
                         </Select>
                       </label>
                     ) : null}
                     {(canEditRates || canAddExtraShift) && specialRateById[employee.id]?.type && (canEditRates || specialRateById[employee.id]?.type === 'side_job') ? (
                       <>
                         <label className="attendance-hours-control">
-                          <span>Сумма за выход, ₽</span>
+                          <span>{specialRateById[employee.id]?.type === 'side_job' ? 'Дополнительно, ₽' : 'Новая цена выхода, ₽'}</span>
                         <input type="number" min="0" step="1" disabled={!!readOnlyReason || isSubmitting} value={specialRateById[employee.id]?.amount ?? ''} onChange={(event) => setSpecialRateById((current) => ({ ...current, [employee.id]: { ...(current[employee.id] ?? { type: 'complex_shift' as const, amount: '', reason: '' }), amount: event.target.value } }))} required />
                         </label>
                         <label className={`attendance-hours-control ${styles.reasonControl}`}>
@@ -251,9 +255,10 @@ export function ObjectAttendancePanel({
           </div>
 
           {error ? <Alert tone="danger" className={styles.error}>{error}</Alert> : null}
+          {compensationResult ? <Alert tone="info">{compensationResult.status === 'pending' ? 'Запрос ожидает согласования другим пользователем руководящего круга. Прежние факты и деньги сохраняются до решения.' : compensationResult.status === 'applied' ? 'Изменение применено.' : compensationResult.status === 'rejected' ? 'Запрос отклонён.' : 'Запрос отменён.'} <a href={`/approvals?${new URLSearchParams({ sourceEntityType: 'object_compensation_adjustment', sourceEntityId: compensationResult.adjustmentId })}`}>Открыть согласование</a></Alert> : null}
 
           <div className={styles.submit}>
-            <Button variant="primary" type="submit" disabled={isSubmitting || !!readOnlyReason}>
+            <Button variant="primary" type="submit" disabled={isSubmitting || !!readOnlyReason || compensationResult?.status === 'pending'}>
               {isSubmitting ? 'Сохраняем...' : 'Сохранить'}
             </Button>
           </div>

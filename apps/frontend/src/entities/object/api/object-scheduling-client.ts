@@ -1,5 +1,6 @@
 import { fetcher } from '@/shared/api/fetcher';
 import type { CreatePositionInput, ExpectedShift, PayContour, PositionInput, PositionsResponse, SchedulePreview, ShiftAttendance, StaffingPosition } from '../model/object-scheduling.types';
+import type { CompensationMutationResult } from '../model/object-compensation.types';
 
 const base = (id: string): string => `/objects/${id}/scheduling`;
 export const getStaffingPositions = (id: string): Promise<PositionsResponse> => fetcher(`${base(id)}/positions`);
@@ -12,7 +13,7 @@ export const createPayContour = (id: string, input: PayContourInput): Promise<Pa
 export const savePayContour = (id: string, contourId: string, input: Partial<Omit<PayContourInput, 'code'>> & { expectedVersion: number; isActive?: boolean }): Promise<PayContour> => fetcher(`${base(id)}/contours/${contourId}`, { method: 'PATCH', body: JSON.stringify(input) });
 export const getPayContours = (id: string): Promise<{ contours: PayContour[] }> => fetcher(`${base(id)}/contours`);
 export const getShiftAttendance = (id: string, from: string, to: string): Promise<{ attendance: ShiftAttendance[] }> => fetcher(`${base(id)}/attendance?${new URLSearchParams({ from, to })}`);
-export const cancelScheduledShift = (id: string, attendanceId: string, input: { expectedVersion: number; reason: string }): Promise<ShiftAttendance> => fetcher(`${base(id)}/attendance/${attendanceId}/cancel`, { method: 'POST', body: JSON.stringify(input) });
-export const confirmScheduledShift = (id: string, shift: ExpectedShift, requestKey: string): Promise<ShiftAttendance> => fetcher(`${base(id)}/attendance/confirm`, {
-  method: 'POST', body: JSON.stringify({ requestKey, positionId: shift.positionId, revisionId: shift.revisionId, groupKey: shift.groupKey, timeRangeKey: shift.timeRangeKey, employeeId: shift.employeeId, operationDate: shift.operationDate }),
+export const cancelScheduledShift = (id: string, attendanceId: string, input: { expectedVersion: number; reason: string }): Promise<ShiftAttendance | CompensationMutationResult> => fetcher(`${base(id)}/attendance/${attendanceId}/cancel`, { method: 'POST', body: JSON.stringify(input) });
+export const confirmScheduledShift = (id: string, shift: ExpectedShift, requestKey: string, replacement?: { replacementEmployeeId: string; substitutionId: string }): Promise<ShiftAttendance | CompensationMutationResult> => fetcher(`${base(id)}/attendance/confirm`, {
+  method: 'POST', body: JSON.stringify({ requestKey, positionId: shift.positionId, revisionId: shift.revisionId, groupKey: shift.groupKey, timeRangeKey: shift.timeRangeKey, employeeId: shift.employeeId, operationDate: shift.operationDate, ...replacement }),
 });

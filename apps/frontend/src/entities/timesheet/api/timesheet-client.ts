@@ -126,8 +126,8 @@ export async function upsertTimesheetEntry(payload: {
   dayOfMonth: number;
   dayValue: number;
   comment?: string;
-}): Promise<TimesheetMonth> {
-  return fetcher<TimesheetMonth>('/timesheets/entries', {
+}): Promise<TimesheetMonth | ApprovalRequestItem> {
+  return fetcher<TimesheetMonth | ApprovalRequestItem>('/timesheets/entries', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

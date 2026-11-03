@@ -39,7 +39,7 @@ export function TimesheetOverviewGrid({
   refreshing?: boolean;
   dataRevision?: number;
   onRefresh?: () => void;
-  onDirectChange: (payload: TimesheetCellMutation) => Promise<void>;
+  onDirectChange: (payload: TimesheetCellMutation) => Promise<'pending' | void>;
   onRequestCorrection: (payload: Required<TimesheetCellMutation>) => Promise<void>;
   onOpenDetails: (objectId: string, employeeId: string) => void;
 }): React.JSX.Element {
@@ -91,6 +91,7 @@ export function TimesheetOverviewGrid({
                           className={entry.isChangedManually ? 'is-manual' : entry.hasFact ? 'has-fact' : undefined}
                         >
                           <TimesheetCellEditor
+                            key={`${overview.year}:${overview.month}:${row.objectId}:${row.employeeId}:${entry.dayOfMonth}`}
                             mutationsBlocked={mutationsBlocked}
                             refreshing={refreshing}
                             dataRevision={dataRevision}

@@ -50,6 +50,7 @@ import type {
 import { createSimpleXlsxWorkbook } from './utils/simple-xlsx.util';
 import type { XlsxCell } from './utils/simple-xlsx.util';
 import { calculateTimesheetPeriodTotals } from './utils/timesheet-totals.util';
+import { todayMoscow } from '../object-scheduling/scheduling-calendar';
 
 interface CurrentAuthUser {
   id: string;
@@ -103,11 +104,15 @@ export class TimesheetsService {
       const policy = parseRatePolicySnapshot(todayFact?.ratePolicySnapshot);
       const calculated = todayFact && policy ? calculateTimesheetAutoValues({ year: params.year, month: params.month, daysInMonth: this.getDaysInMonth(params.year, params.month), policy, facts: this.groupAttendanceFactsByEmployee(employeeFacts).get(row.employeeId) ?? [] }).get(params.dayOfMonth) : undefined;
       let autoValue = todayFact ? calculated?.autoValue ?? todayFact.dailyRateSnapshot : 0;
+      const rawPolicy = todayFact?.ratePolicySnapshot as Prisma.JsonObject | undefined;
+      if (typeof rawPolicy?.shiftOverrideAmount === 'number') autoValue = rawPolicy.shiftOverrideAmount;
       if (todayFact && policy?.ratePolicyType === 'monthly_fixed') {
         const allocated = row.entries.filter((entry) => entry.dayOfMonth !== params.dayOfMonth && parseRatePolicySnapshot(entry.ratePolicySnapshot)?.ratePolicyType === 'monthly_fixed').reduce((sum, entry) => sum + entry.autoValue, 0);
         autoValue = Math.min(autoValue, Math.max(0, policy.baseAmount - allocated));
       }
       if (!todayFact && !stored) continue;
+      const extraCredits = await tx.objectPayrollCredit.findMany({where: {objectId: params.objectId, employeeId: row.employeeId, operationDate: new Date(Date.UTC(params.year, params.month - 1, params.dayOfMonth)), sourceKey: {startsWith: 'extra:'}}});
+      autoValue += extraCredits.reduce((sum, credit) => sum + credit.amount, 0);
       const finalValue = stored?.isChangedManually ? stored.manualValue ?? stored.dayValue : autoValue;
       const data = {
         autoValue, dayValue: finalValue, difference: finalValue - autoValue,
@@ -147,19 +152,16 @@ export class TimesheetsService {
       throw new NotFoundException('Object not found');
     }
 
-    const monthContainer = await this.ensureMonthContainer(
-      query.objectId,
-      query.year,
-      query.month,
-      currentUser.id,
-    );
+    const monthContainer = await this.prisma.timesheetMonth.findUnique({where: {objectId_year_month: {objectId: query.objectId, year: query.year, month: query.month}}});
+    if (!monthContainer) {
+      const overview = await this.getOverview(currentUser, {objectId: query.objectId, year: query.year, month: query.month});
+      const policy = buildObjectDefaultRatePolicy({paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: object.paymentScheduleCode, scheduleWeekdays: object.paymentScheduleWeekdays, scheduleCycleStartDate: object.paymentScheduleCycleStartDate});
+      const fallback = this.getObjectPayrollFallback({paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, year: query.year, month: query.month});
+      return {objectId: object.id, objectName: object.name, objectPaymentType: object.paymentType as 'monthly' | 'daily', objectDailyRate: object.dailyRate, objectMonthlySalary: object.monthlySalary, objectCalculatedDailyRate: fallback.dailyRate, objectWorkingDays: fallback.workingDays, year: query.year, month: query.month, status: 'open', daysInMonth: overview.daysInMonth, advanceTotal: overview.totals.advanceTotal, salaryTotal: overview.totals.salaryTotal, monthTotal: overview.totals.monthTotal, capabilities: {canManualCorrection: canManuallyCorrectTimesheet(this.getRoleCodes(currentUser))}, rows: overview.rows.map(row => ({employeeId: row.employeeId, employeeName: row.employeeName, advanceTotal: row.advanceTotal, salaryTotal: row.salaryTotal, rowTotal: row.monthTotal, ratePolicy: {...policy, label: getRatePolicyLabel(policy)}, entries: row.entries.map(entry => ({...entry, dayValue: entry.finalValue, updatedAt: null, updatedByUserId: null, updatedByUserName: null}))}))};
+    }
 
-    await this.syncAutomaticEntries({
-      objectId: query.objectId,
-      timesheetMonthId: monthContainer.id,
-      year: query.year,
-      month: query.month,
-    });
+    // Attendance/financial mutations own persisted values. Opening a report must
+    // never backfill or recalculate monetary history with today's conditions.
 
     const rows = await this.prisma.timesheetEmployeeRow.findMany({
       where: {
@@ -1129,9 +1131,12 @@ export class TimesheetsService {
   async upsertEntry(
     currentUser: CurrentAuthUser,
     payload: UpsertTimesheetEntryDto,
-  ): Promise<TimesheetResponseDto> {
+  ): Promise<TimesheetResponseDto | ApprovalRequestResponseDto> {
     await this.assertAccess(currentUser, payload.objectId);
     this.assertManualCorrectionAccess(currentUser);
+    if (`${payload.year}-${String(payload.month).padStart(2, '0')}-${String(payload.dayOfMonth).padStart(2, '0')}` < todayMoscow()) {
+      return this.requestManualException(currentUser, {...payload, comment: payload.comment ?? ''});
+    }
 
     const daysInMonth = this.getDaysInMonth(payload.year, payload.month);
     if (payload.dayOfMonth > daysInMonth) {
@@ -1194,8 +1199,10 @@ export class TimesheetsService {
     payload: CreateTimesheetManualExceptionDto,
   ): Promise<ApprovalRequestResponseDto> {
     await this.assertAccess(currentUser, payload.objectId);
+    if (!payload.comment?.trim()) throw new BadRequestException('Для финансового исправления укажите основание');
 
-    if (canManuallyCorrectTimesheet(this.getRoleCodes(currentUser))) {
+    const retroactive = `${payload.year}-${String(payload.month).padStart(2, '0')}-${String(payload.dayOfMonth).padStart(2, '0')}` < todayMoscow();
+    if (!retroactive && canManuallyCorrectTimesheet(this.getRoleCodes(currentUser))) {
       throw new BadRequestException(
         'Direct manual correction is available for current user',
       );
@@ -1224,7 +1231,7 @@ export class TimesheetsService {
       monthContainerId: monthContainer.id,
     });
 
-    if (payload.dayValue === mutationContext.expectedAutoValue) {
+    if (payload.dayValue === mutationContext.expectedAutoValue && mutationContext.currentDayValueSnapshot === mutationContext.expectedAutoValue) {
       throw new BadRequestException(
         'Manual exception must differ from current automatic value',
       );
@@ -1283,6 +1290,8 @@ export class TimesheetsService {
             currentDayValue: mutationContext.currentDayValueSnapshot,
             requestedDayValue: payload.dayValue,
             comment: mutationContext.normalizedComment ?? payload.comment.trim(),
+            independentLeadershipRequired: retroactive,
+            originalEntryUpdatedAt: mutationContext.existingEntry?.updatedAt?.toISOString() ?? null,
           },
         },
         include: {
@@ -1364,6 +1373,7 @@ export class TimesheetsService {
     }
 
     if (params.decision === 'approve') {
+      await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${exception.objectId} FOR UPDATE`;
       const monthContainer = await this.ensureMonthContainer(
         exception.objectId,
         exception.year,
@@ -1388,6 +1398,9 @@ export class TimesheetsService {
           'Timesheet cell changed after approval request was created',
         );
       }
+      const request = await tx.approvalRequest.findFirst({where: {sourceEntityType: TIMESHEET_EXCEPTION_APPROVAL_SOURCE_ENTITY_TYPE, sourceEntityId: exception.id, status: 'pending'}});
+      const payload = request?.payloadSnapshot as Prisma.JsonObject | undefined;
+      if (payload && 'originalEntryUpdatedAt' in payload && payload.originalEntryUpdatedAt !== (mutationContext.existingEntry?.updatedAt.toISOString() ?? null)) throw new ConflictException('Исходная версия ячейки изменилась после подачи заявки');
 
       await this.applyEntryMutation(tx, {
         rowId: mutationContext.row.id,
@@ -1435,6 +1448,7 @@ export class TimesheetsService {
       employeeNameSnapshot: string;
       entries: Array<{
         id: string;
+        updatedAt: Date;
         dayOfMonth: number;
         dayValue: number;
         autoValue: number;
@@ -1446,6 +1460,7 @@ export class TimesheetsService {
     };
     existingEntry: {
       id: string;
+      updatedAt: Date;
       dayOfMonth: number;
       dayValue: number;
       autoValue: number;
@@ -1474,6 +1489,7 @@ export class TimesheetsService {
             dayOfMonth: true,
             dayValue: true,
             autoValue: true,
+            updatedAt: true,
             isChangedManually: true,
             ratePolicySnapshot: true,
             calculationExplanation: true,
@@ -1551,7 +1567,7 @@ export class TimesheetsService {
             ]
           : [],
       }).get(params.dayOfMonth) ?? null;
-    const expectedAutoValue = calculatedDay?.autoValue ?? 0;
+    const expectedAutoValue = existingEntry?.autoValue ?? calculatedDay?.autoValue ?? 0;
     const normalizedComment = params.comment?.trim() || null;
 
     if (params.dayValue !== expectedAutoValue && !normalizedComment) {

@@ -113,6 +113,13 @@ export async function cleanupCoreTestObject(
   prisma: PrismaClient,
   objectId: string,
 ): Promise<void> {
+  const financialRequests = await prisma.objectCompensationAdjustment.findMany({where: {objectId}, select: {id: true}});
+  await prisma.approvalRequest.deleteMany({where: {sourceEntityType: 'object_compensation_adjustment', sourceEntityId: {in: financialRequests.map(item => item.id)}}});
+  await prisma.objectCompensationAdjustment.deleteMany({where: {objectId}});
+  await prisma.objectPayrollCredit.deleteMany({where: {objectId}});
+  await prisma.objectTeamFundVersion.deleteMany({where: {objectId}});
+  await prisma.objectCompensationVersion.deleteMany({where: {objectId}});
+  await prisma.objectShiftAttendance.deleteMany({where: {objectId}});
   await prisma.timesheetManualException.deleteMany({
     where: {
       objectId,

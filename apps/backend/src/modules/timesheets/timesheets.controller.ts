@@ -130,7 +130,7 @@ export class TimesheetsController {
   upsertEntry(
     @CurrentUser() user: CurrentAuthUser,
     @Body() payload: UpsertTimesheetEntryDto,
-  ): Promise<TimesheetResponseDto> {
+  ): Promise<TimesheetResponseDto | ApprovalRequestResponseDto> {
     assertTimesheetDateEditable(payload);
     return this.timesheetsService.upsertEntry(user, payload);
   }

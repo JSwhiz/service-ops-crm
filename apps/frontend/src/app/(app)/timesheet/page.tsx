@@ -20,6 +20,7 @@ import type {
 } from '@/entities/timesheet/model/timesheet.types';
 import type { TimesheetCellMutation } from '@/features/timesheet-cell-editing/ui/timesheet-cell-editor';
 import { TimesheetCorrectionsPanel } from '@/features/timesheet-corrections/ui/timesheet-corrections-panel';
+import { CompensationExplanationPanel } from '@/features/object-compensation/ui/compensation-explanation-panel';
 import { TimesheetOverviewGrid } from '@/features/timesheet-overview/ui/timesheet-overview-grid';
 import { getOverviewRefreshState, type OverviewSnapshot } from '@/features/timesheet-overview/model/overview-refresh';
 import { ApiError } from '@/shared/api/fetcher';
@@ -187,9 +188,10 @@ export default function TimesheetPage(): React.JSX.Element {
       });
   }, [employeeId, month, objectId, year]);
 
-  const directChange = async (payload: TimesheetCellMutation): Promise<void> => {
+  const directChange = async (payload: TimesheetCellMutation): Promise<'pending' | void> => {
     if (mutationsBlocked || refreshLockRef.current) throw new ApiError('Refresh required', 409, 'TIMESHEET_REFRESH_REQUIRED');
-    await upsertTimesheetEntry({ year, month, ...payload });
+    const result = await upsertTimesheetEntry({ year, month, ...payload });
+    if ('approvalType' in result) return 'pending';
     refreshLockRef.current = true;
     setLoading(true);
     setRefreshVersion((value) => value + 1);
@@ -314,7 +316,7 @@ export default function TimesheetPage(): React.JSX.Element {
                 <div className="timesheet-object-inspector__metric">
                   <span>
                     {objectTimesheet.objectPaymentType === 'monthly'
-                      ? 'ЗП объекта / месяц'
+                      ? 'Базовые условия объекта / месяц'
                       : 'Ставка за выход'}
                   </span>
                   <strong>
@@ -326,9 +328,7 @@ export default function TimesheetPage(): React.JSX.Element {
                   </strong>
                   {objectTimesheet.objectPaymentType === 'monthly' ? (
                     <small>
-                      {moneyFormatter.format(objectTimesheet.objectCalculatedDailyRate)}
-                      {' / рабочий день · '}
-                      {objectTimesheet.objectWorkingDays} раб. дн.
+                      Фонд команды и выбранные условия позиции учитываются отдельно. Расшифровка сохранённых начислений — ниже.
                     </small>
                   ) : null}
                 </div>
@@ -349,6 +349,7 @@ export default function TimesheetPage(): React.JSX.Element {
                 items={visibleCorrections}
                 employeeName={selectedEmployee?.label ?? null}
               />
+              <CompensationExplanationPanel key={`${objectId}:${year}:${month}`} objectId={objectId} year={year} month={month} employeeId={employeeId || undefined} revision={refreshVersion} />
             </>
           ) : null}
         </section>
