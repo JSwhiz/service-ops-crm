@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { usePopoverPlacement } from './use-popover-placement';
+import { handleSelectEscape } from './select-escape';
 import styles from './searchable-select.module.css';
 
 export interface SearchableSelectOption {
@@ -37,7 +38,7 @@ interface SearchableSelectProps {
   /** Attributes forwarded to the trigger, e.g. the id/aria wiring from Field. */
   triggerProps?: Pick<
     React.ButtonHTMLAttributes<HTMLButtonElement>,
-    'id' | 'onFocus' | 'aria-describedby' | 'aria-invalid' | 'aria-labelledby'
+    'id' | 'name' | 'onFocus' | 'aria-describedby' | 'aria-invalid' | 'aria-labelledby'
   >;
 }
 
@@ -118,14 +119,9 @@ export function SearchableSelect({
     const onPointerDown = (event: MouseEvent): void => {
       if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
     };
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setIsOpen(false);
-    };
     document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
     return () => {
       document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
     };
   }, []);
 
@@ -194,7 +190,8 @@ export function SearchableSelect({
   };
 
   return (
-    <div className="searchable-select" ref={rootRef}>
+    <div className="searchable-select" ref={rootRef}
+      onKeyDown={(event) => handleSelectEscape(event, isOpen, () => setIsOpen(false), () => triggerRef.current?.focus({ preventScroll: true }))}>
       {hideLabel ? null : <span className="ui-detail-label">{label}</span>}
       <button
         {...triggerProps}
@@ -246,8 +243,6 @@ export function SearchableSelect({
                 } else if (event.key === 'Enter' && visibleOptions[activeIndex]) {
                   event.preventDefault();
                   choose(visibleOptions[activeIndex].value);
-                } else if (event.key === 'Escape') {
-                  setIsOpen(false);
                 }
               }}
             />

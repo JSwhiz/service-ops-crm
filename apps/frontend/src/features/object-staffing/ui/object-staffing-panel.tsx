@@ -18,7 +18,10 @@ import { SearchableSelect } from '@/shared/ui/searchable-select/searchable-selec
 
 import styles from './object-staffing-panel.module.css';
 import { DatePicker } from '@/shared/ui/date-picker/date-picker';
-import { Button, Surface } from '@/shared/ui/foundation';
+import { Alert, Button, Surface } from '@/shared/ui/foundation';
+import { getObjectCompensation } from '@/entities/object/api/object-compensation-client';
+import type { CompensationVersion } from '@/entities/object/model/object-compensation.types';
+import { CompensationVersionDialog } from '@/features/object-compensation/ui/compensation-version-dialog';
 
 interface ObjectStaffingPanelProps {
   object: ServiceObject;
@@ -242,6 +245,8 @@ export function ObjectStaffingPanel({
   const [rateEditor, setRateEditor] = useState<ObjectCompensationRate | null | false>(false);
   const [rateOptionForm, setRateOptionForm] = useState({ name: '', category: 'standard' as 'standard' | 'substitution', ratePolicyType: 'daily_rate' as 'daily_rate' | 'monthly_fixed', baseAmount: '', scheduleCode: '5/2', scheduleWeekdays: [] as string[], scheduleCycleStartDate: '', scheduleMode: 'template' as ScheduleMode, notes: '' });
   const [isSavingRateOption, setIsSavingRateOption] = useState(false);
+  const [datedRate, setDatedRate] = useState<{ rate: ObjectCompensationRate; versions: CompensationVersion[] } | null>(null);
+  const [datedRateSaved, setDatedRateSaved] = useState(false);
   const assigned = assignedEmployees ?? [];
   const directory = directoryEmployees ?? [];
   const assignedIds = new Set(assigned.map((employee) => employee.id));
@@ -398,6 +403,13 @@ export function ObjectStaffingPanel({
       setRateOptionsError(caughtError instanceof Error ? caughtError.message : 'Не удалось изменить статус варианта.');
     }
   };
+  const changeRateFromDate = async (rate: ObjectCompensationRate): Promise<void> => {
+    if (!canManageRatePolicy || isSavingRateOption) return;
+    setIsSavingRateOption(true); setRateOptionsError(null); setDatedRateSaved(false);
+    try { const response = await getObjectCompensation(object.id); setDatedRate({ rate, versions: response.versions }); }
+    catch { setRateOptionsError('Не удалось загрузить условия оплаты. Обновите сведения и повторите.'); }
+    finally { setIsSavingRateOption(false); }
+  };
 
   return (
     <Surface padding="md">
@@ -414,12 +426,14 @@ export function ObjectStaffingPanel({
           {rateOptionsError ? <div className={`${sharedStyles.error} ${styles.feedbackError}`}>{rateOptionsError}</div> : null}
           <div className={styles.rateCatalog}>
             {rateOptions.length === 0 ? <div className="ui-text-muted">Варианты оплаты пока не созданы.</div> : rateOptions.map((rate) => <div className={styles.rateOption} key={rate.id}>
-              <div><strong>{rate.name}</strong><span>{rate.category === 'substitution' ? 'Подмена' : 'Стандартный вариант'} · {rate.ratePolicyType === 'monthly_fixed' ? 'Оклад' : 'За выход'} · {rate.baseAmount.toLocaleString('ru-RU')} ₽ · {rate.isActive ? 'Активен' : 'Отключен'}</span>{rate.scheduleWeekdays.length ? <small>{rate.scheduleWeekdays.join(', ')}</small> : rate.scheduleCode ? <small>График {rate.scheduleCode}</small> : null}</div>
-              {canManageRatePolicy ? <div className={styles.rateOptionActions}><Button onClick={() => beginRateOptionEdit(rate)}>Изменить</Button><Button onClick={() => void toggleRateOption(rate)}>{rate.isActive ? 'Отключить' : 'Включить'}</Button></div> : null}
+              <div><strong>{rate.name}</strong><span>{rate.category === 'substitution' ? 'Подмена' : 'Стандартный вариант'} · {rate.ratePolicyType === 'monthly_fixed' ? 'Оклад' : 'За выход'} · справочно: {rate.baseAmount.toLocaleString('ru-RU')} ₽ · {rate.isActive ? 'Активен' : 'Отключен'}</span>{rate.scheduleWeekdays.length ? <small>{rate.scheduleWeekdays.join(', ')}</small> : rate.scheduleCode ? <small>График {rate.scheduleCode}</small> : null}</div>
+              {canManageRatePolicy ? <div className={styles.rateOptionActions}><Button disabled={isSavingRateOption} onClick={() => { void changeRateFromDate(rate); }}>Изменить с даты</Button><Button onClick={() => void toggleRateOption(rate)}>{rate.isActive ? 'Отключить' : 'Включить'}</Button></div> : null}
             </div>)}
           </div>
         </section>
       ) : null}
+      {datedRateSaved ? <Alert tone="success" role="status">Условия сохранены с выбранной даты. Прежние начисления не изменены. <a href="#planning">Открыть условия оплаты</a></Alert> : null}
+      {datedRate ? <CompensationVersionDialog objectId={object.id} line={{ key: datedRate.rate.id, scope: 'rate', scopeId: datedRate.rate.id, name: datedRate.rate.name }} versions={datedRate.versions} initialTerms={{ ratePolicyType: datedRate.rate.ratePolicyType, baseAmount: datedRate.rate.baseAmount, scheduleCode: datedRate.rate.scheduleCode, scheduleWeekdays: datedRate.rate.scheduleWeekdays, scheduleCycleStartDate: datedRate.rate.scheduleCycleStartDate, notes: datedRate.rate.notes ?? '' }} onClose={() => setDatedRate(null)} onSaved={() => { setDatedRate(null); setDatedRateSaved(true); }} /> : null}
 
       {canManageRatePolicy && rateEditor !== false ? (
         <div className={styles.modalBackdrop} role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setRateEditor(false); }}>

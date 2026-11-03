@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { createCoreTestObject, cleanupCoreTestObject, SEEDED_EMPLOYEE_IDS } from './helpers/core-fixtures';
 import { loginAndGetCookieHeader } from './helpers/auth';
 import { createTestApp } from './helpers/create-test-app';
+import { todayMoscow } from '../src/modules/object-scheduling/scheduling-calendar';
 
 test('deputy director manages object rates while manager only records an extra shift', async (t) => {
   const prisma = new PrismaClient();
@@ -331,7 +332,7 @@ test('deputy director manages object rates while manager only records an extra s
     paymentScheduleWeekdays: ['mon', 'wed'],
   });
 
-  const attendanceDate = new Date().toISOString().slice(0, 10);
+  const attendanceDate = todayMoscow();
   const attendanceResponse = await fetch(`${route}/attendance`, {
     method: 'POST',
     headers: { Cookie: managerCookie, 'Content-Type': 'application/json' },
@@ -347,8 +348,12 @@ test('deputy director manages object rates while manager only records an extra s
     orderBy: { createdAt: 'desc' },
     select: { dailyRateSnapshot: true, ratePolicySnapshot: true },
   });
-  assert.equal(attendance.dailyRateSnapshot, 3500);
-  assert.equal((attendance.ratePolicySnapshot as { ratePolicyType: string }).ratePolicyType, 'side_job');
+  assert.equal(attendance.dailyRateSnapshot, 1800);
+  assert.equal((attendance.ratePolicySnapshot as { ratePolicyType: string }).ratePolicyType, 'daily_rate');
+  const extraCredit = await prisma.objectPayrollCredit.findFirstOrThrow({where: {objectId, employeeId: SEEDED_EMPLOYEE_IDS.ivan, sourceKey: {startsWith: 'extra:'}}});
+  assert.equal(extraCredit.amount, 3500);
+  const savedEntry = await prisma.timesheetDayEntry.findFirstOrThrow({where: {row: {employeeId: SEEDED_EMPLOYEE_IDS.ivan, timesheetMonth: {objectId}}, dayOfMonth: Number(attendanceDate.slice(8))}});
+  assert.equal(savedEntry.dayValue, 5300, '1800 base exit plus independent 3500 extra work');
   assert.ok(await prisma.notification.findFirst({ where: { entityId: objectId, type: 'object.extra_shift.created' } }));
 
   const [founder, manager] = await Promise.all([

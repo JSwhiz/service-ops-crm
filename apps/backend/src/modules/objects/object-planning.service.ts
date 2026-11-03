@@ -14,6 +14,7 @@ import { AuditService } from "../audit/audit.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { ChatsService } from "../chats/chats.service";
 import { ObjectsService } from "./objects.service";
+import { ObjectCompensationService } from '../object-scheduling/object-compensation.service';
 import {
   ContactVersionDto,
   SaveObjectContactDto,
@@ -53,6 +54,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly chats: ChatsService,
+    private readonly compensation: ObjectCompensationService,
   ) {}
 
   onModuleInit() {
@@ -581,6 +583,14 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
       for (const row of settings) {
         await this.applySeason(row.objectId);
         await this.evaluateBudget(row.objectId);
+      }
+      const versionedObjects = await this.prisma.objectCompensationVersion.findMany({where: {cancelledAt: null}, select: {objectId: true}, distinct: ['objectId']});
+      for (const row of versionedObjects) {
+        try {
+          await this.compensation.accrueTodayHolidays(row.objectId);
+        } catch (error: unknown) {
+          this.logger.error(`Holiday accrual failed for object ${row.objectId}`, error instanceof Error ? error.stack : undefined);
+        }
       }
       await this.deliverBudgetAlerts();
     } finally {

@@ -1,6 +1,7 @@
 import { fetcher } from '@/shared/api/fetcher';
 
 import type { ObjectEmployeeOption } from '../model/object.types';
+import type { CompensationMutationResult } from '../model/object-compensation.types';
 import type {
   ObjectArrivalPhoto,
   ObjectComment,
@@ -332,8 +333,8 @@ export async function getTodayObjectAttendance(
 export async function upsertObjectAttendance(
   objectId: string,
   payload: UpsertObjectAttendancePayload,
-): Promise<{ success: true }> {
-  return fetcher<{ success: true }>(`/objects/${objectId}/attendance`, {
+): Promise<{ success: true } | CompensationMutationResult> {
+  return fetcher<{ success: true } | CompensationMutationResult>(`/objects/${objectId}/attendance`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

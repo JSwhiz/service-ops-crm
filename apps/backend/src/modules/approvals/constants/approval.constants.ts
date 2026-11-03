@@ -18,6 +18,7 @@ export const APPROVAL_TYPES = [
   'accountability_closure_confirmation',
   'manual_timesheet_exception_confirmation',
   'one_time_manager_availability',
+  'object_compensation_confirmation',
 ] as const;
 
 export type ApprovalType = (typeof APPROVAL_TYPES)[number];
@@ -30,6 +31,7 @@ export const APPROVAL_SOURCE_ENTITY_TYPES = [
   'accountability_closure',
   'timesheet_exception',
   'one_time_manager_availability',
+  'object_compensation_adjustment',
 ] as const;
 
 export type ApprovalSourceEntityType =

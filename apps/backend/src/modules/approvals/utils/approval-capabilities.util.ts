@@ -81,6 +81,8 @@ export function canResolveApprovalType(params: {
   permissionCodes?: string[];
 }): boolean {
   switch (params.approvalType) {
+    case 'object_compensation_confirmation':
+      return hasAnyRole(params.roleCodes, LEADERSHIP_OBJECT_ROLE_CODES);
     case TASK_RESULT_CONFIRMATION_TYPE:
       return hasWideTaskAccess(params.roleCodes);
     case INVENTORY_EXCEPTION_CONFIRMATION_TYPE:
@@ -121,6 +123,7 @@ export function getResolvableApprovalTypes(params: {
   permissionCodes?: string[];
 }): ApprovalType[] {
   const approvalTypes: ApprovalType[] = [
+    'object_compensation_confirmation',
     TASK_RESULT_CONFIRMATION_TYPE,
     INVENTORY_EXCEPTION_CONFIRMATION_TYPE,
     INVENTORY_WRITEOFF_CONFIRMATION_TYPE,

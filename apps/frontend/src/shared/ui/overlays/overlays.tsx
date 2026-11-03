@@ -69,8 +69,21 @@ function OverlayFrame({
 }: OverlayFrameProps): React.JSX.Element {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const returnFocusRefLatest = useRef(returnFocusRef);
+  returnFocusRefLatest.current = returnFocusRef;
   const titleId = useId();
   const descriptionId = useId();
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    return () => {
+      // Inline form branches may unmount while still open, without a close event.
+      if (!dialog?.open) return;
+      dialog.close();
+      const trigger = triggerRef.current?.isConnected ? triggerRef.current : returnFocusRefLatest.current?.current;
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    };
+  }, []);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -139,6 +152,8 @@ function OverlayFrame({
       }}
       onClose={(event) => {
         if (event.target !== event.currentTarget) return;
+        // Ignore a queued close event if the dialog has already reopened.
+        if (event.currentTarget.open) return;
         event.stopPropagation();
         if (open) {
           onOpenChange(false);

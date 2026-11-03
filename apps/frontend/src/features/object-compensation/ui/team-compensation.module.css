@@ -1,0 +1,13 @@
+.content { display: grid; gap: var(--ui-space-4); min-width: 0; overflow-wrap: anywhere; }
+.section { display: grid; gap: var(--ui-space-3); min-width: 0; padding-block: var(--ui-space-3); border-top: 1px solid var(--ui-border); }
+.fields { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--ui-space-4); min-width: 0; }
+.short { width: 220px; max-width: 100%; min-width: 0; }
+.amount { width: 180px; max-width: 100%; min-width: 0; }
+.line { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 150px auto; gap: var(--ui-space-3); align-items: end; min-width: 0; }
+.facts { display: flex; flex-wrap: wrap; gap: var(--ui-space-4); margin: 0; }
+.facts div { min-width: 140px; max-width: 100%; }
+.facts dt { color: var(--ui-text-secondary); font-size: 12px; }
+.facts dd { margin: var(--ui-space-1) 0 0; font-variant-numeric: tabular-nums; }
+.check { display: flex; gap: var(--ui-space-2); align-items: center; min-height: 44px; }
+.check input { width: auto; }
+@media (max-width: 767px) { .line { grid-template-columns: minmax(0, 1fr); } }

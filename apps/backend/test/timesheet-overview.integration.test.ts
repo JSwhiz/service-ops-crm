@@ -183,6 +183,13 @@ test('timesheet overview is bulk, access-safe, filterable and exportable', async
   });
 
   for (const objectId of [first.objectId, second.objectId]) {
+    // This is an existing historical ledger fixture. Reads no longer create
+    // month containers, employee rows or monetary entries as a side effect.
+    const savedMonth = await prisma.timesheetMonth.create({data: {objectId, year, month, createdByUserId: founder.id}});
+    const employee = await prisma.employee.findUniqueOrThrow({where: {id: SEEDED_EMPLOYEE_IDS.ivan}});
+    const savedRow = await prisma.timesheetEmployeeRow.create({data: {timesheetMonthId: savedMonth.id, employeeId: employee.id, employeeNameSnapshot: employee.fullName}});
+    const savedFacts = await prisma.objectAttendanceFact.findMany({where: {objectId}});
+    await prisma.timesheetDayEntry.createMany({data: savedFacts.map(fact => ({rowId: savedRow.id, dayOfMonth: fact.operationDate.getDate(), autoValue: fact.dailyRateSnapshot, dayValue: fact.dailyRateSnapshot, createdByUserId: founder.id}))});
     const response = await api(
       baseUrl,
       founderCookie,

@@ -9,6 +9,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TimesheetsModule } from '../timesheets/timesheets.module';
 import { FilesModule } from '../files/files.module';
+import { ObjectSchedulingModule } from '../object-scheduling/object-scheduling.module';
 
 import { ObjectAttendanceSubmissionService } from './object-attendance-submission.service';
 import { ObjectOperationsController } from './object-operations.controller';
@@ -16,7 +17,7 @@ import { ObjectOperationsService } from './object-operations.service';
 import { ObjectDailyReportPublicationService } from './object-daily-report-publication.service';
 
 @Module({
-  imports: [PrismaModule, EmployeesModule, InventoryModule, EquipmentModule, TimesheetsModule, NotificationsModule, ObjectsModule, ChatsModule, FilesModule],
+  imports: [PrismaModule, EmployeesModule, InventoryModule, EquipmentModule, TimesheetsModule, NotificationsModule, ObjectsModule, ChatsModule, FilesModule, ObjectSchedulingModule],
   controllers: [ObjectOperationsController],
   providers: [ObjectOperationsService, ObjectAttendanceSubmissionService, ObjectDailyReportPublicationService],
   exports: [ObjectOperationsService],

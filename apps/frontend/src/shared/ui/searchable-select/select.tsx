@@ -14,6 +14,7 @@ export interface SelectChangeEvent {
 }
 
 export interface SelectProps {
+  name?: string;
   value: string;
   onChange?: (event: SelectChangeEvent) => void;
   /** `<option>` elements, as with a native select (arrays and fragments allowed). */
@@ -59,6 +60,7 @@ function collectOptions(children: React.ReactNode, into: SearchableSelectOption[
  * browser. Works inside Field: the label is linked through `id`.
  */
 export function Select({
+  name,
   value,
   onChange,
   children,
@@ -88,6 +90,7 @@ export function Select({
         disabled={disabled}
         required={Boolean(required || ariaRequired === true || ariaRequired === 'true')}
         triggerProps={{
+          name,
           id,
           onFocus,
           'aria-describedby': ariaDescribedBy,

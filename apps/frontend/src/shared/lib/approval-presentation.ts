@@ -44,6 +44,7 @@ export const APPROVAL_TYPE_OPTIONS = [
     value: 'manual_timesheet_exception_confirmation',
     label: 'Исключение табеля',
   },
+  { value: 'object_compensation_confirmation', label: 'Исправление начисления объекта' },
   {
     value: 'one_time_manager_availability',
     label: 'Доступность менеджера',
@@ -67,6 +68,7 @@ const APPROVAL_TYPE_LABELS: Record<string, string> = {
   object_change_confirmation: 'Изменение объекта',
   accountability_closure_confirmation: 'Сверка подотчета',
   manual_timesheet_exception_confirmation: 'Исключение табеля',
+  object_compensation_confirmation: 'Исправление начисления объекта',
   one_time_manager_availability: 'Доступность менеджера',
 };
 
@@ -84,11 +86,13 @@ const APPROVAL_SOURCE_LABELS: Record<string, string> = {
   inventory_movement: 'Движение расходников',
   equipment_movement: 'Движение оборудования',
   timesheet_exception: 'Исключение табеля',
+  object_compensation_adjustment: 'Начисление объекта',
   accountability_closure: 'Сверка подотчёта',
   one_time_manager_availability: 'Доступность менеджера',
 };
 
 export const APPROVAL_SOURCE_OPTIONS = [
+  { value: 'object_compensation_adjustment', label: 'Начисление объекта' },
   { value: 'task', label: 'Задача' },
   { value: 'object', label: 'Объект' },
   {

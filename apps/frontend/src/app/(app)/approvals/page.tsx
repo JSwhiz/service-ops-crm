@@ -103,6 +103,22 @@ function getBusinessContext(item: ApprovalRequestItem): BusinessContextItem[] {
   const dayOfMonth = getNumberValue(payload, 'dayOfMonth');
   const currentDayValue = getNumberValue(payload, 'currentDayValue');
   const requestedDayValue = getNumberValue(payload, 'requestedDayValue');
+  if (item.approvalType === 'object_compensation_confirmation') {
+    const kinds: Record<string, string> = { extra_work: 'Допработа · добавляет сумму', extra_work_correction: 'Исправление допработы', shift_override: 'Цена выхода · заменяет прежнюю цену', replacement: 'Подмена · оплата вместо основного', holiday_exception: 'Исключение оплаты праздника', confirm_shift: 'Подтверждение прошлого выхода', cancel_shift: 'Отмена прошлого выхода' };
+    const kind = getStringValue(payload, 'kind');
+    const operationDate = getStringValue(payload, 'operationDate');
+    const reason = getStringValue(payload, 'reason');
+    if (kind) context.push({ label: 'Действие', value: kinds[kind] ?? 'Изменение начисления' });
+    const replacementName = getStringValue(payload, 'replacementEmployeeName');
+    if (replacementName) context.push({ label: 'Получает вместо основного', value: replacementName });
+    if (operationDate) context.push({ label: 'Дата операции', value: formatDateOnly(operationDate) });
+    for (const [key, label] of [['beforeAmount', 'Было, ₽'], ['afterAmount', 'Предложено, ₽'], ['difference', 'Разница, ₽']] as const) {
+      const amount = getNumberValue(payload, key);
+      context.push({ label, value: amount === null ? 'Недоступно' : amount.toLocaleString('ru-RU') });
+    }
+    if (reason) context.push({ label: 'Основание', value: reason });
+    context.push({ label: 'Согласование', value: 'Подтверждает другой активный пользователь руководящего круга. До решения прежние деньги остаются действующими.' });
+  }
 
   if (taskTitle) {
     context.push({ label: 'Задача', value: taskTitle });
@@ -167,6 +183,9 @@ function getBusinessContext(item: ApprovalRequestItem): BusinessContextItem[] {
 }
 
 function getRelatedEntityLink(item: ApprovalRequestItem): React.ReactNode {
+  if (item.sourceEntityType === 'object_compensation_adjustment' && typeof item.payloadSnapshot.objectId === 'string') {
+    return <Link href={`/objects/${encodeURIComponent(item.payloadSnapshot.objectId)}#planning`}>Открыть оплату объекта</Link>;
+  }
   if (item.sourceEntityType === 'task') {
     return (
       <Link href={'/tasks/' + item.sourceEntityId}>Открыть задачу</Link>
@@ -900,6 +919,7 @@ function ApprovalDetail({
 }
 
 const APPROVAL_RESOLVER_HINTS: Record<string, string> = {
+  object_compensation_confirmation: 'Прошлые деньги подтверждает другой активный пользователь руководящего круга. Автор заявки не может подтвердить собственное изменение.',
   inventory_exception_confirmation:
     'Выдачу расходников на объект без фото подтверждает только директор.',
   accountability_closure_confirmation:

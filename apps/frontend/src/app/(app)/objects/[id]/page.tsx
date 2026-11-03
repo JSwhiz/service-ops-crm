@@ -133,6 +133,7 @@ export default function ObjectDetailPage({
   const [coreLoading, setCoreLoading] = useState(true);
   const [coreError, setCoreError] = useState<string | null>(null);
   const [coreRetry, setCoreRetry] = useState(0);
+  const [financialRevision, setFinancialRevision] = useState(0);
 
   useEffect(() => {
     // Sections arrive after the initial document; resolve a deep link only
@@ -459,7 +460,7 @@ export default function ObjectDetailPage({
 
           {item.capabilities.canViewOperationalSections ? (
             <WorkspaceSection id="today" title="Сегодня">
-              {item.capabilities.canOperateAttendance === false ? null : <TodayShiftsPanel key={objectId} objectId={objectId} employees={assignedEmployees} onDayStateChange={onShiftDayStateChange} onChanged={async () => { await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }} />}
+              {item.capabilities.canOperateAttendance === false ? null : <TodayShiftsPanel key={objectId} objectId={objectId} employees={assignedEmployees} onDayStateChange={onShiftDayStateChange} onChanged={async () => { setFinancialRevision((value) => value + 1); await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId)]); }} />}
               {item.capabilities.canOperateAttendance === false ? null : attendanceLoading ? <ObjectPanelLoading title="Кто был сегодня на объекте" /> : attendanceError ? (
                 <ObjectPanelError title="Кто был сегодня на объекте" message={attendanceError} />
               ) : (
@@ -474,7 +475,8 @@ export default function ObjectDetailPage({
                   canAddExtraShift={item.capabilities.canAddExtraShift ?? false}
                   operationDate={todayAsBusinessDate()}
                   onSave={async (payload) => {
-                    await upsertObjectAttendance(objectId, payload);
+                    const result = await upsertObjectAttendance(objectId, payload);
+                    if ('adjustmentId' in result) return result;
                     await Promise.all([loadAttendance(objectId), loadAssignedEmployees(objectId), loadDirectory(objectId, employeeSearch)]);
                   }}
                 />
@@ -568,7 +570,7 @@ export default function ObjectDetailPage({
             </WorkspaceSection>
           </> : null}
           <WorkspaceSection id="planning" title="Бюджет и сезоны">
-            <ObjectPlanningPanel objectId={objectId} item={item} onChanged={() => { void getObjectById(objectId).then(setItem).catch(() => {}); }} />
+            <ObjectPlanningPanel objectId={objectId} item={item} financialRevision={financialRevision} onChanged={() => { void getObjectById(objectId).then(setItem).catch(() => {}); }} />
           </WorkspaceSection>
           {item.capabilities.canViewOperationalSections ? <>
             <WorkspaceSection id="tasks" title="Задачи">

@@ -130,7 +130,7 @@ function ObjectPreviewContent({ item, onClose }: { item: ServiceObject; onClose:
         {attendance.employeeFacts.map((fact) => <div key={fact.employeeId} className={styles.meta}>{fact.employeeName ?? attendance.employees.find((employee) => employee.id === fact.employeeId)?.fullName ?? 'Сотрудник'} · {fact.workedHours ?? '—'} ч · {fact.rateAmount.toLocaleString('ru-RU')} ₽{fact.rateReason ? ` · ${fact.rateReason}` : ''}{fact.createdBy ? ` · ${fact.createdBy.fullName}` : ''}{fact.updatedAt ? ` · ${stamp(fact.updatedAt)}` : ''}</div>)}
         <ObjectAttendancePanel objectId={item.id} onSubstitutionSaved={refreshAttendance} employees={attendance.employees} initialEmployeeIds={initialIds} initialEmployeeFacts={attendance.employeeFacts}
           canEditRates={item.capabilities.canEditDailyRate} canAddExtraShift={item.capabilities.canAddExtraShift ?? false} operationDate={attendance.operationDate}
-          onSave={async (payload) => { await upsertObjectAttendance(item.id, payload); await refreshAttendance(); }} />
+          onSave={async (payload) => { const result = await upsertObjectAttendance(item.id, payload); if ('adjustmentId' in result) return result; await refreshAttendance(); }} />
       </section> : null}
       {!loading && !readErrors.includes('Отчёт') ? <section className={styles.section}><ObjectDailyReportPanel item={report} onEditStateChange={setReportEditState} onAttachmentsUpdated={async () => { const refreshed = await getTodayDailyReport(item.id); setReport(refreshed); return refreshed; }} onSave={async (payload) => {
         const saved = await upsertTodayDailyReport(item.id, { content: payload.content, expectedRevision: report?.revision ?? 0 });

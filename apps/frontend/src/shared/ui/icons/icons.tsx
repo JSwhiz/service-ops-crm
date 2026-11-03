@@ -36,6 +36,10 @@ export function CloseIcon(props: IconProps): React.JSX.Element {
   return <Icon {...props}><path d="m5.5 5.5 9 9M14.5 5.5l-9 9" /></Icon>;
 }
 
+export function TrashIcon(props: IconProps): React.JSX.Element {
+  return <Icon {...props}><path d="M3.5 5.5h13M7.5 5.5V3.5h5v2M5.5 5.5l.7 11h7.6l.7-11M8.5 8.5v5M11.5 8.5v5" /></Icon>;
+}
+
 export function CheckIcon(props: IconProps): React.JSX.Element {
   return <Icon {...props}><path d="m4.5 10.5 3.5 3.5 7.5-8" /></Icon>;
 }

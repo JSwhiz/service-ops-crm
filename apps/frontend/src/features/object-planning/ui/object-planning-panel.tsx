@@ -2,28 +2,28 @@
 
 import React, { useCallback, useEffect, useId, useState } from 'react';
 
-import { updateObject } from '@/entities/object/api/object-client';
 import { getObjectPlanning, saveObjectPlanning, type ObjectPlanning, type PlanningInput } from '@/entities/object/api/object-planning-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
 import { getPayContours } from '@/entities/object/api/object-scheduling-client';
 import type { PayContour } from '@/entities/object/model/object-scheduling.types';
-import { ObjectEditForm } from '@/features/object-edit/ui/object-edit-form';
 import { getErrorMessage } from '@/shared/lib/error-message';
 import { Alert, Button, FactStrip, Field, LoadingState, Stack, Surface } from '@/shared/ui/foundation';
 import { Dialog } from '@/shared/ui/overlays';
 import { SeasonFields } from './season-fields';
 import { seasonPlanningPayload } from '../model/season-planning';
 import { contourDisplayRate, nextSeasonBoundary } from '../model/season-summary';
+import { TeamCompensationPanel } from '@/features/object-compensation/ui/team-compensation-panel';
 
 const money = (amount: number) => new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB' }).format(amount);
 const annualDate = (value: string | null) => value
   ? new Date(`2000-${value}T12:00:00Z`).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', timeZone: 'Europe/Moscow' })
   : 'Не задана';
 
-export function ObjectPlanningPanel({ objectId, item, onChanged }: {
+export function ObjectPlanningPanel({ objectId, item, onChanged, financialRevision = 0 }: {
   objectId: string;
   item: ServiceObject;
   onChanged: () => void;
+  financialRevision?: number;
 }): React.JSX.Element {
   const [data, setData] = useState<ObjectPlanning | null>(null);
   const [budget, setBudget] = useState('');
@@ -33,7 +33,7 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [editing, setEditing] = useState<'budget' | 'seasons' | 'rates' | null>(null);
+  const [editing, setEditing] = useState<'budget' | 'seasons' | null>(null);
   const [contours, setContours] = useState<PayContour[] | null>(null);
   const [contourError, setContourError] = useState<string | null>(null);
   const [contourRetry, setContourRetry] = useState(0);
@@ -113,6 +113,7 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
   </> }));
 
   return <Stack gap="xl">
+    {item.capabilities.canViewCompensationRates !== false ? <TeamCompensationPanel key={objectId} objectId={objectId} financialRevision={financialRevision} writable={!['frozen', 'closed', 'archived'].includes(item.status)} /> : null}
     {error && !modalOpen ? <Alert tone="danger" action={<Button disabled={pending} onClick={() => {
       void getObjectPlanning(objectId).then(apply).then(() => setError(null)).catch((e: unknown) => setError(getErrorMessage(e, 'Не удалось обновить данные.')));
     }}>Обновить данные</Button>}>{error}</Alert> : null}
@@ -153,9 +154,9 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
         {item.capabilities.canViewCompensationRates !== false ? <>
           <div className="ui-section-header">
             <h4 className="ui-section-title">Базовые ставки объекта</h4>
-            {item.capabilities.canManageCompensationRates ? <Button disabled={editing !== null} onClick={() => setEditing('rates')}>Изменить ставки</Button> : null}
+            {item.capabilities.canManageCompensationRates ? <a href="#compensation-versions">Задать датированную версию</a> : null}
           </div>
-          <p className="ui-section-subtitle">Базовые ставки не заменяют выбранные условия штатной позиции или индивидуальные условия сотрудника. Применяемая ставка фиксируется при подтверждении выхода.</p>
+          <p className="ui-section-subtitle">Справочные настройки объекта до введения датированных условий. Действующая датированная версия, условия позиции и распределение фонда показаны выше. Применяемые условия сохраняются при подтверждении выхода.</p>
           <FactStrip items={profileFacts(visibleProfiles)} />
           {!data.automaticSeasons && !legacyManualSeason ? <details>
             <summary>Сохранённые сезонные настройки · сейчас не применяются</summary>
@@ -173,7 +174,7 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
                 return <div key={contour.id}>
                   <h4 className="ui-section-title">{contour.name}</h4>
                   <FactStrip items={[
-                    { label: 'Текущая ставка за выход', value: money(currentRate) },
+                    { label: 'Справочная ставка каталога', value: money(currentRate) },
                     { label: 'По умолчанию', value: money(contour.dailyRate) },
                     ...(data.automaticSeasons ? [
                       { label: 'Лето', value: contour.summerDailyRate === null ? 'По умолчанию' : money(contour.summerDailyRate) },
@@ -185,17 +186,8 @@ export function ObjectPlanningPanel({ objectId, item, onChanged }: {
               })}</div> : <p className="ui-text-muted">Отдельные условия не заведены. Используются действующие условия сотрудника и объекта.</p>}
           <p className="ui-section-subtitle">Один контур — один оплачиваемый выход сотрудника за дату; отдельные дневной и ночной контуры могут суммироваться. План графика сам по себе не создаёт начисление. Индивидуальные исключения и ранее сохранённые суммы здесь не пересчитываются.</p>
         </> : null}
-        <p className="ui-section-subtitle">Часовой пояс — Москва. Предыдущий сезон заканчивается накануне начала следующего. Новые ставки действуют со дня сохранения; сохранённые начисления остаются прежними.</p>
+        <p className="ui-section-subtitle">Часовой пояс — Москва. Предыдущий сезон заканчивается накануне начала следующего. Новые условия вводятся с явной текущей или будущей датой; сохранённые начисления остаются прежними.</p>
       </Surface>
-      {editing === 'rates' && item.capabilities.canManageCompensationRates ? <ObjectEditForm
-        mode="compensation"
-        item={item}
-        canEditObject={item.capabilities.canEdit}
-        canManageCompensationRates
-        canLinkCounterparty={false}
-        onCancel={closeEditor}
-        onSubmit={async (payload) => { await updateObject(objectId, payload); onChanged(); }}
-      /> : null}
       <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) closeEditor(); }} busy={pending}
         title={editing === 'budget' ? 'Плановый бюджет расходников' : 'Переключение сезонов'}
         description={editing === 'budget' ? 'План на календарный месяц по московскому времени.' : 'В автоматическом режиме границы сезонов повторяются каждый год. Год в календаре не учитывается.'}

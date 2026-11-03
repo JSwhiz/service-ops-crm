@@ -20,6 +20,7 @@ import {
 import { UserSearchSelect } from '@/shared/ui/user-search-select/user-search-select';
 import { Select } from '@/shared/ui/searchable-select/select';
 import { Button } from '@/shared/ui/foundation';
+import { getObjectCompensation } from '@/entities/object/api/object-compensation-client';
 
 interface ObjectEditFormProps {
   mode?: 'full' | 'compensation';
@@ -77,6 +78,17 @@ export function ObjectEditForm({
   const [responsibleCandidates, setResponsibleCandidates] = useState<SystemUserOption[]>([]);
   const [candidatesError, setCandidatesError] = useState<string | null>(null);
   const [isCandidatesLoading, setIsCandidatesLoading] = useState(true);
+  const [legacyCompensation, setLegacyCompensation] = useState<{ objectId: string; allowed: boolean } | null>(null);
+  const [compensationReadError, setCompensationReadError] = useState(false);
+  const canEditLegacyCompensation = canManageCompensationRates && legacyCompensation?.objectId === item.id && legacyCompensation.allowed;
+  useEffect(() => {
+    let active = true;
+    setLegacyCompensation(null); setCompensationReadError(false);
+    if (canManageCompensationRates) void getObjectCompensation(item.id).then((response) => {
+      if (active) setLegacyCompensation({ objectId: item.id, allowed: response.capabilities.manageRates && !response.versions.some((v) => v.scope === 'defaults' && v.scopeId === item.id && !v.cancelledAt) });
+    }).catch(() => { if (active) setCompensationReadError(true); });
+    return () => { active = false; };
+  }, [item.id, canManageCompensationRates]);
 
   useEffect(() => {
     setForm({
@@ -177,7 +189,7 @@ export function ObjectEditForm({
       return;
     }
 
-    if (canManageCompensationRates && invalidScheduleProfiles.length > 0) {
+    if (canEditLegacyCompensation && invalidScheduleProfiles.length > 0) {
       setError(`Проверьте график в профилях: ${invalidScheduleProfiles.join(', ')}.`);
       return;
     }
@@ -199,7 +211,7 @@ export function ObjectEditForm({
           : {}),
       } : {};
 
-      if (canManageCompensationRates) {
+      if (canEditLegacyCompensation) {
         payload.paymentType = form.paymentType as 'monthly' | 'daily';
         payload.monthlySalary = Number(form.monthlySalary) || 0;
         payload.dailyRate = Number(form.dailyRate) || 0;
@@ -264,14 +276,16 @@ export function ObjectEditForm({
       </> : null}
 
       <section aria-label="Условия оплаты">
+        {canManageCompensationRates && !canEditLegacyCompensation ? <p className={styles.inlineHelp}>{compensationReadError ? 'Не удалось проверить действующие условия оплаты.' : legacyCompensation?.objectId !== item.id ? 'Проверяем действующие условия оплаты…' : 'Условия оплаты меняются отдельно с выбранной даты.'} <a href={`/objects/${item.id}#planning`}>Открыть условия оплаты и фонд команды</a></p> : <>
         <ObjectCompensationProfiles
           value={compensationProfiles}
-          disabled={!canManageCompensationRates || isSubmitting}
+          disabled={!canEditLegacyCompensation || isSubmitting}
           onChange={(nextValue) => setForm((previous) => ({ ...previous, ...nextValue }))}
         />
         {!canManageCompensationRates ? (
           <p className={styles.inlineHelp}>У вашей роли нет права изменять условия оплаты объекта.</p>
         ) : null}
+        </>}
       </section>
 
       {mode === 'full' ? <>
@@ -389,7 +403,7 @@ export function ObjectEditForm({
       {success ? <div className={styles.success}>{success}</div> : null}
 
       <div className={styles.actions}>
-        <Button variant="primary" type="submit" pending={isSubmitting} pendingLabel="Сохранение…" disabled={(mode === 'full' && canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canManageCompensationRates && invalidScheduleProfiles.length > 0) || (!canEditObject && !canManageCompensationRates)}>
+        <Button variant="primary" type="submit" pending={isSubmitting} pendingLabel="Сохранение…" disabled={(mode === 'full' && canEditObject && (isCandidatesLoading || !form.responsibleUserId)) || (canEditLegacyCompensation && invalidScheduleProfiles.length > 0) || (!canEditObject && !canEditLegacyCompensation)}>
           {mode === 'compensation' ? 'Сохранить тарифы' : 'Сохранить изменения'}
         </Button>
         {onCancel ? <Button disabled={isSubmitting} onClick={onCancel}>Отмена</Button> : null}

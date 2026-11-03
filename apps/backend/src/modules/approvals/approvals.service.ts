@@ -16,6 +16,9 @@ import { OneTimeManagerAvailabilityService } from '../one-time-orders/one-time-m
 import { PrismaService } from '../prisma/prisma.service';
 import { TasksService } from '../tasks/tasks.service';
 import { TimesheetsService } from '../timesheets/timesheets.service';
+import { ObjectSchedulingService } from '../object-scheduling/object-scheduling.service';
+import { ObjectOperationsService } from '../object-operations/object-operations.service';
+import { LEADERSHIP_OBJECT_ROLE_CODES } from '../objects/utils/object-access.util';
 
 import {
   ACCOUNTABILITY_CLOSURE_CONFIRMATION_TYPE,
@@ -95,6 +98,8 @@ export class ApprovalsService {
     private readonly timesheetsService: TimesheetsService,
     private readonly accountabilityService: AccountabilityService,
     private readonly oneTimeManagerAvailabilityService: OneTimeManagerAvailabilityService,
+    private readonly scheduling: ObjectSchedulingService,
+    private readonly objectOperations: ObjectOperationsService,
   ) {}
 
   async listRequests(
@@ -322,6 +327,7 @@ export class ApprovalsService {
       roleCodes,
       permissionCodes,
     });
+    const retroactiveTimesheetScope: Prisma.ApprovalRequestWhereInput[] = roleCodes.some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role)) ? [{approvalType: MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE, payloadSnapshot: {path: ['independentLeadershipRequired'], equals: true}}] : [];
 
     if (resolvableTypes.length === 0) {
       return {
@@ -331,6 +337,7 @@ export class ApprovalsService {
 
     return {
       OR: [
+        ...retroactiveTimesheetScope,
         {
           createdByUserId: currentUser.id,
         },
@@ -495,6 +502,10 @@ export class ApprovalsService {
     currentUser: CurrentAuthUser,
     request: ApprovalRequestRecord,
   ): void {
+    if (request.approvalType === 'object_compensation_confirmation' || (request.approvalType === MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE && this.normalizePayloadSnapshot(request.payloadSnapshot).independentLeadershipRequired === true)) {
+      if (!currentUser.isActive || request.createdByUserId === currentUser.id || !this.getRoleCodes(currentUser).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role))) throw new ForbiddenException('Прошлое начисление подтверждает другой активный пользователь руководящего круга');
+      return;
+    }
     if (
       !canResolveApprovalType({
         approvalType: request.approvalType as ApprovalType,
@@ -525,6 +536,7 @@ export class ApprovalsService {
   ): void {
     if (
       ![
+        'object_compensation_confirmation',
         TASK_RESULT_CONFIRMATION_TYPE,
         OBJECT_CHANGE_CONFIRMATION_TYPE,
         MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,
@@ -545,6 +557,13 @@ export class ApprovalsService {
     comment: string | null,
   ): Promise<void> {
     switch (request.approvalType) {
+      case 'object_compensation_confirmation':
+        if ((await tx.objectCompensationAdjustment.findUniqueOrThrow({where: {id: request.sourceEntityId}})).kind === 'legacy_attendance') {
+          await this.objectOperations.applyAttendanceFinancialDecision(tx, currentUser, request.sourceEntityId);
+          return;
+        }
+        await this.scheduling.applyFinancialDecision(tx, currentUser, request.sourceEntityId, 'approve');
+        return;
       case TASK_RESULT_CONFIRMATION_TYPE:
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
@@ -616,6 +635,9 @@ export class ApprovalsService {
     comment: string,
   ): Promise<void> {
     switch (request.approvalType) {
+      case 'object_compensation_confirmation':
+        await this.scheduling.applyFinancialDecision(tx, currentUser, request.sourceEntityId, 'reject');
+        return;
       case TASK_RESULT_CONFIRMATION_TYPE:
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
@@ -681,6 +703,9 @@ export class ApprovalsService {
     void comment;
 
     switch (request.approvalType) {
+      case 'object_compensation_confirmation':
+        await this.scheduling.applyFinancialDecision(tx, currentUser, request.sourceEntityId, 'cancel');
+        return;
       case TASK_RESULT_CONFIRMATION_TYPE: {
         await this.tasksService.applyTaskResultApprovalDecision(tx, {
           taskId: request.sourceEntityId,
@@ -736,16 +761,19 @@ export class ApprovalsService {
     const payloadSnapshot = this.normalizePayloadSnapshot(request.payloadSnapshot);
     const canApprove =
       request.status === 'pending' &&
-      canResolveApprovalType({
+      ((request.approvalType === 'object_compensation_confirmation' || (request.approvalType === MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE && payloadSnapshot.independentLeadershipRequired === true))
+      ? currentUser.isActive && request.createdByUserId !== currentUser.id && this.getRoleCodes(currentUser).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role))
+      : canResolveApprovalType({
         approvalType: request.approvalType as ApprovalType,
         roleCodes: this.getRoleCodes(currentUser),
         permissionCodes: this.getPermissionCodes(currentUser),
-      });
+      }));
     const canReject =
       canApprove && request.approvalType !== INVENTORY_EXCEPTION_CONFIRMATION_TYPE;
     const canCancel =
       request.status === 'pending' &&
       [
+        'object_compensation_confirmation',
         TASK_RESULT_CONFIRMATION_TYPE,
         OBJECT_CHANGE_CONFIRMATION_TYPE,
         MANUAL_TIMESHEET_EXCEPTION_CONFIRMATION_TYPE,

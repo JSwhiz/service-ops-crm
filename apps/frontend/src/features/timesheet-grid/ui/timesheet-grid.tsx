@@ -65,7 +65,7 @@ export function TimesheetGrid({
 }: {
   timesheet: TimesheetMonth;
   canEditEntries: boolean;
-  onDirectChange: (payload: TimesheetCellMutation) => Promise<void>;
+  onDirectChange: (payload: TimesheetCellMutation) => Promise<'pending' | void>;
   onRequestCorrection: (payload: Required<TimesheetCellMutation>) => Promise<void>;
   onOpenDetails?: (employeeId: string) => void;
 }): React.JSX.Element {
@@ -131,6 +131,7 @@ export function TimesheetGrid({
                       })}
                     >
                       <TimesheetCellEditor
+                        key={`${timesheet.year}:${timesheet.month}:${row.employeeId}:${entry.dayOfMonth}`}
                         entry={entry}
                         objectId={timesheet.objectId}
                         objectName={timesheet.objectName}
