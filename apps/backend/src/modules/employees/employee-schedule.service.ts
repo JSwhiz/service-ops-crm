@@ -6,6 +6,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { employeeAction } from './utils/employee-policy.util';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,7 +18,7 @@ import {
 } from './dto/update-employee-schedule.dto';
 import { canEditEmployee } from './utils/employee-hr-access.util';
 
-interface ScheduleActor {
+interface ScheduleActor extends AccessSubject {
   id: string;
   permissionCodes?: string[];
 }
@@ -44,8 +46,8 @@ export class EmployeeScheduleService {
     private readonly auditService: AuditService,
   ) {}
 
-  assertCanManage(actor: ScheduleActor): void {
-    if (!canEditEmployee(actor.permissionCodes ?? [])) {
+  assertCanManage(actor: ScheduleActor, employeeId?: string, code = 'employees.edit'): void {
+    if (!employeeAction(actor, code, canEditEmployee(actor.permissionCodes ?? []), employeeId)) {
       throw new ForbiddenException('Employee schedule access denied');
     }
   }
@@ -130,7 +132,7 @@ export class EmployeeScheduleService {
     substitutionId: string,
     payload: UpdateEmployeeSubstitutionDto,
   ): Promise<void> {
-    this.assertCanManage(actor);
+    this.assertCanManage(actor, employeeId, 'employees.substitutions.manage');
     if (payload.status === undefined && payload.endDate === undefined) {
       throw new BadRequestException('Nothing to update');
     }
@@ -186,7 +188,7 @@ export class EmployeeScheduleService {
     windowId: string,
     payload: UpdateEmployeeAvailabilityDto,
   ): Promise<void> {
-    this.assertCanManage(actor);
+    this.assertCanManage(actor, employeeId, 'employees.availability.manage');
     const existing = await this.findWindow(employeeId, windowId);
     const endDate = this.parseBoundary(payload.endDate, existing.availabilityMode);
     if (endDate < existing.startDate) {
@@ -211,7 +213,7 @@ export class EmployeeScheduleService {
 
   /** Removes an erroneously entered window; the audit keeps its snapshot. */
   async deleteAvailability(actor: ScheduleActor, employeeId: string, windowId: string): Promise<void> {
-    this.assertCanManage(actor);
+    this.assertCanManage(actor, employeeId, 'employees.availability.manage');
     const existing = await this.findWindow(employeeId, windowId);
 
     await this.prisma.$transaction(async (tx) => {

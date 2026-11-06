@@ -12,7 +12,9 @@ export type ChatMessageType = 'user' | 'system';
 
 export type ChatParticipantRole = 'admin' | 'member';
 
-export interface CurrentAuthUser {
+import type { AccessSubject } from '../../users-access/types/access-policy.type';
+
+export interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;

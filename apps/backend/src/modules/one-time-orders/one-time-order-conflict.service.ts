@@ -176,7 +176,7 @@ export class OneTimeOrderConflictService {
               where: {
                 AND: [
                   { id: { in: orders.map((order) => order.id) } },
-                  buildOneTimeOrderAccessWhere({
+                  buildOneTimeOrderAccessWhere({ subject: currentUser,
                     currentUserId: currentUser.id,
                     roleCodes: this.getRoleCodes(currentUser),
                     permissionCodes: currentUser.permissionCodes,

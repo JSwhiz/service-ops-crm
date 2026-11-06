@@ -70,6 +70,11 @@ export interface InventoryMovementListResponse {
   totalPages: number;
 }
 
+export interface OneTimeOrderInventory extends InventoryMovementListResponse {
+  availableItems: InventoryItem[];
+  capabilities: { canIssueInventoryToOrder: boolean };
+}
+
 export interface InventoryReportSummary {
   totalItems: number;
   totalActiveItems: number;

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { decideAccess } from '../users-access/utils/access-policy.util';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
 import {
   createSimpleXlsxWorkbook,
@@ -56,7 +57,7 @@ export class OneTimeOrderCalendarService {
     ) {
       return [];
     }
-    const users = await listOneTimeOrderCalendarRoster(this.prisma, { search });
+    const users = await listOneTimeOrderCalendarRoster(this.prisma, { search, subject: currentUser });
     return users.map(({ id, login, fullName }) => ({ id, login, fullName }));
   }
 
@@ -64,6 +65,7 @@ export class OneTimeOrderCalendarService {
     currentUser: CurrentAuthUser,
     query: ListOneTimeOrderCalendarQueryDto,
   ): Promise<{ fileName: string; buffer: Buffer }> {
+    if (!decideAccess(currentUser, 'one_time_order_calendar.export', true, { resourceType: 'user', resourceId: query.managerUserId, ownerUserId: query.managerUserId })) throw new ForbiddenException('Calendar export denied');
     const calendar = await this.getCalendar(currentUser, query);
     const accessibleOrders = await this.loadAccessibleExportOrders(
       currentUser,
@@ -205,7 +207,7 @@ export class OneTimeOrderCalendarService {
     await this.assertCanViewCalendar(currentUser);
     const { monthStart, monthEnd, daysInMonth } = this.parseMonth(query.month);
     const elevatedPendingAccess = this.hasElevatedCalendarAccess(currentUser);
-    const accessWhere = buildOneTimeOrderAccessWhere({
+    const accessWhere = buildOneTimeOrderAccessWhere({ subject: currentUser,
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
       permissionCodes: currentUser.permissionCodes,
@@ -220,6 +222,7 @@ export class OneTimeOrderCalendarService {
       query.managerUserId,
     );
     const eligibleUsers = await listOneTimeOrderCalendarRoster(this.prisma, {
+      subject: currentUser,
       managerUserId: effectiveManagerUserId,
     });
     const managerIds = eligibleUsers.map((user) => user.id);
@@ -230,6 +233,7 @@ export class OneTimeOrderCalendarService {
         where: {
           executionStartDate: { lte: monthEnd },
           executionEndDate: { gte: monthStart },
+          AND: [buildOneTimeOrderAccessWhere({ subject: currentUser, currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), legacyWhere: {} })],
           ...orderStatusWhere,
           assignments: {
             some: {
@@ -441,7 +445,7 @@ export class OneTimeOrderCalendarService {
     query: ListOneTimeOrderCalendarQueryDto,
   ) {
     const { monthStart, monthEnd } = this.parseMonth(query.month);
-    const accessWhere = buildOneTimeOrderAccessWhere({
+    const accessWhere = buildOneTimeOrderAccessWhere({ subject: currentUser,
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
       permissionCodes: currentUser.permissionCodes,
@@ -456,6 +460,8 @@ export class OneTimeOrderCalendarService {
       query.managerUserId,
     );
     const roster = await listOneTimeOrderCalendarRoster(this.prisma, {
+      subject: currentUser,
+      actionCode: 'one_time_order_calendar.export',
       managerUserId: effectiveManagerUserId,
     });
     const rosterUserIds = roster.map((user) => user.id);
@@ -616,6 +622,7 @@ export class OneTimeOrderCalendarService {
   }
 
   private async assertCanViewCalendar(currentUser: CurrentAuthUser): Promise<void> {
+    if (!decideAccess(currentUser, 'one_time_order_calendar.access', true)) throw new ForbiddenException('Calendar access denied');
     const roleCodes = currentUser.roleCodes ?? [currentUser.roleCode];
     const hasActiveAssignment = await this.prisma.oneTimeOrderAssignment.findFirst({
       where: {
@@ -641,6 +648,7 @@ export class OneTimeOrderCalendarService {
     requestedManagerUserId?: string,
   ): Promise<string | undefined> {
     if (requestedManagerUserId) {
+      if (!decideAccess(currentUser, 'one_time_order_calendar.read', true, { resourceType: 'user', resourceId: requestedManagerUserId, ownerUserId: requestedManagerUserId })) throw new ForbiddenException('Calendar scope denied');
       if (
         requestedManagerUserId !== currentUser.id &&
         !this.hasElevatedCalendarAccess(currentUser)

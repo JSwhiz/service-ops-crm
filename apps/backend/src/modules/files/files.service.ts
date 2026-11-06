@@ -42,10 +42,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
 import { StorageService } from '../storage/storage.service';
 import { buildTaskAccessWhere } from '../tasks/utils/task-access.util';
+import { taskVisibilityWhere } from '../tasks/utils/task-policy.util';
 import {
   canManageChats,
   hasOperationalChatRole,
   isChatLeadership,
+  isObjectsChatDenied,
 } from '../chats/utils/chat-access.util';
 
 import { SafeFileResponseDto } from './dto/safe-file-response.dto';
@@ -67,8 +69,10 @@ import {
 } from './constants/file-preview.constants';
 import { FilePreviewService } from './file-preview.service';
 import { mapSafeFileResponse } from './utils/safe-file-response.mapper';
+import { resourceAccessTarget } from '../../common/access/resource-access-context';
+import { decideAccess, hasModuleDeny, type AccessSubject, type AccessContext } from '../users-access/utils/access-policy.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   roleCode: string;
   roleCodes?: string[];
@@ -105,6 +109,12 @@ export class FilesService {
     }
     this.assertValidFieldCode(entityType, body.fieldCode ?? null);
     await this.assertEntityWritable(currentUser, entityType, body.entityId);
+    const uploadTarget = await resourceAccessTarget(this.prisma, entityType, body.entityId);
+    if (!decideAccess(currentUser, 'files.upload', true, {
+      resourceType: 'file', resourceId: body.uploadId, ownerUserId: currentUser.id,
+      assignedUserIds: uploadTarget?.context.assignedUserIds,
+      parents: uploadTarget ? [uploadTarget] : [],
+    })) throw new ForbiddenException('Загрузка файлов недоступна');
 
     // The client reuses this ID after an uncertain response or a partial batch.
     const uploadId = body.uploadId ?? randomUUID();
@@ -354,6 +364,12 @@ export class FilesService {
   }
 
   async assertDailyReportWritable(currentUser: CurrentAuthUser, reportId: string): Promise<void> {
+    const target = await resourceAccessTarget(this.prisma, 'object_daily_report', reportId);
+    if (!target || hasModuleDeny(currentUser, 'objects.reports.update', target.context) ||
+      !decideAccess(currentUser, 'files.upload', true, {
+        resourceType: 'file', ownerUserId: currentUser.id,
+        assignedUserIds: target.context.assignedUserIds, parents: [target],
+      })) throw new ForbiddenException('Изменение вложений отчёта недоступно');
     if (this.getPermissionCodes(currentUser).includes('objects.hr_reports_view') || !(await this.canWriteDailyReportTarget(currentUser, reportId))) {
       throw new ForbiddenException('Daily report attachment editing denied');
     }
@@ -364,16 +380,37 @@ export class FilesService {
     id: string,
   ): Promise<FileViewResponseDto> {
     const file = await this.getReadableFile(currentUser, id);
-    const derivative = await this.filePreviewService.ensurePreview(file);
-
-    return this.mapFileView(file, derivative);
+    const contexts: AccessContext[] = [];
+    for (const attachment of file.attachments) {
+        const type = this.parseEntityType(attachment.entityType);
+        if (!(await this.canReadEntity(currentUser, type, attachment.entityId))) continue;
+        const target = await resourceAccessTarget(this.prisma, type, attachment.entityId);
+        contexts.push({
+          resourceType: 'file', resourceId: file.id, ownerUserId: file.uploadedByUserId ?? undefined,
+          assignedUserIds: target?.context.assignedUserIds, parents: target ? [target] : [],
+        });
+    }
+    const allowed = (actionCode: string): boolean => contexts.some(context => decideAccess(currentUser, actionCode, true, context));
+    const canPreview = allowed('files.preview');
+    const canDownload = allowed('files.download');
+    const canRetryPreview = allowed('files.preview.retry');
+    const derivative = canPreview ? await this.filePreviewService.ensurePreview(file) : null;
+    const result = this.mapFileView(file, derivative);
+    result.capabilities = { canPreview, canDownload, canRetryPreview };
+    if (!canPreview) {
+      result.inlineContentUrl = null;
+      result.thumbnailUrl = null;
+      result.previewStatus = 'failed';
+      result.errorMessage = 'Предпросмотр ограничен настройками доступа.';
+    }
+    return result;
   }
 
   async retryPreview(
     currentUser: CurrentAuthUser,
     id: string,
   ): Promise<FileViewResponseDto> {
-    const file = await this.getReadableFile(currentUser, id);
+    const file = await this.getReadableFile(currentUser, id, 'files.preview.retry');
     await this.filePreviewService.retryPreview(file);
 
     return this.getViewById(currentUser, id);
@@ -388,7 +425,7 @@ export class FilesService {
     sizeBytes: number;
     originalName: string;
   }> {
-    const file = await this.getReadableFile(currentUser, id);
+    const file = await this.getReadableFile(currentUser, id, 'files.preview');
     const derivative = file.derivatives.find(
       (item) => item.derivativeType === IMAGE_THUMBNAIL_DERIVATIVE,
     );
@@ -420,7 +457,7 @@ export class FilesService {
     originalName: string;
     isTruncated: boolean;
   }> {
-    const file = await this.getReadableFile(currentUser, id);
+    const file = await this.getReadableFile(currentUser, id, 'files.preview');
 
     if (
       INLINE_IMAGE_MIME_TYPES.has(file.mimeType) ||
@@ -496,7 +533,7 @@ export class FilesService {
       throw new NotFoundException('File not found');
     }
 
-    await this.assertFileReadable(currentUser, file.attachments);
+    await this.assertFileReadable(currentUser, file.attachments, file);
 
     return mapSafeFileResponse(file);
   }
@@ -525,7 +562,12 @@ export class FilesService {
       },
     });
 
-    return attachments.map((attachment) =>
+    const target = await resourceAccessTarget(this.prisma, entityType, params.entityId);
+    return attachments.filter((attachment) => decideAccess(params.currentUser, 'files.read', true, {
+      resourceType: 'file', resourceId: attachment.file.id,
+      ownerUserId: attachment.file.uploadedByUserId ?? undefined,
+      assignedUserIds: target?.context.assignedUserIds, parents: target ? [target] : [],
+    })).map((attachment) =>
       mapSafeFileResponse(attachment.file),
     );
   }
@@ -557,7 +599,7 @@ export class FilesService {
       throw new NotFoundException('File not found');
     }
 
-    await this.assertFileReadable(currentUser, file.attachments);
+    await this.assertFileReadable(currentUser, file.attachments, file, 'files.download');
 
     const storedObject = await this.storageService.downloadObject(file.objectKey);
 
@@ -586,7 +628,7 @@ export class FilesService {
     return `/api/v1/files/${fileId}/content`;
   }
 
-  private async getReadableFile(currentUser: CurrentAuthUser, id: string) {
+  private async getReadableFile(currentUser: CurrentAuthUser, id: string, actionCode = 'files.read') {
     const file = await this.prisma.file.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -603,7 +645,7 @@ export class FilesService {
       throw new NotFoundException('File not found');
     }
 
-    await this.assertFileReadable(currentUser, file.attachments);
+    await this.assertFileReadable(currentUser, file.attachments, file, actionCode);
 
     return file;
   }
@@ -630,6 +672,7 @@ export class FilesService {
 
     return {
       id: file.id,
+      capabilities: { canPreview: true, canDownload: true, canRetryPreview: true },
       originalName: file.originalName,
       mimeType: file.mimeType,
       sizeBytes: file.sizeBytes,
@@ -760,6 +803,8 @@ export class FilesService {
       entityType: string;
       entityId: string;
     }>,
+    file: { id: string; uploadedByUserId: string | null },
+    actionCode = 'files.read',
   ): Promise<void> {
     for (const attachment of attachments) {
       const entityType = this.parseEntityType(attachment.entityType);
@@ -767,7 +812,13 @@ export class FilesService {
       if (
         await this.canReadEntity(currentUser, entityType, attachment.entityId)
       ) {
-        return;
+        const target = await resourceAccessTarget(this.prisma, entityType, attachment.entityId);
+        const context: AccessContext = {
+          resourceType: 'file', resourceId: file.id, ownerUserId: file.uploadedByUserId ?? undefined,
+          assignedUserIds: target?.context.assignedUserIds,
+          parents: target ? [target] : [],
+        };
+        if (decideAccess(currentUser, 'files.read', true, context) && decideAccess(currentUser, actionCode, true, context)) return;
       }
     }
 
@@ -799,15 +850,48 @@ export class FilesService {
     entityType: FileAttachmentEntityType,
     entityId: string,
   ): Promise<boolean> {
+    const legacy = await this.canReadEntityLegacy(currentUser, entityType, entityId);
+    const target = await resourceAccessTarget(this.prisma, entityType, entityId);
+    if (!target) return false;
+    // Identity resolution retains archived ancestors for deny checks. That is
+    // not permission to open their files, including the HR report extension.
+    if (target.context.resourceType === 'object' && (!target.context.resourceId || !(await this.prisma.object.findFirst({
+      where: { id: target.context.resourceId, deletedAt: null }, select: { id: true },
+    })))) return false;
+    let parentAllowed = true;
+    if (['object_arrival_photo', 'object_daily_report', 'object_comment'].includes(entityType)) {
+      const objectId = target.context.resourceId;
+      // Preserve the existing HR report-only exception, not a new bypass from
+      // granting a child action. Explicit parent denies are still checked below.
+      const hrReport = entityType === 'object_daily_report' && decideAccess(currentUser, 'objects.hr_reports_view', this.getPermissionCodes(currentUser).includes('objects.hr_reports_view'), target.context);
+      parentAllowed = hrReport || (!!objectId && decideAccess(currentUser, 'objects.read', await this.canReadObject(currentUser, objectId), target.context));
+    }
+    if (['one_time_order_comment', 'one_time_order_daily_report', 'one_time_order_photo', 'one_time_order_specification_item'].includes(entityType)) {
+      const orderId = target.context.resourceId;
+      parentAllowed = !!orderId && await this.canReadEntity(currentUser, 'one_time_order', orderId);
+    }
+    const materialsAllowed = entityType !== 'object' || decideAccess(currentUser, 'objects.materials.read', true, target.context);
+    return materialsAllowed && decideAccess(currentUser, target.actionCode, legacy, {
+      ...target.context,
+      parentAllowed,
+      ...(['chat_message', 'task', 'task_assignee_completion'].includes(entityType) ? { invariantAllowed: legacy } : {}),
+    });
+  }
+
+  private async canReadEntityLegacy(
+    currentUser: CurrentAuthUser,
+    entityType: FileAttachmentEntityType,
+    entityId: string,
+  ): Promise<boolean> {
     switch (entityType) {
       case 'object':
-        return this.canReadObject(currentUser, entityId);
+        return this.canReadObject(currentUser, entityId, 'objects.materials.read');
       case 'object_arrival_photo':
         return this.canAccessObjectScopedEntity(currentUser, 'objectArrivalPhoto', entityId);
       case 'object_daily_report':
-        if (this.getPermissionCodes(currentUser).includes('objects.hr_reports_view')) {
-          const report = await this.prisma.objectDailyReport.findUnique({ where: { id: entityId }, select: { objectId: true } });
-          return !!report;
+        {
+          const target = await resourceAccessTarget(this.prisma, entityType, entityId);
+          if (target && decideAccess(currentUser, 'objects.hr_reports_view', this.getPermissionCodes(currentUser).includes('objects.hr_reports_view'), target.context)) return true;
         }
         return this.canAccessObjectScopedEntity(currentUser, 'objectDailyReport', entityId);
       case 'object_comment':
@@ -852,6 +936,31 @@ export class FilesService {
   }
 
   private async canWriteEntity(
+    currentUser: CurrentAuthUser,
+    entityType: FileAttachmentEntityType,
+    entityId: string,
+  ): Promise<boolean> {
+    const target = await resourceAccessTarget(this.prisma, entityType, entityId);
+    if (!target) return false;
+    if (target.context.resourceType === 'object' && (!target.context.resourceId || !(await this.prisma.object.findFirst({
+      where: { id: target.context.resourceId, deletedAt: null }, select: { id: true },
+    })))) return false;
+    if (target && hasModuleDeny(currentUser, target.actionCode, target.context)) return false;
+    const writeActions: Partial<Record<FileAttachmentEntityType, string>> = {
+      object: 'objects.materials.manage', object_arrival_photo: 'objects.arrival.create',
+      object_comment: 'objects.comments.create', object_daily_report: 'objects.reports.update',
+      one_time_order: 'one_time_orders.update', one_time_order_comment: 'one_time_orders.comments.create',
+      one_time_order_daily_report: 'one_time_orders.reports.update', one_time_order_photo: 'one_time_orders.photos.create',
+      one_time_order_specification_item: 'one_time_orders.specification.attachments',
+      task: 'tasks.update', task_assignee_completion: 'tasks.completion.draft',
+      accountability_expense: 'accountability.expenses.update', chat_message: 'chat.messages.create',
+    };
+    const actionCode = writeActions[entityType];
+    if (target && actionCode && hasModuleDeny(currentUser, actionCode, target.context)) return false;
+    return this.canWriteEntityLegacy(currentUser, entityType, entityId);
+  }
+
+  private async canWriteEntityLegacy(
     currentUser: CurrentAuthUser,
     entityType: FileAttachmentEntityType,
     entityId: string,
@@ -912,6 +1021,7 @@ export class FilesService {
   private async canReadObject(
     currentUser: CurrentAuthUser,
     objectId: string,
+    policyActionCode = 'objects.read',
   ): Promise<boolean> {
     const object = await this.prisma.object.findFirst({
       where: {
@@ -941,7 +1051,10 @@ export class FilesService {
       hasWideObjectAccess(roleCodes) ||
       object.createdByUserId === currentUser.id ||
       object.assignments.some((assignment) => assignment.userId === currentUser.id) ||
-      hasDelegatedObjectAction(currentUser.id, objectId, 'view')
+      hasDelegatedObjectAction(currentUser.id, objectId, 'view', true, policyActionCode, {
+        resourceType: 'object', resourceId: objectId, ownerUserId: object.createdByUserId,
+        assignedUserIds: object.assignments.map(assignment => assignment.userId),
+      })
     );
   }
 
@@ -955,7 +1068,10 @@ export class FilesService {
     const roleCodes = this.getRoleCodes(currentUser);
     return hasWideObjectAccess(roleCodes) || report.object.createdByUserId === currentUser.id ||
       report.object.assignments.some((assignment) => assignment.userId === currentUser.id) ||
-      hasDelegatedObjectAction(currentUser.id, report.objectId, 'edit');
+      hasDelegatedObjectAction(currentUser.id, report.objectId, 'edit', true, 'objects.reports.update', {
+        resourceType: 'object', resourceId: report.objectId, ownerUserId: report.object.createdByUserId,
+        assignedUserIds: report.object.assignments.map(assignment => assignment.userId),
+      });
   }
 
   private async canWriteObjectCore(
@@ -978,11 +1094,15 @@ export class FilesService {
 
     const roleCodes = this.getRoleCodes(currentUser);
 
-    return (
+    const target = await resourceAccessTarget(this.prisma, 'object', objectId);
+    return decideAccess(currentUser, 'objects.materials.manage', (
       canEditObject(roleCodes) ||
       (object.status === 'frozen' && canOverrideFrozenObject(roleCodes)) ||
-      hasDelegatedObjectAction(currentUser.id, objectId, 'edit')
-    );
+      hasDelegatedObjectAction(currentUser.id, objectId, 'edit', true, 'objects.materials.manage', target?.context)
+    ), {
+      ...target?.context,
+      invariantAllowed: object.status !== 'archived' && (object.status !== 'frozen' || canOverrideFrozenObject(roleCodes)),
+    });
   }
 
   private async canAccessObjectScopedEntity(
@@ -1015,9 +1135,9 @@ export class FilesService {
       throw new NotFoundException('Attachment target entity not found');
     }
 
-    // Bridge baseline: object-scoped file uploads follow the same access gate
-    // as current object operations until a finer-grained capability model lands.
-    return this.canReadObject(currentUser, item.objectId);
+    const actionCode = modelName === 'objectDailyReport' ? 'objects.reports.read'
+      : modelName === 'objectComment' ? 'objects.comments.read' : 'objects.arrival.read';
+    return this.canReadObject(currentUser, item.objectId, actionCode);
   }
 
   private async canAccessTask(
@@ -1028,10 +1148,10 @@ export class FilesService {
       where: {
         AND: [
           { id: taskId },
-          buildTaskAccessWhere({
+          taskVisibilityWhere(currentUser, buildTaskAccessWhere({
             currentUserId: currentUser.id,
             roleCodes: this.getRoleCodes(currentUser),
-          }),
+          })),
         ],
       },
       select: { id: true },
@@ -1074,8 +1194,10 @@ export class FilesService {
       throw new NotFoundException('Task completion not found');
     }
 
+    if (!(await this.canAccessTask(currentUser, completion.taskAssignee.task.id))) return false;
+
     if (mode === 'read') {
-      return this.canAccessTask(currentUser, completion.taskAssignee.task.id);
+      return true;
     }
 
     return (
@@ -1153,9 +1275,10 @@ export class FilesService {
       );
     }
 
+    const accessTarget = await resourceAccessTarget(this.prisma, 'inventory_movement', movementId);
     return (
       canAccessInventory(roleCodes) ||
-      hasDelegatedObjectAction(currentUser.id, movement.relatedObject?.id, 'view') ||
+      hasDelegatedObjectAction(currentUser.id, movement.relatedObject?.id, 'view', true, 'inventory.movements.read', accessTarget?.context) ||
       movement.createdByUserId === currentUser.id ||
       (!!movement.relatedObject &&
         (movement.relatedObject.createdByUserId === currentUser.id ||
@@ -1234,10 +1357,11 @@ export class FilesService {
       );
     }
 
+    const accessTarget = await resourceAccessTarget(this.prisma, 'equipment_movement', movementId);
     const canReadObjectLike = (object: typeof movement.fromObject) =>
       !!object &&
       (object.createdByUserId === currentUser.id ||
-        hasDelegatedObjectAction(currentUser.id, object.id, 'view') ||
+        hasDelegatedObjectAction(currentUser.id, object.id, 'view', true, 'equipment.history', accessTarget?.context) ||
         object.assignments.some(
           (assignment) => assignment.userId === currentUser.id,
         ));
@@ -1277,6 +1401,7 @@ export class FilesService {
           ...(mode === 'read'
             ? [
                 buildOneTimeOrderAccessWhere({
+                  subject: currentUser,
                   currentUserId: currentUser.id,
                   roleCodes,
                   permissionCodes: this.getPermissionCodes(currentUser),
@@ -1309,6 +1434,7 @@ export class FilesService {
     }
 
     return canEditOneTimeOrderByScope({
+      subject: currentUser,
       currentUserId: currentUser.id,
       roleCodes,
       permissionCodes: this.getPermissionCodes(currentUser),
@@ -1603,6 +1729,20 @@ export class FilesService {
       visibilityType: string;
     },
   ): Promise<boolean> {
+    const legacy = await this.canAccessChatRoomLegacy(currentUser, room);
+    const target = await resourceAccessTarget(this.prisma, 'chat_room', room.id);
+    return decideAccess(currentUser, 'chat.read', legacy, {
+      ...target?.context,
+      invariantAllowed: room.visibilityType === 'explicit_members' || room.visibilityType === 'leadership_only' ? legacy : true,
+      parents: room.visibilityType === 'objects_scope' ? [{ actionCode: 'objects.access', context: {} }]
+        : room.visibilityType === 'one_time_orders_scope' ? [{ actionCode: 'one_time_orders.access', context: {} }] : [],
+    });
+  }
+
+  private async canAccessChatRoomLegacy(
+    currentUser: CurrentAuthUser,
+    room: { id: string; visibilityType: string },
+  ): Promise<boolean> {
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (room.visibilityType === 'leadership_only') {
@@ -1611,8 +1751,10 @@ export class FilesService {
 
     if (room.visibilityType === 'objects_scope') {
       return (
+        !isObjectsChatDenied(roleCodes) && (
         hasOperationalChatRole(roleCodes) ||
         (await this.hasActiveObjectAssignment(currentUser.id))
+        )
       );
     }
 

@@ -1,4 +1,8 @@
+import { AccessRule } from "../../users-access/types/access-policy.type";
+
 export class MeResponseDto {
+  accessVersion!: number;
+  accessRules!: AccessRule[];
   id!: string;
   login!: string;
   fullName!: string;
@@ -6,6 +10,22 @@ export class MeResponseDto {
   roleCodes!: string[];
   isActive!: boolean;
   capabilities!: {
+    canCreateTask: boolean;
+    canCreateCandidate: boolean;
+    canCreateCounterparty: boolean;
+    canCreateInventoryItem: boolean;
+    canCreateEquipmentUnit: boolean;
+    canAccessSearch: boolean;
+    canAccessNotifications: boolean;
+    canAccessObjects: boolean;
+    canAccessMats: boolean;
+    canAccessTasks: boolean;
+    canAccessTimesheet: boolean;
+    canAccessUserAbsences: boolean;
+    canAccessVisitPlans: boolean;
+    canAccessUserSubstitutions: boolean;
+    canAccessDashboard: boolean;
+    canManageUserAccess: boolean;
     canAccessCounterparties: boolean;
     canManageCounterparties: boolean;
     canLinkCounterpartyObjects: boolean;

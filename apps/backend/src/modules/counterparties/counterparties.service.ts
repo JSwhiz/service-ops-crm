@@ -6,11 +6,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AccessSubject, buildAccessWhere, decideAccess } from '../users-access/utils/access-policy.util';
 
 import { AuditHistoryEvent, AuditService } from '../audit/audit.service';
 import { ListAuditHistoryQueryDto } from '../audit/dto/list-audit-history-query.dto';
 import { InventoryService } from '../inventory/inventory.service';
-import { canViewObjectBasicProfile } from '../objects/utils/object-access.util';
+import { buildObjectAccessPolicyWhere, canViewObjectBasicProfile } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import {
@@ -33,7 +34,7 @@ import {
   canViewCounterparties,
 } from './utils/counterparty-access.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -65,6 +66,7 @@ export class CounterpartiesService {
     this.assertView(currentUser);
     const q = query.q?.trim();
     const where: Prisma.CounterpartyWhereInput = {
+      AND: [this.accessWhere(currentUser)],
       ...(query.status === 'all' ? {} : { status: query.status }),
       ...(q
         ? {
@@ -85,7 +87,7 @@ export class CounterpartiesService {
         orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
         skip: (query.page - 1) * query.limit,
         take: query.limit,
-        include: { _count: { select: { objects: true } } },
+        include: { _count: { select: { objects: { where: buildObjectAccessPolicyWhere(currentUser, {}) } } } },
       }),
     ]);
 
@@ -114,8 +116,8 @@ export class CounterpartiesService {
     this.assertView(currentUser);
     const q = query.q?.trim();
     const selected = query.selectedId
-      ? await this.prisma.counterparty.findUnique({
-          where: { id: query.selectedId },
+      ? await this.prisma.counterparty.findFirst({
+          where: { id: query.selectedId, AND: [this.accessWhere(currentUser)] },
           select: {
             id: true,
             name: true,
@@ -127,6 +129,7 @@ export class CounterpartiesService {
 
     const rows = await this.prisma.counterparty.findMany({
       where: {
+        AND: [this.accessWhere(currentUser)],
         status: 'active',
         ...(q
           ? {
@@ -155,7 +158,7 @@ export class CounterpartiesService {
     currentUser: CurrentAuthUser,
     id: string,
   ): Promise<CounterpartyCardResponseDto> {
-    this.assertView(currentUser);
+    this.assertView(currentUser, id);
     const counterparty = await this.prisma.counterparty.findUnique({
       where: { id },
       include: {
@@ -170,7 +173,7 @@ export class CounterpartiesService {
         masterObject: {
           include: objectInclude,
         },
-        _count: { select: { objects: true } },
+        _count: { select: { objects: { where: buildObjectAccessPolicyWhere(currentUser, {}) } } },
       },
     });
     if (!counterparty) {
@@ -178,7 +181,7 @@ export class CounterpartiesService {
     }
 
     const visibleObjects = counterparty.objects.filter((object) =>
-      canViewObjectBasicProfile({
+      canViewObjectBasicProfile({ subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes: this.roleCodes(currentUser),
         permissionCodes: this.permissions(currentUser),
@@ -210,8 +213,8 @@ export class CounterpartiesService {
         status: object.status,
       })),
       capabilities: {
-        canManage: canManageCounterparties(this.permissions(currentUser)),
-        canLinkObjects: canLinkCounterpartyObjects(this.permissions(currentUser)),
+        canManage: decideAccess(currentUser, 'counterparties.update', canManageCounterparties(this.permissions(currentUser)), { resourceType: 'counterparty', resourceId: id }),
+        canLinkObjects: decideAccess(currentUser, 'counterparties.objects.link', canLinkCounterpartyObjects(this.permissions(currentUser)), { resourceType: 'counterparty', resourceId: id }),
       },
     };
   }
@@ -220,7 +223,7 @@ export class CounterpartiesService {
     currentUser: CurrentAuthUser,
     payload: CreateCounterpartyDto,
   ): Promise<CounterpartyCardResponseDto> {
-    this.assertManage(currentUser);
+    this.assertManage(currentUser, undefined, 'counterparties.create');
     const created = await this.prisma.counterparty.create({
       data: {
         name: payload.name,
@@ -248,7 +251,7 @@ export class CounterpartiesService {
     id: string,
     payload: UpdateCounterpartyDto,
   ): Promise<CounterpartyCardResponseDto> {
-    this.assertManage(currentUser);
+    this.assertManage(currentUser, id);
     const existing = await this.prisma.counterparty.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('Counterparty not found');
@@ -290,7 +293,7 @@ export class CounterpartiesService {
     id: string,
     archived: boolean,
   ): Promise<CounterpartyCardResponseDto> {
-    this.assertManage(currentUser);
+    this.assertManage(currentUser, id, archived ? 'counterparties.archive' : 'counterparties.restore');
     const existing = await this.prisma.counterparty.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('Counterparty not found');
@@ -318,7 +321,7 @@ export class CounterpartiesService {
     id: string,
     objectId: string,
   ): Promise<CounterpartyCardResponseDto> {
-    this.assertLink(currentUser);
+    this.assertLink(currentUser, id);
     const counterparty = await this.prisma.counterparty.findUnique({
       where: { id },
       select: { id: true, status: true },
@@ -400,7 +403,7 @@ export class CounterpartiesService {
     id: string,
     objectId: string,
   ): Promise<CounterpartyCardResponseDto> {
-    this.assertLink(currentUser);
+    this.assertLink(currentUser, id);
     const object = await this.loadLinkableObject(currentUser, objectId);
     if (object.counterpartyId !== id) {
       throw new BadRequestException('Object is not linked to this counterparty');
@@ -451,14 +454,14 @@ export class CounterpartiesService {
   }
 
   async history(currentUser: CurrentAuthUser, id: string) {
-    this.assertView(currentUser);
+    this.assertView(currentUser, id, 'counterparties.history');
     await this.assertExists(id);
     const events = await this.auditService.listAuditEvents('counterparty', id);
     return events.map((event) => this.mapHistoryEvent(event));
   }
 
   async historyPage(currentUser: CurrentAuthUser, id: string, query: ListAuditHistoryQueryDto) {
-    this.assertView(currentUser);
+    this.assertView(currentUser, id, 'counterparties.history');
     await this.assertExists(id);
     const page = await this.auditService.listAuditEventsPage('counterparty', id, query);
     return { ...page, items: page.items.map((event) => this.mapHistoryEvent(event)) };
@@ -482,7 +485,7 @@ export class CounterpartiesService {
   }
 
   async setMasterObject(currentUser: CurrentAuthUser, id: string, objectId: string) {
-    this.assertLink(currentUser);
+    this.assertLink(currentUser, id, 'counterparties.master_object.manage');
     const counterparty = await this.prisma.counterparty.findUnique({
       where: { id },
       select: { id: true, status: true },
@@ -527,7 +530,7 @@ export class CounterpartiesService {
   }
 
   async clearMasterObject(currentUser: CurrentAuthUser, id: string) {
-    this.assertLink(currentUser);
+    this.assertLink(currentUser, id, 'counterparties.master_object.manage');
     await this.assertExists(id);
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "counterparties" WHERE "id" = ${id} FOR UPDATE`;
@@ -550,7 +553,7 @@ export class CounterpartiesService {
   }
 
   async inventoryMovements(currentUser: CurrentAuthUser, id: string, query: ListCounterpartyMovementsQueryDto) {
-    this.assertView(currentUser);
+    this.assertView(currentUser, id, 'counterparties.inventory.read');
     await this.assertExists(id);
     return this.inventoryService.listCounterpartyMovementsScoped(
       currentUser as CurrentAuthUser & { roleCode: string },
@@ -580,7 +583,7 @@ export class CounterpartiesService {
     });
     if (
       !object ||
-      !canViewObjectBasicProfile({
+      !canViewObjectBasicProfile({ subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes: this.roleCodes(currentUser),
         permissionCodes: this.permissions(currentUser),
@@ -628,20 +631,28 @@ export class CounterpartiesService {
     return user.roleCodes ?? (user.roleCode ? [user.roleCode] : []);
   }
 
-  private assertView(user: CurrentAuthUser): void {
-    if (!canViewCounterparties(this.permissions(user))) {
+  private accessWhere(user: CurrentAuthUser): Prisma.CounterpartyWhereInput {
+    return buildAccessWhere<Prisma.CounterpartyWhereInput>({ subject: user, actionCode: 'counterparties.read',
+      legacyWhere: canViewCounterparties(this.permissions(user)) ? {} : { id: { in: [] } }, invariantWhere: {},
+      scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } } : null,
+    }) as Prisma.CounterpartyWhereInput;
+  }
+
+  private assertView(user: CurrentAuthUser, id?: string, action = 'counterparties.read'): void {
+    if (!decideAccess(user, action, canViewCounterparties(this.permissions(user)), { resourceType: 'counterparty', resourceId: id }) &&
+        !(id === undefined && user.accessRules?.some(r => r.effect === 'allow' && ['counterparties.access', 'counterparties.read'].includes(r.actionCode)))) {
       throw new ForbiddenException('Counterparty access denied');
     }
   }
 
-  private assertManage(user: CurrentAuthUser): void {
-    if (!canManageCounterparties(this.permissions(user))) {
+  private assertManage(user: CurrentAuthUser, id?: string, action = 'counterparties.update'): void {
+    if (!decideAccess(user, action, canManageCounterparties(this.permissions(user)), { resourceType: 'counterparty', resourceId: id })) {
       throw new ForbiddenException('Counterparty management denied');
     }
   }
 
-  private assertLink(user: CurrentAuthUser): void {
-    if (!canLinkCounterpartyObjects(this.permissions(user))) {
+  private assertLink(user: CurrentAuthUser, id?: string, action = 'counterparties.objects.link'): void {
+    if (!decideAccess(user, action, canLinkCounterpartyObjects(this.permissions(user)), { resourceType: 'counterparty', resourceId: id })) {
       throw new ForbiddenException('Counterparty object linking denied');
     }
   }

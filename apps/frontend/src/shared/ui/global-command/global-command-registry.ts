@@ -49,7 +49,7 @@ export const CREATE_GROUP_ORDER: CreateGroup[] = [
 export function resolveGlobalNavigation(user: AuthUser | null): CommandItem[] {
   const capabilities = user?.capabilities;
 
-  return [
+  const items: CommandItem[] = [
     { id: 'nav-dashboard', group: 'Навигация', label: 'Рабочий стол', href: '/dashboard', kind: 'navigation', keywords: 'главная dashboard workspace' },
     ...(capabilities?.canAccessApprovals ? [{ id: 'nav-approvals', group: 'Навигация' as const, label: 'Согласования', href: '/approvals', kind: 'navigation' as const }] : []),
     { id: 'nav-objects', group: 'Навигация', label: 'Объекты', href: '/objects', kind: 'navigation', keywords: 'объект адрес' },
@@ -68,19 +68,30 @@ export function resolveGlobalNavigation(user: AuthUser | null): CommandItem[] {
     ...(capabilities?.canAccessChats ? [{ id: 'nav-chats', group: 'Навигация' as const, label: 'Чаты', href: '/chats', kind: 'navigation' as const }] : []),
     { id: 'nav-settings', group: 'Навигация', label: 'Настройки', href: '/settings', kind: 'navigation' },
   ];
+  const moduleVisibility: Record<string, boolean | undefined> = {
+    'nav-dashboard': capabilities?.canAccessDashboard,
+    'nav-objects': capabilities?.canAccessObjects,
+    'nav-tasks': capabilities?.canAccessTasks,
+    'nav-timesheet': capabilities?.canAccessTimesheet,
+    'nav-user-absences': capabilities?.canAccessUserAbsences,
+    'nav-user-substitutions': capabilities?.canAccessUserSubstitutions,
+    'nav-settings': capabilities?.canManageUserAccess ?? false,
+  };
+  return items.filter(item => moduleVisibility[item.id] !== false).map(item => item.id === 'nav-settings' ? { ...item, label: 'Пользователи и доступы' } : item);
 }
 
 export function resolveGlobalActions(user: AuthUser | null): CommandItem[] {
   const capabilities = user?.capabilities;
 
-  return [
-    { id: 'action-task-new', group: 'Действия', label: 'Создать задачу', description: 'Новая задача', href: '/tasks/new', kind: 'action', keywords: 'добавить новая задача', createGroup: 'Основное' },
+  const items: CommandItem[] = [
+    ...(capabilities?.canCreateTask !== false ? [{ id: 'action-task-new', group: 'Действия' as const, label: 'Создать задачу', description: 'Новая задача', href: '/tasks/new', kind: 'action' as const, keywords: 'добавить новая задача', createGroup: 'Основное' as const }] : []),
     ...(capabilities?.canCreateObject ? [{ id: 'action-object-new', group: 'Действия' as const, label: 'Создать объект', description: 'Новый объект', href: '/objects/new', kind: 'action' as const, createGroup: 'Основное' as const }] : []),
     ...(capabilities?.canCreateOneTimeOrder ? [{ id: 'action-order-new', group: 'Действия' as const, label: 'Создать разовый заказ', description: 'Новый разовый заказ', href: '/one-time-orders/new', kind: 'action' as const, createGroup: 'Основное' as const }] : []),
     ...(capabilities?.canCreateEmployee ? [{ id: 'action-employee-new', group: 'Действия' as const, label: 'Создать сотрудника', description: 'Новый сотрудник', href: '/employees/new', kind: 'action' as const, keywords: 'добавить сотрудник работник', createGroup: 'Люди' as const }] : []),
-    ...(capabilities?.canManageCandidates ? [{ id: 'action-candidate-new', group: 'Действия' as const, label: 'Создать кандидата', description: 'Новый кандидат', href: '/candidates/new', kind: 'action' as const, keywords: 'добавить кандидат найм', createGroup: 'Люди' as const }] : []),
-    ...(capabilities?.canManageCounterparties ? [{ id: 'action-counterparty-new', group: 'Действия' as const, label: 'Создать контрагента', description: 'Новый контрагент', href: '/counterparties/new', kind: 'action' as const, keywords: 'добавить клиент заказчик ук', createGroup: 'Справочники' as const }] : []),
-    ...(capabilities?.canManageInventoryCatalog ? [{ id: 'action-inventory-new', group: 'Действия' as const, label: 'Создать позицию расходников', description: 'Новая складская позиция', href: '/inventory/new', kind: 'action' as const, keywords: 'добавить расходник материал склад', createGroup: 'Справочники' as const }] : []),
-    ...(capabilities?.canManageEquipmentCatalog ? [{ id: 'action-equipment-new', group: 'Действия' as const, label: 'Добавить оборудование', description: 'Новая единица оборудования', href: '/equipment/new', kind: 'action' as const, keywords: 'создать оборудование техника инвентарь', createGroup: 'Справочники' as const }] : []),
+    ...((capabilities?.canCreateCandidate ?? capabilities?.canManageCandidates) ? [{ id: 'action-candidate-new', group: 'Действия' as const, label: 'Создать кандидата', description: 'Новый кандидат', href: '/candidates/new', kind: 'action' as const, keywords: 'добавить кандидат найм', createGroup: 'Люди' as const }] : []),
+    ...((capabilities?.canCreateCounterparty ?? capabilities?.canManageCounterparties) ? [{ id: 'action-counterparty-new', group: 'Действия' as const, label: 'Создать контрагента', description: 'Новый контрагент', href: '/counterparties/new', kind: 'action' as const, keywords: 'добавить клиент заказчик ук', createGroup: 'Справочники' as const }] : []),
+    ...((capabilities?.canCreateInventoryItem ?? capabilities?.canManageInventoryCatalog) ? [{ id: 'action-inventory-new', group: 'Действия' as const, label: 'Создать позицию расходников', description: 'Новая складская позиция', href: '/inventory/new', kind: 'action' as const, keywords: 'добавить расходник материал склад', createGroup: 'Справочники' as const }] : []),
+    ...((capabilities?.canCreateEquipmentUnit ?? capabilities?.canManageEquipmentCatalog) ? [{ id: 'action-equipment-new', group: 'Действия' as const, label: 'Добавить оборудование', description: 'Новая единица оборудования', href: '/equipment/new', kind: 'action' as const, keywords: 'создать оборудование техника инвентарь', createGroup: 'Справочники' as const }] : []),
   ];
+  return items;
 }

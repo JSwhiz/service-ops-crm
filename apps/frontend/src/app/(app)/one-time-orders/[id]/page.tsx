@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/shared/auth/use-auth';
 
 import {
   createAccountabilityExpense,
@@ -44,8 +45,8 @@ import type {
 } from '@/entities/one-time-order/model/one-time-order.types';
 import { getOneTimeOrderEquipment } from '@/entities/equipment/api/equipment-client';
 import type { EquipmentScope } from '@/entities/equipment/model/equipment.types';
-import { getOneTimeOrderInventory } from '@/entities/inventory/api/inventory-client';
-import type { InventoryMovement } from '@/entities/inventory/model/inventory.types';
+import { getOneTimeOrderInventory, createOneTimeOrderInventoryIssue } from '@/entities/inventory/api/inventory-client';
+import type { InventoryMovement, InventoryItem } from '@/entities/inventory/model/inventory.types';
 import {
   listOneTimeWorkforce,
   type OneTimeWorkforceEmployee,
@@ -134,6 +135,8 @@ export default function OneTimeOrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const { user } = useAuth();
+  const loadGeneration = useRef(0);
   const [item, setItem] = useState<OneTimeOrderItem | null>(null);
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
   const [completions, setCompletions] = useState<OneTimeOrderCompletion[]>([]);
@@ -151,6 +154,8 @@ export default function OneTimeOrderDetailPage({
   const [photos, setPhotos] = useState<OneTimeOrderPhotoItem[]>([]);
   const [equipment, setEquipment] = useState<EquipmentScope | null>(null);
   const [inventoryMovements, setInventoryMovements] = useState<InventoryMovement[]>([]);
+  const [inventoryAvailableItems, setInventoryAvailableItems] = useState<InventoryItem[]>([]);
+  const [canIssueInventory, setCanIssueInventory] = useState(false);
   const [workforce, setWorkforce] = useState<OneTimeWorkforceEmployee[]>([]);
   const [accountability, setAccountability] =
     useState<OneTimeOrderAccountabilityView | null>(null);
@@ -185,8 +190,9 @@ export default function OneTimeOrderDetailPage({
   };
 
   const canSelectLinkedObject = Boolean(item?.capabilities.canChangeLinkedObject);
+  const canRead = (key: keyof OneTimeOrderItem['capabilities']): boolean => item?.capabilities[key] !== false;
 
-  const sections = [
+  const sections = useMemo(() => [
     { value: 'overview', label: 'Обзор' },
     { value: 'execution', label: 'Работы' },
     { value: 'team', label: 'Команда' },
@@ -194,7 +200,23 @@ export default function OneTimeOrderDetailPage({
     { value: 'materials', label: 'Медиа' },
     { value: 'discussion', label: 'Комментарии' },
     { value: 'history', label: 'История' },
-  ];
+  ].filter(section => {
+    if (!item) return true;
+    const canRead = (key: keyof OneTimeOrderItem['capabilities']): boolean => item.capabilities[key] !== false;
+    if (section.value === 'team') return canRead('canReadEmployees') || item.capabilities.canManageManagers;
+    if (section.value === 'finance') return ['canReadFinance', 'canReadInventory', 'canReadEquipment', 'canReadAccountability'].some(key => canRead(key as keyof OneTimeOrderItem['capabilities'])) || item.capabilities.canComplete;
+    if (section.value === 'materials') return canRead('canReadPhotos') || canRead('canReadFiles');
+    if (section.value === 'discussion') return canRead('canReadComments');
+    if (section.value === 'history') return canRead('canReadHistory');
+    return true;
+  }), [item]);
+
+  useEffect(() => {
+    if (item && !sections.some(section => section.value === activeSection)) {
+      activeSectionRef.current = 'overview';
+      setActiveSection('overview');
+    }
+  }, [item, activeSection, sections]);
 
   useEffect(() => {
     const syncFromUrl = async (): Promise<void> => {
@@ -334,7 +356,7 @@ export default function OneTimeOrderDetailPage({
           return;
         }
 
-        await loadAll(resolved.id, cancelled);
+        await loadAll(resolved.id, () => cancelled);
       } catch (loadError) {
         if (!cancelled) {
           setError(
@@ -352,83 +374,100 @@ export default function OneTimeOrderDetailPage({
 
     return () => {
       cancelled = true;
+      loadGeneration.current += 1;
     };
-  }, [params]);
+  }, [params, user?.accessVersion]);
 
-  const loadAll = async (id: string, cancelled = false): Promise<void> => {
+  const loadAll = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
+    const generation = ++loadGeneration.current;
+    const isCurrent = (): boolean => !isCancelled() && generation === loadGeneration.current;
     const order = await getOneTimeOrderById(id);
 
-    if (cancelled) {
+    if (!isCurrent()) {
       return;
     }
 
     setItem(order);
     setHistoryRefreshVersion((version) => version + 1);
 
-    const requests: Array<Promise<void>> = [
-      listOneTimeOrderComments(id).then((response) => {
-        if (!cancelled) {
+    const permitted = (key: keyof OneTimeOrderItem['capabilities']): boolean => order.capabilities[key] !== false;
+    // A denied subsection must neither be fetched nor retain data from an earlier grant.
+    if (!permitted('canReadComments')) setComments([]);
+    if (!permitted('canReadFinance')) setCompletions([]);
+    if (!permitted('canReadReports')) setDailyReport(null);
+    if (!permitted('canReadFiles')) setFiles([]);
+    if (!permitted('canReadPhotos')) setPhotos([]);
+    if (!permitted('canReadEquipment')) setEquipment(null);
+    if (!permitted('canReadInventory')) { setInventoryMovements([]); setInventoryAvailableItems([]); setCanIssueInventory(false); }
+    if (!permitted('canReadEmployees')) setWorkforce([]);
+    if (!permitted('canReadTasks')) setTasks([]);
+    if (!permitted('canReadAccountability')) setAccountability(null);
+    if (!permitted('canReadHistory')) { setHistoryPageData(null); setHistoryLoadedQueryKey(null); }
+    const requests: Array<Promise<void>> = [];
+    if (permitted('canReadComments')) requests.push(listOneTimeOrderComments(id).then((response) => {
+        if (isCurrent()) {
           setComments(response);
         }
-      }),
-      listOneTimeOrderCompletions(id).then((response) => {
-        if (!cancelled) {
+      }));
+    if (permitted('canReadFinance')) requests.push(listOneTimeOrderCompletions(id).then((response) => {
+        if (isCurrent()) {
           setCompletions(response);
         }
-      }),
-      getTodayOneTimeOrderDailyReport(id).then((response) => {
-        if (!cancelled) {
+      }));
+    if (permitted('canReadReports')) requests.push(getTodayOneTimeOrderDailyReport(id).then((response) => {
+        if (isCurrent()) {
           setDailyReport(response);
         }
-      }),
-      listFilesByEntity('one_time_order', id).then((response) => {
-        if (!cancelled) {
+      }));
+    if (permitted('canReadFiles')) requests.push(listFilesByEntity('one_time_order', id).then((response) => {
+        if (isCurrent()) {
           setFiles(response);
         }
-      }),
-      listOneTimeOrderPhotos(id, {
+      }));
+    if (permitted('canReadPhotos')) requests.push(listOneTimeOrderPhotos(id, {
         includeDeleted: order.capabilities.canRestorePhotos,
       }).then((response) => {
-        if (!cancelled) {
+        if (isCurrent()) {
           setPhotos(response);
         }
-      }),
-      getOneTimeOrderEquipment(id).then((response) => {
-        if (!cancelled) {
+      }));
+    if (permitted('canReadEquipment')) requests.push(getOneTimeOrderEquipment(id).then((response) => {
+        if (isCurrent()) {
           setEquipment(response);
         }
-      }),
-      getOneTimeOrderInventory(id).then((response) => {
-        if (!cancelled) {
+      }));
+    if (permitted('canReadInventory')) requests.push(getOneTimeOrderInventory(id).then((response) => {
+        if (isCurrent()) {
           setInventoryMovements(response.items);
+          setInventoryAvailableItems(response.availableItems);
+          setCanIssueInventory(response.capabilities.canIssueInventoryToOrder);
         }
-      }),
-      listOneTimeWorkforce(id).then((response) => {
-        if (!cancelled) {
+      }));
+    if (permitted('canReadEmployees')) requests.push(listOneTimeWorkforce(id).then((response) => {
+        if (isCurrent()) {
           setWorkforce(response);
         }
-      }),
-      listTasksByOneTimeOrder(id).then((response) => {
-        if (!cancelled) {
+      }));
+    if (permitted('canReadTasks')) requests.push(listTasksByOneTimeOrder(id).then((response) => {
+        if (isCurrent()) {
           setTasks(response);
         }
-      }),
-      getOneTimeOrderAccountability(id).then((response) => {
-        if (!cancelled) {
+      }));
+    if (permitted('canReadAccountability')) requests.push(getOneTimeOrderAccountability(id).then((response) => {
+        if (isCurrent()) {
           setAccountability(response);
         }
-      }),
-    ];
+      }));
 
     if (order.capabilities.canCreateTask) {
       requests.push(
         listOneTimeOrderTaskAssigneeCandidates(id).then((response) => {
-          if (!cancelled) {
+          if (isCurrent()) {
             setTaskAssignees(response);
           }
         }),
       );
-    } else if (!cancelled) {
+    } else if (isCurrent()) {
       setTaskAssignees([]);
     }
 
@@ -444,7 +483,7 @@ export default function OneTimeOrderDetailPage({
 
   useEffect(() => {
     const orderId = item?.id;
-    if (activeSection !== 'history' || !orderId) return;
+    if (activeSection !== 'history' || !orderId || item.capabilities.canReadHistory === false) return;
     let active = true;
     const requestKey = historyQueryKey;
     setHistoryLoading(true);
@@ -503,7 +542,7 @@ export default function OneTimeOrderDetailPage({
           />
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-team" role="tabpanel" aria-labelledby="workspace-tab-team" hidden={activeSection !== 'team'}>
-          <Surface as="section" padding="md" className={orderStyles.orderTeamOverview}>
+          {canRead('canReadEmployees') ? <Surface as="section" padding="md" className={orderStyles.orderTeamOverview}>
             <div className="ui-section-header">
               <div>
                 <div className="ui-section-title">Состав разового заказа</div>
@@ -549,7 +588,7 @@ export default function OneTimeOrderDetailPage({
                 </ul>
               </details>
             ) : null}
-          </Surface>
+          </Surface> : null}
           <OneTimeOrderManagersPanel
             item={item}
             searchCandidates={(query) => listOneTimeOrderManagerCandidates(item.id, query)}
@@ -575,11 +614,11 @@ export default function OneTimeOrderDetailPage({
               setItem(updated); await loadAll(item.id);
             }}
           />
-          <OneTimeOrderEscortsPanel orderId={item.id} workforce={workforce} onChanged={() => loadAll(item.id)} />
+          {canRead('canReadEscorts') ? <OneTimeOrderEscortsPanel key={`${item.id}:${user?.accessVersion ?? 0}`} orderId={item.id} workforce={workforce} onChanged={() => loadAll(item.id)} /> : null}
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-overview" role="tabpanel" aria-labelledby="workspace-tab-overview" hidden={activeSection !== 'overview'}>
-          <OneTimeOrderDeadlinePanel orderId={item.id} onChanged={() => loadAll(item.id)} />
+          {canRead('canReadDeadline') ? <OneTimeOrderDeadlinePanel key={`${item.id}:${user?.accessVersion ?? 0}`} orderId={item.id} onChanged={() => loadAll(item.id)} /> : null}
           {item.capabilities.canChangeStatus ? (
             <Surface padding="md">
               <div className="ui-section-header">
@@ -719,7 +758,7 @@ export default function OneTimeOrderDetailPage({
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-finance" role="tabpanel" aria-labelledby="workspace-tab-finance" hidden={activeSection !== 'finance'}>
-          {item.financialNotes || item.expenseNotes || item.plannedPaymentMethod ? (
+          {canRead('canReadFinance') && (item.financialNotes || item.expenseNotes || item.plannedPaymentMethod) ? (
             <Surface as="section" padding="md">
               <div className="ui-section-header">
                 <div>
@@ -734,7 +773,7 @@ export default function OneTimeOrderDetailPage({
               </div>
             </Surface>
           ) : null}
-          <OneTimeOrderCompletionPanel
+          {canRead('canReadFinance') || item.capabilities.canComplete ? <OneTimeOrderCompletionPanel
             item={item}
             completions={completions}
             onComplete={async (payload) => { await completeOneTimeOrder(item.id, payload); }}
@@ -750,8 +789,8 @@ export default function OneTimeOrderDetailPage({
             onReopen={async () => { await reopenOneTimeOrder(item.id); await loadAll(item.id); }}
             onCorrectPayment={async (paymentId, payload) => { await correctOneTimeOrderPayment(item.id, paymentId, payload); await loadAll(item.id); }}
             openFormSignal={completionFormSignal}
-          />
-          {accountability ? (
+          /> : null}
+          {canRead('canReadAccountability') && accountability ? (
             <OneTimeOrderAccountabilityPanel
               view={accountability}
               completions={completions}
@@ -790,14 +829,30 @@ export default function OneTimeOrderDetailPage({
               }}
             />
           ) : null}
-          <OneTimeOrderInventoryPanel items={inventoryMovements} />
-          {equipment ? (
+          {canRead('canReadInventory') ? <OneTimeOrderInventoryPanel
+            items={inventoryMovements}
+            availableItems={inventoryAvailableItems}
+            canIssue={canIssueInventory}
+            onIssue={async (payload) => (await createOneTimeOrderInventoryIssue(item.id, payload)).id}
+            onAttachEvidence={async (movementId, evidenceFiles) => {
+              const results = await uploadFileBatch({ entityType: 'inventory_movement', entityId: movementId, files: evidenceFiles });
+              const failed = results.filter((result) => result.status === 'rejected').length;
+              if (failed) throw new Error(`Отгрузка записана. Не удалось загрузить фото: ${failed}. Повторите сохранение — отгрузка не будет продублирована.`);
+            }}
+            onRefresh={async () => {
+              const response = await getOneTimeOrderInventory(item.id);
+              setInventoryMovements(response.items);
+              setInventoryAvailableItems(response.availableItems);
+              setCanIssueInventory(response.capabilities.canIssueInventoryToOrder);
+            }}
+          /> : null}
+          {canRead('canReadEquipment') && equipment ? (
             <EquipmentScopePanel title="Оборудование заказа" units={equipment.units} />
           ) : null}
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-discussion" role="tabpanel" aria-labelledby="workspace-tab-discussion" hidden={activeSection !== 'discussion'}>
-          <OneTimeOrderCommentsPanel
+          {canRead('canReadComments') ? <OneTimeOrderCommentsPanel
             items={comments}
             canCreate={item.capabilities.canComment}
             onCreate={async (payload) => {
@@ -817,7 +872,7 @@ export default function OneTimeOrderDetailPage({
               );
               await loadAll(item.id);
             }}
-          />
+          /> : null}
           <Surface padding="md">
             <div className="ui-section-header">
               <div><div className="ui-section-title">Рабочий чат разовых заказов</div><div className="ui-section-subtitle">Полный мессенджер живет отдельно от комментариев заказа.</div></div>
@@ -827,20 +882,21 @@ export default function OneTimeOrderDetailPage({
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-execution" role="tabpanel" aria-labelledby="workspace-tab-execution" hidden={activeSection !== 'execution'}>
-          <section id="one-time-order-specification" className={styles.executionAnchor} tabIndex={-1} aria-label="Техническое задание">
+          {canRead('canReadSpecification') ? <section id="one-time-order-specification" className={styles.executionAnchor} tabIndex={-1} aria-label="Техническое задание">
           <OneTimeOrderSpecificationPanel orderId={item.id} canManage={item.capabilities.canManageSpecification} canEditStructure={item.capabilities.canEditSpecification} orderStatus={item.status} onOpenDailyReport={() => { void selectSection('execution').then(() => { if (activeSectionRef.current === 'execution') window.setTimeout(() => document.getElementById('one-time-order-daily-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }); }} />
-          </section>
-          <section className="ui-stack ui-stack--lg" aria-label="Услуги заказа">
-                <OneTimeOrderServiceLinesPanel orderId={item.id} onChanged={() => loadAll(item.id)} />
+          </section> : null}
+          {canRead('canReadServiceLines') ? <section className="ui-stack ui-stack--lg" aria-label="Услуги заказа">
+                <OneTimeOrderServiceLinesPanel key={`${item.id}:${user?.accessVersion ?? 0}`} orderId={item.id} onChanged={() => loadAll(item.id)} />
                 <div className="ui-section-subtitle">
                   Услуги относятся к заказу «{item.title}»
                   {item.linkedObject ? ` · Объект: ${item.linkedObject.name}` : ''}.
                   {' '}Состав сотрудников и фактические выходы доступны в разделе «Команда».
                   {' '}Расходники и оборудование — в разделе «Финансы и ресурсы».
                 </div>
-          </section>
-          <OneTimeOrderDailyReportPanel
+          </section> : null}
+          {canRead('canReadReports') ? <OneTimeOrderDailyReportPanel
             item={dailyReport}
+            canEdit={item.capabilities.canUpdateReports !== false}
             onSave={async (payload) => {
               const saved = await upsertTodayOneTimeOrderDailyReport(item.id, {
                 content: payload.content,
@@ -852,8 +908,8 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
               if (uploads.some((result) => result.status === 'rejected')) throw new Error('Текст отчёта сохранён. Не все вложения загрузились — повторите сохранение, уже загруженные файлы не продублируются.');
             }}
-          />
-          <section id="one-time-order-tasks" className={styles.executionAnchor} tabIndex={-1} aria-label="Задачи заказа">
+          /> : null}
+          {canRead('canReadTasks') ? <section id="one-time-order-tasks" className={styles.executionAnchor} tabIndex={-1} aria-label="Задачи заказа">
           <OneTimeOrderTasksPanel
             items={tasks} assigneeOptions={taskAssignees}
             canCreateTask={item.capabilities.canCreateTask}
@@ -863,11 +919,11 @@ export default function OneTimeOrderDetailPage({
               await loadAll(item.id);
             }}
           />
-          </section>
+          </section> : null}
           </div>
 
           <div className={`ui-stack ${styles.content} ${orderStyles.orderDetailContent}`} id="workspace-panel-materials" role="tabpanel" aria-labelledby="workspace-tab-materials" hidden={activeSection !== 'materials'}>
-          <OneTimeOrderPhotosPanel
+          {canRead('canReadPhotos') ? <OneTimeOrderPhotosPanel
             items={photos}
             canCreate={item.capabilities.canUploadPhotos}
             onCreate={async (payload) => {
@@ -896,9 +952,9 @@ export default function OneTimeOrderDetailPage({
               await restoreOneTimeOrderPhoto(item.id, photoId);
               await loadAll(item.id);
             }}
-          />
+          /> : null}
 
-          <OneTimeOrderFilesPanel
+          {canRead('canReadFiles') ? <OneTimeOrderFilesPanel
             files={files}
             canUpload={item.capabilities.canAttachFiles}
             onUpload={async (file) => {
@@ -909,7 +965,7 @@ export default function OneTimeOrderDetailPage({
               });
               await loadAll(item.id);
             }}
-          />
+          /> : null}
 
           </div>
 

@@ -5,6 +5,7 @@ import {
   canReviewAccountability,
   canViewOwnAccountability,
 } from './accountability-access.util';
+import { AccessSubject, decideAccess } from '../../users-access/utils/access-policy.util';
 
 export interface AccountabilityGlobalCapabilities {
   canAccessAccountability: boolean;
@@ -40,6 +41,8 @@ export function buildAccountabilityGlobalCapabilities(params: {
 }
 
 export function buildAccountabilityExpenseCapabilities(params: {
+  subject?: AccessSubject;
+  ownerUserId?: string;
   isOwnExpense: boolean;
   status: string;
   roleCodes: string[];
@@ -55,9 +58,9 @@ export function buildAccountabilityExpenseCapabilities(params: {
   const isSubmitted = params.status === 'submitted';
 
   return {
-    canEdit: params.isOwnExpense && isDraft,
-    canSubmit: params.isOwnExpense && isDraft,
-    canApprove: canReview && isSubmitted,
-    canReject: canReview && isSubmitted,
+    canEdit: params.isOwnExpense && isDraft && (!params.subject || decideAccess(params.subject, 'accountability.expenses.update', true, { resourceType: 'user', resourceId: params.ownerUserId, ownerUserId: params.ownerUserId })),
+    canSubmit: params.isOwnExpense && isDraft && (!params.subject || decideAccess(params.subject, 'accountability.expenses.submit', true, { resourceType: 'user', resourceId: params.ownerUserId, ownerUserId: params.ownerUserId })),
+    canApprove: canReview && isSubmitted && !params.isOwnExpense && (!params.subject || decideAccess(params.subject, 'accountability.expenses.approve', true, { resourceType: 'user', resourceId: params.ownerUserId, ownerUserId: params.ownerUserId })),
+    canReject: canReview && isSubmitted && (!params.subject || decideAccess(params.subject, 'accountability.expenses.reject', true, { resourceType: 'user', resourceId: params.ownerUserId, ownerUserId: params.ownerUserId })),
   };
 }

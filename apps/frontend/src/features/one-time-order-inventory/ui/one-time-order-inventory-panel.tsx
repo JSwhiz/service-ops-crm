@@ -2,7 +2,7 @@
 
 import React from 'react';
 
-import type { InventoryMovement } from '@/entities/inventory/model/inventory.types';
+import type { InventoryMovement, InventoryItem } from '@/entities/inventory/model/inventory.types';
 import { getUserDisplayName } from '@/shared/lib/display-name';
 import {
   formatInventoryQuantity,
@@ -10,11 +10,22 @@ import {
 } from '@/shared/lib/inventory-presentation';
 import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-preview-list';
 import { Surface } from '@/shared/ui/foundation';
+import { OneTimeOrderInventoryIssueForm, type OrderInventoryIssueInput } from './one-time-order-inventory-issue-form';
 
 export function OneTimeOrderInventoryPanel({
   items,
+  availableItems,
+  canIssue,
+  onIssue,
+  onAttachEvidence,
+  onRefresh,
 }: {
   items: InventoryMovement[];
+  availableItems: InventoryItem[];
+  canIssue: boolean;
+  onIssue: (input: OrderInventoryIssueInput) => Promise<string>;
+  onAttachEvidence: (movementId: string, files: File[]) => Promise<void>;
+  onRefresh: () => Promise<void>;
 }): React.JSX.Element {
   return (
     <Surface as="section" padding="md">
@@ -27,6 +38,8 @@ export function OneTimeOrderInventoryPanel({
         </div>
         <strong>{items.length}</strong>
       </div>
+
+      {canIssue ? <OneTimeOrderInventoryIssueForm availableItems={availableItems} onIssue={onIssue} onAttachEvidence={onAttachEvidence} onRefresh={onRefresh} /> : null}
 
       {items.length === 0 ? (
         <div className="ui-text-muted">Движений расходников по заказу пока нет.</div>

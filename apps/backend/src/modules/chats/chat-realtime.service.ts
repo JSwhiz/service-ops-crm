@@ -14,6 +14,11 @@ import type { RedisClientType } from 'redis';
 import { ACCESS_TOKEN_COOKIE } from '../auth/constants/auth.constants';
 import { RedisService } from '../redis/redis.service';
 import { UsersService } from '../users-access/users.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { decideAccess } from '../users-access/utils/access-policy.util';
+import { resourceAccessTarget } from '../../common/access/resource-access-context';
+import { notificationAccessWhere } from '../../common/access/notification-access';
+import { hasOperationalChatRole, isChatLeadership, isObjectsChatDenied } from './utils/chat-access.util';
 
 import { CHAT_REDIS_CHANNEL } from './constants/chat.constants';
 
@@ -62,18 +67,23 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
   private readonly clients = new Set<RealtimeClient>();
   private subscriber: ReturnType<RedisClientType['duplicate']> | null = null;
   private isAttached = false;
+  private deliveryQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly redisService: RedisService,
     private readonly jwtService: JwtService,
     private readonly usersService: UsersService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async onModuleInit(): Promise<void> {
     this.subscriber = this.redisService.getClient().duplicate();
     await this.subscriber.connect();
     await this.subscriber.subscribe(CHAT_REDIS_CHANNEL, (message) => {
-      this.handleRedisEvent(message);
+      // Async permission checks must preserve Redis event order.
+      this.deliveryQueue = this.deliveryQueue.then(() => this.handleRedisEvent(message)).catch((error) => {
+        this.logger.warn(`Realtime delivery skipped: ${error instanceof Error ? error.message : 'unknown error'}`);
+      });
     });
   }
 
@@ -201,13 +211,13 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private handleRedisEvent(message: string): void {
+  private async handleRedisEvent(message: string): Promise<void> {
     try {
       const event = JSON.parse(message) as RealtimeEvent;
       const recipients = new Set(event.recipientUserIds);
 
       for (const client of this.clients) {
-        if (recipients.has(client.userId)) {
+        if (recipients.has(client.userId) && await this.canDeliver(client.userId, event)) {
           this.send(client, event);
         }
       }
@@ -216,6 +226,51 @@ export class ChatRealtimeService implements OnModuleInit, OnModuleDestroy {
         `Invalid chat realtime event: ${error instanceof Error ? error.message : 'unknown error'}`,
       );
     }
+  }
+
+  private async canDeliver(userId: string, event: RealtimeEvent): Promise<boolean> {
+    const record = await this.usersService.findById(userId);
+    if (!record?.isActive) return false;
+    // Never trust the JWT or a recipient list produced before a revocation.
+    const subject = this.usersService.sanitizeUser(record);
+    if (event.type === 'notification.created') {
+      const stillVisible = await this.prisma.notification.findFirst({ where: {
+        AND: [await notificationAccessWhere(this.prisma, userId, 'notifications.realtime'), { id: event.payload.id }],
+      }, select: { id: true } });
+      if (!stillVisible) return false;
+      const target = event.payload.entityType && event.payload.entityId
+        ? await resourceAccessTarget(this.prisma, event.payload.entityType, event.payload.entityId) : null;
+      if (target && !decideAccess(subject, target.actionCode, true, target.context)) return false;
+      return decideAccess(subject, 'notifications.read', true, {
+        resourceType: 'notification', resourceId: event.payload.id, ownerUserId: userId,
+        parents: target ? [target] : [],
+      }) && decideAccess(subject, 'notifications.realtime', true, {
+        resourceType: 'notification', resourceId: event.payload.id, ownerUserId: userId,
+        parents: target ? [target] : [],
+      });
+    }
+    const room = await this.prisma.chatRoom.findUnique({ where: { id: event.roomId }, select: {
+      id: true, deletedAt: true, createdByUserId: true, visibilityType: true,
+      participants: { where: { leftAt: null }, select: { userId: true } },
+    } });
+    if (!room) return false;
+    const assignedUserIds = room.participants.map(participant => participant.userId);
+    let eligible = false;
+    switch (room.visibilityType) {
+      case 'explicit_members': eligible = assignedUserIds.includes(userId); break;
+      case 'leadership_only': eligible = isChatLeadership(subject.roleCodes); break;
+      case 'objects_scope': eligible = !isObjectsChatDenied(subject.roleCodes) && (hasOperationalChatRole(subject.roleCodes) || !!await this.prisma.objectAssignment.findFirst({ where: { userId, isActive: true }, select: { id: true } })); break;
+      case 'one_time_orders_scope': eligible = hasOperationalChatRole(subject.roleCodes) || !!await this.prisma.oneTimeOrderAssignment.findFirst({ where: { userId, isActive: true, assignmentRoleCode: 'one_time_manager' }, select: { id: true } }); break;
+    }
+    // A grant does not fabricate explicit membership or reopen a closed room.
+    const context = { resourceType: 'chat_room', resourceId: room.id,
+      ownerUserId: room.createdByUserId ?? undefined, assignedUserIds,
+      invariantAllowed: eligible && (!room.deletedAt || event.type === 'chat.room_closed'),
+      parents: room.visibilityType === 'objects_scope' ? [{ actionCode: 'objects.access', context: {} }]
+        : room.visibilityType === 'one_time_orders_scope' ? [{ actionCode: 'one_time_orders.access', context: {} }] : [],
+    };
+    return decideAccess(subject, 'chat.read', eligible, context) &&
+      decideAccess(subject, 'chat.messages.read', eligible, context) && decideAccess(subject, 'chat.realtime', eligible, context);
   }
 
   private send(client: RealtimeClient, payload: unknown): void {

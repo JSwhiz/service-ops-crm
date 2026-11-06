@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess } from '../users-access/utils/access-policy.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { canOverrideFrozenObject, canViewObjectByScope, hasWideObjectAccess } from '../objects/utils/object-access.util';
-import { delegatedObjectIds, hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
+import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
+import { matObjectPolicyWhere } from './rubber-mat-policy.util';
 import { ListRubberMatsQueryDto } from './dto/list-rubber-mats-query.dto';
 import { CreateRubberMatSizeDto, SetRubberMatQuantityDto, UpdateRubberMatCostDto } from './dto/aggregate-rubber-mat.dto';
 
-export interface MatActor { id: string; roleCode: string; roleCodes?: string[]; isActive: boolean }
+export interface MatActor extends AccessSubject { id: string; roleCode: string; roleCodes?: string[]; isActive: boolean }
 interface Size { id: string; lengthCm: Prisma.Decimal; widthCm: Prisma.Decimal; replacementCost: Prisma.Decimal | null; version: number }
 interface Quantity { quantity: number; version: number }
 const CalculationDecimal = Prisma.Decimal.clone({ precision: 40 });
@@ -29,9 +32,9 @@ export class RubberMatAggregateService {
   constructor(private readonly prisma: PrismaService) {}
   private roles(user: MatActor) { return user.roleCodes?.length ? user.roleCodes : [user.roleCode]; }
   private active(user: MatActor) { if (!user.isActive) throw new ForbiddenException('Активный пользователь обязателен'); }
-  private manager(user: MatActor) {
+  private manager(user: MatActor, code: string) {
     this.active(user);
-    if (!hasWideObjectAccess(this.roles(user))) throw new ForbiddenException('Нет права управления каталогом размеров');
+    if (!decideAccess(user, code, hasWideObjectAccess(this.roles(user)))) throw new ForbiddenException('Нет права управления каталогом размеров');
   }
   private async ready(tx: Prisma.TransactionClient) {
     const markers = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "RubberMatAggregateMigration" WHERE id = 'legacy-v1'`;
@@ -45,19 +48,24 @@ export class RubberMatAggregateService {
     } });
     if (!object) throw new NotFoundException('Объект не найден');
     const roles = this.roles(user);
-    if (!canViewObjectByScope({ currentUserId: user.id, roleCodes: roles, object })) throw new ForbiddenException('Нет доступа к коврам объекта');
-    const operational = hasWideObjectAccess(roles) || object.assignments.some((a) => a.userId === user.id && ['manager', 'responsible'].includes(a.assignmentRoleCode)) || hasDelegatedObjectAction(user.id, objectId, 'operate');
-    const canManage = operational && object.status !== 'archived' && (object.status !== 'frozen' || canOverrideFrozenObject(roles));
-    return { canManage };
+    const context = { resourceType: 'object', resourceId: object.id, ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.map(a => a.userId),
+      parents: [{ actionCode: 'objects.read', context: { resourceType: 'object', resourceId: object.id, ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.map(a => a.userId) } }] };
+    const legacyRead = canViewObjectByScope({ currentUserId: user.id, roleCodes: roles, object, ownScopeOnly: true }) || hasDelegatedObjectAction(user.id, objectId, 'view', false, 'mats.read', context);
+    if (!decideAccess(user, 'mats.read', legacyRead, context)) throw new ForbiddenException('Нет доступа к коврам объекта');
+    const operational = hasWideObjectAccess(roles) || object.assignments.some((a) => a.userId === user.id && ['manager', 'responsible'].includes(a.assignmentRoleCode)) || hasDelegatedObjectAction(user.id, objectId, 'operate', true, 'mats.quantity.edit', context);
+    const writable = object.status !== 'archived' && object.status !== 'closed' && (object.status !== 'frozen' || canOverrideFrozenObject(roles));
+    const canManage = writable && decideAccess(user, 'mats.quantity.edit', operational, context);
+    return { canManage, policyContext: context, legacyRead };
   }
   private present(size: Size) { return { ...size, lengthCm: Number(size.lengthCm), widthCm: Number(size.widthCm), replacementCost: size.replacementCost?.toFixed(2) ?? null }; }
 
   async catalog(user: MatActor) {
     this.active(user);
+    if (!decideAccess(user, 'mats.catalog.read', true)) throw new ForbiddenException('Каталог ковров недоступен');
     return this.prisma.$transaction(async (tx) => {
       await this.ready(tx);
       const rows = await tx.$queryRaw<Size[]>`SELECT * FROM "RubberMatSize" ORDER BY "lengthCm", "widthCm", id`;
-      return { items: rows.map((s) => this.present(s)), canManage: hasWideObjectAccess(this.roles(user)) };
+      return { items: rows.map((s) => this.present(s)), canManage: decideAccess(user, 'mats.catalog.create', hasWideObjectAccess(this.roles(user))) };
     });
   }
   async registry(user: MatActor, query: ListRubberMatsQueryDto) {
@@ -67,10 +75,7 @@ export class RubberMatAggregateService {
       deletedAt: null,
       ...(query.objectId ? { id: query.objectId } : {}),
       AND: [
-        ...(hasWideObjectAccess(this.roles(user)) ? [] : [{ OR: [
-          { createdByUserId: user.id }, { assignments: { some: { userId: user.id, isActive: true } } },
-          { id: { in: delegatedObjectIds(user.id, 'view') } },
-        ] }]),
+        this.objectPolicyWhere(user),
         ...(search ? [{ OR: [
           { name: { contains: search, mode: 'insensitive' as const } },
           { internalName: { contains: search, mode: 'insensitive' as const } },
@@ -91,7 +96,7 @@ export class RubberMatAggregateService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
   async createSize(user: MatActor, payload: CreateRubberMatSizeDto) {
-    this.manager(user);
+    this.manager(user, 'mats.catalog.create');
     return this.prisma.$transaction(async (tx) => {
       await this.ready(tx);
       const id = randomUUID();
@@ -103,7 +108,7 @@ export class RubberMatAggregateService {
     });
   }
   async updateCost(user: MatActor, sizeId: string, payload: UpdateRubberMatCostDto) {
-    this.manager(user);
+    this.manager(user, 'mats.cost.edit');
     if (payload.replacementCost === undefined) throw new BadRequestException('Укажите стоимость или явно очистите её');
     return this.prisma.$transaction(async (tx) => {
       await this.ready(tx);
@@ -141,11 +146,19 @@ export class RubberMatAggregateService {
     });
   }
   async quantityHistory(user: MatActor, objectId: string) {
-    await this.context(this.prisma, user, objectId);
+    const { policyContext, legacyRead } = await this.context(this.prisma, user, objectId);
+    const delegated = hasDelegatedObjectAction(user.id, objectId, 'view', false, 'mats.history', policyContext);
+    const own = canViewObjectByScope({ currentUserId: user.id, roleCodes: this.roles(user), ownScopeOnly: true, object: { id: objectId, createdByUserId: policyContext.ownerUserId, assignments: policyContext.assignedUserIds.map(userId => ({ userId, isActive: true })) } });
+    if (!decideAccess(user, 'mats.history', legacyRead && (own || delegated), policyContext)) throw new ForbiddenException('История ковров недоступна');
     return this.prisma.$queryRaw`SELECT h.*, s."lengthCm"::text, s."widthCm"::text, h."replacementCostSnapshot"::text, u."fullName" AS "actorName" FROM "ObjectRubberMatQuantityChange" h JOIN "RubberMatSize" s ON s.id = h."sizeId" LEFT JOIN users u ON u.id = h."actorUserId" WHERE h."objectId" = ${objectId} ORDER BY h."occurredAt" DESC, h.id DESC`;
   }
   async costHistory(user: MatActor, sizeId: string) {
     this.active(user);
+    if (!decideAccess(user, 'mats.catalog.read', true) || !decideAccess(user, 'mats.history', true)) throw new ForbiddenException('История стоимости недоступна');
     return this.prisma.$queryRaw`SELECT h.*, h."beforeCost"::text, h."afterCost"::text, u."fullName" AS "actorName" FROM "RubberMatSizeChange" h LEFT JOIN users u ON u.id = h."actorUserId" WHERE h."sizeId" = ${sizeId} ORDER BY h.version DESC`;
+  }
+
+  private objectPolicyWhere(user: MatActor): Prisma.ObjectWhereInput {
+    return matObjectPolicyWhere(user);
   }
 }

@@ -6,6 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { isUUID } from 'class-validator';
+import { randomUUID } from 'node:crypto';
+import { AccessSubject, buildAccessWhere, decideAccess } from '../users-access/utils/access-policy.util';
 
 import { AuditService } from '../audit/audit.service';
 import { ObjectPlanningService } from '../objects/object-planning.service';
@@ -21,6 +24,7 @@ import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
 import {
   canViewObjectByScope,
   hasWideObjectAccess,
+  buildObjectAccessPolicyWhere,
 } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
@@ -32,6 +36,9 @@ import {
 } from '../one-time-orders/utils/one-time-order-access.util';
 
 import { CreateObjectInventoryIssueDto } from './dto/create-object-inventory-issue.dto';
+import { CreateOrderInventoryIssueDto } from './dto/create-order-inventory-issue.dto';
+import { OrderInventoryResponseDto } from './dto/order-inventory-response.dto';
+import { OrderInventoryIssueResponseDto } from './dto/order-inventory-issue-response.dto';
 import { CreateInventoryItemDto } from './dto/create-inventory-item.dto';
 import { CreateInventoryMovementDto } from './dto/create-inventory-movement.dto';
 import { InventoryItemListResponseDto } from './dto/inventory-item-list-response.dto';
@@ -67,7 +74,7 @@ import {
   isSensitiveInventoryMovementType,
 } from './types/inventory-movement.type';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -190,6 +197,11 @@ export class InventoryService {
         hasActiveOneTimeOrderAssignment(source.relatedOneTimeOrder, user.id)
       ) && !['completed', 'cancelled'].includes(source.relatedOneTimeOrder.status);
       if (!user.isActive || (!canCreateInventoryMovement(roles) && !scoped && !orderScoped)) throw new ForbiddenException('Нет права исправлять движение');
+      if (!decideAccess(user, 'inventory.movement.correct', true, { resourceType: 'inventory_item', resourceId: source.inventoryItemId,
+        parents: [
+          ...(source.relatedObject ? [{ actionCode: 'objects.read', context: { resourceType: 'object', resourceId: source.relatedObject.id, ownerUserId: source.relatedObject.createdByUserId, assignedUserIds: source.relatedObject.assignments.map(a => a.userId) } }] : []),
+          ...(source.relatedOneTimeOrder ? [{ actionCode: 'one_time_orders.read', context: this.orderInventoryContext(source.relatedOneTimeOrder) }] : []),
+        ] })) throw new ForbiddenException('Нет права исправлять движение');
       if (!['issue_to_object', 'issue_to_one_time_order'].includes(source.movementType)) throw new BadRequestException('Исправление доступно для выдачи на объект или заказ');
       if (source.relatedObject && source.relatedObject.status !== 'active' && !roles.some((role) => ['founder', 'director'].includes(role))) throw new ForbiddenException('Объект недоступен для изменений');
       const prior = await tx.auditEvent.findFirst({ where: { entityType: 'inventory_movement', entityId: id, action: 'inventory.movement.reversed' } });
@@ -263,7 +275,7 @@ export class InventoryService {
     const roleCodes = this.getRoleCodes(currentUser);
     const visibleObjectIds = linkedObjects
       .filter((object) =>
-        canViewObjectByScope({
+        canViewObjectByScope({ subject: currentUser,
           currentUserId: currentUser.id,
           roleCodes,
           object,
@@ -386,7 +398,7 @@ export class InventoryService {
     query: ListInventoryItemsQueryDto,
   ): Promise<InventoryItemListResponseDto> {
     this.assertInventoryVisible(currentUser);
-    const where = this.buildItemListWhere(query);
+    const where: Prisma.InventoryItemWhereInput = { AND: [this.buildItemListWhere(query), this.inventoryItemAccessWhere(currentUser, 'inventory.read')] };
     const orderBy: Prisma.InventoryItemOrderByWithRelationInput[] = [
       { [query.sortBy]: query.sortDirection },
       { id: 'asc' },
@@ -413,11 +425,9 @@ export class InventoryService {
     const stockByItemId = await this.loadStockSummariesByItemIds(
       items.map((item) => item.id),
     );
-    const capabilities = this.getGlobalCapabilities(currentUser);
-
     return {
       items: (items as InventoryItemRecord[]).map((item) =>
-        this.mapItem(item, stockByItemId.get(item.id), capabilities),
+        this.mapItem(item, stockByItemId.get(item.id), this.getGlobalCapabilities(currentUser, item.id)),
       ),
       total,
       page: query.page,
@@ -435,6 +445,7 @@ export class InventoryService {
     const item = (await this.prisma.inventoryItem.findFirst({
       where: {
         id,
+        AND: [this.inventoryItemAccessWhere(currentUser, 'inventory.read')],
       },
       include: {
         createdBy: {
@@ -456,7 +467,7 @@ export class InventoryService {
     return this.mapItem(
       item,
       stockByItemId.get(item.id),
-      this.getGlobalCapabilities(currentUser),
+      this.getGlobalCapabilities(currentUser, item.id),
     );
   }
 
@@ -464,7 +475,7 @@ export class InventoryService {
     currentUser: CurrentAuthUser,
     payload: CreateInventoryItemDto,
   ): Promise<InventoryItemResponseDto> {
-    this.assertCatalogManageable(currentUser);
+    if (!decideAccess(currentUser, 'inventory.catalog.create', canManageInventoryCatalog(this.getRoleCodes(currentUser)))) throw new ForbiddenException('Inventory catalog creation denied');
     const normalized = this.normalizeCreateItemPayload(payload);
 
     let created: InventoryItemRecord;
@@ -512,7 +523,7 @@ export class InventoryService {
     return this.mapItem(
       created,
       undefined,
-      this.getGlobalCapabilities(currentUser),
+      this.getGlobalCapabilities(currentUser, created.id),
     );
   }
 
@@ -521,7 +532,7 @@ export class InventoryService {
     id: string,
     payload: UpdateInventoryItemDto,
   ): Promise<InventoryItemResponseDto> {
-    this.assertCatalogManageable(currentUser);
+    if (!decideAccess(currentUser, 'inventory.catalog.update', canManageInventoryCatalog(this.getRoleCodes(currentUser)), { resourceType: 'inventory_item', resourceId: id })) throw new ForbiddenException('Inventory catalog update denied');
     const normalized = this.normalizeUpdateItemPayload(payload);
 
     let updated: InventoryItemRecord;
@@ -631,7 +642,7 @@ export class InventoryService {
     return this.mapItem(
       updated,
       stockByItemId.get(updated.id),
-      this.getGlobalCapabilities(currentUser),
+      this.getGlobalCapabilities(currentUser, updated.id),
     );
   }
 
@@ -639,11 +650,12 @@ export class InventoryService {
     currentUser: CurrentAuthUser,
     id: string,
   ): Promise<{ id: string; mode: 'hard' | 'soft' }> {
+    if (!decideAccess(currentUser, 'inventory.catalog.delete', canDeleteInventoryItem(this.getRoleCodes(currentUser), currentUser.permissionCodes), { resourceType: 'inventory_item', resourceId: id })) throw new ForbiddenException('Inventory deletion denied');
     if (
-      !canDeleteInventoryItem(
+      !decideAccess(currentUser, 'inventory.catalog.delete', canDeleteInventoryItem(
         this.getRoleCodes(currentUser),
         currentUser.permissionCodes,
-      )
+      ), { resourceType: 'inventory_item', resourceId: id })
     ) {
       throw new ForbiddenException('Inventory item deletion denied');
     }
@@ -747,10 +759,10 @@ export class InventoryService {
     expectedVersion: number,
   ): Promise<InventoryItemResponseDto> {
     if (
-      !canDeleteInventoryItem(
+      !decideAccess(currentUser, 'inventory.catalog.restore', canDeleteInventoryItem(
         this.getRoleCodes(currentUser),
         currentUser.permissionCodes,
-      )
+      ), { resourceType: 'inventory_item', resourceId: id })
     ) {
       throw new ForbiddenException('Inventory item restore denied');
     }
@@ -843,7 +855,7 @@ export class InventoryService {
     return this.mapItem(
       restored,
       stockByItemId.get(restored.id),
-      this.getGlobalCapabilities(currentUser),
+      this.getGlobalCapabilities(currentUser, restored.id),
     );
   }
 
@@ -852,6 +864,10 @@ export class InventoryService {
     query: ListInventoryMovementsQueryDto,
   ): Promise<InventoryMovementListResponseDto> {
     this.assertInventoryVisible(currentUser);
+    if (!decideAccess(currentUser, 'inventory.movements.read', canAccessInventory(this.getRoleCodes(currentUser)))) {
+      // Scoped grants are handled by the SQL filter below; a global deny still fails closed.
+      if (!currentUser.accessRules?.some(r => r.actionCode === 'inventory.movements.read' && r.effect === 'allow')) throw new ForbiddenException('Inventory movements denied');
+    }
     return this.listMovementsInternal(currentUser, query);
   }
 
@@ -861,6 +877,7 @@ export class InventoryService {
     page = 1,
     limit = 100,
   ): Promise<InventoryMovementListResponseDto> {
+    this.assertOrderInventoryReadable(currentUser, await this.loadOrderInventoryScope(this.prisma, oneTimeOrderId));
     return this.listMovementsInternal(currentUser, {
       oneTimeOrderId,
       page,
@@ -881,7 +898,10 @@ export class InventoryService {
       | 'limit'
     >,
   ): Promise<InventoryMovementListResponseDto> {
-    const where = this.buildMovementListWhere(query as ListInventoryMovementsQueryDto);
+    const where: Prisma.InventoryMovementWhereInput = { AND: [
+      this.buildMovementListWhere(query as ListInventoryMovementsQueryDto),
+      this.inventoryMovementAccessWhere(currentUser, 'inventory.movements.read', Boolean(query.oneTimeOrderId)),
+    ] };
     const [total, movements] = await this.prisma.$transaction([
       this.prisma.inventoryMovement.count({ where }),
       this.prisma.inventoryMovement.findMany({
@@ -976,74 +996,30 @@ export class InventoryService {
     currentUser: CurrentAuthUser,
     payload: CreateInventoryMovementDto,
   ): Promise<InventoryMovementResponseDto> {
-    this.assertMovementCreatable(currentUser, payload.movementType);
+    this.assertMovementCreatable(currentUser, payload.movementType, payload);
+
+    if (payload.relatedOneTimeOrderId) {
+      const order = await this.loadOrderInventoryScope(this.prisma, payload.relatedOneTimeOrderId);
+      this.assertOrderInventoryReadable(currentUser, order);
+      if (payload.movementType === 'issue_to_one_time_order' && !this.canIssueToSpecificOrder(currentUser, order)) throw new ForbiddenException('Inventory issue to order denied');
+    }
 
     return this.createMovementRecord(currentUser, payload);
   }
 
-  async getReportSummary(
-    currentUser: CurrentAuthUser,
-  ): Promise<InventoryReportSummaryDto> {
+  async getReportSummary(currentUser: CurrentAuthUser): Promise<InventoryReportSummaryDto> {
     this.assertInventoryVisible(currentUser);
-
-    const [totalItems, totalActiveItems, movementCount, missingPhotoBridgeCount] =
-      await Promise.all([
-        this.prisma.inventoryItem.count(),
-        this.prisma.inventoryItem.count({
-          where: { isActive: true, deletedAt: null },
-        }),
-        this.prisma.inventoryMovement.count(),
-        this.prisma.inventoryMovement.count({
-          where: {
-            requiresApprovalBridge: true,
-            approvalBridgeResolvedAt: null,
-          },
-        }),
-      ]);
-    const valuationRows = await this.prisma.$queryRaw<
-      Array<{ totalStockValueEstimate: Prisma.Decimal }>
-    >`
-      WITH inventory_stock AS (
-        SELECT
-          movement."inventoryItemId",
-          SUM(
-            CASE
-              WHEN movement."status" <> 'applied' THEN 0
-              WHEN movement."movementType" IN ('receipt', 'return')
-                THEN movement."quantity"
-              WHEN movement."movementType" IN (
-                'issue_to_object',
-                'issue_to_one_time_order',
-                'writeoff'
-              ) THEN -movement."quantity"
-              WHEN movement."movementType" = 'adjustment'
-                   AND movement."adjustmentDirection" = 'increase'
-                THEN movement."quantity"
-              WHEN movement."movementType" = 'adjustment'
-                THEN -movement."quantity"
-              ELSE 0
-            END
-          ) AS stock
-        FROM "inventory_movements" AS movement
-        GROUP BY movement."inventoryItemId"
-      )
-      SELECT COALESCE(
-        SUM(COALESCE(stock.stock, 0) * COALESCE(item."currentUnitPrice", 0)),
-        0
-      ) AS "totalStockValueEstimate"
-      FROM "inventory_items" AS item
-      LEFT JOIN inventory_stock AS stock ON stock."inventoryItemId" = item."id"
-    `;
-
-    return {
-      totalItems,
-      totalActiveItems,
-      movementCount,
-      totalStockValueEstimate: Number(
-        valuationRows[0]?.totalStockValueEstimate ?? 0,
-      ),
-      missingPhotoBridgeCount,
-    };
+    const itemWhere = this.inventoryItemAccessWhere(currentUser, 'inventory.reports');
+    const movementWhere = this.inventoryMovementAccessWhere(currentUser, 'inventory.reports');
+    const [items, totalActiveItems, movementCount, missingPhotoBridgeCount] = await Promise.all([
+      this.prisma.inventoryItem.findMany({ where: itemWhere, select: { id: true, currentUnitPrice: true } }),
+      this.prisma.inventoryItem.count({ where: { AND: [itemWhere, { isActive: true, deletedAt: null }] } }),
+      this.prisma.inventoryMovement.count({ where: movementWhere }),
+      this.prisma.inventoryMovement.count({ where: { AND: [movementWhere, { requiresApprovalBridge: true, approvalBridgeResolvedAt: null }] } }),
+    ]);
+    const stock = await this.loadStockSummariesByItemIds(items.map(item => item.id));
+    return { totalItems: items.length, totalActiveItems, movementCount, missingPhotoBridgeCount,
+      totalStockValueEstimate: items.reduce((sum, item) => sum + (stock.get(item.id)?.currentStock ?? 0) * Number(item.currentUnitPrice ?? 0), 0) };
   }
 
   async resolveMissingPhotoApproval(
@@ -1062,6 +1038,8 @@ export class InventoryService {
       },
       select: {
         id: true,
+        inventoryItemId: true,
+        relatedObject: { select: { id: true, createdByUserId: true, assignments: { where: { isActive: true }, select: { userId: true } } } },
         movementType: true,
         requiresApprovalBridge: true,
         approvalBridgeType: true,
@@ -1072,6 +1050,10 @@ export class InventoryService {
     if (!movement) {
       throw new NotFoundException('Inventory movement not found');
     }
+
+    if (!decideAccess(currentUser, 'inventory.resolve_missing_photo', true, { resourceType: 'inventory_item', resourceId: movement.inventoryItemId,
+      parents: movement.relatedObject ? [{ actionCode: 'objects.read', context: { resourceType: 'object', resourceId: movement.relatedObject.id,
+        ownerUserId: movement.relatedObject.createdByUserId, assignedUserIds: movement.relatedObject.assignments.map(a => a.userId) } }] : [] })) throw new ForbiddenException('Inventory missing photo approval denied');
 
     if (
       movement.movementType !== 'issue_to_object' ||
@@ -1173,9 +1155,11 @@ export class InventoryService {
   ): Promise<ObjectInventoryResponseDto> {
     const object = await this.loadObjectScope(objectId);
     const roleCodes = this.getRoleCodes(currentUser);
+    if (!decideAccess(currentUser, 'objects.inventory.read', true, { resourceType: 'object', resourceId: object.id,
+      ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.filter(a => a.isActive).map(a => a.userId) })) throw new ForbiddenException('Object inventory read denied');
 
     if (
-      !canViewObjectByScope({
+      !canViewObjectByScope({ subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes,
         object,
@@ -1243,18 +1227,134 @@ export class InventoryService {
     });
   }
 
+  async listOneTimeOrderInventory(currentUser: CurrentAuthUser, orderId: string): Promise<OrderInventoryResponseDto> {
+    const order = await this.loadOrderInventoryScope(this.prisma, orderId);
+    this.assertOrderInventoryReadable(currentUser, order);
+    const canIssueInventoryToOrder = this.canIssueToSpecificOrder(currentUser, order);
+    const movements = await this.listOneTimeOrderMovementsScoped(currentUser, orderId, 1, 100);
+    const items = canIssueInventoryToOrder ? await this.prisma.inventoryItem.findMany({
+      where: { isActive: true, deletedAt: null },
+      include: { createdBy: { select: { id: true, login: true, fullName: true } } },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    }) : [];
+    const stock = await this.loadStockSummariesByItemIds(items.map(item => item.id));
+    // The order picker does not advertise global catalog or stock-management actions.
+    const capabilities: InventoryGlobalCapabilities = {
+      canAccessInventory: false, canManageInventoryCatalog: false, canDeleteInventoryItem: false,
+      canCreateInventoryMovement: false, canCreateInventoryReceipt: false, canIssueInventoryToObject: false,
+      canIssueInventoryToOneTimeOrder: canIssueInventoryToOrder, canReturnInventory: false,
+      canWriteoffInventory: false, canAdjustInventory: false, canViewInventoryReports: false,
+      canResolveInventoryMissingPhotoApproval: false,
+    };
+    return { ...movements, availableItems: items.map(item => this.mapItem(item, stock.get(item.id), capabilities)),
+      capabilities: { canIssueInventoryToOrder } };
+  }
+
+  async createOneTimeOrderIssueMovement(currentUser: CurrentAuthUser, orderId: string, payload: CreateOrderInventoryIssueDto): Promise<OrderInventoryIssueResponseDto> {
+    if (payload.requestId !== undefined && !isUUID(payload.requestId)) throw new BadRequestException('requestId must be a UUID');
+    // Legacy callers have one operation per call; only an explicit client key
+    // identifies retries across HTTP requests. Never deduplicate by payload.
+    const requestId = payload.requestId ?? randomUUID();
+    const movement = await this.createMovementRecord(currentUser, {
+      inventoryItemId: payload.inventoryItemId, movementType: 'issue_to_one_time_order',
+      quantity: payload.quantity, comment: payload.comment, evidenceRequired: true,
+      relatedOneTimeOrderId: orderId,
+    }, { requestId, authorize: async tx => {
+      await tx.$queryRaw`SELECT id FROM one_time_orders WHERE id = ${orderId} FOR UPDATE`;
+      const order = await this.loadOrderInventoryScope(tx, orderId);
+      this.assertOrderInventoryReadable(currentUser, order);
+      if (!this.canIssueToSpecificOrder(currentUser, order)) throw new ForbiddenException('Inventory issue to order denied');
+    } });
+    return { ...movement, inventoryItemId: movement.inventoryItem.id, oneTimeOrderId: orderId };
+  }
+
+  private async loadOrderInventoryScope(database: Pick<Prisma.TransactionClient, 'oneTimeOrder'>, orderId: string) {
+    const order = await database.oneTimeOrder.findUnique({ where: { id: orderId }, select: {
+      id: true, status: true, createdByUserId: true,
+      assignments: { where: { isActive: true }, select: { userId: true, assignmentRoleCode: true, isActive: true } },
+    } });
+    if (!order) throw new NotFoundException('One-time order not found');
+    return order;
+  }
+
+  private orderInventoryContext(order: { id: string; createdByUserId: string; assignments: Array<{ userId: string; assignmentRoleCode: string; isActive: boolean }> }) {
+    return { resourceType: 'one_time_order', resourceId: order.id, ownerUserId: order.createdByUserId,
+      assignedUserIds: order.assignments.filter(a => a.isActive && a.assignmentRoleCode === 'one_time_manager').map(a => a.userId) };
+  }
+
+  private assertOrderInventoryReadable(currentUser: CurrentAuthUser, order: Awaited<ReturnType<InventoryService['loadOrderInventoryScope']>>) {
+    const context = this.orderInventoryContext(order);
+    const visible = decideAccess(currentUser, 'one_time_orders.read', canViewOneTimeOrderByScope({ subject: currentUser,
+      currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), permissionCodes: currentUser.permissionCodes, order,
+    }), context);
+    if (!decideAccess(currentUser, 'one_time_orders.inventory.read', visible, { ...context, parentAllowed: visible }) ||
+        !decideAccess(currentUser, 'inventory.access', true, context)) throw new ForbiddenException('Order inventory access denied');
+  }
+
+  private canIssueToSpecificOrder(currentUser: CurrentAuthUser, order: Awaited<ReturnType<InventoryService['loadOrderInventoryScope']>>): boolean {
+    const globalIssuer = canIssueInventoryToOneTimeOrder(this.getRoleCodes(currentUser));
+    // The pre-ACL scoped API already allowed every active one_time_manager
+    // assignment, independently of system role or a personal permission row.
+    const assigned = hasActiveOneTimeOrderAssignment(order, currentUser.id);
+    const legacyAllowed = globalIssuer || assigned;
+    return decideAccess(currentUser, 'inventory.issue_to_one_time_order', legacyAllowed, {
+      ...this.orderInventoryContext(order),
+      invariantAllowed: !['completed', 'cancelled'].includes(order.status) &&
+        (globalIssuer || assigned),
+      parents: [{ actionCode: 'one_time_orders.read', context: this.orderInventoryContext(order) }],
+    });
+  }
+
   private async createMovementRecord(
     currentUser: CurrentAuthUser,
     payload: CreateInventoryMovementDto,
+    orderIssue?: {
+      requestId: string;
+      authorize: (tx: Prisma.TransactionClient) => Promise<void>;
+    },
   ): Promise<InventoryMovementResponseDto> {
     await this.assertScopedTargets(payload);
-    const creationResult = await this.prisma.$transaction(async (tx) => {
+    const creationResult = await inventoryTransaction(this.prisma, async (tx) => {
+        if (orderIssue) {
+          // Serialize retries even if the caller changes the item or order.
+          const requestKey = `inventory-order-issue:${currentUser.id}:${orderIssue.requestId}`;
+          // The lock returns PostgreSQL void, which Prisma cannot decode as a query result.
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${requestKey}, 0))`;
+        }
         await tx.$queryRaw`
           SELECT "id"
           FROM "inventory_items"
           WHERE "id" = ${payload.inventoryItemId}
           FOR UPDATE
         `;
+
+        if (orderIssue) {
+          await orderIssue.authorize(tx);
+          const prior = await tx.auditEvent.findFirst({
+            where: {
+              actorUserId: currentUser.id,
+              entityType: 'inventory_movement',
+              action: 'inventory.movement.created',
+              metadata: { path: ['orderIssueRequestId'], equals: orderIssue.requestId },
+            },
+          });
+          if (prior) {
+            const saved = await tx.inventoryMovement.findUnique({ where: { id: prior.entityId } });
+            if (!saved || saved.inventoryItemId !== payload.inventoryItemId ||
+                saved.relatedOneTimeOrderId !== payload.relatedOneTimeOrderId ||
+                Number(saved.quantity) !== Number(payload.quantity) ||
+                saved.comment !== (payload.comment?.trim() || null)) {
+              throw new ConflictException('Request ID already used with a different issue payload');
+            }
+            return { createdMovement: saved };
+          }
+        }
+        if (!orderIssue && payload.movementType === 'issue_to_one_time_order' && payload.relatedOneTimeOrderId) {
+          await tx.$queryRaw`SELECT id FROM one_time_orders WHERE id = ${payload.relatedOneTimeOrderId} FOR UPDATE`;
+          const order = await this.loadOrderInventoryScope(tx, payload.relatedOneTimeOrderId);
+          this.assertOrderInventoryReadable(currentUser, order);
+          if (!this.canIssueToSpecificOrder(currentUser, order)) throw new ForbiddenException('Inventory issue to order denied');
+        }
 
         const item = await tx.inventoryItem.findUnique({
           where: { id: payload.inventoryItemId },
@@ -1383,6 +1483,7 @@ export class InventoryService {
             entityId: createdMovement.id,
             actorUserId: currentUser.id,
             action: 'inventory.movement.created',
+            ...(orderIssue ? { metadata: { orderIssueRequestId: orderIssue.requestId } } : {}),
             newValues: {
               inventoryItemId: createdMovement.inventoryItemId,
               movementType: createdMovement.movementType,
@@ -1772,11 +1873,10 @@ export class InventoryService {
     currentUser: CurrentAuthUser,
   ): Promise<Array<{ id: string; name: string; status: string }>> {
     this.assertInventoryVisible(currentUser);
+    if (!decideAccess(currentUser, 'inventory.references.read', true)) throw new ForbiddenException('Inventory references denied');
 
     return this.prisma.object.findMany({
-      where: {
-        deletedAt: null,
-      },
+      where: buildObjectAccessPolicyWhere(currentUser, { deletedAt: null }),
       select: {
         id: true,
         name: true,
@@ -1792,9 +1892,10 @@ export class InventoryService {
     currentUser: CurrentAuthUser,
   ): Promise<Array<{ id: string; title: string; status: string }>> {
     this.assertInventoryVisible(currentUser);
+    if (!decideAccess(currentUser, 'inventory.references.read', true)) throw new ForbiddenException('Inventory references denied');
 
     return this.prisma.oneTimeOrder.findMany({
-      where: buildOneTimeOrderAccessWhere({
+      where: buildOneTimeOrderAccessWhere({ subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes: this.getRoleCodes(currentUser),
         permissionCodes: currentUser.permissionCodes,
@@ -1988,14 +2089,19 @@ export class InventoryService {
     },
   ): boolean {
     const roleCodes = this.getRoleCodes(currentUser);
+    const context = { resourceType: 'object', resourceId: object.id, ownerUserId: object.createdByUserId,
+      assignedUserIds: object.assignments.filter(a => a.isActive).map(a => a.userId) };
+    const inventoryContext = { ...context, parents: [{ actionCode: 'objects.inventory.issue', context }, { actionCode: 'objects.read', context }] };
 
-    return (
+    const legacy = (
       canIssueInventoryToObject(roleCodes) ||
       hasWideObjectAccess(roleCodes) ||
       object.createdByUserId === currentUser.id ||
       object.assignments.some((assignment) => assignment.userId === currentUser.id) ||
-      hasDelegatedObjectAction(currentUser.id, object.id, 'inventory_issue')
+      hasDelegatedObjectAction(currentUser.id, object.id, 'inventory_issue', true, 'inventory.issue_to_object', inventoryContext)
     );
+    const objectLeaf = decideAccess(currentUser, 'objects.inventory.issue', legacy, context);
+    return decideAccess(currentUser, 'inventory.issue_to_object', objectLeaf, inventoryContext);
   }
 
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
@@ -2004,11 +2110,28 @@ export class InventoryService {
 
   private getGlobalCapabilities(
     currentUser: CurrentAuthUser,
+    inventoryItemId?: string,
   ): InventoryGlobalCapabilities {
     return buildInventoryGlobalCapabilities(
       this.getRoleCodes(currentUser),
       currentUser.permissionCodes,
+      currentUser,
+      { resourceType: 'inventory_item', resourceId: inventoryItemId },
     );
+  }
+
+  private inventoryItemAccessWhere(user: CurrentAuthUser, actionCode: string): Prisma.InventoryItemWhereInput {
+    return buildAccessWhere<Prisma.InventoryItemWhereInput>({ subject: user, actionCode,
+      legacyWhere: canAccessInventory(this.getRoleCodes(user)) ? {} : { id: { in: [] } }, invariantWhere: {},
+      scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } } : null,
+    }) as Prisma.InventoryItemWhereInput;
+  }
+
+  private inventoryMovementAccessWhere(user: CurrentAuthUser, actionCode: string, scoped = false): Prisma.InventoryMovementWhereInput {
+    return buildAccessWhere<Prisma.InventoryMovementWhereInput>({ subject: user, actionCode,
+      legacyWhere: scoped || canAccessInventory(this.getRoleCodes(user)) ? {} : { id: { in: [] } }, invariantWhere: {},
+      scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { inventoryItemId: { in: [...rule.selectedIds] } } : null,
+    }) as Prisma.InventoryMovementWhereInput;
   }
 
   private normalizeCreateItemPayload(payload: CreateInventoryItemDto): {
@@ -2206,64 +2329,31 @@ export class InventoryService {
   }
 
   private assertInventoryVisible(currentUser: CurrentAuthUser): void {
-    if (!canAccessInventory(this.getRoleCodes(currentUser))) {
+    if (!decideAccess(currentUser, 'inventory.access', canAccessInventory(this.getRoleCodes(currentUser))) &&
+        !currentUser.accessRules?.some(r => r.effect === 'allow' && ['inventory.access', 'inventory.read'].includes(r.actionCode))) {
       throw new ForbiddenException('Inventory access denied');
     }
   }
 
   private assertCatalogManageable(currentUser: CurrentAuthUser): void {
-    if (!canManageInventoryCatalog(this.getRoleCodes(currentUser))) {
+    if (!decideAccess(currentUser, 'inventory.catalog.update', canManageInventoryCatalog(this.getRoleCodes(currentUser)))) {
       throw new ForbiddenException('Inventory catalog management denied');
     }
   }
 
-  private assertMovementCreatable(
-    currentUser: CurrentAuthUser,
-    movementType: string,
-  ): void {
-    const roleCodes = this.getRoleCodes(currentUser);
-
-    if (!canCreateInventoryMovement(roleCodes)) {
-      throw new ForbiddenException('Inventory movement creation denied');
-    }
-
-    if (!INVENTORY_MOVEMENT_TYPES.includes(movementType as InventoryMovementType)) {
-      throw new BadRequestException('Unsupported movement type');
-    }
-
-    switch (movementType as InventoryMovementType) {
-      case 'receipt':
-        if (!canCreateInventoryReceipt(roleCodes)) {
-          throw new ForbiddenException('Inventory receipt denied');
-        }
-        return;
-      case 'issue_to_object':
-        if (!canIssueInventoryToObject(roleCodes)) {
-          throw new ForbiddenException('Inventory issue to object denied');
-        }
-        return;
-      case 'issue_to_one_time_order':
-        if (!canIssueInventoryToOneTimeOrder(roleCodes)) {
-          throw new ForbiddenException(
-            'Inventory issue to one-time order denied',
-          );
-        }
-        return;
-      case 'return':
-        if (!canReturnInventory(roleCodes)) {
-          throw new ForbiddenException('Inventory return denied');
-        }
-        return;
-      case 'writeoff':
-        if (!canWriteoffInventory(roleCodes)) {
-          throw new ForbiddenException('Inventory writeoff denied');
-        }
-        return;
-      case 'adjustment':
-        if (!canAdjustInventory(roleCodes)) {
-          throw new ForbiddenException('Inventory adjustment denied');
-        }
-    }
+  private assertMovementCreatable(currentUser: CurrentAuthUser, movementType: string, payload?: CreateInventoryMovementDto): void {
+    if (!INVENTORY_MOVEMENT_TYPES.includes(movementType as InventoryMovementType)) throw new BadRequestException('Unsupported movement type');
+    const roles = this.getRoleCodes(currentUser);
+    const legacy: Record<string, boolean> = { receipt: canCreateInventoryReceipt(roles), issue_to_object: canIssueInventoryToObject(roles),
+      issue_to_one_time_order: canIssueInventoryToOneTimeOrder(roles), return: canReturnInventory(roles),
+      writeoff: canWriteoffInventory(roles), adjustment: canAdjustInventory(roles) };
+    const context = movementType === 'issue_to_object'
+      ? { resourceType: 'object', resourceId: payload?.relatedObjectId }
+      : movementType === 'issue_to_one_time_order'
+        ? { resourceType: 'one_time_order', resourceId: payload?.relatedOneTimeOrderId }
+        : { resourceType: 'inventory_item', resourceId: payload?.inventoryItemId };
+    if (!decideAccess(currentUser, `inventory.${movementType}`, legacy[movementType], context)) throw new ForbiddenException('Inventory movement creation denied');
+    if (movementType === 'issue_to_one_time_order' && !legacy[movementType]) throw new ForbiddenException('Use the order-scoped issue endpoint with a request ID');
   }
 
   private async assertScopedTargets(
@@ -3016,7 +3106,7 @@ export class InventoryService {
       !movement.approvalBridgeResolvedAt &&
       movement.approvalBridgeType === 'inventory_without_photo_confirmation';
     const canViewRelatedOrder = movement.relatedOneTimeOrder
-      ? canViewOneTimeOrderByScope({
+      ? canViewOneTimeOrderByScope({ subject: currentUser,
           currentUserId: currentUser.id,
           roleCodes,
           permissionCodes: currentUser.permissionCodes,
@@ -3043,7 +3133,7 @@ export class InventoryService {
         ? {
             id: movement.relatedObject.id,
             name: movement.relatedObject.name,
-            canOpenObjectCard: canViewObjectByScope({
+            canOpenObjectCard: canViewObjectByScope({ subject: currentUser,
               currentUserId: currentUser.id,
               roleCodes,
               object: movement.relatedObject,
@@ -3080,7 +3170,7 @@ export class InventoryService {
         ),
         canResolveMissingPhotoApproval:
           isPendingMissingPhotoBridge &&
-          canResolveInventoryMissingPhotoApproval(roleCodes),
+          decideAccess(currentUser, 'inventory.resolve_missing_photo', canResolveInventoryMissingPhotoApproval(roleCodes), { resourceType: 'inventory_item', resourceId: movement.inventoryItem.id }),
       },
     };
   }

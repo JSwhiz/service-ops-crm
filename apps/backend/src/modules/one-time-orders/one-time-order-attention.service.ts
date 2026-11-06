@@ -27,7 +27,7 @@ export class OneTimeOrderAttentionService {
     const search = (query.q ?? query.search)?.trim();
     const roleCodes = user.roleCodes?.length ? user.roleCodes : [user.roleCode];
     const clauses: Prisma.OneTimeOrderWhereInput[] = [
-      buildOneTimeOrderAccessWhere({
+      buildOneTimeOrderAccessWhere({ subject: user,
         currentUserId: user.id,
         roleCodes,
         permissionCodes: user.permissionCodes,

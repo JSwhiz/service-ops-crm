@@ -3,6 +3,7 @@ import {
   Injectable, NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AccessSubject, decideAccess } from '../users-access/utils/access-policy.util';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { delegatedObjectIds, usedObjectDelegations } from '../user-substitutions/object-delegation.context';
@@ -15,12 +16,13 @@ import {
   canCreateObject, canEditObject, canOverrideFrozenObject,
   canViewObjectBasicProfile, canViewObjectByScope,
   hasHrObjectView, hasWideObjectAccess,
+  buildObjectAccessPolicyWhere,
 } from './utils/object-access.util';
 import { moscowMonthWindow } from './utils/object-season.util';
 
 export { normalizeObjectSetup, normalizeObjectSetupFields, normalizeObjectSetupPatch, validateObjectSetup } from './dto/object-setup.dto';
 
-export interface ObjectSetupActor {
+export interface ObjectSetupActor extends AccessSubject {
   id: string;
   roleCode: string;
   roleCodes?: string[];
@@ -52,23 +54,23 @@ export class ObjectSetupService {
     ObjectSetupService.assertActive(user);
     const roles = ObjectSetupService.roles(user);
     const object = await tx.object.findFirst({
-      where: {
+      where: { id: objectId, AND: [buildObjectAccessPolicyWhere(user, {
         id: objectId,
         deletedAt: null,
         ...(!hasWideObjectAccess(roles) && !hasHrObjectView(user.permissionCodes) ? {
           OR: [
             { createdByUserId: user.id },
             { assignments: { some: { userId: user.id, isActive: true } } },
-            { id: { in: delegatedObjectIds(user.id) } },
+            { id: { in: delegatedObjectIds(user.id, 'view', 'objects.read') } },
           ],
         } : {}),
-      },
+      })] },
       select: {
         id: true, status: true, createdByUserId: true,
         assignments: { where: { isActive: true }, select: { userId: true, isActive: true } },
       },
     });
-    if (!object || !canViewObjectBasicProfile({
+    if (!object || !canViewObjectBasicProfile({ subject: user,
       currentUserId: user.id, roleCodes: roles,
       permissionCodes: user.permissionCodes, object,
     })) throw new NotFoundException('Объект не найден');
@@ -77,20 +79,21 @@ export class ObjectSetupService {
 
   private static capabilities(user: ObjectSetupActor, object: SetupObject): ObjectSetupCapabilities {
     const roles = ObjectSetupService.roles(user);
-    const operational = canViewObjectByScope({ currentUserId: user.id, roleCodes: roles, object });
+    const operational = canViewObjectByScope({ subject: user, currentUserId: user.id, roleCodes: roles, object });
     const leadership = canEditObject(roles);
     const writable = object.status !== 'archived' && (object.status !== 'frozen' || canOverrideFrozenObject(roles));
+    const context = { resourceType: 'object', resourceId: object.id, ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.map(a => a.userId) };
     return {
-      canEditCore: writable && leadership,
-      canViewContractAmount: leadership,
-      canEditContractAmount: writable && leadership,
-      canViewBudgets: operational,
-      canEditBudgets: writable && operational && (
+      canEditCore: writable && decideAccess(user, 'objects.update', leadership, context),
+      canViewContractAmount: decideAccess(user, 'objects.contract_amount.read', leadership, context),
+      canEditContractAmount: writable && leadership && decideAccess(user, 'objects.update', true, context),
+      canViewBudgets: decideAccess(user, 'objects.budget.read', operational, context),
+      canEditBudgets: writable && operational && decideAccess(user, 'objects.budget.edit', (
         roles.some((role) => role === 'founder' || role === 'director') ||
         !!user.permissionCodes?.includes('object.budget_edit')
-      ),
+      ), context),
       canViewCoefficient: operational,
-      canEditCoefficient: writable && operational && !!user.permissionCodes?.includes('object.coefficient_edit'),
+      canEditCoefficient: writable && operational && decideAccess(user, 'objects.coefficient.edit', !!user.permissionCodes?.includes('object.coefficient_edit'), context),
     };
   }
 

@@ -3,8 +3,11 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { resolveEffectivePermissionCodes } from './utils/effective-permissions.util';
+import { AccessRule } from './types/access-policy.type';
 
 interface UserWithRoles {
+  accessVersion?: number;
+  accessRules?: Array<{ actionCode: string; effect: string; scope: string; selectedIds: string[] }>;
   id: string;
   login: string;
   passwordHash: string | null;
@@ -30,6 +33,8 @@ interface UserWithRoles {
 }
 
 const authUserSelect = {
+  accessVersion: true,
+  accessRules: { select: { actionCode: true, effect: true, scope: true, selectedIds: true } },
   id: true,
   login: true,
   passwordHash: true,
@@ -67,6 +72,8 @@ const authUserSelect = {
 } as const;
 
 export interface SanitizedAuthUser {
+  accessVersion: number;
+  accessRules: AccessRule[];
   id: string;
   login: string;
   fullName: string;
@@ -125,6 +132,8 @@ export class UsersService {
 
   sanitizeUser(user: UserWithRoles): SanitizedAuthUser {
     return {
+      accessVersion: user.accessVersion ?? 0,
+      accessRules: (user.accessRules ?? []).map(rule => ({ ...rule, effect: rule.effect as AccessRule['effect'], scope: rule.scope as AccessRule['scope'] })),
       id: user.id,
       login: user.login,
       fullName: user.fullName,

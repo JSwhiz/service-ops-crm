@@ -1,6 +1,7 @@
 import type { RotationGroupDto, TemplateDto } from './scheduling.dto';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
 
-export interface SchedulingUser {
+export interface SchedulingUser extends AccessSubject {
   id: string; login: string; fullName: string; roleCode: string;
   roleCodes?: string[]; permissionCodes?: string[]; isActive: boolean;
 }

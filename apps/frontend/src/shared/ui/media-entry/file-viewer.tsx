@@ -151,8 +151,11 @@ export function FileViewer({
   };
 
   const inlineUrl = view?.inlineContentUrl ? resolveFileApiUrl(view.inlineContentUrl) : null;
-  const originalUrl = view ? resolveFileApiUrl(ORIGINAL_CONTENT_PATH(view.id)) : null;
-  const downloadUrl = view ? resolveFileApiUrl(view.downloadUrl) : '#';
+  const canPreview = view?.capabilities?.canPreview ?? true;
+  const canDownload = view?.capabilities?.canDownload ?? true;
+  const canRetryPreview = view?.capabilities?.canRetryPreview ?? true;
+  const originalUrl = view && canPreview ? canDownload ? resolveFileApiUrl(ORIGINAL_CONTENT_PATH(view.id)) : inlineUrl : null;
+  const downloadUrl = view && canDownload ? resolveFileApiUrl(view.downloadUrl) : '';
   const isWaiting = view?.previewStatus === 'pending' || view?.previewStatus === 'processing';
   const activeFile = files?.find((file) => file.id === activeFileId);
   const displayName = view?.originalName ?? activeFile?.originalName ?? 'Загрузка файла…';
@@ -221,12 +224,12 @@ export function FileViewer({
   ) : null;
 
   const toolbarActions = view ? <div className={styles.toolbar}>
-    {view.previewType === 'image' ? <>
+    {view.previewType === 'image' && canPreview ? <>
       <IconButton aria-label="Вписать изображение" title="Вписать изображение" disabled={!oneToOne} onClick={() => { setOneToOne(false); setImageUnavailable(false); setLensGeometry(null); }}><FitToScreenIcon size={18} /></IconButton>
-      <IconButton aria-label="Показать оригинал 1:1" title="Показать оригинал 1:1" disabled={oneToOne} onClick={() => { setOneToOne(true); setImageUnavailable(false); setLensGeometry(null); }}><OneToOneIcon size={18} /></IconButton>
-      <IconButton aria-label={lensEnabled ? 'Выключить лупу' : 'Включить лупу'} title={lensEnabled ? 'Выключить лупу' : 'Включить лупу'} aria-pressed={lensEnabled} className={styles.lensToggle} onClick={() => { setLensEnabled((value) => !value); setLensGeometry(null); }}><SearchIcon size={18} /></IconButton>
+      {canDownload ? <IconButton aria-label="Показать оригинал 1:1" title="Показать оригинал 1:1" disabled={oneToOne} onClick={() => { setOneToOne(true); setImageUnavailable(false); setLensGeometry(null); }}><OneToOneIcon size={18} /></IconButton> : null}
+      {canDownload ? <IconButton aria-label={lensEnabled ? 'Выключить лупу' : 'Включить лупу'} title={lensEnabled ? 'Выключить лупу' : 'Включить лупу'} aria-pressed={lensEnabled} className={styles.lensToggle} onClick={() => { setLensEnabled((value) => !value); setLensGeometry(null); }}><SearchIcon size={18} /></IconButton> : null}
     </> : null}
-    <a className={`ui-icon-button ${styles.downloadAction}`} href={downloadUrl} aria-label="Скачать оригинал" title="Скачать оригинал"><MediaActionIcon name="download" /></a>
+    {downloadUrl ? <a className={`ui-icon-button ${styles.downloadAction}`} href={downloadUrl} aria-label="Скачать оригинал" title="Скачать оригинал"><MediaActionIcon name="download" /></a> : null}
   </div> : null;
 
   const viewer = <>
@@ -257,7 +260,7 @@ export function FileViewer({
       {view?.previewStatus === 'failed' ? <div className={styles.viewerState}>
         <strong>{view.previewType === 'unsupported' ? 'Предпросмотр этого формата недоступен' : 'Не удалось сформировать предпросмотр документа'}</strong>
         <span>{view.errorMessage || 'Предпросмотр недоступен.'}</span>
-        {view.previewType !== 'unsupported' ? <Button onClick={() => void handleRetry()}>Повторить</Button> : null}
+        {view.previewType !== 'unsupported' && canPreview && canRetryPreview ? <Button onClick={() => void handleRetry()}>Повторить</Button> : null}
         {downloadUrl ? <a href={downloadUrl}>Скачать оригинал</a> : null}
       </div> : null}
       {view?.previewStatus === 'ready' && view.previewType === 'unsupported' ? <div className={styles.viewerState}>

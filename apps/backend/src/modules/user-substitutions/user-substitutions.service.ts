@@ -1,16 +1,17 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { buildAccessWhere, decideAccess } from '../users-access/utils/access-policy.util';
 
 import { AuditService } from '../audit/audit.service';
-import { canEditObject, canManageObjectResponsibles, canViewObjectByScope, hasWideObjectAccess } from '../objects/utils/object-access.util';
-import { canAssignEquipmentToObject } from '../equipment/utils/equipment-access.util';
+import { canViewObjectByScope, hasWideObjectAccess } from '../objects/utils/object-access.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { SystemUser } from '../users-access/types/system-user.type';
-import { hasWideTaskAccess } from '../tasks/utils/task-access.util';
 import { CreateUserSubstitutionDto, ListUserSubstitutionsQueryDto, SubstitutionOptionsQueryDto } from './user-substitutions.dto';
-import { ObjectDelegatedAction, ObjectDelegationGrant } from './object-delegation.context';
+import type { ObjectDelegationGrant } from './object-delegation.context';
+import { resolveObjectDelegationGrants } from './resolve-object-delegation-grants.util';
 
 export const SUBSTITUTION_MANAGE_PERMISSION = 'objects.substitution.manage';
-type Actor = Pick<SystemUser, 'id' | 'permissionCodes'>;
+type Actor = AccessSubject;
 const userSelect = { id: true, fullName: true, login: true } as const;
 const substitutionInclude = {
   principal: { select: userSelect }, replacement: { select: userSelect },
@@ -23,38 +24,26 @@ export class UserSubstitutionsService {
   constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   async resolveGrants(actorUserId: string): Promise<ObjectDelegationGrant[]> {
-    const now = new Date();
-    const records = await this.prisma.userSubstitution.findMany({
-      where: {
-        replacementUserId: actorUserId, revokedAt: null,
-        startsAt: { lte: now }, endsAt: { gt: now },
-        replacement: { isActive: true, deletedAt: null },
-        principal: { isActive: true, deletedAt: null },
-      },
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-      include: {
-        principal: { include: { roles: { include: { role: true } } } },
-        objects: { include: { object: { include: { assignments: { where: { isActive: true } } } } } },
-      },
-    });
-    const grants: ObjectDelegationGrant[] = [];
-    for (const record of records) {
-      const roles = record.principal.roles.map((entry) => entry.role.code);
-      for (const scope of record.objects) {
-        if (scope.object.deletedAt || !canViewObjectByScope({ currentUserId: record.principalUserId, roleCodes: roles, object: scope.object, ownScopeOnly: true })) continue;
-        const actions: ObjectDelegatedAction[] = ['view', 'operate', 'inventory_issue'];
-        if (canEditObject(roles)) actions.push('edit');
-        if (canManageObjectResponsibles(roles)) actions.push('assign', 'status');
-        if (canAssignEquipmentToObject(roles)) actions.push('equipment_move');
-        grants.push({ substitutionId: record.id, principalUserId: record.principalUserId, objectId: scope.objectId, actions, endsAt: record.endsAt.getTime(), taskWideAccess: hasWideTaskAccess(roles) });
-      }
-    }
-    return grants;
+    return resolveObjectDelegationGrants(this.prisma, actorUserId);
   }
 
   async list(actor: Actor, query: ListUserSubstitutionsQueryDto = {}) {
     const page = query.page ?? 1, limit = query.limit ?? 20;
-    const where = this.isAdmin(actor) ? {} : { OR: [{ principalUserId: actor.id }, { replacementUserId: actor.id }] };
+    const where = buildAccessWhere<Prisma.UserSubstitutionWhereInput>({
+      subject: actor, actionCode: 'user_substitutions.read', invariantWhere: {},
+      legacyWhere: this.isAdmin(actor) ? {} : { OR: [{ principalUserId: actor.id }, { replacementUserId: actor.id }] },
+      parentActionCodes: ['objects.access', 'objects.read'],
+      scopeWhere: (rule, code) => {
+        if (code.startsWith('objects.')) {
+          const object: Prisma.ObjectWhereInput = rule.scope === 'all' ? { id: { not: '' } }
+            : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } }
+              : rule.scope === 'own' ? { createdByUserId: actor.id } : { assignments: { some: { userId: actor.id, isActive: true } } };
+          return { objects: { some: { object } } };
+        }
+        return rule.scope === 'all' ? {} : rule.scope === 'own' ? { OR: [{ principalUserId: actor.id }, { replacementUserId: actor.id }] }
+          : rule.scope === 'selected' ? { objects: { [rule.effect === 'allow' ? 'every' : 'some']: { objectId: { in: [...rule.selectedIds] } } } } : null;
+      },
+    }) as Prisma.UserSubstitutionWhereInput;
     const [records, total] = await this.prisma.$transaction([
       this.prisma.userSubstitution.findMany({ where, include: substitutionInclude, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * limit, take: limit }),
       this.prisma.userSubstitution.count({ where }),
@@ -63,7 +52,7 @@ export class UserSubstitutionsService {
     const items = records.map((record) => ({
       ...record, status: record.revokedAt ? 'revoked' : record.endsAt.getTime() <= now ? 'expired' : record.startsAt.getTime() > now ? 'scheduled' : 'active',
       objects: record.objects.map((scope) => ({ id: scope.object.id, name: scope.object.name, archived: !!scope.object.deletedAt })),
-      canRevoke: !record.revokedAt && record.endsAt.getTime() > now,
+      canRevoke: !record.revokedAt && record.endsAt.getTime() > now && this.recordAction(actor, 'user_substitutions.revoke', record, this.isAdmin(actor) || record.principalUserId === actor.id || record.replacementUserId === actor.id),
     }));
     return { items, page, limit, total, totalPages: Math.ceil(total / limit) };
   }
@@ -122,7 +111,8 @@ export class UserSubstitutionsService {
       await tx.$queryRaw`SELECT "id" FROM "user_substitutions" WHERE "id" = ${id} FOR UPDATE`;
       const record = await tx.userSubstitution.findUnique({ where: { id } });
       if (!record) throw new NotFoundException('Замещение не найдено');
-      if (!this.isAdmin(actor) && actor.id !== record.principalUserId && actor.id !== record.replacementUserId) throw new ForbiddenException('Отзыв замещения недоступен');
+      const scopes = await tx.userSubstitutionObject.findMany({ where: { substitutionId: record.id }, select: { objectId: true } });
+      if (!this.recordAction(actor, 'user_substitutions.revoke', { ...record, objects: scopes }, this.isAdmin(actor) || actor.id === record.principalUserId || actor.id === record.replacementUserId)) throw new ForbiddenException('Отзыв замещения недоступен');
       if (record.revokedAt) return;
       await tx.userSubstitution.update({ where: { id }, data: { revokedAt: new Date(), revokedByUserId: actor.id, revocationReason: reason.trim() } });
       await this.audit.writeAuditEvent({ entityType: 'user_substitution', entityId: id, actorUserId: actor.id, action: 'user_substitution.revoked', metadata: { principalUserId: record.principalUserId, replacementUserId: record.replacementUserId, reason: reason.trim() } }, tx);
@@ -130,8 +120,13 @@ export class UserSubstitutionsService {
     return this.list(actor);
   }
 
-  private isAdmin(actor: Actor) { return actor.permissionCodes?.includes(SUBSTITUTION_MANAGE_PERMISSION) ?? false; }
+  private isAdmin(actor: Actor) { return decideAccess(actor, 'user_substitutions.manage', actor.permissionCodes?.includes(SUBSTITUTION_MANAGE_PERMISSION) ?? false); }
   private assertCanCreate(actor: Actor, principalUserId: string) {
     if (actor.id !== principalUserId && !this.isAdmin(actor)) throw new ForbiddenException('Создавать замещение другого пользователя нельзя');
+    if (!decideAccess(actor, 'user_substitutions.create', actor.id === principalUserId || this.isAdmin(actor), { resourceType: 'object', ownerUserId: principalUserId })) throw new ForbiddenException('Создавать замещение другого пользователя нельзя');
+  }
+
+  private recordAction(actor: Actor, code: string, record: { principalUserId: string; objects: Array<{ objectId: string }> }, legacy: boolean) {
+    return record.objects.length > 0 && record.objects.every(scope => decideAccess(actor, code, legacy, { resourceType: 'object', resourceId: scope.objectId, ownerUserId: record.principalUserId }));
   }
 }

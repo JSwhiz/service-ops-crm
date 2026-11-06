@@ -7,12 +7,15 @@ import {
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess } from '../users-access/utils/access-policy.util';
+import { resourceAccessTarget } from '../../common/access/resource-access-context';
 
 import { ScopedEquipmentActionDto } from './dto/scoped-equipment-action.dto';
 import { EquipmentUnitResponseDto } from './dto/equipment-response.dto';
 import { EquipmentService } from './equipment.service';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -225,6 +228,30 @@ export class ScopedEquipmentService {
         },
       });
       if (!current) throw new NotFoundException('Equipment unit not found');
+      const parents = [];
+      for (const [entityType, id] of [
+        ['object', current.currentObjectId], ['object', params.toObjectId],
+        ['one_time_order', current.currentOneTimeOrderId], ['one_time_order', params.toOneTimeOrderId],
+      ] as const) {
+        if (!id) continue;
+        const target = await resourceAccessTarget(this.prisma, entityType, id);
+        if (!target) throw new ForbiddenException('Equipment work scope unavailable');
+        parents.push(target);
+        // The scoped endpoint is an active-assignment workflow even when an action is granted.
+        const assigned = entityType === 'object'
+          ? await tx.objectAssignment.findFirst({ where: { objectId: id, userId: params.currentUser.id, isActive: true }, select: { id: true } })
+          : await tx.oneTimeOrderAssignment.findFirst({ where: { oneTimeOrderId: id, userId: params.currentUser.id, assignmentRoleCode: 'one_time_manager', isActive: true }, select: { id: true } });
+        if (!assigned) throw new ForbiddenException('Equipment assignment was revoked');
+        if (params.movementType !== 'return_to_storage') {
+          const work = entityType === 'object'
+            ? await tx.object.findUnique({ where: { id }, select: { status: true } })
+            : await tx.oneTimeOrder.findUnique({ where: { id }, select: { status: true } });
+          if (!work || ['frozen', 'archived', 'closed', 'completed', 'cancelled'].includes(work.status)) throw new ConflictException('Equipment destination is read-only');
+        }
+      }
+      const actionCode = params.movementType === 'issue_to_object' ? 'equipment.assign_object'
+        : params.movementType === 'issue_to_one_time_order' ? 'equipment.assign_order' : 'equipment.return';
+      if (!decideAccess(params.currentUser, actionCode, true, { resourceType: 'equipment_unit', resourceId: current.id, parents })) throw new ForbiddenException('Scoped equipment action denied');
       if (
         current.status !== params.unit.status ||
         current.currentObjectId !== params.unit.currentObjectId ||

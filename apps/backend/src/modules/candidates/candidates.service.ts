@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Candidate, CandidateManagerAssignment, Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { buildAccessWhere, decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -11,10 +13,10 @@ import { CANDIDATE_MANAGER_ROLE_CODES, CANDIDATE_RESPONSE_SLA_MS } from './const
 import { CandidateAssignmentResponseDto, CandidateCardResponseDto, CandidateListItemDto, CandidateListResponseDto, CandidateResponseItemDto } from './dto/candidate-response.dto';
 import { AssignCandidateManagerDto, CandidateManagerSelectionDto, CandidateVersionDto, ChangeCandidateStatusDto, ConvertCandidateToEmployeeDto, CreateCandidateDto, CreateCandidateResponseDto, UpdateCandidateDto } from './dto/candidate-mutations.dto';
 import { ListCandidateManagersQueryDto, ListCandidatesQueryDto } from './dto/list-candidates-query.dto';
-import { buildCandidateAccessWhere, canManageCandidates, canRespondToCandidates, canViewCandidates } from './utils/candidate-access.util';
+import { buildCandidateAccessWhere, candidateActionAllowed, candidateManagementAllowed, canManageCandidates, canViewCandidates } from './utils/candidate-access.util';
 import { candidatePhoneSearchDigits } from './utils/candidate-phone.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   roleCode?: string;
   roleCodes?: string[];
@@ -64,10 +66,13 @@ export class CandidatesService {
   async list(currentUser: CurrentAuthUser, query: ListCandidatesQueryDto): Promise<CandidateListResponseDto> {
     this.assertView(currentUser);
     const now = new Date();
+    const visibleObjects = await this.visibleObjectIds(currentUser);
     const scope = query.scope ?? (canManageCandidates(this.permissions(currentUser)) ? 'all' : 'mine');
     const where: Prisma.CandidateWhereInput = { AND: [
       this.buildWhere(query, now), buildCandidateAccessWhere(currentUser),
-      ...(scope === 'mine' ? [{ assignments: { some: { managerUserId: currentUser.id, endedAt: null } } }] : []),
+      ...(scope === 'mine' ? [query.scope === 'mine'
+        ? { assignments: { some: { managerUserId: currentUser.id, endedAt: null } } }
+        : { OR: [{ assignments: { some: { managerUserId: currentUser.id, endedAt: null } } }, buildCandidateAccessWhere(currentUser, 'candidates.manage')] }] : []),
     ] };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.candidate.findMany({
@@ -94,7 +99,7 @@ export class CandidatesService {
       this.prisma.candidate.count({ where }),
     ]);
     return {
-      items: items.map((candidate) => this.mapListItem(candidate, now)),
+      items: items.map((candidate) => this.mapListItem(candidate, now, visibleObjects)),
       page: query.page,
       limit: query.limit,
       total,
@@ -110,6 +115,7 @@ export class CandidatesService {
         deletedAt: null,
         roles: { some: { role: { code: { in: [...CANDIDATE_MANAGER_ROLE_CODES] } } } },
         permissions: { none: { permission: { code: 'candidates.denied' } } },
+        accessRules: { none: { effect: 'deny', scope: 'all', actionCode: { in: ['candidates.access', 'candidates.view'] } } },
         ...(query.selectedId ? { id: query.selectedId } : {}),
         ...(query.q ? { OR: [{ fullName: { contains: query.q, mode: 'insensitive' } }, { login: { contains: query.q, mode: 'insensitive' } }] } : {}),
       },
@@ -133,30 +139,37 @@ export class CandidatesService {
       },
     });
     if (!candidate) throw new NotFoundException('Candidate not found');
+    const visibleObjects = await this.visibleObjectIds(currentUser);
+    const context = { resourceType: 'candidate', resourceId: candidate.id, ownerUserId: candidate.createdByUserId, assignedUserIds: candidate.assignments.filter(a => !a.endedAt).map(a => a.managerUserId) };
+    const manage = candidateManagementAllowed(currentUser, context);
+    const action = (code: string) => candidateActionAllowed(currentUser, code, context);
     return {
-      ...this.mapListItem(candidate, new Date()),
+      ...this.mapListItem(candidate, new Date(), visibleObjects),
       comment: candidate.comment,
       createdBy: candidate.createdBy,
       createdAt: candidate.createdAt.toISOString(),
-      assignments: candidate.assignments.map((item) => this.mapAssignment(item)),
+      assignments: candidate.assignments.map((item) => this.mapAssignment(item, visibleObjects)),
       responses: candidate.responses.map((item) => this.mapResponse(item)),
       capabilities: {
-        canManage: canManageCandidates(this.permissions(currentUser)),
+        canManage: action('candidates.update') && !candidate.deletedAt,
+        canEdit: action('candidates.update') && !candidate.deletedAt,
+        canChangeStatus: action('candidates.status') && !candidate.deletedAt,
+        canManageAssignments: action('candidates.assignments.manage') && !candidate.deletedAt && !['accepted', 'rejected'].includes(candidate.status),
         canRespond:
-          canRespondToCandidates(this.permissions(currentUser)) &&
-          (canManageCandidates(this.permissions(currentUser)) || candidate.assignments.some((assignment) => !assignment.endedAt && assignment.managerUserId === currentUser.id)) &&
+          action('candidates.respond') &&
+          (manage || candidate.assignments.some((assignment) => !assignment.endedAt && assignment.managerUserId === currentUser.id)) &&
           !candidate.deletedAt &&
-          (canManageCandidates(this.permissions(currentUser)) || !['accepted', 'rejected'].includes(candidate.status)),
-        canArchive: canManageCandidates(this.permissions(currentUser)) && !candidate.deletedAt,
-        canRestore: canManageCandidates(this.permissions(currentUser)) && Boolean(candidate.deletedAt),
-        canConvert: canManageCandidates(this.permissions(currentUser)) && canCreateEmployee(this.permissions(currentUser)) && !candidate.deletedAt && !candidate.employeeId && candidate.status !== 'rejected',
-        canViewEmployee: canViewEmployeesHr(this.permissions(currentUser)),
+          (manage || !['accepted', 'rejected'].includes(candidate.status)),
+        canArchive: action('candidates.archive') && !candidate.deletedAt,
+        canRestore: action('candidates.restore') && Boolean(candidate.deletedAt),
+        canConvert: action('candidates.convert_employee') && decideAccess(currentUser, 'employees.create', canCreateEmployee(this.permissions(currentUser))) && !candidate.deletedAt && !candidate.employeeId && candidate.status !== 'rejected',
+        canViewEmployee: !!candidate.employeeId && decideAccess(currentUser, 'employees.view', canViewEmployeesHr(this.permissions(currentUser)), { resourceType: 'employee', resourceId: candidate.employeeId }),
       },
     };
   }
 
   async create(currentUser: CurrentAuthUser, payload: CreateCandidateDto): Promise<CandidateCardResponseDto> {
-    this.assertManage(currentUser);
+    await this.assertManage(currentUser, 'candidates.create');
 
     if (payload.candidateType === 'regular' && !payload.objectId) {
       throw new BadRequestException('Regular candidate requires object');
@@ -197,7 +210,9 @@ export class CandidatesService {
         newValues: this.snapshot(created),
       }, tx);
 
+      if (selections.length) await this.assertActionScope(currentUser, 'candidates.assignments.manage', created.id, tx);
       for (const selection of selections) {
+        await this.loadEligibleManager(tx, selection.managerUserId, created);
         const assignedAt = new Date();
         const assignment = await tx.candidateManagerAssignment.create({
           data: {
@@ -267,9 +282,11 @@ export class CandidatesService {
   }
 
   async update(currentUser: CurrentAuthUser, id: string, payload: UpdateCandidateDto): Promise<CandidateCardResponseDto> {
-    this.assertManage(currentUser);
+    await this.assertManage(currentUser, 'candidates.update', id);
     await this.prisma.$transaction(async (tx) => {
       const existing = await this.lockCandidate(tx, id);
+      await this.assertActionScope(currentUser, 'candidates.update', id, tx);
+      if (existing.deletedAt) throw new ConflictException('Archived candidate must be restored before editing');
       this.assertVersion(existing, payload.expectedVersion);
 
       const nextCandidateType = payload.candidateType ?? existing.candidateType;
@@ -322,9 +339,11 @@ export class CandidatesService {
   }
 
   async changeStatus(currentUser: CurrentAuthUser, id: string, payload: ChangeCandidateStatusDto): Promise<CandidateCardResponseDto> {
-    this.assertManage(currentUser);
+    await this.assertManage(currentUser, 'candidates.status', id);
     await this.prisma.$transaction(async (tx) => {
       const existing = await this.lockCandidate(tx, id);
+      await this.assertActionScope(currentUser, 'candidates.status', id, tx);
+      if (existing.deletedAt) throw new ConflictException('Archived candidate must be restored before changing status');
       this.assertVersion(existing, payload.expectedVersion);
       if (existing.status === payload.status) return;
       const closing = CLOSED_CANDIDATE_STATUSES.includes(payload.status);
@@ -346,6 +365,7 @@ export class CandidatesService {
         await tx.candidateManagerAssignment.updateMany({ where: { candidateId: id, endedAt: null }, data: { endedAt: new Date(), endedByUserId: currentUser.id } });
       }
       if (selections.length) {
+        await this.assertActionScope(currentUser, 'candidates.assignments.manage', id, tx);
         await this.openManagerAssignments(tx, currentUser, existing, selections);
       }
       await this.auditService.writeAuditEvent({
@@ -366,7 +386,7 @@ export class CandidatesService {
   ): Promise<void> {
     const now = new Date();
     for (const selection of selections) {
-      await this.loadEligibleManager(tx, selection.managerUserId);
+      await this.loadEligibleManager(tx, selection.managerUserId, candidate);
       if (selection.objectId) await this.assertCandidateObjectAvailable(tx, currentUser, selection.objectId);
       const created = await tx.candidateManagerAssignment.create({ data: {
         candidateId: candidate.id, managerUserId: selection.managerUserId, objectId: selection.objectId,
@@ -390,18 +410,19 @@ export class CandidatesService {
   }
 
   async assign(currentUser: CurrentAuthUser, id: string, payload: AssignCandidateManagerDto): Promise<CandidateCardResponseDto> {
-    this.assertManage(currentUser);
+    await this.assertManage(currentUser, 'candidates.assignments.manage', id);
     if (payload.assignments === undefined && payload.managerUserIds === undefined && !payload.managerUserId) {
       throw new BadRequestException('Укажите ответственных менеджеров');
     }
     await this.prisma.$transaction(async (tx) => {
       const candidate = await this.lockCandidate(tx, id);
+      await this.assertActionScope(currentUser, 'candidates.assignments.manage', id, tx);
       this.assertVersion(candidate, payload.expectedVersion);
       if (candidate.deletedAt || ['accepted', 'rejected'].includes(candidate.status)) throw new ConflictException('Кандидат закрыт или находится в архиве. Обновите карточку.');
       const selections = this.managerSelections(payload, candidate.objectId);
       if (candidate.candidateType === 'regular' && !selections.length) throw new BadRequestException({ code: 'CANDIDATE_MANAGER_REQUIRED', message: 'Назначьте хотя бы одного ответственного менеджера.' });
       for (const selection of selections) {
-        await this.loadEligibleManager(tx, selection.managerUserId);
+        await this.loadEligibleManager(tx, selection.managerUserId, candidate);
         if (selection.objectId) await this.assertCandidateObjectAvailable(tx, currentUser, selection.objectId);
       }
       const now = new Date();
@@ -436,10 +457,11 @@ export class CandidatesService {
   }
 
   async convertToEmployee(currentUser: CurrentAuthUser, id: string, payload: ConvertCandidateToEmployeeDto): Promise<CandidateCardResponseDto> {
-    this.assertManage(currentUser);
-    if (!canCreateEmployee(this.permissions(currentUser))) throw new ForbiddenException('Employee creation denied');
+    await this.assertManage(currentUser, 'candidates.convert_employee', id);
+    if (!decideAccess(currentUser, 'employees.create', canCreateEmployee(this.permissions(currentUser)))) throw new ForbiddenException('Employee creation denied');
     await this.prisma.$transaction(async (tx) => {
       const candidate = await this.lockCandidate(tx, id);
+      await this.assertActionScope(currentUser, 'candidates.convert_employee', id, tx);
       // A retried request must return the previously created employee, never create a duplicate.
       if (candidate.employeeId) return;
       this.assertVersion(candidate, payload.expectedVersion);
@@ -461,12 +483,15 @@ export class CandidatesService {
   }
 
   async respond(currentUser: CurrentAuthUser, id: string, payload: CreateCandidateResponseDto): Promise<CandidateCardResponseDto> {
-    this.assertRespond(currentUser);
+    await this.assertActionScope(currentUser, 'candidates.respond', id);
     await this.prisma.$transaction(async (tx) => {
       const candidate = await this.lockCandidate(tx, id);
+      await this.assertActionScope(currentUser, 'candidates.respond', id, tx);
+      const activeManagers = await tx.candidateManagerAssignment.findMany({ where: { candidateId: id, endedAt: null }, select: { managerUserId: true } });
+      const manage = candidateManagementAllowed(currentUser, { resourceType: 'candidate', resourceId: id, ownerUserId: candidate.createdByUserId, assignedUserIds: activeManagers.map(assignment => assignment.managerUserId) });
       if (
         candidate.deletedAt ||
-        (!canManageCandidates(this.permissions(currentUser)) && ['accepted', 'rejected'].includes(candidate.status))
+        (!manage && ['accepted', 'rejected'].includes(candidate.status))
       ) {
         throw new ConflictException('Кандидат закрыт или находится в архиве. Обновите карточку.');
       }
@@ -478,7 +503,7 @@ export class CandidatesService {
           endedAt: null,
         },
       });
-      if (!assignment && !canManageCandidates(this.permissions(currentUser))) {
+      if (!assignment && !manage) {
         throw new ForbiddenException(
           'Active candidate manager assignment is required for feedback',
         );
@@ -531,9 +556,10 @@ export class CandidatesService {
   }
 
   private async setArchive(currentUser: CurrentAuthUser, id: string, payload: CandidateVersionDto, archived: boolean): Promise<CandidateCardResponseDto> {
-    this.assertManage(currentUser);
+    await this.assertManage(currentUser, archived ? 'candidates.archive' : 'candidates.restore', id);
     await this.prisma.$transaction(async (tx) => {
       const existing = await this.lockCandidate(tx, id);
+      await this.assertActionScope(currentUser, archived ? 'candidates.archive' : 'candidates.restore', id, tx);
       this.assertVersion(existing, payload.expectedVersion);
       if (Boolean(existing.deletedAt) === archived) return;
       const now = new Date();
@@ -566,6 +592,7 @@ export class CandidatesService {
   private mapListItem(
     candidate: CandidateListView,
     now: Date,
+    visibleObjects: Set<string> | null,
   ): CandidateListItemDto {
     const activeAssignments = candidate.assignments.filter((assignment) => !assignment.endedAt);
     const currentAssignment = activeAssignments[0] ?? null;
@@ -587,11 +614,11 @@ export class CandidatesService {
       version: candidate.version,
       deletedAt: candidate.deletedAt?.toISOString() ?? null,
       updatedAt: candidate.updatedAt.toISOString(),
-      object: candidate.object,
+      object: candidate.object && (visibleObjects === null || visibleObjects.has(candidate.object.id)) ? candidate.object : null,
       currentAssignment: currentAssignment
-        ? this.mapAssignment(currentAssignment)
+        ? this.mapAssignment(currentAssignment, visibleObjects)
         : null,
-      currentAssignments: activeAssignments.map((assignment) => this.mapAssignment(assignment)),
+      currentAssignments: activeAssignments.map((assignment) => this.mapAssignment(assignment, visibleObjects)),
       latestFeedback: latestFeedback ? this.mapResponse(latestFeedback) : null,
       slaState: !activeAssignments.length ? 'unassigned'
         : activeAssignments.some((item) => !item.firstRespondedAt && item.responseDueAt <= now) ? 'overdue'
@@ -599,8 +626,18 @@ export class CandidatesService {
     };
   }
 
-  private mapAssignment(assignment: CandidateAssignmentView): CandidateAssignmentResponseDto {
-    return { id: assignment.id, object: assignment.object, manager: assignment.manager, assignedBy: assignment.assignedBy, assignedAt: assignment.assignedAt.toISOString(), responseDueAt: assignment.responseDueAt.toISOString(), firstRespondedAt: assignment.firstRespondedAt?.toISOString() ?? null, reminderSentAt: assignment.reminderSentAt?.toISOString() ?? null, endedAt: assignment.endedAt?.toISOString() ?? null, endedBy: assignment.endedBy };
+  private mapAssignment(assignment: CandidateAssignmentView, visibleObjects: Set<string> | null): CandidateAssignmentResponseDto {
+    const object = assignment.object && (visibleObjects === null || visibleObjects.has(assignment.object.id)) ? assignment.object : null;
+    return { id: assignment.id, object, manager: assignment.manager, assignedBy: assignment.assignedBy, assignedAt: assignment.assignedAt.toISOString(), responseDueAt: assignment.responseDueAt.toISOString(), firstRespondedAt: assignment.firstRespondedAt?.toISOString() ?? null, reminderSentAt: assignment.reminderSentAt?.toISOString() ?? null, endedAt: assignment.endedAt?.toISOString() ?? null, endedBy: assignment.endedBy };
+  }
+
+  private async visibleObjectIds(user: CurrentAuthUser): Promise<Set<string> | null> {
+    if (!user.accessRules?.some(rule => rule.effect === 'deny' && ['objects.access', 'objects.read'].includes(rule.actionCode))) return null;
+    const where = buildAccessWhere<Prisma.ObjectWhereInput>({ subject: user, actionCode: 'objects.read', legacyWhere: {}, invariantWhere: {},
+      scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } }
+        : rule.scope === 'own' ? { createdByUserId: user.id } : { assignments: { some: { userId: user.id, isActive: true } } },
+    }) as Prisma.ObjectWhereInput;
+    return new Set((await this.prisma.object.findMany({ where, select: { id: true } })).map(row => row.id));
   }
 
   private mapResponse(response: { id: string; assignmentId: string | null; author: { id: string; login: string; fullName: string }; text: string; createdAt: Date }): CandidateResponseItemDto {
@@ -648,6 +685,7 @@ export class CandidatesService {
     if (
       !object ||
       !canViewObjectBasicProfile({
+        subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes:
           currentUser.roleCodes ??
@@ -663,11 +701,13 @@ export class CandidatesService {
   private async loadEligibleManager(
     tx: Prisma.TransactionClient,
     managerUserId: string,
+    candidate?: Pick<Candidate, 'id' | 'createdByUserId'>,
   ): Promise<{ id: string; login: string; fullName: string }> {
     const manager = await tx.user.findFirst({
       where: {
         id: managerUserId,
         permissions: { none: { permission: { code: 'candidates.denied' } } },
+        accessRules: { none: { effect: 'deny', scope: 'all', actionCode: { in: ['candidates.access', 'candidates.view'] } } },
         isActive: true,
         deletedAt: null,
         roles: {
@@ -676,11 +716,12 @@ export class CandidatesService {
           },
         },
       },
-      select: userSelect,
+      select: { ...userSelect, isActive: true, accessRules: true },
     });
     if (!manager) {
       throw new BadRequestException('Candidate manager is not eligible');
     }
+    if (candidate && hasModuleDeny({ id: manager.id, isActive: manager.isActive, accessRules: manager.accessRules as AccessSubject['accessRules'] }, 'candidates.view', { resourceType: 'candidate', resourceId: candidate.id, ownerUserId: candidate.createdByUserId, assignedUserIds: [manager.id] })) throw new BadRequestException('Candidate manager is denied access to this candidate');
     return manager;
   }
   private managerSelections(payload: { managerUserId?: string | null; managerUserIds?: string[]; assignments?: CandidateManagerSelectionDto[] }, defaultObjectId: string | null): Array<{ managerUserId: string; objectId: string | null }> {
@@ -708,7 +749,19 @@ export class CandidatesService {
   private assertVersion(candidate: Candidate, expected: number): void { if (candidate.version !== expected) this.versionConflict(); }
   private versionConflict(): never { throw new ConflictException({ code: 'CANDIDATE_VERSION_CONFLICT', message: 'Candidate was changed concurrently' }); }
   private permissions(user: CurrentAuthUser): string[] { return user.permissionCodes ?? []; }
-  private assertView(user: CurrentAuthUser): void { if (!canViewCandidates(this.permissions(user))) throw new ForbiddenException('Candidate access denied'); }
-  private assertManage(user: CurrentAuthUser): void { if (!canManageCandidates(this.permissions(user))) throw new ForbiddenException('Candidate management denied'); }
-  private assertRespond(user: CurrentAuthUser): void { if (!canRespondToCandidates(this.permissions(user))) throw new ForbiddenException('Candidate response denied'); }
+  private assertView(user: CurrentAuthUser): void {
+    if (user.isActive === false || hasModuleDeny(user, 'candidates.view') || (!canViewCandidates(this.permissions(user)) && !user.accessRules?.some(rule => rule.actionCode === 'candidates.view' && rule.effect === 'allow'))) throw new ForbiddenException('Candidate access denied');
+  }
+  private async assertManage(user: CurrentAuthUser, code: string, id?: string): Promise<void> {
+    await this.assertActionScope(user, code, id);
+  }
+  private async assertActionScope(user: CurrentAuthUser, code: string, id?: string, database: Pick<PrismaService, 'candidate'> = this.prisma): Promise<void> {
+    if (!id) {
+      const context = { resourceType: 'candidate', ownerUserId: user.id };
+      if (!candidateActionAllowed(user, code, context)) throw new ForbiddenException('Candidate action denied');
+      return;
+    }
+    const row = await database.candidate.findFirst({ where: { AND: [{ id }, buildCandidateAccessWhere(user, code)] }, select: { id: true } });
+    if (!row) throw new ForbiddenException('Candidate action denied for this scope');
+  }
 }

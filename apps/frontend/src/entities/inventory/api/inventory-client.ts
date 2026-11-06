@@ -13,6 +13,7 @@ import type {
   InventoryOneTimeOrderReference,
   InventoryReportSummary,
   ObjectInventory,
+  OneTimeOrderInventory,
   ListInventoryItemsParams,
   ListInventoryMovementsParams,
   UpdateInventoryItemPayload,
@@ -147,11 +148,20 @@ export async function getObjectInventory(
 
 export async function getOneTimeOrderInventory(
   orderId: string,
-): Promise<InventoryMovementListResponse> {
-  return fetcher<InventoryMovementListResponse>(
+): Promise<OneTimeOrderInventory> {
+  return fetcher<OneTimeOrderInventory>(
     `/one-time-orders/${orderId}/inventory`,
     { method: 'GET' },
   );
+}
+
+export async function createOneTimeOrderInventoryIssue(
+  orderId: string,
+  payload: { inventoryItemId: string; quantity: number; comment?: string; requestId: string },
+): Promise<InventoryMovement> {
+  return fetcher<InventoryMovement>(`/one-time-orders/${orderId}/inventory/issue`, {
+    method: 'POST', body: JSON.stringify(payload),
+  });
 }
 
 export async function createObjectInventoryIssue(

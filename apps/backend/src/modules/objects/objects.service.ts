@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { decideAccess } from '../users-access/utils/access-policy.util';
 
 import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
 import {
@@ -20,7 +21,7 @@ import {
 } from '../counterparties/utils/counterparty-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { delegatedObjectIds, hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
+import { delegatedObjectIds, hasDelegatedObjectAction, ObjectDelegatedAction } from '../user-substitutions/object-delegation.context';
 import { getScheduleConfigurationError } from '../timesheets/utils/russian-production-calendar.util';
 
 import { ChangeObjectStatusDto } from './dto/change-object-status.dto';
@@ -34,6 +35,7 @@ import { ObjectResponseDto } from './dto/object-response.dto';
 import { UpdateObjectDto } from './dto/update-object.dto';
 import {
   canBeObjectManager,
+  buildObjectAccessPolicyWhere,
   canCreateObject,
   canEditObject,
   canEditObjectDailyRate,
@@ -350,7 +352,12 @@ export class ObjectsService {
     const visibleOperationalObject = await this.prisma.object.findFirst({
       where: {
         id,
-        ...(currentUser.permissionCodes?.includes('objects.hr_reports_view') ? { deletedAt: null } : this.buildOperationalVisibilityWhere(currentUser)),
+        AND: [
+          { OR: [this.buildOperationalVisibilityWhere(currentUser), buildObjectAccessPolicyWhere(currentUser,
+            currentUser.permissionCodes?.includes('objects.hr_reports_view') ? { deletedAt: null } : { id: { in: [] } }, 'objects.hr_reports_view')] },
+          buildObjectAccessPolicyWhere(currentUser, {}, 'objects.history'),
+          buildObjectAccessPolicyWhere(currentUser, {}, 'objects.read'),
+        ],
       },
       select: {
         id: true,
@@ -366,6 +373,7 @@ export class ObjectsService {
     }
 
     const canViewRates = canViewObjectCompensationRates({
+      subject: currentUser,
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
       object: visibleOperationalObject,
@@ -394,13 +402,19 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canCreateObject(roleCodes)) {
+    if (!decideAccess(currentUser, 'objects.create', canCreateObject(roleCodes))) {
       throw new ForbiddenException('Object creation denied');
     }
+    const creationContext = { resourceType: 'object', ownerUserId: currentUser.id };
+    if (payload.status === 'archived' && !decideAccess(currentUser, 'objects.archive', true, creationContext)) throw new ForbiddenException('Initial object archive denied');
+    if (payload.status === 'frozen' && !decideAccess(currentUser, 'objects.freeze', true, creationContext)) throw new ForbiddenException('Initial object freeze denied');
+    if (Object.entries(payload).some(([field, value]) => value !== undefined && OBJECT_COMPENSATION_UPDATE_FIELDS.has(field)) &&
+        !decideAccess(currentUser, 'objects.rates.manage', canEditObjectDailyRate(roleCodes), creationContext)) throw new ForbiddenException('Initial object rates denied');
+    if (payload.instructionSteps !== undefined && !decideAccess(currentUser, 'objects.materials.manage', true, creationContext)) throw new ForbiddenException('Initial object instructions denied');
 
     const planning = payload.planning;
     if (planning) {
-      if (!canEditObjectDailyRate(roleCodes)) {
+      if (!decideAccess(currentUser, 'objects.rates.manage', canEditObjectDailyRate(roleCodes), creationContext)) {
         throw new ForbiddenException('Изменение сезонов недоступно');
       }
       if (planning.automaticSeasons && (!planning.summerStartsOn || !planning.winterStartsOn)) {
@@ -732,14 +746,19 @@ export class ObjectsService {
     payload: UpdateObjectDto,
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
-    const isCoreEditor = canEditObject(roleCodes) || hasDelegatedObjectAction(currentUser.id, id, 'edit');
-    const isRateOnlyEditor = !isCoreEditor && canEditObjectDailyRate(roleCodes);
-    const existing = isRateOnlyEditor
-      ? await this.getRateEditableObject(currentUser, id)
-      : await this.getEditableObject(currentUser, id);
+    const instructionsOnly = payload.instructionSteps !== undefined &&
+      Object.entries(payload).every(([field, value]) => value === undefined || field === 'instructionSteps');
+    const isCoreEditor = await this.canObjectAction(currentUser, id, 'objects.update', canEditObject(roleCodes), 'edit');
+    const isRateOnlyEditor = !isCoreEditor && await this.canObjectAction(currentUser, id, 'objects.rates.manage', canEditObjectDailyRate(roleCodes));
+    const existing = instructionsOnly
+      ? await this.getEditableObject(currentUser, id, 'objects.materials.manage')
+      : isRateOnlyEditor
+        ? await this.getRateEditableObject(currentUser, id)
+        : await this.getEditableObject(currentUser, id);
+    if (payload.instructionSteps !== undefined && !await this.canObjectAction(currentUser, id, 'objects.materials.manage', canEditObject(roleCodes), 'edit')) throw new ForbiddenException('Object instructions edit denied');
     if (Object.entries(payload).some(([field, value]) => value !== undefined && OBJECT_COMPENSATION_UPDATE_FIELDS.has(field)) && await this.prisma.objectCompensationVersion.findFirst({where: {objectId: id, scope: 'defaults', cancelledAt: null}})) throw new ConflictException({code: 'DATED_TERMS_REQUIRED', message: 'Ставки и график этого объекта изменяются через датированные условия оплаты'});
     if (
-      isRateOnlyEditor &&
+      isRateOnlyEditor && !instructionsOnly &&
       Object.entries(payload).some(
         ([field, value]) => value !== undefined && !OBJECT_COMPENSATION_UPDATE_FIELDS.has(field),
       )
@@ -747,7 +766,7 @@ export class ObjectsService {
       throw new ForbiddenException('This role may only edit object compensation profiles');
     }
     const policy = await this.prisma.objectPlanningSettings.findUnique({ where: { objectId: id } });
-    const nextSeasonMode = policy?.automaticSeasons && policy.summerStartsOn && policy.winterStartsOn
+    const nextSeasonMode = !instructionsOnly && policy?.automaticSeasons && policy.summerStartsOn && policy.winterStartsOn
       ? annualSeason(policy.summerStartsOn, policy.winterStartsOn)
       : payload.seasonMode !== undefined ? payload.seasonMode : existing.seasonMode;
     const existingBase = baseCompensation(existing);
@@ -808,7 +827,7 @@ export class ObjectsService {
     const rateFieldsSubmitted = payload.paymentType !== undefined || typeof payload.dailyRate === 'number' || typeof payload.monthlySalary === 'number' || payload.paymentScheduleCode !== undefined || payload.paymentScheduleWeekdays !== undefined || payload.paymentScheduleCycleStartDate !== undefined ||
       payload.summerPaymentType !== undefined || payload.summerDailyRate !== undefined || payload.summerMonthlySalary !== undefined || payload.summerScheduleCode !== undefined || payload.summerScheduleWeekdays !== undefined || payload.summerScheduleCycleStartDate !== undefined ||
       payload.winterPaymentType !== undefined || payload.winterDailyRate !== undefined || payload.winterMonthlySalary !== undefined || payload.winterScheduleCode !== undefined || payload.winterScheduleWeekdays !== undefined || payload.winterScheduleCycleStartDate !== undefined;
-    const canWriteRates = canEditObjectDailyRate(roleCodes);
+    const canWriteRates = !instructionsOnly && await this.canObjectAction(currentUser, id, 'objects.rates.manage', canEditObjectDailyRate(roleCodes));
     const seasonModeChanged = nextSeasonMode !== existing.seasonMode;
     const shouldActivateRateProfile = canWriteRates && (rateFieldsSubmitted || seasonModeChanged);
     const activeSeasonRates = nextSeasonMode === 'summer'
@@ -819,7 +838,7 @@ export class ObjectsService {
 
     if (
       rateFieldsSubmitted &&
-      !canEditObjectDailyRate(roleCodes)
+      !canWriteRates
     ) {
       throw new ForbiddenException('Object salary editing denied');
     }
@@ -989,7 +1008,7 @@ export class ObjectsService {
             : {}),
           ...(payload.address !== undefined ? { address: payload.address } : {}),
           ...(payload.status !== undefined ? { status: payload.status } : {}),
-          ...(payload.seasonMode !== undefined || policy?.automaticSeasons
+          ...(!instructionsOnly && (payload.seasonMode !== undefined || policy?.automaticSeasons)
             ? { seasonMode: nextSeasonMode }
             : {}),
           ...(canWriteRates && (rateFieldsSubmitted || !existing.baseCompensationProfile) ? { baseCompensationProfile: {
@@ -1179,13 +1198,16 @@ export class ObjectsService {
   ): Promise<ApprovalRequestResponseDto> {
     const existing = await this.getObjectById(currentUser, id);
 
-    if (!canManageObjectResponsibles(this.getRoleCodes(currentUser)) && !hasDelegatedObjectAction(currentUser.id, id, 'status')) {
+    if (!await this.canObjectAction(currentUser, id, 'objects.status', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) {
       throw new ForbiddenException('Object status changing denied');
     }
 
     if (existing.status === payload.status) {
       throw new BadRequestException('Object already has requested status');
     }
+    if (payload.status === 'frozen' && !await this.canObjectAction(currentUser, id, 'objects.freeze', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) throw new ForbiddenException('Object freeze denied');
+    if (payload.status === 'archived' && !await this.canObjectAction(currentUser, id, 'objects.archive', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) throw new ForbiddenException('Object archive denied');
+    if (existing.status === 'archived' && !await this.canObjectAction(currentUser, id, 'objects.restore', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) throw new ForbiddenException('Object restore denied');
 
     const pendingRequest = await this.prisma.approvalRequest.findFirst({
       where: {
@@ -1443,7 +1465,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canManageObjectResponsibles(roleCodes) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
+    if (!await this.canObjectAction(currentUser, objectId, 'objects.responsibles.manage', canManageObjectResponsibles(roleCodes), 'assign')) {
       throw new ForbiddenException('Responsible management denied');
     }
 
@@ -1513,7 +1535,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canManageObjectResponsibles(roleCodes) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
+    if (!await this.canObjectAction(currentUser, objectId, 'objects.responsibles.manage', canManageObjectResponsibles(roleCodes), 'assign')) {
       throw new ForbiddenException('Responsible management denied');
     }
 
@@ -1557,7 +1579,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canManageObjectResponsibles(roleCodes) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
+    if (!await this.canObjectAction(currentUser, objectId, 'objects.managers.manage', canManageObjectResponsibles(roleCodes), 'assign')) {
       throw new ForbiddenException('Manager management denied');
     }
 
@@ -1628,7 +1650,7 @@ export class ObjectsService {
   ): Promise<ObjectResponseDto> {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    if (!canManageObjectResponsibles(roleCodes) && !hasDelegatedObjectAction(currentUser.id, objectId, 'assign')) {
+    if (!await this.canObjectAction(currentUser, objectId, 'objects.managers.manage', canManageObjectResponsibles(roleCodes), 'assign')) {
       throw new ForbiddenException('Manager management denied');
     }
 
@@ -1733,6 +1755,7 @@ export class ObjectsService {
   private async getEditableObject(
     currentUser: CurrentAuthUser,
     id: string,
+    actionCode = 'objects.update',
   ): Promise<ObjectView> {
     const roleCodes = this.getRoleCodes(currentUser);
 
@@ -1757,10 +1780,9 @@ export class ObjectsService {
 
     const allowedToEdit =
       canEditObject(roleCodes) ||
-      (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes)) ||
-      hasDelegatedObjectAction(currentUser.id, id, 'edit');
+      (existing.status === 'frozen' && canOverrideFrozenObject(roleCodes));
 
-    if (!allowedToEdit) {
+    if (!await this.canObjectAction(currentUser, id, actionCode, allowedToEdit, 'edit')) {
       throw new ForbiddenException('Object editing denied');
     }
 
@@ -1771,7 +1793,7 @@ export class ObjectsService {
     currentUser: CurrentAuthUser,
     id: string,
   ): Promise<ObjectView> {
-    if (!canEditObjectDailyRate(this.getRoleCodes(currentUser))) {
+    if (!await this.canObjectAction(currentUser, id, 'objects.rates.manage', canEditObjectDailyRate(this.getRoleCodes(currentUser)))) {
       throw new ForbiddenException('Object compensation editing denied');
     }
     const existing = (await this.prisma.object.findFirst({
@@ -1791,13 +1813,22 @@ export class ObjectsService {
   }
 
   private async buildVisibilityWhere(currentUser: CurrentAuthUser) {
-    if (hasHrObjectView(currentUser.permissionCodes)) {
-      return {
-        deletedAt: null,
-      };
-    }
+    return { AND: [
+      { OR: [this.buildOperationalVisibilityWhere(currentUser), buildObjectAccessPolicyWhere(currentUser,
+        hasHrObjectView(currentUser.permissionCodes) ? { deletedAt: null } : { id: { in: [] } }, 'objects.view_hr')] },
+      buildObjectAccessPolicyWhere(currentUser, {}, 'objects.read'),
+    ] };
+  }
 
-    return this.buildOperationalVisibilityWhere(currentUser);
+  private async canObjectAction(user: CurrentAuthUser, id: string, actionCode: string, legacy: boolean, delegatedAction?: ObjectDelegatedAction): Promise<boolean> {
+    const object = await this.prisma.object.findFirst({ where: { id, deletedAt: null }, select: {
+      id: true, createdByUserId: true, assignments: { where: { isActive: true }, select: { userId: true } },
+    } });
+    if (!object) return false;
+    const context = { resourceType: 'object', resourceId: id, ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.map(a => a.userId) };
+    if (decideAccess(user, actionCode, legacy, context)) return true;
+    const delegated = delegatedAction ? hasDelegatedObjectAction(user.id, id, delegatedAction, true, actionCode, context) : false;
+    return decideAccess(user, actionCode, delegated, context);
   }
 
   private buildOperationalVisibilityWhere(
@@ -1806,13 +1837,13 @@ export class ObjectsService {
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (hasWideObjectAccess(roleCodes)) {
-      return { deletedAt: null };
+      return buildObjectAccessPolicyWhere(currentUser, { deletedAt: null });
     }
 
-    return {
+    return buildObjectAccessPolicyWhere(currentUser, {
       deletedAt: null,
       OR: [
-        { id: { in: delegatedObjectIds(currentUser.id) } },
+        { id: { in: delegatedObjectIds(currentUser.id, 'view', 'objects.read') } },
         {
           createdByUserId: currentUser.id,
         },
@@ -1825,7 +1856,7 @@ export class ObjectsService {
           },
         },
       ],
-    };
+    });
   }
 
   private getEmployeeAssignmentsInclude() {
@@ -1950,7 +1981,7 @@ export class ObjectsService {
     const responsible = mappedAssignments.find(
       (assignment) => assignment.roleCode === 'responsible',
     );
-    const capabilities = buildObjectCapabilities({
+    const capabilities = buildObjectCapabilities({ subject: currentUser,
       objectId: item.id,
       currentUserId: currentUser.id,
       roleCodes,
@@ -1959,6 +1990,8 @@ export class ObjectsService {
       createdByUserId: item.createdByUserId,
       assignments: mappedAssignments,
     });
+    const canReadMaterials = decideAccess(currentUser, 'objects.materials.read', true, { resourceType: 'object', resourceId: item.id,
+      ownerUserId: item.createdByUserId, assignedUserIds: mappedAssignments.map(a => a.userId) });
 
     return {
       id: item.id,
@@ -1971,7 +2004,7 @@ export class ObjectsService {
       summerWindowCleaning: item.summerWindowCleaning,
       engineeringRequired: item.engineeringRequired,
       winterTractorMode: item.winterTractorMode,
-      instructionSteps: item.instructionSteps,
+      instructionSteps: canReadMaterials ? item.instructionSteps : [],
       paymentType: capabilities.canViewCompensationRates ? item.paymentType : null,
       dailyRate: capabilities.canViewCompensationRates ? item.dailyRate : null,
       monthlySalary: capabilities.canViewCompensationRates ? item.monthlySalary : null,

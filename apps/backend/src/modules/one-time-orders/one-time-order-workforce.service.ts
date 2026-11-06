@@ -1,3 +1,4 @@
+import { assertOneTimeOrderAction } from "./utils/one-time-order-access.util";
 import {
   BadRequestException,
   ForbiddenException,
@@ -5,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AccessSubject, buildAccessWhere, decideAccess } from '../users-access/utils/access-policy.util';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,7 +20,7 @@ import {
 } from './dto/one-time-order-workforce.dto';
 import { canEditOneTimeOrderByScope, canViewOneTimeOrderByScope } from './utils/one-time-order-access.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -102,13 +104,13 @@ export interface OneTimeOrderTimesheetResponse {
     days: Array<{
       operationDate: string;
       present: boolean;
-      rateSnapshot: number;
-      automaticValue: number;
-      finalValue: number;
+      rateSnapshot: number | null;
+      automaticValue: number | null;
+      finalValue: number | null;
       manualOverride: boolean;
       manualReason: string | null;
     }>;
-    total: number;
+    total: number | null;
     paidTotal: number | null;
     pendingPayoutTotal: number | null;
   }>;
@@ -131,6 +133,7 @@ export class OneTimeOrderWorkforceService {
     currentUser: CurrentAuthUser,
     orderId: string,
   ): Promise<OneTimeOrderWorkforceEmployee[]> {
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.employees.read");
     const order = await this.assertOrderVisible(currentUser, orderId);
     const rows = await this.prisma.$queryRaw<
       Array<{
@@ -160,12 +163,13 @@ export class OneTimeOrderWorkforceService {
         AND employee."deletedAt" IS NULL
       ORDER BY assignment."isActive" DESC, employee."fullName" ASC
     `;
+    const financeVisible = this.orderActionAllowed(currentUser, order, 'one_time_orders.finance.read', true);
     return rows.map((row) => ({
       ...row,
       baseDailyRate:
-        row.baseDailyRate === null ? null : Number(row.baseDailyRate),
+        !financeVisible || row.baseDailyRate === null ? null : Number(row.baseDailyRate),
       orderPayment:
-        row.orderPayment === null ? null : Number(row.orderPayment),
+        !financeVisible || row.orderPayment === null ? null : Number(row.orderPayment),
       assignedAt: row.assignedAt.toISOString(),
       removedAt: row.removedAt?.toISOString() ?? null,
     }));
@@ -176,7 +180,8 @@ export class OneTimeOrderWorkforceService {
     orderId: string,
     payload: AddOneTimeOrderEmployeeDto,
   ): Promise<OneTimeOrderWorkforceEmployee[]> {
-    const order = await this.assertOrderWritable(currentUser, orderId);
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.employees.manage");
+    const order = await this.assertOrderWritable(currentUser, orderId, "one_time_orders.employees.manage");
     const employee = await this.prisma.employee.findFirst({
       where: {
         id: payload.employeeId,
@@ -225,7 +230,8 @@ export class OneTimeOrderWorkforceService {
     employeeId: string,
     payload: UpdateOneTimeOrderEmployeePaymentDto,
   ): Promise<OneTimeOrderWorkforceEmployee[]> {
-    const order = await this.assertOrderWritable(currentUser, orderId);
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.employees.payment.edit");
+    const order = await this.assertOrderWritable(currentUser, orderId, "one_time_orders.employees.payment.edit");
     const existing = await this.prisma.$queryRaw<
       Array<{ orderPayment: Prisma.Decimal | null }>
     >`
@@ -285,7 +291,8 @@ export class OneTimeOrderWorkforceService {
     orderId: string,
     employeeId: string,
   ): Promise<OneTimeOrderWorkforceEmployee[]> {
-    const order = await this.assertOrderWritable(currentUser, orderId);
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.employees.manage");
+    const order = await this.assertOrderWritable(currentUser, orderId, "one_time_orders.employees.manage");
     const changed = await this.prisma.$executeRaw`
       UPDATE "one_time_order_employee_assignments"
       SET
@@ -316,6 +323,7 @@ export class OneTimeOrderWorkforceService {
     currentUser: CurrentAuthUser,
     orderId: string,
   ): Promise<OneTimeOrderAttendanceResponse> {
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.attendance.read");
     return this.getAttendance(currentUser, orderId);
   }
 
@@ -324,16 +332,18 @@ export class OneTimeOrderWorkforceService {
     orderId: string,
     requestedDate?: string,
   ): Promise<OneTimeOrderAttendanceResponse> {
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.attendance.read");
     const order = await this.assertOrderVisible(currentUser, orderId);
     const operationDate = requestedDate ?? this.getMoscowBusinessDate();
     this.assertValidOperationDate(operationDate);
-    return this.loadAttendance(order, operationDate);
+    return this.loadAttendance(order, operationDate, currentUser);
   }
 
   async getAttendanceCoverage(
     currentUser: CurrentAuthUser,
     orderId: string,
   ): Promise<OneTimeOrderAttendanceCoverageResponse> {
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.attendance.read");
     const order = await this.assertOrderVisible(currentUser, orderId);
     const start = order.executionStartDate ?? order.executionDate;
     const end = order.executionEndDate ?? start;
@@ -449,7 +459,8 @@ export class OneTimeOrderWorkforceService {
     requestedDate?: string,
     correctionReason?: string,
   ): Promise<OneTimeOrderAttendanceResponse> {
-    const order = await this.assertOrderWritable(currentUser, orderId);
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.attendance.edit");
+    const order = await this.assertOrderWritable(currentUser, orderId, "one_time_orders.attendance.edit");
     const operationDate = requestedDate ?? this.getMoscowBusinessDate();
     this.assertValidOperationDate(operationDate);
     if (operationDate > this.getMoscowBusinessDate()) {
@@ -589,7 +600,7 @@ export class OneTimeOrderWorkforceService {
         }, tx);
       }
     });
-    return this.loadAttendance(order, operationDate);
+    return this.loadAttendance(order, operationDate, currentUser);
   }
 
   async getTimesheet(
@@ -598,6 +609,7 @@ export class OneTimeOrderWorkforceService {
     month?: string,
     requestedWorkCycle?: number,
   ): Promise<OneTimeOrderTimesheetResponse> {
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.timesheet.read");
     const order = await this.assertOrderVisible(currentUser, orderId);
     const workCycle = requestedWorkCycle ?? order.workCycle;
     const normalizedMonth = month ?? this.getMoscowBusinessDate().slice(0, 7);
@@ -645,14 +657,21 @@ export class OneTimeOrderWorkforceService {
       ORDER BY employee."fullName" ASC, entry."operationDate" ASC
     `;
 
-    const canViewPayouts = canReviewAccountability({
+    const canViewPayouts = this.orderActionAllowed(currentUser, order, 'one_time_orders.finance.read', true) && this.orderActionAllowed(currentUser, order, 'one_time_orders.payouts.read', canReviewAccountability({
       roleCodes: currentUser.roleCodes ?? [currentUser.roleCode],
       permissionCodes: currentUser.permissionCodes,
     }) || order.assignments.some(
       (assignment) => assignment.userId === currentUser.id &&
         assignment.assignmentRoleCode === 'one_time_manager',
-    );
-    const payoutRows = canViewPayouts
+    ));
+    // Aggregate only permitted accounts; an order payout grant never grants a foreign ledger.
+    const accountWhere = buildAccessWhere<Prisma.AccountabilityAccountWhereInput>({ subject: currentUser,
+      actionCode: 'accountability.review',
+      legacyWhere: canReviewAccountability({ roleCodes: currentUser.roleCodes ?? [currentUser.roleCode], permissionCodes: currentUser.permissionCodes }) ? {} : { userId: currentUser.id },
+      invariantWhere: {}, parentActionCodes: ['accountability.read'], scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'own' ? { userId: currentUser.id } : rule.scope === 'selected' ? { userId: { in: [...rule.selectedIds] } } : null,
+    }) as Prisma.AccountabilityAccountWhereInput;
+    const payoutAccounts = canViewPayouts ? await this.prisma.accountabilityAccount.findMany({ where: accountWhere, select: { userId: true } }) : [];
+    const payoutRows = canViewPayouts && payoutAccounts.length > 0
       ? await this.prisma.$queryRaw<Array<{
           employeeId: string;
           fullName: string;
@@ -673,10 +692,7 @@ export class OneTimeOrderWorkforceService {
             AND expense."expenseCategory" = 'employee_payout'
             AND expense."expenseDate" >= ${start}::DATE
             AND expense."expenseDate" < ${nextMonth}::DATE
-            AND (${canReviewAccountability({
-              roleCodes: currentUser.roleCodes ?? [currentUser.roleCode],
-              permissionCodes: currentUser.permissionCodes,
-            })} OR account."userId" = ${currentUser.id})
+            AND account."userId" IN (${Prisma.join(payoutAccounts.map(account => account.userId))})
           GROUP BY expense."employeeId", employee."fullName"
         `
       : [];
@@ -705,7 +721,7 @@ export class OneTimeOrderWorkforceService {
         manualOverride: entry.manualOverride,
         manualReason: entry.manualReason,
       });
-      row.total += finalValue;
+      row.total = (row.total ?? 0) + finalValue;
     }
 
     for (const payout of payoutRows) {
@@ -725,6 +741,11 @@ export class OneTimeOrderWorkforceService {
       row.pendingPayoutTotal = Number(payout.pendingPayoutTotal);
     }
 
+    const financeVisible = this.orderActionAllowed(currentUser, order, 'one_time_orders.finance.read', true);
+    if (!financeVisible) for (const row of rows.values()) {
+      row.total = null;
+      for (const day of row.days) { day.rateSnapshot = null; day.automaticValue = null; day.finalValue = null; }
+    }
     return {
       oneTimeOrderId: order.id,
       workCycle,
@@ -738,6 +759,7 @@ export class OneTimeOrderWorkforceService {
     orderId: string,
     query: OneTimeOrderTimesheetExportQuery,
   ): Promise<Buffer> {
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, "one_time_orders.timesheet.export");
     const timesheet = await this.getTimesheet(currentUser, orderId, query.month, query.workCycle);
     const rows: XlsxCell[][] = [
       [{ value: `Разовый заказ ${orderId}`, styleId: 1 }],
@@ -795,7 +817,7 @@ export class OneTimeOrderWorkforceService {
             person.total,
             person.paidTotal,
             person.pendingPayoutTotal,
-            person.paidTotal === null ? null : person.total - person.paidTotal,
+            person.paidTotal === null || person.total === null ? null : person.total - person.paidTotal,
           ]),
       ],
       columnWidths: [30, 22, 22, 20, 20],
@@ -807,6 +829,7 @@ export class OneTimeOrderWorkforceService {
   private async loadAttendance(
     order: OrderScope,
     operationDate: string,
+    currentUser: CurrentAuthUser,
   ): Promise<OneTimeOrderAttendanceResponse> {
     const employees = await this.prisma.$queryRaw<
       Array<{
@@ -865,6 +888,7 @@ export class OneTimeOrderWorkforceService {
       LIMIT 1
     `;
 
+    const financeVisible = this.orderActionAllowed(currentUser, order, 'one_time_orders.finance.read', true);
     return {
       operationDate,
       workCycle: order.workCycle,
@@ -880,19 +904,24 @@ export class OneTimeOrderWorkforceService {
         fullName: employee.fullName,
         position: employee.position,
         baseDailyRate:
-          employee.baseDailyRate === null ? null : Number(employee.baseDailyRate),
+          !financeVisible || employee.baseDailyRate === null ? null : Number(employee.baseDailyRate),
         orderPayment:
-          employee.orderPayment === null ? null : Number(employee.orderPayment),
+          !financeVisible || employee.orderPayment === null ? null : Number(employee.orderPayment),
         isActive: employee.isActive,
         assignedAt: employee.assignedAt.toISOString(),
         removedAt: employee.removedAt?.toISOString() ?? null,
         present: employee.attendancePresent === true,
         rateSnapshot:
-          employee.rateSnapshot === null ? null : Number(employee.rateSnapshot),
+          !financeVisible || employee.rateSnapshot === null ? null : Number(employee.rateSnapshot),
         finalValue:
-          employee.finalValue === null ? null : Number(employee.finalValue),
+          !financeVisible || employee.finalValue === null ? null : Number(employee.finalValue),
       })),
     };
+  }
+
+  private orderActionAllowed(user: CurrentAuthUser, order: OrderScope, actionCode: string, legacy: boolean): boolean {
+    return decideAccess(user, actionCode, legacy, { resourceType: 'one_time_order', resourceId: order.id,
+      ownerUserId: order.createdByUserId, assignedUserIds: order.assignments.filter(a => a.isActive && a.assignmentRoleCode === 'one_time_manager').map(a => a.userId) });
   }
 
   private async assertOrderVisible(
@@ -901,7 +930,7 @@ export class OneTimeOrderWorkforceService {
   ): Promise<OrderScope> {
     const order = await this.loadOrderScope(orderId);
     if (
-      !canViewOneTimeOrderByScope({
+      !canViewOneTimeOrderByScope({ subject: currentUser,
         currentUserId: currentUser.id,
         roleCodes: currentUser.roleCodes ?? [currentUser.roleCode],
         permissionCodes: currentUser.permissionCodes,
@@ -916,10 +945,12 @@ export class OneTimeOrderWorkforceService {
   private async assertOrderWritable(
     currentUser: CurrentAuthUser,
     orderId: string,
+    actionCode = 'one_time_orders.update',
   ): Promise<OrderScope> {
     const order = await this.loadOrderScope(orderId);
     if (
-      !canEditOneTimeOrderByScope({
+      !canEditOneTimeOrderByScope({ subject: currentUser,
+        actionCode,
         currentUserId: currentUser.id,
         roleCodes: currentUser.roleCodes ?? [currentUser.roleCode],
         permissionCodes: currentUser.permissionCodes,

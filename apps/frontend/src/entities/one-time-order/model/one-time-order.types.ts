@@ -52,6 +52,26 @@ export interface OneTimeOrderItem {
   } | null;
   managers: OneTimeOrderManager[];
   capabilities: {
+    canReadFinance?: boolean;
+    canReadComments?: boolean;
+    canReadReports?: boolean;
+    canReadPhotos?: boolean;
+    canReadSpecification?: boolean;
+    canReadEmployees?: boolean;
+    canReadInventory?: boolean;
+    canReadEquipment?: boolean;
+    canReadHistory?: boolean;
+    canReadFiles?: boolean;
+    canReadTasks?: boolean;
+    canReadAccountability?: boolean;
+    canReadPayouts?: boolean;
+    canUpdateReports?: boolean;
+    canReadEscorts?: boolean;
+    canManageOwnEscorts?: boolean;
+    canReadDeadline?: boolean;
+    canUpdateDeadline?: boolean;
+    canReadServiceLines?: boolean;
+    canUpdateServiceLines?: boolean;
     canEdit: boolean;
     canEditOperationalFields: boolean;
     canEditFinancialFields: boolean;

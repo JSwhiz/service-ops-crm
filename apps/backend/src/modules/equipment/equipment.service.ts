@@ -6,6 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
+import { equipmentContext, equipmentMovementAction, equipmentMovementPolicyWhere, equipmentPolicyWhere } from './utils/equipment-policy.util';
+import { resourceAccessTarget } from '../../common/access/resource-access-context';
 
 import {
   EQUIPMENT_MOVEMENT_APPROVAL_SOURCE_ENTITY_TYPE,
@@ -18,7 +22,7 @@ import {
 } from '../objects/utils/object-access.util';
 import { canViewOneTimeOrderByScope } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { delegatedObjectIds, hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
+import { delegatedObjectIds, delegatedObjectScopes, hasDelegatedObjectAction } from '../user-substitutions/object-delegation.context';
 
 import { CreateEquipmentCatalogItemDto } from './dto/create-equipment-catalog-item.dto';
 import { CreateEquipmentMovementDto } from './dto/create-equipment-movement.dto';
@@ -52,7 +56,7 @@ import {
   canWriteoffEquipment,
 } from './utils/equipment-access.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -156,9 +160,10 @@ export class EquipmentService {
     currentUser: CurrentAuthUser,
   ): Promise<EquipmentCatalogItemResponseDto[]> {
     this.assertEquipmentVisible(currentUser);
+    if (!decideAccess(currentUser, 'equipment.catalog.read', canAccessEquipment(this.getRoleCodes(currentUser)))) throw new ForbiddenException('Equipment catalog access denied');
 
     const items = await this.prisma.equipmentCatalogItem.findMany({
-      include: { _count: { select: { units: true } } },
+      include: { _count: { select: { units: { where: equipmentPolicyWhere(currentUser, {}) } } } },
       orderBy: [{ isActive: 'desc' }, { category: 'asc' }, { name: 'asc' }],
     });
 
@@ -202,10 +207,7 @@ export class EquipmentService {
     catalogItemId: string,
   ): Promise<{ id: string }> {
     if (
-      !canDeleteEquipmentUnit(
-        this.getRoleCodes(currentUser),
-        currentUser.permissionCodes,
-      )
+      !decideAccess(currentUser, 'equipment.catalog.delete', canDeleteEquipmentUnit(this.getRoleCodes(currentUser), currentUser.permissionCodes), { resourceType: 'equipment_unit', resourceId: catalogItemId })
     ) {
       throw new ForbiddenException('Equipment catalog deletion denied');
     }
@@ -273,6 +275,7 @@ export class EquipmentService {
 
     const units = (await this.prisma.equipmentUnit.findMany({
       where: {
+        AND: [equipmentPolicyWhere(currentUser, canAccessEquipment(this.getRoleCodes(currentUser)) ? {} : { id: { in: [] } })],
         ...(query.status ? { status: query.status } : {}),
         ...(query.objectId ? { currentObjectId: query.objectId } : {}),
         ...(query.oneTimeOrderId
@@ -315,7 +318,7 @@ export class EquipmentService {
     currentUser: CurrentAuthUser,
     payload: CreateEquipmentUnitDto,
   ): Promise<EquipmentUnitResponseDto> {
-    this.assertCatalogManageable(currentUser);
+    this.assertCatalogManageable(currentUser, 'equipment.unit.create');
 
     const created = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -373,10 +376,7 @@ export class EquipmentService {
     unitId: string,
   ): Promise<{ id: string; mode: 'hard' }> {
     if (
-      !canDeleteEquipmentUnit(
-        this.getRoleCodes(currentUser),
-        currentUser.permissionCodes,
-      )
+      !decideAccess(currentUser, 'equipment.unit.delete', canDeleteEquipmentUnit(this.getRoleCodes(currentUser), currentUser.permissionCodes), { resourceType: 'equipment_unit', resourceId: unitId })
     ) {
       throw new ForbiddenException('Equipment unit deletion denied');
     }
@@ -451,17 +451,18 @@ export class EquipmentService {
   ): Promise<EquipmentMovementResponseDto[]> {
     const unit = await this.loadUnit(unitId);
 
-    if (!this.canReadUnit(currentUser, unit)) {
+    if (!this.canReadUnit(currentUser, unit) || !decideAccess(currentUser, 'equipment.history', true, equipmentContext(unit))) {
       throw new ForbiddenException('Equipment unit access denied');
     }
 
     const movements = (await this.prisma.equipmentMovement.findMany({
       where: {
         equipmentUnitId: unit.id,
+        AND: [equipmentMovementPolicyWhere(currentUser)],
         ...(!canAccessEquipment(this.getRoleCodes(currentUser)) ? {
           OR: [
-            { fromObjectId: { in: delegatedObjectIds(currentUser.id) } },
-            { toObjectId: { in: delegatedObjectIds(currentUser.id) } },
+            { fromObjectId: { in: delegatedObjectIds(currentUser.id, 'view', 'equipment.history', equipmentContext(unit)) } },
+            { toObjectId: { in: delegatedObjectIds(currentUser.id, 'view', 'equipment.history', equipmentContext(unit)) } },
             ...(unit.currentObject && canViewObjectByScope({ currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), object: unit.currentObject, ownScopeOnly: true })
               ? [{ fromObjectId: unit.currentObject.id }, { toObjectId: unit.currentObject.id }] : []),
             ...(unit.currentOneTimeOrder && canViewOneTimeOrderByScope({ currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), permissionCodes: currentUser.permissionCodes, order: unit.currentOneTimeOrder })
@@ -496,8 +497,8 @@ export class EquipmentService {
     unitId: string,
     payload: CreateEquipmentMovementDto,
   ): Promise<EquipmentMovementResponseDto> {
-    const roleCodes = this.getRoleCodes(currentUser);
     const movementType = payload.movementType as EquipmentMovementType;
+    const policyActionCode = equipmentMovementAction[movementType];
 
     const created = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -520,9 +521,14 @@ export class EquipmentService {
       const delegated = sourceObjectId && !unit.currentOneTimeOrder &&
         ['issue_to_object', 'return_to_storage', 'send_to_repair', 'mark_broken', 'mark_lost'].includes(movementType) &&
         !payload.toOneTimeOrderId &&
-        hasDelegatedObjectAction(currentUser.id, sourceObjectId, 'equipment_move') &&
-        (movementType !== 'issue_to_object' || hasDelegatedObjectAction(currentUser.id, payload.toObjectId, 'equipment_move'));
-      if (!delegated) this.assertMovementCreatable(roleCodes, movementType);
+        hasDelegatedObjectAction(currentUser.id, sourceObjectId, 'equipment_move', true, policyActionCode, equipmentContext(unit)) &&
+        (movementType !== 'issue_to_object' || hasDelegatedObjectAction(currentUser.id, payload.toObjectId, 'equipment_move', true, policyActionCode, equipmentContext(unit)));
+      this.assertMovementCreatable(currentUser, movementType, unit, !!delegated);
+      for (const [entityType, id] of [['object', payload.toObjectId], ['one_time_order', payload.toOneTimeOrderId]] as const) {
+        if (!id) continue;
+        const target = await resourceAccessTarget(this.prisma, entityType, id);
+        if (!target || hasModuleDeny(currentUser, target.actionCode, target.context)) throw new ForbiddenException('Equipment destination access denied');
+      }
 
       const normalized = await this.normalizeMovement(unit, payload);
       const requiresWriteoffApproval = movementType === 'writeoff';
@@ -657,7 +663,7 @@ export class EquipmentService {
     }
 
     const units = (await this.prisma.equipmentUnit.findMany({
-      where: { currentObjectId: objectId },
+      where: { currentObjectId: objectId, AND: [equipmentPolicyWhere(currentUser, {}), this.delegatedReadWhere(currentUser, object)] },
       include: this.unitInclude(),
       orderBy: [{ updatedAt: 'desc' }, { inventoryNumber: 'asc' }],
     })) as EquipmentUnitRecord[];
@@ -691,7 +697,7 @@ export class EquipmentService {
     }
 
     const units = (await this.prisma.equipmentUnit.findMany({
-      where: { currentOneTimeOrderId: orderId },
+      where: { currentOneTimeOrderId: orderId, AND: [equipmentPolicyWhere(currentUser, {})] },
       include: this.unitInclude(),
       orderBy: [{ updatedAt: 'desc' }, { inventoryNumber: 'asc' }],
     })) as EquipmentUnitRecord[];
@@ -901,21 +907,24 @@ export class EquipmentService {
   }
 
   private assertEquipmentVisible(currentUser: CurrentAuthUser): void {
-    if (!canAccessEquipment(this.getRoleCodes(currentUser))) {
+    if (hasModuleDeny(currentUser, 'equipment.read') || (!canAccessEquipment(this.getRoleCodes(currentUser)) && !currentUser.accessRules?.some(rule => rule.actionCode === 'equipment.read' && rule.effect === 'allow'))) {
       throw new ForbiddenException('Equipment access denied');
     }
   }
 
-  private assertCatalogManageable(currentUser: CurrentAuthUser): void {
-    if (!canManageEquipmentCatalog(this.getRoleCodes(currentUser))) {
+  private assertCatalogManageable(currentUser: CurrentAuthUser, code = 'equipment.catalog.create'): void {
+    if (!decideAccess(currentUser, code, canManageEquipmentCatalog(this.getRoleCodes(currentUser)))) {
       throw new ForbiddenException('Equipment catalog management denied');
     }
   }
 
   private assertMovementCreatable(
-    roleCodes: string[],
+    currentUser: CurrentAuthUser,
     movementType: EquipmentMovementType,
+    unit: EquipmentUnitRecord,
+    delegated: boolean,
   ): void {
+    const roleCodes = this.getRoleCodes(currentUser);
     if (!EQUIPMENT_MOVEMENT_TYPES.includes(movementType)) {
       throw new BadRequestException('Unsupported equipment movement type');
     }
@@ -935,7 +944,7 @@ export class EquipmentService {
                   ? canMarkEquipmentBroken(roleCodes)
                   : canWriteoffEquipment(roleCodes);
 
-    if (!allowed) {
+    if (!decideAccess(currentUser, equipmentMovementAction[movementType], allowed || delegated, equipmentContext(unit))) {
       throw new ForbiddenException('Equipment movement denied');
     }
   }
@@ -946,14 +955,16 @@ export class EquipmentService {
   ): boolean {
     const roleCodes = this.getRoleCodes(currentUser);
 
-    return (
+    return decideAccess(currentUser, 'equipment.read', (
       canAccessEquipment(roleCodes) ||
       (!!unit.currentObject &&
         canViewObjectByScope({
           currentUserId: currentUser.id,
           roleCodes,
           object: unit.currentObject,
+          ownScopeOnly: true,
         })) ||
+      (!!unit.currentObject && hasDelegatedObjectAction(currentUser.id, unit.currentObject.id, 'view', false, 'equipment.read', equipmentContext(unit))) ||
       (!!unit.currentOneTimeOrder &&
         canViewOneTimeOrderByScope({
           currentUserId: currentUser.id,
@@ -961,7 +972,15 @@ export class EquipmentService {
           permissionCodes: currentUser.permissionCodes,
           order: unit.currentOneTimeOrder,
         }))
-    );
+    ), equipmentContext(unit));
+  }
+
+  private delegatedReadWhere(user: CurrentAuthUser, object: ObjectScope): Prisma.EquipmentUnitWhereInput {
+    if (canViewObjectByScope({ currentUserId: user.id, roleCodes: this.getRoleCodes(user), object, ownScopeOnly: true })) return {};
+    const branches = delegatedObjectScopes(user.id, 'view').filter(grant => grant.objectId === object.id).map(grant => ({ AND: [
+      { currentObjectId: object.id }, ...[grant.principalSubject, grant.replacementSubject].filter(subject => subject !== undefined).map(subject => equipmentPolicyWhere(subject, {})),
+    ] }));
+    return branches.length ? { OR: branches } : { id: { in: [] } };
   }
 
   private async ensureObjectExists(objectId: string): Promise<void> {
@@ -1166,7 +1185,7 @@ export class EquipmentService {
     currentUser: CurrentAuthUser,
     capabilities: EquipmentGlobalCapabilities,
   ): EquipmentUnitResponseDto {
-    const delegatedMove = !unit.currentOneTimeOrder && hasDelegatedObjectAction(currentUser.id, unit.currentObject?.id, 'equipment_move', false);
+    const delegatedFor = (code: string) => !unit.currentOneTimeOrder && hasDelegatedObjectAction(currentUser.id, unit.currentObject?.id, 'equipment_move', false, code, equipmentContext(unit));
     return {
       id: unit.id,
       inventoryNumber: unit.inventoryNumber,
@@ -1204,7 +1223,7 @@ export class EquipmentService {
       updatedAt: unit.updatedAt.toISOString(),
       deletionState: {
         canDelete:
-          capabilities.canDeleteEquipmentUnit &&
+          decideAccess(currentUser, 'equipment.unit.delete', capabilities.canDeleteEquipmentUnit, equipmentContext(unit)) &&
           unit._count.movements === 0 &&
           !unit.currentObject &&
           !unit.currentOneTimeOrder &&
@@ -1217,17 +1236,27 @@ export class EquipmentService {
         ],
       },
       capabilities: {
-        canCreateMovement: capabilities.canAccessEquipment || delegatedMove,
-        canDelete: capabilities.canDeleteEquipmentUnit,
-        canAssignToObject: capabilities.canAssignEquipmentToObject || delegatedMove,
-        canAssignToOneTimeOrder: capabilities.canAssignEquipmentToOneTimeOrder,
-        canReturn: capabilities.canReturnEquipment || delegatedMove,
-        canMove: capabilities.canMoveEquipment || delegatedMove,
-        canMarkBroken: capabilities.canMarkEquipmentBroken || delegatedMove,
-        canSendToRepair: capabilities.canSendEquipmentToRepair || delegatedMove,
-        canReturnFromRepair: capabilities.canReturnEquipmentFromRepair,
-        canWriteoff: capabilities.canWriteoffEquipment,
-        canViewHistory: capabilities.canViewEquipmentHistory || this.canReadUnit(currentUser, unit),
+        canCreateMovement: ([
+          ['equipment.assign_object', capabilities.canAssignEquipmentToObject || delegatedFor('equipment.assign_object')],
+          ['equipment.assign_order', capabilities.canAssignEquipmentToOneTimeOrder],
+          ['equipment.return', capabilities.canReturnEquipment || delegatedFor('equipment.return')],
+          ['equipment.broken', capabilities.canMarkEquipmentBroken || delegatedFor('equipment.broken')],
+          ['equipment.repair', capabilities.canSendEquipmentToRepair || delegatedFor('equipment.repair')],
+          ['equipment.repair_return', capabilities.canReturnEquipmentFromRepair],
+          ['equipment.lost', capabilities.canMarkEquipmentBroken || delegatedFor('equipment.lost')],
+          ['equipment.move', capabilities.canMoveEquipment || delegatedFor('equipment.move')],
+          ['equipment.writeoff', capabilities.canWriteoffEquipment],
+        ] as const).some(([code, legacy]) => decideAccess(currentUser, code, legacy, equipmentContext(unit))),
+        canDelete: decideAccess(currentUser, 'equipment.unit.delete', capabilities.canDeleteEquipmentUnit, equipmentContext(unit)),
+        canAssignToObject: decideAccess(currentUser, 'equipment.assign_object', capabilities.canAssignEquipmentToObject || delegatedFor('equipment.assign_object'), equipmentContext(unit)),
+        canAssignToOneTimeOrder: decideAccess(currentUser, 'equipment.assign_order', capabilities.canAssignEquipmentToOneTimeOrder, equipmentContext(unit)),
+        canReturn: decideAccess(currentUser, 'equipment.return', capabilities.canReturnEquipment || delegatedFor('equipment.return'), equipmentContext(unit)),
+        canMove: decideAccess(currentUser, 'equipment.move', capabilities.canMoveEquipment || delegatedFor('equipment.move'), equipmentContext(unit)),
+        canMarkBroken: decideAccess(currentUser, 'equipment.broken', capabilities.canMarkEquipmentBroken || delegatedFor('equipment.broken'), equipmentContext(unit)),
+        canSendToRepair: decideAccess(currentUser, 'equipment.repair', capabilities.canSendEquipmentToRepair || delegatedFor('equipment.repair'), equipmentContext(unit)),
+        canReturnFromRepair: decideAccess(currentUser, 'equipment.repair_return', capabilities.canReturnEquipmentFromRepair, equipmentContext(unit)),
+        canWriteoff: decideAccess(currentUser, 'equipment.writeoff', capabilities.canWriteoffEquipment, equipmentContext(unit)),
+        canViewHistory: decideAccess(currentUser, 'equipment.history', capabilities.canViewEquipmentHistory || this.canReadUnit(currentUser, unit), equipmentContext(unit)),
       },
     };
   }

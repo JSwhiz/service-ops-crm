@@ -12,7 +12,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TaskListResponseDto, TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { TasksService } from '../tasks/tasks.service';
 
-interface CurrentAuthUser {
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { assertDashboardAccess, dashboardObjectIds, dashboardObjectWhere, dashboardSection } from './dashboard-access.util';
+
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -240,26 +243,24 @@ export class LeadershipDashboardService {
     user: CurrentAuthUser,
     expanded = false,
   ): Promise<LeadershipDashboardResponse> {
-    if (!getRoleCodes(user).some((code) => LEADERSHIP_DASHBOARD_ROLE_CODES.has(code))) {
-      throw new ForbiddenException('Leadership dashboard is not available for this role');
-    }
+    assertDashboardAccess(user,'leadership',getRoleCodes(user).some(code=>LEADERSHIP_DASHBOARD_ROLE_CODES.has(code)));
 
     const clock = getMoscowClock();
     const [objectsResult, tasksResult, ordersResult, approvals] = await Promise.all([
-      this.objectsService.listObjects(user, { status: 'active' }),
-      this.tasksService.listTasks(user, {
+      dashboardSection(()=>this.objectsService.listObjects(user, { status: 'active' }), []),
+      dashboardSection(()=>this.tasksService.listTasks(user, {
         page: 1,
         limit: 100,
         sortBy: 'dueAt',
         sortDirection: 'asc',
-      }),
-      this.oneTimeOrdersService.listOrders(user, {
+      }), []),
+      dashboardSection(()=>this.oneTimeOrdersService.listOrders(user, {
         page: 1,
         limit: 100,
         sortBy: 'executionStartDate',
         sortDirection: 'asc',
-      }),
-      this.approvalsService.listRequests(user, { status: 'pending' }),
+      }),{items:[],total:0,page:1,limit:100,totalPages:0}),
+      dashboardSection(()=>this.approvalsService.listRequests(user, { status: 'pending' }), []),
     ]);
 
     const activeObjects: ObjectResponseDto[] = Array.isArray(objectsResult)
@@ -270,7 +271,7 @@ export class LeadershipDashboardService {
       : (tasksResult as TaskListResponseDto).items;
     const rankedTasks = rankTasks(taskItems, user.id, clock.date);
     const accessibleOrders = ordersResult.items;
-    const signalMap = await this.loadObjectSignals(activeObjects, clock);
+    const signalMap = await this.loadObjectSignals(activeObjects, clock,user);
     const mappedObjects = activeObjects.map((object) =>
       this.mapObjectPreview(object, signalMap.get(object.id)),
     );
@@ -481,10 +482,12 @@ export class LeadershipDashboardService {
   private async loadObjectSignals(
     objects: ObjectResponseDto[],
     clock: ReturnType<typeof getMoscowClock>,
+    user: CurrentAuthUser,
   ): Promise<Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>> {
     const result = new Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>();
     const ids = objects.map((object) => object.id);
     if (!ids.length) return result;
+    const [attendanceAllowed,reportsAllowed]=await Promise.all([dashboardObjectIds(this.prisma,user,ids,'objects.attendance.read'),dashboardObjectIds(this.prisma,user,ids,'objects.reports.read')]);
 
     const attendanceRequired = clock.minutes >= 8 * 60 + 30;
     const reportRequired = clock.minutes >= 17 * 60;
@@ -492,7 +495,7 @@ export class LeadershipDashboardService {
       attendanceRequired
         ? this.prisma.objectAuditLog.findMany({
             where: {
-              objectId: { in: ids },
+              objectId: { in: ids }, object:dashboardObjectWhere(user,'objects.attendance.read'),
               actionCode: 'attendance.submitted',
               createdAt: { gte: clock.dayStartUtc, lt: clock.nextDayStartUtc },
             },
@@ -503,7 +506,7 @@ export class LeadershipDashboardService {
       reportRequired
         ? this.prisma.objectDailyReport.findMany({
             where: {
-              objectId: { in: ids },
+              objectId: { in: ids }, object:dashboardObjectWhere(user,'objects.reports.read'),
               reportDate: new Date(`${clock.date}T00:00:00.000Z`),
             },
             select: { objectId: true },
@@ -514,8 +517,8 @@ export class LeadershipDashboardService {
     const reportIds = new Set(reports.map((item) => item.objectId));
     for (const object of objects) {
       result.set(object.id, {
-        attendanceMissing: attendanceRequired && !submittedIds.has(object.id),
-        dailyReportMissing: reportRequired && !reportIds.has(object.id),
+        attendanceMissing: attendanceAllowed.has(object.id)&&attendanceRequired && !submittedIds.has(object.id),
+        dailyReportMissing: reportsAllowed.has(object.id)&&reportRequired && !reportIds.has(object.id),
       });
     }
     return result;

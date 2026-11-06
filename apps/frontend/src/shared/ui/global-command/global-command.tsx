@@ -65,6 +65,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   const router = useRouter();
   const createNavigation = useCreateNavigation();
   const { user } = useAuth();
+  const canSearch = user?.capabilities?.canAccessSearch !== false;
   const navigation = useMemo(() => resolveGlobalNavigation(user), [user]);
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -81,7 +82,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   const normalizedLower = normalized.toLocaleLowerCase('ru');
 
   useEffect(() => {
-    if (open) {
+    if (open && canSearch) {
       restoreFocusRef.current = document.activeElement as HTMLElement | null;
       setQuery('');
       setRemoteItems([]);
@@ -107,7 +108,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
     recentRequestRef.current += 1;
     restoreFocusRef.current?.focus();
     restoreFocusRef.current = null;
-  }, [open, user?.id]);
+  }, [canSearch, open, user?.id, user?.accessVersion]);
 
   useEffect(() => {
     if (!open) return;
@@ -119,7 +120,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   }, [onOpenChange, open]);
 
   useEffect(() => {
-    if (!open || normalized.length < 2) {
+    if (!open || !canSearch || normalized.length < 2) {
       requestRef.current += 1;
       setRemoteItems([]);
       setLoading(false);
@@ -143,7 +144,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
     }, SEARCH_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timeout);
-  }, [normalized, open]);
+  }, [canSearch, normalized, open, user?.accessVersion]);
 
   const staticMatches = useMemo(() => {
     if (!normalizedLower) return [];
@@ -197,7 +198,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
     else router.push(item.href);
   };
 
-  if (!open) return null;
+  if (!open || !canSearch) return null;
 
   let flatIndex = -1;
   return (
@@ -301,7 +302,7 @@ export function GlobalCommandPalette({ open, onOpenChange }: { open: boolean; on
   );
 }
 
-export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }): React.JSX.Element {
+export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }): React.JSX.Element | null {
   const createNavigation = useCreateNavigation();
   const { user } = useAuth();
   const actions = useMemo(() => resolveGlobalActions(user), [user]);
@@ -330,6 +331,8 @@ export function GlobalCreateMenu({ open, onOpenChange }: { open: boolean; onOpen
       document.removeEventListener('keydown', keyboard);
     };
   }, [onOpenChange, open]);
+
+  if (actions.length === 0) return null;
 
   return (
     <div className="global-create" ref={rootRef}>

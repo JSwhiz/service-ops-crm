@@ -15,6 +15,8 @@ import { FileResponseDto } from '../files/dto/file-response.dto';
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { resourceAccessTarget } from '../../common/access/resource-access-context';
+import { decideAccess, type AccessContext } from '../users-access/utils/access-policy.util';
 
 import { AddChatParticipantsDto } from './dto/add-chat-participants.dto';
 import { CloseChatRoomDto } from './dto/close-chat-room.dto';
@@ -140,6 +142,7 @@ type ChatMessageMapContext = {
     { id: string; login: string; fullName: string } | null
   >;
   canManageByRoomId: Map<string, boolean>;
+  accessByRoomId: Map<string, AccessContext>;
   referencesByMessageId: Map<string, ChatMessageResponseDto['replyTo']>;
 };
 
@@ -213,6 +216,7 @@ export class ChatsService implements OnModuleInit {
     rawQuery: string,
     options: { roomId?: string; before?: string } = {},
   ): Promise<ChatSearchResponseDto> {
+    if (!decideAccess(currentUser, 'chat.search', true)) throw new ForbiddenException('Поиск в чатах недоступен');
     const query = rawQuery.trim();
 
     if (query.length < 2) {
@@ -220,9 +224,17 @@ export class ChatsService implements OnModuleInit {
     }
 
     const normalizedQuery = query.toLocaleLowerCase('ru-RU');
-    const visibleRooms = (await this.listRooms(currentUser, 'active')).filter(
+    const candidates = (await this.listRooms(currentUser, 'active')).filter(
       (room) => !options.roomId || room.id === options.roomId,
     );
+    // Resolve room-scoped search/message denies before any text query, cursor,
+    // or result limit; listing a room alone does not allow reading its messages.
+    const allowed = await Promise.all(candidates.map(async room => {
+      const context = await this.roomAccessContext(await this.getRoomRecord(room.id));
+      return decideAccess(currentUser, 'chat.search', true, context) &&
+        decideAccess(currentUser, 'chat.messages.read', true, context);
+    }));
+    const visibleRooms = candidates.filter((_, index) => allowed[index]);
     const visibleRoomIds = visibleRooms.map((room) => room.id);
     const currentParticipants = visibleRoomIds.length
       ? await this.prisma.chatRoomParticipant.findMany({
@@ -391,7 +403,7 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     dto: CreateDirectChatDto,
   ): Promise<ChatRoomResponseDto> {
-    if (!canCreateDirectChat()) {
+    if (!decideAccess(currentUser, 'chat.room.direct', canCreateDirectChat(), { resourceType: 'chat_room', ownerUserId: currentUser.id })) {
       throw new ForbiddenException('Direct chat creation denied');
     }
 
@@ -491,7 +503,7 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     dto: CreateChatRoomDto,
   ): Promise<ChatRoomResponseDto> {
-    if (!canCreateGroupChat(this.getRoleCodes(currentUser))) {
+    if (!decideAccess(currentUser, 'chat.room.group', canCreateGroupChat(this.getRoleCodes(currentUser)), { resourceType: 'chat_room', ownerUserId: currentUser.id })) {
       throw new ForbiddenException('Group chat creation denied');
     }
 
@@ -647,6 +659,7 @@ export class ChatsService implements OnModuleInit {
     roomId: string,
   ): Promise<{ success: true }> {
     const room = await this.getRoomRecord(roomId);
+    await this.assertRoomAction(currentUser, room, 'chat.room.hide');
     this.assertRoomOpen(room);
 
     if (!this.isDirectOrGroupRoom(room)) {
@@ -686,6 +699,7 @@ export class ChatsService implements OnModuleInit {
     roomId: string,
   ): Promise<ChatRoomResponseDto> {
     const room = await this.getRoomRecord(roomId);
+    await this.assertRoomAction(currentUser, room, 'chat.room.unhide');
     this.assertRoomOpen(room);
 
     if (!this.isDirectOrGroupRoom(room)) {
@@ -727,6 +741,7 @@ export class ChatsService implements OnModuleInit {
     roomId: string,
   ): Promise<{ success: true }> {
     const room = await this.getRoomRecord(roomId);
+    await this.assertRoomAction(currentUser, room, 'chat.room.leave');
     this.assertRoomOpen(room);
 
     if (room.roomType !== 'group') {
@@ -775,7 +790,7 @@ export class ChatsService implements OnModuleInit {
       throw new BadRequestException('Only group chats can be closed globally');
     }
 
-    if (!canCloseChatGlobally(currentUser.permissionCodes ?? [])) {
+    if (!decideAccess(currentUser, 'chat.room.close_global', canCloseChatGlobally(currentUser.permissionCodes ?? []), await this.roomAccessContext(room))) {
       throw new ForbiddenException('Global chat close denied');
     }
 
@@ -1239,6 +1254,7 @@ export class ChatsService implements OnModuleInit {
     }
 
     await this.assertCanReadRoom(currentUser, message.chatRoom);
+    await this.assertRoomAction(currentUser, message.chatRoom, 'chat.messages.edit');
     this.assertRoomOpen(message.chatRoom);
 
     if (message.deletedAt) {
@@ -1336,6 +1352,7 @@ export class ChatsService implements OnModuleInit {
     }
 
     await this.assertCanReadRoom(currentUser, message.chatRoom);
+    await this.assertRoomAction(currentUser, message.chatRoom, 'chat.messages.delete');
     this.assertRoomOpen(message.chatRoom);
 
     if (message.messageType !== 'user') {
@@ -1415,6 +1432,7 @@ export class ChatsService implements OnModuleInit {
       currentUser,
       sourceMessage.chatRoom,
     );
+    await this.assertRoomAction(currentUser, sourceMessage.chatRoom, 'chat.messages.forward');
 
     if (sourceMessage.createdAt < sourceParticipant.joinedAt) {
       throw new ForbiddenException('Chat message is not available');
@@ -1429,6 +1447,7 @@ export class ChatsService implements OnModuleInit {
     }
 
     const targetRoom = await this.getRoomRecord(dto.targetRoomId);
+    await this.assertRoomAction(currentUser, targetRoom, 'chat.messages.forward');
     await this.assertCanWriteRoom(currentUser, targetRoom);
     const sourceAttachments = await this.prisma.fileAttachment.findMany({
       where: {
@@ -1521,6 +1540,7 @@ export class ChatsService implements OnModuleInit {
       currentUser,
       message.chatRoom,
     );
+    await this.assertRoomAction(currentUser, message.chatRoom, 'chat.messages.react');
     this.assertRoomOpen(message.chatRoom);
 
     if (message.createdAt < participant.joinedAt) {
@@ -1577,6 +1597,7 @@ export class ChatsService implements OnModuleInit {
     dto: MarkChatRoomReadDto,
   ): Promise<ChatRoomResponseDto> {
     const room = await this.getRoomRecord(roomId);
+    await this.assertRoomAction(currentUser, room, 'chat.read_receipts');
     const participant = await this.assertCanReadRoom(currentUser, room);
 
     const message = await this.prisma.chatMessage.findFirst({
@@ -1820,6 +1841,7 @@ export class ChatsService implements OnModuleInit {
     if (!(await this.canAccessRoom(currentUser, room))) {
       throw new ForbiddenException('Chat room access denied');
     }
+    await this.assertRoomAction(currentUser, room, 'chat.messages.read');
 
     return this.ensureParticipantForAccessibleRoom(currentUser, room);
   }
@@ -1843,6 +1865,29 @@ export class ChatsService implements OnModuleInit {
   }
 
   private async canAccessRoom(
+    currentUser: CurrentAuthUser,
+    room: ChatRoomRecord,
+  ): Promise<boolean> {
+    const context = await this.roomAccessContext(room);
+    const invariantAllowed = currentUser.isActive && !room.deletedAt &&
+      (room.visibilityType !== 'leadership_only' || isChatLeadership(this.getRoleCodes(currentUser))) &&
+      (room.visibilityType !== 'explicit_members' || context.assignedUserIds?.includes(currentUser.id) === true);
+    return decideAccess(currentUser, 'chat.read', await this.canAccessRoomLegacy(currentUser, room), { ...context, invariantAllowed });
+  }
+
+  private async roomAccessContext(room: ChatRoomRecord): Promise<AccessContext> {
+    const target = await resourceAccessTarget(this.prisma, 'chat_room', room.id);
+    return { ...(target?.context ?? { resourceType: 'chat_room', resourceId: room.id }),
+      parents: room.visibilityType === 'objects_scope' ? [{ actionCode: 'objects.access', context: {} }]
+        : room.visibilityType === 'one_time_orders_scope' ? [{ actionCode: 'one_time_orders.access', context: {} }] : [],
+    };
+  }
+
+  private async assertRoomAction(currentUser: CurrentAuthUser, room: ChatRoomRecord, actionCode: string): Promise<void> {
+    if (!decideAccess(currentUser, actionCode, true, await this.roomAccessContext(room))) throw new ForbiddenException('Действие в чате недоступно');
+  }
+
+  private async canAccessRoomLegacy(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
   ): Promise<boolean> {
@@ -1875,7 +1920,8 @@ export class ChatsService implements OnModuleInit {
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
   ): Promise<boolean> {
-    if (!currentUser.isActive || room.deletedAt) {
+    if (!currentUser.isActive || room.deletedAt || !(await this.canAccessRoom(currentUser, room)) ||
+      !decideAccess(currentUser, 'chat.messages.create', true, await this.roomAccessContext(room))) {
       return false;
     }
 
@@ -1887,6 +1933,15 @@ export class ChatsService implements OnModuleInit {
   }
 
   private async canManageRoom(
+    currentUser: CurrentAuthUser,
+    room: ChatRoomRecord,
+  ): Promise<boolean> {
+    return decideAccess(currentUser, 'chat.room.update', await this.canManageRoomLegacy(currentUser, room), {
+      ...await this.roomAccessContext(room), invariantAllowed: !room.deletedAt,
+    });
+  }
+
+  private async canManageRoomLegacy(
     currentUser: CurrentAuthUser,
     room: ChatRoomRecord,
   ): Promise<boolean> {
@@ -1923,8 +1978,9 @@ export class ChatsService implements OnModuleInit {
   private async canManageMembers(currentUser: CurrentAuthUser, room: ChatRoomRecord): Promise<boolean> {
     if (!currentUser.isActive || room.deletedAt || room.roomType !== 'group' || room.visibilityType !== 'explicit_members') return false;
     if (!(await this.canAccessRoom(currentUser, room))) return false;
-    return (currentUser.permissionCodes ?? []).includes(CHAT_MANAGE_MEMBERS_PERMISSION_CODE) ||
-      this.canManageRoom(currentUser, room);
+    return decideAccess(currentUser, 'chat.room.manage_members',
+      (currentUser.permissionCodes ?? []).includes(CHAT_MANAGE_MEMBERS_PERMISSION_CODE) || await this.canManageRoomLegacy(currentUser, room),
+      await this.roomAccessContext(room));
   }
 
   private async assertCanManageMembers(currentUser: CurrentAuthUser, room: ChatRoomRecord): Promise<void> {
@@ -2037,6 +2093,8 @@ export class ChatsService implements OnModuleInit {
     room: ChatRoomRecord,
     participant: ChatParticipantRecord,
   ): Promise<ChatRoomResponseDto> {
+    const accessContext = await this.roomAccessContext(room);
+    const canSeeMessages = decideAccess(currentUser, 'chat.messages.read', true, accessContext);
     const participantCount = await this.prisma.chatRoomParticipant.count({
       where: {
         chatRoomId: room.id,
@@ -2071,26 +2129,28 @@ export class ChatsService implements OnModuleInit {
       roomType: room.roomType,
       visibilityType: room.visibilityType,
       lastMessageAt: room.lastMessageAt?.toISOString() ?? null,
-      lastMessagePreview: room.lastMessagePreview,
+      lastMessagePreview: canSeeMessages ? room.lastMessagePreview : null,
       lastReadAt: participant.lastReadAt?.toISOString() ?? null,
-      unreadCount,
+      unreadCount: canSeeMessages ? unreadCount : 0,
       participantCount,
       capabilities: {
         canWrite: await this.canWriteRoom(currentUser, room),
         canManage: await this.canManageRoom(currentUser, room),
         canManageMembers: await this.canManageMembers(currentUser, room),
         canHide:
+          decideAccess(currentUser, 'chat.room.hide', true, accessContext) &&
           this.isDirectOrGroupRoom(room) &&
           !room.deletedAt &&
           participant.leftAt === null,
         canLeave:
+          decideAccess(currentUser, 'chat.room.leave', true, accessContext) &&
           room.roomType === 'group' &&
           !room.deletedAt &&
           participant.leftAt === null,
         canCloseGlobally:
           room.roomType === 'group' &&
           !room.deletedAt &&
-          canCloseChatGlobally(currentUser.permissionCodes ?? []),
+          decideAccess(currentUser, 'chat.room.close_global', canCloseChatGlobally(currentUser.permissionCodes ?? []), accessContext),
       },
     };
   }
@@ -2238,6 +2298,7 @@ export class ChatsService implements OnModuleInit {
       reactionsByMessageId,
       deletedUsersById,
       canManageByRoomId: new Map(canManageEntries),
+      accessByRoomId: new Map(await Promise.all(rooms.map(async room => [room.id, await this.roomAccessContext(room)] as const))),
       referencesByMessageId: new Map(referenceEntries),
     };
 
@@ -2251,6 +2312,7 @@ export class ChatsService implements OnModuleInit {
     message: ChatMessageRecord,
     context?: ChatMessageMapContext,
   ): Promise<ChatMessageResponseDto> {
+    const accessContext = context?.accessByRoomId.get(message.chatRoomId) ?? await this.roomAccessContext(await this.getRoomRecord(message.chatRoomId));
     const isDeleted = message.deletedAt !== null;
     const attachments = isDeleted
       ? []
@@ -2362,21 +2424,24 @@ export class ChatsService implements OnModuleInit {
       attachments,
       capabilities: {
         canEdit:
+          decideAccess(currentUser, 'chat.messages.edit', true, accessContext) &&
           !isDeleted &&
           message.messageType === 'user' &&
           message.authorUserId === currentUser.id &&
           Date.now() - message.createdAt.getTime() <=
             CHAT_MESSAGE_EDIT_WINDOW_MS,
         canDelete:
+          decideAccess(currentUser, 'chat.messages.delete', true, accessContext) &&
           !isDeleted &&
           message.messageType === 'user' &&
           (message.authorUserId === currentUser.id || canManageRoom),
-        canReply: !isDeleted && message.messageType === 'user',
+        canReply: !isDeleted && message.messageType === 'user' && decideAccess(currentUser, 'chat.messages.create', true, accessContext),
         canForward:
+          decideAccess(currentUser, 'chat.messages.forward', true, accessContext) &&
           !isDeleted &&
           message.messageType === 'user' &&
           (!!message.text?.trim() || attachments.length > 0),
-        canReact: !isDeleted && message.messageType === 'user',
+        canReact: !isDeleted && message.messageType === 'user' && decideAccess(currentUser, 'chat.messages.react', true, accessContext),
       },
     };
   }

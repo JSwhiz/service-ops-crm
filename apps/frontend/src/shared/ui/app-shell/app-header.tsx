@@ -14,7 +14,7 @@ import {
   GlobalCreateMenu,
 } from '@/shared/ui/global-command/global-command';
 import { UserAvatar } from '@/shared/ui/user-avatar/user-avatar';
-import { ChevronDownIcon } from '@/shared/ui/icons/icons';
+import { CheckIcon, ChevronDownIcon } from '@/shared/ui/icons/icons';
 import { compactPersonName } from '@/shared/ui/person-presentation/compact-person-name';
 
 const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
@@ -37,7 +37,7 @@ const ROUTE_TITLES: ReadonlyArray<readonly [string, string]> = [
   ['/user-absences', 'Календарь'],
   ['/user-substitutions', 'Замещения'],
   ['/chats', 'Чаты'],
-  ['/settings', 'Настройки'],
+  ['/settings', 'Пользователи и доступы'],
 ];
 
 function getRouteTitle(pathname: string): string {
@@ -63,12 +63,14 @@ export function AppHeader(): React.JSX.Element {
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const accountRef = useRef<HTMLDivElement>(null);
   const canAccessChats = user?.capabilities?.canAccessChats ?? false;
+  const canAccessSearch = Boolean(user) && user?.capabilities?.canAccessSearch !== false;
+  const canAccessNotifications = Boolean(user) && user?.capabilities?.canAccessNotifications !== false;
   const displayName = getUserDisplayName(user);
   const roleLabel = getUserRoleLabel(user?.roleCode);
 
   useEffect(() => {
     const handleShortcut = (event: KeyboardEvent): void => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === 'k') {
+      if (canAccessSearch && (event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === 'k') {
         event.preventDefault();
         setAccountOpen(false);
         setCreateOpen(false);
@@ -77,7 +79,11 @@ export function AppHeader(): React.JSX.Element {
     };
     document.addEventListener('keydown', handleShortcut);
     return () => document.removeEventListener('keydown', handleShortcut);
-  }, []);
+  }, [canAccessSearch]);
+
+  useEffect(() => {
+    if (!canAccessSearch) setCommandOpen(false);
+  }, [canAccessSearch]);
 
   useEffect(() => {
     if (!canAccessChats) {
@@ -137,7 +143,7 @@ export function AppHeader(): React.JSX.Element {
           <div className="app-header__workspace-label">Service Ops CRM</div>
         </div>
 
-        <div className="app-header__command-zone">
+        {canAccessSearch ? <div className="app-header__command-zone">
           <GlobalCommandTrigger
             onClick={() => {
               setAccountOpen(false);
@@ -145,7 +151,7 @@ export function AppHeader(): React.JSX.Element {
               setCommandOpen(true);
             }}
           />
-        </div>
+        </div> : null}
 
         <div className="app-header__actions">
           <GlobalCreateMenu
@@ -171,7 +177,7 @@ export function AppHeader(): React.JSX.Element {
             </Link>
           ) : null}
 
-          {user ? <NotificationBell /> : null}
+          {canAccessNotifications ? <NotificationBell /> : null}
 
           {user ? <span className="app-header__separator" aria-hidden="true" /> : null}
 
@@ -203,9 +209,12 @@ export function AppHeader(): React.JSX.Element {
                     <strong>{displayName}</strong>
                     <span>{roleLabel}</span>
                   </div>
-                  <Link className="app-header__menu-link" href="/settings" role="menuitem">
-                    Настройки
-                  </Link>
+                  {(user.roleCode === 'founder' || user.roleCodes.includes('founder')) && user.capabilities?.canManageUserAccess ? (
+                    <Link className="app-header__menu-link ui-inline" href="/settings" role="menuitem">
+                      <CheckIcon size={18} />
+                      Пользователи и доступы
+                    </Link>
+                  ) : null}
                   <button
                     type="button"
                     className="app-header__logout"
@@ -224,7 +233,7 @@ export function AppHeader(): React.JSX.Element {
         </div>
       </header>
 
-      <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+      {canAccessSearch ? <GlobalCommandPalette open={commandOpen} onOpenChange={setCommandOpen} /> : null}
     </>
   );
 }

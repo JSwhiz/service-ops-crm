@@ -1,0 +1,37 @@
+.form {
+  display: grid;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.quantity {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  align-items: end;
+  gap: var(--ui-space-4);
+}
+
+.evidence {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ui-space-3);
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .quantity {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.trigger {
+  justify-self: start;
+  width: fit-content;
+}
+

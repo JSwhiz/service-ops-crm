@@ -3,12 +3,10 @@ import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
-import { CreateObjectInventoryIssueDto } from './dto/create-object-inventory-issue.dto';
-import { InventoryMovementListResponseDto } from './dto/inventory-movement-list-response.dto';
-import {
-  ScopedOneTimeInventoryIssueResponse,
-  ScopedOneTimeInventoryService,
-} from './scoped-one-time-inventory.service';
+import { CreateOrderInventoryIssueDto } from './dto/create-order-inventory-issue.dto';
+import { OrderInventoryResponseDto } from './dto/order-inventory-response.dto';
+import { OrderInventoryIssueResponseDto } from './dto/order-inventory-issue-response.dto';
+import { ScopedOneTimeInventoryService } from './scoped-one-time-inventory.service';
 
 interface CurrentAuthUser {
   id: string;
@@ -31,7 +29,7 @@ export class ScopedOneTimeInventoryController {
   listOrderMovements(
     @CurrentUser() user: CurrentAuthUser,
     @Param('orderId') orderId: string,
-  ): Promise<InventoryMovementListResponseDto> {
+  ): Promise<OrderInventoryResponseDto> {
     return this.scopedOneTimeInventoryService.listOrderMovements(user, orderId);
   }
 
@@ -39,8 +37,8 @@ export class ScopedOneTimeInventoryController {
   issueToOrder(
     @CurrentUser() user: CurrentAuthUser,
     @Param('orderId') orderId: string,
-    @Body() payload: CreateObjectInventoryIssueDto,
-  ): Promise<ScopedOneTimeInventoryIssueResponse> {
+    @Body() payload: CreateOrderInventoryIssueDto,
+  ): Promise<OrderInventoryIssueResponseDto> {
     return this.scopedOneTimeInventoryService.issueToOrder(
       user,
       orderId,

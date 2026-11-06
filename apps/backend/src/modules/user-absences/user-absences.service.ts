@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { buildAccessWhere, decideAccess } from '../users-access/utils/access-policy.util';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,7 +22,7 @@ export const USER_ABSENCE_MANAGE_PERMISSION = 'user_absences.manage';
 export const USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION =
   'user_absences.view_private_reasons';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -69,13 +71,12 @@ export class UserAbsencesService {
   async list(user: CurrentAuthUser, query: ListUserAbsencesQueryDto): Promise<UserAbsenceListResponseDto> {
     if (!user.isActive) throw new ForbiddenException('Активный пользователь обязателен');
     if (query.from && query.to) ensureRange(query.from, query.to);
-    const canViewAll = true;
-    const canManageAll = hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION);
-    const canViewPrivateReasons = hasPermission(
-      user,
-      USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION,
-    );
+    const canViewAll = decideAccess(user, 'user_absences.view_all', true);
+    const canManageAll = decideAccess(user, 'user_absences.manage', hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION));
+    const canViewPrivateReasons = decideAccess(user, 'user_absences.view_private_reasons', hasPermission(user, USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION));
     const requestedUserId = query.userId;
+    const targets = await this.prisma.user.findMany({ where: this.calendarUserWhere(user), select: { id: true } });
+    const targetIds = targets.map(target => target.id);
     const rows = await this.prisma.$queryRaw<UserAbsenceRow[]>(Prisma.sql`
       SELECT
         ua."id", ua."userId", u."login", u."fullName", ua."absenceType",
@@ -84,6 +85,7 @@ export class UserAbsencesService {
       FROM "user_absences" ua
       JOIN "users" u ON u."id" = ua."userId"
       WHERE u."deletedAt" IS NULL
+        AND ${targetIds.length ? Prisma.sql`ua."userId" IN (${Prisma.join(targetIds)})` : Prisma.sql`FALSE`}
         AND ua."deletedAt" IS NULL
         ${requestedUserId ? Prisma.sql`AND ua."userId" = ${requestedUserId}` : Prisma.empty}
         ${query.absenceType ? Prisma.sql`AND ua."absenceType" = ${query.absenceType}` : Prisma.empty}
@@ -96,12 +98,12 @@ export class UserAbsencesService {
       items: rows.map((row) =>
         this.map(
           row,
-          canViewPrivateReasons || row.userId === user.id,
+          this.canViewPrivateReasons(user, row.userId),
         ),
       ),
       capabilities: {
         canViewAll,
-        canManage: true,
+        canManage: decideAccess(user, 'user_absences.create', true, this.targetContext(user.id)),
         canManageAll,
         canViewPrivateReasons,
       },
@@ -111,15 +113,15 @@ export class UserAbsencesService {
   async listManageableUsers(user: CurrentAuthUser): Promise<Array<{ id: string; login: string; fullName: string }>> {
     if (!user.isActive) throw new ForbiddenException('Активный пользователь обязателен');
     return this.prisma.user.findMany({
-      where: { isActive: true, deletedAt: null },
+      where: { AND: [{ isActive: true, deletedAt: null }, this.calendarUserWhere(user)] },
       select: { id: true, login: true, fullName: true },
       orderBy: [{ fullName: 'asc' }, { id: 'asc' }],
     });
   }
 
   async create(user: CurrentAuthUser, payload: CreateUserAbsenceDto): Promise<UserAbsenceResponseDto> {
-    this.assertCanManageTarget(user, payload.userId);
-    if (payload.userId !== user.id && payload.comment?.trim() && !this.canViewPrivateReasons(user)) {
+    this.assertCanManageTarget(user, payload.userId, 'user_absences.create');
+    if (payload.userId !== user.id && payload.comment?.trim() && !this.canViewPrivateReasons(user, payload.userId)) {
       throw new ForbiddenException('Недостаточно прав для записи приватной причины');
     }
     ensureRange(payload.startDate, payload.endDate);
@@ -160,16 +162,16 @@ export class UserAbsencesService {
         tx,
       );
     });
-    return this.getById(id, this.canViewPrivateReasons(user) || payload.userId === user.id);
+    return this.getById(id, this.canViewPrivateReasons(user, payload.userId));
   }
 
   async update(user: CurrentAuthUser, id: string, payload: UpdateUserAbsenceDto): Promise<UserAbsenceResponseDto> {
-    const current = await this.getById(id, true, hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION) ? undefined : user.id);
-    this.assertCanManageTarget(user, current.userId);
+    const current = await this.getById(id, true);
+    this.assertCanManageTarget(user, current.userId, 'user_absences.update');
     if (
       Object.prototype.hasOwnProperty.call(payload, 'comment') &&
       current.userId !== user.id &&
-      !this.canViewPrivateReasons(user)
+      !this.canViewPrivateReasons(user, current.userId)
     ) {
       throw new ForbiddenException('Изменять приватную причину отсутствия может только пользователь с отдельным правом');
     }
@@ -221,12 +223,12 @@ export class UserAbsencesService {
         tx,
       );
     });
-    return this.getById(id, this.canViewPrivateReasons(user) || current.userId === user.id);
+    return this.getById(id, this.canViewPrivateReasons(user, current.userId));
   }
 
   async remove(user: CurrentAuthUser, id: string): Promise<{ id: string; deleted: true }> {
-    const current = await this.getById(id, true, hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION) ? undefined : user.id);
-    this.assertCanManageTarget(user, current.userId);
+    const current = await this.getById(id, true);
+    this.assertCanManageTarget(user, current.userId, 'user_absences.delete');
     const deletedAt = new Date().toISOString();
     await this.prisma.$transaction(async (tx) => {
       await this.lockAndAssertTargetUser(tx, current.userId);
@@ -260,7 +262,8 @@ export class UserAbsencesService {
     return { id, deleted: true };
   }
 
-  async countTodayForLeadership(date: string): Promise<number> {
+  async countTodayForLeadership(date: string, user?: CurrentAuthUser): Promise<number> {
+    const targetIds = user ? (await this.prisma.user.findMany({ where: this.calendarUserWhere(user), select: { id: true } })).map(target => target.id) : undefined;
     const rows = await this.prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
       SELECT COUNT(DISTINCT ua."userId")::bigint AS "count"
       FROM "user_absences" ua
@@ -268,13 +271,15 @@ export class UserAbsencesService {
       WHERE u."isActive" = TRUE
         AND u."deletedAt" IS NULL
         AND ua."deletedAt" IS NULL
+        ${targetIds ? (targetIds.length ? Prisma.sql`AND ua."userId" IN (${Prisma.join(targetIds)})` : Prisma.sql`AND FALSE`) : Prisma.empty}
         AND ua."startDate" <= CAST(${date} AS DATE)
         AND ua."endDate" >= CAST(${date} AS DATE)
     `);
     return Number(rows[0]?.count ?? 0n);
   }
 
-  async listUpcomingForLeadership(date: string, limit = 5): Promise<UserAbsenceResponseDto[]> {
+  async listUpcomingForLeadership(date: string, limit = 5, user?: CurrentAuthUser): Promise<UserAbsenceResponseDto[]> {
+    const targetIds = user ? (await this.prisma.user.findMany({ where: this.calendarUserWhere(user), select: { id: true } })).map(target => target.id) : undefined;
     const rows = await this.prisma.$queryRaw<UserAbsenceRow[]>(Prisma.sql`
       SELECT
         ua."id", ua."userId", u."login", u."fullName", ua."absenceType",
@@ -285,6 +290,7 @@ export class UserAbsencesService {
       WHERE u."isActive" = TRUE
         AND u."deletedAt" IS NULL
         AND ua."deletedAt" IS NULL
+        ${targetIds ? (targetIds.length ? Prisma.sql`AND ua."userId" IN (${Prisma.join(targetIds)})` : Prisma.sql`AND FALSE`) : Prisma.empty}
         AND ua."endDate" >= CAST(${date} AS DATE)
       ORDER BY
         CASE WHEN ua."startDate" <= CAST(${date} AS DATE) THEN 0 ELSE 1 END ASC,
@@ -295,17 +301,32 @@ export class UserAbsencesService {
     return rows.map((row) => this.map(row, false));
   }
 
-  private assertCanManageTarget(user: CurrentAuthUser, targetUserId: string): void {
+  private assertCanManageTarget(user: CurrentAuthUser, targetUserId: string, code: string): void {
     if (!user.isActive) {
       throw new ForbiddenException('Активный пользователь обязателен');
     }
-    if (targetUserId !== user.id && !hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION)) {
+    const context = this.targetContext(targetUserId);
+    const legacy = targetUserId === user.id || hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION);
+    if (!decideAccess(user, code, legacy, context) || (targetUserId !== user.id && !decideAccess(user, 'user_absences.manage', hasPermission(user, USER_ABSENCE_MANAGE_PERMISSION), context))) {
       throw new ForbiddenException('Недостаточно прав для управления отсутствиями пользователей');
     }
   }
 
-  private canViewPrivateReasons(user: CurrentAuthUser): boolean {
-    return hasPermission(user, USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION);
+  private targetContext(targetUserId: string) {
+    return { resourceType: 'user', resourceId: targetUserId, ownerUserId: targetUserId };
+  }
+
+  private calendarUserWhere(user: CurrentAuthUser): Prisma.UserWhereInput {
+    const scope = (code: string) => buildAccessWhere<Prisma.UserWhereInput>({
+      subject: user, actionCode: code, legacyWhere: {}, invariantWhere: {},
+      scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'own' ? { id: user.id }
+        : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } } : null,
+    }) as Prisma.UserWhereInput;
+    return { AND: [scope('user_absences.read'), { OR: [{ id: user.id }, { AND: [{ id: { not: user.id } }, scope('user_absences.view_all')] }] }] };
+  }
+
+  private canViewPrivateReasons(user: CurrentAuthUser, targetUserId = user.id): boolean {
+    return decideAccess(user, 'user_absences.view_private_reasons', targetUserId === user.id || hasPermission(user, USER_ABSENCE_VIEW_PRIVATE_REASONS_PERMISSION), this.targetContext(targetUserId));
   }
 
   private async lockAndAssertTargetUser(

@@ -1,0 +1,7 @@
+import { InventoryMovementResponseDto } from './inventory-movement-response.dto';
+
+/** Extend the scoped API without removing its original flat identifiers. */
+export class OrderInventoryIssueResponseDto extends InventoryMovementResponseDto {
+  inventoryItemId!: string;
+  oneTimeOrderId!: string;
+}

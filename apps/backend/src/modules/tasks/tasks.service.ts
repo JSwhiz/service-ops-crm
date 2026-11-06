@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess } from '../users-access/utils/access-policy.util';
+import { taskPolicyWhere, taskVisibilityWhere } from './utils/task-policy.util';
 import { isUUID } from 'class-validator';
 
 import { AuditService } from '../audit/audit.service';
@@ -15,7 +18,6 @@ import {
   TASK_RESULT_CONFIRMATION_TYPE,
 } from '../approvals/constants/approval.constants';
 import {
-  buildOneTimeOrderAccessWhere,
   canViewOneTimeOrderByScope,
 } from '../one-time-orders/utils/one-time-order-access.util';
 import { canViewObjectByScope } from '../objects/utils/object-access.util';
@@ -23,6 +25,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   hasDelegatedTaskAction,
+  hasDelegatedObjectAction,
   usedObjectDelegations,
 } from '../user-substitutions/object-delegation.context';
 import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
@@ -52,7 +55,7 @@ import {
 import { parseTaskDeadline } from './utils/task-deadline.util';
 import { normalizeTaskUserIds } from './utils/task-user-ids.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -265,8 +268,8 @@ export class TasksService {
     currentUser: CurrentAuthUser,
     payload: CreateTaskDto,
   ): Promise<TaskResponseDto> {
-    if (!currentUser.isActive) {
-      throw new ForbiddenException('Only active users can create tasks');
+    if (!decideAccess(currentUser, 'tasks.create', currentUser.isActive)) {
+      throw new ForbiddenException('Task creation denied');
     }
 
     const roleCodes = this.getRoleCodes(currentUser);
@@ -297,6 +300,8 @@ export class TasksService {
     ) {
       throw new ForbiddenException('Task creation denied for selected object');
     }
+
+    if (object && !canViewObjectByScope({ currentUserId: currentUser.id, roleCodes, object, ownScopeOnly: true }) && !hasDelegatedObjectAction(currentUser.id, object.id, 'view', true, 'tasks.create')) throw new ForbiddenException('Source task creation permission denied');
 
     if (
       order &&
@@ -567,6 +572,7 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.read');
       this.assertTaskCreator(currentUser, task);
       this.assertTaskMutable(task.status);
       const lockedRequiresReset =
@@ -668,6 +674,7 @@ export class TasksService {
     id: string,
     payload: UpdateTaskStatusDto,
   ): Promise<TaskResponseDto> {
+    await this.assertTaskAction(this.prisma, currentUser, id, 'tasks.status');
     if (payload.status !== 'in_progress') {
       throw new ForbiddenException(
         'Use the dedicated task lifecycle endpoint for this transition',
@@ -682,6 +689,7 @@ export class TasksService {
     id: string,
     payload: SubmitTaskResultDto,
   ): Promise<TaskResponseDto> {
+    await this.assertTaskAction(this.prisma, currentUser, id, 'tasks.result.submit');
     return this.completeMyAssignment(currentUser, id, {
       completionText: payload.resultText,
     });
@@ -694,6 +702,7 @@ export class TasksService {
     return this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.completion.draft');
       const assignment = this.getCurrentAssignment(task, currentUser.id);
 
       this.assertTaskInProgress(task.status);
@@ -734,6 +743,7 @@ export class TasksService {
     const result = await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.completion.submit');
       const assignment = this.getCurrentAssignment(task, currentUser.id);
 
       this.assertTaskInProgress(task.status);
@@ -879,6 +889,7 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.completion.undo');
       const assignment = this.getCurrentAssignment(task, currentUser.id);
 
       if (['completed', 'cancelled'].includes(task.status)) {
@@ -993,7 +1004,8 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.cancel');
+      this.assertLifecycleManager(currentUser, task, 'tasks.cancel');
       if (
         ![
           'in_progress',
@@ -1044,7 +1056,8 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertTaskCreator(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.assignees.manage');
+      this.assertTaskCreator(currentUser, task, 'tasks.assignees.manage');
       this.assertTaskMutable(task.status);
 
       for (const userId of userIds) {
@@ -1113,7 +1126,8 @@ export class TasksService {
     const result = await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertTaskCreator(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.assignees.manage');
+      this.assertTaskCreator(currentUser, task, 'tasks.assignees.manage');
       this.assertTaskMutable(task.status);
       const activeAssignees = task.assignees.filter((item) => item.isActive);
       const assignment = activeAssignees.find((item) => item.userId === userId);
@@ -1171,6 +1185,7 @@ export class TasksService {
     taskId: string,
   ): Promise<TaskHistoryEventResponseDto[]> {
     await this.getTaskById(currentUser, taskId);
+    await this.assertTaskAction(this.prisma, currentUser, taskId, 'tasks.history');
     const events = await this.prisma.taskHistoryEvent.findMany({
       where: { taskId },
       include: { actor: true },
@@ -1347,7 +1362,9 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.read');
+      this.assertLifecycleManager(currentUser, task, expectedStatus === 'awaiting_confirmation' ? 'tasks.confirm' : 'tasks.complete_now');
+      await this.assertTaskAction(tx, currentUser, taskId, expectedStatus === 'awaiting_confirmation' ? 'tasks.confirm' : 'tasks.complete_now');
       if (task.status !== expectedStatus) {
         throw new ConflictException('Task is not ready for completion');
       }
@@ -1414,7 +1431,10 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await this.loadTaskForLifecycle(tx, taskId);
-      this.assertLifecycleManager(currentUser, task);
+      await this.assertTaskAction(tx, currentUser, taskId, 'tasks.read');
+      const actionCode = eventType === 'task.reopened' ? 'tasks.reopen' : 'tasks.return';
+      this.assertLifecycleManager(currentUser, task, actionCode);
+      await this.assertTaskAction(tx, currentUser, taskId, actionCode);
       if (!allowedStatuses.includes(task.status)) {
         throw new ConflictException(
           'Task cannot return to work from this status',
@@ -1695,6 +1715,11 @@ export class TasksService {
     });
   }
 
+  private async assertTaskAction(client: Pick<PrismaService, 'task'>, user: CurrentAuthUser, taskId: string, code: string): Promise<void> {
+    const row = await client.task.findFirst({ where: { AND: [{ id: taskId }, this.buildTaskAccessWhere(user, code), taskPolicyWhere(user, {}, code)] }, select: { id: true } });
+    if (!row) throw new ForbiddenException('Task action denied for this resource');
+  }
+
   private async lockTask(
     tx: Prisma.TransactionClient,
     taskId: string,
@@ -1812,37 +1837,14 @@ export class TasksService {
     }
   }
 
-  private assertTaskCreator(
-    currentUser: CurrentAuthUser,
-    task: {
-      createdByUserId: string;
-      objectId: string | null;
-      oneTimeOrderId: string | null;
-    },
-  ): void {
-    if (
-      task.createdByUserId !== currentUser.id &&
-      !hasDelegatedTaskAction(currentUser.id, task, 'creator')
-    ) {
-      throw new ForbiddenException('Only task creator can change task body');
-    }
+  private assertTaskCreator(currentUser: CurrentAuthUser, task: { id: string; createdByUserId: string; objectId: string | null; oneTimeOrderId: string | null; assignees?: Array<{ userId: string; isActive: boolean }> }, code = 'tasks.update'): void {
+    const legacy = task.createdByUserId === currentUser.id || hasDelegatedTaskAction(currentUser.id, task, 'creator', true, code);
+    if (!decideAccess(currentUser, code, legacy, { resourceType: 'task', resourceId: task.id, ownerUserId: task.createdByUserId, assignedUserIds: task.assignees?.filter(a => a.isActive).map(a => a.userId) })) throw new ForbiddenException('Task author action denied');
   }
 
-  private assertLifecycleManager(
-    currentUser: CurrentAuthUser,
-    task: {
-      createdByUserId: string;
-      objectId: string | null;
-      oneTimeOrderId: string | null;
-    },
-  ): void {
-    if (
-      task.createdByUserId !== currentUser.id &&
-      !hasWideTaskAccess(this.getRoleCodes(currentUser)) &&
-      !hasDelegatedTaskAction(currentUser.id, task, 'lifecycle')
-    ) {
-      throw new ForbiddenException('Task lifecycle action denied');
-    }
+  private assertLifecycleManager(currentUser: CurrentAuthUser, task: { id: string; createdByUserId: string; objectId: string | null; oneTimeOrderId: string | null; assignees?: Array<{ userId: string; isActive: boolean }> }, code: string): void {
+    const legacy = task.createdByUserId === currentUser.id || hasWideTaskAccess(this.getRoleCodes(currentUser)) || hasDelegatedTaskAction(currentUser.id, task, 'lifecycle', true, code);
+    if (!decideAccess(currentUser, code, legacy, { resourceType: 'task', resourceId: task.id, ownerUserId: task.createdByUserId, assignedUserIds: task.assignees?.filter(a => a.isActive).map(a => a.userId) })) throw new ForbiddenException('Task lifecycle action denied');
   }
 
   private assertTaskMutable(status: string): void {
@@ -2005,27 +2007,13 @@ export class TasksService {
 
   private buildTaskAccessWhere(
     currentUser: CurrentAuthUser,
+    policyActionCode = 'tasks.read',
   ): Prisma.TaskWhereInput {
-    return {
-      AND: [
-        buildTaskAccessWhere({
-          currentUserId: currentUser.id,
-          roleCodes: this.getRoleCodes(currentUser),
-        }),
-        {
-          OR: [
-            { oneTimeOrderId: null },
-            {
-              oneTimeOrder: buildOneTimeOrderAccessWhere({
-                currentUserId: currentUser.id,
-                roleCodes: this.getRoleCodes(currentUser),
-                permissionCodes: currentUser.permissionCodes,
-              }),
-            },
-          ],
-        },
-      ],
-    };
+    return taskVisibilityWhere(currentUser, buildTaskAccessWhere({
+      policyActionCode,
+      currentUserId: currentUser.id,
+      roleCodes: this.getRoleCodes(currentUser),
+    }), policyActionCode);
   }
 
   private buildTaskListWhere(
@@ -2221,9 +2209,8 @@ export class TasksService {
   ): TaskResponseDto {
     const roleCodes = this.getRoleCodes(currentUser);
     const isWideAccess = hasWideTaskAccess(roleCodes);
-    const isCreator =
-      task.createdBy.id === currentUser.id ||
-      hasDelegatedTaskAction(currentUser.id, task, 'creator', false);
+    const creatorFor = (code: string) => task.createdBy.id === currentUser.id || hasDelegatedTaskAction(currentUser.id, task, 'creator', false, code);
+    const managerFor = (code: string) => task.createdBy.id === currentUser.id || isWideAccess || hasDelegatedTaskAction(currentUser.id, task, 'lifecycle', false, code);
     const myAssignment = task.assignees.find(
       (assignee) => assignee.user.id === currentUser.id && assignee.isActive,
     );
@@ -2249,10 +2236,7 @@ export class TasksService {
     const isTerminal = ['completed', 'cancelled', 'closed'].includes(
       task.status,
     );
-    const isLifecycleManager =
-      isCreator ||
-      isWideAccess ||
-      hasDelegatedTaskAction(currentUser.id, task, 'lifecycle', false);
+
     const canCompleteMyAssignment = Boolean(
       myAssignment &&
       !myAssignment.isCompleted &&
@@ -2260,6 +2244,7 @@ export class TasksService {
     );
     const responseStatus = task.status === 'closed' ? 'completed' : task.status;
 
+    const action = (code: string, legacy: boolean) => decideAccess(currentUser, code, legacy, { resourceType: 'task', resourceId: task.id, ownerUserId: task.createdBy.id, assignedUserIds: activeAssignees.map(a => a.user.id) });
     return {
       id: task.id,
       title: task.title,
@@ -2379,28 +2364,28 @@ export class TasksService {
           })()
         : null,
       capabilities: {
-        canSubmitResult: canCompleteMyAssignment,
+        canSubmitResult: canCompleteMyAssignment && action('tasks.result.submit', true),
         allowedStatusTransitions,
-        canEdit: isCreator && !isTerminal,
-        canManageAssignees: isCreator && !isTerminal,
-        canCompleteMyAssignment,
-        canUndoMyCompletion: Boolean(myAssignment?.isCompleted && !isTerminal),
+        canEdit: !isTerminal && action('tasks.update', creatorFor('tasks.update')),
+        canManageAssignees: !isTerminal && action('tasks.assignees.manage', creatorFor('tasks.assignees.manage')),
+        canCompleteMyAssignment: canCompleteMyAssignment && action('tasks.completion.submit', true),
+        canUndoMyCompletion: Boolean(myAssignment?.isCompleted && !isTerminal) && action('tasks.completion.undo', true),
         canConfirm:
-          isLifecycleManager && task.status === 'awaiting_confirmation',
+          action('tasks.confirm', managerFor('tasks.confirm')) && task.status === 'awaiting_confirmation',
         canCompleteNow:
-          isLifecycleManager && task.status === 'pending_auto_close',
+          action('tasks.complete_now', managerFor('tasks.complete_now')) && task.status === 'pending_auto_close',
         canReturnToWork:
-          isLifecycleManager &&
+          action('tasks.return', managerFor('tasks.return')) &&
           ['awaiting_confirmation', 'pending_auto_close'].includes(task.status),
-        canReopen: isLifecycleManager && task.status === 'completed',
+        canReopen: task.status === 'completed' && action('tasks.reopen', managerFor('tasks.reopen')),
         canCancel:
-          isLifecycleManager &&
+          action('tasks.cancel', managerFor('tasks.cancel')) &&
           [
             'in_progress',
             'awaiting_confirmation',
             'pending_auto_close',
           ].includes(task.status),
-        canViewHistory: true,
+        canViewHistory: action('tasks.history', true),
       },
     };
   }

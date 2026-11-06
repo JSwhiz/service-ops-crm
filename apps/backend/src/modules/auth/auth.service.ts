@@ -17,6 +17,9 @@ import { buildCounterpartyGlobalCapabilities } from "../counterparties/utils/cou
 import { canCreateObject } from "../objects/utils/object-access.util";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService } from "../users-access/users.service";
+import { AccessRule } from "../users-access/types/access-policy.type";
+import { applyAccessCapabilities } from "../users-access/utils/auth-access-capabilities.util";
+import { decideAccess } from "../users-access/utils/access-policy.util";
 
 import { LoginDto } from "./dto/login.dto";
 import { MeResponseDto } from "./dto/me-response.dto";
@@ -40,6 +43,8 @@ interface PasswordCheckUserRecord {
 }
 
 interface SanitizedAuthUserRecord {
+  accessVersion?: number;
+  accessRules?: AccessRule[];
   id: string;
   login: string;
   fullName: string;
@@ -77,6 +82,11 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
+    const loginSubject = this.usersService.sanitizeUser(user);
+    if (!decideAccess(loginSubject, 'auth.login', true, {resourceType:'user',resourceId:user.id,ownerUserId:user.id})) {
+      throw new UnauthorizedException("User is not available");
+    }
+
     const safeUser = await this.buildMeResponse(
       this.usersService.sanitizeUser(user),
     );
@@ -98,6 +108,12 @@ export class AuthService {
     const user = await this.usersService.findById(existingSession.userId);
 
     if (!user || !user.isActive) {
+      await this.authSessionsService.revokeSessionByRawToken(refreshToken);
+      throw new UnauthorizedException("Invalid refresh token");
+    }
+
+    const refreshSubject = this.usersService.sanitizeUser(user);
+    if (!decideAccess(refreshSubject, 'auth.refresh', true, {resourceType:'user',resourceId:user.id,ownerUserId:user.id})) {
       await this.authSessionsService.revokeSessionByRawToken(refreshToken);
       throw new UnauthorizedException("Invalid refresh token");
     }
@@ -131,6 +147,10 @@ export class AuthService {
     const user = await this.usersService.findById(userId);
 
     if (!user || !user.isActive) {
+      throw new UnauthorizedException("User is not available");
+    }
+
+    if (!decideAccess(this.usersService.sanitizeUser(user), 'auth.me', true, {resourceType:'user',resourceId:user.id,ownerUserId:user.id})) {
       throw new UnauthorizedException("User is not available");
     }
 
@@ -262,7 +282,9 @@ export class AuthService {
       isActive: user.isActive,
       roleCode: user.roleCodes[0] ?? "unknown",
       roleCodes: user.roleCodes,
-      capabilities: {
+      accessVersion: user.accessVersion ?? 0,
+      accessRules: user.accessRules ?? [],
+      capabilities: applyAccessCapabilities(user, {
         canAccessCounterparties:
           counterpartyCapabilities.canAccessCounterparties,
         canManageCounterparties:
@@ -361,7 +383,7 @@ export class AuthService {
         canManageChats: chatCapabilities.canManageChats,
         canCreateDirectChat: chatCapabilities.canCreateDirectChat,
         canCreateGroupChat: chatCapabilities.canCreateGroupChat,
-      },
+      }),
     };
   }
 

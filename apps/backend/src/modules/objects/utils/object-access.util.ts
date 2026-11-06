@@ -1,4 +1,17 @@
 import { hasDelegatedObjectAction } from '../../user-substitutions/object-delegation.context';
+import { Prisma } from '@prisma/client';
+import { AccessSubject, buildAccessWhere, decideAccess } from '../../users-access/utils/access-policy.util';
+
+export function buildObjectAccessPolicyWhere(subject: AccessSubject, legacyWhere: Prisma.ObjectWhereInput, actionCode = 'objects.read'): Prisma.ObjectWhereInput {
+  return buildAccessWhere<Prisma.ObjectWhereInput>({ subject, actionCode, legacyWhere,
+    invariantWhere: { deletedAt: null }, scopeWhere: rule => {
+      if (rule.scope === 'all') return {};
+      if (rule.scope === 'selected') return { id: { in: [...rule.selectedIds] } };
+      if (rule.scope === 'own') return { createdByUserId: subject.id };
+      return { assignments: { some: { userId: subject.id, isActive: true } } };
+    },
+  }) as Prisma.ObjectWhereInput;
+}
 
 export const LEADERSHIP_OBJECT_ROLE_CODES = [
   'founder',
@@ -74,6 +87,7 @@ export function canEditObjectDailyRate(roleCodes: string[]): boolean {
 }
 
 export function canViewObjectCompensationRates(params: {
+  subject?: AccessSubject;
   currentUserId: string;
   roleCodes: string[];
   object: {
@@ -82,7 +96,10 @@ export function canViewObjectCompensationRates(params: {
     assignments: Array<{ userId: string; isActive?: boolean }>;
   };
 }): boolean {
-  return canEditObjectDailyRate(params.roleCodes) || canViewObjectByScope(params);
+  return decideAccess(params.subject ?? { id: params.currentUserId }, 'objects.rates.read', canEditObjectDailyRate(params.roleCodes) || canViewObjectByScope(params), {
+    resourceType: 'object', resourceId: params.object.id, ownerUserId: params.object.createdByUserId,
+    assignedUserIds: params.object.assignments.filter(a => a.isActive !== false).map(a => a.userId),
+  });
 }
 
 export function canOverrideObjectAttendanceRate(roleCodes: string[]): boolean {
@@ -106,6 +123,7 @@ export function hasHrObjectView(permissionCodes: string[] = []): boolean {
 }
 
 export function canViewObjectByScope(params: {
+  subject?: AccessSubject;
   currentUserId: string;
   roleCodes: string[];
   ownScopeOnly?: boolean;
@@ -118,27 +136,24 @@ export function canViewObjectByScope(params: {
     }>;
   };
 }): boolean {
-  if (hasWideObjectAccess(params.roleCodes)) {
-    return true;
-  }
-
-  if (params.object.createdByUserId === params.currentUserId) {
-    return true;
-  }
-
-  return params.object.assignments.some(
+  const context = { resourceType: 'object', resourceId: params.object.id, ownerUserId: params.object.createdByUserId,
+    assignedUserIds: params.object.assignments.filter(a => a.isActive !== false).map(a => a.userId) };
+  const legacy = hasWideObjectAccess(params.roleCodes) || params.object.createdByUserId === params.currentUserId || params.object.assignments.some(
     (assignment) =>
       assignment.userId === params.currentUserId &&
       assignment.isActive !== false,
-  ) || (!params.ownScopeOnly && hasDelegatedObjectAction(params.currentUserId, params.object.id, 'view'));
+  ) || (!params.ownScopeOnly && hasDelegatedObjectAction(params.currentUserId, params.object.id, 'view', true, 'objects.read', context));
+  return decideAccess(params.subject ?? { id: params.currentUserId }, 'objects.read', legacy, context);
 }
 
 export function canViewObjectBasicProfile(params: {
+  subject?: AccessSubject;
   currentUserId: string;
   roleCodes: string[];
   permissionCodes?: string[];
   ownScopeOnly?: boolean;
   object: {
+    id?: string;
     createdByUserId: string;
     assignments: Array<{
       userId: string;
@@ -146,13 +161,16 @@ export function canViewObjectBasicProfile(params: {
     }>;
   };
 }): boolean {
-  return (
-    hasHrObjectView(params.permissionCodes) ||
+  const context = { resourceType: 'object', resourceId: params.object.id, ownerUserId: params.object.createdByUserId,
+    assignedUserIds: params.object.assignments.filter(a => a.isActive !== false).map(a => a.userId) };
+  return decideAccess(params.subject ?? { id: params.currentUserId }, 'objects.read', (
+    decideAccess(params.subject ?? { id: params.currentUserId }, 'objects.view_hr', hasHrObjectView(params.permissionCodes), context) ||
     canViewObjectByScope({
       currentUserId: params.currentUserId,
+      subject: params.subject,
       roleCodes: params.roleCodes,
       ownScopeOnly: params.ownScopeOnly,
       object: params.object,
     })
-  );
+  ), context);
 }

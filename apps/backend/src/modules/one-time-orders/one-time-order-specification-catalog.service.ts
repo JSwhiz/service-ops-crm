@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { decideAccess } from '../users-access/utils/access-policy.util';
 
 import { PrismaService } from "../prisma/prisma.service";
 import {
@@ -51,6 +52,7 @@ export class OneTimeOrderSpecificationCatalogService {
     payload: CreateSpecificationCatalogItemDto,
   ) {
     this.assertLeadership(user);
+    this.assertLeaf(user, 'specification_catalog.create');
     const created = await this.prisma.$transaction(async (tx) => {
       const row = await tx.oneTimeOrderSpecificationCatalogItem.create({
         data: {
@@ -80,6 +82,7 @@ export class OneTimeOrderSpecificationCatalogService {
     payload: UpdateSpecificationCatalogItemDto,
   ) {
     this.assertLeadership(user);
+    this.assertMutation(user, payload);
     const existing =
       await this.prisma.oneTimeOrderSpecificationCatalogItem.findUnique({
         where: { id },
@@ -119,6 +122,7 @@ export class OneTimeOrderSpecificationCatalogService {
 
   async archiveItem(user: CurrentAuthUser, id: string) {
     this.assertLeadership(user);
+    this.assertLeaf(user, 'specification_catalog.archive');
     const existing =
       await this.prisma.oneTimeOrderSpecificationCatalogItem.findUnique({
         where: { id },
@@ -165,6 +169,7 @@ export class OneTimeOrderSpecificationCatalogService {
     payload: CreateSpecificationTemplateDto,
   ) {
     this.assertLeadership(user);
+    this.assertLeaf(user, 'specification_catalog.create');
     const created = await this.prisma.$transaction(async (tx) => {
       await this.assertCatalogItemIds(
         tx,
@@ -208,6 +213,7 @@ export class OneTimeOrderSpecificationCatalogService {
     payload: UpdateSpecificationTemplateDto,
   ) {
     this.assertLeadership(user);
+    this.assertMutation(user, payload);
     const existing =
       await this.prisma.oneTimeOrderSpecificationTemplate.findUnique({
         where: { id },
@@ -292,6 +298,16 @@ export class OneTimeOrderSpecificationCatalogService {
 
   private assertCanRead(user: CurrentAuthUser) {
     this.assertLeadership(user);
+    if (!decideAccess(user, 'specification_catalog.read', true)) throw new ForbiddenException('Specification catalog read denied');
+  }
+
+  private assertMutation(user: CurrentAuthUser, payload: object & { isArchived?: boolean }): void {
+    if (payload.isArchived === true) this.assertLeaf(user, 'specification_catalog.archive');
+    if (payload.isArchived !== true || Object.keys(payload).some(key => !['expectedVersion', 'isArchived'].includes(key))) this.assertLeaf(user, 'specification_catalog.update');
+  }
+
+  private assertLeaf(user: CurrentAuthUser, actionCode: string): void {
+    if (!decideAccess(user, actionCode, this.isLeadership(user))) throw new ForbiddenException('Specification catalog action denied');
   }
 
   private isLeadership(user: CurrentAuthUser) {
@@ -301,7 +317,7 @@ export class OneTimeOrderSpecificationCatalogService {
   }
 
   private assertLeadership(user: CurrentAuthUser) {
-    if (!this.isLeadership(user))
+    if (!decideAccess(user, 'specification_catalog.access', this.isLeadership(user)))
       throw new ForbiddenException("Leadership circle access required");
   }
 

@@ -11,6 +11,7 @@ export interface FilePreviewItem {
 export type AttachedFile = FilePreviewItem;
 
 export interface FileView {
+  capabilities?: { canPreview: boolean; canDownload: boolean; canRetryPreview: boolean };
   id: string;
   originalName: string;
   mimeType: string;

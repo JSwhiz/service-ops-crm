@@ -16,7 +16,7 @@ import type {
   UserAbsenceUserOption,
 } from '@/entities/user-absence/model/user-absence.types';
 import { useAuth } from '@/shared/auth/use-auth';
-import { Alert, Button, Field } from '@/shared/ui/foundation';
+import { Alert, Button, ButtonLink, EmptyState, Field, LoadingState } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import { ConfirmDialog } from '@/shared/ui/overlays';
 import { useCreateNavigation } from '@/shared/create-navigation';
@@ -73,6 +73,15 @@ function eventLabel(item: UserAbsenceItem): string {
 }
 
 export default function UserAbsencesPage(): React.JSX.Element {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <div className="ui-page"><LoadingState label="Проверка доступа…" /></div>;
+  if (user?.capabilities?.canAccessUserAbsences === false) return <div className="ui-page">
+    <EmptyState title="Доступ к календарю закрыт" description="Для просмотра календаря необходимо разрешение. Если доступ нужен для работы, обратитесь к учредителю." action={<ButtonLink href="/dashboard">На рабочий стол</ButtonLink>} />
+  </div>;
+  return <UserAbsencesContent />;
+}
+
+function UserAbsencesContent(): React.JSX.Element {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();

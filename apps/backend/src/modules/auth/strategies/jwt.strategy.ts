@@ -5,6 +5,7 @@ import { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 import { UsersService } from '../../users-access/users.service';
+import { decideAccess } from '../../users-access/utils/access-policy.util';
 
 import { AUTH_JWT_STRATEGY } from '../constants/auth.constants';
 import { ACCESS_TOKEN_COOKIE } from '../constants/auth.constants';
@@ -49,6 +50,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, AUTH_JWT_STRATEGY) {
     }
 
     const safeUser = this.usersService.sanitizeUser(user);
+    if (!decideAccess(safeUser, 'auth.access', true, {resourceType:'user',resourceId:user.id,ownerUserId:user.id})) {
+      throw new UnauthorizedException('User is not available');
+    }
 
     return {
       ...safeUser,

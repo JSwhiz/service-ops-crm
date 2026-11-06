@@ -14,6 +14,8 @@ import type { PositionView, SchedulingUser } from './scheduling.types';
 import { boundedDates, calendarPreview, dateOnly, legacyFactDay, legacyFactRange, todayMoscow, validatePlan } from './scheduling-calendar';
 import { ObjectCompensationService } from './object-compensation.service';
 import { CreateCompensationAdjustmentDto } from './compensation.dto';
+import { decideAccess } from '../users-access/utils/access-policy.util';
+import { objectPolicyContext } from '../users-access/utils/object-policy-context.util';
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const roles = (user: SchedulingUser) => user.roleCodes?.length ? user.roleCodes : [user.roleCode];
@@ -27,22 +29,23 @@ type PositionRecord = Prisma.ObjectStaffPositionGetPayload<{include: typeof posi
 export class ObjectSchedulingService {
   constructor(private readonly prisma: PrismaService, private readonly timesheets: TimesheetsService, private readonly compensation: ObjectCompensationService) {}
 
-  private async access(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, write = false) {
+  private async access(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, write = false, actionCode = 'objects.schedules.read', legacyOverride?: boolean) {
     const object = await tx.object.findFirst({where: {id: objectId, deletedAt: null}, include: {assignments: {where: {isActive: true}}, planningSettings: true}});
     if (!object) throw new NotFoundException('Объект не найден');
-    if (!user.isActive || !canViewObjectByScope({currentUserId: user.id, roleCodes: roles(user), ownScopeOnly: true, object})) throw new ForbiddenException('Нет доступа к графикам объекта');
+    if (!decideAccess(user,actionCode,legacyOverride ?? canViewObjectByScope({currentUserId: user.id,roleCodes:roles(user),ownScopeOnly:true,object}),{...objectPolicyContext(object),parents:[{actionCode:'objects.read',context:objectPolicyContext(object)}]})) throw new ForbiddenException('Нет доступа к графикам объекта');
     if (write && ['frozen', 'archived', 'closed'].includes(object.status)) conflict('OBJECT_READ_ONLY', 'Объект заморожен, закрыт или архивирован');
     return object;
   }
-  private async lock(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string) {
+  private async lock(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, actionCode = 'objects.schedules.manage') {
     await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
-    return this.access(tx, user, objectId, true);
+    return this.access(tx, user, objectId, true, actionCode);
   }
-  private rateAccess(user: SchedulingUser) {
-    if (!canEditObjectDailyRate(roles(user))) throw new ForbiddenException('Для изменения контуров оплаты нужны права управления ставками');
+  private async rateAccess(user: SchedulingUser, objectId: string, tx: Prisma.TransactionClient = this.prisma) {
+    await this.access(tx,user,objectId,true,'objects.rates.manage',canEditObjectDailyRate(roles(user)));
   }
   private async selectPayConditions(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string) {
-    return canEditObjectDailyRate(roles(user)) || !!await tx.objectAssignment.findFirst({where: {objectId, userId: user.id, isActive: true, assignmentRoleCode: 'manager'}, select: {id: true}});
+    const object=await tx.object.findFirst({where:{id:objectId,deletedAt:null},include:{assignments:{where:{isActive:true}}}});
+    return !!object && decideAccess(user,'objects.pay_conditions.select',canEditObjectDailyRate(roles(user)) || !!await tx.objectAssignment.findFirst({where: {objectId, userId: user.id, isActive: true, assignmentRoleCode: 'manager'}, select: {id: true}}),objectPolicyContext(object));
   }
   private view(item: PositionRecord): PositionView {
     return {...item, revisions: item.revisions.map(r => ({...r, effectiveFrom: r.effectiveFrom.toISOString().slice(0, 10), createdAt: r.createdAt.toISOString(), template: r.template as unknown as PositionView['revisions'][number]['template'], groups: r.groups as unknown as PositionView['revisions'][number]['groups']}))};
@@ -55,7 +58,8 @@ export class ObjectSchedulingService {
   async list(user: SchedulingUser, objectId: string) {
     const object = await this.access(this.prisma, user, objectId);
     const writable = !['frozen', 'archived', 'closed'].includes(object.status);
-    return {positions: (await this.prisma.objectStaffPosition.findMany({where: {objectId}, include: positionInclude, orderBy: {id: 'asc'}})).map(x => this.view(x)), capabilities: {managePositions: writable, manageAssignments: writable && canManageEmployeeAssignments(user.permissionCodes ?? []), manageRates: writable && canEditObjectDailyRate(roles(user)), selectPayConditions: writable && await this.selectPayConditions(this.prisma, user, objectId), confirmAttendance: writable}};
+    const context=objectPolicyContext(object);
+    return {positions: (await this.prisma.objectStaffPosition.findMany({where: {objectId}, include: positionInclude, orderBy: {id: 'asc'}})).map(x => this.view(x)), capabilities: {managePositions: writable&&decideAccess(user,'objects.schedules.manage',true,context), manageAssignments: writable && decideAccess(user,'objects.staffing.manage',canManageEmployeeAssignments(user.permissionCodes ?? []),context), manageRates: writable && decideAccess(user,'objects.rates.manage',canEditObjectDailyRate(roles(user)),context), selectPayConditions: writable && await this.selectPayConditions(this.prisma, user, objectId), confirmAttendance: writable&&decideAccess(user,'objects.attendance.edit',true,context)}};
   }
   async get(user: SchedulingUser, objectId: string, id: string) {
     await this.access(this.prisma, user, objectId); return this.view(await this.position(this.prisma, objectId, id));
@@ -84,7 +88,7 @@ export class ObjectSchedulingService {
       const start = assignments.map(a => a.from).sort()[0];
       const end = assignments.some(a => !a.to) ? null : assignments.map(a => a.to!).sort().at(-1)!;
       if (await this.employeeScoped(tx, objectId, employeeId, start, end)) continue;
-      if (!canAssign) throw new ForbiddenException('Сначала назначьте сотрудника на объект; требуется employees.assignments.manage');
+      if (!decideAccess(user,'objects.staffing.manage',canAssign,{resourceType:'object',resourceId:objectId}) || !decideAccess(user,'employees.assignments.manage',canAssign,{resourceType:'employee',resourceId:employeeId})) throw new ForbiddenException('Сначала назначьте сотрудника на объект; требуется employees.assignments.manage');
       if (!persistAssignments) continue;
       const existing = await tx.objectEmployeeAssignment.findUnique({where: {objectId_employeeId: {objectId, employeeId}}});
       if (existing?.isActive) throw new BadRequestException('Даты назначения в группу выходят за период назначения на объект');
@@ -143,7 +147,7 @@ export class ObjectSchedulingService {
     });
   }
   async contours(user: SchedulingUser, objectId: string) {
-    await this.access(this.prisma, user, objectId);
+    await this.access(this.prisma, user, objectId, false, 'objects.rates.read');
     return {contours: await this.prisma.objectPayContour.findMany({where: {objectId}, orderBy: {code: 'asc'}})};
   }
   async createContour(user: SchedulingUser, objectId: string, input: CreateContourDto) {
@@ -152,8 +156,8 @@ export class ObjectSchedulingService {
   async createContoursInTransaction(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, contours: CreateContourDto[]) {
     if (contours.length > 100) throw new BadRequestException('Не более 100 контуров оплаты');
     if (!contours.length) return [];
-    this.rateAccess(user);
-    await this.lock(tx, user, objectId);
+    await this.rateAccess(user,objectId,tx);
+    await this.lock(tx, user, objectId, 'objects.rates.manage');
     const result = [];
     for (const input of contours) {
       if (await tx.objectPayContour.findUnique({where: {objectId_code: {objectId, code: input.code}}})) conflict('CONTOUR_EXISTS', 'Код контура уже существует');
@@ -163,9 +167,9 @@ export class ObjectSchedulingService {
     return result;
   }
   async updateContour(user: SchedulingUser, objectId: string, id: string, input: UpdateContourDto) {
-    this.rateAccess(user);
+    await this.rateAccess(user,objectId);
     return this.prisma.$transaction(async tx => {
-      await this.lock(tx, user, objectId);
+      await this.lock(tx, user, objectId, 'objects.rates.manage');
       const prior = await tx.objectPayContour.findFirst({where: {id, objectId}});
       if (!prior) throw new NotFoundException('Контур не найден');
       if (prior.version !== input.expectedVersion) conflict('VERSION_CONFLICT', 'Контур изменён другим пользователем');
@@ -176,7 +180,7 @@ export class ObjectSchedulingService {
     });
   }
   async employees(user: SchedulingUser, objectId: string, query: EmployeeOptionsDto) {
-    await this.access(this.prisma, user, objectId); dateOnly(query.date);
+    await this.access(this.prisma, user, objectId,false,'objects.staffing.read'); dateOnly(query.date);
     const directory = canManageEmployeeAssignments(user.permissionCodes ?? []) && (user.permissionCodes ?? []).includes('employees.view');
     const employees = await this.prisma.employee.findMany({where: {deletedAt: null, employmentStatus: 'active', ...(query.q ? {fullName: {contains: query.q, mode: 'insensitive'}} : {}), ...(!directory ? {OR: [{objectAssignments: {some: {objectId, isActive: true}}}, {substitutionsAsReplacement: {some: {objectId, status: {in: ['active', 'planned']}, startDate: {lt: dayEnd(query.date)}, OR: [{endDate: null}, {endDate: {gte: dayStart(query.date)}}]}}}]} : {})}, select: {id: true, fullName: true}, orderBy: {fullName: 'asc'}, take: 200});
     return {employees: await Promise.all(employees.map(async employee => { const warnings = await this.employeeWarnings(this.prisma, objectId, employee.id, query.date, dayStart(query.date), dayEnd(query.date)); return {...employee, available: !warnings.includes('UNAVAILABLE'), warnings}; }))};
@@ -241,7 +245,7 @@ export class ObjectSchedulingService {
     return {...item, positionId, operationDate: item.operationDate.toISOString().slice(0, 10)};
   }
   async attendance(user: SchedulingUser, objectId: string, input: DateRangeDto) {
-    await this.access(this.prisma, user, objectId); boundedDates(input.from, input.to);
+    await this.access(this.prisma, user, objectId,false,'objects.attendance.read'); boundedDates(input.from, input.to);
     const items = await this.prisma.objectShiftAttendance.findMany({where: {objectId, operationDate: {gte: dateOnly(input.from), lte: dateOnly(input.to)}}, include: {revision: {select: {positionId: true}}}, orderBy: [{operationDate: 'asc'}, {createdAt: 'asc'}]});
     return {attendance: items.map(({revision, ...item}) => this.attendanceView(item, revision.positionId))};
   }
@@ -249,7 +253,7 @@ export class ObjectSchedulingService {
     return this.prisma.$transaction(tx => this.confirmInTransaction(tx, user, objectId, input));
   }
   private async confirmInTransaction(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, input: ConfirmShiftDto, approved = false) {
-      const object = await this.lock(tx, user, objectId); await this.writableDay(tx, objectId, input.operationDate);
+      const object = await this.lock(tx, user, objectId, 'objects.attendance.edit'); await this.writableDay(tx, objectId, input.operationDate);
       const actualEmployeeId = input.replacementEmployeeId ?? input.employeeId;
       const existingRequest = await tx.objectShiftAttendance.findUnique({where: {objectId_requestKey: {objectId, requestKey: input.requestKey}}, include: {revision: {select: {positionId: true}}}});
       if (existingRequest) {
@@ -338,7 +342,7 @@ export class ObjectSchedulingService {
     return this.prisma.$transaction(tx => this.cancelInTransaction(tx, user, objectId, id, input));
   }
   private async cancelInTransaction(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, id: string, input: CancelShiftDto, approved = false) {
-      await this.lock(tx, user, objectId);
+      await this.lock(tx, user, objectId, 'objects.attendance.edit');
       const item = await tx.objectShiftAttendance.findFirst({where: {id, objectId}, include: {revision: {select: {positionId: true}}}});
       if (!item) throw new NotFoundException('Выход не найден');
       const date = item.operationDate.toISOString().slice(0,10); await this.writableDay(tx, objectId, date);
@@ -398,7 +402,7 @@ export class ObjectSchedulingService {
   }
   async applyFinancialDecision(tx: Prisma.TransactionClient, user: SchedulingUser, id: string, decision: 'approve' | 'reject' | 'cancel') {
     const item = await tx.objectCompensationAdjustment.findUniqueOrThrow({where: {id}});
-    await this.lock(tx, user, item.objectId);
+    await this.lock(tx, user, item.objectId, 'objects.compensation.correct_past');
     if (item.status !== 'pending') conflict('APPROVAL_ALREADY_RESOLVED', 'Финансовая заявка уже обработана');
     if (decision !== 'approve') {
       await tx.objectCompensationAdjustment.update({where: {id}, data: {status: decision === 'reject' ? 'rejected' : 'cancelled'}}); return;

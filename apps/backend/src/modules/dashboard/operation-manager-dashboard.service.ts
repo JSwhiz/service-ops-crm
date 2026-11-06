@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import { ObjectResponseDto } from '../objects/dto/object-response.dto';
 import { ObjectsService } from '../objects/objects.service';
@@ -7,7 +7,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TaskListResponseDto, TaskResponseDto } from '../tasks/dto/task-response.dto';
 import { TasksService } from '../tasks/tasks.service';
 
-interface CurrentAuthUser {
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { assertDashboardAccess, dashboardObjectIds, dashboardObjectWhere, dashboardSection } from './dashboard-access.util';
+
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -130,20 +133,18 @@ export class OperationManagerDashboardService {
   ) {}
 
   async getDashboard(user: CurrentAuthUser): Promise<OperationManagerDashboardResponse> {
-    if (!roleCodes(user).includes(OPERATION_MANAGER_ROLE)) {
-      throw new ForbiddenException('Operation manager dashboard is not available for this role');
-    }
+    assertDashboardAccess(user,'operations',roleCodes(user).includes(OPERATION_MANAGER_ROLE));
 
     const now = clock();
     const [objectsResult, tasksResult, ordersResult] = await Promise.all([
-      this.objectsService.listObjects(user, { status: 'active' }),
-      this.tasksService.listTasks(user, { page: 1, limit: 100, sortBy: 'dueAt', sortDirection: 'asc' }),
-      this.oneTimeOrdersService.listOrders(user, { page: 1, limit: 60, sortBy: 'executionStartDate', sortDirection: 'asc' }),
+      dashboardSection(()=>this.objectsService.listObjects(user, { status: 'active' }), []),
+      dashboardSection(()=>this.tasksService.listTasks(user, { page: 1, limit: 100, sortBy: 'dueAt', sortDirection: 'asc' }), []),
+      dashboardSection(()=>this.oneTimeOrdersService.listOrders(user, { page: 1, limit: 60, sortBy: 'executionStartDate', sortDirection: 'asc' }),{items:[],total:0,page:1,limit:60,totalPages:0}),
     ]);
 
     const objects: ObjectResponseDto[] = Array.isArray(objectsResult) ? objectsResult : objectsResult.items;
     const tasks = Array.isArray(tasksResult) ? tasksResult : (tasksResult as TaskListResponseDto).items;
-    const signals = await this.loadSignals(objects, now);
+    const signals = await this.loadSignals(objects, now,user);
     const mappedObjects = objects.map((object) => {
       const signal = signals.get(object.id);
       const issues: OperationObjectIssue[] = [];
@@ -240,24 +241,25 @@ export class OperationManagerDashboardService {
     };
   }
 
-  private async loadSignals(objects: ObjectResponseDto[], now: ReturnType<typeof clock>): Promise<Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>> {
+  private async loadSignals(objects: ObjectResponseDto[], now: ReturnType<typeof clock>,user:CurrentAuthUser): Promise<Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>> {
     const result = new Map<string, { attendanceMissing: boolean; dailyReportMissing: boolean }>();
     const ids = objects.map((object) => object.id);
     if (!ids.length) return result;
+    const [attendanceAllowed,reportsAllowed]=await Promise.all([dashboardObjectIds(this.prisma,user,ids,'objects.attendance.read'),dashboardObjectIds(this.prisma,user,ids,'objects.reports.read')]);
     const attendanceRequired = now.minutes >= 8 * 60 + 30;
     const reportRequired = now.minutes >= 17 * 60;
     const [submissions, reports] = await Promise.all([
       attendanceRequired ? this.prisma.objectAuditLog.findMany({
-        where: { objectId: { in: ids }, actionCode: 'attendance.submitted', createdAt: { gte: now.dayStartUtc, lt: now.nextDayStartUtc } },
+        where: { objectId: { in: ids }, object:dashboardObjectWhere(user,'objects.attendance.read'), actionCode: 'attendance.submitted', createdAt: { gte: now.dayStartUtc, lt: now.nextDayStartUtc } },
         select: { objectId: true }, distinct: ['objectId'],
       }) : Promise.resolve([]),
       reportRequired ? this.prisma.objectDailyReport.findMany({
-        where: { objectId: { in: ids }, reportDate: new Date(`${now.date}T00:00:00.000Z`) }, select: { objectId: true },
+        where: { objectId: { in: ids }, object:dashboardObjectWhere(user,'objects.reports.read'), reportDate: new Date(`${now.date}T00:00:00.000Z`) }, select: { objectId: true },
       }) : Promise.resolve([]),
     ]);
     const submitted = new Set(submissions.map((item) => item.objectId));
     const reported = new Set(reports.map((item) => item.objectId));
-    for (const object of objects) result.set(object.id, { attendanceMissing: attendanceRequired && !submitted.has(object.id), dailyReportMissing: reportRequired && !reported.has(object.id) });
+    for (const object of objects) result.set(object.id, { attendanceMissing: attendanceAllowed.has(object.id)&&attendanceRequired && !submitted.has(object.id), dailyReportMissing: reportsAllowed.has(object.id)&&reportRequired && !reported.has(object.id) });
     return result;
   }
 }

@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AccessSubject, buildAccessWhere, decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 
 import { AuditService } from '../audit/audit.service';
 import {
@@ -14,7 +15,7 @@ import {
 } from '../approvals/constants/approval.constants';
 import { SafeFileResponseDto } from '../files/dto/safe-file-response.dto';
 import { mapSafeFileResponse } from '../files/utils/safe-file-response.mapper';
-import { buildOneTimeOrderAccessWhere } from '../one-time-orders/utils/one-time-order-access.util';
+import { assertOneTimeOrderAction, buildOneTimeOrderAccessWhere } from '../one-time-orders/utils/one-time-order-access.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import {
@@ -44,7 +45,7 @@ import {
   buildAccountabilityExpenseCapabilities,
 } from './utils/accountability-capabilities.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -81,6 +82,7 @@ export class AccountabilityService {
     this.assertCanReview(currentUser);
 
     const accounts = await this.prisma.accountabilityAccount.findMany({
+      where: this.accountAccessWhere(currentUser),
       include: {
         user: {
           select: {
@@ -141,6 +143,10 @@ export class AccountabilityService {
       where: {
         deletedAt: null,
         isActive: true,
+        AND: [buildAccessWhere<Prisma.UserWhereInput>({ subject: currentUser, actionCode: 'accountability.review',
+          legacyWhere: canReviewAccountability({ roleCodes: this.getRoleCodes(currentUser), permissionCodes: this.getPermissionCodes(currentUser) }) ? {} : { id: { in: [] } }, invariantWhere: {},
+          scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'own' ? { id: currentUser.id } : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } } : null,
+        }) as Prisma.UserWhereInput],
       },
       select: {
         id: true,
@@ -179,7 +185,7 @@ export class AccountabilityService {
     ) {
       await this.assertCanViewOwnAccountabilityLedger(currentUser);
     } else if (!isOwnAccount) {
-      this.assertCanReview(currentUser);
+      this.assertCanReview(currentUser, userId);
     }
 
     return this.buildAccountView({
@@ -192,6 +198,11 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     orderId: string,
   ): Promise<OneTimeOrderAccountabilityViewDto> {
+    // This response contains payout rows and their totals as an inseparable financial view.
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, 'one_time_orders.finance.read');
+    await assertOneTimeOrderAction(this.prisma, currentUser, orderId, 'one_time_orders.payouts.read');
+    this.assertAccountAction(currentUser, 'accountability.order_summary.read', true, currentUser.id);
+    if (hasModuleDeny(currentUser, 'one_time_orders.read', { resourceType: 'one_time_order', resourceId: orderId })) throw new ForbiddenException('Order accountability access denied');
     const canReview = canReviewAccountability({
       roleCodes: this.getRoleCodes(currentUser),
       permissionCodes: this.getPermissionCodes(currentUser),
@@ -199,6 +210,7 @@ export class AccountabilityService {
     const orderSelect = {
       id: true,
       title: true,
+      createdByUserId: true,
       assignments: {
         where: {
           userId: currentUser.id,
@@ -222,7 +234,7 @@ export class AccountabilityService {
     let order = await this.prisma.oneTimeOrder.findFirst({
       where: {
         id: orderId,
-        ...buildOneTimeOrderAccessWhere({
+        ...buildOneTimeOrderAccessWhere({ subject: currentUser,
           currentUserId: currentUser.id,
           roleCodes: this.getRoleCodes(currentUser),
           permissionCodes: this.getPermissionCodes(currentUser),
@@ -263,11 +275,14 @@ export class AccountabilityService {
       throw new NotFoundException('One-time order not found');
     }
 
+    if (!decideAccess(currentUser, 'one_time_orders.read', true, { resourceType: 'one_time_order', resourceId: order.id,
+      ownerUserId: order.createdByUserId, assignedUserIds: order.assignments.length ? [currentUser.id] : [] })) throw new ForbiddenException('Order accountability access denied');
+
     const canViewOwn = await this.canCurrentUserViewOwnAccountability(
       currentUser,
     );
     const accounts = await this.prisma.accountabilityAccount.findMany({
-      where:
+      where: { AND: [this.accountAccessWhere(currentUser, true),
         !canReview && !canViewOwn
           ? { id: { in: [] } }
           : canReview
@@ -277,7 +292,7 @@ export class AccountabilityService {
                   { expenses: { some: { oneTimeOrderId: orderId } } },
                 ],
               }
-            : { userId: currentUser.id },
+            : { userId: currentUser.id }] },
       include: {
         user: {
           select: {
@@ -381,7 +396,7 @@ export class AccountabilityService {
     userId: string,
     payload: CreateAccountabilityFundingDto,
   ): Promise<AccountabilityFundingResponseDto> {
-    this.assertCanIssueFunding(currentUser);
+    this.assertCanIssueFunding(currentUser, userId);
 
     const targetUser = await this.prisma.user.findFirst({
       where: {
@@ -516,6 +531,7 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     payload: CreateAccountabilityFundingDto,
   ): Promise<AccountabilityFundingResponseDto> {
+    this.assertAccountAction(currentUser, 'accountability.external_receipt', true, currentUser.id);
     if (!currentUser.isActive) {
       throw new ForbiddenException('Active system user required');
     }
@@ -591,9 +607,6 @@ export class AccountabilityService {
     fundingId: string,
     reason: string,
   ): Promise<AccountabilityFundingResponseDto> {
-    if (!canCorrectAccountabilityReceipt({ permissionCodes: this.getPermissionCodes(currentUser) })) {
-      throw new ForbiddenException('External receipt correction access denied');
-    }
     const normalizedReason = reason.trim();
     if (!normalizedReason) throw new BadRequestException('Correction reason is required');
 
@@ -609,6 +622,7 @@ export class AccountabilityService {
         where: { id: fundingId },
         include: { accountabilityAccount: true },
       });
+      this.assertAccountAction(currentUser, 'accountability.correct_receipt', canCorrectAccountabilityReceipt({ permissionCodes: this.getPermissionCodes(currentUser) }), source.accountabilityAccount.userId);
       if (source.fundingType !== 'external_receipt' || source.entryDirection !== 'credit') {
         throw new BadRequestException('Only an external receipt can be corrected here');
       }
@@ -656,7 +670,8 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     payload: SaveAccountabilityExpenseDto,
   ): Promise<AccountabilityExpenseResponseDto> {
-    await this.assertCanViewOwnAccountability(currentUser);
+    this.assertAccountAction(currentUser, 'accountability.expenses.create', true, currentUser.id);
+    await this.assertCanViewOwnAccountability(currentUser, 'accountability.expenses.create');
     const account = await this.getRequiredOwnActiveAccount(currentUser.id);
     this.assertAccountAllowsOwnExpenseWrite(account.status);
     const description = payload.description.trim();
@@ -740,7 +755,8 @@ export class AccountabilityService {
     expenseId: string,
     payload: SaveAccountabilityExpenseDto,
   ): Promise<AccountabilityExpenseResponseDto> {
-    await this.assertCanViewOwnAccountability(currentUser);
+    this.assertAccountAction(currentUser, 'accountability.expenses.update', true, currentUser.id);
+    await this.assertCanViewOwnAccountability(currentUser, 'accountability.expenses.update');
     const description = payload.description.trim();
 
     if (!description) {
@@ -894,7 +910,8 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser,
     expenseId: string,
   ): Promise<AccountabilityExpenseResponseDto> {
-    await this.assertCanViewOwnAccountability(currentUser);
+    this.assertAccountAction(currentUser, 'accountability.expenses.submit', true, currentUser.id);
+    await this.assertCanViewOwnAccountability(currentUser, 'accountability.expenses.submit');
     const existingExpense = await this.prisma.accountabilityExpense.findFirst({
       where: {
         id: expenseId,
@@ -1077,11 +1094,17 @@ export class AccountabilityService {
       await this.lockAccountabilityExpense(tx, expenseId);
       const expense = await tx.accountabilityExpense.findUnique({
         where: { id: expenseId },
-        select: { id: true, status: true, accountabilityAccountId: true },
+        select: { id: true, status: true, accountabilityAccountId: true, createdByUserId: true, accountabilityAccount: { select: { userId: true } } },
       });
 
       if (!expense) {
         throw new NotFoundException('Accountability expense not found');
+      }
+
+      this.assertAccountAction(currentUser, resolution.decision === 'approve' ? 'accountability.expenses.approve' : 'accountability.expenses.reject',
+        canApproveAccountabilityExpense({ roleCodes: this.getRoleCodes(currentUser), permissionCodes: this.getPermissionCodes(currentUser) }), expense.accountabilityAccount.userId);
+      if (resolution.decision === 'approve' && (expense.createdByUserId === currentUser.id || expense.accountabilityAccount.userId === currentUser.id)) {
+        throw new ForbiddenException('Independent expense approval is required');
       }
 
       await this.lockAccountabilityAccount(tx, expense.accountabilityAccountId);
@@ -1144,7 +1167,8 @@ export class AccountabilityService {
   async requestClosure(
     currentUser: CurrentAuthUser,
   ): Promise<AccountabilityClosureResponseDto> {
-    await this.assertCanViewOwnAccountability(currentUser);
+    this.assertAccountAction(currentUser, 'accountability.closure.request', true, currentUser.id);
+    await this.assertCanViewOwnAccountability(currentUser, 'accountability.closure.request');
     const closureCreation = await this.prisma.$transaction(async (tx) => {
       const account = await tx.accountabilityAccount.findUnique({
         where: { userId: currentUser.id },
@@ -1304,6 +1328,9 @@ export class AccountabilityService {
           tx,
           resolution.closureId,
         );
+      const target = await tx.accountabilityClosure.findUniqueOrThrow({ where: { id: resolution.closureId }, include: { accountabilityAccount: { select: { userId: true } } } });
+      this.assertAccountAction(currentUser, resolution.decision === 'approve' ? 'accountability.closure.approve' : 'accountability.closure.reject',
+        canApproveAccountabilityClosure({ roleCodes: this.getRoleCodes(currentUser), permissionCodes: this.getPermissionCodes(currentUser) }), target.accountabilityAccount.userId);
       const closure = await this.applyClosureApprovalDecision(tx, {
         closureId: resolution.closureId,
         decision: resolution.decision,
@@ -1397,6 +1424,10 @@ export class AccountabilityService {
         expenses: { select: { id: true, status: true } },
       },
     });
+
+    if (params.decision === 'approve' && (currentClosure.requestedByUserId === params.actorUserId || lockedAccount.userId === params.actorUserId)) {
+      throw new ForbiddenException('Independent accountability closure approval is required');
+    }
 
     if (lockedAccount.status !== 'closing_requested') {
       throw new ConflictException(
@@ -1543,6 +1574,8 @@ export class AccountabilityService {
     currentUser: CurrentAuthUser;
     subjectUserId: string;
   }): Promise<AccountabilityAccountViewDto> {
+    this.assertAccountAction(params.currentUser, 'accountability.read', params.currentUser.id === params.subjectUserId ||
+      canReviewAccountability({ roleCodes: this.getRoleCodes(params.currentUser), permissionCodes: this.getPermissionCodes(params.currentUser) }), params.subjectUserId);
     const subjectUser = await this.prisma.user.findFirst({
       where: {
         id: params.subjectUserId,
@@ -1654,31 +1687,32 @@ export class AccountabilityService {
       summary,
       capabilities: {
         canCreateExpense:
-          canUseOwnExpenseFlows &&
+          isOwnView && decideAccess(params.currentUser, 'accountability.expenses.create', canUseOwnExpenseFlows, { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }) &&
           account?.status === 'active' &&
           account.userId === params.currentUser.id,
         canRequestClosure:
-          canUseOwnExpenseFlows &&
+          isOwnView && decideAccess(params.currentUser, 'accountability.closure.request', canUseOwnExpenseFlows, { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }) &&
           account?.status === 'active' &&
           summary.draftExpensesCount === 0 &&
           summary.submittedExpensesCount === 0,
-        canIssueFunding: canIssueAccountabilityFunds({
+        canIssueFunding: decideAccess(params.currentUser, 'accountability.issue_cash', canIssueAccountabilityFunds({
           roleCodes: this.getRoleCodes(params.currentUser),
           permissionCodes: this.getPermissionCodes(params.currentUser),
-        }),
-        canReviewExpenses: canApproveAccountabilityExpense({
+        }), { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }),
+        canReviewExpenses: decideAccess(params.currentUser, 'accountability.expenses.approve', canApproveAccountabilityExpense({
           roleCodes: this.getRoleCodes(params.currentUser),
           permissionCodes: this.getPermissionCodes(params.currentUser),
-        }),
-        canApproveAccountabilityClosure: canApproveAccountabilityClosure({
+        }), { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }),
+        canApproveAccountabilityClosure: decideAccess(params.currentUser, 'accountability.closure.approve', canApproveAccountabilityClosure({
           roleCodes: this.getRoleCodes(params.currentUser),
           permissionCodes: this.getPermissionCodes(params.currentUser),
-        }),
+        }), { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }),
         canRecordExternalReceipt:
+          decideAccess(params.currentUser, 'accountability.external_receipt', true, { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }) &&
           isOwnView && params.currentUser.isActive && account?.status !== 'closing_requested',
-        canReverseExternalReceipts: canCorrectAccountabilityReceipt({
+        canReverseExternalReceipts: decideAccess(params.currentUser, 'accountability.correct_receipt', canCorrectAccountabilityReceipt({
           permissionCodes: this.getPermissionCodes(params.currentUser),
-        }),
+        }), { resourceType: 'user', resourceId: params.subjectUserId, ownerUserId: params.subjectUserId }),
       },
       fundings: (account?.fundings ?? []).map((funding) => this.mapFunding(
         funding,
@@ -2123,6 +2157,8 @@ export class AccountabilityService {
         : null,
       attachments: params.attachments,
       capabilities: buildAccountabilityExpenseCapabilities({
+        subject: params.currentUser,
+        ownerUserId: params.expense.accountabilityAccount.userId,
         isOwnExpense:
           params.expense.accountabilityAccount.userId === params.currentUser.id,
         status: params.expense.status,
@@ -2502,8 +2538,11 @@ export class AccountabilityService {
 
   private async assertCanViewOwnAccountability(
     currentUser: CurrentAuthUser,
+    actionCode = 'accountability.read',
   ): Promise<void> {
-    if (!(await this.canCurrentUserViewOwnAccountability(currentUser))) {
+    const legacy = await this.canCurrentUserViewOwnAccountability(currentUser);
+    if (!decideAccess(currentUser, 'accountability.read', true, { resourceType: 'user', resourceId: currentUser.id, ownerUserId: currentUser.id }) ||
+        !decideAccess(currentUser, actionCode, legacy, { resourceType: 'user', resourceId: currentUser.id, ownerUserId: currentUser.id })) {
       throw new ForbiddenException('Access to own accountability is denied');
     }
   }
@@ -2511,6 +2550,7 @@ export class AccountabilityService {
   private async assertCanViewOwnAccountabilityLedger(
     currentUser: CurrentAuthUser,
   ): Promise<void> {
+    this.assertAccountAction(currentUser, 'accountability.read', true, currentUser.id);
     if (!currentUser.isActive) {
       throw new ForbiddenException('Active system user required');
     }
@@ -2524,6 +2564,7 @@ export class AccountabilityService {
   private async canCurrentUserViewOwnAccountability(
     currentUser: CurrentAuthUser,
   ): Promise<boolean> {
+    if (!decideAccess(currentUser, 'accountability.read', true, { resourceType: 'user', resourceId: currentUser.id, ownerUserId: currentUser.id })) return false;
     const roleCodes = this.getRoleCodes(currentUser);
 
     if (canViewOwnAccountability({ roleCodes })) {
@@ -2557,23 +2598,43 @@ export class AccountabilityService {
     });
   }
 
-  private assertCanReview(currentUser: CurrentAuthUser): void {
+  private assertCanReview(currentUser: CurrentAuthUser, userId?: string): void {
     if (
-      !canReviewAccountability({
+      !decideAccess(currentUser, 'accountability.review', canReviewAccountability({
         roleCodes: this.getRoleCodes(currentUser),
         permissionCodes: this.getPermissionCodes(currentUser),
-      })
+      }), { resourceType: 'user', resourceId: userId, ownerUserId: userId }) &&
+      !(userId === undefined && currentUser.accessRules?.some(r => r.actionCode === 'accountability.review' && r.effect === 'allow'))
     ) {
       throw new ForbiddenException('Accountability review access denied');
     }
   }
 
-  private assertCanIssueFunding(currentUser: CurrentAuthUser): void {
+  private assertAccountAction(user: CurrentAuthUser, actionCode: string, legacy: boolean, userId: string): void {
+    if (!decideAccess(user, actionCode, legacy, { resourceType: 'user', resourceId: userId, ownerUserId: userId })) {
+      throw new ForbiddenException('Accountability action denied');
+    }
+  }
+
+  private accountAccessWhere(user: CurrentAuthUser, ownAllowed = false): Prisma.AccountabilityAccountWhereInput {
+    const legacyReview = canReviewAccountability({ roleCodes: this.getRoleCodes(user), permissionCodes: this.getPermissionCodes(user) });
+    return buildAccessWhere<Prisma.AccountabilityAccountWhereInput>({ subject: user, actionCode: 'accountability.review',
+      legacyWhere: legacyReview ? {} : ownAllowed ? { userId: user.id } : { id: { in: [] } }, invariantWhere: {},
+      parentActionCodes: ['accountability.read'], scopeWhere: rule => {
+        if (rule.scope === 'all') return {};
+        if (rule.scope === 'own') return { userId: user.id };
+        if (rule.scope === 'selected') return { userId: { in: [...rule.selectedIds] } };
+        return null;
+      },
+    }) as Prisma.AccountabilityAccountWhereInput;
+  }
+
+  private assertCanIssueFunding(currentUser: CurrentAuthUser, userId?: string): void {
     if (
-      !canIssueAccountabilityFunds({
+      !decideAccess(currentUser, 'accountability.issue_cash', canIssueAccountabilityFunds({
         roleCodes: this.getRoleCodes(currentUser),
         permissionCodes: this.getPermissionCodes(currentUser),
-      })
+      }), { resourceType: 'user', resourceId: userId, ownerUserId: userId })
     ) {
       throw new ForbiddenException('Accountability funding issuance denied');
     }

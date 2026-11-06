@@ -1,4 +1,6 @@
 import type { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+import { AccessSubject, buildAccessWhere } from '../../users-access/utils/access-policy.util';
 
 export interface OneTimeOrderCalendarRosterUser {
   id: string;
@@ -10,7 +12,7 @@ export interface OneTimeOrderCalendarRosterUser {
 
 export async function listOneTimeOrderCalendarRoster(
   prisma: PrismaService,
-  options: { managerUserId?: string; search?: string } = {},
+  options: { managerUserId?: string; search?: string; subject?: AccessSubject; actionCode?: string } = {},
 ): Promise<OneTimeOrderCalendarRosterUser[]> {
   const search = options.search?.trim();
   const profiles = await prisma.oneTimeOrderCalendarManager.findMany({
@@ -18,6 +20,9 @@ export async function listOneTimeOrderCalendarRoster(
       isVisible: true,
       ...(options.managerUserId ? { userId: options.managerUserId } : {}),
       user: {
+        ...(options.subject ? buildAccessWhere<Prisma.UserWhereInput>({ subject: options.subject, actionCode: options.actionCode ?? 'one_time_order_calendar.read',
+          legacyWhere: {}, invariantWhere: {}, scopeWhere: rule => rule.scope === 'all' ? {} : rule.scope === 'selected' ? { id: { in: [...rule.selectedIds] } } : rule.scope === 'own' ? { id: options.subject!.id } : null,
+        }) as Prisma.UserWhereInput : {}),
         isActive: true,
         deletedAt: null,
         ...(search

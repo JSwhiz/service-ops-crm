@@ -3,6 +3,10 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UserAbsencesService } from '../user-absences/user-absences.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { dashboardAbsenceCount } from './dashboard-access.util';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess } from '../users-access/utils/access-policy.util';
 
 import { HrDashboardResponse, HrDashboardService } from './hr-dashboard.service';
 import {
@@ -18,7 +22,7 @@ import {
   OperationManagerDashboardService,
 } from './operation-manager-dashboard.service';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -49,6 +53,7 @@ export class DashboardController {
     private readonly hrDashboardService: HrDashboardService,
     private readonly operationManagerDashboardService: OperationManagerDashboardService,
     private readonly userAbsencesService: UserAbsencesService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('leadership')
@@ -60,14 +65,12 @@ export class DashboardController {
       user,
       expanded === 'true',
     );
-    const userAbsencesToday = await this.userAbsencesService.countTodayForLeadership(
-      moscowDate(),
-    );
+    const userAbsencesToday = await dashboardAbsenceCount(this.userAbsencesService,this.prisma,user,moscowDate());
     return {
       ...result,
       people: {
         ...result.people,
-        userAbsencesAvailable: true,
+        userAbsencesAvailable: decideAccess(user,'user_absences.read',true),
         userAbsencesToday,
       },
     };

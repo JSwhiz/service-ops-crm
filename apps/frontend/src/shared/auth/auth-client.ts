@@ -7,7 +7,24 @@ export interface AuthUser {
   roleCode: string;
   roleCodes: string[];
   isActive: boolean;
+  accessVersion?: number;
   capabilities?: {
+    canAccessObjects?: boolean;
+    canAccessMats?: boolean;
+    canAccessTasks?: boolean;
+    canAccessTimesheet?: boolean;
+    canAccessUserAbsences?: boolean;
+    canAccessVisitPlans?: boolean;
+    canAccessUserSubstitutions?: boolean;
+    canAccessDashboard?: boolean;
+    canManageUserAccess?: boolean;
+    canCreateTask?: boolean;
+    canCreateCandidate?: boolean;
+    canCreateCounterparty?: boolean;
+    canCreateInventoryItem?: boolean;
+    canCreateEquipmentUnit?: boolean;
+    canAccessSearch?: boolean;
+    canAccessNotifications?: boolean;
     canAccessCounterparties?: boolean;
     canManageCounterparties?: boolean;
     canLinkCounterpartyObjects?: boolean;

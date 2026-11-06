@@ -8,15 +8,18 @@ import { AttachmentPreviewList } from '@/shared/ui/media-entry/attachment-previe
 import { MediaActionPicker } from '@/shared/ui/media-entry/media-action-picker';
 import { PendingMediaList } from '@/shared/ui/media-entry/pending-media-list';
 import { Alert, Button, Field, Stack, Surface } from '@/shared/ui/foundation';
+import styles from './one-time-order-daily-report-panel.module.css';
 
 export function OneTimeOrderDailyReportPanel({
   item,
   onSave,
   resources,
+  canEdit = true,
 }: {
   item: OneTimeOrderDailyReportItem | null;
   onSave: (payload: { content: string; files: File[] }) => Promise<void>;
   resources?: React.ReactNode;
+  canEdit?: boolean;
 }): React.JSX.Element {
   const [content, setContent] = useState(item?.content ?? '');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -43,14 +46,15 @@ export function OneTimeOrderDailyReportPanel({
         </div>
       ) : (
         <div className="ui-text-muted">
-          Отчёта за сегодня пока нет. Добавьте текст или вложения и сохраните отчёт.
+          {canEdit ? 'Отчёта за сегодня пока нет. Добавьте текст или вложения и сохраните отчёт.' : 'Отчёта за сегодня пока нет.'}
         </div>
       )}
 
-      <form
+      {canEdit ? <form
         className="ui-stack ui-stack--lg"
         onSubmit={async (event) => {
           event.preventDefault();
+          if (isSubmitting || !canEdit) return;
           setError(null);
           setIsSubmitting(true);
 
@@ -118,7 +122,10 @@ export function OneTimeOrderDailyReportPanel({
             {item ? 'Обновить отчёт' : 'Сохранить отчёт'}
           </Button>
         </div>
-      </form>
+      </form> : item ? <Stack gap="sm">
+        <div className={styles.content}>{item.content || 'Без текста'}</div>
+        <AttachmentPreviewList files={item.attachments} emptyText="Вложений у отчёта пока нет." />
+      </Stack> : null}
     </Surface>
     {resources}
     </Stack>

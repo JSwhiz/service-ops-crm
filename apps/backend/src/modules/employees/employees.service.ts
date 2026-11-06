@@ -6,6 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import type { AccessSubject } from '../users-access/types/access-policy.type';
+import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
+import { employeeAction, employeeObjectDenyWhere, employeePolicyWhere } from './utils/employee-policy.util';
 
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -60,7 +63,7 @@ import {
   canViewEmployeesHr,
 } from './utils/employee-hr-access.util';
 
-interface CurrentAuthUser {
+interface CurrentAuthUser extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -153,6 +156,9 @@ export class EmployeesService {
     const limit = query.limit;
     const offset = (page - 1) * limit;
     const conditions = this.buildEmployeeListConditions(query);
+    // Apply effective scope before SQL pagination and count, including selected denies.
+    const allowedEmployees = await this.prisma.employee.findMany({ where: employeePolicyWhere(currentUser), select: { id: true } });
+    conditions.push(allowedEmployees.length ? Prisma.sql`employee."id" IN (${Prisma.join(allowedEmployees.map(row => row.id))})` : Prisma.sql`FALSE`);
     const whereSql = conditions.length
       ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
       : Prisma.empty;
@@ -187,6 +193,7 @@ export class EmployeesService {
                 where: {
                   isActive: true,
                   object: {
+                    AND: [employeeObjectDenyWhere(currentUser)],
                     deletedAt: null,
                   },
                 },
@@ -247,7 +254,7 @@ export class EmployeesService {
       total,
       totalPages: total === 0 ? 0 : Math.ceil(total / limit),
       capabilities: {
-        canCreate: canCreateEmployee(this.getPermissionCodes(currentUser)),
+        canCreate: employeeAction(currentUser, 'employees.create', canCreateEmployee(this.getPermissionCodes(currentUser))),
       },
     };
   }
@@ -257,11 +264,13 @@ export class EmployeesService {
     query: ListEmployeeReferencesQueryDto,
   ): Promise<EmployeePositionReferenceDto[]> {
     this.assertViewAccess(currentUser);
+    const allowed = await this.prisma.employee.findMany({ where: employeePolicyWhere(currentUser), select: { id: true } });
     const searchPattern = query.search ? `%${query.search}%` : null;
     const rows = await this.prisma.$queryRaw<Array<{ value: string }>>(Prisma.sql`
       SELECT DISTINCT BTRIM("position") AS "value"
       FROM "employees"
       WHERE "position" IS NOT NULL
+        AND ${allowed.length ? Prisma.sql`"id" IN (${Prisma.join(allowed.map(row => row.id))})` : Prisma.sql`FALSE`}
         AND BTRIM("position") <> ''
         ${searchPattern ? Prisma.sql`AND BTRIM("position") ILIKE ${searchPattern}` : Prisma.empty}
       ORDER BY "value" ASC
@@ -281,6 +290,7 @@ export class EmployeesService {
     const [objects, selectedObject] = await Promise.all([
       this.prisma.object.findMany({
         where: {
+          AND: [employeeObjectDenyWhere(currentUser)],
           deletedAt: null,
           ...(query.search
             ? { name: { contains: query.search, mode: 'insensitive' as const } }
@@ -292,7 +302,7 @@ export class EmployeesService {
       }),
       query.selectedId
         ? this.prisma.object.findFirst({
-            where: { id: query.selectedId, deletedAt: null },
+            where: { id: query.selectedId, deletedAt: null, AND: [employeeObjectDenyWhere(currentUser)] },
             select,
           })
         : null,
@@ -320,6 +330,7 @@ export class EmployeesService {
     const objects = await this.prisma.object.findMany({
       where: {
         deletedAt: null,
+        AND: [employeeObjectDenyWhere(currentUser)],
       },
       select: {
         id: true,
@@ -338,22 +349,21 @@ export class EmployeesService {
     currentUser: CurrentAuthUser,
     employeeId: string,
   ): Promise<EmployeeResponseDto> {
-    this.assertViewAccess(currentUser);
+    this.assertViewAccess(currentUser, employeeId);
 
     const employee = await this.prisma.employee.findUnique({
       where: {
         id: employeeId,
       },
-      include: this.getEmployeeDetailInclude(),
+      include: this.getEmployeeDetailInclude(currentUser),
     });
 
     if (!employee) {
       throw new NotFoundException('Employee not found');
     }
 
-    const permanentDeleteBlockers = canDeleteEmployeePermanently(
-      this.getPermissionCodes(currentUser),
-    )
+    const activeAssignmentCount = await this.prisma.objectEmployeeAssignment.count({ where: { employeeId, isActive: true } });
+    const permanentDeleteBlockers = employeeAction(currentUser, 'employees.delete_permanently', canDeleteEmployeePermanently(this.getPermissionCodes(currentUser)), employeeId)
       ? await this.prisma.$transaction((tx) =>
           this.getEmployeeDependencyBlockers(tx, employeeId),
         )
@@ -367,7 +377,7 @@ export class EmployeesService {
     }) : [];
     const authorNames = new Map(authors.map((author) => [author.id, author.fullName]));
     return {
-      ...this.mapEmployee(employee, currentUser, permanentDeleteBlockers),
+      ...this.mapEmployee(employee, currentUser, permanentDeleteBlockers, activeAssignmentCount),
       passportReceivedByName: authorNames.get(employee.passportReceivedByUserId ?? '') ?? null,
       contractReceivedByName: authorNames.get(employee.contractReceivedByUserId ?? '') ?? null,
     };
@@ -383,7 +393,8 @@ export class EmployeesService {
     employeeId: string,
     query: EmployeeAttendanceQueryDto,
   ): Promise<EmployeeAttendanceResponseDto> {
-    this.assertViewAccess(currentUser);
+    this.assertViewAccess(currentUser, employeeId);
+    this.assertPermission(employeeAction(currentUser, 'employees.attendance.read', true, employeeId), 'Employee attendance access denied');
 
     const employee = await this.prisma.employee.findUnique({
       where: { id: employeeId },
@@ -398,6 +409,7 @@ export class EmployeesService {
     const facts = await this.prisma.objectAttendanceFact.findMany({
       where: {
         employeeId,
+        object: employeeObjectDenyWhere(currentUser),
         operationDate: {
           gte: new Date(query.year, query.month - 1, 1),
           lt: new Date(query.year, query.month, 1),
@@ -436,6 +448,7 @@ export class EmployeesService {
     payload: CreateEmployeeDto,
   ): Promise<EmployeeResponseDto> {
     this.assertCreateAccess(currentUser);
+    if (payload.passportReceived !== undefined || payload.contractReceived !== undefined) this.assertPermission(employeeAction(currentUser, 'employees.documents.edit', canEditEmployee(this.getPermissionCodes(currentUser)) || canCreateEmployee(this.getPermissionCodes(currentUser))), 'Employee document update denied');
     const birthDate = this.parseBirthDate(payload.birthDate);
     const schedule = this.normalizeWorkSchedule({
       workScheduleCode: payload.workScheduleCode ?? null,
@@ -484,7 +497,8 @@ export class EmployeesService {
     employeeId: string,
     payload: UpdateEmployeeDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertEditAccess(currentUser);
+    this.assertEditAccess(currentUser, employeeId);
+    if (payload.passportReceived !== undefined || payload.contractReceived !== undefined) this.assertPermission(employeeAction(currentUser, 'employees.documents.edit', canEditEmployee(this.getPermissionCodes(currentUser)) || false, employeeId), 'Employee document update denied');
     const birthDate =
       payload.birthDate === undefined
         ? undefined
@@ -595,7 +609,7 @@ export class EmployeesService {
     employeeId: string,
     payload: EmployeeVersionDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertArchiveAccess(currentUser);
+    this.assertArchiveAccess(currentUser, employeeId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -680,7 +694,7 @@ export class EmployeesService {
     employeeId: string,
     payload: EmployeeVersionDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertRestoreAccess(currentUser);
+    this.assertRestoreAccess(currentUser, employeeId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -750,7 +764,7 @@ export class EmployeesService {
     employeeId: string,
     payload: CreateEmployeeAvailabilityDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertEditAccess(currentUser);
+    this.assertPermission(employeeAction(currentUser, 'employees.availability.manage', canEditEmployee(this.getPermissionCodes(currentUser)), employeeId), 'Employee schedule action denied');
     await this.ensureEmployeeExists(employeeId);
 
     const startDate = this.parseAvailabilityBoundary(
@@ -793,12 +807,14 @@ export class EmployeesService {
     employeeId: string,
     payload: CreateEmployeeSubstitutionDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertEditAccess(currentUser);
+    this.assertPermission(employeeAction(currentUser, 'employees.substitutions.manage', canEditEmployee(this.getPermissionCodes(currentUser)), employeeId), 'Employee schedule action denied');
     await this.createSubstitution(currentUser, employeeId, payload);
     return this.getEmployeeById(currentUser, employeeId);
   }
 
   async addObjectSubstitution(currentUser: CurrentAuthUser, objectId: string, employeeId: string, payload: CreateEmployeeSubstitutionDto): Promise<{ id: string }> {
+    await this.assertObjectNotDenied(currentUser, objectId);
+    this.assertPermission(decideAccess(currentUser, 'employees.substitutions.manage', true, { resourceType: 'employee', resourceId: employeeId }), 'Employee substitution action denied');
     const object = await this.prisma.object.findFirst({
       where: { id: objectId, deletedAt: null },
       include: { assignments: { where: { isActive: true } } },
@@ -822,6 +838,7 @@ export class EmployeesService {
       this.ensureEmployeeExists(employeeId),
       this.ensureEmployeeExists(payload.substituteEmployeeId),
     ]);
+    if ([employeeId, payload.substituteEmployeeId].some(id => hasModuleDeny(currentUser, 'employees.view', { resourceType: 'employee', resourceId: id }))) throw new ForbiddenException('Employee reference access denied');
 
     if (substituteEmployee.employmentStatus !== 'active') {
       throw new ForbiddenException('Substitute employee must be active');
@@ -922,7 +939,8 @@ export class EmployeesService {
     employeeId: string,
     payload: AssignEmployeeToObjectDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertAssignmentManageAccess(currentUser);
+    this.assertAssignmentManageAccess(currentUser, employeeId);
+    await this.assertObjectNotDenied(currentUser, payload.objectId);
     const startedAt = payload.startDate ? new Date(payload.startDate) : new Date();
 
     await this.prisma.$transaction(async (tx) => {
@@ -1005,7 +1023,8 @@ export class EmployeesService {
     employeeId: string,
     objectId: string,
   ): Promise<EmployeeResponseDto> {
-    this.assertAssignmentManageAccess(currentUser);
+    this.assertAssignmentManageAccess(currentUser, employeeId);
+    await this.assertObjectNotDenied(currentUser, objectId);
     const endedAt = new Date();
 
     await this.prisma.$transaction(async (tx) => {
@@ -1075,7 +1094,7 @@ export class EmployeesService {
     historyId: string,
     payload: DeleteEmployeeAssignmentAsErrorDto,
   ): Promise<EmployeeResponseDto> {
-    this.assertDeleteAssignmentAsErrorAccess(currentUser);
+    this.assertDeleteAssignmentAsErrorAccess(currentUser, employeeId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -1088,6 +1107,8 @@ export class EmployeesService {
       if (!initialHistory) {
         throw new NotFoundException('Employee assignment history not found');
       }
+      const permittedObject = await tx.object.findFirst({ where: { AND: [{ id: initialHistory.objectId }, employeeObjectDenyWhere(currentUser)] }, select: { id: true } });
+      if (!permittedObject) throw new ForbiddenException('Assignment object access denied');
 
       let currentAssignment: Awaited<
         ReturnType<typeof tx.objectEmployeeAssignment.findUnique>
@@ -1201,7 +1222,7 @@ export class EmployeesService {
     employeeId: string,
     payload: DeleteEmployeePermanentlyDto,
   ): Promise<{ success: true }> {
-    this.assertDeletePermanentlyAccess(currentUser);
+    this.assertDeletePermanentlyAccess(currentUser, employeeId);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`
@@ -1355,61 +1376,63 @@ export class EmployeesService {
     }
   }
 
-  private assertViewAccess(currentUser: CurrentAuthUser): void {
-    if (!canViewEmployeesHr(this.getPermissionCodes(currentUser))) {
+  private assertViewAccess(currentUser: CurrentAuthUser, employeeId?: string): void {
+    const legacy = canViewEmployeesHr(this.getPermissionCodes(currentUser));
+    const allowed = employeeId ? employeeAction(currentUser, 'employees.view', legacy, employeeId)
+      : !hasModuleDeny(currentUser, 'employees.view') && (legacy || currentUser.accessRules?.some(rule => rule.effect === 'allow' && rule.actionCode === 'employees.view'));
+    if (!allowed) {
       throw new ForbiddenException('Employees registry access denied');
     }
   }
 
-  private assertCreateAccess(currentUser: CurrentAuthUser): void {
+  private assertCreateAccess(currentUser: CurrentAuthUser, employeeId?: string): void {
     this.assertPermission(
-      canCreateEmployee(this.getPermissionCodes(currentUser)),
+      employeeAction(currentUser, 'employees.create', canCreateEmployee(this.getPermissionCodes(currentUser)), employeeId),
       'Employee creation denied',
     );
   }
 
-  private assertEditAccess(currentUser: CurrentAuthUser): void {
+  private assertEditAccess(currentUser: CurrentAuthUser, employeeId?: string): void {
     this.assertPermission(
-      canEditEmployee(this.getPermissionCodes(currentUser)),
+      employeeAction(currentUser, 'employees.edit', canEditEmployee(this.getPermissionCodes(currentUser)), employeeId),
       'Employee editing denied',
     );
   }
 
-  private assertArchiveAccess(currentUser: CurrentAuthUser): void {
+  private assertArchiveAccess(currentUser: CurrentAuthUser, employeeId?: string): void {
     this.assertPermission(
-      canArchiveEmployee(this.getPermissionCodes(currentUser)),
+      employeeAction(currentUser, 'employees.archive', canArchiveEmployee(this.getPermissionCodes(currentUser)), employeeId),
       'Employee archive denied',
     );
   }
 
-  private assertRestoreAccess(currentUser: CurrentAuthUser): void {
+  private assertRestoreAccess(currentUser: CurrentAuthUser, employeeId?: string): void {
     this.assertPermission(
-      canRestoreEmployee(this.getPermissionCodes(currentUser)),
+      employeeAction(currentUser, 'employees.restore', canRestoreEmployee(this.getPermissionCodes(currentUser)), employeeId),
       'Employee restore denied',
     );
   }
 
-  private assertAssignmentManageAccess(currentUser: CurrentAuthUser): void {
+  private assertAssignmentManageAccess(currentUser: CurrentAuthUser, employeeId?: string): void {
     this.assertPermission(
-      canManageEmployeeAssignments(this.getPermissionCodes(currentUser)),
+      employeeAction(currentUser, 'employees.assignments.manage', canManageEmployeeAssignments(this.getPermissionCodes(currentUser)), employeeId),
       'Employee assignment management denied',
     );
   }
 
   private assertDeleteAssignmentAsErrorAccess(
     currentUser: CurrentAuthUser,
+    employeeId?: string,
   ): void {
     this.assertPermission(
-      canDeleteEmployeeAssignmentAsError(
-        this.getPermissionCodes(currentUser),
-      ),
+      employeeAction(currentUser, 'employees.assignments.delete_as_error', canDeleteEmployeeAssignmentAsError(this.getPermissionCodes(currentUser)), employeeId),
       'Employee assignment deletion denied',
     );
   }
 
-  private assertDeletePermanentlyAccess(currentUser: CurrentAuthUser): void {
+  private assertDeletePermanentlyAccess(currentUser: CurrentAuthUser, employeeId?: string): void {
     this.assertPermission(
-      canDeleteEmployeePermanently(this.getPermissionCodes(currentUser)),
+      employeeAction(currentUser, 'employees.delete_permanently', canDeleteEmployeePermanently(this.getPermissionCodes(currentUser)), employeeId),
       'Permanent employee deletion denied',
     );
   }
@@ -1577,6 +1600,11 @@ export class EmployeesService {
     return employee;
   }
 
+  private async assertObjectNotDenied(currentUser: CurrentAuthUser, objectId: string): Promise<void> {
+    const object = await this.prisma.object.findFirst({ where: { AND: [{ id: objectId }, employeeObjectDenyWhere(currentUser)] }, select: { id: true } });
+    if (!object) throw new ForbiddenException('Object access explicitly denied');
+  }
+
   private getRoleCodes(currentUser: CurrentAuthUser): string[] {
     if (currentUser.roleCodes && currentUser.roleCodes.length > 0) {
       return currentUser.roleCodes;
@@ -1729,11 +1757,12 @@ export class EmployeesService {
     };
   }
 
-  private getEmployeeDetailInclude() {
+  private getEmployeeDetailInclude(currentUser: CurrentAuthUser) {
     return {
       objectAssignments: {
         where: {
           object: {
+            AND: [employeeObjectDenyWhere(currentUser)],
             deletedAt: null,
           },
         },
@@ -1750,6 +1779,7 @@ export class EmployeesService {
         },
       },
       objectAssignmentHistory: {
+        where: { object: employeeObjectDenyWhere(currentUser) },
         include: {
           object: {
             select: this.getObjectVisibilitySelect(),
@@ -1765,6 +1795,7 @@ export class EmployeesService {
         },
       },
       substitutionsAsPrimary: {
+        where: { AND: [{ OR: [{ objectId: null }, { object: employeeObjectDenyWhere(currentUser) }] }, { substituteEmployee: employeePolicyWhere(currentUser) }] },
         include: {
           substituteEmployee: {
             select: {
@@ -1784,6 +1815,7 @@ export class EmployeesService {
         },
       },
       substitutionsAsReplacement: {
+        where: { AND: [{ OR: [{ objectId: null }, { object: employeeObjectDenyWhere(currentUser) }] }, { employee: employeePolicyWhere(currentUser) }] },
         include: {
           employee: {
             select: {
@@ -1829,11 +1861,11 @@ export class EmployeesService {
     currentUser: CurrentAuthUser,
     object: { id: string; createdByUserId: string; assignments: Array<{ userId: string; isActive?: boolean }> },
   ): boolean {
-    return canViewObjectCompensationRates({
+    return decideAccess(currentUser, 'objects.rates.read', canViewObjectCompensationRates({
       currentUserId: currentUser.id,
       roleCodes: this.getRoleCodes(currentUser),
       object,
-    });
+    }), { resourceType: 'object', resourceId: object.id, ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.filter(a => a.isActive !== false).map(a => a.userId) });
   }
 
   /**
@@ -1997,10 +2029,11 @@ export class EmployeesService {
     },
     currentUser: CurrentAuthUser,
     permanentDeleteBlockers: Array<{ code: string; count: number }>,
+    activeAssignmentCount: number,
   ): EmployeeResponseDto {
     const permissionCodes = this.getPermissionCodes(currentUser);
-    const canEdit = canEditEmployee(permissionCodes);
-    const canManageAssignments = canManageEmployeeAssignments(permissionCodes);
+    const canEdit = employeeAction(currentUser, 'employees.edit', canEditEmployee(permissionCodes), employee.id);
+    const canManageAssignments = employeeAction(currentUser, 'employees.assignments.manage', canManageEmployeeAssignments(permissionCodes), employee.id);
 
     return {
       id: employee.id,
@@ -2054,7 +2087,7 @@ export class EmployeesService {
         endedAt: item.endedAt?.toISOString() ?? null,
         canOpenObjectCard: this.canOpenObjectCard(currentUser, item.object),
         canDeleteAsError:
-          canDeleteEmployeeAssignmentAsError(permissionCodes),
+          employeeAction(currentUser, 'employees.assignments.delete_as_error', canDeleteEmployeeAssignmentAsError(permissionCodes), employee.id),
       })),
       availabilityWindows: employee.availabilityWindows.map((item) => ({
         id: item.id,
@@ -2096,16 +2129,16 @@ export class EmployeesService {
         canView: true,
         canEdit: canEdit && employee.deletedAt === null,
         canArchive:
-          canArchiveEmployee(permissionCodes) && employee.deletedAt === null,
+          employeeAction(currentUser, 'employees.archive', canArchiveEmployee(permissionCodes), employee.id) && employee.deletedAt === null,
         canRestore:
-          canRestoreEmployee(permissionCodes) && employee.deletedAt !== null,
+          employeeAction(currentUser, 'employees.restore', canRestoreEmployee(permissionCodes), employee.id) && employee.deletedAt !== null,
         canDeletePermanently:
-          canDeleteEmployeePermanently(permissionCodes),
+          employeeAction(currentUser, 'employees.delete_permanently', canDeleteEmployeePermanently(permissionCodes), employee.id),
         canDeleteAssignmentAsError:
-          canDeleteEmployeeAssignmentAsError(permissionCodes),
+          employeeAction(currentUser, 'employees.assignments.delete_as_error', canDeleteEmployeeAssignmentAsError(permissionCodes), employee.id),
         canManageStatus: canEdit && employee.deletedAt === null,
-        canManageAvailability: canEdit && employee.deletedAt === null,
-        canManageSubstitutions: canEdit && employee.deletedAt === null,
+        canManageAvailability: employeeAction(currentUser, 'employees.availability.manage', canEditEmployee(permissionCodes), employee.id) && employee.deletedAt === null,
+        canManageSubstitutions: employeeAction(currentUser, 'employees.substitutions.manage', canEditEmployee(permissionCodes), employee.id) && employee.deletedAt === null,
         canManageAssignments:
           canManageAssignments && employee.deletedAt === null,
       },
@@ -2113,16 +2146,12 @@ export class EmployeesService {
         archive: {
           eligible:
             employee.deletedAt === null &&
-            employee.objectAssignments.every((assignment) => !assignment.isActive),
-          blockers: employee.objectAssignments.some(
-            (assignment) => assignment.isActive,
-          )
+            activeAssignmentCount === 0,
+          blockers: activeAssignmentCount > 0
             ? [
                 {
                   code: 'active_object_assignments',
-                  count: employee.objectAssignments.filter(
-                    (assignment) => assignment.isActive,
-                  ).length,
+                  count: activeAssignmentCount,
                 },
               ]
             : [],

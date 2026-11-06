@@ -15,6 +15,8 @@ import type { ScheduleRevisionView, SchedulingUser } from './scheduling.types';
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const roles = (user: SchedulingUser) => user.roleCodes?.length ? user.roleCodes : [user.roleCode];
+import { decideAccess } from '../users-access/utils/access-policy.util';
+import { objectPolicyContext } from '../users-access/utils/object-policy-context.util';
 export const COMPENSATION_APPROVAL_TYPE = 'object_compensation_confirmation';
 function conflict(code: string, message: string): never { throw new ConflictException({code, message}); }
 
@@ -22,22 +24,22 @@ function conflict(code: string, message: string): never { throw new ConflictExce
 export class ObjectCompensationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async access(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, write = false) {
+  async access(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string, write = false, actionCode = 'objects.compensation.read', legacyOverride?:boolean) {
     const object = await tx.object.findFirst({where: {id: objectId, deletedAt: null}, include: {assignments: {where: {isActive: true}}, planningSettings: true}});
     if (!object) throw new NotFoundException('Объект не найден');
-    if (!user.isActive || !canViewObjectByScope({currentUserId: user.id, roleCodes: roles(user), ownScopeOnly: true, object})) throw new ForbiddenException('Нет доступа к оплате объекта');
+    if (!decideAccess(user,actionCode,legacyOverride ?? canViewObjectByScope({currentUserId:user.id,roleCodes:roles(user),ownScopeOnly:true,object}),{...objectPolicyContext(object),parents:[{actionCode:'objects.read',context:objectPolicyContext(object)}]})) throw new ForbiddenException('Нет доступа к оплате объекта');
     if (write && ['frozen', 'closed', 'archived'].includes(object.status)) conflict('OBJECT_READ_ONLY', 'Объект недоступен для изменения');
     return object;
   }
-  rateAccess(user: SchedulingUser) {
-    if (!canEditObjectDailyRate(roles(user))) throw new ForbiddenException('Требуется право управления условиями оплаты');
+  async rateAccess(user: SchedulingUser,objectId:string,tx:Prisma.TransactionClient=this.prisma) {
+    await this.access(tx,user,objectId,true,'objects.rates.manage',canEditObjectDailyRate(roles(user)));
   }
   private canManageTeamFund(user: SchedulingUser) {
     return roles(user).some(role => ['founder', 'director'].includes(role)) || !!user.permissionCodes?.includes('object.budget_edit');
   }
-  private async lock(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string) {
+  private async lock(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string,actionCode='objects.compensation.manage') {
     await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
-    return this.access(tx, user, objectId, true);
+    return this.access(tx, user, objectId, true,actionCode);
   }
   private async audit(tx: Prisma.TransactionClient, userId: string, objectId: string, action: string, payload: unknown) {
     await tx.objectAuditLog.create({data: {objectId, actorUserId: userId, actionCode: action, payload: json(payload)}});
@@ -50,8 +52,9 @@ export class ObjectCompensationService {
   async list(user: SchedulingUser, objectId: string) {
     const object = await this.access(this.prisma, user, objectId);
     const writable = !['frozen', 'closed', 'archived'].includes(object.status);
-    const manageRates = writable && canEditObjectDailyRate(roles(user));
-    const requestExtraWork = writable && (manageRates || object.assignments.some(a => a.userId === user.id && a.assignmentRoleCode === 'manager'));
+    const context=objectPolicyContext(object);
+    const manageRates = writable && decideAccess(user,'objects.rates.manage',canEditObjectDailyRate(roles(user)),context);
+    const requestExtraWork = writable && decideAccess(user,'objects.compensation.adjust',(manageRates || object.assignments.some(a => a.userId === user.id && a.assignmentRoleCode === 'manager')),context);
     const [versions, teamFunds, adjustments] = await Promise.all([
       this.prisma.objectCompensationVersion.findMany({where: {objectId}, orderBy: [{effectiveFrom: 'asc'}, {version: 'asc'}]}),
       this.prisma.objectTeamFundVersion.findMany({where: {objectId}, orderBy: {effectiveFrom: 'asc'}}),
@@ -66,10 +69,10 @@ export class ObjectCompensationService {
       const afterAmount = v.kind === 'replacement' ? beforeAmount : v.kind === 'holiday_exception' ? payload.paid ? beforeAmount : 0 : v.amount;
       const credit = extraCredits.find(c => c.sourceKey === `extra:${v.id}`);
       return {...v, operationDate: v.operationDate.toISOString().slice(0, 10), createdBy: author(v.createdByUserId), appliedBy: author(v.appliedByUserId), beforeAmount, afterAmount, difference: beforeAmount !== null && afterAmount !== null ? afterAmount - beforeAmount : null, currentAmount: credit?.amount ?? null, creditUpdatedAt: credit?.updatedAt.toISOString() ?? null};
-    }), capabilities: {manageRates, manageTeamFund: writable && this.canManageTeamFund(user), requestExtraWork, requestAdjustment: manageRates, approveRetroactive: roles(user).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role))}};
+    }), capabilities: {manageRates, manageTeamFund: writable && decideAccess(user,'objects.budget.edit',this.canManageTeamFund(user),context), requestExtraWork, requestAdjustment: manageRates&&decideAccess(user,'objects.compensation.adjust',true,context), approveRetroactive: roles(user).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role))&&decideAccess(user,'objects.compensation.correct_past',true,context)}};
   }
   async version(user: SchedulingUser, objectId: string, input: CreateCompensationVersionDto) {
-    this.rateAccess(user); dateOnly(input.effectiveFrom);
+    await this.rateAccess(user,objectId); dateOnly(input.effectiveFrom);
     return this.prisma.$transaction(async tx => {
       const object = await this.lock(tx, user, objectId);
       const scopeId = input.scope === 'defaults' ? objectId : input.scopeId;
@@ -101,7 +104,7 @@ export class ObjectCompensationService {
     });
   }
   async cancelVersion(user: SchedulingUser, objectId: string, id: string, input: CancelCompensationVersionDto) {
-    this.rateAccess(user);
+    await this.rateAccess(user,objectId);
     return this.prisma.$transaction(async tx => {
       await this.lock(tx, user, objectId);
       const item = await tx.objectCompensationVersion.findFirst({where: {id, objectId}});
@@ -114,10 +117,10 @@ export class ObjectCompensationService {
     });
   }
   async teamFund(user: SchedulingUser, objectId: string, input: CreateTeamFundDto) {
-    if (!this.canManageTeamFund(user)) throw new ForbiddenException('Изменение фонда требует права редактирования бюджета');
     dateOnly(input.effectiveFrom);
     return this.prisma.$transaction(async tx => {
-      await this.lock(tx, user, objectId);
+      const object=await this.lock(tx,user,objectId);
+      if(!decideAccess(user,'objects.budget.edit',this.canManageTeamFund(user),objectPolicyContext(object))) throw new ForbiddenException('Изменение фонда недоступно');
       const allocations = json(input.allocations);
       if (!input.reason.trim()) throw new BadRequestException('Укажите основание распределения фонда');
       if (new Set(input.allocations.map(a => `${a.positionId}:${a.contourId}`)).size !== input.allocations.length) throw new BadRequestException('Распределение позиции/контура не должно повторяться');
@@ -338,10 +341,10 @@ export class ObjectCompensationService {
 
   async adjustment(user: SchedulingUser, objectId: string, input: CreateCompensationAdjustmentDto, afterApply: (tx: Prisma.TransactionClient, id: string) => Promise<void>) {
     return this.prisma.$transaction(async tx => {
-      await this.lock(tx, user, objectId); dateOnly(input.operationDate);
+      await this.lock(tx, user, objectId,'objects.compensation.adjust'); dateOnly(input.operationDate);
       if (input.operationDate > todayMoscow()) conflict('FUTURE_FINANCIAL_FACT', 'Будущее начисление нельзя подтверждать заранее');
       if (!input.reason.trim()) throw new BadRequestException('Укажите основание');
-      if (input.kind !== 'extra_work') this.rateAccess(user);
+      if (input.kind !== 'extra_work') await this.rateAccess(user,objectId,tx);
       else if (!canEditObjectDailyRate(roles(user)) && !await tx.objectAssignment.findFirst({where: {objectId, userId: user.id, isActive: true, assignmentRoleCode: 'manager'}})) throw new ForbiddenException('Допработу вводит назначенный менеджер или руководитель с правом ставок');
       const replay = await tx.objectCompensationAdjustment.findUnique({where: {objectId_requestKey: {objectId, requestKey: input.requestKey}}});
       if (replay) return this.request(tx, user, objectId, input, input, replay.beforeSnapshot);
@@ -464,7 +467,7 @@ export class ObjectCompensationService {
   /** amount=0 cancels only this extra earning; the primary exit is untouched. */
   async correctExtraWork(user: SchedulingUser, objectId: string, id: string, input: CorrectExtraWorkDto) {
     return this.prisma.$transaction(async tx => {
-      const object = await this.lock(tx, user, objectId);
+      const object = await this.lock(tx, user, objectId,'objects.compensation.adjust');
       if (!canEditObjectDailyRate(roles(user)) && !object.assignments.some(a => a.userId === user.id && a.assignmentRoleCode === 'manager')) throw new ForbiddenException('Нет права исправлять допработу этого объекта');
       if (!input.reason.trim()) throw new BadRequestException('Укажите основание исправления');
       const payload = {sourceAdjustmentId: id, ...input};

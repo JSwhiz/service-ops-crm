@@ -66,6 +66,9 @@ export interface CandidateCardResponseDto extends CandidateListItemDto {
   responses: CandidateResponseItemDto[];
   capabilities: {
     canManage: boolean;
+    canEdit: boolean;
+    canChangeStatus: boolean;
+    canManageAssignments: boolean;
     canRespond: boolean;
     canArchive: boolean;
     canRestore: boolean;

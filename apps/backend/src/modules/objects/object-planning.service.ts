@@ -9,6 +9,7 @@ import {
   OnModuleInit,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { AccessSubject, decideAccess } from '../users-access/utils/access-policy.util';
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -33,7 +34,7 @@ import {
   validAnnualDate,
 } from "./utils/object-season.util";
 
-interface PlanningActor {
+interface PlanningActor extends AccessSubject {
   id: string;
   login: string;
   fullName: string;
@@ -81,11 +82,11 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
   private roles(user: PlanningActor) {
     return user.roleCodes?.length ? user.roleCodes : [user.roleCode];
   }
-  private canEditBudget(user: PlanningActor) {
-    return (
+  private canEditBudget(user: PlanningActor, objectId?: string) {
+    return decideAccess(user, 'objects.budget.edit', (
       this.roles(user).some((role) => ["founder", "director"].includes(role)) ||
       !!user.permissionCodes?.includes("object.budget_edit")
-    );
+    ), { resourceType: 'object', resourceId: objectId });
   }
   private async context(user: PlanningActor, objectId: string, write = false) {
     const object = await this.objects.getObjectById(user, objectId);
@@ -100,6 +101,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
   }
   async listContacts(user: PlanningActor, objectId: string) {
     await this.context(user, objectId);
+    await this.assertAction(user, objectId, 'objects.contacts.read', true);
     return this.prisma.objectContact.findMany({
       where: { objectId },
       orderBy: [{ name: "asc" }, { id: "asc" }],
@@ -112,7 +114,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
     payload: SaveObjectContactDto,
   ) {
     const object = await this.context(user, objectId, true);
-    if (!object.capabilities.canEdit)
+    if (!await this.allowedAction(user, objectId, 'objects.contacts.manage', object.capabilities.canEdit))
       throw new ForbiddenException("Редактирование контактов недоступно");
     const data = {
       name: payload.name.trim(),
@@ -172,7 +174,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
     payload: ContactVersionDto,
   ) {
     const object = await this.context(user, objectId, true);
-    if (!object.capabilities.canEdit)
+    if (!await this.allowedAction(user, objectId, 'objects.contacts.manage', object.capabilities.canEdit))
       throw new ForbiddenException("Редактирование контактов недоступно");
     return this.prisma.$transaction(async (tx) => {
       const contact = await tx.objectContact.findFirst({
@@ -212,6 +214,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
   }
   async getPlanning(user: PlanningActor, objectId: string) {
     const object = await this.context(user, objectId);
+    await this.assertAction(user, objectId, 'objects.budget.read', true);
     const settings = await this.prisma.objectPlanningSettings.findUnique({
       where: { objectId },
     });
@@ -245,7 +248,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
           ? annualSeason(settings.summerStartsOn, settings.winterStartsOn)
           : object.seasonMode,
       capabilities: {
-        canEditBudget: this.canEditBudget(user),
+        canEditBudget: this.canEditBudget(user, objectId),
         canEditSeasons: object.capabilities.canManageCompensationRates,
         canViewBudget: object.capabilities.canViewOperationalSections,
       },
@@ -264,7 +267,7 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
     )
       throw new BadRequestException("Выберите настройки для изменения");
     const object = await this.context(user, objectId, true);
-    if (payload.monthlyBudget !== undefined && !this.canEditBudget(user))
+    if (payload.monthlyBudget !== undefined && !await this.allowedAction(user, objectId, 'objects.budget.edit', this.canEditBudget(user, objectId)))
       throw new ForbiddenException("Изменение бюджета недоступно");
     if (
       (payload.automaticSeasons !== undefined ||
@@ -348,6 +351,18 @@ export class ObjectPlanningService implements OnModuleInit, OnModuleDestroy {
     );
     return this.getPlanning(user, objectId);
   }
+  private async allowedAction(user: PlanningActor, objectId: string, actionCode: string, legacy: boolean): Promise<boolean> {
+    const object = await this.prisma.object.findUniqueOrThrow({ where: { id: objectId }, select: {
+      createdByUserId: true, assignments: { where: { isActive: true }, select: { userId: true } },
+    } });
+    return decideAccess(user, actionCode, legacy, { resourceType: 'object', resourceId: objectId,
+      ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.map(a => a.userId) });
+  }
+
+  private async assertAction(user: PlanningActor, objectId: string, actionCode: string, legacy: boolean): Promise<void> {
+    if (!await this.allowedAction(user, objectId, actionCode, legacy)) throw new ForbiddenException('Object action denied');
+  }
+
   private async actualAmount(
     database: Pick<Prisma.TransactionClient, "inventoryMovement">,
     objectId: string,
