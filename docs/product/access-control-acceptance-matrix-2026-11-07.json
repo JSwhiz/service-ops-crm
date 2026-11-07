@@ -18,11 +18,11 @@
   },
   "counts": {
     "подтверждено": 0,
-    "проверено частично": 84,
-    "не проверено": 199,
+    "проверено частично": 85,
+    "не проверено": 198,
     "не реализовано": 8
   },
-  "verificationThisTurn": "Только чтение каталога/исходников/существующего реестра результатов, извлечение статических ссылок, создание и проверка полноты документов. HTTP, БД, браузер, production и тестовые наборы не запускались.",
+  "verificationThisTurn": "Первоначальная сборка матрицы 7 ноября: только чтение и документирование. Последующая реальная локальная приёмка описана отдельно в followUpVerification; production не проверялся и не менялся.",
   "evidence": [
     {
       "id": "E01",
@@ -343,6 +343,38 @@
       "run": "Предыдущий локальный прогон 2026-11-07; см. recorded local evidence. В этом проходе не перезапускался.",
       "observed": "Сводка по собственному подотчёту не показывает чужой; чужой расход не отправляется; подтверждение отдельно от черновика, независимость и ровно один денежный эффект при гонке.",
       "limit": "Это базовые денежные границы, не полный тест личных правил этих действий; конкретная производственная выплата не установлена."
+    },
+    {
+      "id": "E20",
+      "file": "docs/product/access-control-acceptance-pilot-2026-11-08.md",
+      "line": 47,
+      "codes": [
+        "users_access.access",
+        "users_access.manage",
+        "timesheet.amount.edit"
+      ],
+      "kind": "Живой браузер учредителя и получателя + admin HTTP + изолированная БД",
+      "run": "Повторная локальная приёмка 7–8 ноября 2026 на ec3e435/42e5b7c.",
+      "observed": "Выдача selected А через окно учредителя; Б без прямого редактирования; получатель сохраняет 1300; отзыв при открытом черновике 1900 блокирует сохранение без смены cookie, БД сохраняет 1300; default удаляет правило и прямой доступ.",
+      "limit": "Не все роли/области/каналы и размеры; фоновое закрытие popover и повторная выдача в непрерывной сессии не проверены. Независимое финальное ревью не выполнено."
+    },
+    {
+      "id": "E21",
+      "file": "docs/product/access-control-acceptance-pilot-2026-11-08.md",
+      "line": 61,
+      "codes": [
+        "inventory.access",
+        "inventory.read",
+        "inventory.issue_to_one_time_order",
+        "accountability.expenses.create",
+        "accountability.expenses.submit",
+        "accountability.expenses.approve",
+        "accountability.order_summary.read"
+      ],
+      "kind": "Живой браузер разового менеджера + независимый API + изолированная БД",
+      "run": "Повторная локальная приёмка 7–8 ноября 2026 на ec3e435/42e5b7c.",
+      "observed": "Каталог доступен; отгрузка назначенного заказа 2 шт/100 рублей сохранена один раз. Выплата 500 видна отправленной с прогнозом 1500 при остатке 2000; после независимого подтверждения официальный остаток 1500, paidTotal=500, pending=0. Повтор подтверждения 409, audit один.",
+      "limit": "Это тестовые пользователи/деньги, не конкретный серверный случай. Не все личные allow/deny/default и области каждого права. Счёт/приход/состав — подготовка фикстуры; подтверждение через API, не UI учредителя."
     }
   ],
   "legacyAudit": {
@@ -5850,7 +5882,8 @@
       "replacements": [],
       "catalogNote": null,
       "evidenceIds": [
-        "E14"
+        "E14",
+        "E21"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -5906,7 +5939,8 @@
       "replacements": [],
       "catalogNote": null,
       "evidenceIds": [
-        "E14"
+        "E14",
+        "E21"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -5932,8 +5966,9 @@
         "tests": []
       },
       "remainingChecks": "Проверить «Просмотр каталога»: фактический ответ, поля, списки и связанные каналы; выбранные/все, контрольный ресурс; allow/deny/default, текущая сессия и интерфейс получателя (К1–К7).",
-      "browserAsGranteeVerified": false,
-      "productionVerified": false
+      "browserAsGranteeVerified": true,
+      "productionVerified": false,
+      "browserCoverageNote": "Один адресный сценарий получателя E20/E21, не полная приёмка всех областей и К1–К7."
     },
     {
       "code": "inventory.catalog.create",
@@ -6292,7 +6327,8 @@
       "catalogNote": null,
       "evidenceIds": [
         "E07",
-        "E14"
+        "E14",
+        "E21"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -6331,8 +6367,9 @@
         ]
       },
       "remainingChecks": "Проверить «Отгрузка в разовый заказ»: действие API, результат записи и отсутствие эффектов при отказе; назначенные/выбранные/все, контрольный ресурс; allow/deny/default, текущая сессия и интерфейс получателя (К1–К7).",
-      "browserAsGranteeVerified": false,
-      "productionVerified": false
+      "browserAsGranteeVerified": true,
+      "productionVerified": false,
+      "browserCoverageNote": "Один адресный сценарий получателя E20/E21, не полная приёмка всех областей и К1–К7."
     },
     {
       "code": "inventory.return",
@@ -8466,7 +8503,8 @@
       "replacements": [],
       "catalogNote": null,
       "evidenceIds": [
-        "E03"
+        "E03",
+        "E20"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -8489,8 +8527,9 @@
         ]
       },
       "remainingChecks": "Проверить «Корректировка суммы в табеле»: действие API, результат записи и отсутствие эффектов при отказе; свои/назначенные/выбранные/все, контрольный ресурс; allow/deny/default, текущая сессия и интерфейс получателя (К1–К7).",
-      "browserAsGranteeVerified": false,
-      "productionVerified": false
+      "browserAsGranteeVerified": true,
+      "productionVerified": false,
+      "browserCoverageNote": "Один адресный сценарий получателя E20/E21, не полная приёмка всех областей и К1–К7."
     },
     {
       "code": "timesheet.manual_correction",
@@ -8907,7 +8946,7 @@
       "name": "Новый расход",
       "module": "accountability",
       "moduleName": "Подотчёт",
-      "status": "не проверено",
+      "status": "проверено частично",
       "resourceType": "user",
       "scopes": [
         "own",
@@ -8921,8 +8960,10 @@
       "legacyAliases": [],
       "replacements": [],
       "catalogNote": null,
-      "evidenceIds": [],
-      "acceptanceBasis": "В данном проходе не установлены достаточные адресные доказательства выполнения. Ссылки на код и существующие тесты — только кандидаты, не результат проверки.",
+      "evidenceIds": [
+        "E21"
+      ],
+      "acceptanceBasis": "E21: фактическое создание выплаты из браузера тестового менеджера и сверка БД/сводки. Отдельные персональные allow/deny/default и все области ещё не приняты.",
       "sourceRefs": {
         "backend": [
           {
@@ -8934,8 +8975,9 @@
         "tests": []
       },
       "remainingChecks": "Проверить «Новый расход»: действие API, результат записи и отсутствие эффектов при отказе; свои/назначенные/выбранные/все, контрольный ресурс; allow/deny/default, текущая сессия и интерфейс получателя (К1–К7).",
-      "browserAsGranteeVerified": false,
-      "productionVerified": false
+      "browserAsGranteeVerified": true,
+      "productionVerified": false,
+      "browserCoverageNote": "Один адресный сценарий получателя E20/E21, не полная приёмка всех областей и К1–К7."
     },
     {
       "code": "accountability.expenses.update",
@@ -9000,7 +9042,8 @@
       "replacements": [],
       "catalogNote": null,
       "evidenceIds": [
-        "E19"
+        "E19",
+        "E21"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -9018,8 +9061,9 @@
         "tests": []
       },
       "remainingChecks": "Проверить «Отправка расхода»: действие API, результат записи и отсутствие эффектов при отказе; свои/назначенные/выбранные/все, контрольный ресурс; allow/deny/default, текущая сессия и интерфейс получателя (К1–К7).",
-      "browserAsGranteeVerified": false,
-      "productionVerified": false
+      "browserAsGranteeVerified": true,
+      "productionVerified": false,
+      "browserCoverageNote": "Один адресный сценарий получателя E20/E21, не полная приёмка всех областей и К1–К7."
     },
     {
       "code": "accountability.expenses.approve",
@@ -9044,7 +9088,8 @@
       "catalogNote": null,
       "evidenceIds": [
         "E18",
-        "E19"
+        "E19",
+        "E21"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -9248,7 +9293,8 @@
       "replacements": [],
       "catalogNote": null,
       "evidenceIds": [
-        "E19"
+        "E19",
+        "E21"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -9266,8 +9312,9 @@
         "tests": []
       },
       "remainingChecks": "Проверить «Сводка заказа»: фактический ответ, поля, списки и связанные каналы; свои/назначенные/выбранные/все, контрольный ресурс; allow/deny/default, текущая сессия и интерфейс получателя (К1–К7).",
-      "browserAsGranteeVerified": false,
-      "productionVerified": false
+      "browserAsGranteeVerified": true,
+      "productionVerified": false,
+      "browserCoverageNote": "Один адресный сценарий получателя E20/E21, не полная приёмка всех областей и К1–К7."
     },
     {
       "code": "user_absences.access",
@@ -13093,7 +13140,8 @@
       "replacements": [],
       "catalogNote": null,
       "evidenceIds": [
-        "E01"
+        "E01",
+        "E20"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -13132,7 +13180,8 @@
       "catalogNote": null,
       "evidenceIds": [
         "E01",
-        "E18"
+        "E18",
+        "E20"
       ],
       "acceptanceBasis": "Есть ограниченные адресные доказательства предыдущих прогонов. Полный набор критериев не закрыт.",
       "sourceRefs": {
@@ -13247,6 +13296,21 @@
       "browserAsGranteeVerified": false,
       "productionVerified": false
     }
-  ]
+  ],
+  "followUpVerification": {
+    "date": "2026-11-08",
+    "report": "docs/product/access-control-acceptance-pilot-2026-11-08.md",
+    "applicationCommit": "ec3e435",
+    "matrixCheckpoint": "42e5b7c",
+    "backendIntegrationTests": 36,
+    "frontendChecks": 16,
+    "backendTypecheck": "passed",
+    "frontendTypecheck": "passed",
+    "browserEvidenceIds": [
+      "E20",
+      "E21"
+    ],
+    "fullyAcceptedActions": 0,
+    "productionTouched": false
+  }
 }
-

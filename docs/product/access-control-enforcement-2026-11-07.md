@@ -2,7 +2,7 @@
 
 ## Per-permission acceptance matrix
 
-The [named acceptance matrix](access-control-acceptance-matrix-2026-11-07.md) and its [machine-readable companion](access-control-acceptance-matrix-2026-11-07.json) enumerate all 291 catalog actions: 0 fully confirmed, 84 partially checked, 199 not checked, and 8 unsupported standalone operations. These are permission-level statuses, not test counts. The matrix was assembled from source inspection and the recorded evidence below, without rerunning suites, changing user access, or touching production. The broad planned rows below are not a claim of full catalog acceptance.
+The [named acceptance matrix](access-control-acceptance-matrix-2026-11-07.md) and its [machine-readable companion](access-control-acceptance-matrix-2026-11-07.json) enumerate all 291 catalog actions: 0 fully confirmed, 85 partially checked, 198 not checked, and 8 unsupported standalone operations. These are permission-level statuses, not test counts. The matrix was assembled from source inspection and the recorded evidence below, without rerunning suites, changing user access, or touching production. The broad planned rows below are not a claim of full catalog acceptance.
 
 Status: implementation and local acceptance in progress. The rows below remain the planned scope; only the individually recorded evidence at the end is confirmed. This is a bounded traceability registry for the findings in [the 2026-11-06 authorization inventory](access-control-inventory-2026-11-06.md), not a whole-codebase graph or a claim that policy integration is complete. Existing source files are evidence pointers, not proof of enforcement. The implementation checkpoint `6c02501` is preserved.
 
@@ -99,3 +99,7 @@ Local browser observation under the existing founder session confirmed that the 
 - The acceptance rows remain a traceability checklist; only the specific cases in this evidence are closed. The entire registered permission catalog and every channel/viewport have not been exhaustively certified.
 - The unidentified real production payout/expense discrepancy is not reproduced or certified fixed by this local enforcement pass.
 - No push, production migration, deployment or production permission changes are included in this evidence.
+
+## Follow-up local acceptance — 2026-11-08
+
+The [bounded browser/API/database pilot report](access-control-acceptance-pilot-2026-11-08.md) records the new 36-test integration rerun, 16 frontend checks, both typechecks, founder selected grant and grantee edit/revoke/default, assigned-order shipment and simulated payout/independent approval. No application changes, production access, push or deployment were made in that follow-up. Its open UI/session findings and untested scopes remain explicit; it does not certify the full catalog.
