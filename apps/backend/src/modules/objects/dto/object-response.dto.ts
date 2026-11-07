@@ -71,6 +71,8 @@ export class ObjectResponseDto {
     canManageCompensationRates: boolean;
     canReadMaterials?: boolean;
     canManageMaterials?: boolean;
+    canReadContacts?: boolean;
+    canManageContacts?: boolean;
     canEditMonthlySalary: boolean;
     canChangeStatus: boolean;
     canFreeze?: boolean;

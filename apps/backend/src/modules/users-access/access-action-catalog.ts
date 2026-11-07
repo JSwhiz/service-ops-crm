@@ -262,7 +262,7 @@ group("timesheet", "Табель объектов", "object", [
   ["overview", "Сводный табель"],
   ["export", "Выгрузка табеля"],
   ["attendance.edit", "Посещаемость", "timesheet.attendance.edit"],
-  ["amount.edit", "Денежные ячейки", "timesheet.amount.edit"],
+  ["amount.edit", "Корректировка суммы в табеле", "timesheet.amount.edit"],
   ["manual_correction", "Ручная корректировка", "timesheet.manual_correction"],
   ["exceptions.create", "Заявка на исключение"],
   ["corrections.read", "История исправлений"],
@@ -459,7 +459,7 @@ const unsupportedStandaloneActions: Readonly<Record<string, string>> = {
   "tasks.status":
     "Прежний общий запрос статуса не изменяет задачу. Используйте отдельные действия отправки результата, подтверждения, возврата, повторного открытия и отмены задачи.",
   "timesheet.manual_correction":
-    "Самостоятельное разрешение ручной корректировки не подключено: изменение проверяется действием «Денежные ячейки». Исторические ограничения и независимое согласование сохраняются; отдельное управление требует согласования канонического действия.",
+    "Устаревшее отдельное разрешение: изменение проверяется каноническим действием «Корректировка суммы в табеле» (timesheet.amount.edit). Сохранённые коды и история не меняются; запрет timesheet.manual_correction продолжает ограничивать корректировки. Исторические ограничения и независимое согласование сохраняются.",
 };
 
 // Target-scoped warehouse actions use their target identity, never inventory item identity.

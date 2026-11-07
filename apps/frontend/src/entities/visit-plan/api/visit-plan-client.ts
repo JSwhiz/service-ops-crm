@@ -27,7 +27,7 @@ export interface PlanHistory {
 }
 export interface VisitPlanDay {
   plan: VisitPlan | null;
-  capabilities: { canManage: boolean };
+  capabilities: { canManage: boolean; canManageVisits?: boolean; canManageReports?: boolean };
 }
 export const getVisitPlan = (
   date: string,

@@ -525,7 +525,7 @@ export function buildLegacyAccessProjection(
       `timesheet.${code}`,
       true,
       "hasWideTimesheetAccess_or_object_scope",
-      wideTimesheets ? ["all"] : ["own", "assigned"],
+      wideTimesheets ? ["all"] : ["assigned"],
       ["visible_object", "historical_rows_preserved"],
     );
   for (const code of ["amount.edit", "manual_correction"])
@@ -544,7 +544,7 @@ export function buildLegacyAccessProjection(
     "timesheet.exceptions.create",
     true,
     "visible_object_exception_request",
-    wideTimesheets ? ["all"] : ["own", "assigned"],
+    wideTimesheets ? ["all"] : ["assigned"],
     ["independent_approval", "period_and_lifecycle_rules"],
   );
   const accountability = buildAccountabilityGlobalCapabilities(params);

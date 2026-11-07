@@ -42,6 +42,7 @@ export interface InventoryItem {
   };
   capabilities: {
     canEditCatalog: boolean;
+    canRestore?: boolean;
     canDelete: boolean;
     canCreateMovement: boolean;
     canCreateReceipt: boolean;

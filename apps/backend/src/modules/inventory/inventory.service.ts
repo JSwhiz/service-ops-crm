@@ -3069,6 +3069,7 @@ export class InventoryService {
       capabilities: {
         canEditCatalog: capabilities.canManageInventoryCatalog,
         canDelete: capabilities.canDeleteInventoryItem,
+        canRestore: !item.isActive && !!item.deletedAt && (capabilities.canRestoreInventoryItem ?? false),
         canCreateMovement: capabilities.canCreateInventoryMovement,
         canCreateReceipt: capabilities.canCreateInventoryReceipt,
         canIssueToObject: capabilities.canIssueInventoryToObject,

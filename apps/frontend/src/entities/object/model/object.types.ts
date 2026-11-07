@@ -117,6 +117,13 @@ export interface ServiceObject {
     canManageCompensationRates?: boolean;
     canEditMonthlySalary: boolean;
     canChangeStatus: boolean;
+    canFreeze?: boolean;
+    canArchive?: boolean;
+    canRestore?: boolean;
+    canReadContacts?: boolean;
+    canManageContacts?: boolean;
+    canReadMaterials?: boolean;
+    canManageMaterials?: boolean;
     canManageResponsibles: boolean;
     canManageManagers: boolean;
     canCreateTask: boolean;

@@ -1253,6 +1253,7 @@ export class EquipmentService {
         canReturn: decideAccess(currentUser, 'equipment.return', capabilities.canReturnEquipment || delegatedFor('equipment.return'), equipmentContext(unit)),
         canMove: decideAccess(currentUser, 'equipment.move', capabilities.canMoveEquipment || delegatedFor('equipment.move'), equipmentContext(unit)),
         canMarkBroken: decideAccess(currentUser, 'equipment.broken', capabilities.canMarkEquipmentBroken || delegatedFor('equipment.broken'), equipmentContext(unit)),
+        canMarkLost: decideAccess(currentUser, 'equipment.lost', capabilities.canMarkEquipmentBroken || delegatedFor('equipment.lost'), equipmentContext(unit)),
         canSendToRepair: decideAccess(currentUser, 'equipment.repair', capabilities.canSendEquipmentToRepair || delegatedFor('equipment.repair'), equipmentContext(unit)),
         canReturnFromRepair: decideAccess(currentUser, 'equipment.repair_return', capabilities.canReturnEquipmentFromRepair, equipmentContext(unit)),
         canWriteoff: decideAccess(currentUser, 'equipment.writeoff', capabilities.canWriteoffEquipment, equipmentContext(unit)),

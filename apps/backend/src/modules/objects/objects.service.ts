@@ -47,6 +47,7 @@ import {
   LEADERSHIP_OBJECT_ROLE_CODES,
 } from './utils/object-access.util';
 import { buildObjectCapabilities } from './utils/object-capabilities.util';
+import { redactObjectFinancialPayload } from './utils/object-financial-redaction.util';
 import { annualSeason, baseCompensation, moscowDateKey, validAnnualDate } from './utils/object-season.util';
 
 interface CurrentAuthUser {
@@ -378,6 +379,18 @@ export class ObjectsService {
       roleCodes: this.getRoleCodes(currentUser),
       object: visibleOperationalObject,
     });
+    const financialContext = {
+      resourceType: 'object', resourceId: id, ownerUserId: visibleOperationalObject.createdByUserId,
+      assignedUserIds: visibleOperationalObject.assignments.map(assignment => assignment.userId),
+    };
+    const legacyFinancialRead = canViewObjectCompensationRates({
+      currentUserId: currentUser.id, roleCodes: this.getRoleCodes(currentUser), object: visibleOperationalObject,
+    });
+    const canViewBudget = decideAccess(currentUser, 'objects.budget.read', legacyFinancialRead, financialContext);
+    const canViewContract = decideAccess(currentUser, 'objects.contract_amount.read',
+      this.getRoleCodes(currentUser).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role)), financialContext);
+    const canViewMaterials = decideAccess(currentUser, 'objects.materials.read', true, financialContext);
+    const canViewContacts = decideAccess(currentUser, 'objects.contacts.read', true, financialContext);
     const items = await this.auditService.listObjectAuditLogs(id);
 
     return items.map((item) => ({
@@ -390,8 +403,14 @@ export class ObjectsService {
         login: item.actor.login,
         fullName: item.actor.fullName,
       },
-      payload: item.payload && typeof item.payload === 'object'
-        ? this.redactObjectAuditPayload(item.payload as Record<string, unknown>, canViewRates)
+      payload: item.payload && typeof item.payload === 'object' &&
+          (canViewContacts || !/^object\.contacts?\./.test(item.actionCode)) &&
+          (canViewRates || !item.actionCode.startsWith('compensation.version.')) &&
+          (canViewBudget || !item.actionCode.startsWith('compensation.team_fund.')) &&
+          ((canViewRates && canViewBudget) || !item.actionCode.startsWith('compensation.') ||
+            item.actionCode.startsWith('compensation.version.') || item.actionCode.startsWith('compensation.team_fund.')) &&
+          this.objectAuditEmployeesReadable(currentUser, item.payload)
+        ? redactObjectFinancialPayload(item.payload, {rates: canViewRates, budget: canViewBudget, contract: canViewContract, materials: canViewMaterials, contacts: canViewContacts}) as Record<string, unknown>
         : null,
     }));
   }
@@ -1198,16 +1217,17 @@ export class ObjectsService {
   ): Promise<ApprovalRequestResponseDto> {
     const existing = await this.getObjectById(currentUser, id);
 
-    if (!await this.canObjectAction(currentUser, id, 'objects.status', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) {
+    const statusAction = existing.status === 'archived' ? 'objects.restore'
+      : payload.status === 'frozen' ? 'objects.freeze'
+        : payload.status === 'archived' ? 'objects.archive' : 'objects.status';
+    if (!await this.canObjectAction(currentUser, id, statusAction, canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) {
       throw new ForbiddenException('Object status changing denied');
     }
 
     if (existing.status === payload.status) {
       throw new BadRequestException('Object already has requested status');
     }
-    if (payload.status === 'frozen' && !await this.canObjectAction(currentUser, id, 'objects.freeze', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) throw new ForbiddenException('Object freeze denied');
-    if (payload.status === 'archived' && !await this.canObjectAction(currentUser, id, 'objects.archive', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) throw new ForbiddenException('Object archive denied');
-    if (existing.status === 'archived' && !await this.canObjectAction(currentUser, id, 'objects.restore', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) throw new ForbiddenException('Object restore denied');
+    if (existing.status === 'archived' && payload.status === 'frozen' && !await this.canObjectAction(currentUser, id, 'objects.freeze', canManageObjectResponsibles(this.getRoleCodes(currentUser)), 'status')) throw new ForbiddenException('Object freeze denied');
 
     const pendingRequest = await this.prisma.approvalRequest.findFirst({
       where: {
@@ -1698,35 +1718,6 @@ export class ObjectsService {
     } as Prisma.InputJsonObject;
   }
 
-  private redactObjectAuditPayload(
-    payload: Record<string, unknown>,
-    canViewRates: boolean,
-  ): Record<string, unknown> {
-    if (canViewRates) return payload;
-
-    const rateFields = new Set([
-      'paymentType', 'dailyRate', 'monthlySalary',
-      'paymentScheduleCode', 'paymentScheduleWeekdays', 'paymentScheduleCycleStartDate',
-      'summerPaymentType', 'summerDailyRate', 'summerMonthlySalary',
-      'summerScheduleCode', 'summerScheduleWeekdays', 'summerScheduleCycleStartDate',
-      'winterPaymentType', 'winterDailyRate', 'winterMonthlySalary',
-      'winterScheduleCode', 'winterScheduleWeekdays', 'winterScheduleCycleStartDate',
-      'baseProfile', 'baseCompensationProfile', 'ratePolicySnapshot', 'dailyRateSnapshot',
-      'monthlyBudget', 'planAmount', 'actualAmount', 'excessAmount', 'amount',
-    ]);
-    const sanitized = Object.fromEntries(
-      Object.entries(payload).filter(([field]) => !rateFields.has(field)),
-    );
-    const changes = payload.changes;
-    if (changes && typeof changes === 'object' && !Array.isArray(changes)) {
-      sanitized.changes = Object.fromEntries(
-        Object.entries(changes as Record<string, unknown>)
-          .filter(([field]) => !rateFields.has(field)),
-      );
-    }
-    return sanitized;
-  }
-
   private async getAssignableResponsibleUser(userId: string): Promise<{
     id: string;
     login: string;
@@ -1967,6 +1958,17 @@ export class ObjectsService {
     };
   }
 
+  private objectAuditEmployeesReadable(user: CurrentAuthUser, value: unknown): boolean {
+    if (Array.isArray(value)) return value.every(item => this.objectAuditEmployeesReadable(user, item));
+    if (value === null || typeof value !== 'object') return true;
+    return Object.entries(value).every(([key, item]) => {
+      const ids = ['employeeId', 'replacementEmployeeId', 'substituteEmployeeId'].includes(key)
+        ? [item] : key === 'employeeIds' && Array.isArray(item) ? item : [];
+      return ids.every(id => typeof id !== 'string' || decideAccess(user, 'employees.view', true, {resourceType: 'employee', resourceId: id})) &&
+        this.objectAuditEmployeesReadable(user, item);
+    });
+  }
+
   private mapObject(
     item: ObjectView,
     currentUser: CurrentAuthUser,
@@ -2050,7 +2052,9 @@ export class ObjectsService {
             fullName: responsible.fullName,
           }
         : null,
-      employees: (item.employeeAssignments ?? []).map((assignment) => ({
+      employees: (capabilities.canViewEmployees ? item.employeeAssignments ?? [] : []).filter(assignment =>
+        decideAccess(currentUser, 'employees.view', true, {resourceType: 'employee', resourceId: assignment.employee.id}),
+      ).map((assignment) => ({
         id: assignment.employee.id,
         fullName: assignment.employee.fullName,
         position: assignment.employee.position,

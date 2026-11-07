@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { getUserAccess, previewUserAccess, saveUserAccess } from '@/entities/user-access/api/user-access-client';
 import type { AccessAction, AccessCatalog, AccessChange, AccessDetail, AccessPayload, AccessPreview } from '@/entities/user-access/model/user-access.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import { getUserRoleLabel } from '@/shared/lib/display-name';
 import { Alert, Button, EmptyState, Field, LoadingState } from '@/shared/ui/foundation';
 import { Dialog } from '@/shared/ui/overlays/overlays';
@@ -27,6 +29,8 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
 }): React.JSX.Element {
   const router = useRouter();
   const { refreshUser, capabilitiesRefreshError } = useAuth();
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [detail, setDetail] = useState<AccessDetail | null>(null);
   const [changes, setChanges] = useState<Record<string, AccessChange>>({});
   const [reason, setReason] = useState('');
@@ -65,12 +69,13 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
       .then((result) => {
         if (!active) return;
         setDetail(result); setReview(null); setConflict(false);
+        setLoadedAccessRevision(accessRevision);
         if (refreshKey) setNotice('Серверные данные обновлены. Черновик сохранён для сравнения с текущими правами. Проверьте черновик и повторите просмотр изменений.');
       })
       .catch((cause: unknown) => { if (active) setError(accessError(cause)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; controller.abort(); };
-  }, [userId, refreshKey]);
+  }, [userId, refreshKey, accessRevision]);
 
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
   useEffect(() => {
@@ -163,7 +168,7 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
     setReview(null); setLoading(true); setRefreshKey((value) => value + 1);
   };
   const requestPreview = async (): Promise<void> => {
-    if (!detail || loading || operation.current) return;
+    if (!detail || loading || operation.current || loadedAccessRevision !== accessRevision) return;
     setError(''); setReasonError(''); setInvalidAction(''); setTab('rights');
     if (!reason.trim()) { setReasonError('Укажите причину изменения прав.'); reasonRef.current?.focus(); return; }
     const edits = Object.values(changes);
@@ -185,7 +190,7 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
     finally { operation.current = false; if (mounted.current) setBusy(false); }
   };
   const save = async (): Promise<void> => {
-    if (!review || !detail || loading || operation.current) return;
+    if (!review || !detail || loading || operation.current || loadedAccessRevision !== accessRevision) return;
     if (review.result.expectedVersion !== detail.accessVersion || !Number.isFinite(Date.parse(review.result.expiresAt)) || Date.parse(review.result.expiresAt) <= Date.now()) { setReview(null); setError('Результат проверки устарел. Повторите просмотр изменений.'); return; }
     operation.current = true; setBusy(true); setError('');
     try {
@@ -201,6 +206,8 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
   };
 
   return <>
+    {loadedAccessRevision !== accessRevision ? <div role="status">{error || 'Обновляем доступ к сведениям пользователя…'}{error ? <Button disabled={busy || loading} onClick={reloadDetail}>Повторить проверку доступа</Button> : null}</div> : null}
+    <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
     <Dialog open title={detail?.user.fullName || 'Пользователь и доступы'} size="wide" busy={busy}
       description={detail ? `${detail.user.login} · ${detail.user.isActive ? 'Активен' : 'Неактивен'} · ${detail.user.roleCodes.map(getUserRoleLabel).join(', ')}` : 'Загрузка данных пользователя…'}
       onOpenChange={(open) => { if (!open) void allowExit().then((allowed) => { if (allowed) onClose(); }); }}
@@ -298,5 +305,6 @@ export function UserAccessDialog({ userId, catalog, onClose, onSaved }: {
       </div>
     </Dialog>
     {confirmation}
+    </AccessSnapshotBoundary>
   </>;
 }

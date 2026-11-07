@@ -90,6 +90,7 @@ export interface OneTimeOrderItem {
     canAttachFiles: boolean;
     canCreateTask: boolean;
     canEditReview: boolean;
+    canDeleteReview?: boolean;
     canCopy: boolean;
     canViewCalendar: boolean;
     canManageOwnAvailability: boolean;

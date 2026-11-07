@@ -111,6 +111,7 @@ export interface OneTimeOrderCapabilities {
   canAttachFiles: boolean;
   canCreateTask: boolean;
   canEditReview: boolean;
+  canDeleteReview?: boolean;
   canCopy: boolean;
   canViewCalendar: boolean;
   canManageOwnAvailability: boolean;
@@ -198,6 +199,10 @@ export function buildOneTimeOrderCapabilities(params: {
       params.permissionCodes,
       ONE_TIME_ORDER_REVIEW_EDIT_PERMISSION,
     ),
+    canDeleteReview: hasOneTimeOrderPermission(
+      params.permissionCodes,
+      ONE_TIME_ORDER_REVIEW_EDIT_PERMISSION,
+    ),
     canCopy: canCreateOneTimeOrder(
       params.roleCodes,
       params.permissionCodes,
@@ -221,6 +226,7 @@ export function buildOneTimeOrderCapabilities(params: {
     canManageSpecification: 'one_time_orders.specification.execute', canEditSpecification: 'one_time_orders.specification.manage',
     canUploadPhotos: 'one_time_orders.photos.create', canDeletePhotos: 'one_time_orders.photos.delete', canRestorePhotos: 'one_time_orders.photos.restore',
     canComment: 'one_time_orders.comments.create', canEditReview: 'one_time_orders.review.edit', canCopy: 'one_time_orders.copy',
+    canDeleteReview: 'one_time_orders.review.delete',
   };
   for (const [key, action] of Object.entries(mapping)) {
     const capability = key as keyof typeof legacy;

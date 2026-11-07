@@ -24,6 +24,9 @@ import { CompensationExplanationPanel } from '@/features/object-compensation/ui/
 import { TimesheetOverviewGrid } from '@/features/timesheet-overview/ui/timesheet-overview-grid';
 import { getOverviewRefreshState, type OverviewSnapshot } from '@/features/timesheet-overview/model/overview-refresh';
 import { ApiError } from '@/shared/api/fetcher';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 import { Button, Surface } from '@/shared/ui/foundation';
 import { MonthPeriodPicker } from '@/shared/ui/month-period-picker/month-period-picker';
 import {
@@ -59,6 +62,9 @@ function saveBlob(blob: Blob, fileName: string): void {
 }
 
 export default function TimesheetPage(): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [detailAccessRevision, setDetailAccessRevision] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -82,7 +88,8 @@ export default function TimesheetPage(): React.JSX.Element {
   const objectReferenceRequestRef = useRef(0);
   const employeeReferenceRequestRef = useRef(0);
   const refreshLockRef = useRef(false);
-  const { overview, mutationsBlocked } = getOverviewRefreshState(overviewSnapshot, overviewScope, refreshVersion, loading);
+  const { overview, mutationsBlocked: refreshBlocked } = getOverviewRefreshState(overviewSnapshot, overviewScope, refreshVersion, loading);
+  const mutationsBlocked = refreshBlocked || loadedAccessRevision !== accessRevision;
 
   const replaceFilters = (updates: Record<string, string | null>): void => {
     const next = new URLSearchParams(searchParams.toString());
@@ -109,6 +116,7 @@ export default function TimesheetPage(): React.JSX.Element {
       .then((result) => {
         if (requestId === overviewRequestRef.current) {
           setOverviewSnapshot({ data: result, scope: overviewScope, revision: refreshVersion });
+          setLoadedAccessRevision(accessRevision);
           refreshLockRef.current = false;
         }
       })
@@ -121,7 +129,7 @@ export default function TimesheetPage(): React.JSX.Element {
         if (requestId === overviewRequestRef.current) setLoading(false);
       });
     return () => { if (overviewRequestRef.current === requestId) overviewRequestRef.current += 1; };
-  }, [employeeId, month, objectId, overviewScope, refreshVersion, year]);
+  }, [employeeId, month, objectId, overviewScope, refreshVersion, year, accessRevision]);
 
   useEffect(() => {
     const requestId = ++detailRequestRef.current;
@@ -142,6 +150,7 @@ export default function TimesheetPage(): React.JSX.Element {
         if (requestId !== detailRequestRef.current) return;
         setObjectTimesheet(timesheet);
         setCorrections(nextCorrections);
+        setDetailAccessRevision(accessRevision);
       })
       .catch(() => {
         if (requestId === detailRequestRef.current) {
@@ -152,7 +161,8 @@ export default function TimesheetPage(): React.JSX.Element {
       .finally(() => {
         if (requestId === detailRequestRef.current) setDetailLoading(false);
       });
-  }, [month, objectId, refreshVersion, year]);
+    return () => { if (detailRequestRef.current === requestId) detailRequestRef.current += 1; };
+  }, [month, objectId, refreshVersion, year, accessRevision]);
 
   useEffect(() => {
     const requestId = ++objectReferenceRequestRef.current;
@@ -169,7 +179,8 @@ export default function TimesheetPage(): React.JSX.Element {
       .catch(() => {
         if (requestId === objectReferenceRequestRef.current) setSelectedObject(null);
       });
-  }, [objectId]);
+    return () => { if (objectReferenceRequestRef.current === requestId) objectReferenceRequestRef.current += 1; };
+  }, [objectId, accessRevision]);
 
   useEffect(() => {
     const requestId = ++employeeReferenceRequestRef.current;
@@ -186,7 +197,8 @@ export default function TimesheetPage(): React.JSX.Element {
       .catch(() => {
         if (requestId === employeeReferenceRequestRef.current) setSelectedEmployee(null);
       });
-  }, [employeeId, month, objectId, year]);
+    return () => { if (employeeReferenceRequestRef.current === requestId) employeeReferenceRequestRef.current += 1; };
+  }, [employeeId, month, objectId, year, accessRevision]);
 
   const directChange = async (payload: TimesheetCellMutation): Promise<'pending' | void> => {
     if (mutationsBlocked || refreshLockRef.current) throw new ApiError('Refresh required', 409, 'TIMESHEET_REFRESH_REQUIRED');
@@ -256,10 +268,11 @@ export default function TimesheetPage(): React.JSX.Element {
           size="md"
           disabled={mutationsBlocked || isExporting || !overview?.capabilities.canExport}
           onClick={() => {
+            const generation = getAccessGeneration();
             setIsExporting(true);
             setError(null);
             void downloadTimesheetOverviewExcel({ year, month, objectId: objectId || undefined, employeeId: employeeId || undefined })
-              .then((blob) => saveBlob(blob, `timesheet-overview-${year}-${String(month).padStart(2, '0')}.xlsx`))
+              .then((blob) => { if (isAccessGenerationCurrent(generation)) saveBlob(blob, `timesheet-overview-${year}-${String(month).padStart(2, '0')}.xlsx`); })
               .catch(() => setError('Не удалось скачать Excel.'))
               .finally(() => setIsExporting(false));
           }}
@@ -271,6 +284,8 @@ export default function TimesheetPage(): React.JSX.Element {
 
       {loading && !overview ? <Surface padding="md">Загрузка табеля...</Surface> : null}
       {error ? <Surface padding="md" className="page-error">{error} <Button disabled={loading} onClick={refreshOverview}>Обновить табель</Button></Surface> : null}
+      {loadedAccessRevision !== accessRevision && !error ? <Surface padding="md" role="status">Проверяем доступ к табелю…</Surface> : null}
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
       {overview ? (
         <TimesheetOverviewGrid
           key={`${year}:${month}:${objectId}:${employeeId}`}
@@ -284,6 +299,7 @@ export default function TimesheetPage(): React.JSX.Element {
           onOpenDetails={openDetails}
         />
       ) : null}
+      </AccessSnapshotBoundary>
 
       {objectId ? (
         <section className="timesheet-object-detail">
@@ -297,7 +313,7 @@ export default function TimesheetPage(): React.JSX.Element {
           </div>
           {detailLoading ? <Surface padding="md">Загрузка детализации...</Surface> : null}
           {detailError ? <Surface padding="md" className="page-error">{detailError}</Surface> : null}
-          {!detailLoading && !loading && !error && objectTimesheet && overview ? (
+          {!detailLoading && !loading && !error && detailAccessRevision === accessRevision && loadedAccessRevision === accessRevision && objectTimesheet && overview ? (
             <>
               <div className={timesheetStyles.timesheetObjectInspector} aria-label="Сводка выбранного объекта">
                 <div className={timesheetStyles.timesheetObjectInspectorIdentity}>

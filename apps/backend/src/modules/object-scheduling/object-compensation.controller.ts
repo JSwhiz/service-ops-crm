@@ -16,5 +16,5 @@ export class ObjectCompensationController {
   @Post('team-funds') fund(@CurrentUser() user: SchedulingUser, @Param('objectId') id: string, @Body() input: CreateTeamFundDto) { return this.compensation.teamFund(user, id, input); }
   @Post('adjustments') adjustment(@CurrentUser() user: SchedulingUser, @Param('objectId') id: string, @Body() input: CreateCompensationAdjustmentDto) { return this.scheduling.adjustCompensation(user, id, input); }
   @Post('adjustments/:id/correct') correctExtra(@CurrentUser() user: SchedulingUser, @Param('objectId') objectId: string, @Param('id') id: string, @Body() input: CorrectExtraWorkDto) { return this.compensation.correctExtraWork(user, objectId, id, input); }
-  @Get('explanation') explanation(@CurrentUser() user: SchedulingUser, @Param('objectId') id: string, @Query() query: CompensationMonthDto) { return this.compensation.explanation(user, id, query.year, query.month); }
+  @Get('explanation') explanation(@CurrentUser() user: SchedulingUser, @Param('objectId') id: string, @Query() query: CompensationMonthDto) { return this.compensation.explanation(user, id, query.year, query.month, query.employeeId); }
 }

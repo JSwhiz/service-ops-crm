@@ -51,7 +51,8 @@ export function EquipmentMovementPanel({
       case 'return_to_storage': return unit.capabilities.canReturn;
       case 'send_to_repair': return unit.capabilities.canSendToRepair;
       case 'return_from_repair': return unit.capabilities.canReturnFromRepair;
-      case 'mark_broken': case 'mark_lost': return unit.capabilities.canMarkBroken;
+      case 'mark_broken': return unit.capabilities.canMarkBroken;
+      case 'mark_lost': return unit.capabilities.canMarkLost ?? unit.capabilities.canMarkBroken;
       case 'writeoff': return unit.capabilities.canWriteoff;
     }
   });
@@ -65,6 +66,7 @@ export function EquipmentMovementPanel({
           style={{ display: 'grid', gap: 12 }}
           onSubmit={(event) => {
             event.preventDefault();
+            if (isSaving || !canSubmit || !allowedTypes.some((type) => type === movementType)) return;
             setIsSaving(true);
             const payload: CreateEquipmentMovementPayload = {
               movementType,

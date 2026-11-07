@@ -65,7 +65,11 @@ export class RubberMatAggregateService {
     return this.prisma.$transaction(async (tx) => {
       await this.ready(tx);
       const rows = await tx.$queryRaw<Size[]>`SELECT * FROM "RubberMatSize" ORDER BY "lengthCm", "widthCm", id`;
-      return { items: rows.map((s) => this.present(s)), canManage: decideAccess(user, 'mats.catalog.create', hasWideObjectAccess(this.roles(user))) };
+      return {
+        items: rows.map((s) => this.present(s)),
+        canManage: decideAccess(user, 'mats.catalog.create', hasWideObjectAccess(this.roles(user))),
+        canEditCost: decideAccess(user, 'mats.cost.edit', hasWideObjectAccess(this.roles(user))),
+      };
     });
   }
   async registry(user: MatActor, query: ListRubberMatsQueryDto) {
@@ -97,6 +101,8 @@ export class RubberMatAggregateService {
   }
   async createSize(user: MatActor, payload: CreateRubberMatSizeDto) {
     this.manager(user, 'mats.catalog.create');
+    // Creating a size must not bypass a denied price-edit action.
+    if (payload.replacementCost != null) this.manager(user, 'mats.cost.edit');
     return this.prisma.$transaction(async (tx) => {
       await this.ready(tx);
       const id = randomUUID();

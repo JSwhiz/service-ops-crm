@@ -1,6 +1,7 @@
 'use client';
 
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useContext, useLayoutEffect, useState, type RefObject } from 'react';
+import { AccessSnapshotBlockedContext } from '@/shared/auth/access-snapshot-boundary';
 import { getFloatingPosition, type FloatingPosition } from './floating-position';
 
 export function useFloatingPosition(
@@ -8,10 +9,11 @@ export function useFloatingPosition(
   anchorRef: RefObject<HTMLElement | null>,
   floatingRef: RefObject<HTMLElement | null>,
 ): FloatingPosition | null {
+  const accessBlocked = useContext(AccessSnapshotBlockedContext);
   const [position, setPosition] = useState<FloatingPosition | null>(null);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open || accessBlocked) return;
     const floating = floatingRef.current;
     if (!floating) return;
     // The dialog's DOM still owns focus, while the top layer escapes scroll clipping.
@@ -38,7 +40,7 @@ export function useFloatingPosition(
       window.removeEventListener('scroll', update, true);
       if (nativePopover && floating.matches(':popover-open')) floating.hidePopover();
     };
-  }, [anchorRef, floatingRef, open]);
+  }, [anchorRef, floatingRef, open, accessBlocked]);
 
-  return position;
+  return accessBlocked ? null : position;
 }

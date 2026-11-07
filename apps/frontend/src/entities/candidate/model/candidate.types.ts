@@ -74,6 +74,8 @@ export interface CandidateCard extends CandidateListItem {
   responses: CandidateResponse[];
   capabilities: {
     canManage: boolean;
+    canChangeStatus?: boolean;
+    canManageAssignments?: boolean;
     canRespond: boolean;
     canArchive: boolean;
     canRestore: boolean;

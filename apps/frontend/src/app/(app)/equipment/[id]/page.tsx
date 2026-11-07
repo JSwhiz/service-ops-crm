@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import {
   createEquipmentMovement,
@@ -48,6 +50,9 @@ export default function EquipmentDetailPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const router = useRouter();
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [accessRetry, setAccessRetry] = useState(0);
   const [unit, setUnit] = useState<EquipmentUnit | null>(null);
   const [movements, setMovements] = useState<EquipmentMovement[]>([]);
   const [objects, setObjects] = useState<ServiceObject[]>([]);
@@ -58,32 +63,33 @@ export default function EquipmentDetailPage({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const loadAll = async (id: string, cancelled = false): Promise<void> => {
+  const loadAll = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     const loadedUnit = await getEquipmentUnitById(id);
 
-    if (cancelled) {
+    if (isCancelled()) {
       return;
     }
 
     setUnit(loadedUnit);
 
-    const requests: Array<Promise<void>> = [
+    const requests: Array<Promise<void>> = loadedUnit.capabilities.canViewHistory ? [
       listEquipmentMovements(id).then((response) => {
-        if (!cancelled) {
+        if (!isCancelled()) {
           setMovements(response);
         }
       }),
-    ];
+    ] : [];
+    if (!loadedUnit.capabilities.canViewHistory && !isCancelled()) setMovements([]);
 
-    if (loadedUnit.capabilities.canCreateMovement) {
+    if (loadedUnit.capabilities.canAssignToObject) {
       requests.push(
         listObjects().then((response) => {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setObjects(response);
           }
         }),
       );
-    } else if (!cancelled) {
+    } else if (!isCancelled()) {
       setObjects([]);
     }
     if (loadedUnit.capabilities.canAssignToOneTimeOrder) {
@@ -92,27 +98,27 @@ export default function EquipmentDetailPage({
           sortBy: 'title',
           sortDirection: 'asc',
         }).then((response) => {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setOrders(response.items);
           }
         }));
-    } else if (!cancelled) {
+    } else if (!isCancelled()) {
       setOrders([]);
     }
 
     await Promise.all(requests);
+    if (!isCancelled()) setLoadedAccessRevision(accessRevision);
   };
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async (): Promise<void> => {
-      setIsLoading(true);
       setError(null);
 
       try {
         const resolved = await params;
-        await loadAll(resolved.id, cancelled);
+        await loadAll(resolved.id, () => cancelled);
       } catch (loadError) {
         if (!cancelled) {
           setError(getErrorMessage(loadError, 'Не удалось загрузить оборудование.'));
@@ -129,11 +135,14 @@ export default function EquipmentDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [params, accessRevision, accessRetry]);
 
   return (
     <div className={`ui-page ${inventoryStyles.equipmentWorkspace}`}>
       <BackLink href="/equipment">Оборудование</BackLink>
+      {loadedAccessRevision !== accessRevision && !error ? <LoadingState label="Проверка доступа к оборудованию…" /> : null}
+      {loadedAccessRevision !== accessRevision && error ? <Alert tone="danger" action={<Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button>}>{error}</Alert> : null}
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
 
       {isLoading ? (
         <LoadingState label="Загружаем оборудование…" />
@@ -278,6 +287,7 @@ export default function EquipmentDetailPage({
       ) : (
         <Surface padding="md">Оборудование не найдено.</Surface>
       )}
+      </AccessSnapshotBoundary>
     </div>
   );
 }

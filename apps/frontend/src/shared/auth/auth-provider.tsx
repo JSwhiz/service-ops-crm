@@ -11,6 +11,7 @@ import {
   type LoginPayload,
 } from './auth-client';
 import { subscribeToAuthCleared } from './auth-session';
+import { updateAccessIdentity } from './access-generation';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -51,6 +52,7 @@ export function AuthProvider({
     const promise = getMe()
       .then((me) => {
         if (!mounted.current || sessionVersion.current !== version) return;
+        updateAccessIdentity(`${me.id}:${me.accessVersion ?? 'legacy'}`);
         setUser(me);
         setCapabilitiesRefreshError(null);
       })
@@ -98,6 +100,7 @@ export function AuthProvider({
   useEffect(() => {
     return subscribeToAuthCleared(() => {
       sessionVersion.current += 1;
+      updateAccessIdentity(null);
       setUser(null);
       setCapabilitiesRefreshError(null);
       setIsLoading(false);
@@ -119,12 +122,14 @@ export function AuthProvider({
         const version = ++sessionVersion.current;
         const response = await loginRequest(payload);
         if (!mounted.current || sessionVersion.current !== version) return;
+        updateAccessIdentity(`${response.user.id}:${response.user.accessVersion ?? 'legacy'}`);
         setUser(response.user);
         setCapabilitiesRefreshError(null);
         setIsLoading(false);
       },
       logout: async () => {
         sessionVersion.current += 1;
+        updateAccessIdentity(null);
         setUser(null);
         setCapabilitiesRefreshError(null);
         setIsLoading(false);

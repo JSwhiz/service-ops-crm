@@ -15,7 +15,7 @@ import type { ScheduleRevisionView, SchedulingUser } from './scheduling.types';
 
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 const roles = (user: SchedulingUser) => user.roleCodes?.length ? user.roleCodes : [user.roleCode];
-import { decideAccess } from '../users-access/utils/access-policy.util';
+import { decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
 import { objectPolicyContext } from '../users-access/utils/object-policy-context.util';
 export const COMPENSATION_APPROVAL_TYPE = 'object_compensation_confirmation';
 function conflict(code: string, message: string): never { throw new ConflictException({code, message}); }
@@ -28,18 +28,30 @@ export class ObjectCompensationService {
     const object = await tx.object.findFirst({where: {id: objectId, deletedAt: null}, include: {assignments: {where: {isActive: true}}, planningSettings: true}});
     if (!object) throw new NotFoundException('Объект не найден');
     if (!decideAccess(user,actionCode,legacyOverride ?? canViewObjectByScope({currentUserId:user.id,roleCodes:roles(user),ownScopeOnly:true,object}),{...objectPolicyContext(object),parents:[{actionCode:'objects.read',context:objectPolicyContext(object)}]})) throw new ForbiddenException('Нет доступа к оплате объекта');
+    if (write && (!decideAccess(user, 'objects.read', this.legacyObjectVisible(user, object), objectPolicyContext(object)) || hasModuleDeny(user, 'objects.compensation.manage', objectPolicyContext(object))))
+      throw new ForbiddenException('Нет доступа к изменению оплаты объекта');
     if (write && ['frozen', 'closed', 'archived'].includes(object.status)) conflict('OBJECT_READ_ONLY', 'Объект недоступен для изменения');
     return object;
   }
   async rateAccess(user: SchedulingUser,objectId:string,tx:Prisma.TransactionClient=this.prisma) {
-    await this.access(tx,user,objectId,true,'objects.rates.manage',canEditObjectDailyRate(roles(user)));
+    const object = await this.access(tx,user,objectId,false,'objects.read');
+    await this.access(tx,user,objectId,true,'objects.rates.manage',canEditObjectDailyRate(roles(user)) && this.legacyObjectVisible(user, object));
+    await this.access(tx,user,objectId,false,'objects.rates.read',true);
   }
   private canManageTeamFund(user: SchedulingUser) {
     return roles(user).some(role => ['founder', 'director'].includes(role)) || !!user.permissionCodes?.includes('object.budget_edit');
   }
-  private async lock(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string,actionCode='objects.compensation.manage') {
+  private legacyObjectVisible(user: SchedulingUser, object: Parameters<typeof canViewObjectByScope>[0]['object']) {
+    return canViewObjectByScope({currentUserId: user.id, roleCodes: roles(user), ownScopeOnly: true, object});
+  }
+  private async lock(tx: Prisma.TransactionClient, user: SchedulingUser, objectId: string,actionCode='objects.compensation.manage', legacyOverride?: boolean) {
     await tx.$queryRaw`SELECT "id" FROM "objects" WHERE "id" = ${objectId} FOR UPDATE`;
-    return this.access(tx, user, objectId, true,actionCode);
+    return this.access(tx, user, objectId, true,actionCode, legacyOverride);
+  }
+  private assertAdjustmentReadable(user: SchedulingUser, object: {id: string; createdByUserId: string; assignments: Array<{userId: string}>}) {
+    const context = {...objectPolicyContext(object), parents: [{actionCode: 'objects.read', context: objectPolicyContext(object)}]};
+    if (!decideAccess(user, 'objects.rates.read', true, context) || !decideAccess(user, 'objects.budget.read', true, context))
+      throw new ForbiddenException('Действие содержит закрытые данные ставок или распределения фонда');
   }
   private async audit(tx: Prisma.TransactionClient, userId: string, objectId: string, action: string, payload: unknown) {
     await tx.objectAuditLog.create({data: {objectId, actorUserId: userId, actionCode: action, payload: json(payload)}});
@@ -52,29 +64,47 @@ export class ObjectCompensationService {
   async list(user: SchedulingUser, objectId: string) {
     const object = await this.access(this.prisma, user, objectId);
     const writable = !['frozen', 'closed', 'archived'].includes(object.status);
-    const context=objectPolicyContext(object);
-    const manageRates = writable && decideAccess(user,'objects.rates.manage',canEditObjectDailyRate(roles(user)),context);
-    const requestExtraWork = writable && decideAccess(user,'objects.compensation.adjust',(manageRates || object.assignments.some(a => a.userId === user.id && a.assignmentRoleCode === 'manager')),context);
+    const context={...objectPolicyContext(object), parents: [{actionCode: 'objects.read', context: objectPolicyContext(object)}]};
+    const canReadRates = decideAccess(user, 'objects.rates.read', true, context);
+    const canReadTeamFund = decideAccess(user, 'objects.budget.read', true, context);
+    // Adjustment snapshots can contain both rates and their allocation basis.
+    // Do not return partial snapshots that could reveal denied values indirectly.
+    const canReadAdjustments = canReadRates && canReadTeamFund;
+    const legacyVisible = this.legacyObjectVisible(user, object);
+    const canWrite = writable && decideAccess(user, 'objects.read', legacyVisible, objectPolicyContext(object)) && !hasModuleDeny(user, 'objects.compensation.manage', objectPolicyContext(object));
+    const manageRates = canWrite && canReadRates && decideAccess(user,'objects.rates.manage',canEditObjectDailyRate(roles(user)) && legacyVisible,context);
+    const requestExtraWork = canWrite && canReadAdjustments && decideAccess(user,'objects.compensation.adjust',(manageRates || object.assignments.some(a => a.userId === user.id && a.assignmentRoleCode === 'manager')),context);
     const [versions, teamFunds, adjustments] = await Promise.all([
-      this.prisma.objectCompensationVersion.findMany({where: {objectId}, orderBy: [{effectiveFrom: 'asc'}, {version: 'asc'}]}),
-      this.prisma.objectTeamFundVersion.findMany({where: {objectId}, orderBy: {effectiveFrom: 'asc'}}),
-      this.prisma.objectCompensationAdjustment.findMany({where: {objectId}, orderBy: {createdAt: 'desc'}, take: 200}),
+      canReadRates ? this.prisma.objectCompensationVersion.findMany({where: {objectId}, orderBy: [{effectiveFrom: 'asc'}, {version: 'asc'}]}) : Promise.resolve([]),
+      canReadTeamFund ? this.prisma.objectTeamFundVersion.findMany({where: {objectId}, orderBy: {effectiveFrom: 'asc'}}) : Promise.resolve([]),
+      canReadAdjustments ? this.prisma.objectCompensationAdjustment.findMany({where: {objectId}, orderBy: {createdAt: 'desc'}, take: 200}) : Promise.resolve([]),
     ]);
     const authors = await this.prisma.user.findMany({where: {id: {in: [...new Set([...versions, ...teamFunds, ...adjustments].flatMap(v => [v.createdByUserId, ...('appliedByUserId' in v && v.appliedByUserId ? [v.appliedByUserId] : [])]))]}}, select: {id: true, fullName: true}});
     const author = (id: string | null) => authors.find(a => a.id === id) ?? null;
-    const extraCredits = await this.prisma.objectPayrollCredit.findMany({where: {objectId, sourceKey: {startsWith: 'extra:'}}});
-    return {versions: versions.map(v => ({...v, effectiveFrom: v.effectiveFrom.toISOString().slice(0, 10), createdBy: author(v.createdByUserId)})), teamFunds: teamFunds.map(v => ({...v, effectiveFrom: v.effectiveFrom.toISOString().slice(0, 10), createdBy: author(v.createdByUserId)})), adjustments: adjustments.map(v => {
+    const extraCredits = canReadAdjustments ? await this.prisma.objectPayrollCredit.findMany({where: {objectId, sourceKey: {startsWith: 'extra:'}}}) : [];
+    const visibleAdjustments = adjustments.filter(v => this.adjustmentEmployeesReadable(user, v));
+    return {versions: versions.map(v => ({...v, effectiveFrom: v.effectiveFrom.toISOString().slice(0, 10), createdBy: author(v.createdByUserId)})), teamFunds: teamFunds.map(v => ({...v, effectiveFrom: v.effectiveFrom.toISOString().slice(0, 10), createdBy: author(v.createdByUserId)})), adjustments: visibleAdjustments.map(v => {
       const before = v.beforeSnapshot as Prisma.JsonObject; const payload = v.payload as Prisma.JsonObject;
       const beforeAmount = v.kind === 'extra_work' ? 0 : typeof before.amount === 'number' ? before.amount : typeof before.dailyRateSnapshot === 'number' ? before.dailyRateSnapshot : null;
       const afterAmount = v.kind === 'replacement' ? beforeAmount : v.kind === 'holiday_exception' ? payload.paid ? beforeAmount : 0 : v.amount;
       const credit = extraCredits.find(c => c.sourceKey === `extra:${v.id}`);
       return {...v, operationDate: v.operationDate.toISOString().slice(0, 10), createdBy: author(v.createdByUserId), appliedBy: author(v.appliedByUserId), beforeAmount, afterAmount, difference: beforeAmount !== null && afterAmount !== null ? afterAmount - beforeAmount : null, currentAmount: credit?.amount ?? null, creditUpdatedAt: credit?.updatedAt.toISOString() ?? null};
-    }), capabilities: {manageRates, manageTeamFund: writable && decideAccess(user,'objects.budget.edit',this.canManageTeamFund(user),context), requestExtraWork, requestAdjustment: manageRates&&decideAccess(user,'objects.compensation.adjust',true,context), approveRetroactive: roles(user).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role))&&decideAccess(user,'objects.compensation.correct_past',true,context)}};
+    }), capabilities: {canReadRates, canReadTeamFund, canReadAdjustments, manageRates, manageTeamFund: canWrite && canReadTeamFund && decideAccess(user,'objects.budget.edit',this.canManageTeamFund(user) && legacyVisible,context), requestExtraWork, requestAdjustment: canReadAdjustments&&manageRates&&decideAccess(user,'objects.compensation.adjust',true,context), approveRetroactive: canReadAdjustments&&roles(user).some(role => (LEADERSHIP_OBJECT_ROLE_CODES as readonly string[]).includes(role))&&decideAccess(user,'objects.compensation.correct_past',true,context)}};
+  }
+
+  private adjustmentEmployeesReadable(user: SchedulingUser, adjustment: ObjectCompensationAdjustment) {
+    const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    const payload = record(adjustment.payload);
+    const snapshots = [adjustment.beforeSnapshot, adjustment.afterSnapshot].flatMap(value => Array.isArray(value) ? value : [value]);
+    const ids = [adjustment.employeeId, payload.employeeId, payload.replacementEmployeeId, ...snapshots.map(value => record(value).employeeId)]
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    return ids.every(id => decideAccess(user, 'employees.view', true, {resourceType: 'employee', resourceId: id}));
   }
   async version(user: SchedulingUser, objectId: string, input: CreateCompensationVersionDto) {
     await this.rateAccess(user,objectId); dateOnly(input.effectiveFrom);
     return this.prisma.$transaction(async tx => {
-      const object = await this.lock(tx, user, objectId);
+      const object = await this.lock(tx, user, objectId, 'objects.read');
+      await this.rateAccess(user, objectId, tx);
       const scopeId = input.scope === 'defaults' ? objectId : input.scopeId;
       if (!scopeId || !input.terms) throw new BadRequestException('Укажите линию условий и параметры оплаты');
       const error = getScheduleConfigurationError({scheduleCode: input.terms.scheduleCode, scheduleWeekdays: input.terms.scheduleWeekdays, scheduleCycleStartDate: input.terms.scheduleCycleStartDate});
@@ -106,7 +136,8 @@ export class ObjectCompensationService {
   async cancelVersion(user: SchedulingUser, objectId: string, id: string, input: CancelCompensationVersionDto) {
     await this.rateAccess(user,objectId);
     return this.prisma.$transaction(async tx => {
-      await this.lock(tx, user, objectId);
+      await this.lock(tx, user, objectId, 'objects.read');
+      await this.rateAccess(user, objectId, tx);
       const item = await tx.objectCompensationVersion.findFirst({where: {id, objectId}});
       if (!item) throw new NotFoundException('Версия условий не найдена');
       if (item.version !== input.expectedVersion || item.effectiveFrom.toISOString().slice(0, 10) <= todayMoscow() || item.cancelledAt) conflict('HISTORY_PROTECTED', 'Можно отменить только действующую будущую версию');
@@ -119,8 +150,10 @@ export class ObjectCompensationService {
   async teamFund(user: SchedulingUser, objectId: string, input: CreateTeamFundDto) {
     dateOnly(input.effectiveFrom);
     return this.prisma.$transaction(async tx => {
-      const object=await this.lock(tx,user,objectId);
-      if(!decideAccess(user,'objects.budget.edit',this.canManageTeamFund(user),objectPolicyContext(object))) throw new ForbiddenException('Изменение фонда недоступно');
+      const object=await this.lock(tx,user,objectId,'objects.read');
+      if (!decideAccess(user, 'objects.budget.read', true, objectPolicyContext(object)))
+        throw new ForbiddenException('Просмотр фонда команды запрещён');
+      if(!decideAccess(user,'objects.budget.edit',this.canManageTeamFund(user) && this.legacyObjectVisible(user, object),objectPolicyContext(object))) throw new ForbiddenException('Изменение фонда недоступно');
       const allocations = json(input.allocations);
       if (!input.reason.trim()) throw new BadRequestException('Укажите основание распределения фонда');
       if (new Set(input.allocations.map(a => `${a.positionId}:${a.contourId}`)).size !== input.allocations.length) throw new BadRequestException('Распределение позиции/контура не должно повторяться');
@@ -341,7 +374,9 @@ export class ObjectCompensationService {
 
   async adjustment(user: SchedulingUser, objectId: string, input: CreateCompensationAdjustmentDto, afterApply: (tx: Prisma.TransactionClient, id: string) => Promise<void>) {
     return this.prisma.$transaction(async tx => {
-      await this.lock(tx, user, objectId,'objects.compensation.adjust'); dateOnly(input.operationDate);
+      const object = await this.lock(tx, user, objectId,'objects.compensation.adjust');
+      this.assertAdjustmentReadable(user, object);
+      dateOnly(input.operationDate);
       if (input.operationDate > todayMoscow()) conflict('FUTURE_FINANCIAL_FACT', 'Будущее начисление нельзя подтверждать заранее');
       if (!input.reason.trim()) throw new BadRequestException('Укажите основание');
       if (input.kind !== 'extra_work') await this.rateAccess(user,objectId,tx);
@@ -468,6 +503,7 @@ export class ObjectCompensationService {
   async correctExtraWork(user: SchedulingUser, objectId: string, id: string, input: CorrectExtraWorkDto) {
     return this.prisma.$transaction(async tx => {
       const object = await this.lock(tx, user, objectId,'objects.compensation.adjust');
+      this.assertAdjustmentReadable(user, object);
       if (!canEditObjectDailyRate(roles(user)) && !object.assignments.some(a => a.userId === user.id && a.assignmentRoleCode === 'manager')) throw new ForbiddenException('Нет права исправлять допработу этого объекта');
       if (!input.reason.trim()) throw new BadRequestException('Укажите основание исправления');
       const payload = {sourceAdjustmentId: id, ...input};
@@ -480,12 +516,16 @@ export class ObjectCompensationService {
     });
   }
 
-  async explanation(user: SchedulingUser, objectId: string, year: number, month: number) {
-    await this.access(this.prisma, user, objectId);
+  async explanation(user: SchedulingUser, objectId: string, year: number, month: number, employeeId?: string) {
+    const object = await this.access(this.prisma, user, objectId);
+    if (!decideAccess(user, 'objects.rates.read', true, {...objectPolicyContext(object), parents: [{actionCode: 'objects.read', context: objectPolicyContext(object)}]}))
+      throw new ForbiddenException('Просмотр ставок и расшифровки начислений запрещён');
+    if (!decideAccess(user, 'objects.budget.read', true, {...objectPolicyContext(object), parents: [{actionCode: 'objects.read', context: objectPolicyContext(object)}]}))
+      throw new ForbiddenException('Расшифровка содержит закрытые данные распределения фонда');
     const from = `${year}-${String(month).padStart(2, '0')}-01`; const to = `${year}-${String(month).padStart(2, '0')}-${new Date(Date.UTC(year, month, 0)).getUTCDate()}`;
-    const credits = await this.prisma.objectPayrollCredit.findMany({where: {objectId, operationDate: {gte: dateOnly(from), lte: dateOnly(to)}}, orderBy: [{operationDate: 'asc'}, {sourceKey: 'asc'}]});
+    const credits = await this.prisma.objectPayrollCredit.findMany({where: {objectId, ...(employeeId ? {employeeId} : {}), operationDate: {gte: dateOnly(from), lte: dateOnly(to)}}, orderBy: [{operationDate: 'asc'}, {sourceKey: 'asc'}]});
     const employees = await this.prisma.employee.findMany({where: {id: {in: [...new Set(credits.map(c => c.employeeId))]}}, select: {id: true, fullName: true}});
-    const rows = employees.map(employee => {
+    const rows = employees.filter(employee => decideAccess(user, 'employees.view', true, {resourceType: 'employee', resourceId: employee.id})).map(employee => {
       const entries = credits.filter(c => c.employeeId === employee.id);
       const policies = new Map<string, TimesheetRatePolicySnapshot>();
       for (const entry of entries) {const p = parseRatePolicySnapshot(entry.policySnapshot); if (p) policies.set(`${p.compensationVersionId}:${p.poolKey ?? ''}`, p);}

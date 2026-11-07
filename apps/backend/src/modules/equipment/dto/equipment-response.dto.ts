@@ -74,6 +74,7 @@ export class EquipmentUnitResponseDto {
     canReturn: boolean;
     canMove: boolean;
     canMarkBroken: boolean;
+    canMarkLost?: boolean;
     canSendToRepair: boolean;
     canReturnFromRepair: boolean;
     canWriteoff: boolean;

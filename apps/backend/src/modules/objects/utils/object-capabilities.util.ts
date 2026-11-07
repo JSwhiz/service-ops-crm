@@ -32,6 +32,8 @@ export function buildObjectCapabilities(params: {
   canManageCompensationRates: boolean;
   canReadMaterials: boolean;
   canManageMaterials: boolean;
+  canReadContacts: boolean;
+  canManageContacts: boolean;
   canChangeStatus: boolean;
   canFreeze: boolean;
   canArchive: boolean;
@@ -79,6 +81,8 @@ export function buildObjectCapabilities(params: {
     canManageMaterials: canEditObject(params.roleCodes) ||
       (params.objectStatus === 'frozen' && canOverrideFrozenObject(params.roleCodes)) ||
       delegated('edit', 'objects.materials.manage'),
+    canReadContacts: true,
+    canManageContacts: canEdit,
     canChangeStatus: ownManagement || delegated('status', 'objects.status'),
     canFreeze: ownManagement || delegated('status', 'objects.freeze'),
     canArchive: ownManagement || delegated('status', 'objects.archive'),
@@ -103,6 +107,7 @@ export function buildObjectCapabilities(params: {
     canEdit: 'objects.update', canEditDailyRate: 'objects.rates.manage', canViewCompensationRates: 'objects.rates.read',
     canManageCompensationRates: 'objects.rates.manage', canChangeStatus: 'objects.status', canManageResponsibles: 'objects.responsibles.manage',
     canReadMaterials: 'objects.materials.read', canManageMaterials: 'objects.materials.manage',
+    canReadContacts: 'objects.contacts.read', canManageContacts: 'objects.contacts.manage',
     canFreeze: 'objects.freeze', canArchive: 'objects.archive', canRestore: 'objects.restore',
     canManageManagers: 'objects.managers.manage', canViewBasicProfile: 'objects.read', canViewOperationalSections: 'objects.read',
     canViewReportsHistory: 'objects.reports.read', canManageEmployees: 'objects.staffing.manage', canViewEmployees: 'objects.staffing.read',
@@ -113,8 +118,12 @@ export function buildObjectCapabilities(params: {
     legacy[capability] = decideAccess(subject, action, legacy[capability], context);
   }
   legacy.canCreateTask = legacy.canCreateTask && decideAccess(subject, 'objects.read', true, context);
-  legacy.canFreeze &&= legacy.canChangeStatus && params.objectStatus !== 'frozen';
-  legacy.canArchive &&= legacy.canChangeStatus && params.objectStatus !== 'archived';
-  legacy.canRestore &&= legacy.canChangeStatus && params.objectStatus === 'archived';
+  legacy.canRestore &&= params.objectStatus === 'archived';
+  legacy.canFreeze &&= params.objectStatus !== 'frozen' && (params.objectStatus !== 'archived' || legacy.canRestore);
+  legacy.canArchive &&= params.objectStatus !== 'archived';
+  legacy.canManageContacts &&= params.objectStatus !== 'archived' &&
+    (params.objectStatus !== 'frozen' || canOverrideFrozenObject(params.roleCodes));
+  legacy.canManageMaterials &&= params.objectStatus !== 'archived' &&
+    (params.objectStatus !== 'frozen' || canOverrideFrozenObject(params.roleCodes));
   return legacy;
 }

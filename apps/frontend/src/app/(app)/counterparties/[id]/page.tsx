@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import {
   getCounterparty,
@@ -101,6 +103,9 @@ export default function CounterpartyPage({
   const [movementDateTo, setMovementDateTo] = useState('');
   const [movementObjectId, setMovementObjectId] = useState('');
   const [movementType, setMovementType] = useState('');
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [accessRetry, setAccessRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -119,6 +124,8 @@ export default function CounterpartyPage({
   });
   const [confirm, confirmDialog] = useConfirm();
   const editNameRef = React.useRef<HTMLInputElement>(null);
+  const editingRef = React.useRef(editing);
+  editingRef.current = editing;
 
   useEffect(() => {
     if (editing) {
@@ -140,6 +147,7 @@ export default function CounterpartyPage({
 
   useEffect(() => {
     let active = true;
+    setError(null);
     void params
       .then(({ id: counterpartyId }) => {
         if (!active) return null;
@@ -147,7 +155,9 @@ export default function CounterpartyPage({
       })
       .then((result) => {
         if (!active || !result) return;
-        sync(result);
+        if (editingRef.current) setItem(result);
+        else sync(result);
+        setLoadedAccessRevision(accessRevision);
       })
       .catch((caughtError) => {
         if (active) {
@@ -165,7 +175,7 @@ export default function CounterpartyPage({
     return () => {
       active = false;
     };
-  }, [params]);
+  }, [params, accessRevision, accessRetry]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setAppliedHistoryFilters(historyFilters), 250);
@@ -204,7 +214,7 @@ export default function CounterpartyPage({
     return () => {
       active = false;
     };
-  }, [activeTab, appliedHistoryFilters, historyPageNumber, historyQueryKey, historyRetry, item?.id]);
+  }, [activeTab, appliedHistoryFilters, historyPageNumber, historyQueryKey, historyRetry, item?.id, accessRevision]);
 
   const history = historyPageData?.items ?? [];
 
@@ -271,7 +281,7 @@ export default function CounterpartyPage({
       })
       .finally(() => { if (active) setInventoryMovementsLoading(false); });
     return () => { active = false; };
-  }, [activeTab, item?.id, movementQueryKey, inventoryMovementsRetry]);
+  }, [activeTab, item?.id, movementQueryKey, inventoryMovementsRetry, accessRevision]);
 
   const mutate = async (
     operation: () => Promise<CounterpartyCard>,
@@ -341,6 +351,8 @@ export default function CounterpartyPage({
 
   return (
     <Stack gap="lg" className={`ui-page ${styles.page}`}>
+      {loadedAccessRevision !== accessRevision ? <div role="status">{error || 'Проверяем доступ к контрагенту…'}{error ? <Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button> : null}</div> : null}
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
       <BackLink href="/counterparties">Контрагенты</BackLink>
       <Surface as="section" padding="md" className={styles.counterpartyHero}>
         <div className={styles.summaryTop}>
@@ -360,7 +372,7 @@ export default function CounterpartyPage({
                 {editing ? 'Отменить редактирование' : 'Редактировать'}
               </Button>
             ) : null}
-            {item.capabilities.canManage ? (
+            {(item.status === 'active' ? item.capabilities.canArchive ?? item.capabilities.canManage : item.capabilities.canRestore ?? item.capabilities.canManage) ? (
               item.status === 'active' ? <OverflowMenu triggerLabel="Действия с контрагентом" items={[
                 { key: 'archive', label: 'В архив', tone: 'danger', disabled: saving, onSelect: () => { setArchiveError(null); setArchiveDialogOpen(true); } },
               ]} /> : <Button disabled={saving} onClick={() => void mutate(() => setCounterpartyArchived(item.id, false))}>Восстановить</Button>
@@ -592,8 +604,8 @@ export default function CounterpartyPage({
                   </div>
                 </div>
                 <div className={styles.recordActions}>
-                  {item.capabilities.canLinkObjects ? <OverflowMenu triggerLabel={`Действия с объектом ${object.name}`} items={[
-                    ...(item.status === 'active' ? [{
+                  {item.capabilities.canLinkObjects || (item.capabilities.canManageMasterObject ?? item.capabilities.canLinkObjects) ? <OverflowMenu triggerLabel={`Действия с объектом ${object.name}`} items={[
+                    ...(item.status === 'active' && (item.capabilities.canManageMasterObject ?? item.capabilities.canLinkObjects) ? [{
                       key: 'master',
                       label: item.masterObject?.id === object.id ? 'Снять мастер-объект' : 'Назначить мастер-объектом',
                       disabled: saving,
@@ -610,8 +622,8 @@ export default function CounterpartyPage({
                         });
                       },
                     }] : []),
-                    {
-                      key: 'unlink', label: 'Отвязать от контрагента', tone: 'danger', disabled: saving,
+                    ...(item.capabilities.canLinkObjects ? [{
+                      key: 'unlink', label: 'Отвязать от контрагента', tone: 'danger' as const, disabled: saving,
                       onSelect: () => void confirm({
                         title: 'Отвязать объект?',
                         consequence: 'Связь объекта с этим контрагентом будет удалена. История операции сохранится.',
@@ -619,7 +631,7 @@ export default function CounterpartyPage({
                       }).then((accepted) => {
                         if (accepted) void mutate(() => unlinkCounterpartyObject(item.id, object.id));
                       }),
-                    },
+                    }] : []),
                   ]} /> : null}
                 </div>
               </li>
@@ -802,6 +814,7 @@ export default function CounterpartyPage({
         pending={saving}
         error={archiveError}
         onConfirm={() => {
+          if (!(item.capabilities.canArchive ?? item.capabilities.canManage) || saving) return;
           setSaving(true);
           setArchiveError(null);
           void setCounterpartyArchived(item.id, true)
@@ -816,6 +829,7 @@ export default function CounterpartyPage({
         }}
       />
       {confirmDialog}
+      </AccessSnapshotBoundary>
     </Stack>
   );
 }

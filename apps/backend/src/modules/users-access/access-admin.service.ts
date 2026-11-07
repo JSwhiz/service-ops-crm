@@ -23,7 +23,8 @@ import {
   AccessRule,
   AccessSubject,
 } from "./types/access-policy.type";
-import { decideAccess, hasModuleDeny } from "./utils/access-policy.util";
+import { decideAccess } from "./utils/access-policy.util";
+import { summarizeAccess } from "./utils/access-summary.util";
 import { resolveEffectivePermissionCodes } from "./utils/effective-permissions.util";
 import {
   buildLegacyAccessProjection,
@@ -499,29 +500,10 @@ export class AccessAdminService {
     return ACCESS_ACTION_CATALOG.map((action) => {
       const rule = rules.find((r) => r.actionCode === action.code) ?? null;
       const baseline = baselines.get(action.code) ?? null;
-      const baselineContext =
-        baseline?.scopes.length === 1 && baseline.scopes[0] === "own"
-          ? {
-              resourceType: action.resourceType,
-              ownerUserId: user.id,
-              ...(action.resourceType === "user"
-                ? { resourceId: user.id }
-                : {}),
-            }
-          : {};
-      const blocked =
-        hasModuleDeny(subject, action.code, baselineContext) || !user.isActive;
-      let allowed: boolean | null = blocked ? false : null;
-      let source = blocked ? "deny" : "legacy_policy";
-      if (!blocked && baseline) {
-        allowed = decideAccess(
-          subject,
-          action.code,
-          baseline.allowed,
-          baselineContext,
-        );
-        source = baseline.source;
-      }
+      const summary = summarizeAccess(subject, action.code, baseline);
+      const blocked = summary.blocked;
+      let allowed = summary.allowed;
+      let source = blocked ? "deny" : baseline?.source ?? "legacy_policy";
       if (action.constraint === "logout_always_available") {
         allowed = true;
         source = "system_invariant";
@@ -539,20 +521,9 @@ export class AccessAdminService {
         );
         source = "founder_role";
       } else if (!blocked && rule?.scope === "all") {
-        allowed = decideAccess(
-          subject,
-          action.code,
-          baseline?.allowed ?? false,
-        );
         source = "personal_" + rule.effect;
       } else if (!blocked && rule) {
         source = "personal_" + rule.effect + "_scoped";
-        if (rule.effect === "allow" && action.manageable) allowed = true;
-        if (
-          rule.effect === "deny" &&
-          baseline?.scopes.every((scope) => scope === rule.scope)
-        )
-          allowed = false;
       }
       const warnings: string[] = [];
       if (action.constraint) warnings.push(action.constraint);
@@ -560,6 +531,8 @@ export class AccessAdminService {
         warnings.push("requires_legacy_policy_and_resource_context");
       if (rule?.effect === "allow" && blocked)
         warnings.push("ineffective_child_allow_parent_or_legacy_deny");
+      if (summary.personalAllowFullyDenied)
+        warnings.push("personal_allow_scope_fully_denied");
       if (
         rule?.effect === "allow" &&
         action.parentAction &&
@@ -593,13 +566,8 @@ export class AccessAdminService {
           ),
         },
         rule,
-        scope:
-          baseline?.allowed &&
-          baseline.scopes.includes("all") &&
-          rule?.effect !== "deny"
-            ? "all"
-            : (rule?.scope ?? baseline?.scope ?? null),
-        selectedIds: rule?.selectedIds ?? baseline?.selectedIds ?? [],
+        scope: summary.scope,
+        selectedIds: summary.selectedIds,
         warnings,
       };
     });

@@ -1,5 +1,12 @@
-import { AccessSubject } from "../types/access-policy.type";
+import {
+  canEditObject,
+  hasWideObjectAccess,
+} from "../../objects/utils/object-access.util";
+import { hasWideTimesheetAccess } from "../../timesheets/utils/timesheet-access.util";
+import { hasOneTimeOrderManagementAccess } from "../../one-time-orders/utils/one-time-order-access.util";
+import { AccessScope, AccessSubject } from "../types/access-policy.type";
 import { decideAccess } from "./access-policy.util";
+import { canEnterAccessModule } from "./access-summary.util";
 
 const actions: Record<string, string> = {
   canAccessCounterparties: "counterparties.access",
@@ -73,6 +80,14 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
   subject: AccessSubject,
   legacy: T,
 ) {
+  const roles = [
+    ...(subject.roleCodes ?? (subject.roleCode ? [subject.roleCode] : [])),
+  ];
+  const permissions = [...(subject.permissionCodes ?? [])];
+  const objectScopes: readonly AccessScope[] =
+    hasWideObjectAccess(roles) || permissions.includes("objects.view_hr")
+      ? ["all"]
+      : ["own", "assigned"];
   const context = {
     resourceType: "user",
     resourceId: subject.id,
@@ -88,10 +103,84 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
         context,
       ) as T[keyof T];
   }
+  // A personal order grant uses the order-scoped endpoint, not the generic
+  // inventory form. Keep the same generic issuer invariant as its domain helper.
+  if ("canIssueInventoryToOneTimeOrder" in result)
+    result["canIssueInventoryToOneTimeOrder" as keyof T] =
+      (result.canIssueInventoryToOneTimeOrder &&
+        legacy.canIssueInventoryToOneTimeOrder) as T[keyof T];
   if ("canCreateInventoryMovement" in result)
     result["canCreateInventoryMovement" as keyof T] =
-      (legacy.canCreateInventoryMovement &&
-        decideAccess(subject, "inventory.access", true)) as T[keyof T];
+      (result.canCreateInventoryReceipt ||
+        result.canIssueInventoryToObject ||
+        result.canIssueInventoryToOneTimeOrder ||
+        result.canReturnInventory ||
+        result.canWriteoffInventory ||
+        result.canAdjustInventory) as T[keyof T];
+  if ("canManageEmployeesHr" in result)
+    result["canManageEmployeesHr" as keyof T] = (result.canCreateEmployee ||
+      result.canEditEmployee) as T[keyof T];
+  const navigation: Record<string, [string, string]> = {
+    canAccessCounterparties: ["counterparties.access", "counterparties.read"],
+    canAccessCandidates: ["candidates.access", "candidates.view"],
+    canAccessEmployeesHr: ["employees.access", "employees.view"],
+    canAccessApprovals: ["approvals.access", "approvals.read"],
+    canAccessOneTimeOrders: ["one_time_orders.access", "one_time_orders.read"],
+    canViewOneTimeOrderCalendar: [
+      "one_time_order_calendar.access",
+      "one_time_order_calendar.read",
+    ],
+    canAccessAccountability: ["accountability.access", "accountability.read"],
+    canAccessInventory: ["inventory.access", "inventory.read"],
+    canAccessEquipment: ["equipment.access", "equipment.read"],
+    canAccessChats: ["chat.access", "chat.read"],
+  };
+  const navigationScopes: Record<string, readonly AccessScope[]> = {
+    canAccessChats: ["assigned"],
+    canAccessAccountability: legacy.canReviewAccountability ? ["all"] : ["own"],
+    canAccessOneTimeOrders: hasOneTimeOrderManagementAccess(roles, permissions)
+      ? ["all"]
+      : ["own", "assigned"],
+    // Resolver eligibility is type-specific, not unrestricted all-approval read.
+    // It can nevertheless leave navigable requests after an own-scope deny.
+    canAccessApprovals: [
+      "canResolveTaskResultApproval",
+      "canResolveInventoryApproval",
+      "canResolveObjectChangeApproval",
+      "canResolveAccountabilityApproval",
+      "canResolveTimesheetApproval",
+    ].some((key) => legacy[key])
+      ? ["all"]
+      : ["own"],
+  };
+  for (const [key, [moduleAction, readAction]] of Object.entries(navigation)) {
+    if (key in legacy)
+      result[key as keyof T] = canEnterAccessModule(
+        subject,
+        moduleAction,
+        [readAction],
+        legacy[key],
+        navigationScopes[key],
+      ) as T[keyof T];
+  }
+  // Independent read-only entry points can keep a module navigable without
+  // implicitly granting its item/object registry or any mutation.
+  if ("canAccessInventory" in result)
+    result["canAccessInventory" as keyof T] = (result.canAccessInventory ||
+      canEnterAccessModule(
+        subject,
+        "inventory.access",
+        ["inventory.reports"],
+        legacy.canViewInventoryReports === true,
+      )) as T[keyof T];
+  if ("canAccessEquipment" in result)
+    result["canAccessEquipment" as keyof T] = (result.canAccessEquipment ||
+      canEnterAccessModule(
+        subject,
+        "equipment.access",
+        ["equipment.catalog.read"],
+        legacy.canAccessEquipment === true,
+      )) as T[keyof T];
   return {
     ...result,
     canCreateTask: decideAccess(subject, "tasks.create", true),
@@ -120,28 +209,63 @@ export function applyAccessCapabilities<T extends Record<string, boolean>>(
       resourceType: "notification",
       ownerUserId: subject.id,
     }),
-    canAccessObjects: decideAccess(subject, "objects.access", true),
-    canAccessMats: decideAccess(subject, "mats.access", true),
-    canAccessTasks: decideAccess(subject, "tasks.access", true),
-    canAccessTimesheet: decideAccess(subject, "timesheet.access", true),
-    canAccessUserAbsences: decideAccess(
+    canAccessObjects: canEnterAccessModule(
+      subject,
+      "objects.access",
+      ["objects.read"],
+      true,
+      objectScopes,
+    ),
+    canAccessMats:
+      canEnterAccessModule(
+        subject,
+        "mats.access",
+        ["mats.read"],
+        true,
+        objectScopes,
+      ) ||
+      canEnterAccessModule(subject, "mats.access", ["mats.catalog.read"], true),
+    canAccessTasks: canEnterAccessModule(
+      subject,
+      "tasks.access",
+      ["tasks.read"],
+      true,
+    ),
+    canAccessTimesheet: canEnterAccessModule(
+      subject,
+      "timesheet.access",
+      ["timesheet.read"],
+      true,
+      hasWideTimesheetAccess(roles) ? ["all"] : ["assigned"],
+    ),
+    canAccessUserAbsences: canEnterAccessModule(
       subject,
       "user_absences.access",
+      ["user_absences.read"],
       true,
-      context,
     ),
-    canAccessVisitPlans: decideAccess(
+    canAccessVisitPlans: canEnterAccessModule(
       subject,
       "visit_plans.access",
+      ["visit_plans.read"],
       true,
-      context,
+      canEditObject(roles) || permissions.includes("visit_plans.manage")
+        ? ["all"]
+        : ["own"],
     ),
-    canAccessUserSubstitutions: decideAccess(
+    canAccessUserSubstitutions: canEnterAccessModule(
       subject,
       "user_substitutions.access",
+      ["user_substitutions.read"],
+      true,
+      permissions.includes("objects.substitution.manage") ? ["all"] : ["own"],
+    ),
+    canAccessDashboard: canEnterAccessModule(
+      subject,
+      "dashboard.access",
+      ["dashboard.view"],
       true,
     ),
-    canAccessDashboard: decideAccess(subject, "dashboard.access", true),
     canManageUserAccess: decideAccess(
       subject,
       "users_access.manage",

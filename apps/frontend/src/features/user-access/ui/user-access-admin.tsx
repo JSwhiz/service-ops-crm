@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { getAccessCatalog, listAccessUsers } from '@/entities/user-access/api/user-access-client';
 import type { AccessCatalog, AccessPage, AccessUser } from '@/entities/user-access/model/user-access.types';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
 import { getUserRoleLabel } from '@/shared/lib/display-name';
 import { Alert, Button, ButtonLink, EmptyState, LoadingState, PageHeader, Surface } from '@/shared/ui/foundation';
 import { DataTable } from '@/shared/ui/data-table/data-table';
@@ -26,6 +27,7 @@ export function UserAccessAdmin(): React.JSX.Element {
 }
 
 function AccessRegistry(): React.JSX.Element {
+  const accessRevision = useAccessRevision();
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [catalog, setCatalog] = useState<AccessCatalog | null>(null);
@@ -77,7 +79,7 @@ function AccessRegistry(): React.JSX.Element {
         .finally(() => { if (active) setBusy(false); });
     }, 300);
     return () => { active = false; window.clearTimeout(timer); controller.abort(); };
-  }, [query, page, refresh]);
+  }, [query, page, refresh, accessRevision]);
 
   return <div className="ui-page">
     <PageHeader title="Пользователи и доступы" description="Персональные правила, действующие источники доступа и история изменений пользователей CRM." />

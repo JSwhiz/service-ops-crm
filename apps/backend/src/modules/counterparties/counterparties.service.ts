@@ -215,6 +215,9 @@ export class CounterpartiesService {
       capabilities: {
         canManage: decideAccess(currentUser, 'counterparties.update', canManageCounterparties(this.permissions(currentUser)), { resourceType: 'counterparty', resourceId: id }),
         canLinkObjects: decideAccess(currentUser, 'counterparties.objects.link', canLinkCounterpartyObjects(this.permissions(currentUser)), { resourceType: 'counterparty', resourceId: id }),
+        canArchive: counterparty.status === 'active' && decideAccess(currentUser, 'counterparties.archive', canManageCounterparties(this.permissions(currentUser)), { resourceType: 'counterparty', resourceId: id }),
+        canRestore: counterparty.status === 'archived' && decideAccess(currentUser, 'counterparties.restore', canManageCounterparties(this.permissions(currentUser)), { resourceType: 'counterparty', resourceId: id }),
+        canManageMasterObject: decideAccess(currentUser, 'counterparties.master_object.manage', canLinkCounterpartyObjects(this.permissions(currentUser)), { resourceType: 'counterparty', resourceId: id }),
       },
     };
   }

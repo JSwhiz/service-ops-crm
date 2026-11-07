@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useId, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import { getObjectPlanning, saveObjectPlanning, type ObjectPlanning, type PlanningInput } from '@/entities/object/api/object-planning-client';
 import type { ServiceObject } from '@/entities/object/model/object.types';
@@ -25,6 +27,8 @@ export function ObjectPlanningPanel({ objectId, item, onChanged, financialRevisi
   onChanged: () => void;
   financialRevision?: number;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
   const [data, setData] = useState<ObjectPlanning | null>(null);
   const [budget, setBudget] = useState('');
   const [automatic, setAutomatic] = useState(false);
@@ -38,6 +42,8 @@ export function ObjectPlanningPanel({ objectId, item, onChanged, financialRevisi
   const [contourError, setContourError] = useState<string | null>(null);
   const [contourRetry, setContourRetry] = useState(0);
   const formId = useId();
+  const editingRef = React.useRef(editing);
+  editingRef.current = editing;
 
   const apply = useCallback((value: ObjectPlanning) => {
     setData(value);
@@ -50,16 +56,15 @@ export function ObjectPlanningPanel({ objectId, item, onChanged, financialRevisi
 
   useEffect(() => {
     let active = true;
-    setLoaded(false);
     setError(null);
-    void getObjectPlanning(objectId).then((value) => { if (active) apply(value); })
+    void getObjectPlanning(objectId).then((value) => { if (active) { if (editingRef.current) setData(value); else apply(value); setLoadedAccessRevision(accessRevision); } })
       .catch((e: unknown) => { if (active) setError(getErrorMessage(e, 'Не удалось загрузить бюджет и сезоны.')); })
       .finally(() => { if (active) setLoaded(true); });
     return () => { active = false; };
-  }, [objectId, apply]);
+  }, [objectId, apply, accessRevision]);
 
   useEffect(() => {
-    if (item.capabilities.canViewCompensationRates === false) return;
+    if (item.capabilities.canViewCompensationRates === false) { setContours(null); return; }
     let active = true;
     let request = 0;
     const reload = () => {
@@ -73,10 +78,10 @@ export function ObjectPlanningPanel({ objectId, item, onChanged, financialRevisi
     reload();
     window.addEventListener('hashchange', onSectionChange);
     return () => { active = false; window.removeEventListener('hashchange', onSectionChange); };
-  }, [objectId, item.capabilities.canViewCompensationRates, contourRetry]);
+  }, [objectId, item.capabilities.canViewCompensationRates, contourRetry, accessRevision]);
 
   const save = async (payload: Omit<PlanningInput, 'expectedVersion'>) => {
-    if (!data || pending) return;
+    if (!data || pending || loadedAccessRevision !== accessRevision || (editing === 'budget' ? !data.capabilities.canEditBudget : !data.capabilities.canEditSeasons)) return;
     setPending(true);
     setError(null);
     try {
@@ -113,11 +118,13 @@ export function ObjectPlanningPanel({ objectId, item, onChanged, financialRevisi
   </> }));
 
   return <Stack gap="xl">
-    {item.capabilities.canViewCompensationRates !== false ? <TeamCompensationPanel key={objectId} objectId={objectId} financialRevision={financialRevision} writable={!['frozen', 'closed', 'archived'].includes(item.status)} /> : null}
-    {error && !modalOpen ? <Alert tone="danger" action={<Button disabled={pending} onClick={() => {
-      void getObjectPlanning(objectId).then(apply).then(() => setError(null)).catch((e: unknown) => setError(getErrorMessage(e, 'Не удалось обновить данные.')));
+    <TeamCompensationPanel key={objectId} objectId={objectId} financialRevision={financialRevision} writable={!['frozen', 'closed', 'archived'].includes(item.status)} />
+    {error && (!modalOpen || loadedAccessRevision !== accessRevision) ? <Alert tone="danger" action={<Button disabled={pending} onClick={() => {
+      void getObjectPlanning(objectId).then((value) => { if (editingRef.current) setData(value); else apply(value); setLoadedAccessRevision(accessRevision); setError(null); }).catch((e: unknown) => setError(getErrorMessage(e, 'Не удалось обновить данные.')));
     }}>Обновить данные</Button>}>{error}</Alert> : null}
     {!loaded ? <LoadingState label="Загрузка бюджета и сезонов" /> : null}
+    {loadedAccessRevision !== accessRevision && !error ? <LoadingState label="Обновление доступа к бюджету и сезонам" /> : null}
+    <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
     {data ? <>
       {data.capabilities.canViewBudget ? <Surface padding="md" as="section">
         <div className="ui-section-header">
@@ -188,6 +195,7 @@ export function ObjectPlanningPanel({ objectId, item, onChanged, financialRevisi
         </> : null}
         <p className="ui-section-subtitle">Часовой пояс — Москва. Предыдущий сезон заканчивается накануне начала следующего. Новые условия вводятся с явной текущей или будущей датой; сохранённые начисления остаются прежними.</p>
       </Surface>
+      <AccessSnapshotBoundary blocked={editing === 'budget' ? !data.capabilities.canEditBudget : editing === 'seasons' && !data.capabilities.canEditSeasons}>
       <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) closeEditor(); }} busy={pending}
         title={editing === 'budget' ? 'Плановый бюджет расходников' : 'Переключение сезонов'}
         description={editing === 'budget' ? 'План на календарный месяц по московскому времени.' : 'В автоматическом режиме границы сезонов повторяются каждый год. Год в календаре не учитывается.'}
@@ -209,6 +217,8 @@ export function ObjectPlanningPanel({ objectId, item, onChanged, financialRevisi
           {error ? <Alert tone="danger">{error}</Alert> : null}
         </form>
       </Dialog>
+      </AccessSnapshotBoundary>
     </> : null}
+    </AccessSnapshotBoundary>
   </Stack>;
 }

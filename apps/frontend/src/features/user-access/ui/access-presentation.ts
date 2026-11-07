@@ -13,6 +13,7 @@ const labels: Record<string, string> = {
   legacy_active_user: 'Активная учётная запись',
   system_invariant: 'Обязательное системное правило',
   personal_allow_scoped: 'Персональное разрешение в ограниченной области',
+  personal_allow_scope_fully_denied: 'Персональное разрешение полностью перекрыто запретами в выбранной области.',
   personal_deny_scoped: 'Персональный запрет в ограниченной области',
   founder_role: 'Роль учредителя с учётом персональных правил',
   personal_allow: 'Персональное разрешение', personal_deny: 'Персональный запрет',

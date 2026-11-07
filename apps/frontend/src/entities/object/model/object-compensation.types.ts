@@ -45,7 +45,7 @@ export interface CompensationAdjustment {
 }
 export interface ObjectCompensation {
   versions: CompensationVersion[]; teamFunds: TeamFundVersion[]; adjustments: CompensationAdjustment[];
-  capabilities: { manageRates: boolean; manageTeamFund: boolean; requestExtraWork: boolean; requestAdjustment: boolean; approveRetroactive: boolean };
+  capabilities: { canReadRates?: boolean; canReadTeamFund?: boolean; canReadAdjustments?: boolean; manageRates: boolean; manageTeamFund: boolean; requestExtraWork: boolean; requestAdjustment: boolean; approveRetroactive: boolean };
 }
 export interface SalaryHalfExplanation {
   half: 1 | 2; baseHalf: number; normDays: number | null; paidDays: number; holidayDays: number;

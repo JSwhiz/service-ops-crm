@@ -8,7 +8,7 @@ import {
 
 import { Prisma } from '@prisma/client';
 import type { AccessSubject, AccessRule } from '../users-access/types/access-policy.type';
-import { buildAccessWhere, decideAccess, hasModuleDeny } from '../users-access/utils/access-policy.util';
+import { buildAccessWhere } from '../users-access/utils/access-policy.util';
 
 import { ApprovalRequestResponseDto } from '../approvals/dto/approval-request-response.dto';
 import {
@@ -154,12 +154,46 @@ export class TimesheetsService {
       throw new NotFoundException('Object not found');
     }
 
+    const correctionAccess = await this.correctionCapabilitiesForObjects(
+      currentUser, [object.id], query.year, query.month,
+    );
+    const canManualCorrection = correctionAccess.manual.has(object.id);
+    const canRequestCorrection = correctionAccess.request.has(object.id);
     const monthContainer = await this.prisma.timesheetMonth.findUnique({where: {objectId_year_month: {objectId: query.objectId, year: query.year, month: query.month}}});
     if (!monthContainer) {
       const overview = await this.getOverview(currentUser, {objectId: query.objectId, year: query.year, month: query.month});
       const policy = buildObjectDefaultRatePolicy({paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, scheduleCode: object.paymentScheduleCode, scheduleWeekdays: object.paymentScheduleWeekdays, scheduleCycleStartDate: object.paymentScheduleCycleStartDate});
       const fallback = this.getObjectPayrollFallback({paymentType: object.paymentType as 'monthly' | 'daily', monthlySalary: object.monthlySalary, dailyRate: object.dailyRate, year: query.year, month: query.month});
-      return {objectId: object.id, objectName: object.name, objectPaymentType: object.paymentType as 'monthly' | 'daily', objectDailyRate: object.dailyRate, objectMonthlySalary: object.monthlySalary, objectCalculatedDailyRate: fallback.dailyRate, objectWorkingDays: fallback.workingDays, year: query.year, month: query.month, status: 'open', daysInMonth: overview.daysInMonth, advanceTotal: overview.totals.advanceTotal, salaryTotal: overview.totals.salaryTotal, monthTotal: overview.totals.monthTotal, capabilities: {canManualCorrection: decideAccess(currentUser, 'timesheet.amount.edit', canManuallyCorrectTimesheet(this.getRoleCodes(currentUser)), { resourceType: 'object', resourceId: object.id })}, rows: overview.rows.map(row => ({employeeId: row.employeeId, employeeName: row.employeeName, advanceTotal: row.advanceTotal, salaryTotal: row.salaryTotal, rowTotal: row.monthTotal, ratePolicy: {...policy, label: getRatePolicyLabel(policy)}, entries: row.entries.map(entry => ({...entry, dayValue: entry.finalValue, updatedAt: null, updatedByUserId: null, updatedByUserName: null}))}))};
+      return {
+        objectId: object.id,
+        objectName: object.name,
+        objectPaymentType: object.paymentType as 'monthly' | 'daily',
+        objectDailyRate: object.dailyRate,
+        objectMonthlySalary: object.monthlySalary,
+        objectCalculatedDailyRate: fallback.dailyRate,
+        objectWorkingDays: fallback.workingDays,
+        year: query.year,
+        month: query.month,
+        status: 'open',
+        daysInMonth: overview.daysInMonth,
+        advanceTotal: overview.totals.advanceTotal,
+        salaryTotal: overview.totals.salaryTotal,
+        monthTotal: overview.totals.monthTotal,
+        capabilities: { canManualCorrection },
+        rows: overview.rows.map(row => ({
+          employeeId: row.employeeId,
+          employeeName: row.employeeName,
+          capabilities: { canManualCorrection, canRequestCorrection },
+          advanceTotal: row.advanceTotal,
+          salaryTotal: row.salaryTotal,
+          rowTotal: row.monthTotal,
+          ratePolicy: { ...policy, label: getRatePolicyLabel(policy) },
+          entries: row.entries.map(entry => ({
+            ...entry, dayValue: entry.finalValue,
+            updatedAt: null, updatedByUserId: null, updatedByUserName: null,
+          })),
+        })),
+      };
     }
 
     // Attendance/financial mutations own persisted values. Opening a report must
@@ -302,6 +336,7 @@ export class TimesheetsService {
       return {
         employeeId: row.employeeId,
         employeeName: row.employeeNameSnapshot,
+        capabilities: { canManualCorrection, canRequestCorrection },
         advanceTotal: totals.advanceTotal,
         salaryTotal: totals.salaryTotal,
         rowTotal: totals.monthTotal,
@@ -333,7 +368,7 @@ export class TimesheetsService {
       salaryTotal: totals.salaryTotal,
       monthTotal: totals.monthTotal,
       capabilities: {
-        canManualCorrection: decideAccess(currentUser, 'timesheet.amount.edit', canManuallyCorrectTimesheet(this.getRoleCodes(currentUser)), { resourceType: 'object', resourceId: query.objectId }),
+        canManualCorrection,
       },
       rows: mappedRows,
     };
@@ -558,6 +593,9 @@ export class TimesheetsService {
       return this.emptyOverview(currentUser, query, daysInMonth);
     }
 
+    const correctionAccess = await this.correctionCapabilitiesForObjects(
+      currentUser, objectIds, query.year, query.month,
+    );
     const employeeFilter = query.employeeId
       ? { employeeId: query.employeeId }
       : {};
@@ -779,6 +817,10 @@ export class TimesheetsService {
         objectName: object.name,
         employeeId,
         employeeName: employeeNameByPair.get(key) ?? 'Сотрудник',
+        capabilities: {
+          canManualCorrection: correctionAccess.manual.has(objectId),
+          canRequestCorrection: correctionAccess.request.has(objectId),
+        },
         entries,
         advanceTotal: totals.advanceTotal,
         salaryTotal: totals.salaryTotal,
@@ -803,9 +845,7 @@ export class TimesheetsService {
       rows: mappedRows,
       totals,
       capabilities: {
-        canManualCorrection: canManuallyCorrectTimesheet(
-          this.getRoleCodes(currentUser),
-        ),
+        canManualCorrection: mappedRows.some(row => row.capabilities.canManualCorrection),
         canExport: true,
       },
     };
@@ -1057,12 +1097,12 @@ export class TimesheetsService {
   ): Promise<TimesheetCorrectionItemDto[]> {
     await this.assertAccess(currentUser, query.objectId, 'timesheet.corrections.read');
 
-    const monthContainer = await this.ensureMonthContainer(
-      query.objectId,
-      query.year,
-      query.month,
-      currentUser.id,
-    );
+    // Reading the correction history must not create/backfill financial rows.
+    const monthContainer = await this.prisma.timesheetMonth.findUnique({
+      where: { objectId_year_month: { objectId: query.objectId, year: query.year, month: query.month } },
+      select: { id: true },
+    });
+    if (!monthContainer) return [];
 
     const correctionEntries = await this.prisma.timesheetDayEntry.findMany({
       where: {
@@ -1135,8 +1175,8 @@ export class TimesheetsService {
     payload: UpsertTimesheetEntryDto,
   ): Promise<TimesheetResponseDto | ApprovalRequestResponseDto> {
     await this.assertAccess(currentUser, payload.objectId);
-    await this.assertManualCorrectionAccess(currentUser, payload.objectId);
-    if (`${payload.year}-${String(payload.month).padStart(2, '0')}-${String(payload.dayOfMonth).padStart(2, '0')}` < todayMoscow()) {
+    await this.assertManualCorrectionAccess(currentUser, payload.objectId, payload.year, payload.month);
+    if (this.isRetroactiveCorrectionDate(payload.year, payload.month, payload.dayOfMonth)) {
       return this.requestManualException(currentUser, {...payload, comment: payload.comment ?? ''});
     }
 
@@ -1203,8 +1243,10 @@ export class TimesheetsService {
     await this.assertAccess(currentUser, payload.objectId, 'timesheet.exceptions.create');
     if (!payload.comment?.trim()) throw new BadRequestException('Для финансового исправления укажите основание');
 
-    const retroactive = `${payload.year}-${String(payload.month).padStart(2, '0')}-${String(payload.dayOfMonth).padStart(2, '0')}` < todayMoscow();
-    if (!retroactive && canManuallyCorrectTimesheet(this.getRoleCodes(currentUser))) {
+    const retroactive = this.isRetroactiveCorrectionDate(payload.year, payload.month, payload.dayOfMonth);
+    if (!retroactive && (await this.manualCorrectionObjectIds(
+      currentUser, [payload.objectId], payload.year, payload.month,
+    )).has(payload.objectId)) {
       throw new BadRequestException(
         'Direct manual correction is available for current user',
       );
@@ -1213,6 +1255,15 @@ export class TimesheetsService {
     const daysInMonth = this.getDaysInMonth(payload.year, payload.month);
     if (payload.dayOfMonth > daysInMonth) {
       throw new NotFoundException('Day exceeds month length');
+    }
+
+    // Reject a closed period before ensureMonthContainer can create/backfill
+    // rows. The approval application rechecks the same status before mutation.
+    const requestObjects = await this.correctionObjectIds(
+      currentUser, [payload.objectId], payload.year, payload.month, 'timesheet.exceptions.create',
+    );
+    if (!requestObjects.has(payload.objectId)) {
+      throw new ConflictException('Closed timesheet period cannot be corrected');
     }
 
     const monthContainer = await this.ensureMonthContainer(
@@ -1479,6 +1530,14 @@ export class TimesheetsService {
   }> {
     const client = params.client ?? this.prisma;
 
+    const month = await client.timesheetMonth.findUnique({
+      where: { id: params.monthContainerId },
+      select: { status: true },
+    });
+    if (!month || month.status !== 'open') {
+      throw new ConflictException('Closed timesheet period cannot be corrected');
+    }
+
     const row = await client.timesheetEmployeeRow.findFirst({
       where: {
         timesheetMonthId: params.monthContainerId,
@@ -1739,6 +1798,9 @@ export class TimesheetsService {
       subject: currentUser, actionCode,
       legacyWhere: actionCode === 'timesheet.amount.edit' ? (canManuallyCorrectTimesheet(roleCodes) ? {} : { id: { in: [] } }) : legacy,
       invariantWhere: read, scopeWhere,
+      // Compatibility is negative only: the historical code cannot silently
+      // grant a second independent operation, but its persisted denies still win.
+      parentActionCodes: actionCode === 'timesheet.amount.edit' ? ['timesheet.manual_correction'] : [],
     }) as Prisma.ObjectWhereInput;
   }
 
@@ -1754,9 +1816,7 @@ export class TimesheetsService {
       rows: [],
       totals: { advanceTotal: 0, salaryTotal: 0, monthTotal: 0 },
       capabilities: {
-        canManualCorrection: canManuallyCorrectTimesheet(
-          this.getRoleCodes(currentUser),
-        ),
+        canManualCorrection: false,
         canExport: true,
       },
     };
@@ -1812,11 +1872,63 @@ export class TimesheetsService {
     };
   }
 
-  private async assertManualCorrectionAccess(currentUser: CurrentAuthUser, objectId: string): Promise<void> {
-    const object = await this.prisma.object.findFirst({ where: this.buildTimesheetObjectWhere(currentUser, objectId, 'timesheet.amount.edit'), select: {
-      id: true, createdByUserId: true, assignments: { where: { isActive: true }, select: { userId: true } },
-    } });
-    if (!object || hasModuleDeny(currentUser, 'timesheet.manual_correction', { resourceType: 'object', resourceId: object.id, ownerUserId: object.createdByUserId, assignedUserIds: object.assignments.map(a => a.userId) })) {
+  private isRetroactiveCorrectionDate(year: number, month: number, dayOfMonth: number): boolean {
+    return `${year}-${String(month).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}` < todayMoscow();
+  }
+
+  private async correctionCapabilitiesForObjects(
+    currentUser: CurrentAuthUser,
+    objectIds: readonly string[],
+    year: number,
+    month: number,
+  ): Promise<{ manual: Set<string>; request: Set<string> }> {
+    const [manual, request] = await Promise.all([
+      this.manualCorrectionObjectIds(currentUser, objectIds, year, month),
+      this.correctionObjectIds(currentUser, objectIds, year, month, 'timesheet.exceptions.create'),
+    ]);
+    // A row flag is existential over the month's days. The endpoint checks the
+    // actual chosen day: direct editors must use direct correction for non-past
+    // dates, while past corrections retain the independent approval workflow.
+    if (!this.isRetroactiveCorrectionDate(year, month, 1)) {
+      for (const id of manual) request.delete(id);
+    }
+    return { manual, request };
+  }
+
+  private async manualCorrectionObjectIds(
+    currentUser: CurrentAuthUser,
+    objectIds: readonly string[],
+    year: number,
+    month: number,
+  ): Promise<Set<string>> {
+    return this.correctionObjectIds(currentUser, objectIds, year, month, 'timesheet.amount.edit');
+  }
+
+  /** Shared by DTO flags and both correction entry points. The independent
+   * exception action is never granted by absence/denial of direct correction. */
+  private async correctionObjectIds(
+    currentUser: CurrentAuthUser,
+    objectIds: readonly string[],
+    year: number,
+    month: number,
+    actionCode: 'timesheet.amount.edit' | 'timesheet.exceptions.create',
+  ): Promise<Set<string>> {
+    if (!objectIds.length) return new Set();
+    const objects = await this.prisma.object.findMany({
+      where: { AND: [
+        { id: { in: [...objectIds] } },
+        this.buildTimesheetObjectWhere(currentUser, undefined, actionCode),
+        { timesheetMonths: { none: { year, month, status: { not: 'open' } } } },
+      ] },
+      select: { id: true },
+    });
+    return new Set(objects.map(object => object.id));
+  }
+
+  private async assertManualCorrectionAccess(
+    currentUser: CurrentAuthUser, objectId: string, year: number, month: number,
+  ): Promise<void> {
+    if (!(await this.manualCorrectionObjectIds(currentUser, [objectId], year, month)).has(objectId)) {
       throw new ForbiddenException('Manual timesheet correction denied');
     }
   }

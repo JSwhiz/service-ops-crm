@@ -3278,9 +3278,6 @@ export class ObjectOperationsService {
       "objects.staffing.manage",
       canManageEmployeeAssignments(currentUser.permissionCodes ?? []),
     );
-    if (!canManageEmployeeAssignments(currentUser.permissionCodes ?? [])) {
-      throw new ForbiddenException("Employee assignment management denied");
-    }
   }
 
   private async assertObjectWritable(

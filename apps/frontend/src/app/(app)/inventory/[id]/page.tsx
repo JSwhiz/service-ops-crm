@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import { uploadFileToEntity } from '@/entities/file/api/file-client';
 import {
@@ -59,6 +61,9 @@ export default function InventoryItemDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [accessRetry, setAccessRetry] = useState(0);
   const router = useRouter();
   const [itemId, setItemId] = useState<string | null>(null);
   const [item, setItem] = useState<InventoryItem | null>(null);
@@ -113,13 +118,13 @@ export default function InventoryItemDetailPage({
     }
 
     let cancelled = false;
-    setIsLoading(true);
     setError(null);
 
     void getInventoryItemById(itemId)
       .then((loadedItem) => {
         if (!cancelled) {
           setItem(loadedItem);
+          setLoadedAccessRevision(accessRevision);
         }
       })
       .catch((loadError: unknown) => {
@@ -138,7 +143,7 @@ export default function InventoryItemDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [itemId]);
+  }, [itemId, accessRevision, accessRetry]);
 
   useEffect(() => {
     if (!canCreateMovement) {
@@ -171,7 +176,7 @@ export default function InventoryItemDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [canCreateMovement]);
+  }, [canCreateMovement, accessRevision]);
 
   useEffect(() => {
     if (item && window.location.hash === '#edit') {
@@ -238,10 +243,11 @@ export default function InventoryItemDetailPage({
     movementType,
     selectedObjectId,
     selectedOrderId,
+    accessRevision,
   ]);
 
   const handleRestore = async (): Promise<void> => {
-    if (!item) {
+    if (!item || !(item.capabilities.canRestore ?? item.capabilities.canDelete) || isItemActionPending) {
       return;
     }
 
@@ -292,6 +298,9 @@ export default function InventoryItemDetailPage({
   return (
     <div className={`ui-page ${inventoryStyles.inventoryWorkspace}`}>
       <BackLink href="/inventory">Расходники</BackLink>
+      {loadedAccessRevision !== accessRevision && !error ? <LoadingState label="Проверка доступа к расходнику…" /> : null}
+      {loadedAccessRevision !== accessRevision && error ? <Alert tone="danger" action={<Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button>}>{error}</Alert> : null}
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
 
       {isLoading ? (
         <LoadingState label="Загружаем позицию…" />
@@ -396,7 +405,7 @@ export default function InventoryItemDetailPage({
             />
           ) : null}
 
-          {item.capabilities.canEditCatalog || item.capabilities.canDelete ? (
+          {item.capabilities.canEditCatalog || item.capabilities.canDelete || (item.capabilities.canRestore ?? item.capabilities.canDelete) ? (
             <Surface padding="md" style={{ display: 'grid', gap: 12 }}>
               <div className="ui-section-header">
                 <div>
@@ -418,7 +427,7 @@ export default function InventoryItemDetailPage({
                     </Button>
                   ) : null
                 ) : (
-                  item.capabilities.canDelete ? (
+                  (item.capabilities.canRestore ?? item.capabilities.canDelete) ? (
                     <Button
                       disabled={isItemActionPending}
                       onClick={() => void handleRestore()}
@@ -636,6 +645,7 @@ export default function InventoryItemDetailPage({
       ) : (
         <Surface padding="md">Расходник не найден.</Surface>
       )}
+      </AccessSnapshotBoundary>
     </div>
   );
 }

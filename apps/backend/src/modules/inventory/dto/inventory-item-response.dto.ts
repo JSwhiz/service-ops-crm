@@ -42,6 +42,7 @@ export class InventoryItemResponseDto {
     canEditCatalog: boolean;
     canDelete: boolean;
     canCreateMovement: boolean;
+    canRestore?: boolean;
     canCreateReceipt: boolean;
     canIssueToObject: boolean;
     canIssueToOneTimeOrder: boolean;

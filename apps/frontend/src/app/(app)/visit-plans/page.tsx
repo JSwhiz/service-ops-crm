@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import {
   addVisitPlanEntry,
   createVisitPlan,
@@ -74,6 +76,20 @@ export default function VisitPlansPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const request = useRef(0);
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [managersRevision, setManagersRevision] = useState<string | null>(null);
+
+  // Discovery is a read-scoped endpoint, independent of access to one's own day.
+  useEffect(() => {
+    let active = true;
+    setManagersLoadFailed(false);
+    void getPlanManagers().then((items) => {
+      if (!active) return;
+      setManagers(items); setManagersRevision(accessRevision);
+    }).catch(() => { if (active) { setManagers([]); setManagersLoadFailed(true); } });
+    return () => { active = false; };
+  }, [accessRevision]);
 
   useEffect(() => {
     const sync = () => {
@@ -94,24 +110,17 @@ export default function VisitPlansPage(): React.JSX.Element {
       const day = await getVisitPlan(date, managerId || undefined);
       if (sequence !== request.current) return;
       setData(day);
+      setLoadedAccessRevision(accessRevision);
       if (!reportDirty) setReport(day.plan?.report ?? "");
-      const [historyResult, managersResult] = await Promise.allSettled([
+      const [historyResult] = await Promise.allSettled([
         day.plan ? getPlanHistory(day.plan.id) : Promise.resolve([]),
-        day.capabilities.canManage ? getPlanManagers() : Promise.resolve([]),
       ]);
       if (sequence !== request.current) return;
       setHistory(
         historyResult.status === "fulfilled" ? historyResult.value : [],
       );
-      setManagers(
-        managersResult.status === "fulfilled" ? managersResult.value : [],
-      );
       setHistoryLoadFailed(historyResult.status === "rejected");
-      setManagersLoadFailed(managersResult.status === "rejected");
-      if (
-        historyResult.status === "rejected" ||
-        managersResult.status === "rejected"
-      )
+      if (historyResult.status === "rejected")
         setError("Часть данных не загрузилась. Обновите данные.");
     } catch {
       if (sequence === request.current) {
@@ -123,7 +132,7 @@ export default function VisitPlansPage(): React.JSX.Element {
     } finally {
       if (sequence === request.current) setLoading(false);
     }
-  }, [date, managerId, reportDirty]);
+  }, [date, managerId, reportDirty, accessRevision]);
   // Changing a text draft must not trigger a refetch.
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -132,7 +141,7 @@ export default function VisitPlansPage(): React.JSX.Element {
     return () => {
       request.current += 1;
     };
-  }, [date, managerId]);
+  }, [date, managerId, accessRevision]);
 
   const select = (nextDate: string, nextManager: string) => {
     setReportDirty(false);
@@ -208,7 +217,7 @@ export default function VisitPlansPage(): React.JSX.Element {
             </Button>
           </div>
           <div className={styles.dateOptions}>
-            {data?.capabilities.canManage ? (
+            {managersRevision === accessRevision && managers.length > 0 ? (
               <Field label="Менеджер" className={styles.managerField} error={managersLoadFailed ? "Список менеджеров не загружен. Обновите данные." : undefined}>
                 <Select
                   value={managerId}
@@ -240,13 +249,16 @@ export default function VisitPlansPage(): React.JSX.Element {
           ) : null}
         </div>
         {error ? (
-          <Alert tone="danger" role="alert">
+          <Alert tone="danger" role="alert" action={<Button disabled={pending || loading} onClick={() => void load()}>Повторить загрузку плана</Button>}>
             {error}
           </Alert>
         ) : null}
         {loading ? (
           <LoadingState label="Загрузка плана" />
-        ) : plan ? (
+        ) : null}
+        {managersLoadFailed ? <Alert tone="warning">Не удалось загрузить доступных менеджеров. Обновите страницу, чтобы повторить проверку.</Alert> : null}
+        <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
+        {plan ? (
           <>
             <Surface padding="md">
               <h2 className="ui-section-title">{plan.manager.fullName}</h2>
@@ -272,7 +284,7 @@ export default function VisitPlansPage(): React.JSX.Element {
               <VisitEntry
                 key={entry.id}
                 entry={entry}
-                canManage={data.capabilities.canManage}
+                canManage={data.capabilities.canManageVisits ?? data.capabilities.canManage}
                 disabled={pending}
                 onSave={(visited, visitReport) =>
                   mutate(() =>
@@ -394,7 +406,7 @@ export default function VisitPlansPage(): React.JSX.Element {
             ) : null}
             <Surface padding="md">
               <h2 className="ui-section-title">Дневной отчёт</h2>
-              {data.capabilities.canManage ? (
+              {(data.capabilities.canManageReports ?? data.capabilities.canManage) ? (
                 <Stack gap="md">
                   <Field label="Текст отчёта">
                     <textarea
@@ -510,6 +522,7 @@ export default function VisitPlansPage(): React.JSX.Element {
             ) : null}
           </div>
         ) : null}
+        </AccessSnapshotBoundary>
       </Stack>
     </div>
   );

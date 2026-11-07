@@ -39,6 +39,9 @@ export interface CounterpartyCardResponseDto extends CounterpartyListItemDto {
   capabilities: {
     canManage: boolean;
     canLinkObjects: boolean;
+    canArchive?: boolean;
+    canRestore?: boolean;
+    canManageMasterObject?: boolean;
   };
 }
 

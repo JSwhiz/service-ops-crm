@@ -11,6 +11,10 @@ type ObjectStatusCode = 'active' | 'frozen' | 'archived';
 
 interface ObjectStatusControlPanelProps {
   currentStatus: string;
+  canChangeStatus?: boolean;
+  canFreeze?: boolean;
+  canArchive?: boolean;
+  canRestore?: boolean;
   approvalsHref?: string;
   onChangeStatus: (status: ObjectStatusCode) => Promise<void>;
 }
@@ -34,6 +38,10 @@ function getTransitionLabel(status: ObjectStatusCode): string {
 
 export function ObjectStatusControlPanel({
   currentStatus,
+  canChangeStatus = true,
+  canFreeze,
+  canArchive,
+  canRestore,
   approvalsHref,
   onChangeStatus,
 }: ObjectStatusControlPanelProps): React.JSX.Element {
@@ -43,10 +51,13 @@ export function ObjectStatusControlPanel({
 
   const availableTransitions = useMemo<ObjectStatusCode[]>(() => {
     const allStatuses: ObjectStatusCode[] = ['active', 'frozen', 'archived'];
-    return allStatuses.filter((status) => status !== currentStatus);
-  }, [currentStatus]);
+    return allStatuses.filter((status) => status !== currentStatus && (
+      status === 'frozen' ? canFreeze ?? canChangeStatus : status === 'archived' ? canArchive ?? canChangeStatus : currentStatus === 'archived' ? canRestore ?? canChangeStatus : canChangeStatus
+    ));
+  }, [currentStatus, canChangeStatus, canFreeze, canArchive, canRestore]);
 
   const handleChangeStatus = async (statusCode: ObjectStatusCode): Promise<void> => {
+    if (isSubmitting || !availableTransitions.includes(statusCode)) return;
     setError(null);
     setSuccess(null);
     setIsSubmitting(true);

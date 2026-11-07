@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import {
   addCandidateResponse,
@@ -141,6 +143,9 @@ export default function CandidatePage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [accessRetry, setAccessRetry] = useState(0);
   const [candidate, setCandidate] = useState<CandidateCard | null>(null);
   const router = useRouter();
   const [managers, setManagers] = useState<CandidateManagerDraft[]>([]);
@@ -169,6 +174,8 @@ export default function CandidatePage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const editingRef = React.useRef(editing);
+  editingRef.current = editing;
 
   const syncForm = (item: CandidateCard): void => {
     setForm({
@@ -190,12 +197,14 @@ export default function CandidatePage({
 
   useEffect(() => {
     let active = true;
+    setError(null);
     void params
       .then(({ id }) => getCandidate(id))
       .then((item) => {
         if (active) {
           setCandidate(item);
-          syncForm(item);
+          setLoadedAccessRevision(accessRevision);
+          if (!editingRef.current) syncForm(item);
         }
       })
       .catch(() => {
@@ -207,7 +216,7 @@ export default function CandidatePage({
     return () => {
       active = false;
     };
-  }, [params]);
+  }, [params, accessRevision, accessRetry]);
 
   const apply = (next: CandidateCard): void => {
     setCandidate(next);
@@ -260,7 +269,7 @@ export default function CandidatePage({
 
   const activeAssignments = candidateActiveAssignments(candidate);
   const canEditManagers =
-    candidate.capabilities.canManage &&
+    (candidate.capabilities.canManageAssignments ?? candidate.capabilities.canManage) &&
     !candidate.deletedAt &&
     !['accepted', 'rejected'].includes(candidate.status);
   const isClosed = CLOSED_STATUSES.includes(candidate.status);
@@ -270,6 +279,7 @@ export default function CandidatePage({
   const reopenNeedsManagers = reopening && candidate.candidateType === 'regular';
   const phones = candidatePhones(candidate);
   const requestStatusChange = (next: CandidateStatus): void => {
+    if (!(candidate.capabilities.canChangeStatus ?? candidate.capabilities.canManage)) return;
     if (next === candidate.status) return;
     const closing = CLOSED_STATUSES.includes(next);
     const opening = isClosed && !closing;
@@ -331,6 +341,8 @@ export default function CandidatePage({
   return (
     <div className={card.page}>
       <BackLink href="/candidates">Кандидаты</BackLink>
+      {loadedAccessRevision !== accessRevision ? <div role="status">{error || 'Проверяем доступ к кандидату…'}{error ? <Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button> : null}</div> : null}
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
 
       <EntityHeader
         className={card.header}
@@ -431,7 +443,7 @@ export default function CandidatePage({
             label: 'Статус',
             value: (
               <>
-                {candidate.capabilities.canManage && !candidate.deletedAt ? (
+                {(candidate.capabilities.canChangeStatus ?? candidate.capabilities.canManage) && !candidate.deletedAt ? (
               <SearchableSelect
                 label="Статус кандидата"
                 hideLabel
@@ -966,6 +978,7 @@ export default function CandidatePage({
             .finally(() => setSaving(false));
         }}
       />
+      </AccessSnapshotBoundary>
     </div>
   );
 }

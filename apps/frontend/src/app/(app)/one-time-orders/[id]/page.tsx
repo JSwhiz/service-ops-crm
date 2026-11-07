@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/shared/auth/use-auth';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import {
   createAccountabilityExpense,
@@ -136,6 +138,9 @@ export default function OneTimeOrderDetailPage({
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
   const { user } = useAuth();
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [accessRetry, setAccessRetry] = useState(0);
   const loadGeneration = useRef(0);
   const [item, setItem] = useState<OneTimeOrderItem | null>(null);
   const [comments, setComments] = useState<OneTimeOrderCommentItem[]>([]);
@@ -346,7 +351,6 @@ export default function OneTimeOrderDetailPage({
     let cancelled = false;
 
     const load = async (): Promise<void> => {
-      setIsLoading(true);
       setError(null);
 
       try {
@@ -376,7 +380,7 @@ export default function OneTimeOrderDetailPage({
       cancelled = true;
       loadGeneration.current += 1;
     };
-  }, [params, user?.accessVersion]);
+  }, [params, accessRevision, accessRetry]);
 
   const loadAll = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     const generation = ++loadGeneration.current;
@@ -472,6 +476,7 @@ export default function OneTimeOrderDetailPage({
     }
 
     await Promise.all(requests);
+    if (isCurrent()) setLoadedAccessRevision(accessRevision);
   };
 
   useEffect(() => {
@@ -509,7 +514,7 @@ export default function OneTimeOrderDetailPage({
         if (active) setHistoryLoading(false);
       });
     return () => { active = false; };
-  }, [activeSection, appliedHistoryFilters, historyPageNumber, historyQueryKey, historyRefreshVersion, historyRetry, item?.id]);
+  }, [activeSection, appliedHistoryFilters, historyPageNumber, historyQueryKey, historyRefreshVersion, historyRetry, item?.id, accessRevision]);
 
   const history = historyPageData?.items ?? [];
 
@@ -518,6 +523,9 @@ export default function OneTimeOrderDetailPage({
 
   return (
     <div className={`ui-page ${orderStyles.orderDetailPage}`}>
+      {loadedAccessRevision !== accessRevision && !error ? <LoadingState label="Обновление доступа к заказу…" /> : null}
+      {loadedAccessRevision !== accessRevision && error ? <Alert tone="warning" action={<Button onClick={() => setAccessRetry((value) => value + 1)}>Повторить проверку доступа</Button>}>{error}</Alert> : null}
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision}>
       {isLoading ? (
         <LoadingState label="Загрузка разового заказа…" />
       ) : error ? (
@@ -1046,6 +1054,7 @@ export default function OneTimeOrderDetailPage({
         onConfirm={() => closeScheduleConflictPrompt(true)}
       />
       {editConfirmDialog}
+      </AccessSnapshotBoundary>
     </div>
   );
 }

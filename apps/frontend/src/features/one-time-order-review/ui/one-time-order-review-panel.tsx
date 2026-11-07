@@ -29,8 +29,8 @@ export function OneTimeOrderReviewPanel({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    setText(item.reviewText ?? '');
-  }, [item.reviewText]);
+    if (!isEditing) setText(item.reviewText ?? '');
+  }, [item.reviewText, isEditing]);
 
   useEffect(() => {
     if (window.location.hash !== '#review') return;
@@ -44,6 +44,7 @@ export function OneTimeOrderReviewPanel({
   }, [item.capabilities.canEditReview]);
 
   const hasReview = item.reviewText !== null || item.reviewRating !== null;
+  const canDeleteReview = item.capabilities.canDeleteReview ?? item.capabilities.canEditReview;
 
   return (
     <>
@@ -62,6 +63,7 @@ export function OneTimeOrderReviewPanel({
         </div>
       </div>
 
+      {error && !isEditing && !clearConfirmOpen ? <Alert tone="danger" role="alert">{error}</Alert> : null}
       {item.capabilities.canEditReview && isEditing ? (
         <form
           className="ui-stack ui-stack--lg"
@@ -110,7 +112,7 @@ export function OneTimeOrderReviewPanel({
             >
               Отмена
             </Button>
-            {hasReview ? (
+            {hasReview && canDeleteReview ? (
               <Button
                 disabled={isSaving}
                 onClick={() => setClearConfirmOpen(true)}
@@ -128,6 +130,7 @@ export function OneTimeOrderReviewPanel({
               {hasReview ? 'Изменить отзыв' : 'Добавить отзыв'}
             </Button>
           ) : null}
+          {hasReview && canDeleteReview ? <Button disabled={isSaving} onClick={() => setClearConfirmOpen(true)}>Удалить отзыв</Button> : null}
         </div>
       )}
     </section>
@@ -139,7 +142,9 @@ export function OneTimeOrderReviewPanel({
       confirmLabel="Удалить отзыв"
       tone="danger"
       pending={isSaving}
+      error={error}
       onConfirm={() => {
+        if (!canDeleteReview || isSaving) return;
         setIsSaving(true);
         setError(null);
         void onClear()

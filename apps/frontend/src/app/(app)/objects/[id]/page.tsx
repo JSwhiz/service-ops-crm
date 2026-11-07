@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 
 import { getObjectEquipment } from '@/entities/equipment/api/equipment-client';
 import type { EquipmentScope } from '@/entities/equipment/model/equipment.types';
@@ -128,11 +130,15 @@ export default function ObjectDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [loadedParams, setLoadedParams] = useState<typeof params | null>(null);
   const [objectId, setObjectId] = useState('');
   const [item, setItem] = useState<ServiceObject | null>(null);
   const [coreLoading, setCoreLoading] = useState(true);
   const [coreError, setCoreError] = useState<string | null>(null);
   const [coreRetry, setCoreRetry] = useState(0);
+  const previousCoreRequest = useRef({ params, coreRetry, accessRevision });
   const [financialRevision, setFinancialRevision] = useState(0);
 
   useEffect(() => {
@@ -203,17 +209,21 @@ export default function ObjectDetailPage({
 
   const canManageResponsibles = item?.capabilities.canManageResponsibles ?? false;
   const canManageManagers = item?.capabilities.canManageManagers ?? false;
-  const canManageObjectStatus = item?.capabilities.canChangeStatus ?? false;
+  const canManageObjectStatus = Boolean(item && (
+    (item.status !== 'active' && (item.status === 'archived' ? item.capabilities.canRestore ?? item.capabilities.canChangeStatus : item.capabilities.canChangeStatus)) ||
+    (item.status !== 'frozen' && (item.capabilities.canFreeze ?? item.capabilities.canChangeStatus)) ||
+    (item.status !== 'archived' && (item.capabilities.canArchive ?? item.capabilities.canChangeStatus))
+  ));
 
-  const loadCore = async (id: string, cancelled = false): Promise<ServiceObject | null> => {
-    setCoreLoading(true);
+  const loadCore = async (id: string, isCancelled: () => boolean = () => false, preserveForms = false): Promise<ServiceObject | null> => {
+    if (!preserveForms) setCoreLoading(true);
     setCoreError(null);
     try {
       const response = await getObjectById(id);
-      if (!cancelled) setItem(response);
+      if (!isCancelled()) setItem(response);
       return response;
     } catch (error) {
-      if (!cancelled) {
+      if (!isCancelled()) {
         const message = error instanceof ApiError
           ? error.statusCode === 404
             ? 'Объект не найден или недоступен.'
@@ -225,117 +235,122 @@ export default function ObjectDetailPage({
       }
       return null;
     } finally {
-      if (!cancelled) setCoreLoading(false);
+      if (!isCancelled()) setCoreLoading(false);
     }
   };
 
-  const loadArrival = async (id: string, cancelled = false): Promise<void> => {
+  const loadArrival = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setArrivalLoading(true); setArrivalError(null);
-    try { const response = await getTodayArrivalPhoto(id); if (!cancelled) setArrival(response); }
-    catch (error) { if (!cancelled) setArrivalError(getErrorMessage(error, 'Не удалось загрузить фото прибытия.')); }
-    finally { if (!cancelled) setArrivalLoading(false); }
+    try { const response = await getTodayArrivalPhoto(id); if (!isCancelled()) setArrival(response); }
+    catch (error) { if (!isCancelled()) setArrivalError(getErrorMessage(error, 'Не удалось загрузить фото прибытия.')); }
+    finally { if (!isCancelled()) setArrivalLoading(false); }
   };
-  const loadReport = async (id: string, cancelled = false): Promise<void> => {
+  const loadReport = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setReportLoading(true); setReportError(null);
-    try { const response = await getTodayDailyReport(id); if (!cancelled) setReport(response); }
-    catch (error) { if (!cancelled) setReportError(getErrorMessage(error, 'Не удалось загрузить отчет дня.')); }
-    finally { if (!cancelled) setReportLoading(false); }
+    try { const response = await getTodayDailyReport(id); if (!isCancelled()) setReport(response); }
+    catch (error) { if (!isCancelled()) setReportError(getErrorMessage(error, 'Не удалось загрузить отчет дня.')); }
+    finally { if (!isCancelled()) setReportLoading(false); }
   };
-  const loadComments = async (id: string, cancelled = false): Promise<void> => {
+  const loadComments = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setCommentsLoading(true); setCommentsError(null);
-    try { const response = await listObjectComments(id); if (!cancelled) setComments(response); }
-    catch (error) { if (!cancelled) setCommentsError(getErrorMessage(error, 'Не удалось загрузить комментарии объекта.')); }
-    finally { if (!cancelled) setCommentsLoading(false); }
+    try { const response = await listObjectComments(id); if (!isCancelled()) setComments(response); }
+    catch (error) { if (!isCancelled()) setCommentsError(getErrorMessage(error, 'Не удалось загрузить комментарии объекта.')); }
+    finally { if (!isCancelled()) setCommentsLoading(false); }
   };
-  const loadFeed = async (id: string, cancelled = false): Promise<void> => {
+  const loadFeed = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setFeedLoading(true); setFeedError(null);
-    try { const response = await getObjectFeed(id); if (!cancelled) setFeed(response); }
-    catch (error) { if (!cancelled) setFeedError(getErrorMessage(error, 'Не удалось загрузить ленту объекта.')); }
-    finally { if (!cancelled) setFeedLoading(false); }
+    try { const response = await getObjectFeed(id); if (!isCancelled()) setFeed(response); }
+    catch (error) { if (!isCancelled()) setFeedError(getErrorMessage(error, 'Не удалось загрузить ленту объекта.')); }
+    finally { if (!isCancelled()) setFeedLoading(false); }
   };
-  const loadTasks = async (id: string, cancelled = false): Promise<void> => {
+  const loadTasks = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setTasksLoading(true); setTasksError(null);
-    try { const response = await listTasksByObject(id); if (!cancelled) setTasks(response); }
-    catch (error) { if (!cancelled) setTasksError(getErrorMessage(error, 'Не удалось загрузить задачи объекта.')); }
-    finally { if (!cancelled) setTasksLoading(false); }
+    try { const response = await listTasksByObject(id); if (!isCancelled()) setTasks(response); }
+    catch (error) { if (!isCancelled()) setTasksError(getErrorMessage(error, 'Не удалось загрузить задачи объекта.')); }
+    finally { if (!isCancelled()) setTasksLoading(false); }
   };
-  const loadLinkedOrders = async (id: string, cancelled = false): Promise<void> => {
+  const loadLinkedOrders = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setLinkedOrdersLoading(true); setLinkedOrdersError(null);
-    try { const response = await listLinkedOneTimeOrders(id); if (!cancelled) setLinkedOrders(response); }
-    catch (error) { if (!cancelled) setLinkedOrdersError(getErrorMessage(error, 'Не удалось загрузить связанные разовые заказы.')); }
-    finally { if (!cancelled) setLinkedOrdersLoading(false); }
+    try { const response = await listLinkedOneTimeOrders(id); if (!isCancelled()) setLinkedOrders(response); }
+    catch (error) { if (!isCancelled()) setLinkedOrdersError(getErrorMessage(error, 'Не удалось загрузить связанные разовые заказы.')); }
+    finally { if (!isCancelled()) setLinkedOrdersLoading(false); }
   };
-  const loadObjectInventory = async (id: string, cancelled = false): Promise<void> => {
+  const loadObjectInventory = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setObjectInventoryLoading(true); setObjectInventoryError(null);
-    try { const response = await getObjectInventory(id); if (!cancelled) setObjectInventory(response); }
-    catch (error) { if (!cancelled) setObjectInventoryError(getErrorMessage(error, 'Не удалось загрузить расходники объекта.')); }
-    finally { if (!cancelled) setObjectInventoryLoading(false); }
+    try { const response = await getObjectInventory(id); if (!isCancelled()) setObjectInventory(response); }
+    catch (error) { if (!isCancelled()) setObjectInventoryError(getErrorMessage(error, 'Не удалось загрузить расходники объекта.')); }
+    finally { if (!isCancelled()) setObjectInventoryLoading(false); }
   };
-  const loadObjectEquipment = async (id: string, cancelled = false): Promise<void> => {
+  const loadObjectEquipment = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setObjectEquipmentLoading(true); setObjectEquipmentError(null);
-    try { const response = await getObjectEquipment(id); if (!cancelled) setObjectEquipment(response); }
-    catch (error) { if (!cancelled) setObjectEquipmentError(getErrorMessage(error, 'Не удалось загрузить оборудование объекта.')); }
-    finally { if (!cancelled) setObjectEquipmentLoading(false); }
+    try { const response = await getObjectEquipment(id); if (!isCancelled()) setObjectEquipment(response); }
+    catch (error) { if (!isCancelled()) setObjectEquipmentError(getErrorMessage(error, 'Не удалось загрузить оборудование объекта.')); }
+    finally { if (!isCancelled()) setObjectEquipmentLoading(false); }
   };
-  const loadObjectFiles = async (id: string, cancelled = false): Promise<void> => {
+  const loadObjectFiles = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setObjectFilesLoading(true); setObjectFilesError(null);
-    try { const response = await listFilesByEntity('object', id); if (!cancelled) setObjectFiles(response); }
-    catch (error) { if (!cancelled) setObjectFilesError(getErrorMessage(error, 'Не удалось загрузить файлы объекта.')); }
-    finally { if (!cancelled) setObjectFilesLoading(false); }
+    try { const response = await listFilesByEntity('object', id); if (!isCancelled()) setObjectFiles(response); }
+    catch (error) { if (!isCancelled()) setObjectFilesError(getErrorMessage(error, 'Не удалось загрузить файлы объекта.')); }
+    finally { if (!isCancelled()) setObjectFilesLoading(false); }
   };
-  const loadAssignedEmployees = async (id: string, cancelled = false): Promise<void> => {
+  const loadAssignedEmployees = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setAssignedEmployeesLoading(true); setAssignedEmployeesError(null);
-    try { const response = await listObjectEmployees(id); if (!cancelled) setAssignedEmployees(Array.isArray(response) ? response : []); }
-    catch (error) { if (!cancelled) setAssignedEmployeesError(getErrorMessage(error, 'Не удалось загрузить текущий состав сотрудников.')); }
-    finally { if (!cancelled) setAssignedEmployeesLoading(false); }
+    try { const response = await listObjectEmployees(id); if (!isCancelled()) setAssignedEmployees(Array.isArray(response) ? response : []); }
+    catch (error) { if (!isCancelled()) setAssignedEmployeesError(getErrorMessage(error, 'Не удалось загрузить текущий состав сотрудников.')); }
+    finally { if (!isCancelled()) setAssignedEmployeesLoading(false); }
   };
-  const loadDirectory = async (id: string, search: string, cancelled = false): Promise<void> => {
+  const loadDirectory = async (id: string, search: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setDirectoryLoading(true); setDirectoryError(null);
-    try { const response = await searchEmployeeDirectory(id, search); if (!cancelled) setDirectoryEmployees(Array.isArray(response) ? response : []); }
-    catch (error) { if (!cancelled) setDirectoryError(getErrorMessage(error, 'Не удалось загрузить справочник сотрудников.')); }
-    finally { if (!cancelled) setDirectoryLoading(false); }
+    try { const response = await searchEmployeeDirectory(id, search); if (!isCancelled()) setDirectoryEmployees(Array.isArray(response) ? response : []); }
+    catch (error) { if (!isCancelled()) setDirectoryError(getErrorMessage(error, 'Не удалось загрузить справочник сотрудников.')); }
+    finally { if (!isCancelled()) setDirectoryLoading(false); }
   };
-  const loadAttendance = async (id: string, cancelled = false): Promise<void> => {
+  const loadAttendance = async (id: string, isCancelled: () => boolean = () => false): Promise<void> => {
     setAttendanceLoading(true); setAttendanceError(null);
     try {
       const response = await getTodayObjectAttendance(id);
-      if (!cancelled) {
+      if (!isCancelled()) {
         setAttendanceEmployeeIds(response.submittedAt ? response.employeeIds ?? [] : response.suggestedEmployeeIds ?? response.employeeIds ?? []);
         setAttendanceEmployeeFacts(response.employeeFacts ?? []);
         setAttendanceEmployees(Array.isArray(response.employees) ? response.employees : []);
       }
     } catch (error) {
-      if (!cancelled) setAttendanceError(getErrorMessage(error, 'Не удалось загрузить отметку присутствия за сегодня.'));
+      if (!isCancelled()) setAttendanceError(getErrorMessage(error, 'Не удалось загрузить отметку присутствия за сегодня.'));
     } finally {
-      if (!cancelled) setAttendanceLoading(false);
+      if (!isCancelled()) setAttendanceLoading(false);
     }
   };
 
   useEffect(() => {
     let cancelled = false;
+    const previous = previousCoreRequest.current;
+    const preserveForms = previous.params === params && previous.coreRetry === coreRetry && previous.accessRevision !== accessRevision;
+    previousCoreRequest.current = { params, coreRetry, accessRevision };
     void (async () => {
       const resolved = await params;
       if (cancelled) return;
       setObjectId(resolved.id);
-      const core = await loadCore(resolved.id, cancelled);
+      const core = await loadCore(resolved.id, () => cancelled, preserveForms);
       if (!core || cancelled) return;
 
-      const employeeLoads = core.capabilities.canViewEmployees === false ? [] : [loadAssignedEmployees(resolved.id, cancelled)];
-      if (core.capabilities.canManageEmployees) employeeLoads.push(loadDirectory(resolved.id, '', cancelled));
+      const employeeLoads = core.capabilities.canViewEmployees === false ? [] : [loadAssignedEmployees(resolved.id, () => cancelled)];
+      if (core.capabilities.canManageEmployees) employeeLoads.push(loadDirectory(resolved.id, '', () => cancelled));
       const operationalLoads = core.capabilities.canViewOperationalSections
         ? [
-            loadArrival(resolved.id, cancelled), loadReport(resolved.id, cancelled),
-            loadComments(resolved.id, cancelled), loadFeed(resolved.id, cancelled),
-            loadLinkedOrders(resolved.id, cancelled), loadObjectInventory(resolved.id, cancelled),
-            loadObjectEquipment(resolved.id, cancelled), loadObjectFiles(resolved.id, cancelled),
-            loadTasks(resolved.id, cancelled),
-            ...(core.capabilities.canOperateAttendance === false ? [] : [loadAttendance(resolved.id, cancelled)]),
+            loadArrival(resolved.id, () => cancelled), loadReport(resolved.id, () => cancelled),
+            loadComments(resolved.id, () => cancelled), loadFeed(resolved.id, () => cancelled),
+            loadLinkedOrders(resolved.id, () => cancelled), loadObjectInventory(resolved.id, () => cancelled),
+            loadObjectEquipment(resolved.id, () => cancelled),
+            loadTasks(resolved.id, () => cancelled),
+            ...(core.capabilities.canOperateAttendance === false ? [] : [loadAttendance(resolved.id, () => cancelled)]),
           ]
-        : core.capabilities.canViewReportsHistory ? [loadReport(resolved.id, cancelled)] : [];
-      await Promise.all([...employeeLoads, ...operationalLoads]);
+        : core.capabilities.canViewReportsHistory ? [loadReport(resolved.id, () => cancelled)] : [];
+      const materialLoads = (core.capabilities.canReadMaterials ?? core.capabilities.canViewOperationalSections) ? [loadObjectFiles(resolved.id, () => cancelled)] : [];
+      await Promise.all([...employeeLoads, ...operationalLoads, ...materialLoads]);
+      if (!cancelled) { setLoadedAccessRevision(accessRevision); setLoadedParams(params); }
     })();
     return () => { cancelled = true; };
-  }, [params, coreRetry]);
+  }, [params, coreRetry, accessRevision]);
 
   useEffect(() => {
     if (!objectId || !item) return;
@@ -361,12 +376,15 @@ export default function ObjectDetailPage({
   useEffect(() => {
     if (!objectId || !item?.capabilities.canManageEmployees) return;
     let cancelled = false;
-    const timeout = window.setTimeout(() => void loadDirectory(objectId, employeeSearch, cancelled), 250);
+    const timeout = window.setTimeout(() => void loadDirectory(objectId, employeeSearch, () => cancelled), 250);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [objectId, employeeSearch, item?.capabilities.canManageEmployees]);
+  }, [objectId, employeeSearch, item?.capabilities.canManageEmployees, accessRevision]);
 
   return (
     <div className={`ui-page object-detail-page ${styles.fullWidth}`}>
+      {(loadedAccessRevision !== accessRevision || loadedParams !== params) && !coreError ? <ObjectPanelLoading title="Обновление доступа к объекту" /> : null}
+      {(loadedAccessRevision !== accessRevision || loadedParams !== params) && coreError ? <><ObjectPanelError title="Доступ к объекту не подтверждён" message={coreError} /><Button onClick={() => setCoreRetry((attempt) => attempt + 1)}>Повторить проверку доступа</Button></> : null}
+      <AccessSnapshotBoundary blocked={loadedAccessRevision !== accessRevision || loadedParams !== params}>
       {coreLoading ? (
         <ObjectPanelLoading title="Карточка объекта" />
       ) : coreError ? (
@@ -410,6 +428,10 @@ export default function ObjectDetailPage({
             {canManageObjectStatus ? (
               <ObjectStatusControlPanel
                 currentStatus={item.status}
+                canChangeStatus={item.capabilities.canChangeStatus}
+                canFreeze={item.capabilities.canFreeze}
+                canArchive={item.capabilities.canArchive}
+                canRestore={item.capabilities.canRestore}
                 approvalsHref={`/approvals?sourceEntityType=object&sourceEntityId=${objectId}`}
                 onChangeStatus={async (status) => { await changeObjectStatus(objectId, { status }); }}
               />
@@ -560,9 +582,9 @@ export default function ObjectDetailPage({
             )}
           </WorkspaceSection>
 
-          <WorkspaceSection id="contacts" title="Контакты">
-            <ObjectContactsPanel objectId={objectId} canEdit={item.capabilities.canEdit} />
-          </WorkspaceSection>
+          {item.capabilities.canReadContacts !== false ? <WorkspaceSection id="contacts" title="Контакты">
+            <ObjectContactsPanel objectId={objectId} canEdit={item.capabilities.canManageContacts ?? item.capabilities.canEdit} />
+          </WorkspaceSection> : null}
           {item.capabilities.canViewReportsHistory ? <WorkspaceSection id="reports" title="Ежедневные отчёты"><ObjectReportsPanel objectId={objectId} /></WorkspaceSection> : null}
           {!item.capabilities.canViewOperationalSections && item.capabilities.canViewReportsHistory ? <>
             <WorkspaceSection id="history" title="История">
@@ -613,7 +635,8 @@ export default function ObjectDetailPage({
               <ObjectRubberMatsPanel objectId={objectId} />
             </WorkspaceSection>
 
-            <WorkspaceSection id="files" title="Материалы об объекте">
+          </> : null}
+            {(item.capabilities.canReadMaterials ?? item.capabilities.canViewOperationalSections) ? <WorkspaceSection id="files" title="Материалы об объекте">
               {objectFilesLoading ? <ObjectPanelLoading title="Материалы об объекте" /> : objectFilesError ? (
                 <ObjectPanelError title="Материалы об объекте" message={objectFilesError} />
               ) : (
@@ -621,7 +644,7 @@ export default function ObjectDetailPage({
                   title="Материалы об объекте"
                   iconOnlyMediaActions
                   files={objectFiles}
-                  canUpload={item.capabilities.canEdit}
+                  canUpload={item.capabilities.canManageMaterials ?? item.capabilities.canEdit}
                   onUpload={async (file) => {
                     await uploadFileToEntity({ entityType: 'object', entityId: objectId, file });
                     await loadObjectFiles(objectId);
@@ -629,8 +652,9 @@ export default function ObjectDetailPage({
                   emptyText="Вложений пока нет."
                 />
               )}
-            </WorkspaceSection>
+            </WorkspaceSection> : null}
 
+          {item.capabilities.canViewOperationalSections ? <>
             <WorkspaceSection id="history" title="История">
               <Surface padding="md" className={`${styles.quickAction}`}>
                 <div className="ui-section-title">История изменений</div>
@@ -645,6 +669,7 @@ export default function ObjectDetailPage({
       ) : (
         <div className="ui-empty-state">Объект не найден.</div>
       )}
+      </AccessSnapshotBoundary>
     </div>
   );
 }

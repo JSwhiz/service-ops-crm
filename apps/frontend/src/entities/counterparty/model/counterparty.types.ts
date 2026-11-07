@@ -53,6 +53,9 @@ export interface CounterpartyCard extends CounterpartyListItem {
   objects: CounterpartyObjectSummary[];
   capabilities: {
     canManage: boolean;
+    canArchive?: boolean;
+    canRestore?: boolean;
+    canManageMasterObject?: boolean;
     canLinkObjects: boolean;
   };
 }

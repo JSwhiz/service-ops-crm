@@ -21,6 +21,10 @@ export class TimesheetResponseDto {
   rows!: Array<{
     employeeId: string;
     employeeName: string;
+    capabilities: {
+      canManualCorrection: boolean;
+      canRequestCorrection: boolean;
+    };
     advanceTotal: number;
     salaryTotal: number;
     rowTotal: number;

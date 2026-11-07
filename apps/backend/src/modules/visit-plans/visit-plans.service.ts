@@ -16,7 +16,7 @@ import {
 } from "../objects/utils/object-access.util";
 import { delegatedObjectIds } from "../user-substitutions/object-delegation.context";
 import { PrismaService } from "../prisma/prisma.service";
-import { visitPlanManageUserWhere, visitPlanReadUserWhere } from './visit-plan-access.util';
+import { visitPlanReadUserWhere } from './visit-plan-access.util';
 import {
   CreateVisitPlanDto,
   RecordVisitDto,
@@ -24,6 +24,7 @@ import {
   SaveVisitPlanReportDto,
   SaveVisitPlanDeadlineDto,
   VisitPlanObjectOptionsQueryDto,
+  VisitPlanCapabilitiesDto,
 } from "./dto/visit-plan.dto";
 
 export interface VisitPlanUser extends AccessSubject {
@@ -81,17 +82,26 @@ export class VisitPlansService {
     return { resourceType: 'user', resourceId: managerUserId, ownerUserId: managerUserId };
   }
 
-  private managerWhere(user: VisitPlanUser): Prisma.UserWhereInput {
-    return visitPlanManageUserWhere(user);
-  }
-
-  private assertManage(user: VisitPlanUser, managerUserId?: string, actionCode = 'visit_plans.manage'): void {
+  private planActionAllowed(user: VisitPlanUser, managerUserId?: string, actionCode = 'visit_plans.manage'): boolean {
     const legacy = user.permissionCodes?.includes(VISIT_PLANS_MANAGE) === true;
     const context = this.planContext(managerUserId);
     const bundle = this.canManage(user, managerUserId);
     const scopedEntry = !managerUserId && !hasModuleDeny(user, actionCode) && !hasModuleDeny(user, 'visit_plans.manage') && user.accessRules?.some(rule => [actionCode, 'visit_plans.manage'].includes(rule.actionCode) && rule.effect === 'allow');
-    if (hasModuleDeny(user, 'visit_plans.manage', context) || (!scopedEntry && !decideAccess(user, actionCode, legacy || bundle, context)))
+    return !hasModuleDeny(user, 'visit_plans.manage', context) &&
+      (scopedEntry === true || decideAccess(user, actionCode, legacy || bundle, context));
+  }
+
+  private assertManage(user: VisitPlanUser, managerUserId?: string, actionCode = 'visit_plans.manage'): void {
+    if (!this.planActionAllowed(user, managerUserId, actionCode))
       throw new ForbiddenException("Visit plan management denied");
+  }
+
+  private planCapabilities(user: VisitPlanUser, managerUserId: string): VisitPlanCapabilitiesDto {
+    return {
+      canManage: this.canManage(user, managerUserId),
+      canManageVisits: this.planActionAllowed(user, managerUserId, 'visit_plans.visits.manage'),
+      canManageReports: this.planActionAllowed(user, managerUserId, 'visit_plans.reports.manage'),
+    };
   }
 
   private async assertRead(user: VisitPlanUser, managerUserId: string): Promise<void> {
@@ -105,10 +115,11 @@ export class VisitPlansService {
   }
 
   async listManagers(user: VisitPlanUser) {
-    this.assertManage(user);
     return this.prisma.user.findMany({
       where: {
-        AND: [this.managerWhere(user)],
+        // Discovery grants no write authority. Match the day-read scope while
+        // retaining the existing active manager directory eligibility below.
+        AND: [visitPlanReadUserWhere(user)],
         isActive: true,
         deletedAt: null,
         roles: {
@@ -211,7 +222,7 @@ export class VisitPlansService {
       },
       include: this.planInclude(user),
     });
-    return { plan, capabilities: { canManage: this.canManage(user, managerUserId) } };
+    return { plan, capabilities: this.planCapabilities(user, managerUserId) };
   }
 
   async create(user: VisitPlanUser, input: CreateVisitPlanDto) {

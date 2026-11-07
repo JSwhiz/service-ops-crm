@@ -69,8 +69,8 @@ export function TimesheetCellEditor({
   const date = `${year}-${String(month).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
   const canDirectEdit = canDirectEditCapability && date === moscowToday();
   const requiresRetroApproval = date < moscowToday();
-  const canRestore = isChangedManually && finalValue !== autoValue && (canDirectEdit || requiresRetroApproval && canDirectEditCapability);
-  const canOfferCorrection = isEditableDate && (canDirectEditCapability || canRequestCorrection);
+  const canRestore = isChangedManually && finalValue !== autoValue && (canDirectEdit || requiresRetroApproval && canRequestCorrection);
+  const canOfferCorrection = isEditableDate && (canDirectEdit || canRequestCorrection);
   const retryBlocked = isCellCorrectionRetryBlocked(pendingRequest, blockedAtRevision, dataRevision);
   const canMutate = canOfferCorrection && !mutationsBlocked && !retryBlocked;
 

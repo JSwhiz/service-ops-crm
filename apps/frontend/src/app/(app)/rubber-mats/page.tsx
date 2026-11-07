@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
+import { AccessSnapshotBoundary } from '@/shared/auth/access-snapshot-boundary';
 import {
   getRubberMatAggregateRegistry, getRubberMatCatalog, getRubberMatCostHistory,
   matMoney, matSizeLabel, setRubberMatCost,
@@ -15,12 +17,19 @@ import { CreateNavigationLink } from '@/shared/create-navigation';
 import styles from './rubber-mats.module.css';
 
 export default function RubberMatsPage(): React.JSX.Element {
-  const [catalog, setCatalog] = useState<{ items: RubberMatSize[]; canManage: boolean } | null>(null);
+  const accessRevision = useAccessRevision();
+  const [catalogRevision, setCatalogRevision] = useState<string | null>(null);
+  const [registryRevision, setRegistryRevision] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<{ items: RubberMatSize[]; canManage: boolean; canEditCost?: boolean } | null>(null);
   const [registry, setRegistry] = useState<RubberMatAggregateRegistry | null>(null);
   const [query, setQuery] = useState('');
   const [withMatsOnPage, setWithMatsOnPage] = useState(false);
   const [page, setPage] = useState(1);
   const [revision, setRevision] = useState(0);
+  const [catalogRetry, setCatalogRetry] = useState(0);
+  const [registryRetry, setRegistryRetry] = useState(0);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [registryError, setRegistryError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,10 +38,11 @@ export default function RubberMatsPage(): React.JSX.Element {
 
   useEffect(() => {
     let active = true;
-    void getRubberMatCatalog().then((result) => { if (active) setCatalog(result); })
-      .catch((caught: unknown) => { if (active) setError(caught instanceof Error ? caught.message : 'Не удалось загрузить каталог'); });
+    setCatalogError(null);
+    void getRubberMatCatalog().then((result) => { if (active) { setCatalog(result); setCatalogRevision(accessRevision); } })
+      .catch((caught: unknown) => { if (active) { setCatalog(null); setCatalogError(caught instanceof Error ? caught.message : 'Не удалось загрузить каталог'); } });
     return () => { active = false; };
-  }, [revision]);
+  }, [revision, catalogRetry, accessRevision]);
 
   useEffect(() => {
     const onCreated = (): void => setRevision((value) => value + 1);
@@ -43,14 +53,16 @@ export default function RubberMatsPage(): React.JSX.Element {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setRegistryError(null);
     const timer = window.setTimeout(() => {
       void getRubberMatAggregateRegistry(query, page, 20).then((result) => {
-        if (active) setRegistry(result);
-      }).catch((caught: unknown) => { if (active) { setRegistry(null); setError(caught instanceof Error ? caught.message : 'Не удалось загрузить учёт ковров'); } })
+        if (active) { setRegistry(result); setRegistryRevision(accessRevision); }
+      }).catch((caught: unknown) => { if (active) { setRegistry(null); setRegistryError(caught instanceof Error ? caught.message : 'Не удалось загрузить учёт ковров'); } })
         .finally(() => { if (active) setLoading(false); });
     }, 300);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [query, page, revision]);
+  }, [query, page, revision, registryRetry, accessRevision]);
+  useEffect(() => { setHistory(null); }, [accessRevision]);
 
   const run = async (action: () => Promise<unknown>): Promise<void> => {
     setBusy(true); setError(null);
@@ -66,9 +78,11 @@ export default function RubberMatsPage(): React.JSX.Element {
 
   return <div className={styles.page}>
     <p>Количество ковров на объектах и каталог стоимости замены.</p>
+    {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}
+    {registryError ? <Alert tone="warning" action={<Button onClick={() => setRegistryRetry((value) => value + 1)}>Обновить учёт ковров</Button>}>{registryError} Учёт объектов недоступен; это не означает отсутствие ковров.</Alert> : registryRevision !== accessRevision ? <p role="status">Проверяем доступ к учёту ковров…</p> : null}
+    <AccessSnapshotBoundary blocked={registryRevision !== accessRevision || !!registryError || !registry}>
     <div className="ui-inline"><Button size="sm" aria-pressed={withMatsOnPage} onClick={() => setWithMatsOnPage((current) => !current)}>Есть ковры · на текущей странице</Button><a href="#rubber-mat-catalog">Каталог размеров</a></div>
     {withMatsOnPage ? <p className="ui-text-muted">Показаны объекты с коврами только среди загруженных объектов этой страницы. Поиск и пагинация относятся ко всем доступным объектам.</p> : null}
-    {error ? <Alert tone="danger" role="alert">{error} <Button onClick={() => { setError(null); setRevision((value) => value + 1); }}>Обновить данные</Button></Alert> : null}
     <RegistryToolbar searchValue={query} searchLabel="Поиск объектов" searchPlaceholder="Название или адрес объекта" onSearchChange={(value) => { setQuery(value); setPage(1); }} activeFilters={[]} availableFilters={[]} />
     <DataTable label="Ковры на доступных объектах" frameClassName={styles.tableFrame}>
       <thead><tr><th>Объект</th><th>Количество ковров</th><th>Стоимость замены</th></tr></thead>
@@ -78,14 +92,17 @@ export default function RubberMatsPage(): React.JSX.Element {
       </tr>)}</tbody>
     </DataTable>
     <TablePagination page={page} totalPages={registry?.totalPages || 1} pending={loading} label="Страницы объектов с коврами" summary={'Объектов: ' + (registry?.total ?? 0)} onPageChange={setPage} />
+    </AccessSnapshotBoundary>
 
+    {catalogError ? <Alert tone="warning" action={<Button onClick={() => setCatalogRetry((value) => value + 1)}>Обновить каталог размеров</Button>}>{catalogError} Каталог недоступен; учёт ковров на объектах проверяется независимо.</Alert> : catalogRevision !== accessRevision ? <p role="status">Проверяем доступ к каталогу размеров…</p> : null}
+    <AccessSnapshotBoundary blocked={catalogRevision !== accessRevision || !!catalogError || !catalog}>
     <div id="rubber-mat-catalog" className="ui-inline"><h2>Каталог размеров</h2>{catalog?.canManage ? <CreateNavigationLink className="ui-button ui-button--primary" href="/rubber-mats/new">Добавить размер</CreateNavigationLink> : null}</div>
     <p>Новые размеры и цены вводятся явно. Пустая цена означает, что стоимость ещё не указана.</p>
     <DataTable label="Каталог размеров ковров" frameClassName={styles.tableFrame}>
       <thead><tr><th>Размер</th><th>Стоимость замены за ковёр</th><th>Действия</th></tr></thead>
       <tbody>{!catalog ? <tr><td colSpan={3}>{error ? 'Каталог не загружен.' : 'Загружаем каталог…'}</td></tr> : catalog.items.length === 0 ? <tr><td colSpan={3}>Размеры пока не добавлены.</td></tr> : catalog.items.map((size) => <tr key={size.id}>
         <td>{matSizeLabel(size)}</td><td>{matMoney(size.replacementCost)}</td>
-        <td>{catalog.canManage ? <form className={styles.formGrid} onSubmit={(event) => {
+        <td>{(catalog.canEditCost ?? catalog.canManage) ? <form className={styles.formGrid} onSubmit={(event) => {
           event.preventDefault();
           const draft = costDrafts[size.id];
           if (!draft) return;
@@ -108,5 +125,6 @@ export default function RubberMatsPage(): React.JSX.Element {
       </tr>)}</tbody>
     </DataTable>
     {history ? <section><h3>История стоимости: {matSizeLabel(history.size)}</h3><ol>{history.changes.length === 0 ? <li>Изменений пока нет.</li> : history.changes.map((change) => <li key={change.id}>{matMoney(change.beforeCost)} → {matMoney(change.afterCost)} · {change.actorName ?? 'Перенос прежних записей'} · {new Date(change.occurredAt).toLocaleString('ru-RU')}</li>)}</ol></section> : null}
+    </AccessSnapshotBoundary>
   </div>;
 }

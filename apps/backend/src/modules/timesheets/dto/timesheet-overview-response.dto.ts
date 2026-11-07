@@ -9,6 +9,10 @@ export class TimesheetOverviewResponseDto {
     objectName: string;
     employeeId: string;
     employeeName: string;
+    capabilities: {
+      canManualCorrection: boolean;
+      canRequestCorrection: boolean;
+    };
     entries: Array<{
       dayOfMonth: number;
       finalValue: number;

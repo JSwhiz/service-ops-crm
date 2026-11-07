@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import React, { useRef, useState } from 'react';
+import { useAccessRevision } from '@/shared/auth/use-access-revision';
 
 import { createRubberMatSize, getRubberMatCatalog } from '@/entities/rubber-mat/api/rubber-mat-client';
 import { toCreateRubberMatSizePayload } from '@/features/rubber-mat-size-create/model/create-rubber-mat-size-payload';
@@ -26,6 +27,9 @@ function hasValues(value: RubberMatSizeDraft): boolean {
 }
 
 export function RubberMatSizeCreateDialog(): React.JSX.Element {
+  const accessRevision = useAccessRevision();
+  const [loadedAccessRevision, setLoadedAccessRevision] = useState<string | null>(null);
+  const [canEditCost, setCanEditCost] = useState(false);
   const router = useRouter();
   const navigation = useCreateNavigation();
   const params = navigation.getTargetSearchParams();
@@ -42,13 +46,15 @@ export function RubberMatSizeCreateDialog(): React.JSX.Element {
 
   React.useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError(null);
     void getRubberMatCatalog().then((catalog) => {
-      if (active) setCanManage(catalog.canManage);
+      if (active) { setCanManage(catalog.canManage); setCanEditCost(catalog.canEditCost ?? catalog.canManage); setLoadedAccessRevision(accessRevision); }
     }).catch((caught: unknown) => {
       if (active) setError(caught instanceof Error ? caught.message : 'Не удалось проверить права и загрузить каталог.');
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [accessRevision]);
 
   const update = (key: keyof RubberMatSizeDraft, value: string): void => {
     const next = { ...draft.value, [key]: value };
@@ -58,12 +64,15 @@ export function RubberMatSizeCreateDialog(): React.JSX.Element {
 
   const submit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
-    if (submitLock.current || busy || !canManage) return;
+    if (submitLock.current || busy || !canManage || loading || loadedAccessRevision !== accessRevision) return;
     submitLock.current = true;
     setBusy(true);
     setError(null);
     try {
-      await draft.submit(() => createRubberMatSize(toCreateRubberMatSizePayload(draft.value)));
+      await draft.submit(() => {
+        const payload = toCreateRubberMatSizePayload({ ...draft.value, replacementCost: canEditCost ? draft.value.replacementCost : '' });
+        return createRubberMatSize(canEditCost ? payload : { lengthCm: payload.lengthCm, widthCm: payload.widthCm });
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Не удалось добавить размер ковра.');
       submitLock.current = false;
@@ -101,7 +110,7 @@ export function RubberMatSizeCreateDialog(): React.JSX.Element {
             form={FORM_ID}
             pending={busy}
             pendingLabel="Добавляем…"
-            disabled={loading || busy || created}
+            disabled={loading || busy || created || loadedAccessRevision !== accessRevision}
           >{created ? 'Добавлено' : 'Добавить размер'}</Button> : null}
         </div>
       )}
@@ -117,8 +126,9 @@ export function RubberMatSizeCreateDialog(): React.JSX.Element {
               <input required type="number" min="0.01" max="99999999.99" step="0.01" value={draft.value.width} disabled={busy} onChange={(event) => update('width', event.target.value)} />
             </Field>
             <Field label="Стоимость замены, ₽" className={styles.cost}>
-              <input type="number" min="0" max="999999999999.99" step="0.01" value={draft.value.replacementCost} disabled={busy} onChange={(event) => update('replacementCost', event.target.value)} />
+              <input type="number" min="0" max="999999999999.99" step="0.01" value={canEditCost && loadedAccessRevision === accessRevision ? draft.value.replacementCost : ''} disabled={busy || !canEditCost || loadedAccessRevision !== accessRevision} onChange={(event) => update('replacementCost', event.target.value)} />
             </Field>
+            {!canEditCost && !loading ? <p className={styles.requiredNote}>Размер можно добавить без стоимости. Для указания стоимости замены нужно отдельное право; цена не будет передана как ноль.</p> : null}
           </div>
           {loading ? <p role="status">Проверяем доступ…</p> : null}
           {error ? <Alert tone="danger" role="alert">{error}</Alert> : null}

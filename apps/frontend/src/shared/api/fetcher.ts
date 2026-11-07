@@ -1,5 +1,6 @@
 import { appConfig } from '@/shared/config/app-config';
 import { refreshSession } from '@/shared/auth/auth-session';
+import { getAccessGeneration, isAccessGenerationCurrent } from '@/shared/auth/access-generation';
 
 interface FetcherOptions extends RequestInit {
   skipAuthRetry?: boolean;
@@ -158,6 +159,13 @@ export async function fetcher<T>(
   } = options;
 
   const resolvedMethod = method ?? 'GET';
+  const accessGeneration = getAccessGeneration();
+  const assertCurrentAccess = (): void => {
+    if (!path.startsWith('/auth/') && !isAccessGenerationCurrent(accessGeneration)) {
+      // Never replay writes: the server may already have applied the mutation.
+      throw new ApiError('Права изменились. Данные обновляются. Перед повторным действием проверьте результат в истории.', 409, 'ACCESS_VERSION_CHANGED');
+    }
+  };
   const url = `${appConfig.apiUrl}${path}`;
 
   const resolvedHeaders: Record<string, string> = {
@@ -186,6 +194,7 @@ export async function fetcher<T>(
       const refreshed = await refreshSession();
 
       if (refreshed) {
+        assertCurrentAccess();
         response = await executeRequest(
           url,
           resolvedMethod,
@@ -198,10 +207,12 @@ export async function fetcher<T>(
 
     if (!response.ok) {
       const rawBody = await response.text();
+      assertCurrentAccess();
       throw buildApiError(response.status, rawBody);
     }
 
     const rawBody = await response.text();
+    assertCurrentAccess();
 
     if (!rawBody.trim()) {
       return null as T;
